@@ -1089,3 +1089,12 @@ let is_label = (info: t): bool =>
   | InfoExp({label_sort: true, _}) => true
   | _ => false
   };
+
+/* Extract the projector kind from an info, if it represents a projector term */
+let projector_kind_of = (info: t): option(ProjectorKind.t) =>
+  switch (info) {
+  | InfoExp({term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
+  | InfoPat({term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
+  | InfoTyp({term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
+  | _ => None
+  };

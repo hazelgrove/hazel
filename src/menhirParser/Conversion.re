@@ -400,6 +400,7 @@ module rec Exp: {
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
     | Module(items) => Module(List.map(ModItem.of_core, items))
+    | Projector(_, e) => of_core(e)
     };
   };
 
@@ -535,6 +536,7 @@ and Typ: {
         );
       SumTyp(sumterms);
     | Sig(items) => Sig(List.map(SigItem.of_core, items))
+    | Projector(_, t) => of_core(t)
     };
   };
 }
@@ -609,6 +611,7 @@ and Pat: {
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
+    | Projector(_, p) => of_core(p)
     };
   };
 }

@@ -27,17 +27,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (Asc(e, t'), t)
+    | (Asc(e, t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
-        when
-          Typ.is_consistent(
-            Ctx.empty,
-            Typ.unroll(t |> Typ.temp),
-            Typ.unroll(t'),
-          ) =>
-      switch (
-        Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
-      ) {
+        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
+      switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
       | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
       }
@@ -133,26 +126,26 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       );
-    | (If(cond, e1, e2), t) =>
+    | (If(cond, e1, e2), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           If(
             recur(cond),
-            recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
-            recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
+            recur(Asc(e1, t) |> DHExp.fresh),
+            recur(Asc(e2, t) |> DHExp.fresh),
           )
           |> DHExp.fresh,
         ),
       )
-    | (Match(scrut, rules), t) =>
+    | (Match(scrut, rules), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           Match(
             scrut,
             List.map(
-              ((p, body)) => (p, Asc(body, t |> Typ.temp) |> DHExp.fresh),
+              ((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
               rules,
             ),
           )
@@ -230,6 +223,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
     | (Parens(e), _) =>
       Some(Parens(Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
+    | (Projector(data, e), _) =>
+      Some(Projector(data, Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
     // We _could_ do this, but it would be a bit weird
     | (Use(_), _) // I'm scaredto do Use because the type-directed literals might make this look weird in the stepper
     | (BuiltinFun(_), _)

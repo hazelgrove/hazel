@@ -1142,6 +1142,7 @@ let get_doc =
         | Parens(_)
         | Label(_)
         | ExplicitNonlabel
+        | Projector(_)
         | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1727,6 +1728,7 @@ let get_doc =
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
+        | Projector(_)
         | Asc(_) => default // Shouldn't get hit?
         };
       | Theorem(pat, thm, body) =>
@@ -2180,6 +2182,7 @@ let get_doc =
           TerminalExp.ctr(v),
         )
       | Module(_) => simple("Module expression")
+      | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
@@ -2441,7 +2444,8 @@ let get_doc =
         TypAnnPat.typann,
       );
     | Invalid(_) => simple("Not a valid pattern")
-    | Parens(_) =>
+    | Parens(_)
+    | Projector(_) =>
       // Shouldn't be hit?
       default
     }
@@ -2679,6 +2683,7 @@ let get_doc =
     | ProdExtension(_)
     | Parens(_)
     | Sig(_) => default // Shouldn't be hit?
+    | Projector(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {

@@ -43,8 +43,10 @@ let rec match_exp =
   let match_exp = match_exp(~info_map);
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */
-  | (Parens(e1), _) => match_exp(alphas, ctx, e1, exp)
-  | (_, Parens(e2)) => match_exp(alphas, ctx, exp_r, e2)
+  | (Parens(e1), _)
+  | (Projector(_, e1), _) => match_exp(alphas, ctx, e1, exp)
+  | (_, Parens(e2))
+  | (_, Projector(_, e2)) => match_exp(alphas, ctx, exp_r, e2)
   // TODO: Better cast logic
   | (Asc(e1, _), _) => match_exp(alphas, ctx, e1, exp)
   | (_, Asc(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
@@ -260,8 +262,10 @@ and match_any = (_: match_ctx, _: Any.t, _: Any.t): option(unit) => None
 
 and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   switch (pat_r |> Pat.term_of, pat |> Pat.term_of) {
-  | (Parens(p1), _) => match_pat(p1, pat)
-  | (_, Parens(p2)) => match_pat(pat_r, p2)
+  | (Parens(p1), _)
+  | (Projector(_, p1), _) => match_pat(p1, pat)
+  | (_, Parens(p2))
+  | (_, Projector(_, p2)) => match_pat(pat_r, p2)
   | (Invalid(x), Invalid(y)) when x == y => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])

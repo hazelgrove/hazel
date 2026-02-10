@@ -28,25 +28,47 @@ let tests = (
       )
     }),
     test_case(
-      "Constructors can pass through consistent ascriptions", `Quick, () => {
-      evaluation_test(
-        {|A : (+A +B) : (+A + ?)|},
-        constructor(
-          "A",
-          Some(
+      "Constructors can pass through consistent ascriptions",
+      `Quick,
+      () => {
+        evaluation_test(
+          {|A : (+A +B) : (+A + ?)|},
+          constructor(
+            "A",
             Some(
-              Typ.(
-                sum([
-                  Variant("A", ConstructorMap.empty_variant_ann, None),
-                  Variant("B", ConstructorMap.empty_variant_ann, None),
-                ])
+              Some(
+                Typ.(
+                  sum([
+                    Variant("A", ConstructorMap.empty_variant_ann, None),
+                    Variant("B", ConstructorMap.empty_variant_ann, None),
+                  ])
+                ),
               ),
             ),
           ),
-        ),
-        elaborate(parse_exp({|A : (+A +B) : (+A + ?)|})),
-      )
-    }),
+          elaborate(parse_exp({|A : (+A +B) : (+A + ?)|})),
+        );
+        evaluation_test(
+          "Ascriptions don't do unnecessary unrolling",
+          asc(
+            empty_hole(),
+            Typ.rec_(
+              TPat.var("X"),
+              Typ.sum([
+                Variant(
+                  "A",
+                  ConstructorMap.empty_variant_ann,
+                  Some(Typ.var("X")),
+                ),
+              ]),
+            ),
+          ),
+          elaborate(
+            parse_exp("(if true then ? else ?) : (rec X -> + A(X))"),
+          ),
+        );
+      },
+    ),
     test_case(
       "Constructors don't pass through inconsistent ascriptions", `Quick, () => {
       evaluation_test(

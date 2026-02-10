@@ -1043,11 +1043,59 @@ module SecondaryCollection = {
     | _ => None
     };
 
-  /* Recursively collect secondary from a segment (for compound tile children) */
-  let rec collect_from_seg = (child_seg: t, acc: secondary_map): secondary_map =>
+  /* Collect secondary from a segment by directly walking through pieces.
+     This handles segments with embedded Secondary pieces (like projector children)
+     where skel() would throw Input_contains_secondary. */
+  let rec collect_from_seg_direct =
+          (seg: t, acc: secondary_map): secondary_map => {
+    /* Find all non-secondary pieces and collect their before/after secondary */
+    let rec find_pieces = (idx, pieces_acc) =>
+      if (idx >= List.length(seg)) {
+        List.rev(pieces_acc);
+      } else {
+        switch (List.nth(seg, idx)) {
+        | Piece.Secondary(_) => find_pieces(idx + 1, pieces_acc)
+        | _ =>
+          find_pieces(idx + 1, [(idx, List.nth(seg, idx)), ...pieces_acc])
+        };
+      };
+
+    let pieces = find_pieces(0, []);
+    List.fold_left(
+      (acc, (idx, piece)) => {
+        let before = collect_before(seg, idx);
+        let after = collect_after(seg, idx);
+        switch (piece) {
+        | Piece.Tile({id, children, _}) =>
+          /* Add secondary for this tile and recurse into children */
+          let acc = Id.Map.add(id, (before, after), acc);
+          List.fold_left(
+            (acc, child_seg) => collect_from_seg(child_seg, acc),
+            acc,
+            children,
+          );
+        | Piece.Projector({id, syntax, _}) =>
+          /* Add secondary for projector and recurse into its content */
+          let acc = Id.Map.add(id, (before, after), acc);
+          let inner_seg = Piece.unparenthesize(syntax);
+          collect_from_seg(inner_seg, acc);
+        | Piece.Grout({id, _}) => Id.Map.add(id, (before, after), acc)
+        | _ => acc
+        };
+      },
+      acc,
+      pieces,
+    );
+  }
+
+  /* Recursively collect secondary from a segment (for compound tile children).
+     Falls back to direct collection when the segment contains Secondary pieces. */
+  and collect_from_seg = (child_seg: t, acc: secondary_map): secondary_map =>
     try(collect_from_skel(child_seg, skel(child_seg), acc)) {
-    | Skel.Nonconvex_segment
-    | Skel.Input_contains_secondary => acc
+    | Skel.Nonconvex_segment => acc
+    | Skel.Input_contains_secondary =>
+      /* Segment has embedded Secondary pieces, use direct collection */
+      collect_from_seg_direct(child_seg, acc)
     }
   /* Recursively collect secondary for all terms in the skeleton.
 
@@ -1107,6 +1155,11 @@ module SecondaryCollection = {
               acc,
               children,
             )
+          | Some(Piece.Projector({syntax, _})) =>
+            /* Projectors wrap their content in parentheses. Extract the inner
+               segment and recursively collect secondary from it. */
+            let inner_seg = Piece.unparenthesize(syntax);
+            collect_from_seg(inner_seg, acc);
           | _ => acc
           },
         acc,

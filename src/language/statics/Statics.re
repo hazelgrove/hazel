@@ -418,7 +418,8 @@ and uexp_to_info_map =
         m,
       )
     | DynamicErrorHole(e, _)
-    | Parens(e) =>
+    | Parens(e)
+    | Projector(_, e) =>
       let (e, m) = go(~ana, e, m);
       add'(~self=e.self, ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
@@ -1960,7 +1961,8 @@ and upat_to_info_map =
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
-    | Parens(p) =>
+    | Parens(p)
+    | Projector(_, p) =>
       let (p, m) = go(~ctx, ~ana, p, m);
       add'(~self=p.self, ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
@@ -2065,7 +2067,8 @@ and utyp_to_info_map =
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
-  | Parens(t) => add(go(t, m) |> snd)
+  | Parens(t)
+  | Projector(_, t) => add(go(t, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
