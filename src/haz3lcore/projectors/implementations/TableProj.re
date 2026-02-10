@@ -61,32 +61,6 @@ let get = (info: info): (list(LabeledTuple.label), list(list(Exp.t))) =>
   | None => failwith("TextArea: get: Not a table")
   };
 
-let key_handler = (id, ~parent, evt) => {
-  open Effect;
-  let key = Key.mk(KeyDown, evt);
-
-  switch (key.key) {
-  | D("ArrowRight" | "ArrowDown")
-      when WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([parent(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp")
-      when WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([parent(Escape(Left)), Stop_propagation]);
-  /* Defer to parent editor undo for now */
-  | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
-    Many([Prevent_default])
-  | D("z" | "Z")
-      when Key.shift_held(evt) && (Key.ctrl_held(evt) || Key.meta_held(evt)) =>
-    Many([Prevent_default])
-  | D("\"") =>
-    /* Hide quotes from both the textarea and parent editor */
-    Many([Prevent_default, Stop_propagation])
-  | _ => Stop_propagation
-  };
-};
-
 let len_seg = (utility: utility, seg: Segment.t): int =>
   seg |> utility.seg_to_string |> String.length;
 
