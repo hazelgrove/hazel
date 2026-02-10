@@ -228,8 +228,8 @@
   --modal-z: 101;
 
   /* TABLE TABLES */
-  --df-bg: var(--T3);
-  --df-header-bg: oklch(from var(--df-bg) 85% calc(c * 0.7) h);
-  --df-zebra-bg: oklch(from var(--df-bg) 88% c h);
-  --df-hover-bg: oklch(80% 0.1 250); /* gentle blue highlight */
+  --df-bg: var(--SAND);
+  --table-header-bg: rgb(121, 121, 121);
+  --df-zebra-bg: var(--T2);
+  --df-hover-bg: oklch(90% 0.1 250); /* gentle blue highlight */
 }
