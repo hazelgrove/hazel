@@ -31,8 +31,11 @@ setup(async (href, request) => handoff(href, request))
 
 const moduleWatcher = new ModuleWatcher(
 	repo,
-	// rabbitcounter
-	["automerge:4GHeCq7k1BEhPdpPDWyF2EQFXKrG"],
+	// rabbitcounter tool + datatype
+  // ["automerge:4GHeCq7k1BEhPdpPDWyF2EQFXKrG"],
+  // codemirror-base
+  // ["automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX"],
+  ["automerge:9omX3o8Ch387BWzEKW2KXfySPxe"],
 	(name, mod) => {
 		console.log("Prebundled module loaded:", name, mod)
 		if (Array.isArray(mod.plugins)) {
@@ -41,12 +44,20 @@ const moduleWatcher = new ModuleWatcher(
 		}
 	}
 )
+window.moduleWatcher = moduleWatcher
+console.log("moduleWatcher", moduleWatcher)
+window.plugins = getRegistry("patchwork:tool")
 
 // "automerge:2kbRgPyThsqsAtFsaEV83AuQtHsr"
 
-//moduleWatcher.loadModules(["automerge:4GHeCq7k1BEhPdpPDWyF2EQFXKrG"])
+// subsequent dynamic loading of modules
+moduleWatcher.loadModules([
+  "automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX",
+  "automerge:L45rfzTVcMDsyXRyuhpNMPXqPwf",
+  "automerge:3Fj5zE7QdhbbWVJNsAHPbf84YfX6"
+])
 
-registerPatchworkViewElement({repo})
+registerPatchworkViewElement({repo, moduleWatcher})
 
 window.Algebrite = Algebrite
 window.Plot = Plot

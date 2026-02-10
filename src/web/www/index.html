@@ -25,7 +25,11 @@
 					"@codemirror/state": "https://gaios.sgai.uk/packages/@codemirror/state.js",
 					"@codemirror/view": "https://gaios.sgai.uk/packages/@codemirror/view.js",
 					"@codemirror/language": "https://gaios.sgai.uk/packages/@codemirror/language.js",
-					"solid-js": "/packages/solid-js.js"
+					"solid-js": "https://gaios.sgai.uk/packages/solid-js.js",
+          "solid-js/html": "https://gaios.sgai.uk/packages/solid-js/html.js",
+          "solid-js/web": "https://gaios.sgai.uk/packages/solid-js/web.js",
+          "solid-js/h": "https://gaios.sgai.uk/packages/solid-js/h.js",
+          "solid-js/store": "https://gaios.sgai.uk/packages/solid-js/store.js"
 				},
 				"scopes": {}
 			}
@@ -36,11 +40,18 @@
 	<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
 	<link href="https://fonts.googleapis.com/css?family=Material+Icons&display=swap" rel="stylesheet" />
 	<style>
+    patchwork-view {
+      display: block;
+      height: 100%;
+      width: 100%;
+      contain: layout;
+    }
+/*
 		patchwork-view {
 			display: flow-root;
 			height: 100vh;
 			width: 100vw;
-		}
+		} */
 	</style>
 	<script type="module" src="bundled.js"></script>
 </head>
