@@ -96,9 +96,10 @@ module Update = {
           {
             ...model,
             replay_messages: [
-              "No next log action to perform",
+              "log replay finished",
               ...model.replay_messages,
             ],
+            replay_toggle: false,
           }
           |> Updated.return_quiet
         | [(t, next), ...rest] =>

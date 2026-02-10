@@ -89,6 +89,33 @@ let controls_section = (~globals: Globals.t, ~model: Model.t) => {
       div(
         ~attrs=[Attr.class_("log-control-row")],
         [
+          button(
+            ~tooltip="Import log file and reset state",
+            ~onclick=
+              _ => {
+                let elem = Util.JsUtil.get_elem_by_id("log-import-input");
+                elem##click;
+                Ui_effect.Ignore;
+              },
+            [text("Import & Reset")],
+          ),
+          button(
+            ~tooltip="Export current submission",
+            ~onclick=
+              _ => {
+                globals.get_log_and(log => {
+                  let data =
+                    globals.export_all(
+                      ~settings=globals.settings.core,
+                      ~instructor_mode=globals.settings.instructor_mode,
+                      ~log,
+                    );
+                  JsUtil.download_json(ExerciseSettings.filename, data);
+                });
+                Ui_effect.Ignore;
+              },
+            [text("Export Submission")],
+          ),
           file_input(
             ~onchange=
               file => {
@@ -104,16 +131,6 @@ let controls_section = (~globals: Globals.t, ~model: Model.t) => {
               `Extension("log"),
               `Extension("json"),
             ],
-          ),
-          button(
-            ~tooltip="Import log file and reset state",
-            ~onclick=
-              _ => {
-                let elem = Util.JsUtil.get_elem_by_id("log-import-input");
-                elem##click;
-                Ui_effect.Ignore;
-              },
-            [text("Import & Reset")],
           ),
         ],
       ),
