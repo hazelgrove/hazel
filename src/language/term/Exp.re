@@ -116,6 +116,8 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Filter(_) => Filter
   | Closure(_) => Closure
   | Parens(_) => Parens
+  // We're bypassing projectors from cls because they're breaking cursor inspector messages.
+  // Future work could be to specialize projectors in the cursor inspector.
   | Projector(_, e) => cls_of_term(e.term)
   | Cons(_) => Cons
   | ListConcat(_) => ListConcat
