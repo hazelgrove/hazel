@@ -5,42 +5,34 @@ open Language;
 
 let max_column_length = 12;
 
+let rec extract_labeled_tuple_entries =
+        (exp: Exp.t): option(list((LabeledTuple.label, DHExp.t))) => {
+  switch (exp.term) {
+  | Parens(e) => extract_labeled_tuple_entries(e)
+  | Tuple(es) =>
+    OptUtil.traverse(
+      (e: Exp.t) => {
+        switch (e.term) {
+        | TupLabel({term: Label(l), _}, inner) => Some((l, inner))
+        | _ => None
+        }
+      },
+      es,
+    )
+  | _ => None
+  };
+};
+
 let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
   | Exp({term: ListLit(es), _}) =>
-    let data: list(option((list(string), list(TermBase.exp_t)))) =
-      List.map(
-        e => {
-          switch (Unboxing.unbox(LabeledTupleEntries, e)) {
-          // TODO Stop doing this with unboxing and deconstruct it here with the parens
-          | IndetMatch => None
-          | DoesNotMatch => None
-          | Matches(entries: list((option(string), TermBase.exp_t))) =>
-            let f: option(list((string, TermBase.exp_t))) =
-              OptUtil.sequence(
-                List.map(
-                  ((label, value)) =>
-                    switch (label) {
-                    | Some(l) => Some((l, value))
-                    | None => None
-                    },
-                  entries,
-                ),
-              );
-
-            let g: option((list(string), list(TermBase.exp_t))) =
-              f |> Option.map(List.split);
-
-            g;
-          }
-        },
+    switch (
+      OptUtil.traverse(
+        e => extract_labeled_tuple_entries(e) |> Option.map(List.split),
         es,
-      );
-
-    let data: option(list((list(string), list(TermBase.exp_t)))) =
-      OptUtil.sequence(data);
-    switch (data) {
+      )
+    ) {
     | Some(data: list((list(string), list(TermBase.exp_t)))) =>
       let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
         List.split(data);
@@ -55,7 +47,7 @@ let table_of =
       | _ => None
       };
     | None => None
-    };
+    }
   | _ => None
   };
 
@@ -131,20 +123,7 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
   let (seg, length) = abbreviated_seg_of(utility, max_column_length, exp);
 
   Node.div(
-    ~attrs=[
-      //Attr.title(DynCursor.Debug.str(info, closure)),
-      Attr.classes([
-        "value",
-        length_cls(length),
-        // @ DynCursor.clss(info, closure)
-        // @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        // @ (!is_value(closure.value) ? ["indet"] : []),
-      ]),
-      // Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
-      // Attr.on_pointerdown(val_pointerdown),
-      // Attr.on_pointerup(val_pointerup),
-      // Attr.on_mousemove(val_mousemove),
-    ],
+    ~attrs=[Attr.classes(["value", length_cls(length)])],
     [view_seg(Sort.Exp, seg)],
   );
 };
