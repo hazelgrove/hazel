@@ -1448,13 +1448,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     wrap(exp, e1 @ [mk_form(ApExp, id, [e2])]);
   | Ap(Reverse, e1, e2) =>
-    print_endline("Printing reverse application");
-    print_endline(Exp.show(exp));
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-
     wrap(
       exp,
       e2
