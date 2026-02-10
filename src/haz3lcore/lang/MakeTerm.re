@@ -64,15 +64,18 @@ let is_sig_seq = is_nary(Any.is_sig, ";");
 
 /* Flatten a module term into a list of module items.
    Module sequences (from semicolons) are stored as MultiHole([Mod(m1), Mod(m2)])
-   during parsing and need to be flattened into a proper list for Module(items). */
+   during parsing and need to be flattened into a proper list for Module(items).
+   Non-Mod children (from broken parse states during editing) are wrapped as
+   module items to isolate breakage — valid items keep their statics. */
 let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   switch (m.term) {
   | MultiHole(kids) =>
     kids
-    |> List.filter_map(
+    |> List.map(
          fun
-         | Grammar.Mod(m) => Some(flatten_mod(m))
-         | _ => None,
+         | Grammar.Mod(m) => flatten_mod(m)
+         | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
+         | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
        )
     |> List.flatten
   | ModLet(_, _)
@@ -84,15 +87,16 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
 
 /* Flatten a signature term into a list of signature items.
    Signature sequences (from semicolons) are stored as MultiHole([Sig(s1), Sig(s2)])
-   during parsing and need to be flattened into a proper list for Sig(items). */
+   during parsing and need to be flattened into a proper list for Sig(items).
+   Non-Sig children are wrapped to isolate breakage, matching flatten_mod. */
 let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
   switch (s.term) {
   | MultiHole(kids) =>
     kids
-    |> List.filter_map(
+    |> List.map(
          fun
-         | (Grammar.Sig(s): TermBase.Any.t) => Some(flatten_sig(s))
-         | _ => None,
+         | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
+         | _ => [Sig.fresh(EmptyHole)],
        )
     |> List.flatten
   | SigLet(_)
@@ -1078,7 +1082,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
            let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
-           go_s(s, Segment.skel(kid), kid);
+           go_s(s, Segment.skel(~sort=s, kid), kid);
          })
     };
 
