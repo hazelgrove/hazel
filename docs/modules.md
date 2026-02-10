@@ -136,7 +136,7 @@ This ensures clicking on any part of a module shows correct type information in 
 | `src/haz3lcore/lang/Form.re` | Module/Sig forms, `mk_pre_c'` helper |
 | `src/haz3lcore/tiles/Mold.re` | `mk_pre'` for heterogeneous prefix forms |
 | `src/haz3lcore/tiles/Segment.re` | `remold_mod`/`remold_sig` with fallback patterns |
-| `src/haz3lcore/tiles/Skel.re` | ModSeq/SigSeq semicolons chainable |
+| `src/haz3lcore/tiles/Skel.re` | ModSeq/SigSeq semicolons chainable, sort-specific grout precedence |
 | `src/haz3lcore/zipper/action/Insert.re` | `effective_sort` with Mod→Exp / Sig→Typ fallback |
 | `src/haz3lcore/lang/MakeTerm.re` | Module/Sig parsing with flattening |
 | `src/language/statics/ExpandModule.re` | Module expansion to nested let/type + labeled tuple |
@@ -159,7 +159,7 @@ This ensures clicking on any part of a module shows correct type information in 
 
 | File | What |
 |------|------|
-| `test/statics/Test_Statics_Modules.re` | 14 statics tests |
+| `test/statics/Test_Statics_Modules.re` | 48 statics tests (well-typed, errors, sig annotations, limitations) |
 | `test/evaluator/Test_Evaluator_Modules.re` | 11 evaluator tests (2 skipped for Menhir) |
 | `test/Test_MakeTerm.re` | Module parsing tests including nested modules |
 | `test/Test_Elaboration.re` | 4 module elaboration tests (module → labeled tuple) |
@@ -189,6 +189,14 @@ ModLet, ModType, SigLet, and SigType need different out vs body sorts. For examp
 Var patterns analyzed against singleton labeled tuple types (e.g., `(y=Int)`) were incorrectly elaborated. Fixed by checking if the pattern name matches the label before elaborating:
 - `let a = (a=1) in a` → elaborate (destructuring) → `a : Int`
 - `let m = (y=1) in m` → don't elaborate → `m : (y=Int)`
+
+### Sort-Specific Grout Precedence
+
+Concave grout (the placeholder left when an operator is deleted) normally has a tight precedence (34), which means it gets absorbed into the bodies of loose-binding forms like `fun`, `if`, and `let`. This is desirable in expression context — deleting a semicolon between `a; b` produces a multi-hole that the Elaborator converts to `Seq`.
+
+In module context, this is problematic: deleting a semicolon between `let x = 1; let y = 2` would cause the grout to be absorbed into the first let's expression body, breaking statics for the second binding. To fix this, `Skel.mk` accepts an optional `~sort` parameter. When `sort` is `Mod` or `Sig`, concave grout uses the much looser `mod_seq` precedence (47) instead of `concave_grout` (34). This causes grout to separate module items the same way semicolons do.
+
+The sort is threaded from `MakeTerm.re` where tile children are processed — the child sort is known from the tile's mold (`mold.in_`), so module body segments (`{...}`) get `sort=Mod` and signature bodies get `sort=Sig`. Expression bodies inside modules still get `sort=Exp`, so grout stays tight within function literals and other expression forms. All other `Segment.skel` callers default to `sort=Exp`.
 
 ### Module Semicolon Decoration
 

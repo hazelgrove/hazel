@@ -93,28 +93,36 @@ module Stacks = {
       }
     };
 
-  let shapes = (p: Piece.t): (Nib.Shape.t, Nib.Shape.t) =>
+  let shapes = (~sort: Sort.t, p: Piece.t): (Nib.Shape.t, Nib.Shape.t) =>
     switch (p) {
-    | Grout({shape: Concave, _}) => (
-        Concave(Precedence.concave_grout),
-        Concave(Precedence.concave_grout),
-      )
+    | Grout({shape: Concave, _}) =>
+      /* In Mod/Sig sort context, grout acts like a module/sig semicolon
+         (very loose) so that incomplete syntax between module items
+         doesn't absorb surrounding items into one broken body. */
+      let prec =
+        switch (sort) {
+        | Mod
+        | Sig => Precedence.mod_seq
+        | _ => Precedence.concave_grout
+        };
+      (Concave(prec), Concave(prec));
     | _ => Piece.shapes(p) |> OptUtil.get_or_raise(Input_contains_secondary)
     };
 
   let shapes_of_chain =
-      (chain: list(ip)): option((Nib.Shape.t, Nib.Shape.t)) =>
+      (~sort: Sort.t, chain: list(ip)): option((Nib.Shape.t, Nib.Shape.t)) =>
     switch (chain, ListUtil.split_last_opt(chain)) {
     | ([(_, first), ..._], Some((_, (_, last)))) =>
-      let (l, _) = shapes(first);
-      let (_, r) = shapes(last);
+      let (l, _) = shapes(~sort, first);
+      let (_, r) = shapes(~sort, last);
       Some((l, r));
     | _ => None
     };
 
-  let rec push_output = (~prec: option(Precedence.t)=?, stacks: t): t => {
+  let rec push_output =
+          (~sort: Sort.t, ~prec: option(Precedence.t)=?, stacks: t): t => {
     let (chain, shunted) = pop_chain(stacks.shunted);
-    switch (prec, shapes_of_chain(chain)) {
+    switch (prec, shapes_of_chain(~sort, chain)) {
     | (Some(prec), Some((_, Concave(prec'))))
         when
           Precedence.compare(prec', prec) < 0
@@ -148,6 +156,7 @@ module Stacks = {
           [Bin(l, Aba.mk(is, kids), r), ...output];
         };
       push_output(
+        ~sort,
         ~prec?,
         {
           shunted,
@@ -157,12 +166,12 @@ module Stacks = {
     };
   };
 
-  let push_shunted = ((_, p) as ip: ip, stacks: t): t => {
-    let (l, _) = shapes(p);
+  let push_shunted = (~sort: Sort.t, (_, p) as ip: ip, stacks: t): t => {
+    let (l, _) = shapes(~sort, p);
     let stacks =
       switch (l) {
       | Convex => stacks
-      | Concave(prec) => push_output(~prec, stacks)
+      | Concave(prec) => push_output(~sort, ~prec, stacks)
       };
     {
       ...stacks,
@@ -170,14 +179,14 @@ module Stacks = {
     };
   };
 
-  let finish = stacks => push_output(stacks);
+  let finish = (~sort: Sort.t, stacks) => push_output(~sort, stacks);
 };
 
-let mk = (seg: list(ip)): t => {
+let mk = (~sort=Sort.Exp, seg: list(ip)): t => {
   let stacks =
     seg
-    |> List.fold_left(Fun.flip(Stacks.push_shunted), Stacks.empty)
-    |> Stacks.finish;
+    |> List.fold_left(Fun.flip(Stacks.push_shunted(~sort)), Stacks.empty)
+    |> Stacks.finish(~sort);
   ListUtil.hd_opt(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
 };
 
