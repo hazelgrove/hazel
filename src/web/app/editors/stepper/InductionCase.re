@@ -329,8 +329,8 @@ module F = (Stepper: STEPPER) => {
         ~inject=x => inject(PatternUpdate(x)),
         ~selected=
           switch (focus) {
-          | Some(Pattern ()) => true
-          | _ => false
+          | Some(Pattern ()) => Yes
+          | _ => No
           },
         ~dynamics=Dynamics.Map.empty,
         model.pattern,

@@ -464,7 +464,7 @@ module View = {
           ~globals,
           ~signal,
           ~inject,
-          ~selected=selected == Some(Evaluation()),
+          ~selected=selected == Some(Evaluation()) ? Yes : No,
           ~locked,
           model.result |> Calc.get_value,
           editor |> Calc.get_saved_exc(~print="result editor missing"),

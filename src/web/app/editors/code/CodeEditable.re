@@ -229,7 +229,7 @@ module View = {
 
   let deco =
       (
-        ~expand_selection=false,
+        ~expand_selection,
         ~syntax: CachedSyntax.t,
         ~globals: Globals.t,
         z: Zipper.t,
@@ -263,65 +263,86 @@ module View = {
     ),
   ];
 
+  type selected =
+    | Yes
+    | JustHighlight
+    | No;
+
   let view =
       (
         ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
-        ~selected: bool,
+        ~selected: selected,
         ~overlays: list(Node.t)=[],
         ~dynamics: Language.Dynamics.Map.t,
-        ~expand_selection=?,
+        ~expand_selection=false,
         model: Model.t,
       ) => {
     /* Sync document-level click listener for closing context menu */
     ContextMenuListener.sync(
-      selected && Model.context_menu_is_open(model),
+      selected == Yes && Model.context_menu_is_open(model),
       inject(ContextMenu(ContextMenu.Model.Close)),
     );
     let edit_decos =
-      selected
-        ? deco(
-            ~expand_selection?,
+      switch (selected) {
+      | Yes =>
+        deco(
+          ~expand_selection,
+          ~syntax=model.editor.syntax,
+          ~globals,
+          model.editor.state.zipper,
+        )
+        @ [
+          Arms.Refractors.all(
+            ~font_metrics=globals.font_metrics,
             ~syntax=model.editor.syntax,
-            ~globals,
+            ~dynamics,
             model.editor.state.zipper,
-          )
-          @ [
-            Arms.Refractors.all(
-              ~font_metrics=globals.font_metrics,
-              ~syntax=model.editor.syntax,
-              ~dynamics,
-              model.editor.state.zipper,
-            ),
-          ]
-          @ (
-            switch (model.context_menu) {
-            | Some(selected_index) => [
-                /* Backdrop for scroll-close. Click handling is done via
-                   ContextMenuListener's document-level event listener. */
-                Node.div(
-                  ~attrs=[
-                    Attr.classes(["context-menu-backdrop"]),
-                    Attr.on_wheel(_ =>
-                      inject(ContextMenu(ContextMenu.Model.Close))
-                    ),
-                  ],
-                  [],
-                ),
-                ContextMenu.view(
-                  ~inject=a => inject(Perform(a)),
-                  ~syntax=model.editor.syntax,
-                  ~info_map=model.statics.info_map,
-                  ~font_metrics=globals.font_metrics,
-                  ~selected_index,
-                  model.editor.state.zipper,
-                ),
-              ]
-            | None => []
-            }
-          )
-        : [];
+          ),
+        ]
+        @ (
+          switch (model.context_menu) {
+          | Some(selected_index) => [
+              /* Backdrop for scroll-close. Click handling is done via
+                 ContextMenuListener's document-level event listener. */
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["context-menu-backdrop"]),
+                  Attr.on_wheel(_ =>
+                    inject(ContextMenu(ContextMenu.Model.Close))
+                  ),
+                ],
+                [],
+              ),
+              ContextMenu.view(
+                ~inject=a => inject(Perform(a)),
+                ~syntax=model.editor.syntax,
+                ~info_map=model.statics.info_map,
+                ~font_metrics=globals.font_metrics,
+                ~selected_index,
+                model.editor.state.zipper,
+              ),
+            ]
+          | None => []
+          }
+        )
+      | JustHighlight => [
+          (
+            expand_selection
+              ? Highlight.selection_expanded(
+                  ~term_data=model.editor.syntax.term_data,
+                )
+              : Highlight.selection
+          )(
+            ~measured=model.editor.syntax.measured,
+            ~shape_map=model.editor.syntax.shape_map,
+            ~font_metrics=globals.font_metrics,
+            model.editor.state.zipper,
+          ),
+        ]
+      | No => []
+      };
     let zipper = model.editor.state.zipper;
     let refractor_data =
       RefractorView.mk_data(
@@ -336,7 +357,7 @@ module View = {
         ~statics=model.statics.info_map,
         ~dynamics,
         ~sample_cursor=zipper.refractors.sample_cursor,
-        ~editor_active=selected,
+        ~editor_active=selected != No,
       );
     let visible = globals.visible_rows;
     let refractors_model =
@@ -361,7 +382,7 @@ module View = {
           ~statics=model.statics.info_map,
           ~dynamics,
           ~sample_cursor=zipper.refractors.sample_cursor,
-          ~editor_active=selected,
+          ~editor_active=selected != No,
         ),
         model.editor.syntax.projector_list,
       );
@@ -441,7 +462,7 @@ module View = {
     Node.div(
       ~attrs=[
         Attr.classes(
-          ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
+          ["cell-item", "code-editor"] @ (selected != No ? ["selected"] : []),
         ),
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {

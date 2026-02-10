@@ -247,7 +247,7 @@ module View = {
             locked
               ? _ => Ui_effect.Ignore
               : (action => inject(MainEditor(action))),
-          ~selected=selected == Some(MainEditor),
+          ~selected=selected == Some(MainEditor) ? Yes : No,
           ~overlays=overlays(model.editor.editor),
           ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,

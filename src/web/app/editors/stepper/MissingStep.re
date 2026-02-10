@@ -592,8 +592,8 @@ module View = {
                     ~inject=x => inject(RewriteEditorAction(x)),
                     ~selected=
                       switch (selected) {
-                      | Some(RewriteEditor ()) => true
-                      | _ => false
+                      | Some(RewriteEditor ()) => Yes
+                      | _ => No
                       },
                     ~dynamics=Dynamics.Map.empty,
                     editor,
@@ -704,8 +704,8 @@ module View = {
                     ~inject=x => inject(WriteStepEditorAction(x)),
                     ~selected=
                       switch (selected) {
-                      | Some(WriteStepEditor ()) => true
-                      | _ => false
+                      | Some(WriteStepEditor ()) => Yes
+                      | _ => No
                       },
                     ~dynamics=Dynamics.Map.empty,
                     editor,
@@ -779,6 +779,8 @@ module View = {
         ];
       };
 
+      let text_arrow = (b: bool) => if (b) {"▲"} else {"▼"};
+
       // I want to make a bunch of buttons here:
       // Evaluate [TODO], Rewrite, Axioms, Cases,
       let buttons =
@@ -833,14 +835,38 @@ module View = {
               ? [
                 proof_button(
                   ~callback=inject(ProposeWrittenStep),
-                  "Take Step ▼",
+                  "Take Step "
+                  ++ text_arrow(
+                       switch (model.open_box) {
+                       | Model.WrittenStepOpen(_) => true
+                       | _ => false
+                       },
+                     ),
                 ),
               ]
               : []
           )
           @ [
-            proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
-            proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
+            proof_button(
+              ~callback=inject(ProposeRewrite),
+              "Algebra "
+              ++ text_arrow(
+                   switch (model.open_box) {
+                   | Model.RewritesOpen(_) => true
+                   | _ => false
+                   },
+                 ),
+            ),
+            proof_button(
+              ~callback=inject(ToggleAxioms),
+              "Assumptions "
+              ++ text_arrow(
+                   switch (model.open_box) {
+                   | Model.AxiomsOpen(_) => true
+                   | _ => false
+                   },
+                 ),
+            ),
             proof_button(
               ~callback=
                 Ui_effect.Many([

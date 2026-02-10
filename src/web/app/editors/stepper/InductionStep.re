@@ -397,9 +397,9 @@ module F =
         ~inject=x => inject(ScrutUpdate(x)),
         ~selected=
           switch (focus) {
-          | Some(Scrut(_)) => true
+          | Some(Scrut(_)) => Yes
           | Some(_)
-          | None => false
+          | None => No
           },
         ~dynamics=Dynamics.Map.empty,
         model.scrut,

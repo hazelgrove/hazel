@@ -1071,9 +1071,11 @@ and Stepper: {
                 },
             ~inject=x => inject(EditorAction(x)),
             ~selected=
-              switch (focus) {
-              | Some(Here(_)) => true
-              | _ => false
+              switch (focus, model.step_kind) {
+              | (Some(Here(_)), _) => Yes
+              | (_, MissingStep({open_box: NoneOpen, _})) => No
+              | (_, MissingStep(_)) => JustHighlight
+              | _ => No
               },
             ~selected_id=selected_exp |> Option.map(Exp.rep_id),
             ~overlays=
