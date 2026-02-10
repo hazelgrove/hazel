@@ -90,6 +90,14 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Match => match(empty_hole(), [])
       | Asc => asc(empty_hole(), Typ.string())
       | ListConcat => list_concat(empty_hole(), empty_hole())
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          empty_hole(),
+        )
       }
     )
   );
@@ -120,6 +128,14 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
       | ExplicitNonlabel => explicit_non_label()
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          empty_hole(),
+        )
       }
     )
   );
@@ -161,6 +177,14 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | ProdExtension =>
         prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Constructor => assert(false) // Excluded because there is no Typ constructor
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          unknown(Hole(EmptyHole)),
+        )
       }
     )
   );
