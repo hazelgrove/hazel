@@ -16,18 +16,20 @@ module Model = {
     list((string, option(CellEditor.Model.persistent))),
   );
 
+  /* Persist model, storing None for slides unchanged from their original.
+     This saves localStorage space since unchanged slides can be loaded from Init.
+
+     Note: This comparison-based approach requires checking every slide on
+     every save. A cleaner design might track dirty state per-slide, or use
+     per-slide localStorage keys, eliminating the need for comparison entirely.
+     The cached segment lookup (Init.get_original_doc_segment) mitigates the
+     cost but doesn't eliminate the fundamental complexity. */
   let persist = (model: t): persistent => (
     model.current,
     List.map(
       ((s: string, m: CellEditor.Model.t)) => {
         let current_segment = Zipper.zip(m.editor.editor.state.zipper);
-        let original = Init.find_documentation_slide(s);
-        let original_segment =
-          original
-          |> Option.map((pce: CellEditor.Model.persistent) =>
-               PersistentZipper.unpersist(pce.editor)
-             )
-          |> Option.map(Zipper.zip);
+        let original_segment = Init.get_original_doc_segment(s);
         if (Option.equal(
               Base.equal_segment,
               original_segment,
