@@ -279,10 +279,10 @@ let type_annotation_data =
       {
         name:
           switch (probe_status) {
-          | Statics(_) => "Remove statics"
+          | Statics(_) => "Remove type probe"
           | Manual(_)
-          | Auto => "Switch to statics"
-          | Non => "Add statics"
+          | Auto => "Switch to type probe"
+          | Non => "Add type probe"
           },
         shortcut: Some(Shortcuts.type_annotation()),
         action: Probe(ToggleStatics),

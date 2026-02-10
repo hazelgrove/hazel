@@ -82,7 +82,7 @@ module M: Projector = {
 
   let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
-    | Dynamic => "↦"
+    | Dynamic => "⇓"
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
