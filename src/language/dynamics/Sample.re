@@ -548,12 +548,21 @@ module Selection = {
        * but actual samples have real names from evaluation */
       let pinned_ids = ids_of_stack(pinned_stack);
       List.filter(
-        (sample: t) =>
+        (sample: t) => {
+          let sample_ids = ids_of_stack(sample.call_stack);
           pinned_head_id == ap_id
-          || ListUtil.is_suffix_of(
-               pinned_ids,
-               ids_of_stack(sample.call_stack),
-             ),
+          /* Sample is at or below pin (current behavior) */
+          || ListUtil.is_suffix_of(pinned_ids, sample_ids)
+          /* Probe is on an application in the pinned call chain,
+           * and sample is above pin on same ancestral path (breadcrumbs) */
+          || ListUtil.is_suffix_of(sample_ids, pinned_ids)
+          && (
+            switch (ap_id) {
+            | Some(id) => List.mem(id, pinned_ids)
+            | None => false
+            }
+          );
+        },
         samples,
       );
     | None => samples
