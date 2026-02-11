@@ -1062,7 +1062,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
 let project_table_if = (should_project, pieces) =>
   if (should_project) {
     switch (MakeTerm.for_projection([pieces])) {
-    | None => failwith("ExpToSegment.fold_if")
+    | None => failwith("ExpToSegment.project_table_if")
     | Some(any) => [ProjectorInit.init_or_noop(Table, pieces, any)]
     };
   } else {
@@ -1452,7 +1452,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-
     wrap(
       exp,
       e2

@@ -860,9 +860,14 @@ let out : string * Haz3lcore.PersistentSegment.t =
          c8914c4f-b504-4e5a-b462-e545ef19efee)(content(Whitespace\" \
          \")))))((Secondary((id \
          d0857c03-4753-4bc6-aa1e-aac34adebfb4)(content(Whitespace\" \
-         \"))))(Tile((id 34450029-7496-4f29-a768-c1854cea295d)(label([ \
-         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
-         Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+         \"))))(Projector((id d41ddbf3-af04-445e-9343-66c053fc0416)(kind \
+         Table)(syntax(Tile((id \
+         2c587950-c900-45dd-88bc-adab62496507)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Tile((id \
+         34450029-7496-4f29-a768-c1854cea295d)(label([ ]))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Secondary((id \
          161e02f7-0866-4367-872c-d9899ae17092)(content(Whitespace\"\\n\"))))(Tile((id \
          579f2be8-669c-4dcb-8898-172f4bf43cfa)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
@@ -1080,7 +1085,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ee896392-5bf6-45f1-bcfd-3e21474ef040)(label(1300))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         63c08e6a-3250-4c46-96dc-9d3ed8fb4be6)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         63c08e6a-3250-4c46-96dc-9d3ed8fb4be6)(content(Whitespace\"\\n\")))))))))))))))(model\"()\")))(Secondary((id \
          36288d15-9624-4ee3-ae6f-17e22fff688f)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          287d26a3-9943-4873-8e80-7084a5218cf4)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -3055,13 +3060,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
          # `group_by_label`: Group records by a label's value and pivot into a \
          tuple of lists #\n\
          # Example: Game leaderboard entries grouped by level #\n\
-         let leaderboard = [\n\
+         let leaderboard = ^^table([\n\
          (level=\"forest\", player=\"Aria\", score=1200),\n\
          (level=\"desert\", player=\"Ben\", score=900),\n\
          (level=\"forest\", player=\"Cleo\", score=1500),\n\
          (level=\"cave\", player=\"Dana\", score=700),\n\
          (level=\"desert\", player=\"Eli\", score=1300)\n\
-         ] in\n\n\
+         ]) in\n\n\
          let ^^probe(by_level) = group_by_label(leaderboard, `level`) in\n\
          ^^probe(by_level.forest);\n\
          ^^probe(by_level.cave);\n\
