@@ -1,0 +1,126 @@
+initialProgram: |
+  # FLOWER SHOP MVU PRELUDE #
+
+  # Types of flowers #
+  type Flower =
+    + Rose
+    + Tulip
+    + Lily
+    + Daisy
+  in
+
+  # Bouquet represented as list of flowers #
+  type Bouquet = [Flower] in
+
+  # Price per flower #
+  let price_of: Flower -> Int =
+    fun f ->
+      case f of
+        + Rose -> 5
+        + Tulip -> 3
+        + Lily -> 4
+        + Daisy -> 2
+      end
+  in
+
+  # Actions user can perform #
+  type ShopAction =
+    + AddFlower(Flower)
+    + RemoveFlower(Flower)
+    + ClearBouquet
+  in
+
+  # Shop state: current bouquet #
+  type ShopState = Bouquet in
+
+  # Count occurrences of a flower #
+  let rec count: (Flower, Bouquet) -> Int =
+    fun (f, bq) ->
+      case bq of
+        + [] -> 0
+        + x :: xs ->
+            if x == f then 1 + count(f, xs)
+            else count(f, xs)
+      end
+  in
+
+  # BUGGY: Apply discount: for every 3 of the same flower, one more is free #
+  # This implementation incorrectly applies the discount. #
+  let discounted_count: (Flower, Bouquet) -> Int =
+    fun (f, bq) ->
+      let n = count(f, bq) in
+      n + (n / 4)
+  in
+
+  # Compute total bouquet price #
+  let total_price: Bouquet -> Int =
+    fun bq ->
+      let roses = discounted_count(Rose, bq) in
+      let tulips = discounted_count(Tulip, bq) in
+      let lilies = discounted_count(Lily, bq) in
+      let daisies = discounted_count(Daisy, bq) in
+      roses * price_of(Rose)
+      + tulips * price_of(Tulip)
+      + lilies * price_of(Lily)
+      + daisies * price_of(Daisy)
+  in
+
+  # Update shop state based on user action #
+  let update: (ShopState, ShopAction) -> ShopState =
+    fun (state, action) ->
+      case action of
+        + AddFlower(f) -> f :: state
+        + RemoveFlower(f) ->
+            case state of
+              + [] -> []
+              + x :: xs ->
+                  if x == f then xs
+                  else x :: update(xs, RemoveFlower(f))
+            end
+        + ClearBouquet -> []
+      end
+  in
+
+
+prompt: |
+  The flower shop application contains a bug in how the discount is computed.
+  When there are three of the same type of flower in the bouquet, one additional
+  flower of that type should be added for free. Fix the bug so that the total_price
+  function correctly applies this discount.
+
+
+tests: |
+  # Sample bouquets #
+  let b0 = [] in
+  let b1 = [Rose] in
+  let b2 = [Rose, Rose, Rose] in
+  let b3 = [Tulip, Tulip, Tulip] in
+  let b4 = [Rose, Rose, Rose, Rose, Rose, Rose] in
+  let b5 = [Lily, Lily, Lily, Lily] in
+  let b6 = [Daisy, Daisy, Daisy, Daisy, Daisy, Daisy, Daisy] in
+
+  # Testing total_price with discount #
+  test total_price(b0) == 0 end;
+  test total_price(b1) == 5 end;
+
+  # Three roses → pay for 3, get 1 free → 4 roses total #
+  test total_price(b2) == 20 end;
+
+  # Three tulips → pay for 3, get 1 free → 4 tulips total #
+  test total_price(b3) == 12 end;
+
+  # Six roses → pay for 6, get 2 free → 8 roses total #
+  test total_price(b4) == 40 end;
+
+  # Four lilies → pay for 4, get 1 free → 5 lilies total #
+  test total_price(b5) == 20 end;
+
+  # Seven daisies → pay for 7, get 2 free → 9 daisies total #
+  test total_price(b6) == 18 end;
+
+
+  # Testing state transitions #
+  test update([], AddFlower(Rose)) == [Rose] end;
+  test update([Rose], AddFlower(Tulip)) == [Tulip, Rose] end;
+  test update([Rose, Tulip, Lily], RemoveFlower(Tulip)) == [Rose, Lily] end;
+  test update([Rose, Tulip], ClearBouquet) == [] end;
