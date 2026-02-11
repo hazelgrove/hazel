@@ -20,7 +20,10 @@ open Language;
 /* --- Helpers --- */
 
 /* Make a stack frame. name defaults to None (as cursor/step-into constructs) */
-let frame = (~name=None, id: Id.t): Sample.stack_frame => {id, name};
+let frame = (~name=None, id: Id.t): Sample.stack_frame => {
+  id,
+  name,
+};
 
 /* Make a named stack frame (as evaluator produces) */
 let named_frame = (id: Id.t, name: string): Sample.stack_frame => {
@@ -310,11 +313,7 @@ let pin_tests = [
       let pinned = Some([frame(id_a)]);
       let sample = mk_sample([named_frame(id_a, "f")]);
       let filtered =
-        Sample.Selection.filter_by_pin(
-          ~ap_id=None,
-          ~pinned,
-          [sample],
-        );
+        Sample.Selection.filter_by_pin(~ap_id=None, ~pinned, [sample]);
       check(int, "should keep the sample", 1, List.length(filtered));
     },
   ),
@@ -506,11 +505,7 @@ let closest_tests = [
       let cursor = mk_cursor([frame(id_a)]);
       let sample = mk_sample(~seq=42, [named_frame(id_a, "f")]);
       let result =
-        Sample.Selection.closest_to_cursor(
-          ~ap_id=None,
-          ~cursor,
-          [sample],
-        );
+        Sample.Selection.closest_to_cursor(~ap_id=None, ~cursor, [sample]);
       switch (result) {
       | Some(s) => check(int, "should find the sample", 42, s.seq)
       | None => fail("should find a sample (was failing before fix)")
@@ -549,11 +544,7 @@ let empty_status_tests = [
     `Quick,
     () => {
       let status =
-        Sample.Selection.get_empty_status(
-          ~num_total=5,
-          ~num_shown=2,
-          (),
-        );
+        Sample.Selection.get_empty_status(~num_total=5, ~num_shown=2, ());
       check(bool, "should be None (samples visible)", true, status == None);
     },
   ),
@@ -562,11 +553,7 @@ let empty_status_tests = [
     `Quick,
     () => {
       let status =
-        Sample.Selection.get_empty_status(
-          ~num_total=0,
-          ~num_shown=0,
-          (),
-        );
+        Sample.Selection.get_empty_status(~num_total=0, ~num_shown=0, ());
       check(
         bool,
         "should be HiddenByPin",
@@ -580,11 +567,7 @@ let empty_status_tests = [
     `Quick,
     () => {
       let status =
-        Sample.Selection.get_empty_status(
-          ~num_total=5,
-          ~num_shown=0,
-          (),
-        );
+        Sample.Selection.get_empty_status(~num_total=5, ~num_shown=0, ());
       check(
         bool,
         "should be NotAligned",

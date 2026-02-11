@@ -33,10 +33,7 @@ let get_all_samples = (code: string): list(Sample.t) =>
 /* Partition samples into top-level (empty stack) and inner (non-empty stack) */
 let partition_by_depth =
     (samples: list(Sample.t)): (list(Sample.t), list(Sample.t)) =>
-  List.partition(
-    (s: Sample.t) => List.length(s.call_stack) == 0,
-    samples,
-  );
+  List.partition((s: Sample.t) => List.length(s.call_stack) == 0, samples);
 
 /* Make a cursor at a given stack, with optional pin */
 let mk_cursor =
@@ -142,11 +139,13 @@ in f(5)|};
         let cursor_stack =
           List.map(
             (f: Sample.stack_frame): Sample.stack_frame =>
-              {id: f.id, name: None},
+              {
+                id: f.id,
+                name: None,
+              },
             s.call_stack,
           );
-        let cursor =
-          mk_cursor(~pinned=Some(cursor_stack), cursor_stack);
+        let cursor = mk_cursor(~pinned=Some(cursor_stack), cursor_stack);
         let (selected, _) = run_select(~cursor, samples);
         check(
           int,
@@ -181,17 +180,15 @@ in f(1); f(2)|};
       let pin_stack =
         List.map(
           (f: Sample.stack_frame): Sample.stack_frame =>
-            {id: f.id, name: None},
+            {
+              id: f.id,
+              name: None,
+            },
           first.call_stack,
         );
       let cursor = mk_cursor(~pinned=Some(pin_stack), pin_stack);
       let (selected, _) = run_select(~cursor, samples);
-      check(
-        int,
-        "pin should filter to 1 sample",
-        1,
-        List.length(selected),
-      );
+      check(int, "pin should filter to 1 sample", 1, List.length(selected));
     },
   ),
   test_case(
@@ -214,11 +211,14 @@ in f(5)|};
           List.length(s.call_stack) >= 1,
         );
         /* Cursor at the shallowest frame only */
-        let outermost_frame =
-          List.rev(s.call_stack) |> List.hd;
-        let shallow_stack = [{...outermost_frame, name: None}];
-        let cursor =
-          mk_cursor(~pinned=Some(shallow_stack), shallow_stack);
+        let outermost_frame = List.rev(s.call_stack) |> List.hd;
+        let shallow_stack = [
+          {
+            ...outermost_frame,
+            name: None,
+          },
+        ];
+        let cursor = mk_cursor(~pinned=Some(shallow_stack), shallow_stack);
         /* In Many mode, the sample should be visible (it's Below cursor) */
         let (selected, _) = run_select(~mode=Many, ~cursor, samples);
         check(
@@ -254,7 +254,10 @@ in f(1); f(2)|};
       let pin_stack =
         List.map(
           (f: Sample.stack_frame): Sample.stack_frame =>
-            {id: f.id, name: None},
+            {
+              id: f.id,
+              name: None,
+            },
           s1.call_stack,
         );
       let cursor = mk_cursor(~pinned=Some(pin_stack), pin_stack);
@@ -265,12 +268,7 @@ in f(1); f(2)|};
           ~pinned=Some(pin_stack),
           samples,
         );
-      check(
-        int,
-        "pin should filter to 1 sample",
-        1,
-        List.length(filtered),
-      );
+      check(int, "pin should filter to 1 sample", 1, List.length(filtered));
       /* Verify it's s1, not s2 (by matching call stack) */
       let kept = List.hd(filtered);
       check(
@@ -300,12 +298,7 @@ in f(1); f(2); f(3)|};
       check(int, "should have 3 samples", 3, List.length(samples));
       let filtered =
         Sample.Selection.filter_by_pin(~ap_id=None, ~pinned=None, samples);
-      check(
-        int,
-        "no pin keeps all samples",
-        3,
-        List.length(filtered),
-      );
+      check(int, "no pin keeps all samples", 3, List.length(filtered));
     },
   ),
 ];
@@ -376,7 +369,10 @@ in f(5)|};
         /* Cursor at the inner call stack depth */
         let cursor = mk_cursor(s.call_stack);
         /* A hypothetical top-level sample */
-        let top_sample: Sample.t = {...s, call_stack: []};
+        let top_sample: Sample.t = {
+          ...s,
+          call_stack: [],
+        };
         let rel =
           Sample.Cursor.relation(
             ~trimmed=false,
@@ -409,8 +405,7 @@ let mode_tests = [
     "Single mode: shows exactly 1 from multiple top-level samples",
     `Quick,
     () => {
-      let code =
-        {|let f = fun x -> x * 2
+      let code = {|let f = fun x -> x * 2
 in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
       let samples = get_all_samples(code);
       check(
@@ -428,8 +423,7 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
     "Many mode: shows all from multiple top-level samples",
     `Quick,
     () => {
-      let code =
-        {|let f = fun x -> x * 2
+      let code = {|let f = fun x -> x * 2
 in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
       let samples = get_all_samples(code);
       let n = List.length(samples);
