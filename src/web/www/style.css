@@ -173,8 +173,7 @@ select {
   position: relative;
 }
 
-#closure-cursor-bar .breadcrumb-entry:hover,
-#closure-cursor-bar .breadcrumb-separator:hover {
+#closure-cursor-bar .breadcrumb-entry:hover {
   background-color: white;
 }
 
@@ -215,7 +214,7 @@ select {
 #closure-cursor-bar .breadcrumb-separator {
   color: var(--BR2);
   font-size: 0.8em;
-  cursor: pointer;
+  cursor: default;
   padding: 0.1em 0;
   border-radius: 1em;
   transition: background-color 0.1s;
@@ -291,6 +290,19 @@ select {
 
 #closure-cursor-bar .pin-icon:hover {
   filter: brightness(1.2);
+}
+
+/* Body icon - jump to innermost function body */
+#closure-cursor-bar .breadcrumb-body {
+  cursor: pointer;
+  padding: 0 0.4em;
+  border-radius: 1em;
+  color: var(--BR3);
+  transition: background-color 0.1s;
+}
+
+#closure-cursor-bar .breadcrumb-body:hover {
+  background-color: white;
 }
 
 #bottom-bar {
