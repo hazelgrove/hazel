@@ -293,6 +293,78 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       }),
     custom_statics: None,
   },
+  BuiltinsADT.{
+    name: "int_compare",
+    arg: Prod([int(), int()]),
+    ret: Ord.t.term,
+    imp:
+      binary((d1, d2) => {
+        let-unbox n1 = (Atom(Int), d1);
+        let-unbox n2 = (Atom(Int), d2);
+        Some(
+          switch (Bigint.compare(n1, n2)) {
+          | 0 => Ord.eq
+          | n when n < 0 => Ord.lt
+          | _ => Ord.gt
+          },
+        );
+      }),
+    custom_statics: None,
+  },
+  BuiltinsADT.{
+    name: "float_compare",
+    arg: Prod([float(), float()]),
+    ret: Ord.t.term,
+    imp:
+      binary((d1, d2) => {
+        let-unbox n1 = (Atom(Float), d1);
+        let-unbox n2 = (Atom(Float), d2);
+        Some(
+          switch (Float.compare(n1, n2)) {
+          | 0 => Ord.eq
+          | n when n < 0 => Ord.lt
+          | _ => Ord.gt
+          },
+        );
+      }),
+    custom_statics: None,
+  },
+  BuiltinsADT.{
+    name: "sint_compare",
+    arg: Prod([sint(), sint()]),
+    ret: Ord.t.term,
+    imp:
+      binary((d1, d2) => {
+        let-unbox n1 = (Atom(SInt), d1);
+        let-unbox n2 = (Atom(SInt), d2);
+        Some(
+          switch (Int.compare(n1, n2)) {
+          | 0 => Ord.eq
+          | n when n < 0 => Ord.lt
+          | _ => Ord.gt
+          },
+        );
+      }),
+    custom_statics: None,
+  },
+  BuiltinsADT.{
+    name: "nat_compare",
+    arg: Prod([nat(), nat()]),
+    ret: Ord.t.term,
+    imp:
+      binary((d1, d2) => {
+        let-unbox n1 = (Atom(Nat), d1);
+        let-unbox n2 = (Atom(Nat), d2);
+        Some(
+          switch (Bigint.compare(n1, n2)) {
+          | 0 => Ord.eq
+          | n when n < 0 => Ord.lt
+          | _ => Ord.gt
+          },
+        );
+      }),
+    custom_statics: None,
+  },
 ];
 
 let string_fns: list(BuiltinsUtil.fn) = [
