@@ -169,7 +169,7 @@ module M: Projector = {
     let num_rows = List.length(rows);
     let num_cols = List.length(header);
     ProjectorCore.Shape.{
-      vertical: Block(min(num_rows + 1, 10)), // +1 for header row
+      vertical: Block(min(num_rows, 10)), // +1 for header row
       /* +2 for left and right padding */
       horizontal: 4 + max_length * 1 + num_cols * 2 // +2 for left and right padding
     };

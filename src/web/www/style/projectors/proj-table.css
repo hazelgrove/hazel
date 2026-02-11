@@ -1,30 +1,34 @@
 /* PROJECTOR: Tables */
 
 /* Tables */
-.table {
+.table table {
     border-collapse: collapse;
-    font-size: 0.875rem;
-    width: 100%;
+    /* font-size: 0.875rem; */
+    width: 95%;
+    margin: 0 auto;
     table-layout: auto;
     text-align: center;
     background-color: var(--df-bg);
+    height: 98%;
 }
 .table th {
   position: sticky;
   top: 0;
   z-index: calc(var(--projector-z) + 1);
   opacity: 1;
+  height: calc(var(--line-height) * 1em);
+  background-color: var(--table-header-bg);
+    font-weight: 600;
+    color: var(--BR4);
+  font-family: var(--code-font);
 }
 .table th,
 .table td {
-    border: 1px solid #ddd;
-    vertical-align: top;
-}
-
-.table th {
-    background-color: var(--table-header-bg);
-    font-weight: 600;
-    color: white;
+    vertical-align: middle;
+    /* height: 24.125px; */
+    /* line-height: 24.125px; */
+    overflow: hidden;
+    padding: 0px;
 }
 
 .table tr:nth-child(even) {
@@ -35,11 +39,15 @@
     background-color: var(--df-hover-bg);
 }
 
+div.projector.table:has(tbody tr:nth-child(10)) {
+  overflow: auto;
+}
+
 
 .projector.table {
     height: 100%;
     width: 100%;
-    overflow: auto;
+    overflow: hidden;
     box-sizing: content-box;
 
     display: flex;
@@ -49,6 +57,7 @@
     gap: initial;
 }
 
-.projector.table>.code {
+.projector.table .code {
     overflow-y: scroll;
+    font-size: calc(var(--base-font-size) * 0.9);
 }
