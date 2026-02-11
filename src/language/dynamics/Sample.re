@@ -7,19 +7,29 @@ type capture_spec = {refs: Binding.s};
 
 let empty_capture_spec: capture_spec = {refs: []};
 
-/* A single frame in the call stack: (app_id, function_name).
- * function_name is extracted at evaluation time from the closure/function. */
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type stack_frame = (Id.t, option(string));
+/* A single frame in the call stack: app_id + optional function_name.
+ * function_name is extracted at evaluation time from the closure/function.
+ * The name field is purely informational for display; equality compares only id. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type stack_frame = {
+  id: Id.t,
+  name: option(string),
+};
+
+let equal_stack_frame = (a: stack_frame, b: stack_frame): bool =>
+  a.id == b.id;
 
 /* Call context represented as a list of stack frames.
  * The head is the most recent (innermost) call. */
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type call_stack = list(stack_frame);
 
-/* Extract just the IDs from a call stack, discarding function names.
- * Used for comparisons where we only care about the call context, not names. */
-let ids_of_stack = (cs: call_stack): list(Id.t) => List.map(fst, cs);
+let equal_call_stack = (a: call_stack, b: call_stack): bool =>
+  List.equal(equal_stack_frame, a, b);
+
+/* Extract just the IDs from a call stack, discarding function names. */
+let ids_of_stack = (cs: call_stack): list(Id.t) =>
+  List.map((f: stack_frame) => f.id, cs);
 
 /* Maps expression/pattern IDs to their capture specifications.
  * Presence in this map means "collect a sample when evaluated". */
@@ -364,9 +374,12 @@ module Cursor = {
   let depth_in_indicated_calls_stack =
       (cursor: t, call_stack: call_stack): option(int) => {
     let* cur_ap = cursor.indicated_call;
-    /* Convert cur_ap to stack_frame for comparison (name doesn't matter here) */
-    let cur_frame: stack_frame = (cur_ap, None);
+    let cur_frame: stack_frame = {
+      id: cur_ap,
+      name: None,
+    };
     ListUtil.suffix_at_depth(
+      ~eq=equal_stack_frame,
       [cur_frame] @ trimmed_stack(cursor),
       call_stack,
     );
@@ -416,7 +429,7 @@ module Cursor = {
     is_before_cursor: int,
   };
 
-  let is_below = ListUtil.suffix_at_depth;
+  let is_below = ListUtil.suffix_at_depth(~eq=equal_stack_frame);
 
   let relative_level = (cs1: call_stack, cs2: call_stack): relative_level =>
     switch (is_below(cs1, cs2), is_below(cs2, cs1)) {
@@ -428,8 +441,13 @@ module Cursor = {
 
   let cur_call = (ap_id: option(Id.t), sample: sample): option(call_stack) => {
     let* ap_id = ap_id;
-    /* Convert ap_id to stack_frame (name not available here, use None) */
-    Some([(ap_id, None), ...sample.call_stack]);
+    Some([
+      {
+        id: ap_id,
+        name: None,
+      },
+      ...sample.call_stack,
+    ]);
   };
 
   /* Returns Some(ap_id) only when cursor is on an application with a variable
@@ -450,7 +468,7 @@ module Cursor = {
     let this = sample.call_stack;
     let cursor_stack = trimmed ? trimmed_stack(cursor) : cursor.call_stack;
     {
-      is_call_cursor: cursor_stack == this,
+      is_call_cursor: equal_call_stack(cursor_stack, this),
       is_more_precise_than_cursor:
         List.length(cursor.call_stack) > List.length(sample.call_stack),
       relative_level_to_cursor: relative_level(cursor_stack, this),
@@ -460,7 +478,16 @@ module Cursor = {
       },
       is_below_indicated_call: {
         let* cur_ap = cursor.indicated_call;
-        is_below([(cur_ap, None)] @ cursor_stack, this);
+        is_below(
+          [
+            {
+              id: cur_ap,
+              name: None,
+            },
+          ]
+          @ cursor_stack,
+          this,
+        );
       },
       is_before_cursor: sample.seq - cursor.seq,
     };
@@ -508,7 +535,8 @@ module Selection = {
     switch (pinned) {
     | Some(pinned_stack) =>
       /* Extract just the Id.t from head of pinned_stack for comparison */
-      let pinned_head_id = Option.map(fst, ListUtil.hd_opt(pinned_stack));
+      let pinned_head_id =
+        Option.map((f: stack_frame) => f.id, ListUtil.hd_opt(pinned_stack));
       /* Compare by ID only - pinned_stack may have None for function names
        * but actual samples have real names from evaluation */
       let pinned_ids = ids_of_stack(pinned_stack);
@@ -558,7 +586,11 @@ module Selection = {
     List.fold_left(
       (best: option((t, int)), sample: t) => {
         let score =
-          ListUtil.common_suffix_length(cursor_stack, sample.call_stack);
+          ListUtil.common_suffix_length(
+            ~eq=equal_stack_frame,
+            cursor_stack,
+            sample.call_stack,
+          );
         switch (best) {
         | Some((_, best_score)) when best_score >= score => best
         | _ => Some((sample, score))
@@ -596,7 +628,7 @@ module Selection = {
     switch (List.rev(s2.call_stack), List.rev(s1.call_stack)) {
     | ([], _)
     | (_, []) => false
-    | ([f1, ..._], [f2, ..._]) => f1 == f2
+    | ([f1, ..._], [f2, ..._]) => equal_stack_frame(f1, f2)
     };
 
   /* Group samples by function call, with indices */

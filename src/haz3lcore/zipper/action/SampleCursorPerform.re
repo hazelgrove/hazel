@@ -26,7 +26,12 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t =>
       seq: data.seq,
       indicated_call: id /*!= None ? id : z.refractors.sample_cursor.indicated_call*/,
       call_stack:
-        !ListUtil.is_suffix_of(data.call_stack, sample_cursor.call_stack)
+        !
+          ListUtil.is_suffix_of(
+            ~eq=Sample.equal_stack_frame,
+            data.call_stack,
+            sample_cursor.call_stack,
+          )
           ? data.call_stack : sample_cursor.call_stack,
       index: List.length(data.call_stack) - 1,
       step_range: Some((data.step_start, data.step_end)),

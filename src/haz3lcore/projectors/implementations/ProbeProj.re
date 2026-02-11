@@ -369,7 +369,9 @@ let cursor_clss =
 
 module Debug = {
   let stack = (stack: Sample.call_stack): string =>
-    stack |> List.map(((id, _)) => Id.str3(id)) |> String.concat("\n");
+    stack
+    |> List.map((f: Sample.stack_frame) => Id.str3(f.id))
+    |> String.concat("\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
     "sample id: "
@@ -378,7 +380,7 @@ module Debug = {
     ++ "ap:"
     ++ (
       switch (Sample.Cursor.cur_call(ap_id, sample)) {
-      | Some([(ap_id, _), ..._]) => Id.str3(ap_id)
+      | Some([{id: ap_id, _}, ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
     )
@@ -396,7 +398,17 @@ let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
   | (Some(ap_id), Some(sample)) =>
     print_endline("actually pinning call");
-    parent(SampleCursor(TogglePin([(ap_id, None), ...sample.call_stack])));
+    parent(
+      SampleCursor(
+        TogglePin([
+          {
+            id: ap_id,
+            name: None,
+          },
+          ...sample.call_stack,
+        ]),
+      ),
+    );
   | _ =>
     print_endline("ignoring");
     Effect.Ignore;

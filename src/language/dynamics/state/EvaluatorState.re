@@ -169,7 +169,16 @@ let update =
           | Some(_)
           | None => state
           };
-        ([(app_id, fn_name), ...call_stack], state);
+        (
+          [
+            {
+              id: app_id,
+              name: fn_name,
+            },
+            ...call_stack,
+          ],
+          state,
+        );
       | RecordTest(instance_report) => (
           call_stack,
           add_test(state, instance_report),

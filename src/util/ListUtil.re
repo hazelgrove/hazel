@@ -408,29 +408,31 @@ let rec flat_intersperse = (sep, xss) =>
   };
 
 /* Given two lists, return their maximum common suffix */
-let max_common_suffix = (a: list('a), b: list('a)): list('a) => {
+let max_common_suffix =
+    (~eq: ('a, 'a) => bool=(==), a: list('a), b: list('a)): list('a) => {
   let rec loop = (a, b, acc) =>
     switch (a, b) {
     | ([], _)
     | (_, []) => acc
-    | ([ha, ...ta], [hb, ...tb]) when ha == hb =>
+    | ([ha, ...ta], [hb, ...tb]) when eq(ha, hb) =>
       loop(ta, tb, [ha, ...acc])
     | _ => acc
     };
   loop(List.rev(a), List.rev(b), []);
 };
 
-let common_suffix_length = (s1, s2) =>
-  List.length(max_common_suffix(s1, s2));
+let common_suffix_length = (~eq: ('a, 'a) => bool=(==), s1, s2) =>
+  List.length(max_common_suffix(~eq, s1, s2));
 
-let is_suffix_of = (s1, s2) =>
-  common_suffix_length(s1, s2) == List.length(s1);
+let is_suffix_of = (~eq: ('a, 'a) => bool=(==), s1, s2) =>
+  common_suffix_length(~eq, s1, s2) == List.length(s1);
 
 /* Returns Some(depth) if xs is a suffix of ys at depth, None otherwise */
 
-let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
+let suffix_at_depth =
+    (~eq: ('a, 'a) => bool=(==), xs: list('a), ys: list('a)): option(int) => {
   let rec go = (depth: int, xs, ys): option(int) =>
-    if (xs == ys) {
+    if (List.equal(eq, xs, ys)) {
       Some(depth);
     } else {
       switch (ys) {

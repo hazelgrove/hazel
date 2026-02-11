@@ -187,7 +187,7 @@ let sort_ids_lexically =
 let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
   SampleCursorPerform.update_pinned_call(_, p =>
     switch (p) {
-    | Some([(hd_id, _), ..._] as call_stack) =>
+    | Some([{id: hd_id, _}, ..._] as call_stack) =>
       List.mem(hd_id, ids) ? None : Some(call_stack)
     | x => x
     }
@@ -566,7 +566,13 @@ let step_into_call_stack =
     };
 
   /* Set pin and dyn cursor using the call_stack */
-  let new_stack: Sample.call_stack = [(ap_id, None), ...call_stack];
+  let new_stack: Sample.call_stack = [
+    {
+      id: ap_id,
+      name: None,
+    },
+    ...call_stack,
+  ];
 
   /* Determine where to jump and where to look for samples.
    * For function literals:

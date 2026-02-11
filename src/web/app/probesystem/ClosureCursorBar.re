@@ -123,7 +123,7 @@ let key_handler =
       ~globals: Globals.t,
       ~index: int,
       ~max_index: int,
-      ~call_stack: list((Id.t, option(string))),
+      ~call_stack: Sample.call_stack,
       ~info_map: Statics.Map.t,
       evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.keyboardEvent),
     ) => {
@@ -142,7 +142,7 @@ let key_handler =
     /* Jump to definition of current entry, then refocus main editor */
     JsUtil.focus_clipboard_shim();
     if (index >= 0 && index < List.length(call_stack)) {
-      let (app_id, _) = List.nth(call_stack, index);
+      let {id: app_id, _}: Sample.stack_frame = List.nth(call_stack, index);
       let (_, body_id_opt) = get_fn_info(~info_map, app_id);
       switch (body_id_opt) {
       | Some(body_id) =>
@@ -177,7 +177,10 @@ let view =
     let pinned_stack = sample_cursor.pinned_stack;
     let pinned_head_id =
       Option.bind(pinned_stack, stack =>
-        Option.map(fst, Util.ListUtil.hd_opt(stack))
+        Option.map(
+          (f: Sample.stack_frame) => f.id,
+          Util.ListUtil.hd_opt(stack),
+        )
       );
 
     /* Top-level λ entry (always present when bar is shown)
@@ -201,7 +204,7 @@ let view =
         let rec build_entries = (i, remaining) =>
           switch (remaining) {
           | [] => []
-          | [(app_id, stack_name), ...rest] =>
+          | [{Sample.id: app_id, name: stack_name}, ...rest] =>
             let is_focused = i == index;
             let is_ghost = i > index;
             /* Position class for color coding */
