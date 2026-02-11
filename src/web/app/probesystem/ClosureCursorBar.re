@@ -339,21 +339,21 @@ let view =
               @ (position_class != "" ? [position_class] : []);
 
             /* Entry click handler.
-             * Definition targets: set cursor index + jump (same depth).
-             * Fallback targets: just jump, no cursor index change
-             *   (target is at a different depth than entry i). */
-            let on_entry_click = evt =>
+             * Always set cursor index to i. Jump to definition or
+             * fallback target if available. */
+            let jump_target =
               switch (definition_target) {
+              | Some(_) => definition_target
+              | None => fallback_target
+              };
+            let on_entry_click = evt =>
+              switch (jump_target) {
               | Some(target_id) =>
                 Effect.Many([
                   set_cursor_index(~globals, i, evt),
                   jump_to(~globals, target_id, evt),
                 ])
-              | None =>
-                switch (fallback_target) {
-                | Some(target_id) => jump_to(~globals, target_id, evt)
-                | None => set_cursor_index(~globals, i, evt)
-                }
+              | None => set_cursor_index(~globals, i, evt)
               };
 
             /* Check if this entry is pinned */
@@ -408,11 +408,10 @@ let view =
               @ (position_class != "" ? [position_class] : []);
 
             /* Separator click handler.
-             * Direct (app_id in user code): jump + set cursor index.
-             * Fallback (rounded down): just jump, no cursor index change. */
-            let sep_is_direct = is_in_user_code(~info_map, app_id);
+             * Always set cursor index to i. Jump to app_id if in user
+             * code, otherwise nearest user-visible call site. */
             let sep_jump_id =
-              sep_is_direct
+              is_in_user_code(~info_map, app_id)
                 ? Some(app_id)
                 : find_nearest_user_app(
                     ~info_map,
@@ -422,14 +421,10 @@ let view =
             let on_sep_click = evt =>
               switch (sep_jump_id) {
               | Some(jump_id) =>
-                if (sep_is_direct) {
-                  Effect.Many([
-                    jump_to(~globals, jump_id, evt),
-                    set_cursor_index(~globals, i, evt),
-                  ]);
-                } else {
-                  jump_to(~globals, jump_id, evt);
-                }
+                Effect.Many([
+                  set_cursor_index(~globals, i, evt),
+                  jump_to(~globals, jump_id, evt),
+                ])
               | None => set_cursor_index(~globals, i, evt)
               };
 
