@@ -1,7 +1,8 @@
 /* PROJECTOR: Tables */
 
 /* Tables */
-.table table {
+.table table,
+table.table {
     border-collapse: collapse;
     /* font-size: 0.875rem; */
     width: 95%;
@@ -25,12 +26,12 @@
 .table th,
 .table td {
     vertical-align: middle;
-    /* height: 24.125px; */
-    /* line-height: 24.125px; */
-    overflow: hidden;
     padding: 0px;
 }
 
+.table td {
+    overflow: hidden;
+}
 .table tr:nth-child(even) {
     background-color: var(--df-zebra-bg);
 }
