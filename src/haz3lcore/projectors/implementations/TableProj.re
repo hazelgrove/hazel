@@ -56,9 +56,9 @@ let get = (info: info): (list(LabeledTuple.label), list(list(Exp.t))) =>
   | Some(s) =>
     switch (table_of(s)) {
     | Some(s) => s
-    | None => failwith("TextArea: get: Not a table")
+    | None => failwith("Table: get: Not a table")
     }
-  | None => failwith("TextArea: get: Not a table")
+  | None => failwith("Table: get: Not a table")
   };
 
 let len_seg = (utility: utility, seg: Segment.t): int =>
