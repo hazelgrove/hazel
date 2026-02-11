@@ -109,11 +109,20 @@ module Map = {
     |> List.to_seq
     |> of_seq;
 
-  let pp = (pp_v, fmt, map) =>
-    bindings(map)
-    |> List.iter(((k, v)) =>
-         Format.fprintf(fmt, "%a -> %a\n", pp, k, pp_v, v)
-       );
+  /* Outputs valid OCaml code for empty maps only.
+   * Non-empty maps will fail - this is intentional. Currently only empty maps
+   * are serialized via show (see Refractors.for_serialization which resets
+   * autos to empty before serialization). If you need to persist non-empty
+   * Id.Map values, implement proper nested Id.Map.add output here. */
+  let pp = (_pp_v, fmt, map) =>
+    if (is_empty(map)) {
+      Format.fprintf(fmt, "Haz3lcore.Id.Map.empty");
+    } else {
+      failwith(
+        "Id.Map.pp: non-empty map serialization not implemented. "
+        ++ "See Refractors.for_serialization if you're seeing this during exercise export.",
+      );
+    };
 };
 let invalid: t =
   "00000000-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
