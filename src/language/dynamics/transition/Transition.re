@@ -211,6 +211,18 @@ module Transition = (EV: EV_MODE) => {
     | _ => None
     };
 
+  /* Extract the definition-site ID from a function expression (including closures).
+     Used to enable jump-to-definition from the closure cursor bar even when the
+     app_id comes from built-in internal code (not in user's info_map). */
+  let get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
+    switch (d.term) {
+    | Closure(_, e) => Exp.get_fn_def_id(e)
+    | Fun(_)
+    | TypFun(_) => Some(DHExp.rep_id(d))
+    | BuiltinFun(_) => None
+    | _ => None
+    };
+
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
      children change, we use rewrap */
@@ -478,8 +490,9 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         })
       | _ =>
-        /* Extract function name before unboxing (unboxing discards the name) */
+        /* Extract function name and def ID before unboxing (unboxing discards them) */
         let fn_name = get_fn_name_from_expr(d1');
+        let fn_def_id = get_fn_def_id_from_expr(d1');
         let-unbox unboxed_fun = (Fun, d1');
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
@@ -493,7 +506,7 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: subst_env(env'', d3),
               side_effects: [
-                RecordStackFrame(fn_name, Some(d2')),
+                RecordStackFrame(fn_name, Some(d2'), fn_def_id),
                 RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
@@ -513,7 +526,7 @@ module Transition = (EV: EV_MODE) => {
                   d3,
                 ),
               side_effects: [
-                RecordStackFrame(fn_name, Some(d2')),
+                RecordStackFrame(fn_name, Some(d2'), fn_def_id),
                 RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
@@ -527,7 +540,7 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: tuple([]),
               side_effects: [
-                RecordStackFrame(Some(ident), Some(d2')),
+                RecordStackFrame(Some(ident), Some(d2'), None),
                 RecordPrint(d2'),
               ],
               kind: BuiltinAp(ident),
@@ -548,7 +561,9 @@ module Transition = (EV: EV_MODE) => {
             | Some(expr) =>
               Step({
                 expr,
-                side_effects: [RecordStackFrame(Some(ident), Some(d2'))],
+                side_effects: [
+                  RecordStackFrame(Some(ident), Some(d2'), None),
+                ],
                 kind: BuiltinAp(ident),
                 is_value: false,
               })

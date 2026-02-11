@@ -9,11 +9,15 @@ let empty_capture_spec: capture_spec = {refs: []};
 
 /* A single frame in the call stack: app_id + optional function_name.
  * function_name is extracted at evaluation time from the closure/function.
- * The name field is purely informational for display; equality compares only id. */
+ * fn_def_id is the definition-site ID of the function, extracted from the
+ * Closure at evaluation time. Enables jump-to-definition even when app_id
+ * comes from built-in internal code (not in user's info_map).
+ * The name and fn_def_id fields are purely informational; equality compares only id. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stack_frame = {
   id: Id.t,
   name: option(string),
+  fn_def_id: option(Id.t),
 };
 
 let equal_stack_frame = (a: stack_frame, b: stack_frame): bool =>
@@ -377,6 +381,7 @@ module Cursor = {
     let cur_frame: stack_frame = {
       id: cur_ap,
       name: None,
+      fn_def_id: None,
     };
     ListUtil.suffix_at_depth(
       ~eq=equal_stack_frame,
@@ -445,6 +450,7 @@ module Cursor = {
       {
         id: ap_id,
         name: None,
+        fn_def_id: None,
       },
       ...sample.call_stack,
     ]);
@@ -483,6 +489,7 @@ module Cursor = {
             {
               id: cur_ap,
               name: None,
+              fn_def_id: None,
             },
           ]
           @ cursor_stack,

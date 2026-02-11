@@ -5,6 +5,10 @@ open Util.WebUtil;
 open Haz3lcore;
 open Language;
 
+/* Check if an ID is in user code (present in info_map) */
+let is_in_user_code = (~info_map: Statics.Map.t, id: Id.t): bool =>
+  Statics.Map.lookup(id, info_map) != None;
+
 /* Extract function info from an application ID by looking up in statics.
  *
  * Returns (name_opt, body_id_opt) where:
@@ -23,11 +27,17 @@ let get_fn_info =
     let fn_id = Exp.rep_id(fn_exp);
     switch (fn_exp.term) {
     | Var(name) =>
-      /* Look up binding site for the variable */
-      let body_id =
-        switch (Statics.Map.lookup(fn_id, info_map)) {
-        | Some(ci) => Info.get_binding_site(ci)
-        | None => None
+      /* Look up binding site for the variable.
+       * Skip for built-in names: their FixF patterns create context entries
+       * with fresh IDs that aren't navigable tiles in the user's zipper. */
+      let body_id: option(Id.t) =
+        if (Environment.lookup(Builtins.env_init, name) != None) {
+          None;
+        } else {
+          switch (Statics.Map.lookup(fn_id, info_map)) {
+          | Some(ci) => Info.get_binding_site(ci)
+          | None => None
+          };
         };
       (Some(name), body_id);
     | Constructor(name, _) =>
@@ -66,6 +76,57 @@ let unpin = (~globals: Globals.t, pinned_stack: Sample.call_stack, _) =>
 let has_probes = (refractors: Zipper.Refractor.t): bool =>
   !List.is_empty(refractors.manuals)
   || !Id.Map.is_empty(refractors.autos.ids);
+
+/* Walk up the call stack from a given index to find the nearest frame
+ * whose app_id is in user code. Used as a fallback for separator clicks
+ * when the separator's own app_id comes from built-in internal code. */
+let find_nearest_user_app =
+    (
+      ~info_map: Statics.Map.t,
+      ~call_stack: Sample.call_stack,
+      ~from_index: int,
+    )
+    : option(Id.t) => {
+  let rec search = (i: int): option(Id.t) =>
+    if (i < 0) {
+      None;
+    } else {
+      let frame: Sample.stack_frame = List.nth(call_stack, i);
+      is_in_user_code(~info_map, frame.id) ? Some(frame.id) : search(i - 1);
+    };
+  search(from_index);
+};
+
+/* Get the jump target for a breadcrumb entry, with three-tier fallback:
+ *
+ * 1. body_id from get_fn_info (app_id is in user code, statics resolves it)
+ * 2. fn_def_id (user-defined function called from inside a built-in;
+ *    definition-site ID extracted from Closure at evaluation time)
+ * 3. nearest user-visible call site (built-in function with no definition;
+ *    walk up the call stack to find the closest user-code app_id)
+ *
+ * The third tier ensures that clicking a built-in name like "fold_left"
+ * still does something useful: it jumps to the nearest user call site
+ * (e.g., the `fold_left(update, acc, actions)` application). */
+let get_jump_target =
+    (
+      ~info_map: Statics.Map.t,
+      ~app_id: Id.t,
+      ~fn_def_id: option(Id.t),
+      ~call_stack: Sample.call_stack,
+      ~index: int,
+    )
+    : option(Id.t) => {
+  let (_, body_id_opt) = get_fn_info(~info_map, app_id);
+  switch (body_id_opt) {
+  | Some(_) => body_id_opt
+  | None =>
+    switch (fn_def_id) {
+    | Some(_) => fn_def_id
+    | None => find_nearest_user_app(~info_map, ~call_stack, ~from_index=index)
+    }
+  };
+};
 
 /* Render a single breadcrumb entry (the function name - clicks go to definition) */
 let breadcrumb_entry =
@@ -139,14 +200,22 @@ let key_handler =
     let new_index = min(max_index, index + 1);
     Many([set_cursor_index(~globals, new_index, evt), Stop_propagation]);
   | D("Enter") =>
-    /* Jump to definition of current entry, then refocus main editor */
+    /* Jump to definition of current entry, then refocus main editor.
+     * Falls back to fn_def_id, then nearest user call site. */
     JsUtil.focus_clipboard_shim();
     if (index >= 0 && index < List.length(call_stack)) {
-      let {id: app_id, _}: Sample.stack_frame = List.nth(call_stack, index);
-      let (_, body_id_opt) = get_fn_info(~info_map, app_id);
-      switch (body_id_opt) {
-      | Some(body_id) =>
-        Many([jump_to(~globals, body_id, evt), Stop_propagation])
+      let frame: Sample.stack_frame = List.nth(call_stack, index);
+      let jump_target =
+        get_jump_target(
+          ~info_map,
+          ~app_id=frame.id,
+          ~fn_def_id=frame.fn_def_id,
+          ~call_stack,
+          ~index,
+        );
+      switch (jump_target) {
+      | Some(target_id) =>
+        Many([jump_to(~globals, target_id, evt), Stop_propagation])
       | None => Stop_propagation
       };
     } else {
@@ -162,7 +231,7 @@ let view =
       ~globals: Globals.t,
       ~refractors: Zipper.Refractor.t,
       ~info_map: Statics.Map.t,
-      ~indicated_id: option(Id.t),
+      ~indicated_id as _: option(Id.t),
     )
     : Node.t =>
   /* Only show when probes exist */
@@ -204,15 +273,48 @@ let view =
         let rec build_entries = (i, remaining) =>
           switch (remaining) {
           | [] => []
-          | [{Sample.id: app_id, name: stack_name}, ...rest] =>
+          | [{Sample.id: app_id, name: stack_name, fn_def_id}, ...rest] =>
             let is_focused = i == index;
             let is_ghost = i > index;
             /* Position class for color coding */
             let position_class =
               i < index ? "above" : i > index ? "below" : "";
 
-            /* Get function info */
+            /* Definition target: tier 1 (statics body_id) or tier 2 (fn_def_id).
+             * These point to the function's definition site.
+             * Skip both tiers for built-in names: their IDs (from FixF
+             * patterns and Closure internals) aren't navigable tiles.
+             * Note: HazelFn built-ins have a "+" suffix on their internal
+             * name (e.g. "fold_left+"), so strip it before lookup. */
+            let is_builtin_name =
+              switch (stack_name) {
+              | Some(n) =>
+                let base =
+                  String.ends_with(~suffix="+", n)
+                    ? String.sub(n, 0, String.length(n) - 1) : n;
+                Environment.lookup(Builtins.env_init, base) != None;
+              | None => false
+              };
             let (_, body_id_opt) = get_fn_info(~info_map, app_id);
+            let definition_target: option(Id.t) =
+              if (is_builtin_name) {
+                None;
+              } else {
+                switch (body_id_opt) {
+                | Some(_) => body_id_opt
+                | None => fn_def_id
+                };
+              };
+
+            /* Fallback target: tier 3 (nearest user-visible call site).
+             * Used for built-ins with no definition. Only computed when
+             * no definition target exists. */
+            let fallback_target: option(Id.t) =
+              switch (definition_target) {
+              | Some(_) => None
+              | None =>
+                find_nearest_user_app(~info_map, ~call_stack, ~from_index=i)
+              };
             let display_name =
               switch (stack_name) {
               | Some(name) => Some(name)
@@ -225,7 +327,7 @@ let view =
               is_unknown ? {js|○|js} : Option.get(display_name);
 
             /* Check if this entry is indicated (syntax cursor on the app) */
-            let is_indicated = Some(app_id) == indicated_id;
+            //let is_indicated = Some(app_id) == indicated_id;
 
             /* Entry classes */
             let entry_classes =
@@ -233,20 +335,26 @@ let view =
               @ (is_focused ? ["focused"] : [])
               @ (is_ghost ? ["ghost"] : [])
               @ (is_unknown ? ["unknown"] : [])
-              @ (is_indicated ? ["indicated"] : [])
+              //@ (is_indicated ? ["indicated"] : [])
               @ (position_class != "" ? [position_class] : []);
 
-            /* Entry click handler */
+            /* Entry click handler.
+             * Definition targets: set cursor index + jump (same depth).
+             * Fallback targets: just jump, no cursor index change
+             *   (target is at a different depth than entry i). */
             let on_entry_click = evt =>
-              Effect.Many(
-                [set_cursor_index(~globals, i, evt)]
-                @ (
-                  switch (body_id_opt) {
-                  | Some(body_id) => [jump_to(~globals, body_id, evt)]
-                  | None => []
-                  }
-                ),
-              );
+              switch (definition_target) {
+              | Some(target_id) =>
+                Effect.Many([
+                  set_cursor_index(~globals, i, evt),
+                  jump_to(~globals, target_id, evt),
+                ])
+              | None =>
+                switch (fallback_target) {
+                | Some(target_id) => jump_to(~globals, target_id, evt)
+                | None => set_cursor_index(~globals, i, evt)
+                }
+              };
 
             /* Check if this entry is pinned */
             let is_pinned = Some(app_id) == pinned_head_id;
@@ -272,11 +380,15 @@ let view =
               | _ => []
               };
 
-            /* Tooltip for entry - show "Jump to definition" if clickable */
+            /* Tooltip: distinguish definition jump vs call-site fallback */
             let entry_tooltip =
-              switch (body_id_opt) {
+              switch (definition_target) {
               | Some(_) => "Jump to definition"
-              | None => display_text
+              | None =>
+                switch (fallback_target) {
+                | Some(_) => "Jump to call site"
+                | None => display_text
+                }
               };
 
             let entry =
@@ -295,12 +407,31 @@ let view =
               @ (is_ghost ? ["ghost"] : [])
               @ (position_class != "" ? [position_class] : []);
 
-            /* Separator click handler */
+            /* Separator click handler.
+             * Direct (app_id in user code): jump + set cursor index.
+             * Fallback (rounded down): just jump, no cursor index change. */
+            let sep_is_direct = is_in_user_code(~info_map, app_id);
+            let sep_jump_id =
+              sep_is_direct
+                ? Some(app_id)
+                : find_nearest_user_app(
+                    ~info_map,
+                    ~call_stack,
+                    ~from_index=i - 1,
+                  );
             let on_sep_click = evt =>
-              Effect.Many([
-                jump_to(~globals, app_id, evt),
-                set_cursor_index(~globals, i, evt),
-              ]);
+              switch (sep_jump_id) {
+              | Some(jump_id) =>
+                if (sep_is_direct) {
+                  Effect.Many([
+                    jump_to(~globals, jump_id, evt),
+                    set_cursor_index(~globals, i, evt),
+                  ]);
+                } else {
+                  jump_to(~globals, jump_id, evt);
+                }
+              | None => set_cursor_index(~globals, i, evt)
+              };
 
             let sep =
               span(

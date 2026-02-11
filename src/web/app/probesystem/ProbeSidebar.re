@@ -230,16 +230,19 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~sample_stack=[
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~step_range=(0, 5),
@@ -258,12 +261,14 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~sample_stack=[
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~step_range=(10, 20),
@@ -282,16 +287,19 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~sample_stack=[
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~step_range=(25, 30),
@@ -310,16 +318,19 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~sample_stack=[
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~step_range=(5, 25),
@@ -338,12 +349,14 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
             {
               id: Id.mk(),
               name: None,
+              fn_def_id: None,
             },
           ],
           ~sample_stack=[
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~step_range=(0, 0),
@@ -362,16 +375,19 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~sample_stack=[
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
             {
               id: Id.invalid,
               name: None,
+              fn_def_id: None,
             },
           ],
           ~step_range=(12, 18),

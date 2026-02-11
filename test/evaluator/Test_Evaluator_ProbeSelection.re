@@ -142,6 +142,7 @@ in f(5)|};
               {
                 id: f.id,
                 name: None,
+                fn_def_id: None,
               },
             s.call_stack,
           );
@@ -183,6 +184,7 @@ in f(1); f(2)|};
             {
               id: f.id,
               name: None,
+              fn_def_id: None,
             },
           first.call_stack,
         );
@@ -216,6 +218,7 @@ in f(5)|};
           {
             ...outermost_frame,
             name: None,
+            fn_def_id: None,
           },
         ];
         let cursor = mk_cursor(~pinned=Some(shallow_stack), shallow_stack);
@@ -257,6 +260,7 @@ in f(1); f(2)|};
             {
               id: f.id,
               name: None,
+              fn_def_id: None,
             },
           s1.call_stack,
         );

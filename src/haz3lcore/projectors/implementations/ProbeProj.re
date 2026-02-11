@@ -404,6 +404,7 @@ let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
           {
             id: ap_id,
             name: None,
+            fn_def_id: None,
           },
           ...sample.call_stack,
         ]),

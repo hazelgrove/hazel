@@ -23,12 +23,14 @@ open Language;
 let frame = (~name=None, id: Id.t): Sample.stack_frame => {
   id,
   name,
+  fn_def_id: None,
 };
 
 /* Make a named stack frame (as evaluator produces) */
 let named_frame = (id: Id.t, name: string): Sample.stack_frame => {
   id,
   name: Some(name),
+  fn_def_id: None,
 };
 
 /* Fixed IDs for readable tests */

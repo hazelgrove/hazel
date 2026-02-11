@@ -434,4 +434,16 @@ let rec get_fn_name = (e: t) => {
   };
 };
 
+/* Get the definition-site ID of a function expression.
+ * Used to enable jump-to-definition from the closure cursor bar
+ * even when the app_id comes from built-in internal code. */
+let rec get_fn_def_id = (e: t) =>
+  switch (e.term) {
+  | Fun(_)
+  | TypFun(_) => Some(rep_id(e))
+  | FixF(_, e, _)
+  | Parens(e) => get_fn_def_id(e)
+  | _ => None
+  };
+
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));

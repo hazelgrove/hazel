@@ -22,7 +22,7 @@ type t = {
 type effect =
   | RecordTest(TestMap.instance_report)
   | RecordExpProbe(Sample.capture_spec)
-  | RecordStackFrame(option(string), option(DHExp.t)) /* (fn_name, arg_value) */
+  | RecordStackFrame(option(string), option(DHExp.t), option(Id.t)) /* (fn_name, arg_value, fn_def_id) */
   | RecordPatProbes(PatternMatch.sample_closures)
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
@@ -156,7 +156,7 @@ let update =
   List.fold_left(
     ((call_stack: Sample.call_stack, state: t), effect: effect) =>
       switch (effect) {
-      | RecordStackFrame(fn_name, arg_opt) =>
+      | RecordStackFrame(fn_name, arg_opt, fn_def_id) =>
         let app_id = DHExp.rep_id(init);
         /* Only store argument value if this app_id is a probe target.
          * This avoids accumulating massive app_args data for programs
@@ -174,6 +174,7 @@ let update =
             {
               id: app_id,
               name: fn_name,
+              fn_def_id,
             },
             ...call_stack,
           ],

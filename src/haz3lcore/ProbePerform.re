@@ -570,6 +570,7 @@ let step_into_call_stack =
     {
       id: ap_id,
       name: None,
+      fn_def_id: None,
     },
     ...call_stack,
   ];
