@@ -1,0 +1,89 @@
+initialProgram: |
+  # DIGITAL PHOTO ALBUM MVU PRELUDE #
+
+  # Non-negative ID for photos #
+  type Id = Int in
+
+  # Camera model #
+  type CameraModel =
+    + Canon
+    + Nikon
+    + Sony
+    + iPhone
+  in
+
+  # Date type #
+  type Date = (Int, Int, Int) in   # (year, month, day)
+
+  # Time taken in 24-hour format #
+  type Time = (Int, Int, Int) in   # (hour, minute, second)
+
+  # Photo metadata #
+  type Photo =
+    + Photo(Id, Date, Time, CameraModel)
+  in
+
+  # Actions user can do in the album #
+  type AlbumAction =
+    + DeletePhoto(Id)
+    + AddPhoto(Photo)
+    + EditTime(Id, Time)
+  in
+
+  # Photo album: list of photos #
+  type Album = [Photo] in
+
+  # Update album based on user action #
+  let update: (Album, AlbumAction) -> Album =
+    ?
+  in
+
+
+prompt: |
+  Write the album update function that handles deleting a photo, adding a photo, and editing the time of a photo.
+
+
+tests: |
+  # Sample photos #
+  let p0 = Photo(0, (2024, 5, 1), (12, 30, 0), Canon) in
+  let p1 = Photo(1, (2024, 5, 2), (14, 15, 10), Nikon) in
+  let p2 = Photo(2, (2024, 5, 3), (9, 0, 5), iPhone) in
+
+  # Testing DeletePhoto #
+  test update([p0, p1, p2], DeletePhoto(0)) == [p1, p2] end;
+  test update([p0, p1, p2], DeletePhoto(1)) == [p0, p2] end;
+  test update([p0, p1, p2], DeletePhoto(2)) == [p0, p1] end;
+
+  # Deleting non-existent photo #
+  test update([p0, p1, p2], DeletePhoto(3)) == [p0, p1, p2] end;
+
+  # Deleting from empty album #
+  test update([], DeletePhoto(0)) == [] end;
+
+  # Deleting the only photo #
+  test update([p1], DeletePhoto(1)) == [] end;
+
+
+  # Testing AddPhoto #
+  let p3 = Photo(3, (2024, 6, 10), (18, 45, 30), Sony) in
+
+  test update([], AddPhoto(p0)) == [p0] end;
+  test update([p0, p1], AddPhoto(p2)) == [p2, p0, p1] end;
+  test update([p0, p1, p2], AddPhoto(p3)) == [p3, p0, p1, p2] end;
+
+  # Adding duplicate photo ID should not change album #
+  test update([p0, p1, p2], AddPhoto(p1)) == [p0, p1, p2] end;
+
+
+  # Testing EditTime #
+  let p1_edit = Photo(1, (2024, 5, 2), (16, 0, 0), Nikon) in
+  let p2_edit = Photo(2, (2024, 5, 3), (22, 10, 10), iPhone) in
+
+  test update([p0, p1, p2], EditTime(1, (16, 0, 0))) == [p0, p1_edit, p2] end;
+  test update([p0, p1, p2], EditTime(2, (22, 10, 10))) == [p0, p1, p2_edit] end;
+
+  # Editing time of non-existent photo #
+  test update([p0, p1], EditTime(3, (10, 0, 0))) == [p0, p1] end;
+
+  # Editing time in empty album #
+  test update([], EditTime(0, (8, 0, 0))) == [] end;
