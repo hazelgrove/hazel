@@ -112,7 +112,7 @@ let stepper_group = (~globals: Globals.t) => {
   );
 };
 
-let dev_group = (~globals) => {
+let dev_group = (~globals: Globals.t) => {
   settings_group(
     ~globals,
     "Developer",
@@ -124,13 +124,6 @@ let dev_group = (~globals) => {
         Settings.Update.Benchmark,
       ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
-      ("↵", "Whitespace", globals.settings.secondary_icons, SecondaryIcons),
-      (
-        "a",
-        "Animations",
-        globals.settings.core.flip_animations,
-        FlipAnimations,
-      ),
     ]
     @ (
       ExerciseSettings.show_instructor
@@ -147,11 +140,47 @@ let dev_group = (~globals) => {
   );
 };
 
+let code_display_group = (~globals: Globals.t) => {
+  settings_group(
+    ~globals,
+    "Code Display",
+    [
+      (
+        "↵",
+        "Whitespace",
+        globals.settings.secondary_icons,
+        SecondaryIcons: Settings.Update.t,
+      ),
+      (
+        "a",
+        "Animations",
+        globals.settings.core.flip_animations,
+        FlipAnimations,
+      ),
+      ("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers),
+    ]
+    @ (
+      globals.settings.line_numbers
+        ? [
+          (
+            "r",
+            "Relative Numbers",
+            globals.settings.relative_line_numbers,
+            ToggleRelativeLineNumbers,
+          ),
+        ]
+        : []
+    ),
+  );
+};
+
+//("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers)
 let settings_menu = (~globals) => {
   [
     semantics_group(~globals),
     values_group(~globals),
     stepper_group(~globals),
     dev_group(~globals),
+    code_display_group(~globals),
   ];
 };

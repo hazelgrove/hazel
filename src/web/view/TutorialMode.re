@@ -448,6 +448,7 @@ module View = {
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
         ~caption=CellCommon.caption(caption, ~rest=?subcaption),
+        ~lines=true,
         cell,
       );
     };

@@ -270,6 +270,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
+        ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
         ~expand_selection=?,
         model: Model.t,
@@ -438,10 +439,14 @@ module View = {
       };
     };
 
+    let display_line_numbers: bool = lines && globals.settings.line_numbers;
+
     Node.div(
       ~attrs=[
         Attr.classes(
-          ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
+          ["cell-item", "code-editor"]
+          @ (selected ? ["selected"] : [])
+          @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
@@ -459,7 +464,14 @@ module View = {
         Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
         Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
-      [code_view],
+      display_line_numbers
+        ? LineNumbers.View.view(
+            model,
+            globals.settings.relative_line_numbers,
+            selected,
+          )
+          @ [code_view]
+        : [code_view],
     );
   };
 };

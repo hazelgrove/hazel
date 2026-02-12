@@ -651,6 +651,7 @@ module View = {
             )
           | _ => CellCommon.caption(caption, ~rest=?subcaption)
           },
+        ~lines=true,
         cell,
       );
     };
