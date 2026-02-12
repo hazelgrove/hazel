@@ -10,6 +10,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   label_format: QuoteWhenNecessary,
   inline: true,
   fold_case_clauses: false,
+  project_tables: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
   show_filters: true,
@@ -353,6 +354,22 @@ let tests = (
         ),
       )
     }),
+    test_case(
+      "Nested reverse application no parens",
+      `Quick,
+      () => {
+        let segment =
+          Parser.to_term("1 |> 2 |> 3") |> Option.get |> exp_to_segment;
+        let serialized = print_seg(segment);
+
+        check(
+          string,
+          "Nested reverse application",
+          "1 |> 2 |> 3",
+          serialized,
+        );
+      },
+    ),
     test_case("Dot operator on float", `Quick, () => {
       check(
         string,
@@ -442,6 +459,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,
+  project_tables: false,
 };
 
 let exp_to_segment_roundtrip =
@@ -1021,6 +1039,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,
+  project_tables: false,
 };
 
 /* String-to-string grout tests: parse strings, verify round-trip preserves text.

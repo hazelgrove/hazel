@@ -85,12 +85,18 @@ let for_serialization = (refractors: t): t => {
 /* Refractors store a simplified `entry` type in Zipper.Refractor.Map
  * (just kind + model), avoiding redundant id/syntax in serialization.
  * When the full Base.projector is needed for rendering, use `to_projector`. */
-let mk_entry = (kind: ProjectorCore.Kind.t): entry => {
+let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
   let (module P) = ProjectorInit.to_module(kind);
   let model =
-    /* Create dummy syntax just to get the initial model string */
-    P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
-    |> OptUtil.get_or_fail("Refractor.mk_entry");
+    model
+    |> OptUtil.get(
+         () => {
+           /* Create dummy syntax just to get the initial model string */
+           P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
+           |> OptUtil.get_or_fail("Refractor.mk_entry")
+         },
+         _,
+       );
   {
     kind,
     model,
@@ -100,13 +106,5 @@ let mk_entry = (kind: ProjectorCore.Kind.t): entry => {
 /* Construct full Base.projector from entry and id, for rendering.
  * Creates dummy syntax with Id.invalid since refractors use skip_inline=true
  * and don't actually display the syntax. */
-let to_projector = (id: Id.t, entry: entry): Base.projector =>
-  ProjectorCore.mk(
-    ~id,
-    entry.kind,
-    Base.Secondary({
-      id: Id.invalid,
-      content: Whitespace(""),
-    }),
-    entry.model,
-  );
+let to_projector = (segment, id: Id.t, entry: entry): Base.projector =>
+  ProjectorCore.mk(~id, entry.kind, segment, entry.model);

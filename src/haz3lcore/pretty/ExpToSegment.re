@@ -40,6 +40,7 @@ module Settings = {
       | `Text
       | `NoFold
     ],
+    project_tables: bool,
     hide_fixpoints: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
@@ -52,6 +53,7 @@ module Settings = {
     label_format: QuoteWhenNecessary,
     inline,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
+    project_tables: settings.evaluation.project_tables,
     fold_fn_bodies:
       fold_fn_bodies
       |> Option.value(
@@ -70,6 +72,7 @@ module Settings = {
       label_format: QuoteWhenNecessary,
       inline,
       fold_case_clauses: false,
+      project_tables: false,
       fold_fn_bodies: `NoFold,
       hide_fixpoints: false,
       show_filters: true,
@@ -473,8 +476,8 @@ let rec parenthesize =
   | Ap(Reverse, e1, e2) =>
     Ap(
       Reverse,
-      parenthesize(e1) |> paren_assoc_at(Precedence.eqs),
-      parenthesize(e2) |> paren_at(Precedence.eqs),
+      parenthesize(e1) |> paren_at(Precedence.eqs), // Associativity is backwards because e2 goes before e1
+      parenthesize(e2) |> paren_assoc_at(Precedence.eqs),
     )
     |> rewrap
   | TypAp(e, tp) =>
@@ -1062,6 +1065,15 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   | `NoFold => pieces
   };
 
+let project_table_if = (should_project, pieces) =>
+  if (should_project) {
+    switch (MakeTerm.for_projection([pieces])) {
+    | None => failwith("ExpToSegment.project_table_if")
+    | Some(any) => [ProjectorInit.init_or_noop(Table, pieces, any)]
+    };
+  } else {
+    [pieces];
+  };
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
@@ -1164,7 +1176,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             ),
         ],
       );
-    wrap(exp, p_just([form(x, xs)]));
+    wrap(
+      exp,
+      p_just(form(x, xs) |> project_table_if(settings.project_tables)),
+    );
   // TODO: Add optional newlines
   | Var(v) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v))
   | BinOp(op, l, r) =>
@@ -1447,6 +1462,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(
       exp,
       e2
+      @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
       @ [
         Tile({
           id,

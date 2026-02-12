@@ -16,6 +16,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
             label_format: QuoteWhenNecessary,
             inline: true,
             fold_case_clauses: false,
+            project_tables: false,
             fold_fn_bodies: `NoFold,
             hide_fixpoints: false,
             show_filters: false,

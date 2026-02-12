@@ -136,7 +136,7 @@ module M: Projector = {
       ~attrs=[Attr.classes(["type-cell"])],
       [
         Typ(typ)
-        |> utility.term_to_seg
+        |> utility.term_to_seg(~inline=true)
         |> view_seg(~single_line=true, ~is_dynamic, Sort.Typ),
       ],
     );

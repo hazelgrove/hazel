@@ -217,6 +217,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       ~section="Settings",
+      ~mdIcon="table_view",
+      "Toggle Project Tables in Evaluation Output",
+      Globals(Set(Evaluation(ProjectTables))),
+    ),
+    mk_shortcut(
+      ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Sidebar",
       Globals(Set(Sidebar(ToggleShow))),

@@ -31,13 +31,14 @@ type utility = {
   /* Convert a segment to a term */
   seg_to_term: Base.segment => option(Any.t),
   /* Convert a term to a segment */
-  term_to_seg: Any.t => Base.segment,
+  term_to_seg: (~inline: bool, Any.t) => Base.segment,
   seg_to_string: Base.segment => string,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
+  lift_syntax:
+    (~inline: bool, Any.t => Any.t, Base.segment) => option(Base.segment),
 };
 
 module Focusable = {
@@ -224,6 +225,6 @@ module Cook = (C: Projector) : Cooked => {
     });
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
-  let update = (m, i, a) =>
+  let update = (m: model, i: info, a: action): model =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
 };

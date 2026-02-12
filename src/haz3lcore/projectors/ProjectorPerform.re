@@ -184,37 +184,90 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SetSyntax(idx, seg) =>
-    Ok(
-      update(
-        p =>
-          {
-            ...p,
-            syntax: Segment.parenthesize(seg),
-          },
-        projector_idx_to_id(idx),
-        z,
-      ),
-    )
+  | SetSyntax(idx, kind, seg) =>
+    let id = idx_to_id(kind, idx);
+    // Ensure seg is parenthesized unless it already is
+    let parenthesized_piece =
+      Segment.unparenthesize(seg) |> Segment.parenthesize;
+    if (ProjectorCore.Kind.is_refractor(kind)) {
+      let parenthesized_seg = [parenthesized_piece];
+      // Check for existing refractors (automatic ephemeral or manual) that control this projector
+      let original_id = id;
+      let ephemeral_model =
+        Id.Map.find_opt(original_id, z.refractors.autos.ephemerals)
+        |> Option.map((pr: Refractors.entry) => pr.model);
+      let manual_refractor_model =
+        List.assoc_opt(original_id, z.refractors.manuals)
+        |> Option.map((pr: Refractors.entry) => pr.model);
+      switch (manual_refractor_model, ephemeral_model) {
+      | (Some(refractor_model), _) =>
+        // Manual refractor exists: update the selection to this projector's term range,
+        // replace with new syntax, and create a new refractor probe monitoring the updated term
+        let new_id =
+          MakeTerm.from_zip_for_sem(
+            Zipper.unzip(~direction=Right, parenthesized_seg),
+          ).
+            term
+          |> Language.Exp.rep_id;
+
+        let new_z = {
+          open OptUtil.Syntax;
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+          ZipperBase.add_manual(~model=refractor_model, new_id, kind, z);
+        };
+
+        switch (new_z) {
+        | Some(z) => Ok(z)
+        | None => Error(Cant_project)
+        };
+      | (_, Some(_)) =>
+        // Ephemeral refractor exists: update selection and replace syntax,
+        // but don't create new refractor as this is handled automatically
+
+        let new_z = {
+          open OptUtil.Syntax;
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+          z;
+        };
+
+        switch (new_z) {
+        | Some(z) => Ok(z)
+        | None => Error(Cant_project)
+        };
+      | (None, None) => assert(false)
+      };
+    } else {
+      Ok(
+        update(
+          pr =>
+            {
+              ...pr,
+              syntax: parenthesized_piece,
+            },
+          id,
+          z,
+        ),
+      );
+    };
   | SetModel(idx, kind, new_model) =>
     let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {
-        Zipper.update_manuals(
-          map =>
-            ListUtil.assoc_update(
-              id,
-              fun
-              | Some(entry: Refractors.entry) =>
-                Some(
-                  Refractors.{
-                    kind: entry.kind,
-                    model: new_model,
-                  },
-                )
-              | None => None,
-              map,
-            ),
+        Zipper.update_refractor(
+          id,
+          fun
+          | Some(entry: Refractors.entry) =>
+            Some(
+              Refractors.{
+                kind: entry.kind,
+                model: new_model,
+              },
+            )
+          | None => None,
           z,
         );
       } else {

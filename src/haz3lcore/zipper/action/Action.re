@@ -61,7 +61,7 @@ type project =
   | SampleCursor(sample_cursor)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(int, Base.segment) /* Set underlying syntax */
+  | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax (projector or refractor) */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t); /* Pass control to parent editor */

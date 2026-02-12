@@ -9,6 +9,9 @@
 @import "proj-checkbox.css";
 @import "proj-slider.css";
 @import "proj-livelit.css";
+@import "proj-table.css";
+@import "proj-tableprobe.css";
+@import "proj-calculator.css";
 @import "proj-csv.css";
 
 /* Default projector styles */

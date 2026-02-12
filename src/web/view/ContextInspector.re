@@ -17,6 +17,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         label_format: QuoteWhenNecessary,
         inline: true,
         fold_case_clauses: false,
+        project_tables: false,
         fold_fn_bodies: `NoFold,
         hide_fixpoints: false,
         show_filters: false,

@@ -31,6 +31,7 @@ module M: Projector = {
   let toggle = (info): Base.segment =>
     switch (
       info.utility.lift_syntax(
+        ~inline=true,
         fun
         | Exp({term: Atom(Bool(b)), _} as t) =>
           Exp({

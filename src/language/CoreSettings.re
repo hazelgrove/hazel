@@ -10,6 +10,7 @@ module Evaluation = {
     show_case_steps: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
+    project_tables: bool,
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
     stepper_history: bool,
     show_settings: bool,
@@ -25,6 +26,7 @@ module Evaluation = {
     show_case_steps: false,
     show_lookup_steps: false,
     show_stepper_filters: false,
+    project_tables: false,
     stepper_history: false,
     show_settings: false,
     show_hidden_steps: false,

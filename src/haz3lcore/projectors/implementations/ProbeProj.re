@@ -11,11 +11,111 @@ open Language;
  * - SampleLength.lengths: Per-sample display lengths
  * These use mutable refs for simplicity since they're UI-only state. */
 
+/* Packed renderer type for heterogeneous renderer storage */
+type packed_renderer = {
+  id: string,
+  can_handle: (Sort.t, Exp.t) => bool,
+  parse_packed: (Sort.t, Exp.t) => option(string),
+  init_packed: string => string,
+  render_packed:
+    (
+      string,
+      ~info: info,
+      ~exp: Exp.t,
+      ~view_seg: (Sort.t, Segment.t) => Node.t,
+      ~local: string => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit),
+      ~sort: Sort.t,
+      unit
+    ) =>
+    option(Node.t),
+  update_packed: (string, string) => string,
+  badge: Node.t,
+};
+
+/* Pack a renderer module conforming to RichProbe signature */
+let pack_renderer =
+    (
+      type m,
+      type a,
+      module_impl: (module RichProbe.RichProbe with
+                      type model = m and type action = a),
+      id: string,
+    )
+    : packed_renderer => {
+  module R = (val module_impl);
+
+  let serialize_model = m => m |> R.sexp_of_model |> Sexplib.Sexp.to_string;
+  let deserialize_model = s => s |> Sexplib.Sexp.of_string |> R.model_of_sexp;
+  let serialize_action = a => a |> R.sexp_of_action |> Sexplib.Sexp.to_string;
+  let deserialize_action = s =>
+    s |> Sexplib.Sexp.of_string |> R.action_of_sexp;
+  let serialize_value = v => v |> R.sexp_of_value |> Sexplib.Sexp.to_string;
+
+  {
+    id,
+    can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
+    parse_packed: (sort, exp) =>
+      R.parse(sort, exp) |> Option.map(serialize_value),
+    init_packed: value_str => {
+      let v = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
+      let m = R.init(v);
+      serialize_model(m);
+    },
+    render_packed:
+      (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) => {
+      let v = R.parse(sort, exp);
+      let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
+      switch (v) {
+      | Some(value) =>
+        Some(
+          R.render(
+            ~info,
+            ~exp,
+            ~value,
+            ~view_seg,
+            ~model,
+            ~local=action => local(serialize_action(action)),
+            ~parent,
+            ~sort,
+            (),
+          ),
+        )
+      | None => None
+      };
+    },
+    update_packed: (model_str, action_str) =>
+      R.update(deserialize_model(model_str), deserialize_action(action_str))
+      |> serialize_model,
+    badge: R.badge,
+  };
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type active_renderer = {
+  renderer_id: string,
+  model_state: string,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type oactive_renderer = option(active_renderer);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type probe_model = {active_renderer: oactive_renderer};
+
+let probe_model_of_sexp = sexp =>
+  switch (probe_model_of_sexp(sexp)) {
+  | model => model
+  | exception _ => {active_renderer: None}
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
   | ToggleShowAllVals(int)
-  | NoOp;
+  | NoOp
+  | ToggleModal(oactive_renderer)
+  | RendererAction(string);
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -217,7 +317,7 @@ let len_seg = (utility: utility, seg: Segment.t): int =>
   seg |> utility.seg_to_string |> String.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(Exp(exp));
+  let seg = utility.term_to_seg(~inline=true, Exp(exp));
   (seg, len_seg(utility, seg));
 };
 
@@ -409,6 +509,18 @@ module Debug = {
     ++ Printf.sprintf("%.0f", sample.time);
 };
 
+/* Registry of available renderers - initialized once at module load */
+let renderers: list(packed_renderer) = [
+  pack_renderer((module TableRenderer), "table"),
+  pack_renderer((module CalculatorRenderer), "calculator"),
+  pack_renderer((module CardRenderer), "card"),
+];
+
+/* Find first compatible renderer for an expression */
+let find_compatible_renderer =
+    (sort: Sort.t, exp: Exp.t): option(packed_renderer) =>
+  List.find_opt(r => r.can_handle(sort, exp), renderers);
+
 let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
   | (Some(ap_id), Some(sample)) =>
@@ -423,6 +535,7 @@ let value_view =
     (
       ~ap_id: option(Id.t),
       ~settings: settings,
+      ~sort: Sort.t,
       ~num_total: int,
       di: Dynamics.Info.t,
       utility: utility,
@@ -474,33 +587,67 @@ let value_view =
   let length = length == 12 && num_total == 1 ? 150 : length;
   let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
+  /* Get badges for all compatible renderers for this specific value */
+  let compatible_badges =
+    renderers
+    |> List.filter(r => r.can_handle(sort, sample.value))
+    |> List.map(r =>
+         span(
+           ~attrs=[
+             Attr.on_click(_ => {
+               let exp = sample.value;
+               let oactive =
+                 switch (r.parse_packed(sort, exp)) {
+                 | Some(value_state) =>
+                   let model_state = r.init_packed(value_state);
+                   Some({
+                     renderer_id: r.id,
+                     model_state,
+                   });
+                 | None => None
+                 };
+               local(ToggleModal(oactive));
+             }),
+             Attr.classes(["renderer-badge"]),
+           ],
+           [r.badge],
+         )
+       );
+
   div(
-    ~attrs=[
-      // Attr.title(Debug.str(~ap_id, sample)),
-      Attr.classes(
-        ["value", length_cls(length)]
-        @ cursor_clss(~settings, ~ap_id, di, sample)
-        @ (Option.is_some(ap_id) ? ["ap"] : [])
-        @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
+    ~attrs=[Attr.style(Css_gen.create(~field="display", ~value="flex"))],
+    compatible_badges
+    @ [
+      div(
+        ~attrs=[
+          // Attr.title(Debug.str(~ap_id, sample)),
+          Attr.classes(
+            ["value", length_cls(length)]
+            @ cursor_clss(~settings, ~ap_id, di, sample)
+            @ (Option.is_some(ap_id) ? ["ap"] : [])
+            @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
+          ),
+          Attr.on_double_click(_ => {
+            Settings.go(ToggleWindow);
+            local(NoOp);
+          }),
+          Attr.on_pointerdown(evt =>
+            Key.meta_held(evt)
+              ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
+          ),
+          Attr.on_pointerup(val_pointerup),
+          Attr.on_mousemove(val_mousemove),
+        ],
+        [view_seg(~text_only=false, sort, seg)],
       ),
-      Attr.on_double_click(_ => {
-        Settings.go(ToggleWindow);
-        local(NoOp);
-      }),
-      Attr.on_pointerdown(evt =>
-        Key.meta_held(evt)
-          ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
-      ),
-      Attr.on_pointerup(val_pointerup),
-      Attr.on_mousemove(val_mousemove),
     ],
-    [view_seg(~text_only=false, Sort.Exp, seg)],
   );
 };
 
 let env_val =
     (
       ~settings: settings,
+      ~sort: Sort.t,
       sample,
       view_seg,
       utility: utility,
@@ -520,7 +667,7 @@ let env_val =
             SampleLength.get(settings.window, sample),
             d,
           );
-        view_seg(~text_only=false, Sort.Exp, seg);
+        view_seg(~text_only=false, sort, seg);
       },
     ],
   );
@@ -613,7 +760,10 @@ let sample_environment =
         [
           div(
             ~attrs=[Attr.classes(["live-env"])],
-            List.map(env_val(~settings, sample, view_seg, utility), elems),
+            List.map(
+              env_val(~settings, ~sort=Sort.Exp, sample, view_seg, utility),
+              elems,
+            ),
           ),
         ],
       ),
@@ -649,6 +799,7 @@ let sample_view =
       ~hide_env: bool,
       ~settings: settings,
       ~num_total: int,
+      ~sort: Sort.t,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -670,6 +821,7 @@ let sample_view =
         ~ap_id,
         ~settings,
         ~num_total,
+        ~sort,
         di,
         utility,
         view_seg,
@@ -704,6 +856,7 @@ let sample_group_view =
       ~hide_env: bool,
       ~settings: settings,
       ~num_total: int,
+      ~sort,
       di: Dynamics.Info.t,
       utility,
       view_seg,
@@ -722,6 +875,7 @@ let sample_group_view =
               ~hide_env,
               ~settings,
               ~num_total,
+              ~sort,
               di,
               utility,
               view_seg,
@@ -1062,6 +1216,7 @@ let offside_view =
       local,
       parent,
       ~settings: settings,
+      ~sort: Sort.t,
       view_seg:
         (~background: bool=?, ~text_only: bool=?, Sort.t, list(syntax)) =>
         Node.t,
@@ -1130,6 +1285,7 @@ let offside_view =
             ~hide_env,
             ~settings,
             ~num_total,
+            ~sort,
             di,
             utility,
             (~text_only: bool) => view_seg(~text_only, ~background=false),
@@ -1157,21 +1313,38 @@ let offside_view =
     );
   };
 
-let update = (() as m, _info: info, a: action) => {
-  switch (a) {
-  | ChangeLength(id, len) => SampleLength.set(id, len)
-  | ToggleShowAllVals(_) => Settings.go(ToggleWindow)
-  | NoOp => m
-  };
-};
-
-let overlay_view = (info: info): Node.t =>
+let get_current = (~settings, info: info) => {
   switch (info.dynamics) {
   | Some(di) =>
     let ap_id = Sample.Cursor.cur_var_ap(info.statics);
+    /* First try to get the indicated closure */
+    switch (Dynamics.Info.first_cursor_sample(ap_id, di)) {
+    | Some(closure) => Some(closure.value)
+    | None =>
+      /* Fallback: get the first sample */
+      let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
+      ListUtil.hd_opt(samples) |> Option.map((s: Sample.t) => s.value);
+    };
+  | None => None
+  };
+};
+
+let overlay_view = (~settings, ~sort, _model: probe_model, info: info): Node.t =>
+  switch (info.dynamics) {
+  | Some(di) =>
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
+    let has_renderer =
+      switch (get_current(~settings, info)) {
+      | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
+      | None => false
+      };
     div(
       ~attrs=[
-        Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),
+        Attr.classes(
+          ["overlay"]
+          @ (Option.is_some(ap_id) ? ["ap"] : [])
+          @ (has_renderer ? ["has-renderer"] : []),
+        ),
       ],
       [num_samples_view(~ap_id, di)],
     );
@@ -1183,48 +1356,149 @@ type a = action;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
-  let model_of_sexp = _ => ();
+  type model = probe_model;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Any.t) =>
+  let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some()
-    | Any(_) => Some() /* Grout don't have sorts rn */
+    | Pat(_) => Some({active_renderer: None})
+    | Any(_) => Some({active_renderer: None}) /* Grout don't have sorts rn */
     | _ => None
     };
+  };
 
   let dynamics = true;
 
   let focusable =
     Focusable.{
-      pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
+      pointer: Some(id => {JsUtil.get_elem_by_id(Id.cls(id))##focus}),
       keyboard: None,
     };
 
   let placeholder = (_, _) => ProjectorCore.Shape.default;
 
-  let update = update;
+  let update = (model: probe_model, _info: info, action: action) => {
+    switch (action) {
+    | ChangeLength(id, len) =>
+      SampleLength.set(id, len);
+      model;
+    | ToggleShowAllVals(_) =>
+      Settings.go(ToggleWindow);
+      model;
+    | NoOp => model
+    | ToggleModal(renderer) =>
+      switch (model.active_renderer) {
+      | None => {active_renderer: renderer}
+      | Some(_) => {active_renderer: None}
+      }
+    | RendererAction(serialized_action) =>
+      /* Route action to active renderer */
+      switch (model.active_renderer) {
+      | Some({renderer_id, model_state}) =>
+        switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+        | Some(renderer) => {
+            active_renderer:
+              Some({
+                renderer_id,
+                model_state:
+                  renderer.update_packed(model_state, serialized_action),
+              }),
+          }
+        | None => model
+        }
+      | None => model
+      }
+    };
+  };
+  /* Modal overlay for dynamic renderer display */
+  let modal_overlay =
+      (
+        ~settings,
+        model,
+        info,
+        ~local: action => Ui_effect.t(unit),
+        ~parent,
+        ~view_seg,
+        ~sort,
+      )
+      : list(Node.t) => {
+    switch (model.active_renderer, get_current(~settings, info)) {
+    | (Some({renderer_id, model_state, _}), Some(exp)) =>
+      /* Find the renderer and check if it can still handle the expression */
+      switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+      | Some(renderer) when renderer.can_handle(sort, exp) =>
+        let rendered =
+          renderer.render_packed(
+            model_state,
+            ~info,
+            ~exp,
+            ~view_seg,
+            ~local=action => local(RendererAction(action)),
+            ~parent,
+            ~sort,
+            (),
+          );
+        switch (rendered) {
+        | None => []
+        | Some(content) => [
+            div(
+              ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
+              [
+                div(
+                  ~attrs=[
+                    Attr.classes(["modal"]),
+                    Attr.on_click(_ => Effect.Stop_propagation),
+                  ],
+                  [content],
+                ),
+              ],
+            ),
+          ]
+        };
 
-  let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
+      | _ => []
+      }
+    | _ => []
+    };
+  };
+  let view =
+      (
+        {info, local, parent, view_seg, model, status, _}:
+          View.args(model, action),
+      ) => {
     let settings = Settings.s^;
+    let sort = status.sort;
     /* Wrap view_seg to fix single_line=true for all probe displays */
     let view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
       view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
     View.{
       inline: Node.div([]),
-      overlay: Some(overlay_view(info)),
+      overlay: Some(overlay_view(~settings, ~sort, model, info)),
       offside:
         Some(
-          offside_view(
-            ~settings,
-            info,
-            local,
-            parent,
-            view_seg_single_line,
-            info.utility,
+          div(
+            [
+              offside_view(
+                ~settings,
+                ~sort,
+                info,
+                local,
+                parent,
+                view_seg_single_line,
+                info.utility,
+              ),
+            ]
+            @ modal_overlay(
+                ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg=view_seg_single_line,
+                ~sort,
+              ),
           ),
         ),
     };

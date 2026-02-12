@@ -417,6 +417,7 @@ module Projectors = {
     | SliderF => "SliderF"
     | Card => "Card"
     | TextArea => "Text"
+    | Table => "Table"
     | Csv => "CSV"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */

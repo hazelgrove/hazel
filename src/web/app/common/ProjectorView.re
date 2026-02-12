@@ -186,11 +186,12 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (idx, action: external_action): Action.t =>
+let handle =
+    (idx, kind: ProjectorCore.Kind.t, action: external_action): Action.t =>
   switch (action) {
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
-  | SetSyntax(f) => Project(SetSyntax(idx, f))
+  | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
   | SampleCursor(sc) => Project(SampleCursor(sc))
   | Probe(p) => Probe(p)
   };
@@ -326,7 +327,7 @@ let mk_view =
       let new_model = P.update(p.model, info, a);
       inject(Project(SetModel(idx, p.kind, new_model)));
     },
-    parent: a => inject(handle(idx, a)),
+    parent: a => inject(handle(idx, p.kind, a)),
     view_seg:
       (
         ~single_line=?,

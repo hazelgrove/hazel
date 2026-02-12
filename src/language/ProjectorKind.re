@@ -16,6 +16,7 @@ type t =
   | Card
   | Livelit
   | TextArea
+  | Table
   | Csv;
 
 let livelit_projectors: list(t) = [
@@ -27,6 +28,7 @@ let livelit_projectors: list(t) = [
   TextArea,
   Card,
   Livelit,
+  Table,
 ];
 
 /* Note: Probe intentionally excluded - probes use separate action path */
@@ -51,6 +53,7 @@ let name = (p: t): string =>
   | Livelit => "livelit"
   | TextArea => "text"
   | Csv => "csv"
+  | Table => "table"
   };
 
 module StringMap = Map.Make(String);

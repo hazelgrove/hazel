@@ -165,6 +165,7 @@ let legend_sample_view =
       window: mode,
     },
     ~num_total=1,
+    ~sort=Sort.Exp,
     di,
     ProjectorInfo.utility,
     (~text_only) =>
