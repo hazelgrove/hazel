@@ -80,6 +80,7 @@ type settings = {
   ignore_unknown_provenance: bool, // Treats all holes as equal, including multiholes, emptyholes, invalid and synswitch
   use_expr_wildcards: option((Environment.t(Exp.t), Exp.t) => bool), // In order to turn this setting on, you must provide a function that decides whether something is a value (i.e. whether it matches $v)
   ignore_fixpoints: bool, // Hideously unsound, used to hide function steps in the stepper
+  allow_fixpoint_unrolling: bool, // Enable comparing expressions up to fixpoint unrolling (e.g., fix f. body === body[fix f. body / f])
   free_var_handler: option((Alphas.t, string, Exp.t) => bool), // Note[Matt]: to be used in MatchExp
   /* The following two options shouldn't really be `settings' but they're
      packaged with settings because they remain the same throughout a single
@@ -105,6 +106,7 @@ let equality =
         ignore_unknown_provenance,
         use_expr_wildcards,
         ignore_fixpoints,
+        allow_fixpoint_unrolling,
         free_var_handler,
         env1,
         env2,
@@ -118,14 +120,21 @@ let equality =
   };
 
   let rec exp =
-          (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) => {
-    let exp' = exp(alphas_exp, alphas_typ);
+          (
+            alphas_exp: Alphas.t,
+            alphas_typ: Alphas.t,
+            seen_fixpoints: list(Id.t),
+            e1: Exp.t,
+            e2: Exp.t,
+          ) => {
+    let exp' = exp(alphas_exp, alphas_typ, seen_fixpoints);
     let pat' = pat(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let filter' = filter(alphas_exp, alphas_typ);
-    let any' = any(alphas_exp, alphas_typ);
-    let mod' = mod_(alphas_exp, alphas_typ);
-    switch (e1 |> Annotated.term_of, e2 |> Annotated.term_of) {
+    let any' = any(alphas_exp, alphas_typ, seen_fixpoints);
+    let mod' = mod_(alphas_exp, alphas_typ, seen_fixpoints);
+    let (term1, term2) = (e1 |> Annotated.term_of, e2 |> Annotated.term_of);
+    switch (term1, term2) {
     // Wrappers when ignored: unwrap. These cases must come first.
     | (DynamicErrorHole(x, _), _) when ignore_dynamic_errors => exp'(x, e2)
     | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors => exp'(e1, x)
@@ -151,6 +160,92 @@ let equality =
     | (EmptyHole, _) when Option.is_some(use_expr_wildcards) => true
     | (Constructor("$e", _), _) when Option.is_some(use_expr_wildcards) =>
       true
+
+    // Fixpoint unrolling cases (must come before general Var cases)
+    | (FixF(_, e, _), _) when ignore_fixpoints => exp'(e, e2)
+    | (_, FixF(_, e, _)) when ignore_fixpoints => exp'(e1, e)
+    // Structural equality for FixF vs FixF (must come before unrolling cases)
+    | (FixF(p1, body_e1, c1), FixF(p2, body_e2, c2)) =>
+      switch (pat'(p1, p2)) {
+      | Some(alphas_exp') =>
+        exp(
+          Alphas.combine(alphas_exp', alphas_exp),
+          alphas_typ,
+          seen_fixpoints,
+          body_e1,
+          body_e2,
+        )
+        && (
+          closures_by_id
+            ? Option.equal(Environment.id_equal, c1, c2)
+            : Option.equal(
+                failwith(
+                  "full closure equality has not been implemented yet",
+                ),
+                c1,
+                c2,
+              )
+        )
+      | None => false
+      }
+    | (FixF(p1, body1, _), _) =>
+      if (allow_fixpoint_unrolling) {
+        // Fixpoint unrolling: fix p. body === body[fix p. body / p]
+        let fix_id = IdTagged.rep_id(e1);
+        if (List.mem(fix_id, seen_fixpoints)) {
+          false;
+               // Cycle detected - don't unroll again
+        } else {
+          // Check for trivial cycle: if body is just the bound variable
+          // e.g., fix f. f, then unrolling would produce the same structure
+          let bound_vars = Pat.bindings(p1) |> Binding.variable_names;
+          let body_term = Annotated.term_of(body1);
+          let is_trivial_cycle =
+            switch (body_term) {
+            | Var(x) => List.mem(x, bound_vars)
+            | _ => false
+            };
+          if (is_trivial_cycle) {
+            false;
+          } else {
+            // Unroll by substituting the fixpoint for the bound variables
+            let bindings = List.map(name => (name, e1), bound_vars);
+            let subst_env = Environment.of_bindings(bindings);
+            let unrolled = Substitution.in_exp(subst_env, body1);
+            // Compare unrolled with e2
+            exp(
+              alphas_exp,
+              alphas_typ,
+              [fix_id, ...seen_fixpoints],
+              unrolled,
+              e2,
+            );
+          };
+        };
+      } else {
+        false;
+      }
+    | (_, FixF(p2, body2, _)) when allow_fixpoint_unrolling =>
+      // Symmetric case: e1 === fix p. body means e1 === body[fix p. body / p]
+      let fix_id = IdTagged.rep_id(e2);
+      if (List.mem(fix_id, seen_fixpoints)) {
+        false;
+             // Cycle detected - don't unroll again
+      } else {
+        // Unroll by substituting the fixpoint for the bound variables
+        let bound_vars = Pat.bindings(p2) |> Binding.variable_names;
+        let bindings = List.map(name => (name, e2), bound_vars);
+        let subst_env = Environment.of_bindings(bindings);
+        let unrolled = Substitution.in_exp(subst_env, body2);
+        // Compare e1 with unrolled
+        exp(
+          alphas_exp,
+          alphas_typ,
+          [fix_id, ...seen_fixpoints],
+          e1,
+          unrolled,
+        );
+      };
 
     /* These variable cases are quite complicated because they account for a lot of concerns.
         * 1. Alpha equivalence :  if either of the variables are bound, we need to check if they are alpha equivalent.
@@ -232,30 +327,16 @@ let equality =
     | (Filter(_), _) => false
 
     // Forms with expression binders
-    | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
-      switch (pat'(p1, p2)) {
-      | Some(alphas_exp') =>
-        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
-        && (
-          closures_by_id
-            ? Option.equal(Environment.id_equal, c1, c2)
-            : Option.equal(
-                failwith(
-                  "full closure equality has not been implemented yet",
-                ),
-                c1,
-                c2,
-              )
-        )
-      | None => false
-      }
-    | (FixF(_, e, _), _) when ignore_fixpoints => exp'(e, e2)
-    | (_, FixF(_, e, _)) when ignore_fixpoints => exp'(e1, e)
-    | (FixF(_, _, _), _) => false
     | (Fun(p1, e1, t1, f1), Fun(p2, e2, t2, f2)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
-        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
+        exp(
+          Alphas.combine(alphas_exp', alphas_exp),
+          alphas_typ,
+          seen_fixpoints,
+          e1,
+          e2,
+        )
         && (ignore_function_types || Option.equal(typ', t1, t2))
         && (ignore_function_names || f1 == f2)
       | None => false
@@ -264,16 +345,28 @@ let equality =
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
-        exp(alphas_exp, alphas_typ, e1, e3)
-        && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
+        exp(alphas_exp, alphas_typ, seen_fixpoints, e1, e3)
+        && exp(
+             Alphas.combine(alphas_exp', alphas_exp),
+             alphas_typ,
+             seen_fixpoints,
+             e2,
+             e4,
+           )
       | None => false
       }
     | (Let(_, _, _), _) => false
     | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
-        exp(alphas_exp, alphas_typ, e1, e3)
-        && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
+        exp(alphas_exp, alphas_typ, seen_fixpoints, e1, e3)
+        && exp(
+             Alphas.combine(alphas_exp', alphas_exp),
+             alphas_typ,
+             seen_fixpoints,
+             e2,
+             e4,
+           )
       | None => false
       }
     | (Theorem(_, _, _), _) => false
@@ -282,7 +375,13 @@ let equality =
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
       switch (tpat(tp1, tp2)) {
       | Some(alphas_typ') =>
-        exp(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), e1, e2)
+        exp(
+          alphas_exp,
+          Alphas.combine(alphas_typ', alphas_typ),
+          seen_fixpoints,
+          e1,
+          e2,
+        )
       | None => false
       }
     | (TypFun(_, _, _), _) => false
@@ -290,14 +389,26 @@ let equality =
       switch (tpat(tp1, tp2)) {
       | Some(alphas_typ') =>
         typ'(t1, t2)
-        && exp(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), e1, e2)
+        && exp(
+             alphas_exp,
+             Alphas.combine(alphas_typ', alphas_typ),
+             seen_fixpoints,
+             e1,
+             e2,
+           )
       | None => false
       }
     | (TyAlias(_, _, _), _) => false
     | (Forall(p1, e1), Forall(p2, e2)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
-        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
+        exp(
+          Alphas.combine(alphas_exp', alphas_exp),
+          alphas_typ,
+          seen_fixpoints,
+          e1,
+          e2,
+        )
       | None => false
       }
     | (Forall(_, _), _) => false
@@ -398,7 +509,13 @@ let equality =
         | ([(p1, e1), ...rest1], [(p2, e2), ...rest2]) =>
           switch (pat'(p1, p2)) {
           | Some(alphas_exp') =>
-            exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
+            exp(
+              Alphas.combine(alphas_exp', alphas_exp),
+              alphas_typ,
+              seen_fixpoints,
+              e1,
+              e2,
+            )
             && match_rules(rest1, rest2)
           | None => false
           }
@@ -424,6 +541,7 @@ let equality =
         && exp(
              Alphas.combine(alphas_exp', alphas_exp),
              alphas_typ,
+             seen_fixpoints,
              body1,
              body2,
            )
@@ -459,14 +577,15 @@ let equality =
       (
         alphas_exp: Alphas.t,
         alphas_typ: Alphas.t,
+        seen_fixpoints: list(Id.t),
         m1: TermBase.Mod.t,
         m2: TermBase.Mod.t,
       )
       : bool => {
-    let exp' = exp(alphas_exp, alphas_typ);
+    let exp' = exp(alphas_exp, alphas_typ, seen_fixpoints);
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
-    let any' = any(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ, seen_fixpoints);
     let mpat' = (mp1, mp2) =>
       Option.is_some(mpat(alphas_exp, alphas_typ, mp1, mp2));
     switch (m1 |> Annotated.term_of, m2 |> Annotated.term_of) {
@@ -497,7 +616,7 @@ let equality =
       : option(Alphas.t) => {
     let pat' = pat(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
-    let any' = any(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ, []);
     switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
@@ -602,8 +721,8 @@ let equality =
   and typ =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool => {
     // This function takes alphas_exp for the theorem keyword branches which have expressions in types.
-    let any' = any(alphas_exp, alphas_typ);
-    let exp' = exp(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ, []);
+    let exp' = exp(alphas_exp, alphas_typ, []);
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = tpat;
     switch (t1 |> Annotated.term_of, t2 |> Annotated.term_of) {
@@ -713,7 +832,7 @@ let equality =
       : bool => {
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
-    let any' = any(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ, []);
     switch (s1 |> Annotated.term_of, s2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
@@ -739,7 +858,7 @@ let equality =
         mp2: TermBase.MPat.t,
       )
       : option(Alphas.t) => {
-    let any' = any(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ, []);
     switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => Some(Alphas.empty)
     | (EmptyHole, _) => None
@@ -789,9 +908,16 @@ let equality =
     };
   }
   and rul =
-      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, r1: Rul.t, r2: Rul.t): bool => {
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        seen_fixpoints: list(Id.t),
+        r1: Rul.t,
+        r2: Rul.t,
+      )
+      : bool => {
     let pat' = pat(alphas_exp, alphas_typ);
-    let exp' = exp(alphas_exp, alphas_typ);
+    let exp' = exp(alphas_exp, alphas_typ, seen_fixpoints);
     switch (r1 |> Annotated.term_of, r2 |> Annotated.term_of) {
     | (Rules(e1, rls1), Rules(e2, rls2))
         when List.length(rls1) == List.length(rls2) =>
@@ -803,6 +929,7 @@ let equality =
                exp(
                  Alphas.combine(alphas_exp', alphas_exp),
                  alphas_typ,
+                 seen_fixpoints,
                  e1,
                  e2,
                )
@@ -835,7 +962,7 @@ let equality =
         f2: TermBase.StepperFilterKind.t,
       )
       : bool => {
-    let exp' = exp(alphas_exp, alphas_typ);
+    let exp' = exp(alphas_exp, alphas_typ, []);
     switch (f1, f2) {
     | (Filter({pat: pat1, act: act1}), Filter({pat: pat2, act: act2})) =>
       exp'(pat1, pat2) && act1 == act2
@@ -845,20 +972,30 @@ let equality =
     };
   }
   and any =
-      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, a1: Any.t, a2: Any.t): bool => {
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        seen_fixpoints: list(Id.t),
+        a1: Any.t,
+        a2: Any.t,
+      )
+      : bool => {
     switch (a1, a2) {
-    | (Exp(e1), Exp(e2)) => exp(alphas_exp, alphas_typ, e1, e2)
+    | (Exp(e1), Exp(e2)) =>
+      exp(alphas_exp, alphas_typ, seen_fixpoints, e1, e2)
     | (Exp(_), _) => false
     | (Pat(p1), Pat(p2)) =>
       pat(alphas_exp, alphas_typ, p1, p2) |> Option.is_some
     | (Pat(_), _) => false
     | (Typ(t1), Typ(t2)) => typ(alphas_exp, alphas_typ, t1, t2)
     | (Typ(_), _) => false
-    | (Rul(r1), Rul(r2)) => rul(alphas_exp, alphas_typ, r1, r2)
+    | (Rul(r1), Rul(r2)) =>
+      rul(alphas_exp, alphas_typ, seen_fixpoints, r1, r2)
     | (Rul(_), _) => false
     | (TPat(tp1), TPat(tp2)) => tpat(tp1, tp2) |> Option.is_some
     | (TPat(_), _) => false
-    | (Mod(m1), Mod(m2)) => mod_(alphas_exp, alphas_typ, m1, m2)
+    | (Mod(m1), Mod(m2)) =>
+      mod_(alphas_exp, alphas_typ, seen_fixpoints, m1, m2)
     | (Mod(_), _) => false
     | (Sig(s1), Sig(s2)) => sig_(alphas_exp, alphas_typ, s1, s2)
     | (Sig(_), _) => false
@@ -873,17 +1010,17 @@ let equality =
   };
 
   {
-    exp: exp(Alphas.empty, Alphas.empty),
+    exp: exp(Alphas.empty, Alphas.empty, []),
     pat: (p1, p2) =>
       pat(Alphas.empty, Alphas.empty, p1, p2) |> Option.is_some,
     typ: typ(Alphas.empty, Alphas.empty),
     tpat: (tp1, tp2) => tpat(tp1, tp2) |> Option.is_some,
-    rul: rul(Alphas.empty, Alphas.empty),
-    mod_: (m1, m2) => mod_(Alphas.empty, Alphas.empty, m1, m2),
+    rul: rul(Alphas.empty, Alphas.empty, []),
+    mod_: (m1, m2) => mod_(Alphas.empty, Alphas.empty, [], m1, m2),
     sig_: (s1, s2) => sig_(Alphas.empty, Alphas.empty, s1, s2),
     mpat: (mp1, mp2) =>
       mpat(Alphas.empty, Alphas.empty, mp1, mp2) |> Option.is_some,
-    any: any(Alphas.empty, Alphas.empty),
+    any: any(Alphas.empty, Alphas.empty, []),
   };
 };
 
@@ -904,6 +1041,7 @@ let syntactic_settings = {
   ignore_unknown_provenance: false,
   use_expr_wildcards: None,
   ignore_fixpoints: false,
+  allow_fixpoint_unrolling: false,
   free_var_handler: None,
   env1: None,
   env2: None,
@@ -926,6 +1064,7 @@ let semantic_settings = {
   ignore_unknown_provenance: true,
   use_expr_wildcards: None,
   ignore_fixpoints: false,
+  allow_fixpoint_unrolling: true,
   free_var_handler: None,
   env1: None,
   env2: None,

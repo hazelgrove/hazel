@@ -261,32 +261,6 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) =
 let get_label: t => option(LabeledTuple.label) =
   p => match_tup_label(p) |> Option.map(fst);
 
-let rec bindings = (dp: t): Binding.s =>
-  switch (dp |> term_of) {
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | Invalid(_)
-  | Atom(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Constructor(_) => []
-  | Asc(y, _)
-  | Parens(y)
-  | Projector(_, y)
-  | TupLabel(_, y) => bindings(y)
-  | Var(name) => [
-      {
-        name,
-        id: rep_id(dp),
-      },
-    ]
-  | Tuple(dps) => List.flatten(List.map(bindings, dps))
-  | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
-  | ListLit(dps) => List.flatten(List.map(bindings, dps))
-  | Ap(_, dp1) => bindings(dp1)
-  };
-
 let bound_vars = (dp: t): list(Var.t) =>
   dp |> bindings |> List.map((b: Binding.t) => b.name);
 
