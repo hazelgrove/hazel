@@ -63,7 +63,7 @@ module Model = {
       panel: LanguageDocumentation,
       show: true,
     },
-    line_numbers: true,
+    line_numbers: false,
     relative_line_numbers: false,
   };
 
