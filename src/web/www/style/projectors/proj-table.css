@@ -41,7 +41,7 @@ table.table {
 }
 
 div.projector.table:has(tbody tr:nth-child(10)) {
-  overflow: auto;
+  overflow-y: auto;
 }
 
 
@@ -59,6 +59,6 @@ div.projector.table:has(tbody tr:nth-child(10)) {
 }
 
 .projector.table .code {
-    overflow-y: scroll;
+    overflow-y: hidden;
     font-size: calc(var(--base-font-size) * 0.9);
 }
