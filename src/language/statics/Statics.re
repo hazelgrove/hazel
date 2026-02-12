@@ -91,22 +91,38 @@ let rec any_to_info_map =
     | Invalid(_) => (CoCtx.empty, m)
     }
   | Mod(m_term) =>
-    // TODO (Phase 1.3): Implement proper module type checking
+    let ids = IdTagged.ids(m_term);
+    let cls = Cls.Mod(Mod.cls_of_term(m_term.term));
+    let add_mod_info = m =>
+      add_info(
+        ids,
+        InfoMod({
+          id: IdTagged.rep_id(m_term),
+          term: m_term,
+          cls,
+          sort: Mod,
+          ctx,
+          ancestors,
+        }),
+        m,
+      );
     switch (m_term.term) {
     | Invalid(_)
-    | EmptyHole => (CoCtx.empty, m)
+    | EmptyHole => (CoCtx.empty, add_mod_info(m))
     | MultiHole(tms) =>
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
-      (CoCtx.union(co_ctxs), m);
+      (CoCtx.union(co_ctxs), add_mod_info(m));
     | ModLet(p, e) =>
       let (co_ctx_e, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
       let (_, m) = any_to_info_map(~ctx, ~ancestors, Pat(p), m);
-      (co_ctx_e, m);
+      (co_ctx_e, add_mod_info(m));
     | ModType(tp, t) =>
       let (_, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
       let (_, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
-      (CoCtx.empty, m);
-    | ModExp(e) => any_to_info_map(~ctx, ~ancestors, Exp(e), m)
+      (CoCtx.empty, add_mod_info(m));
+    | ModExp(e) =>
+      let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
+      (co_ctx, add_mod_info(m));
     }
   | Sig(s_term) =>
     let ids = IdTagged.ids(s_term);
@@ -114,11 +130,13 @@ let rec any_to_info_map =
     let add_sig_info = m =>
       add_info(
         ids,
-        Secondary({
+        InfoSig({
           id: IdTagged.rep_id(s_term),
+          term: s_term,
           cls,
           sort: Sig,
           ctx,
+          ancestors,
         }),
         m,
       );
@@ -1424,7 +1442,9 @@ and uexp_to_info_map =
       let expanded = ExpandModule.expand(~ana, items);
       let (expanded_info, m) = go(~ana, expanded, m);
       /* Override expansion info for Mod item IDs: replace Exp cls with Mod cls
-         so cursor inspector shows "Let definition" instead of "Let expression" */
+         so cursor inspector shows "Let declaration" instead of "Let expression".
+         We keep InfoExp (not InfoMod) because the elaborator needs InfoExp
+         data (self, ty, etc.) for the expanded Let/TyAlias wrapper expressions. */
       let m =
         List.fold_left(
           (m, item: Mod.t) => {

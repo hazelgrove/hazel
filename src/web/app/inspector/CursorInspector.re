@@ -747,6 +747,9 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
+  | InfoMod(_) => wrapper(div([]))
+  | InfoSig(_) => wrapper(div([]))
+  | InfoExp({cls: Mod(_), _}) => wrapper(div([]))
   | InfoExp({cls, status, _} as ie) =>
     wrapper(exp_view(~globals, cls, status, ie))
   | InfoPat({cls, status, _} as ip) =>
