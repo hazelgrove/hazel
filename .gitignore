@@ -64,3 +64,6 @@ node_modules
 
 # Claude Code
 .claude/
+
+# Project plans (local only)
+plans/
