@@ -240,7 +240,7 @@ module Update = {
             ~settings,
             ~is_edited=true,
             ~is_dynamic_term=true,
-            ~dynamics=Dynamics.Map.empty,
+            ~dynamics=Calc.OldValue(Dynamics.empty),
             ~stitch=x => x,
             ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
             editor,

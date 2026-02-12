@@ -169,6 +169,8 @@ let handle_tuple_operation =
           arg.annotation.ids,
           InfoExp(
             Info.derived_exp(
+              ~calculate_dynamic_type=S.calculate_dynamic_type,
+              ~dynamics,
               ~uexp=arg,
               ~ctx,
               ~ana=syn,
@@ -351,6 +353,8 @@ let group_by_label_statics =
           arg.annotation.ids,
           InfoExp(
             Info.derived_exp(
+              ~calculate_dynamic_type=S.calculate_dynamic_type,
+              ~dynamics,
               ~uexp=arg,
               ~ctx,
               ~ana=syn,

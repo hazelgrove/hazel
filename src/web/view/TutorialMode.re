@@ -2,7 +2,7 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 // open ExplainThisUpdate;
-// open Util;
+open Util;
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 /* This file follows conventions in [docs/ui-architecture.md] */
 module Model = {
@@ -52,7 +52,7 @@ module Model = {
     let test_results =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         exercise.cells,
       );
 
@@ -66,7 +66,7 @@ module Model = {
     let test_results =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         exercise.cells,
       );
 
@@ -130,7 +130,7 @@ module Update = {
           )
         | exception (Failure(_)) => (
             CachedStatics.empty,
-            Language.Dynamics.Map.empty,
+            Language.Dynamics.empty,
           )
         };
       let* new_editor =
@@ -238,8 +238,11 @@ module Update = {
             editor: {
               editor,
               statics: cell.editor.statics,
-              dynamics: EvalResult.Model.dynamics(cell.result),
+              dynamics:
+                EvalResult.Model.dynamics_full(cell.result) |> Calc.get_value,
               context_menu: None,
+              dynamic_statics: cell.editor.dynamic_statics,
+              sample_cursor: cell.editor.sample_cursor,
             },
             result: cell.result,
           }
@@ -301,7 +304,7 @@ module Update = {
         your_impl:
           calculate(
             cells.user_impl.editor.statics,
-            cells.user_impl.editor.dynamics,
+            cells.user_impl.editor.dynamics.probe_map,
             model.editors.your_impl,
           ),
         display_hint: model.editors.display_hint,
@@ -309,7 +312,7 @@ module Update = {
           tests:
             calculate(
               cells.hidden_tests.editor.statics,
-              cells.hidden_tests.editor.dynamics,
+              cells.hidden_tests.editor.dynamics.probe_map,
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,
@@ -416,7 +419,7 @@ module View = {
     let stitched_tests =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         model.cells,
       );
     let test_count =

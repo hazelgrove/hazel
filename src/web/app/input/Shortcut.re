@@ -164,6 +164,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
+      "Toggle Live Typing",
+      Globals(Set(LiveTyping)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
       "Toggle Show Elaboration",
       Globals(Set(Elaborate)),
     ),

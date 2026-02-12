@@ -39,7 +39,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dynamics: Language.Dynamics.Map.t,
+        ~dynamics: Calc.t(Language.Dynamics.t),
         ~ana,
         {editor, taken_steps, next_steps, refls}: Model.t,
       )

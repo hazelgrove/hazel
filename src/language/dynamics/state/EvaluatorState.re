@@ -5,6 +5,7 @@ type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
+  type_insts: Dynamics.TypeInstMap.t,
   step_count: int,
   pending_probe_starts: Id.Map.t(int), /* Transient state only needed during evaluation */
   targets: Sample.targets /* IDs of expressions/patterns to sample */
@@ -15,12 +16,15 @@ type effect =
   | RecordExpProbe(Sample.capture_spec)
   | RecordStackFrame
   | RecordPatProbes(PatternMatch.sample_closures)
+  | RecordTypeInstantiation(Sample.call_stack => Dynamics.TypeInstantiation.t)
+  | RecordAscriptionProbe((Id.t, Sample.capture_spec, Exp.t))
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
 let mk = (~targets: Sample.targets): t => {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
+  type_insts: Dynamics.TypeInstMap.empty,
   step_count: 0,
   pending_probe_starts: Id.Map.empty,
   targets,
@@ -49,6 +53,7 @@ let get_tests = ({tests, _}) => tests;
 
 let get_probes = ({probes, _}) => probes;
 
+let get_type_insts = ({type_insts, _}) => type_insts;
 let get_theorems = ({theorems, _}) => theorems;
 
 let add_test = (state: t, instance_report: TestMap.instance_report) => {
@@ -64,6 +69,11 @@ let add_sample = (state: t, sample: Sample.t) => {
   probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
 };
 
+let add_type_inst = (state: t, inst: Dynamics.TypeInstantiation.t) => {
+  ...state,
+  type_insts:
+    Dynamics.TypeInstMap.extend(inst.tpat_id, inst, state.type_insts),
+};
 let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
   {
     ...es,
@@ -136,6 +146,31 @@ let update =
           step_count: state.step_count + 1,
         };
         (call_stack, state);
+      | RecordAscriptionProbe((id, capture_spec, ascribed_exp)) =>
+        let step = state.step_count;
+        let sample =
+          Sample.mk(
+            ~step_start=step,
+            ~step_end=step,
+            id,
+            ascribed_exp,
+            env,
+            call_stack,
+            capture_spec,
+          );
+        print_endline("Adding sample");
+        let state = add_sample(state, sample);
+        /* Advance step count past ascription evaluation */
+        // TODO Check with disconcision
+        let state = {
+          ...state,
+          step_count: state.step_count + 1,
+        };
+        (call_stack, state);
+      | RecordTypeInstantiation(type_inst_closure) => (
+          call_stack,
+          add_type_inst(state, type_inst_closure(call_stack)),
+        )
       | RecordPrint(value) =>
         /* Print happens in a single step */
         let step = state.step_count;

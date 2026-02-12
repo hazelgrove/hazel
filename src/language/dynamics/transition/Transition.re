@@ -435,7 +435,25 @@ module Transition = (EV: EV_MODE) => {
                 name,
               ),
             ),
-          side_effects: [],
+          side_effects:
+            [EvaluatorState.RecordStackFrame]
+            @ (
+              switch (TPat.tyvar_of_utpat(utpat)) {
+              | Some(var_name) => [
+                  EvaluatorState.RecordTypeInstantiation(
+                    call_stack =>
+                      Dynamics.TypeInstantiation.{
+                        tpat_id: TPat.rep_id(utpat),
+                        type_var: var_name,
+                        instantiated_type: tau,
+                        call_stack,
+                        time: JsUtil.timestamp(),
+                      },
+                  ),
+                ]
+              | None => []
+              }
+            ),
           kind: TypFunAp,
           is_value: false,
         })
@@ -919,29 +937,37 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = (env, d);
       Indet;
     | Asc(d', t) =>
-      switch (Ascriptions.transition(d)) {
+      let (samples, stepped) = Ascriptions.transition(~targets, d);
+      switch (stepped) {
       | Some(d') =>
         let. _ = otherwise(env, d);
         Step({
           expr: d',
-          side_effects: [],
+          side_effects:
+            List.map(x => EvaluatorState.RecordAscriptionProbe(x), samples),
           kind: Ascription,
           is_value: false,
         });
       | None =>
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
-        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+        let (samples, stepped) =
+          Ascriptions.transition(~targets, Asc(d', t) |> rewrap);
+        switch (stepped) {
         | Some(d) =>
           Step({
             expr: d,
-            side_effects: [],
+            side_effects:
+              List.map(
+                x => EvaluatorState.RecordAscriptionProbe(x),
+                samples,
+              ),
             kind: Ascription,
             is_value: false,
           })
         | None => Constructor
         };
-      }
+      };
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;

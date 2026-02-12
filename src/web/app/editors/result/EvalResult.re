@@ -21,7 +21,6 @@ module Model = {
     elab: Calc.saved(Exp.t),
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
-    dynamics: Calc.saved(option(Dynamics.t)),
     display,
     theorems: Theorems.Model.t,
   };
@@ -37,7 +36,6 @@ module Model = {
     elab: Calc.Pending,
     cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
-    dynamics: Calc.Pending,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -59,7 +57,6 @@ module Model = {
         elab: Calc.Pending,
         cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
-        dynamics: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -70,21 +67,53 @@ module Model = {
     };
   };
 
-  let probe_results = (model: t): option(Sample.Map.t) =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.probe_map);
+  let dynamics = (model: t) =>
+    model.result
+    |> Calc.map(
+         _,
+         fun
+         | ProgramResult.ResultPending => None
+         | ProgramResult.ResultFail(_) => None
+         | ProgramResult.ResultOk({state, _}) =>
+           Some(
+             Dynamics.{
+               probe_map: state |> EvaluatorState.get_probes,
+               test_results:
+                 state |> EvaluatorState.get_tests |> TestResults.mk_results,
+               type_inst_map: state |> EvaluatorState.get_type_insts,
+               theorems: state |> EvaluatorState.get_theorems,
+             },
+           ),
+       );
 
-  let test_results = (model: t): option(TestResults.t) =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.test_results);
+  let probe_results = (model: t): Calc.t(option(Dynamics.Map.t)) =>
+    model
+    |> dynamics
+    |> Calc.map(_, Option.map((d: Dynamics.t) => d.probe_map));
 
-  let dynamics = (model: t): Dynamics.Map.t =>
-    switch (probe_results(model)) {
-    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Sample.Map.empty)
-    };
+  let test_results = (model: t): Calc.t(option(TestResults.t)) =>
+    model
+    |> dynamics
+    |> Calc.map(_, Option.map((d: Dynamics.t) => d.test_results));
+  let type_inst_map = (model: t): Calc.t(Dynamics.TypeInstMap.t) =>
+    model
+    |> dynamics
+    |> Calc.map(_, s =>
+         switch (s) {
+         | Some(d) => d.type_inst_map
+         | None => Dynamics.TypeInstMap.empty
+         }
+       );
+
+  let dynamics_full = (model: t): Calc.t(Dynamics.t) =>
+    model
+    |> dynamics
+    |> Calc.map(_, s =>
+         switch (s) {
+         | Some(m) => m
+         | None => Dynamics.empty
+         }
+       );
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
@@ -164,15 +193,7 @@ module Update = {
         ~queue_worker: option(WorkerServer.Request.value => unit),
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
-        {
-          cached_settings,
-          elab,
-          cached_targets,
-          result,
-          dynamics,
-          display,
-          theorems,
-        }: Model.t,
+        {cached_settings, elab, cached_targets, result, display, theorems}: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
     let settings =
@@ -187,7 +208,7 @@ module Update = {
       );
 
     // Calculate the result
-    let result =
+    let result: Calc.t(ProgramResult.t(ProgramResult.inner)) =
       result
       |> {
         let.calc_t elab = elab
@@ -224,26 +245,6 @@ module Update = {
         };
       };
 
-    // Turn state into dynamics map
-    let dynamics =
-      dynamics
-      |> {
-        let.calc result = result;
-        switch (result) {
-        | ProgramResult.ResultPending => dynamics |> Calc.get_saved(None)
-        | ProgramResult.ResultFail(_) => dynamics |> Calc.get_saved(None)
-        | ProgramResult.ResultOk({state, _}) =>
-          Some(
-            Dynamics.{
-              probe_map: state |> EvaluatorState.get_probes,
-              test_results:
-                state |> EvaluatorState.get_tests |> TestResults.mk_results,
-              theorems: state |> EvaluatorState.get_theorems,
-            },
-          )
-        };
-      };
-
     // Calculate the display
     let display =
       switch (display) {
@@ -268,7 +269,7 @@ module Update = {
                    ~settings=settings |> Calc.get_value,
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
-                   ~dynamics=Dynamics.Map.empty,
+                   ~dynamics=Calc.OldValue(Dynamics.empty),
                    ~is_edited,
                    editor,
                  ),
@@ -296,15 +297,14 @@ module Update = {
 
     // HACK[Matt]: say that statics is updated iff dynamics is updated
     let statics: Calc.t('a) =
-      switch (dynamics) {
+      switch (result) {
       | NewValue(_) => NewValue(statics)
       | OldValue(_) => OldValue(statics)
       };
 
     let theorems =
       Calc.get_value(settings).dynamics
-        ? theorems
-          |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
+        ? theorems |> Theorems.Update.calculate(~settings, ~statics, ~result)
         : theorems;
 
     (
@@ -313,7 +313,6 @@ module Update = {
         elab: elab |> Calc.save,
         cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
-        dynamics: dynamics |> Calc.save,
         display,
         theorems,
       }: Model.t
@@ -403,7 +402,7 @@ module View = {
             ~inject=a => inject(EvalEditorAction(a)),
             ~globals,
             ~selected,
-            ~dynamics=editor.dynamics,
+            ~dynamics=editor.dynamics.probe_map,
             editor,
           ),
         editor,
@@ -544,7 +543,7 @@ module View = {
         result_kind == `JustTheorems
           ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
-        switch (Model.test_results(model)) {
+        switch (Model.test_results(model) |> Calc.get_value) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
@@ -603,7 +602,7 @@ module View = {
         [node],
         (
           (editor: Haz3lcore.Editor.t) =>
-            switch (Model.test_results(model)) {
+            switch (Model.test_results(model) |> Calc.get_value) {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
@@ -618,9 +617,9 @@ module View = {
 
     // Just showing test results (school mode)
     | `TestResults =>
-      let test_results = Model.test_results(model);
+      let test_results = Model.test_results(model) |> Calc.get_value;
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
-        switch (Model.test_results(model)) {
+        switch (Model.test_results(model) |> Calc.get_value) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,

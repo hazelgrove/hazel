@@ -64,6 +64,20 @@ let filter = (f: 'a => bool, o: option('a)): option('a) =>
   | Some(a) => f(a) ? Some(a) : None
   };
 
+/**
+ * Returns the first option if it is Some, otherwise returns the second option.
+ * This provides a fallback mechanism for option types.
+ *
+ * @param o1 The primary option to check
+ * @param o2 The fallback option if o1 is None
+ * @return The first Some option, or o2 if o1 is None
+ */
+let or_else = (o1: option('a), o2: option('a)): option('a) =>
+  switch (o1) {
+  | Some(_) => o1
+  | None => o2
+  };
+
 module Syntax = {
   let ( let* ) = Option.bind;
   let (let+) = (o, f) => Option.map(f, o);

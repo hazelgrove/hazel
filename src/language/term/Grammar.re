@@ -14,18 +14,18 @@ module Annotated = {
     annotation: 'b,
   };
   /* uncomment to make terms pp without annotation */
-  //   let pp:
-  //     type a b.
-  //       (
-  //         (Format.formatter, a) => unit,
-  //         (Format.formatter, b) => unit,
-  //         Format.formatter,
-  //         t(a, b)
-  //       ) =>
-  //       unit =
-  //     (fmt_a, _, fmtr, t) => {
-  //       fmt_a(fmtr, t.term);
-  //     };
+  // let pp:
+  //   type a b.
+  //     (
+  //       (Format.formatter, a) => unit,
+  //       (Format.formatter, b) => unit,
+  //       Format.formatter,
+  //       t(a, b)
+  //     ) =>
+  //     unit =
+  //   (fmt_a, _, fmtr, t) => {
+  //     fmt_a(fmtr, t.term);
+  //   };
 
   let term_of = x => x.term;
   let unwrap = x => (
@@ -539,8 +539,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Constructor(s, t),
       annotation: default_annotation(ann),
     };
-    let fn = (~ann=?, p, e, t, v): exp_t(DefaultAnnotation.t) => {
-      term: Fun(p, e, t, v),
+    let fn = (~ann=?, ~typ=?, ~name=?, p, e): exp_t(DefaultAnnotation.t) => {
+      term: Fun(p, e, typ, name),
       annotation: default_annotation(ann),
     };
     let typ_fun = (~ann=?, p, e, v): exp_t(DefaultAnnotation.t) => {

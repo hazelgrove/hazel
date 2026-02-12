@@ -24,6 +24,7 @@ let (suite, _) =
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_PatternMatch.tests,
+      Test_WriterMonad.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
@@ -34,6 +35,7 @@ let (suite, _) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_PadIds.tests
     @ Test_AutoProbe.tests
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]

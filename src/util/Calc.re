@@ -60,6 +60,13 @@ let is_new = (x: t('a)): bool =>
   | NewValue(_) => true
   };
 
+// WARNING: This function is applied on old and new values alike. So it's not incremental.
+let map = (x: t('a), f: 'a => 'b): t('b) =>
+  switch (x) {
+  | OldValue(x) => OldValue(f(x))
+  | NewValue(x) => NewValue(f(x))
+  };
+
 let old_if_same = (~eq: ('a, 'a) => bool=(==), x: 'a, y: t('a)): t('a) =>
   switch (y) {
   | NewValue(y) when eq(x, y) => OldValue(x)

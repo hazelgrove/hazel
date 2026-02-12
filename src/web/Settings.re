@@ -23,6 +23,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      live_typing: false,
       probe_all: false,
       flip_animations: true,
       evaluation: {
@@ -110,6 +111,7 @@ module Update = {
     | ProbeAll
     | Assist
     | Elaborate
+    | LiveTyping
     | Benchmark
     | ContextInspector
     | InstructorMode
@@ -177,6 +179,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | LiveTyping => {
+          ...settings,
+          core: {
+            ...settings.core,
+            live_typing: !settings.core.live_typing,
           },
         }
       | Evaluation(u) =>

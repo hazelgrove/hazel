@@ -13,6 +13,8 @@ let view =
       ~segment,
       ~shape_map,
       ~refractor_shape_map,
+      ~is_dynamic=(_: Id.t) => false,
+      (),
     )
     : Node.t => {
   let code =
@@ -24,12 +26,14 @@ let view =
       ~font_metrics=globals.font_metrics,
       ~term_data,
       ~buffer_ids,
+      ~is_dynamic,
       segment,
     );
   div_c("code", [span_c("code-text", code)]);
 };
 
-let view_segment = (~globals: Globals.t, segment: Segment.t) => {
+let view_segment =
+    (~globals: Globals.t, ~is_dynamic=(_: Id.t) => false, segment: Segment.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   let refractor_shape_map = Id.Map.empty; //assume no refractors
   let term_data = TermData.empty; //assume no indication/selection decoratinos
@@ -41,11 +45,29 @@ let view_segment = (~globals: Globals.t, segment: Segment.t) => {
     ~segment,
     ~shape_map,
     ~refractor_shape_map,
+    ~is_dynamic,
+    (),
   );
 };
 
-let view_typ = (~globals: Globals.t, ~settings, typ: Language.Typ.t) =>
-  typ |> ExpToSegment.typ_to_segment(~settings) |> view_segment(~globals);
+let view_typ =
+    (
+      ~globals: Globals.t,
+      ~settings,
+      ~is_dynamic=(_: Id.t) => false,
+      typ: Language.Typ.t,
+    ) =>
+  typ
+  |> ExpToSegment.typ_to_segment(~settings)
+  |> view_segment(~globals, ~is_dynamic);
 
-let view_any = (~globals: Globals.t, ~settings, any: Language.Any.t) =>
-  any |> ExpToSegment.any_to_segment(~settings) |> view_segment(~globals);
+let view_any =
+    (
+      ~globals: Globals.t,
+      ~settings,
+      ~is_dynamic=(_: Id.t) => false,
+      any: Language.Any.t,
+    ) =>
+  any
+  |> ExpToSegment.any_to_segment(~settings)
+  |> view_segment(~globals, ~is_dynamic);

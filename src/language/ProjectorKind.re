@@ -53,22 +53,18 @@ let name = (p: t): string =>
   | Csv => "csv"
   };
 
-/* This must be updated and kept 1-to-1 with the above
- * name function in order to be able to select the
- * projector in the projector panel menu */
+module StringMap = Map.Make(String);
+let name_to_kind: StringMap.t(t) =
+  List.fold_left(
+    (map, kind) => StringMap.add(name(kind), kind, map),
+    StringMap.empty,
+    all,
+  );
+
 let of_name = (p: string): t =>
-  switch (p) {
-  | "fold" => Fold
-  | "probe" => Probe
-  | "statics" => Statics
-  | "check" => Checkbox
-  | "slider" => Slider
-  | "sliderf" => SliderF
-  | "text" => TextArea
-  | "livelit" => Livelit
-  | "card" => Card
-  | "csv" => Csv
-  | _ => failwith("Unknown projector kind")
+  switch (StringMap.find_opt(p, name_to_kind)) {
+  | Some(k) => k
+  | None => failwith("Unknown projector kind")
   };
 
-let is_name = str => List.mem(str, List.map(name, all));
+let is_name = StringMap.mem(_, name_to_kind);

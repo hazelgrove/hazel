@@ -35,7 +35,7 @@ module Update = {
         ~settings=settings.core,
         action,
         model.statics,
-        model.dynamics,
+        model.dynamics.probe_map,
         model.editor,
       )
       |> (
@@ -46,6 +46,8 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: None,
+            dynamic_statics: model.dynamic_statics,
+            sample_cursor: model.sample_cursor,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )

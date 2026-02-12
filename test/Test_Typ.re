@@ -166,6 +166,86 @@ let meet_tests = (
   ],
 );
 
+// TODO We want this property but it's not currently passing for forall and rec types so it's not included below
+let join_precision_property =
+  QCheck_alcotest.to_alcotest(
+    QCheck.Test.make(
+      ~name="Typ.join is less precise than inputs",
+      ~count=100000,
+      QCheck.(
+        QCheck_Util.(
+          pair(
+            arb_typ(~minimal_idents=true, 10),
+            arb_typ(~minimal_idents=true, 10),
+          )
+        )
+      ),
+      ((t1, t2)) => {
+        let ctx = Builtins.ctx_init(Some(Int));
+        let m = Typ.join(ctx, t1, t2);
+        Typ.is_more_precise(ctx, Typ.normalize(ctx, t1), m)
+        && Typ.is_more_precise(ctx, Typ.normalize(ctx, t2), m);
+      },
+    ),
+  );
+
+let join_tests = (
+  "Typ.join",
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "equal atomic types",
+      `Quick,
+      () => {
+        let t = Typ.join(Builtins.ctx_init(None), int(), int());
+        check(typ, "join of equal atomic types", int(), t);
+      },
+    ),
+    test_case(
+      "Unknown and atomic type",
+      `Quick,
+      () => {
+        let t = Typ.join(Builtins.ctx_init(None), unknown(Internal), int());
+        check(typ, "join of Unknown and atomic type", unknown(Internal), t);
+      },
+    ),
+    test_case(
+      "Sum type with same variants",
+      `Quick,
+      () => {
+        let t =
+          Typ.join(
+            Builtins.ctx_init(None),
+            sum([
+              Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+              Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
+            ]),
+            sum([
+              Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+              Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
+            ]),
+          );
+        check(
+          typ,
+          "Join of sum types with same variants",
+          sum([
+            Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+            Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
+          ]),
+          t,
+        );
+      },
+    ),
+    test_case(
+      "Unbound variables",
+      `Quick,
+      () => {
+        let t = Typ.join(Builtins.ctx_init(None), var("a"), var("b"));
+        check(typ, "Join of unbound variables", unknown(Internal), t);
+      },
+    ),
+  ],
+);
+
 let fast_equal_tests = (
   "Typ.fast_equal",
   [
@@ -195,5 +275,161 @@ let fast_equal_tests = (
     ),
   ],
 );
+let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
+let diff_tests = (
+  "Typ.diff",
+  [
+    QCheck_alcotest.to_alcotest(
+      QCheck.Test.make(
+        ~name="diff identity",
+        ~count=1000,
+        QCheck_Util.arb_typ(~minimal_idents=true, 7),
+        typ =>
+        Typ.diff(typ, typ) == []
+      ),
+    ),
+    test_case(
+      "diff root different atom types",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          list(testable_id),
+          "diff on different atom types",
+          expected,
+          Typ.diff(int_typ, float_typ),
+        );
+      },
+    ),
+    test_case(
+      "diff arrow different codomain",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let arrow1 = Typ.fresh(Arrow(int_typ, int_typ));
+        let arrow2 = Typ.fresh(Arrow(int_typ, float_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          list(testable_id),
+          "diff on arrows with different codomains",
+          expected,
+          Typ.diff(arrow1, arrow2),
+        );
+      },
+    ),
+    test_case(
+      "diff list different element",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let list1 = Typ.fresh(List(int_typ));
+        let list2 = Typ.fresh(List(float_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          list(testable_id),
+          "diff on lists with different elements",
+          expected,
+          Typ.diff(list1, list2),
+        );
+      },
+    ),
+    test_case(
+      "diff arrow different domain",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let arrow1 = Typ.fresh(Arrow(int_typ, string_typ));
+        let arrow2 = Typ.fresh(Arrow(float_typ, string_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          list(testable_id),
+          "diff on arrows with different domains",
+          expected,
+          Typ.diff(arrow1, arrow2),
+        );
+      },
+    ),
+    test_case(
+      "(Int, a) ~ (Int, String)",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let var_a = Typ.fresh(Var("a"));
+        let expected = [Typ.rep_id(string_typ)];
+        check(
+          list(testable_id),
+          "diff on (Int, a) ~ (Int, String)",
+          expected,
+          Typ.diff(
+            Typ.fresh(Prod([int_typ, var_a])),
+            Typ.fresh(Prod([int_typ, string_typ])),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "diff var different names",
+      `Quick,
+      () => {
+        let var1 = Typ.fresh(Var("x"));
+        let var2 = Typ.fresh(Var("y"));
+        let expected = [Typ.rep_id(var2)];
+        check(
+          list(testable_id),
+          "diff on vars with different names",
+          expected,
+          Typ.diff(var1, var2),
+        );
+      },
+    ),
+    test_case(
+      "Recursive types with same tpat and type",
+      `Quick,
+      () => {
+        let tpat_x = TPat.fresh(Var("x"));
+        let var_x = Typ.fresh(Var("x"));
+        let rec1 = Typ.fresh(Rec(tpat_x, var_x));
+        let rec2 = Typ.fresh(Rec(tpat_x, var_x));
+        let expected = [];
+        check(
+          list(testable_id),
+          "diff on recursive types with same tpats",
+          expected,
+          Typ.diff(rec1, rec2),
+        );
+      },
+    ),
+    test_case(
+      "Recursive types with different tpats",
+      `Quick,
+      () => {
+        let rec1 =
+          Typ.fresh(Rec(TPat.fresh(Var("x")), Typ.fresh(Var("x"))));
+        let tpat_y = TPat.fresh(Var("y"));
+        let var_y = Typ.fresh(Var("y"));
+        let rec2 = Typ.fresh(Rec(tpat_y, var_y));
 
-let tests = [meet_tests, fast_equal_tests];
+        let expected = [
+          TPat.rep_id(tpat_y),
+          Typ.rep_id(var_y),
+          Typ.rep_id(rec2),
+        ];
+        check(
+          list(testable_id),
+          "diff on recursive types with different tpats",
+          expected,
+          Typ.diff(rec1, rec2),
+        );
+      },
+    ),
+  ],
+);
+
+let tests = [join_tests, fast_equal_tests, meet_tests, diff_tests];

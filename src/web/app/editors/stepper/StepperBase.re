@@ -773,6 +773,7 @@ and Stepper: {
         and.calc expr = expr
         and.calc _ctx = ctx
         and.calc _ana = ana;
+
         expr |> CodeWithStatics.Model.mk_from_exp(~settings);
       };
     let info_map =
@@ -834,7 +835,7 @@ and Stepper: {
         ~settings=Calc.get_value(settings),
         ~is_edited=true,
         ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
-        ~dynamics=Dynamics.Map.empty,
+        ~dynamics=NewValue(Dynamics.empty),
         ~ana=Calc.get_value(ana),
         ~stitch=_ => Calc.get_value(expr),
         Calc.get_value(editor),

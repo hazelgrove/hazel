@@ -434,6 +434,35 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
 
+let rec contains_unknown = (ty: t): bool =>
+  switch (ty.term) {
+  | Unknown(_) => true
+  | Atom(_)
+  | Var(_) => false
+  | Arrow(t1, t2) => contains_unknown(t1) || contains_unknown(t2)
+  | Prod(tys) => List.exists(contains_unknown, tys)
+  | Sum(sm) =>
+    List.exists(
+      fun
+      | ConstructorMap.BadEntry(_) => false
+      | Variant(_, _, ty) =>
+        Option.map(contains_unknown, ty) |> Option.value(~default=false),
+      sm,
+    )
+  | Rec(_, ty) => contains_unknown(ty)
+  | List(ty) => contains_unknown(ty)
+  | Parens(ty) => contains_unknown(ty)
+  | Projector(_, ty) => contains_unknown(ty)
+  | Poly(_, ty) => contains_unknown(ty)
+  | ProofOf(_) => false
+  | ProdProjection(ty1, _) => contains_unknown(ty1)
+  | ProdExtension(ty1, ty2) =>
+    contains_unknown(ty1) || contains_unknown(ty2)
+  | ExplicitNonlabel
+  | Label(_) => false
+  | TupLabel(_, ty) => contains_unknown(ty)
+  };
+
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
   switch (TPat.tyvar_of_utpat(x)) {
   | Some(str) =>
@@ -813,6 +842,117 @@ let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
     ts,
   );
 
+let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
+  let join' = join(ctx);
+  switch (term_of(ty1), term_of(ty2)) {
+  | (_, Parens(ty2)) => join'(ty1, ty2)
+  | (Parens(ty1), _) => join'(ty1, ty2)
+  | (_, Projector(_, ty2)) => join'(ty1, ty2)
+  | (Projector(_, ty1), _) => join'(ty1, ty2)
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
+  | (Unknown(p1), Unknown(p2)) =>
+    Unknown(meet_type_provenance(p1, p2)) |> temp // Should we have a join of provenance?
+  | (Unknown(_), _) => ty1
+  | (_, Unknown(_)) => ty2
+  | (Var(n1), Var(n2)) when n1 == n2 => ty1
+  | (Var(name), _) =>
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some(ty_name) =>
+      let ty_join = join'(ty_name, ty2);
+      ty_join;
+    | None => Unknown(Internal) |> temp
+    }
+  | (_, Var(name)) =>
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some(ty_name) =>
+      let ty_join = join'(ty_name, ty1);
+      ty_join;
+    | None => Unknown(Internal) |> temp
+    }
+  /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+  | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdExtension(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdExtension(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+  | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
+    let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(tp2)) {
+      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
+      | None => ty1
+      };
+    let ty_body = join(ctx, ty1', ty2);
+    Rec(tp1, ty_body) |> temp;
+  | (Rec(_), _) => Unknown(Internal) |> temp
+  | (Poly(x1, ty1), Poly(x2, ty2)) =>
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(x2)) {
+      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+      | None => ty1
+      };
+    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+    let ty_body = join(ctx, ty1', ty2);
+    Poly(x2, ty_body) |> temp;
+  /* Note for above: there is no danger of free variable capture as
+     subst itself performs capture avoiding substitution. However this
+     may generate internal type variable names that in corner cases can
+     be exposed to the user. We preserve the variable name of the
+     second type to preserve synthesized type variable names, which
+     come from user annotations. */
+  | (Poly(_), _) => Unknown(Internal) |> temp
+  | (Atom(c1), Atom(c2)) when c1 == c2 => ty1
+  | (Atom(_), _) => Unknown(Internal) |> temp
+  | (Label(_), Label("")) => ty1
+  | (Label(""), Label(_)) => ty2
+  | (Label(name1), Label(name2))
+      when LabeledTuple.match_labels(name1, name2) => ty1
+  | (Label(_), _) => Unknown(Internal) |> temp
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    let ty1 = join'(ty1, ty1');
+    let ty2 = join'(ty2, ty2');
+    Arrow(ty1, ty2) |> temp;
+  | (Arrow(_), _) => Unknown(Internal) |> temp
+  | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+    let lab = join'(lab1, lab2);
+    let ty = join'(ty1', ty2');
+    TupLabel(lab, ty) |> temp;
+  | (TupLabel(_), _) => Unknown(Internal) |> temp
+  | (Prod(tys1), Prod(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      Unknown(Internal) |> temp;
+    } else {
+      let tys = List.map2(join', tys1, tys2);
+      Prod(tys) |> temp;
+    }
+  | (Prod(_), _) => Unknown(Internal) |> temp
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.semantic.exp(e1, e2) ? ty1 : Unknown(Internal) |> temp
+  | (ProofOf(_), _) => Unknown(Internal) |> temp
+  | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
+    // I think the map has to be fully equal to have a join
+    Sum(sm1) |> temp
+  | (Sum(_), _) => Unknown(Internal) |> temp
+  | (List(ty1), List(ty2)) =>
+    let ty = join'(ty1, ty2);
+    List(ty) |> temp;
+  | (List(_), _) => Unknown(Internal) |> temp
+  // We would prefer for this to be a sort difference and never appear in a join.
+  // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+  | (ExplicitNonlabel, _) => Unknown(Internal) |> temp
+  };
+};
+
+/**
+ * Computes the join of all types in a list.
+ *
+ * @param ctx The type checking context containing variable bindings and aliases
+ * @param ts The list of types to find the meet of
+ * @return Some of the join type of all the types, None if the list is empty
+ */
+let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
+  ListUtil.reduce((acc, ty) => join(ctx, acc, ty), ts);
+
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   meet(ctx, ty1, ty2) != None;
 
@@ -1135,3 +1275,63 @@ and paren_pretty_print = typ =>
  * @return A product type representing the combination of the input types
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
+
+/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids. */
+let rec diff = (ty: t, ty': t): list(Id.t) => {
+  let get_ids = () => {
+    let ids = ref([]);
+    let _ =
+      Grammar.map_typ_annotation(
+        (t: IdTagged.IdTag.t) => {
+          ids := t.ids @ ids^;
+          t;
+        },
+        ty': t,
+      );
+    ids^;
+  };
+  switch (term_of(ty), term_of(ty')) {
+  | (Parens(t1), Parens(t2)) => diff(t1, t2)
+  | (Parens(t1), _) => diff(t1, ty')
+  | (_, Projector(_, t2)) => diff(ty, t2)
+  | (Projector(_, t1), _) => diff(t1, ty')
+  | (_, Parens(t2)) => diff(ty, t2)
+  | (Unknown(_), Unknown(_)) => []
+  | (Unknown(_), _) => get_ids()
+  | (Atom(c1), Atom(c2)) when c1 == c2 => []
+  | (Atom(_), _) => get_ids()
+  | (Label(l1), Label(l2)) when l1 == l2 => []
+  | (Label(_), _) => get_ids()
+  | (ExplicitNonlabel, ExplicitNonlabel) => []
+  | (ExplicitNonlabel, _) => get_ids()
+  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(_), _) => get_ids()
+  | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(t1, t2)
+  | (Rec(_), _) => get_ids()
+  | (Poly(tp1, t1), Poly(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(t1, t2)
+  | (Poly(_), _) => get_ids()
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.syntactic.exp(e1, e2) ? [] : get_ids()
+  | (ProofOf(_), _) => get_ids()
+  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
+  | (Arrow(_), _) => get_ids()
+  | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
+    List.map2(diff, tys1, tys2) |> List.concat
+  | (Prod(_), _) => get_ids()
+  | (TupLabel(l1, t1), TupLabel(l2, t2)) => diff(l1, l2) @ diff(t1, t2)
+  | (TupLabel(_, _), _) => get_ids()
+  | (List(t1), List(t2)) => diff(t1, t2)
+  | (List(_), _) => get_ids()
+  | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+    diff(t1, t1') @ diff(t2, t2')
+  | (ProdProjection(_, _), _) => get_ids()
+  | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+    diff(t1, t1') @ diff(t2, t2')
+  | (ProdExtension(_, _), _) => get_ids()
+  | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
+    []
+  | (Sum(_), _) => get_ids()
+  };
+};

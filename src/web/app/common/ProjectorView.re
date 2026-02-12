@@ -211,7 +211,14 @@ let offside_wrapper =
   );
 
 let simple_code =
-    (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
+    (
+      ~background=false,
+      ~is_dynamic=(_: Id.t) => false,
+      ~is_single_line=false,
+      font_metrics,
+      _sort,
+      segment,
+    )
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let refractor_shape_map = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
@@ -219,6 +226,7 @@ let simple_code =
     Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
     Code.view(
+      ~is_dynamic,
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
@@ -283,18 +291,22 @@ let flex_code =
       ~single_line=false, /* Perf optimization if you promise it's single-line */
       ~background=?,
       ~text_only=false,
+      ~is_dynamic=?,
       sort,
       segment,
-    ) =>
+    ) => {
+  let is_dynamic = Option.value(~default=(_: Id.t) => false, is_dynamic);
   text_only
     ? text_code(segment)
     : simple_code(
         ~background?,
+        ~is_dynamic,
         ~is_single_line=single_line,
         font_metrics,
         sort,
         segment,
       );
+};
 
 /* Route top-level metadata to the projector view function. */
 let mk_view =
@@ -315,12 +327,21 @@ let mk_view =
       inject(Project(SetModel(idx, p.kind, new_model)));
     },
     parent: a => inject(handle(idx, a)),
-    view_seg: (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+    view_seg:
+      (
+        ~single_line=?,
+        ~background=?,
+        ~is_dynamic=?,
+        ~text_only=?,
+        sort,
+        segment,
+      ) =>
       flex_code(
         ~font_metrics,
         ~single_line?,
         ~background?,
         ~text_only?,
+        ~is_dynamic?,
         sort,
         segment,
       ),

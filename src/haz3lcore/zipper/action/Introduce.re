@@ -114,7 +114,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
         | Arrow(_, _) =>
           let cursor_pat = Pat.empty_hole();
           Some((
-            fn(cursor_pat, empty_hole(), None, None),
+            fn(cursor_pat, empty_hole()),
             List.hd(cursor_pat.annotation.ids),
             false,
           ));
@@ -249,6 +249,7 @@ module Make =
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,
+          raise_if_padding: false,
         },
         term,
         already_parenthesized(z),

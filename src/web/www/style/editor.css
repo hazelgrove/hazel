@@ -37,18 +37,23 @@
 .code .token.Any {
   color: var(--token-any);
 }
+
 .code .token.Exp {
   color: var(--token-exp);
 }
+
 .code .token.Pat {
   color: var(--token-pat);
 }
+
 .code .token.Typ {
   color: var(--token-typ);
 }
+
 .code .token.Rul {
   color: var(--token-rul);
 }
+
 .code .token.TPat {
   color: var(--token-tpat);
 }
@@ -121,30 +126,44 @@
 @keyframes rainbow {
   0% {
     color: #4477ff;
-  } /* Start with muted blue */
+  }
+
+  /* Start with muted blue */
   17% {
     color: #9944ff;
-  } /* Muted purple */
+  }
+
+  /* Muted purple */
   33% {
     color: #ff4488;
-  } /* Muted pink */
+  }
+
+  /* Muted pink */
   50% {
     color: #ff7744;
-  } /* Muted orange */
+  }
+
+  /* Muted orange */
   67% {
     color: #88aa44;
-  } /* Muted green */
+  }
+
+  /* Muted green */
   83% {
     color: #44aaff;
-  } /* Muted cyan */
+  }
+
+  /* Muted cyan */
   100% {
     color: #4477ff;
-  } /* Back to muted blue */
+  }
+
+  /* Back to muted blue */
 }
 
 /* TOKEN BACKING DECOS */
 
-svg.shard > path {
+svg.shard>path {
   vector-effect: non-scaling-stroke;
 }
 
@@ -157,55 +176,64 @@ svg.shard {
 svg.shard.indicated.Any {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-any));
 }
+
 svg.shard.indicated.Exp {
-  filter: drop-shadow(
-    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
-  );
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp));
 }
+
 svg.shard.indicated.Pat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-pat));
 }
+
 svg.shard.indicated.Typ {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-typ));
 }
+
 svg.shard.indicated.Rul {
-  filter: drop-shadow(
-    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)
-  );
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul));
 }
+
 svg.shard.indicated.TPat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-tpat));
 }
 
-svg.shard.indicated.Any > path {
+svg.shard.indicated.Any>path {
   fill: var(--shard-any);
 }
-svg.shard.indicated.Exp > path {
+
+svg.shard.indicated.Exp>path {
   fill: var(--shard-exp);
 }
-svg.shard.indicated.Pat > path {
+
+svg.shard.indicated.Pat>path {
   fill: var(--shard-pat);
 }
-svg.shard.indicated.Typ > path {
+
+svg.shard.indicated.Typ>path {
   fill: var(--shard-typ);
 }
-svg.shard.indicated.Rul > path {
+
+svg.shard.indicated.Rul>path {
   fill: var(--shard-rul);
 }
-svg.shard.indicated.TPat > path {
+
+svg.shard.indicated.TPat>path {
   fill: var(--shard-tpat);
 }
 
-svg.shard.indicated.caret.Exp > path {
+svg.shard.indicated.caret.Exp>path {
   fill: var(--shard-caret-exp);
 }
-svg.shard.indicated.caret.Pat > path {
+
+svg.shard.indicated.caret.Pat>path {
   fill: var(--shard-caret-pat);
 }
-svg.shard.indicated.caret.Typ > path {
+
+svg.shard.indicated.caret.Typ>path {
   fill: var(--shard-caret-typ);
 }
-.svg.shard.indicated.caret.TPat > path {
+
+.svg.shard.indicated.caret.TPat>path {
   fill: var(--shard-caret-tpat);
 }
 
@@ -213,10 +241,12 @@ svg.shard.selected {
   z-index: var(--select-z);
   filter: drop-shadow(1px 1px 0 var(--shadow-selected));
 }
+
 svg.shard.indicated {
   z-index: var(--tile-z);
 }
-svg.shard.selected > path {
+
+svg.shard.selected>path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
@@ -226,39 +256,66 @@ svg.shard.selected > path {
   z-index: var(--err-hole-z);
   filter: none;
 }
-.errors .errors-piece svg.shard > path,
+
+.errors .errors-piece svg.shard>path,
 .errors .errors-piece svg .child-line {
   stroke: var(--error-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
 }
-.errors .errors-piece svg.shard > path {
+
+.errors .errors-piece svg.shard>path {
   fill: var(--error-hole-fill);
 }
+
+@keyframes stroke-pulse {
+  0%, 100% { stroke-dashoffset: 0; opacity: 1; }
+  50% { stroke-dashoffset: 4; opacity: 0.7; }
+}
+
+/* Dynamic errors get a different color to distinguish them */
+.dynamic-errors .dynamic-errors-piece svg.shard {
+  z-index: var(--err-hole-z);
+  filter: none;
+}
+
+.dynamic-errors .dynamic-errors-piece svg.shard>path,
+.dynamic-errors .dynamic-errors-piece svg .child-line {
+  stroke: var(--dynamic-error-hole-stroke);
+  stroke-width: 0.75px;
+  stroke-dasharray: 1, 1;
+  stroke-linecap: butt;
+  animation: stroke-pulse 1.6s ease-in-out infinite;
+}
+.dynamic-errors .dynamic-errors-piece svg.shard>path {
+  fill: var(--error-hole-fill);
+}
+
 
 /* Code completion decoration */
 
 svg.shard.selected.buffer-unparsed {
   filter: none;
 }
-svg.shard.selected.buffer-unparsed > path {
+
+svg.shard.selected.buffer-unparsed>path {
   fill: #0000;
   stroke-width: 0;
 }
+
 svg.shard.selected.buffer-parsed {
-  filter: drop-shadow(
-    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
-  );
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp));
 }
-svg.shard.selected.buffer-parsed > path {
+
+svg.shard.selected.buffer-parsed>path {
   fill: var(--T1);
   stroke: var(--T1);
 }
 
 /* EMPTY HOLE DECO */
 
-.empty-hole > path {
+.empty-hole>path {
   fill: var(--empty-hole-fill);
   stroke: var(--empty-hole-stroke);
   stroke-width: 0.75px;
@@ -302,18 +359,23 @@ svg:has(.child-line) {
 .child-line.Any {
   stroke: var(--shadow-any);
 }
+
 .child-line.Exp {
   stroke: var(--shard-lines-exp);
 }
+
 .child-line.Pat {
   stroke: var(--token-pat);
 }
+
 .child-line.Typ {
   stroke: var(--token-typ);
 }
+
 .child-line.Rul {
   stroke: var(--shard-lines-rul);
 }
+
 .child-line.TPat {
   stroke: var(--token-tpat);
 }
@@ -324,7 +386,7 @@ svg:has(.child-line) {
   z-index: var(--backpack-z);
 }
 
-.backpack.cant-put-down > * {
+.backpack.cant-put-down>* {
   opacity: 40%;
 }
 

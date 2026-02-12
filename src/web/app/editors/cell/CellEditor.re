@@ -16,8 +16,10 @@ module Model = {
     editor: {
       editor,
       statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
+      dynamics: Language.Dynamics.empty,
       context_menu: None,
+      dynamic_statics: Pending,
+      sample_cursor: Pending,
     },
     result: EvalResult.Model.init,
   };
@@ -36,8 +38,10 @@ module Model = {
     editor: {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
+      dynamics: Language.Dynamics.empty,
       context_menu: None,
+      dynamic_statics: Pending,
+      sample_cursor: Pending,
     },
     result: EvalResult.Model.unpersist(result),
   };
@@ -104,7 +108,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dynamics=EvalResult.Model.dynamics(result),
+        ~dynamics=EvalResult.Model.dynamics_full(result),
         ~is_dynamic_term=false,
         editor,
       );
@@ -132,7 +136,7 @@ module Update = {
           ~settings,
           ~is_edited=false, /* Not an edit, just resolving pending focus */
           ~stitch,
-          ~dynamics=EvalResult.Model.dynamics(result),
+          ~dynamics=EvalResult.Model.dynamics_full(result),
           ~is_dynamic_term=false,
           editor,
         )
@@ -249,7 +253,10 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
-          ~dynamics=EvalResult.Model.dynamics(model.result),
+          ~dynamics=
+            EvalResult.Model.probe_results(model.result)
+            |> Util.Calc.get_value
+            |> Option.value(~default=Language.Dynamics.Map.empty),
           model.editor,
         ),
       ]
