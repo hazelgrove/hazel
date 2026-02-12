@@ -146,10 +146,10 @@ let is_potential_operand =
 
 let is_potential_operator =
   /* Multiline operators not supported */
-  match(regexp("^[^a-zA-Z0-9_'?\\^\"`#\n\\s\\[\\]\\(\\)]+$"));
+  match(regexp("^[^a-zA-Z0-9_'?\\^\"`#\n\\s\\[\\]\\(\\)\\{\\}]+$"));
 
 let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?\"`#\n\\s\\[\\]\\(\\)]+"));
+  match(regexp("^[^a-zA-Z0-9_'?\"`#\n\\s\\[\\]\\(\\)\\{\\}]+"));
 
 let is_potential_token = t =>
   if (match(regexp("^>"), t)) {
