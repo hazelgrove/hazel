@@ -54,10 +54,13 @@ let test_bare_expression =
     parse_and_evaluate_test("(x=2)", {|{ 1 + 1; let x = 2 }|})
   });
 
-/* Test module with function - Skip for now, requires full module evaluation */
+/* Test module with function binding */
 let test_module_with_function =
-  test_case("Skip: Module with function binding", `Quick, () => {
-    Alcotest.skip()
+  test_case("Module with function binding", `Quick, () => {
+    parse_and_evaluate_test(
+      "11",
+      {|{ let f = fun x -> x + 1; let result = f(10) }.result|},
+    )
   });
 
 /* Test module bindings can refer to earlier bindings */
@@ -72,10 +75,6 @@ let test_type_alias =
     parse_and_evaluate_test("(x=42)", {|{ type T = Int; let x = 42 : T }|})
   });
 
-/* Skip test for features that may not work yet */
-let skip_module_test = (message: string, _expression: string) =>
-  test_case("Skip: " ++ message, `Quick, () => {Alcotest.skip()});
-
 let tests = (
   "Evaluator.Modules",
   [
@@ -89,6 +88,8 @@ let tests = (
     test_module_with_function,
     test_sequential_bindings,
     test_type_alias,
-    skip_module_test("Nested modules", {|{ let m = { let y = 1 } }|}),
+    test_case("Nested modules", `Quick, () => {
+      parse_and_evaluate_test("(m=(y=1))", {|{ let m = { let y = 1 } }|})
+    }),
   ],
 );

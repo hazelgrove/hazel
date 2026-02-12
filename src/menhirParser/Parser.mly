@@ -125,6 +125,11 @@ open AST
 /* Flat sequences - tighter than structural forms */
 %right SEMI_COLON
 
+/* Module item expression reduction: higher than SEMI_COLON so that inside
+   module bodies, the parser reduces exp to modItemExp rather than shifting
+   ';' for Seq. This only affects the modItemExp production. */
+%nonassoc MOD_ITEM_EXP
+
 %right L_OR
 %right L_AND
 
@@ -339,25 +344,25 @@ exp:
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
-    | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
+    | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) }
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | e = exp; COLON; t = typ { Asc(e, t) }
     | PROJECTOR_INVOKE; OPEN_PAREN; e = exp; CLOSE_PAREN; { e }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
-    | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
+    | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
     | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(l), e)]) }
     | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
-    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } 
-    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) } 
+    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
+    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
-    | FALSE { Atom (Bool false) }    
+    | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
@@ -377,9 +382,12 @@ exp:
     | e1 = exp; DOT; e2 = exp { Dot(e1, e2) }
     | OPEN_CURLY; items = separated_list(SEMI_COLON, modItem); CLOSE_CURLY { Module(items) }
 
-/* Module item expressions cannot contain top-level Seq (semicolons are item separators) */
+/* Inside module bodies, semicolons are item separators, not Seq operators.
+   MOD_ITEM_EXP precedence is higher than SEMI_COLON, so when the parser
+   has a complete exp and sees ';', it reduces (treating ';' as a separator)
+   rather than shifting (which would try to parse Seq). */
 modItemExp:
-    | e = exp { e } %prec LET_EXP
+    | e = exp { e } %prec MOD_ITEM_EXP
 
 modItem:
     | LET; i = pat; SINGLE_EQUAL; e = modItemExp { ModItemLet(i, e) }

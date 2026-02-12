@@ -733,21 +733,19 @@ let ex5 = list_of_mylist(x) in
         "Non-unique constructors currently throws in equality",
         {|type ? = ((+ ? + ?)) in []|},
       ),
-      /* Module tests - multi-item modules skipped due to Menhir grammar
-         limitation: Seq (e1;e2) in exp grammar conflicts with ; as module
-         item separator. Would require duplicating exp grammar without Seq.
-         Tile-based parser (MakeTerm) handles this correctly. */
+      /* Module tests - multi-item modules use MOD_ITEM_EXP precedence
+         in Parser.mly to resolve the Seq vs module-separator ambiguity. */
       menhir_maketerm_equivalent_test("Empty module", {|{}|}),
       menhir_maketerm_equivalent_test(
         "Module with single binding",
         {|{ let x = 1 }|},
       ),
-      skip_menhir_maketerm_equivalent_test(
-        "Module with multiple bindings (Menhir Seq conflict)",
+      menhir_maketerm_equivalent_test(
+        "Module with multiple bindings",
         {|{ let x = 1; let y = 2 }|},
       ),
-      skip_menhir_maketerm_equivalent_test(
-        "Module with type alias (Menhir Seq conflict)",
+      menhir_maketerm_equivalent_test(
+        "Module with type alias",
         {|{ type T = Int; let x = 1 }|},
       ),
       menhir_maketerm_equivalent_test(
@@ -767,7 +765,6 @@ let ex5 = list_of_mylist(x) in
       ),
       menhir_maketerm_equivalent_test(
         "Sig type annotation multiple members",
-        /* Uses single-item module to avoid Menhir Seq conflict in exp */
         {|type S = { let x : Int; let y : Bool } in 1|},
       ),
       menhir_maketerm_equivalent_test(
