@@ -50,13 +50,11 @@
 }
 
 .code .code-text.line-numbers-text :not(.line-numbers-bold){
-  opacity: 0.5;
   color: var(--BR1);
 }
 
 .code .code-text.line-numbers-text .line-numbers-bold{
   font-weight: bolder; 
-  opacity: 1;
   color: var(--BR2);
 }
 
