@@ -108,6 +108,7 @@
   --shard-typ: var(--shard-caret-typ);
   --shard-tpat: var(--shard-caret-tpat);
   --shard-selected: var(--Y1);
+  --shard-selected-expanded: var(--Y0);
   --shard-buffer: var(--T1);
   --shard_projector: var(--T2);
   --shard-rul: var(--shard-exp);

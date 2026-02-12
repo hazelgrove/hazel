@@ -227,14 +227,24 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
-  let deco = (~syntax: CachedSyntax.t, ~z: Zipper.t, ~globals: Globals.t) => [
+  let deco =
+      (
+        ~expand_selection=false,
+        ~syntax: CachedSyntax.t,
+        ~globals: Globals.t,
+        z: Zipper.t,
+      ) => [
     CaretDec.view(
       ~measured=syntax.measured,
       ~font_metrics=globals.font_metrics,
       z,
     ),
     Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
-    Highlight.selection(
+    (
+      expand_selection
+        ? Highlight.selection_expanded(~term_data=syntax.term_data)
+        : Highlight.selection
+    )(
       ~measured=syntax.measured,
       ~shape_map=syntax.shape_map,
       ~font_metrics=globals.font_metrics,
@@ -262,6 +272,7 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
+        ~expand_selection=?,
         model: Model.t,
       ) => {
     /* Sync document-level click listener for closing context menu */
@@ -272,9 +283,10 @@ module View = {
     let edit_decos =
       selected
         ? deco(
-            ~z=model.editor.state.zipper,
+            ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~globals,
+            model.editor.state.zipper,
           )
           @ [
             Arms.Refractors.all(

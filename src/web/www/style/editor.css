@@ -260,6 +260,16 @@ svg.shard.selected > path {
   stroke: var(--shard-selected);
 }
 
+svg.shard.selected-expanded {
+  z-index: var(--select-z);
+  filter: drop-shadow(2px 2px 2px var(--shadow-selected));
+}
+svg.shard.selected-expanded > path {
+  fill: var(--shard-selected-expanded);
+  stroke-width: 0.5px;
+  stroke: var(--shard-selected-expanded);
+}
+
 .errors .errors-piece svg.shard {
   z-index: var(--err-hole-z);
   filter: none;

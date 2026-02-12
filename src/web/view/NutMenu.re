@@ -66,6 +66,7 @@ let values_group = (~globals: Globals.t) => {
       ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies)),
       ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
       ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
+      (":", "Ascriptions", s.show_ascriptions, Evaluation(ShowAscriptions)),
     ],
   );
 };
@@ -120,10 +121,22 @@ let dev_group = (~globals: Globals.t) => {
         "✓",
         "Benchmarks",
         globals.settings.benchmark,
-        Benchmark: Settings.Update.t,
+        Settings.Update.Benchmark,
       ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
-    ],
+    ]
+    @ (
+      ExerciseSettings.show_instructor
+        ? [
+          (
+            "📃",
+            "Log Panel",
+            globals.settings.show_log_panel,
+            ShowLogPanel,
+          ),
+        ]
+        : []
+    ),
   );
 };
 
