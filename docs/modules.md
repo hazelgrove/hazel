@@ -17,6 +17,7 @@ Hazel's module system provides ML-style module syntax as a **syntactic gloss ove
 ```
 
 Modules are introduced with curly braces `{ }` containing semicolon-separated items. Each item is one of:
+
 - **`let` binding**: `let pat = exp` — binds a value
 - **`type` alias**: `type T = typ` — introduces a type alias
 - **Bare expression**: Any expression, useful for `test` assertions and side effects
@@ -64,20 +65,20 @@ let m = { let x = 1; let y = x + 1 } in m.y   -- evaluates to 2
 
 ## What Works
 
-| Feature | Status |
-|---------|--------|
-| Module syntax (`{ let ... }`) | Works |
-| Type inference (labeled tuple types) | Works |
-| Field access via `.` | Works |
-| Type aliases inside modules | Works |
-| Bare expressions (side effects) | Works |
-| Shadowing (last binding wins) | Works |
-| Nested modules | Works |
-| Sequential references between items | Works |
-| Signature syntax in type annotations | Works |
-| Type-directed error attribution | Works |
-| Cursor inspector for Mod/Sig sorts | Works |
-| Empty module `{}` | Works |
+| Feature                              | Status |
+| ------------------------------------ | ------ |
+| Module syntax (`{ let ... }`)        | Works  |
+| Type inference (labeled tuple types) | Works  |
+| Field access via `.`                 | Works  |
+| Type aliases inside modules          | Works  |
+| Bare expressions (side effects)      | Works  |
+| Shadowing (last binding wins)        | Works  |
+| Nested modules                       | Works  |
+| Sequential references between items  | Works  |
+| Signature syntax in type annotations | Works  |
+| Type-directed error attribution      | Works  |
+| Cursor inspector for Mod/Sig sorts   | Works  |
+| Empty module `{}`                    | Works  |
 
 ## Known Limitations
 
@@ -139,17 +140,6 @@ let m : { let x : Int } = { let x = 1 }
 -- m.x works, but m also has type (x=Int) which is a labeled tuple
 ```
 
-### ExplainThis crash on Sig items
-
-Navigating the cursor into a module signature (onto a `let` or `type` declaration within `{ }` in type position) crashes the editor with:
-```
-Unhandled exception (Failure "ExplainThis: Secondary Impossible")
-```
-
-This indicates missing ExplainThis handlers for Mod/Sig sort items. See `plans/modules-pre-merge.md`.
-
----
-
 ## Architecture
 
 ### Sorts
@@ -164,12 +154,14 @@ Both follow the established sort patterns with forms, remolding, and MakeTerm pa
 ### Term Structure
 
 **Module items** (`mod_term` in `Grammar.re`):
+
 - `ModLet(pat, exp)` — let binding
 - `ModType(tpat, typ)` — type alias
 - `ModExp(exp)` — bare expression (side effects)
 - `Invalid`, `EmptyHole`, `MultiHole` — error cases
 
 **Signature items** (`sig_term` in `Grammar.re`):
+
 - `SigLet(pat)` — value declaration (pattern includes optional `: Type`)
 - `SigType(tpat, typ)` — type alias declaration
 - `Invalid`, `EmptyHole`, `MultiHole` — error cases
@@ -187,6 +179,7 @@ Modules are **syntactic sugar**. They expand to standard Hazel expressions:
 ```
 
 Expansion happens in two places:
+
 1. **Statics** (`Statics.re`): On-demand expansion for type checking
 2. **Elaborator** (`Elaborator.re`): Permanent expansion for evaluation
 
@@ -229,6 +222,7 @@ This ensures clicking on any part of a module shows correct type information in 
 ### Sort Fallback Patterns
 
 **Mod→Exp**: Bare expressions are valid module items. When in Mod context and no Mod form matches, the system falls back to Exp forms. This affects:
+
 - Remolding (`remold_mod` in `Segment.re`)
 - Form expansion (`effective_sort` in `Insert.re`)
 
@@ -273,51 +267,51 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 
 ### Core Implementation
 
-| File | Purpose |
-|------|---------|
-| `src/language/term/Sort.re` | Sort enum with `Mod` and `Sig` |
-| `src/language/term/Grammar.re` | `mod_term`, `sig_term`, `Module` in exp_term, `Sig` in typ_term |
-| `src/language/term/Mod.re` | Mod term utilities and cls type |
-| `src/language/term/Sig.re` | Sig term utilities and cls type |
-| `src/language/term/Cls.re` | `Mod(Mod.cls)` and `Sig(Sig.cls)` variants for cursor inspector |
-| `src/haz3lcore/lang/Form.re` | Module/Sig forms, `mk_pre_c'` helper |
-| `src/haz3lcore/tiles/Mold.re` | `mk_pre'` for heterogeneous prefix forms |
-| `src/haz3lcore/tiles/Segment.re` | `remold_mod`/`remold_sig` with fallback patterns |
-| `src/haz3lcore/tiles/Skel.re` | ModSeq/SigSeq semicolons chainable, sort-specific grout precedence |
-| `src/haz3lcore/zipper/action/Insert.re` | `effective_sort` with Mod→Exp / Sig→Typ fallback |
-| `src/haz3lcore/lang/MakeTerm.re` | Module/Sig parsing with flattening |
-| `src/language/statics/ExpandModule.re` | Module expansion to nested let/type + labeled tuple |
-| `src/language/statics/Statics.re` | Module type checking, `desugar_sig` in Asc, Mod/Sig item info |
-| `src/language/statics/Elaborator.re` | Module elaboration for dynamics |
-| `src/language/statics/Info.re` | `sort_of` returns Mod for InfoExp with Mod cls |
-| `src/language/term/Typ.re` | `desugar_sig` function |
-| `src/haz3lcore/pretty/ExpToSegment.re` | Module and Sig pretty-printing to segments |
-| `src/language/term/Abbreviate.re` | Module abbreviation for probe display |
-| `src/haz3lcore/tiles/Arms.re` | Module semicolon decoration |
+| File                                    | Purpose                                                            |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| `src/language/term/Sort.re`             | Sort enum with `Mod` and `Sig`                                     |
+| `src/language/term/Grammar.re`          | `mod_term`, `sig_term`, `Module` in exp_term, `Sig` in typ_term    |
+| `src/language/term/Mod.re`              | Mod term utilities and cls type                                    |
+| `src/language/term/Sig.re`              | Sig term utilities and cls type                                    |
+| `src/language/term/Cls.re`              | `Mod(Mod.cls)` and `Sig(Sig.cls)` variants for cursor inspector    |
+| `src/haz3lcore/lang/Form.re`            | Module/Sig forms, `mk_pre_c'` helper                               |
+| `src/haz3lcore/tiles/Mold.re`           | `mk_pre'` for heterogeneous prefix forms                           |
+| `src/haz3lcore/tiles/Segment.re`        | `remold_mod`/`remold_sig` with fallback patterns                   |
+| `src/haz3lcore/tiles/Skel.re`           | ModSeq/SigSeq semicolons chainable, sort-specific grout precedence |
+| `src/haz3lcore/zipper/action/Insert.re` | `effective_sort` with Mod→Exp / Sig→Typ fallback                   |
+| `src/haz3lcore/lang/MakeTerm.re`        | Module/Sig parsing with flattening                                 |
+| `src/language/statics/ExpandModule.re`  | Module expansion to nested let/type + labeled tuple                |
+| `src/language/statics/Statics.re`       | Module type checking, `desugar_sig` in Asc, Mod/Sig item info      |
+| `src/language/statics/Elaborator.re`    | Module elaboration for dynamics                                    |
+| `src/language/statics/Info.re`          | `sort_of` returns Mod for InfoExp with Mod cls                     |
+| `src/language/term/Typ.re`              | `desugar_sig` function                                             |
+| `src/haz3lcore/pretty/ExpToSegment.re`  | Module and Sig pretty-printing to segments                         |
+| `src/language/term/Abbreviate.re`       | Module abbreviation for probe display                              |
+| `src/haz3lcore/tiles/Arms.re`           | Module semicolon decoration                                        |
 
 ### CSS
 
-| File | What |
-|------|------|
-| `src/web/www/style/variables.css` | `--token-mod`, `--token-sig`, `--shard-mod`, `--shard-sig` color variables |
-| `src/web/www/style/editor.css` | `.child-line.Mod`, `.child-line.Sig`, keyword bolding |
-| `src/web/www/style/cursor-inspector.css` | Mod/Sig gamma, toggle-switch, header, divider colors |
+| File                                     | What                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------- |
+| `src/web/www/style/variables.css`        | `--token-mod`, `--token-sig`, `--shard-mod`, `--shard-sig` color variables |
+| `src/web/www/style/editor.css`           | `.child-line.Mod`, `.child-line.Sig`, keyword bolding                      |
+| `src/web/www/style/cursor-inspector.css` | Mod/Sig gamma, toggle-switch, header, divider colors                       |
 
 ### Tests
 
-| File | What |
-|------|------|
-| `test/statics/Test_Statics_Modules.re` | 48 statics tests (well-typed, errors, sig annotations, limitations) |
-| `test/evaluator/Test_Evaluator_Modules.re` | 10 evaluator tests (1 skipped for Menhir) |
-| `test/Test_MakeTerm.re` | Module parsing tests including nested modules |
-| `test/Test_Elaboration.re` | 4 module elaboration tests (module → labeled tuple) |
-| `test/Test_ExpToSegment.re` | 6 module/sig roundtrip tests + 1 skipped (empty module structural diff) |
-| `test/Test_Editing.re` | 4 module editing tests (brace insertion, let inside module) |
-| `test/Test_Abbreviate.re` | 2 module abbreviation tests |
-| `test/Test_Menhir.re` | 5 Sig round-trip tests |
+| File                                       | What                                                                    |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| `test/statics/Test_Statics_Modules.re`     | 48 statics tests (well-typed, errors, sig annotations, limitations)     |
+| `test/evaluator/Test_Evaluator_Modules.re` | 10 evaluator tests (1 skipped for Menhir)                               |
+| `test/Test_MakeTerm.re`                    | Module parsing tests including nested modules                           |
+| `test/Test_Elaboration.re`                 | 4 module elaboration tests (module → labeled tuple)                     |
+| `test/Test_ExpToSegment.re`                | 6 module/sig roundtrip tests + 1 skipped (empty module structural diff) |
+| `test/Test_Editing.re`                     | 4 module editing tests (brace insertion, let inside module)             |
+| `test/Test_Abbreviate.re`                  | 2 module abbreviation tests                                             |
+| `test/Test_Menhir.re`                      | 5 Sig round-trip tests                                                  |
 
 ### In-Editor Documentation
 
-| File | What |
-|------|------|
+| File                           | What                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------- |
 | `src/web/init/docs/Modules.ml` | In-editor doc slide with 26 examples covering construction, signatures, and limitations |

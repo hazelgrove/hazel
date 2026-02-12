@@ -1436,11 +1436,14 @@ and uexp_to_info_map =
       add'(~self, ~co_ctx=body.co_ctx, m);
     | Module(items) =>
       /* Expand module to nested let/type + labeled tuple, then type-check expansion.
-         The Module's type is the type of the expanded expression (a labeled tuple).
          The expansion preserves Mod item IDs on wrapper Let/TyAlias expressions.
-         Pass ~ana so the expansion can add type annotations for error attribution. */
+         Pass ~ana to expand so it can add sig type annotations to patterns.
+         Process expansion in syn mode: definition errors are caught via pattern
+         annotations, and the Module's own add() checks the overall type against
+         ana. Using ~ana here would double-count type inconsistencies (once on
+         the expansion's inner tuple, once on the Module expression). */
       let expanded = ExpandModule.expand(~ana, items);
-      let (expanded_info, m) = go(~ana, expanded, m);
+      let (expanded_info, m) = go(expanded, m);
       /* Override expansion info for Mod item IDs: replace Exp cls with Mod cls
          so cursor inspector shows "Let declaration" instead of "Let expression".
          We keep InfoExp (not InfoMod) because the elaborator needs InfoExp

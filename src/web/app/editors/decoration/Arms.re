@@ -300,6 +300,7 @@ let term =
   let is_module =
     switch (any_term) {
     | Exp({term: Module(_), _}) => true
+    | Typ({term: Sig(_), _}) => true
     | _ => false
     };
   let is_semi = tile.label == [";"];
