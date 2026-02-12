@@ -82,16 +82,30 @@ module M: Projector = {
 
   let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
-    | Dynamic => "↦"
+    | Dynamic => "⇓"
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
     | Expected => "⇐"
     };
   };
+  let mode_description =
+      (model: model, statics: option(Language.Info.t)): string => {
+    switch (model) {
+    | Dynamic => "Dynamic type (from runtime values)"
+    | _ when self_ty(statics) == expected_ty(statics) => "Self type matches expected type"
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "Self type"
+    | Self => "Self type"
+    | Expected => "Expected type"
+    };
+  };
+
   let mode_view = (model, info) =>
     div(
-      ~attrs=[Attr.classes(["mode"])],
+      ~attrs=[
+        Attr.classes(["mode"]),
+        Attr.title(mode_description(model, info)),
+      ],
       [text(display_mode(model, info))],
     );
 
