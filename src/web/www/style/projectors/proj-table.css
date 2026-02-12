@@ -30,7 +30,6 @@
 .table th,
 .table td {
     vertical-align: middle;
-    overflow: hidden;
     padding: 0px;
 }
 
