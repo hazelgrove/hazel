@@ -838,8 +838,10 @@ let pos_of_key = (key: string): pos =>
 
 let editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
+  /* Reset non-persistable refractor state before serialization.
+   * See Refractors.for_serialization - keeps manuals, resets autos/sample_cursor. */
+  let zipper = Zipper.update_refractors(zipper, Refractors.for_serialization);
   let serialization = Zipper.show(zipper);
-  // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
   Format.pp_print_string(fmt, serialization);
 };
 
