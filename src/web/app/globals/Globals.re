@@ -44,6 +44,15 @@ module VisibleRows = {
 };
 
 module Action = {
+  [@deriving (show({with_path: false}), yojson, sexp)]
+  type log =
+    | InitImport([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+    | FinishImport(option(string))
+    | NextLog
+    | SkipLog
+    | ToggleReplay
+    | ClearLog;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SetFontMetrics(FontMetrics.t)
@@ -55,6 +64,7 @@ module Action = {
     | ActiveEditor(Haz3lcore.Action.t)
     | Undo // These two currently happen at the editor level, and are just
     | Redo // global actions so they can be accessed by the command palette
+    | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t);
 };
@@ -76,6 +86,7 @@ module Model = {
        convenience to avoid having to pass it around everywhere. Can only
        be used in view functions. */
     get_log_and: (string => unit) => unit,
+    get_log_count: (int => unit) => unit,
     export_all:
       (
         ~settings: Language.CoreSettings.t,
@@ -86,31 +97,36 @@ module Model = {
     export_persistent: unit => unit,
   };
 
+  let init =
+      (~settings=Settings.Model.init, ~font_metrics=FontMetrics.init, ()) => {
+    settings,
+    font_metrics,
+    meta_down: false,
+    visible_rows: None,
+    color_highlights: None,
+    inject_global: _ =>
+      failwith("Cannot use inject_global outside of the main view function!"),
+    get_log_and: _ =>
+      failwith(
+        "Cannot use get_log_and outside of the main view or update functions!",
+      ),
+    get_log_count: _ =>
+      failwith(
+        "Cannot use get_log_count outside of the main view or update functions!",
+      ),
+    export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
+      failwith(
+        "Cannot use export_all outside of the main view or update functions!",
+      ),
+    export_persistent: () =>
+      failwith(
+        "Cannot use export_persistent outside of the main view function!",
+      ),
+  };
+
   let load = () => {
     let settings = Settings.Store.load();
-    {
-      font_metrics: FontMetrics.init,
-      settings,
-      meta_down: false,
-      visible_rows: None,
-      color_highlights: None,
-      inject_global: _ =>
-        failwith(
-          "Cannot use inject_global outside of the main view function!",
-        ),
-      get_log_and: _ =>
-        failwith(
-          "Cannot use get_log_and outside of the main view or update functions!",
-        ),
-      export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
-        failwith(
-          "Cannot use export_all outside of the main view or update functions!",
-        ),
-      export_persistent: () =>
-        failwith(
-          "Cannot use export_persistent outside of the main view function!",
-        ),
-    };
+    init(~settings, ());
   };
 
   let save = model => {
@@ -141,6 +157,7 @@ module Update = {
     | Redo => false
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
+    | Log(_) => false
     };
   };
 };
