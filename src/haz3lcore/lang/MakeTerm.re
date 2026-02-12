@@ -1127,10 +1127,11 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
  * Updates each adopted ID's term_data entry to match the rep_id's entry,
  * giving adopted IDs the correct skeleton/segment of the outer term.
  *
- * IMPORTANT: We preserve the original root_piece for each adopted ID.
- * The root_piece identifies the actual tile that the ID refers to, which
- * is needed by Arms.tiles_data to find the correct shards for decoration.
- * Only skel, sort, and base_seg should be updated to match the outer term. */
+ * IMPORTANT: We preserve the original root_piece and sort for each adopted ID.
+ * root_piece: identifies the actual tile, needed by Arms.tiles_data for decoration.
+ * sort: the tile's own sort context (e.g. Mod for semicolons inside Module body),
+ * needed by Code.re's sort-consistency check.
+ * Only skel and base_seg should be updated to match the outer term. */
 let consolidate_adopted = (): unit => {
   adopted_ids^
   |> List.iter(id => {
@@ -1143,13 +1144,17 @@ let consolidate_adopted = (): unit => {
            Id.Map.find_opt(id, term_data^),
          ) {
          | (Some(rep_data), Some(old_data)) =>
-           /* Preserve the original root_piece while updating skel/sort/base_seg */
+           /* Preserve the original root_piece and sort while updating skel/base_seg.
+              root_piece: identifies the actual tile for shard decoration.
+              sort: the adopted tile's own sort context (e.g. Mod for semicolons
+              inside a Module body), not the outer expression's sort. */
            term_data :=
              Id.Map.add(
                id,
                {
                  ...rep_data,
                  root_piece: old_data.root_piece,
+                 sort: old_data.sort,
                },
                term_data^,
              )

@@ -41,10 +41,8 @@
   --TYP: oklch(60% 0.2 300);
   --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
   --TPAT: var(--PAT);
-  --MOD: oklch(
-    0.65 0.05 165
-  ); /* Module sort - greenish, can be refined later */
-  --SIG: oklch(0.65 0.1 320); /* Signature sort - blue-purple, near Typ hue */
+  --MOD: var(--STONE); /* oklch(0.65 0.05 165) Module sort */
+  --SIG: var(--TYP); /* Signature sort oklch(0.65 0.1 320); */
   --LABEL: oklch(60% 0.2 180);
 
   /* AURA - docs highlighting */
