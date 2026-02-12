@@ -4,7 +4,18 @@ open Example;
 let single: Simple.t = {
   group_id: SigLetDecl,
   form_id: SigLetDecl,
-  abstract: ([typ("let"), space(), pat("p"), space(), typ(":"), space(), typ("ty")], []),
+  abstract: (
+    [
+      typ("let"),
+      space(),
+      pat("p"),
+      space(),
+      typ(":"),
+      space(),
+      typ("ty"),
+    ],
+    [],
+  ),
   explanation: "A let declaration in a signature specifies the expected type of a module field.",
   examples: [
     {

@@ -1,5 +1,4 @@
 open Util;
-open OptUtil.Syntax;
 open Sort;
 module P = Precedence;
 
