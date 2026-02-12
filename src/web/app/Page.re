@@ -260,8 +260,12 @@ module Update = {
       };
     | Log(_)
     | Undo
-    | Redo =>
-      failwith("Undo/Redo/Log import are handled in the history module")
+    | Redo
+    | RethrowException
+    | ClearException =>
+      failwith(
+        "Undo/Redo/Log import/RethrowException/ClearException are handled in higher-level modules",
+      )
     };
   };
 
