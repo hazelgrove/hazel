@@ -11,12 +11,12 @@ module Model = {
     | RewritesOpen({
         editor: CodeEditable.Model.t,
         cached_exp: Calc.saved(Exp.t),
-        cached_result: option(bool),
+        cached_result: Calc.saved(bool),
       })
     | WrittenStepOpen({
         editor: CodeEditable.Model.t,
         cached_exp: Calc.saved(Exp.t),
-        cached_result: option(option(string)),
+        cached_result: Calc.saved(option(string)),
       })
     | NoneOpen;
 
@@ -67,8 +67,6 @@ module Update = {
     | ToggleAxioms
     | ProposeRewrite
     | ProposeWrittenStep
-    | UpdateResult(bool)
-    | UpdateWrittenStepResult(option(string))
     | RewriteEditorAction(CodeEditable.Update.t)
     | WriteStepEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t);
@@ -100,7 +98,7 @@ module Update = {
                 Editor.Model.mk(Zipper.init(), ~root=Exp),
               ),
             cached_exp: Calc.Pending,
-            cached_result: None,
+            cached_result: Calc.Pending,
           })
         | RewritesOpen(_) => Model.NoneOpen
         };
@@ -121,7 +119,7 @@ module Update = {
                 Editor.Model.mk(~root=Exp, Zipper.init()),
               ),
             cached_exp: Calc.Pending,
-            cached_result: None,
+            cached_result: Calc.Pending,
           })
         | WrittenStepOpen(_) => Model.NoneOpen
         };
@@ -152,28 +150,6 @@ module Update = {
           }),
       };
     | (WriteStepEditorAction(_), _) => model |> Updated.return_quiet
-    | (UpdateResult(result), RewritesOpen(r)) =>
-      Model.{
-        ...model,
-        open_box:
-          Model.RewritesOpen({
-            ...r,
-            cached_result: Some(result),
-          }),
-      }
-      |> Updated.return_quiet(~logged=true)
-    | (UpdateResult(_), _) => model |> Updated.return_quiet
-    | (UpdateWrittenStepResult(result), WrittenStepOpen(r)) =>
-      Model.{
-        ...model,
-        open_box:
-          Model.WrittenStepOpen({
-            ...r,
-            cached_result: Some(result),
-          }),
-      }
-      |> Updated.return_quiet
-    | (UpdateWrittenStepResult(_), _) => model |> Updated.return_quiet
     | (AxiomBoxAction(action), AxiomsOpen(m)) =>
       let* updated = AxiomsBox.Update.update(~settings, action, m);
       Model.{
@@ -189,8 +165,6 @@ module Update = {
     | ToggleAxioms
     | ProposeRewrite
     | ProposeWrittenStep
-    | UpdateResult(_)
-    | UpdateWrittenStepResult(_)
     | RewriteEditorAction(_)
     | WriteStepEditorAction(_)
     | AxiomBoxAction(_) => false
@@ -317,15 +291,20 @@ module Update = {
           );
         // Reset result if editor changes
         let cached_result =
-          Calc.Calculated(cached_result)
+          cached_result
           |> {
-            let.calc _ = cached_exp;
-            None;
+            let.calc sctx = ctx
+            and.calc to_exp = cached_exp
+            and.calc from_exp = exp;
+            let env = SemanticCtx.get_env(sctx);
+            let from_exp = Substitution.in_exp(env, from_exp);
+            let to_exp = Substitution.in_exp(env, to_exp);
+            RewriteChecker.check_rewrite(~settings, ~env, from_exp, to_exp);
           };
         Model.RewritesOpen({
           editor,
           cached_exp: cached_exp |> Calc.save,
-          cached_result: cached_result |> Calc.get_value,
+          cached_result: cached_result |> Calc.save,
         });
       | WrittenStepOpen({editor, cached_exp, cached_result}) =>
         // Calculate syntax, holes, types, etc for the editor
@@ -348,15 +327,25 @@ module Update = {
           );
         // Reset result if editor changes
         let cached_result =
-          Calc.Calculated(cached_result)
+          cached_result
           |> {
-            let.calc _ = cached_exp;
-            None;
+            let.calc sctx = ctx
+            and.calc to_exp = cached_exp
+            and.calc from_exp = exp;
+            let env = SemanticCtx.get_env(sctx);
+            let from_exp = Substitution.in_exp(env, from_exp);
+            let to_exp = Substitution.in_exp(env, to_exp);
+            RewriteChecker.check_written_step(
+              ~settings,
+              ~env,
+              from_exp,
+              to_exp,
+            );
           };
         Model.WrittenStepOpen({
           editor,
           cached_exp: cached_exp |> Calc.save,
-          cached_result: cached_result |> Calc.get_value,
+          cached_result: cached_result |> Calc.save,
         });
       | AxiomsOpen(m) =>
         AxiomsOpen(
@@ -377,8 +366,8 @@ module Update = {
       full_exp: exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
-      cached_env: cached_env |> Calc.save,
       open_box,
+      cached_env: cached_env |> Calc.save,
     };
   };
 };
@@ -634,34 +623,7 @@ module View = {
                   ),
                 ]
               | Some(false) => [Node.text("Invalid")]
-              | None => [
-                  Widgets.button(
-                    ~clss=["proof-button"],
-                    Node.text("Check"),
-                    _ =>
-                      inject(
-                        UpdateResult(
-                          RewriteChecker.check_rewrite(
-                            unboxed_selected_exp
-                            |> Substitution.in_exp(
-                                 model.cached_env
-                                 |> Calc.get_saved_exc(
-                                      ~print="env not cached",
-                                    ),
-                               ),
-                            unboxed_cached_exp
-                            |> Substitution.in_exp(
-                                 model.cached_env
-                                 |> Calc.get_saved_exc(
-                                      ~print="env not cached",
-                                    ),
-                               ),
-                          ),
-                        ),
-                      ),
-                    ~tooltip="check",
-                  ),
-                ]
+              | None => [Node.text("...")]
               };
             },
           ),
@@ -753,38 +715,7 @@ module View = {
                   ),
                 ]
               | Some(None) => [Node.text("Invalid")]
-              | None => [
-                  Widgets.button(
-                    ~clss=["proof-button"],
-                    Node.text("Check"),
-                    _ =>
-                      inject(
-                        UpdateWrittenStepResult(
-                          RewriteChecker.check_written_step(
-                            ~settings=globals.settings.core,
-                            ~env=
-                              model.cached_env
-                              |> Calc.get_saved_exc(~print="env not cached"),
-                            unboxed_selected_exp
-                            |> Substitution.in_exp(
-                                 model.cached_env
-                                 |> Calc.get_saved_exc(
-                                      ~print="env not cached",
-                                    ),
-                               ),
-                            unboxed_cached_exp
-                            |> Substitution.in_exp(
-                                 model.cached_env
-                                 |> Calc.get_saved_exc(
-                                      ~print="env not cached",
-                                    ),
-                               ),
-                          ),
-                        ),
-                      ),
-                    ~tooltip="check",
-                  ),
-                ]
+              | None => [Node.text("...")]
               };
             },
           ),
@@ -957,9 +888,17 @@ module View = {
                     ),
                   ]
                 | RewritesOpen({editor, cached_exp, cached_result}) =>
-                  view_rewrites_box(editor, cached_exp, cached_result)
+                  view_rewrites_box(
+                    editor,
+                    cached_exp,
+                    cached_result |> Calc.saved_to_option,
+                  )
                 | WrittenStepOpen({editor, cached_exp, cached_result}) =>
-                  view_written_step_box(editor, cached_exp, cached_result)
+                  view_written_step_box(
+                    editor,
+                    cached_exp,
+                    cached_result |> Calc.saved_to_option,
+                  )
                 };
               },
             ),
