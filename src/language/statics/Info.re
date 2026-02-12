@@ -315,6 +315,26 @@ type tpat = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type mod_ = {
+  id: Id.t,
+  term: Mod.t,
+  cls: Cls.t,
+  sort: Sort.t,
+  ctx: Ctx.t,
+  ancestors,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type sig_ = {
+  id: Id.t,
+  term: Sig.t,
+  cls: Cls.t,
+  sort: Sort.t,
+  ctx: Ctx.t,
+  ancestors,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type secondary = {
   id: Id.t, // Id of term static info is sourced from
   cls: Cls.t, // Cls of secondary, not source term
@@ -329,6 +349,8 @@ type t =
   | InfoPat(pat)
   | InfoTyp(typ)
   | InfoTPat(tpat)
+  | InfoMod(mod_)
+  | InfoSig(sig_)
   | Secondary(secondary);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -345,6 +367,8 @@ let sort_of: t => Sort.t =
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
   | InfoTPat(_) => TPat
+  | InfoMod(_) => Mod
+  | InfoSig(_) => Sig
   | Secondary(s) => s.sort;
 
 let cls_of: t => Cls.t =
@@ -353,6 +377,8 @@ let cls_of: t => Cls.t =
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
   | InfoTPat({cls, _})
+  | InfoMod({cls, _})
+  | InfoSig({cls, _})
   | Secondary({cls, _}) => cls;
 
 let any_of: t => option(Any.t) =
@@ -361,6 +387,8 @@ let any_of: t => option(Any.t) =
   | InfoPat({term, _}) => Some(Pat(term))
   | InfoTyp({term, _}) => Some(Typ(term))
   | InfoTPat({term, _}) => Some(TPat(term))
+  | InfoMod({term, _}) => Some(Mod(term))
+  | InfoSig({term, _}) => Some(Sig(term))
   | Secondary(_) => None;
 
 let ctx_of: t => Ctx.t =
@@ -369,6 +397,8 @@ let ctx_of: t => Ctx.t =
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
   | InfoTPat({ctx, _})
+  | InfoMod({ctx, _})
+  | InfoSig({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
 let ancestors_of: t => ancestors =
@@ -376,7 +406,9 @@ let ancestors_of: t => ancestors =
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
-  | InfoTPat({ancestors, _}) => ancestors
+  | InfoTPat({ancestors, _})
+  | InfoMod({ancestors, _})
+  | InfoSig({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
 
 let parent_id_of: t => option(Id.t) =
@@ -388,6 +420,8 @@ let id_of: t => Id.t =
   | InfoPat(i) => Pat.rep_id(i.term)
   | InfoTyp(i) => Typ.rep_id(i.term)
   | InfoTPat(i) => TPat.rep_id(i.term)
+  | InfoMod({id, _})
+  | InfoSig({id, _}) => id
   | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
@@ -400,6 +434,8 @@ let error_of: t => option(error) =
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | InfoMod(_)
+  | InfoSig(_)
   | Secondary(_) => None;
 
 /* A term is "typable" if it can meaningfully be assigned a type and will
@@ -410,7 +446,8 @@ let is_typable_term: option(t) => bool =
   fun
   | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
     false
-  | Some(InfoTyp(_) | InfoTPat(_) | Secondary(_)) => false
+  | Some(InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) | Secondary(_)) =>
+    false
   | Some(InfoExp(_) | InfoPat(_)) => true
   | None => false;
 
@@ -791,6 +828,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
+  | InfoMod(_)
+  | InfoSig(_)
   | Secondary(_) => false
   };
 };

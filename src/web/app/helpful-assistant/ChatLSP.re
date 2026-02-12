@@ -101,6 +101,8 @@ module Completion = {
       @ (relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : []);
     | InfoTyp(_)
     | InfoTPat(_)
+    | InfoMod(_)
+    | InfoSig(_)
     | Secondary(_) => []
     };
 
@@ -234,6 +236,8 @@ module Composition = {
       relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : [];
     | InfoTyp(_)
     | InfoTPat(_)
+    | InfoMod(_)
+    | InfoSig(_)
     | Secondary(_) => []
     };
 

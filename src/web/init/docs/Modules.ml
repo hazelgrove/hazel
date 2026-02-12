@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
     {
       segment =
         "((Secondary((id \
-         feb62e0f-0344-4403-b173-df60ae6b58b9)(content(Comment\"# BABY MODULES \
+         feb62e0f-0344-4403-b173-df60ae6b58b9)(content(Comment\"# MODULES \
          #\"))))(Secondary((id \
          294723cb-4bd1-4a82-ae2a-01cc98c36ae0)(content(Whitespace\"\\n\"))))(Secondary((id \
          afc83bcd-c4a1-400e-ad48-a71f0c39c449)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -2438,7 +2438,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp))))))(shards(0))(children())))(Secondary((id \
          3869ea96-f5b9-4f78-a8f3-ed5c00b619b7)(content(Whitespace\"\\n\")))))";
       backup_text =
-        "# BABY MODULES #\n\n\
+        "# MODULES #\n\n\
          # A. MODULE VALUE CONSTRUCTION AND ACCESS #\n\n\
          # 1. Empty module #\n\
          let m = {} in\n\n\

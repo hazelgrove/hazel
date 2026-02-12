@@ -36,8 +36,8 @@ let show_cls: cls => string =
   | Invalid => "Invalid module"
   | MultiHole => "Broken module"
   | EmptyHole => "Module hole"
-  | ModLet => "Let definition"
-  | ModType => "Type definition"
+  | ModLet => "Let declaration"
+  | ModType => "Type declaration"
   | ModExp => "Module expression";
 
 let temp: term => t =
