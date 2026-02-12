@@ -5,27 +5,33 @@
 table.table {
     border-collapse: collapse;
     /* font-size: 0.875rem; */
-    width: 95%;
-    margin: 0 auto;
+    width: 100%;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 5px;
+    margin-right: 5px;
     table-layout: auto;
     text-align: center;
     background-color: var(--df-bg);
     height: 98%;
 }
+
 .table th {
-  position: sticky;
-  top: 0;
-  z-index: calc(var(--projector-z) + 1);
-  opacity: 1;
-  height: calc(var(--line-height) * 1em);
-  background-color: var(--table-header-bg);
+    position: sticky;
+    top: 0;
+    z-index: calc(var(--projector-z) + 1);
+    opacity: 1;
+    height: calc(var(--line-height) * 1em);
+    background-color: var(--table-header-bg);
     font-weight: 600;
     color: var(--BR4);
-  font-family: var(--code-font);
+    font-family: var(--code-font);
 }
+
 .table th,
 .table td {
     vertical-align: middle;
+    overflow: hidden;
     padding: 0px;
 }
 
@@ -41,7 +47,7 @@ table.table {
 }
 
 div.projector.table:has(tbody tr:nth-child(10)) {
-  overflow-y: auto;
+    overflow-y: auto;
 }
 
 
