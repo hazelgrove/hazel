@@ -43,7 +43,7 @@ let outer = { let inner = { let a = 42 } }
 in outer.inner.a                             -- evaluates to 42
 ```
 
-Field access uses dot notation, the same as labeled tuple access.
+Field access uses dot notation, the same as labeled tuple access. TyDi (type-directed completion) provides autocomplete suggestions for available member names when typing after a dot, based on the inferred type of the left-hand expression. This also works for labeled tuple field access and list dot projection.
 
 ### Shadowing
 
