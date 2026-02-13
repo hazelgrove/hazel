@@ -19,49 +19,35 @@ let restart_caret_animation = () =>
 
 let apply =
     (
-      model: History.Model.t,
-      action: History.Update.t,
+      model: CrashHandling.Model.t,
+      action: CrashHandling.Update.t,
       ~schedule_action,
       ~schedule_autosave,
     )
-    : History.Model.t => {
+    : CrashHandling.Model.t => {
   restart_caret_animation();
 
   /* This function is split into two phases, update and calculate.
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  let updated: Updated.t(History.Model.t) =
-    try(
-      History.Update.update(
-        ~import_log=Log.import,
-        ~get_log_and=Log.get_and,
-        ~schedule_action,
-        action,
-        model,
-      )
-    ) {
-    | Haz3lcore.Action.Failure.Exception(t) =>
-      Printf.printf(
-        "ERROR: Action.Failure: %s\n",
-        t |> Haz3lcore.Action.Failure.show,
-      );
-      model |> Updated.return_quiet;
-    | exc =>
-      Printf.printf(
-        "ERROR: Exception during apply: %s\n",
-        Printexc.to_string(exc),
-      );
-      model |> Updated.return_quiet;
-    };
+  let updated: Updated.t(CrashHandling.Model.t) =
+    CrashHandling.Update.update(
+      ~import_log=Log.import,
+      ~get_log_and=Log.get_and,
+      ~schedule_action,
+      action,
+      model,
+    );
   // ---------- CALCULATE PHASE ----------
   let model' =
-    updated.model
-    |> History.Update.calculate(
-         ~schedule_action,
-         ~is_edited=updated.is_edit,
-         ~dynamics=true,
-       );
+    CrashHandling.Update.calculate(
+      ~schedule_action,
+      ~is_edited=updated.is_edit,
+      ~dynamics=true,
+      model,
+      updated.model,
+    );
 
   if (updated.is_edit) {
     schedule_autosave(
@@ -88,8 +74,8 @@ let start = {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
     Bonsai.state_machine1(
-      (module History.Model),
-      (module History.Update),
+      (module CrashHandling.Model),
+      (module CrashHandling.Update),
       ~apply_action=
         (~inject, ~schedule_event, input) => {
           let schedule_action = x => schedule_event(inject(x));
@@ -102,12 +88,13 @@ let start = {
           apply(~schedule_action, ~schedule_autosave);
         },
       ~default_model=
-        History.Model.init()
-        |> History.Update.calculate(
-             ~schedule_action=_ => (),
-             ~is_edited=true,
-             ~dynamics=false,
-           ),
+        CrashHandling.Update.calculate(
+          ~schedule_action=_ => (),
+          ~is_edited=true,
+          ~dynamics=false,
+          CrashHandling.Model.load(),
+          CrashHandling.Model.load(),
+        ),
       save_scheduler,
     );
 
@@ -115,6 +102,22 @@ let start = {
   let save_effect =
     Bonsai.Value.map(~f=g => g(Page.Update.Save), app_inject);
   let%sub () = BonsaiUtil.Alarm.listen(save_scheduler, ~event=save_effect);
+
+  let replay_effect = {
+    let%map app_inject = app_inject
+    and model = app_model;
+    Ui_effect.Many(
+      model.model.replay_toggle
+        ? [app_inject(Page.Update.Globals(Log(NextLog)))] : [],
+    );
+  };
+
+  let%sub () =
+    Bonsai.Clock.every(
+      ~when_to_start_next_effect=`Wait_period_after_previous_effect_finishes_blocking,
+      Core.Time_ns.Span.of_sec(0.1),
+      replay_effect,
+    );
 
   // Update font metrics on resize
   let%sub size =
@@ -156,6 +159,8 @@ let start = {
     JsUtil.focus_clipboard_shim();
     /* Setup scroll listener for floating elements (backpack) */
     FloatingElement.setup_scroll_listener();
+    // Sync log count from database
+    Log.sync_count();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
     );
@@ -191,7 +196,8 @@ let start = {
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
-        model.current.globals.settings.core.statics ? Animation.go() : ();
+        model.model.current.current.globals.settings.core.statics
+          ? Animation.go() : ();
       },
       (),
     );
@@ -201,7 +207,22 @@ let start = {
   // View function
   let%arr app_model = app_model
   and app_inject = app_inject;
-  History.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and);
+  try(
+    CrashHandling.View.view(
+      ~get_log_and=Log.get_and,
+      ~inject=app_inject,
+      app_model,
+    )
+  ) {
+  | exc =>
+    print_endline(
+      "ERROR: Exception during view: " ++ Printexc.to_string(exc),
+    );
+    WebUtil.Node.div(
+      ~attrs=[WebUtil.Attr.id("page")],
+      [WebUtil.Node.text("An error occurred.")],
+    );
+  };
 };
 
 switch (JsUtil.Fragment.get_current()) {
