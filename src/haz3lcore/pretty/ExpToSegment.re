@@ -1750,8 +1750,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
              );
            | MultiHole(es) =>
-             let+ es =
-               es |> List.map(any_to_pretty(~settings)) |> all;
+             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
              wrap_item(item, List.flatten(es));
            }
          )
@@ -2266,8 +2265,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                ),
              )
            | MultiHole(es) =>
-             let+ es =
-               es |> List.map(any_to_pretty(~settings)) |> all;
+             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
              wrap_item(item, List.flatten(es));
            }
          )
