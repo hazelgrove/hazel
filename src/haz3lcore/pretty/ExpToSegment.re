@@ -1749,14 +1749,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                item,
                [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
              );
-           | MultiHole(_) =>
-             /* TODO: handle MultiHole properly */
-             p_just(
-               wrap_item(
-                 item,
-                 text_to_pretty(item |> Mod.rep_id, Sort.Mod, "?"),
-               ),
-             )
+           | MultiHole(es) =>
+             let+ es =
+               es |> List.map(any_to_pretty(~settings)) |> all;
+             wrap_item(item, List.flatten(es));
            }
          )
       |> all;
@@ -2269,13 +2265,10 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                  text_to_pretty(item |> Sig.rep_id, Sort.Sig, s),
                ),
              )
-           | MultiHole(_) =>
-             p_just(
-               wrap_item(
-                 item,
-                 text_to_pretty(item |> Sig.rep_id, Sort.Sig, "?"),
-               ),
-             )
+           | MultiHole(es) =>
+             let+ es =
+               es |> List.map(any_to_pretty(~settings)) |> all;
+             wrap_item(item, List.flatten(es));
            }
          )
       |> all;

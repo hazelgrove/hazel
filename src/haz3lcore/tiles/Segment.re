@@ -182,11 +182,20 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         remold_typ_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      /* If we encounter ; and Mod is a parent sort, return to let Mod handle it as ModSeq.
-         This handles cases like `type t = Int;` where ; follows a Typ child of ModType. */
+      /* If we encounter ; and Mod or Sig is a parent sort, return to let the parent
+         handle it as ModSeq/SigSeq. This handles cases like `type T = Int;` where ;
+         follows a Typ child of ModType or SigType. */
       switch (remold_tile(Typ, shape, t)) {
       | None
-          when t.label == [";"] && List.exists((==)(Sort.Mod), parent_sorts) => (
+          when
+            t.label == [";"]
+            && List.exists(
+                 fun
+                 | Sort.Mod
+                 | Sort.Sig => true
+                 | _ => false,
+                 parent_sorts,
+               ) => (
           [],
           shape,
           seg,
@@ -719,6 +728,11 @@ and remold_mpat = (shape, seg: t): t =>
     }
   };
 
+/* Note: This was previously memoized via Core.Memo.general(~cache_size_bound=10000, ...).
+   The ~sort parameter (added for Mod/Sig grout precedence) broke the single-arg cache.
+   Memoization is likely not a net win here anyway: the cache key is a full segment list
+   (expensive structural comparison) and segments change on every edit, so hit rates
+   are low. Revisit with profiling data if performance is a concern. */
 let skel = (~sort=Sort.Exp, seg) => {
   seg
   |> List.mapi((i, p) => (i, p))
