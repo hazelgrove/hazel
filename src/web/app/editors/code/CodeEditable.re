@@ -234,6 +234,7 @@ module View = {
         ~syntax: CachedSyntax.t,
         ~z: Zipper.t,
         ~globals: Globals.t,
+        (),
       ) =>
     [
       CaretDec.view(
@@ -304,8 +305,9 @@ module View = {
         ? deco(
             ~expand_selection?,
             ~syntax=model.editor.syntax,
+            ~z=model.editor.state.zipper,
             ~globals,
-            model.editor.state.zipper,
+            (),
           )
           @ [
             Arms.Refractors.all(
