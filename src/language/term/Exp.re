@@ -185,7 +185,7 @@ let show_cls: cls => string =
   | Projector => "Projector"
   | Asc => "Type ascription expression"
   | Module => "Module expression"
-  | ModuleExp => "Module binding";
+  | ModuleExp => "Module definition";
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
   e => {

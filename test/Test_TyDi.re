@@ -18,12 +18,7 @@ let tydi_suggest = (code: string): option(string) => {
 
 let tydi_test = (~name, ~code, ~expect) =>
   test_case(name, `Quick, () =>
-    check(
-      option(string),
-      name,
-      expect,
-      tydi_suggest(code),
-    )
+    check(option(string), name, expect, tydi_suggest(code))
   );
 
 let dot_label_tests = (
@@ -199,13 +194,123 @@ let suppression_tests = (
     tydi_test(
       ~name="Dot position suppresses general suggestions",
       ~code="let m : (x=Int) = (x=1) in let ab = 1 in m.a¦",
-      ~expect=None, /* "ab" from context is suppressed */
+      ~expect=None /* "ab" from context is suppressed */
     ),
     /* label_sort=true suppresses even when cls is not Label */
     tydi_test(
       ~name="Dot position: non-matching label prefix",
       ~code="let m : (abc=Int) = (abc=1) in let xyz = 1 in m.x¦",
-      ~expect=None, /* "xyz" suppressed because label_sort=true */
+      ~expect=None /* "xyz" suppressed because label_sort=true */
+    ),
+  ],
+);
+
+let qualified_tests = (
+  "TyDi.Qualified",
+  [
+    /* Direct match: module member type matches expected type */
+    tydi_test(
+      ~name="Qualified: direct field match",
+      ~code="let m : (x=Int, y=Int) = (x=1, y=2) in let n : Int = m.¦",
+      ~expect=None /* No prefix typed after dot yet — dot_labels take over */
+    ),
+    tydi_test(
+      ~name="Qualified: direct field via module prefix",
+      ~code="let mm : (empty=String) = (empty=\"\") in let x : String = mm¦",
+      ~expect=Some(".empty"),
+    ),
+    tydi_test(
+      ~name="Qualified: function application field",
+      ~code=
+        "let mm : (double=Int -> Int) = (double=fun n -> n * 2) in let x : Int = mm¦",
+      ~expect=Some(".double("),
+    ),
+    /* Prefix matching: partial module name */
+    tydi_test(
+      ~name="Qualified: partial module name prefix",
+      ~code=
+        "let math : (square=Int -> Int) = (square=fun n -> n * n) in let x : Int = ma¦",
+      ~expect=Some("th.square("),
+    ),
+    /* Multiple fields: picks first alphabetically */
+    tydi_test(
+      ~name="Qualified: alphabetical ordering",
+      ~code=
+        "let mm : (beta=Int, alpha=Int) = (beta=2, alpha=1) in let x : Int = mm¦",
+      ~expect=Some(".alpha"),
+    ),
+    /* Only consistent fields suggested */
+    tydi_test(
+      ~name="Qualified: only type-consistent fields",
+      ~code=
+        "let mm : (name=String, age=Int) = (name=\"a\", age=1) in let x : Int = mm¦",
+      ~expect=Some(".age"),
+    ),
+    /* Lookahead: qualified suggestion in Bool context via comparison */
+    tydi_test(
+      ~name="Qualified: lookahead in Bool context",
+      ~code="let mm : (count=Int) = (count=0) in let b : Bool = mm¦",
+      ~expect=Some(".count"),
+    ),
+    /* No qualified suggestions when module has no matching fields */
+    tydi_test(
+      ~name="Qualified: no match when field types don't match",
+      ~code="let mm : (name=String) = (name=\"a\") in let x : Int = mm¦",
+      ~expect=None,
+    ),
+    /* Module keyword syntax */
+    tydi_test(
+      ~name="Qualified: module keyword with capitalized name",
+      ~code="module M = {let x = 1} in let n : Int = M.¦",
+      ~expect=None /* In dot position, dot_labels handle it */
+    ),
+    tydi_test(
+      ~name="Qualified: module keyword prefix match",
+      ~code="module Mm = {let val = 1} in let n : Int = Mm¦",
+      ~expect=Some(".val"),
+    ),
+    /* Module name that shadows a builtin type alias should not
+     * cause the module itself to be suggested as an operand */
+    tydi_test(
+      ~name="Qualified: type-name module, no matching fields",
+      ~code="module String = {let empty = \"\"} in let i : Int = Str¦",
+      ~expect=None,
+    ),
+    tydi_test(
+      ~name="Qualified: type-name module with matching field",
+      ~code=
+        "module String = {let empty = \"\"; let length = string_length} in let i : Int = Str¦",
+      ~expect=Some("ing.length("),
+    ),
+  ],
+);
+
+/* Base type names (Int, String, Bool, Float, Nat, SInt) have Exp/Pat-sort
+ * molds but no type entry in TyDiForms, so without filtering they'd get
+ * Unknown type and match any expected type. Verify they're suppressed in
+ * Exp and Pat positions but still work in Typ position. */
+let base_typ_suppression_tests = (
+  "TyDi.BaseTypSuppression",
+  [
+    tydi_test(
+      ~name="Nat not suggested as Exp operand",
+      ~code="let x : Int = N¦",
+      ~expect=None,
+    ),
+    tydi_test(
+      ~name="Nat not suggested as Pat operand over constructor",
+      ~code="fun x : +None +Some(Int) -> case x | N¦",
+      ~expect=Some("one"),
+    ),
+    tydi_test(
+      ~name="SInt not suggested as Exp operand",
+      ~code="let x : Int = S¦",
+      ~expect=None,
+    ),
+    tydi_test(
+      ~name="Nat still suggested in Typ position",
+      ~code="let x : N¦",
+      ~expect=Some("at"),
     ),
   ],
 );
@@ -219,4 +324,6 @@ let tests = [
   operator_tests,
   type_tests,
   suppression_tests,
+  qualified_tests,
+  base_typ_suppression_tests,
 ];

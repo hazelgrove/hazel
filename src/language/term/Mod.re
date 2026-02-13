@@ -41,7 +41,7 @@ let show_cls: cls => string =
   | ModLet => "Let declaration"
   | ModType => "Type declaration"
   | ModExp => "Module expression"
-  | ModuleMod => "Module binding";
+  | ModuleMod => "Module declaration";
 
 let temp: term => t =
   term => {

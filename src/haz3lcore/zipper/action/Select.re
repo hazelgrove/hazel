@@ -141,7 +141,8 @@ let current_term =
     ) => {
   let* (p, _, _) = Indicated.piece''(z);
   switch (p) {
-  | Tile({label: ["let" | "type", "=", "in"], _}) when defs_exclude_bodies =>
+  | Tile({label: ["let" | "type" | "module", "=", "in"], _})
+      when defs_exclude_bodies =>
     current_tile(z)
   | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
   | _ =>

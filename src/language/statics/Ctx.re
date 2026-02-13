@@ -276,13 +276,14 @@ let filter_stepper_filter_variables = (ctx: t): t => {
     |> List.rev,
 };
 
+/* Keep in sync with Token.base_typs */
 let is_base_typ = (name: string): bool =>
-  name == "Int"
-  || name == "SInt"
+  name == "Bool"
   || name == "Float"
-  || name == "Bool"
-  || name == "String"
-  || name == "Nat";
+  || name == "Int"
+  || name == "Nat"
+  || name == "SInt"
+  || name == "String";
 
 let shadows_typ = (ctx: t, name: string): bool =>
   is_base_typ(name) || lookup_tvar(ctx, name) != None;

@@ -213,7 +213,9 @@ let quote_label_when_necessary = (l: string): string =>
 
 let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = match(capitalized_name_regexp);
-let base_typs = ["String", "Int", "Float", "Bool"];
+/* Atom type names recognized by MakeTerm as Atom(...) in Typ sort.
+ * Keep in sync with Ctx.is_base_typ. */
+let base_typs = ["Bool", "Float", "Int", "Nat", "SInt", "String"];
 let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
 let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 

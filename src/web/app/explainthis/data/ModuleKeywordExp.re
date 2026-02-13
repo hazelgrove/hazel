@@ -20,12 +20,12 @@ let single: Simple.t = {
     ],
     [],
   ),
-  explanation: "A module keyword binding names a module expression for use in the body. The module's fields are accessed with dot notation.",
+  explanation: "A module definition names a module expression for use in the body, equivalent to a let definition. The module's fields are accessed with dot notation.",
   examples: [
     {
       sub_id: ModuleKeyword1,
       term: mk_example("module M = {\nlet x = 1;\nlet y = true\n} in M.x"),
-      message: "A module keyword binding. The module M is defined and its field x is accessed in the body.",
+      message: "A module definition. The module M is defined and its field x is accessed in the body.",
     },
   ],
 };

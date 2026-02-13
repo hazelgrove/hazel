@@ -111,6 +111,7 @@ The `module` keyword introduces a new **MPat** sort for module name patterns, wh
 | Capitalized module names (`M`, `Io`) | Works  |
 | MPat type annotations (`M : Sig`)    | Works  |
 | Menhir parser (all module forms)     | Works  |
+| Dot-label TyDi completion            | Works  |
 
 ## Known Limitations
 
@@ -296,6 +297,12 @@ The sort is threaded from `MakeTerm.re` where tile children are processed — th
 - **Sort colors**: Both Mod and Sig have dedicated colors in the cursor inspector header, gamma icon, toggle switch, and dividers
 - **Cursor inspector type display**: Mod and Sig items show only the cls name, not a type. The binding type is not directly available from `InfoExp` fields (it lives in the Pat's `InfoPat.ty` in the statics map, which the cursor inspector doesn't receive). Showing the module tuple type would be misleading.
 
+### Menhir Parser
+
+The Menhir parser preserves `ModuleExp`/`ModuleMod` structure (matching MakeTerm) rather than desugaring to `Let`/`ModItemLet`. The AST has `ModuleExp(pat, exp, exp)` and `ModItemModule(pat, exp)` nodes. `Conversion.re` provides `mpat_of_pat`/`pat_of_mpat` helpers for bidirectional mapping between Menhir AST patterns and Hazel MPat terms. Both `IDENT` and `CONSTRUCTOR_IDENT` produce `VarPat` after the `MODULE` token.
+
+Notable resolved issues: singleton labeled tuple types `(x=Int)` required a dedicated grammar rule; capitalized names after dot are handled via Constructor-to-Label conversion in `Conversion.re`; `QUOTED_LABEL` was added as an expression production for backtick-quoted labels.
+
 ### Module Semicolon Decoration
 
 In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to other pieces). Module/sig curly braces render as a pair with arm between them, filtering out semicolons.
@@ -350,6 +357,7 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 | `test/Test_ExpToSegment.re`                | 6 module/sig roundtrip tests + 1 skipped (empty module structural diff)   |
 | `test/Test_Editing.re`                     | 4 module editing tests (brace insertion, let inside module)               |
 | `test/Test_Abbreviate.re`                  | 2 module abbreviation tests                                               |
+| `test/Test_TyDi.re`                        | Dot-label completion tests and TyDi suppression in label positions        |
 | `test/Test_Menhir.re`                      | 73 tests including module keyword, sig annotations, QCheck round-trips    |
 | `test/Test_Equality.re`                    | Module alpha-equivalence tests (ModLet, MPat, ModuleMod)                  |
 | `test/Test_Indentation.re`                 | Module body indentation and nesting tests                                 |

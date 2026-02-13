@@ -166,8 +166,16 @@ module Delims = {
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let const_mono_exp = const_mono(Exp);
-  let const_mono_pat = const_mono(Pat);
+  /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort
+   * molds (as constructors) but no type entry in Typ.of_const_mono_delim.
+   * Without an entry, filter_by assigns Unknown type, making them match
+   * any expected type. Exclude them from Exp and Pat suggestions;
+   * constructor suggestions come from TyDiCtx.bound_constructors instead.
+   * They remain in Typ sort for type-position completion. */
+  let const_mono_exp =
+    const_mono(Exp) |> List.filter(t => !List.mem(t, Token.base_typs));
+  let const_mono_pat =
+    const_mono(Pat) |> List.filter(t => !List.mem(t, Token.base_typs));
   let const_mono_typ = const_mono(Typ);
 
   let const_mono = (sort: Sort.t): list(string) =>

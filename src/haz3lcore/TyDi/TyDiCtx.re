@@ -104,6 +104,71 @@ let bound_constructor_aps =
     ctx.entries,
   );
 
+/* Suggest qualified module member access: for variables with labeled tuple
+ * (module) types, suggest Name.label for fields consistent with the expected
+ * type. E.g., if String has type (empty=String, length=String->Int), and we
+ * expect String, suggest "String.empty".
+ *
+ * TODO: Only goes one level deep. Nested qualified access (A.B.x) would
+ * require recursive expansion. See also: List(Prod) types could generate
+ * qualified suggestions where field types are wrapped in List(...). */
+let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
+  List.concat_map(
+    fun
+    | Ctx.VarEntry({typ, name, _}) =>
+      switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
+      | Prod(ts) =>
+        List.filter_map(
+          label_ty =>
+            switch (Typ.match_tup_label(label_ty)) {
+            | Some((label, field_ty))
+                when Typ.is_consistent(ctx, ty_expect, field_ty) =>
+              Some({
+                content: name ++ "." ++ label,
+                strategy: Exp(Common(FromCtx(field_ty))),
+              })
+            | _ => None
+            },
+          ts,
+        )
+      | _ => []
+      }
+    | _ => [],
+    ctx.entries,
+  );
+
+/* Like bound_qualified but for arrow-typed fields: suggest Name.label(
+ * when the field's return type is consistent with the expected type.
+ * E.g., if String has (length=String->Int) and we expect Int,
+ * suggest "String.length(". */
+let bound_qualified_aps =
+    (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
+  List.concat_map(
+    fun
+    | Ctx.VarEntry({typ, name, _}) =>
+      switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
+      | Prod(ts) =>
+        List.filter_map(
+          label_ty =>
+            switch (Typ.match_tup_label(label_ty)) {
+            | Some((label, {term: Arrow(_, ty_out), _} as field_ty))
+                when
+                  Typ.is_consistent(ctx, ty_expect, ty_out)
+                  && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
+              Some({
+                content: name ++ "." ++ label ++ "(",
+                strategy: Exp(Common(FromCtxAp(ty_out))),
+              })
+            | _ => None
+            },
+          ts,
+        )
+      | _ => []
+      }
+    | _ => [],
+    ctx.entries,
+  );
+
 /* Suggest bound type aliases in type annotations or definitions */
 let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
@@ -117,6 +182,13 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
     ctx.entries,
   );
 
+/* NOTE(perf): suggest_variable and suggest_lookahead_variable each iterate
+ * over ctx.entries multiple times (currently ~7 passes in suggest_variable,
+ * up to ~33 in lookahead worst case for Bool). At typical context sizes
+ * (<500 entries) this is negligible. If it becomes a bottleneck, the main
+ * optimization is a single-pass refactor that classifies entries into
+ * buckets in one traversal, and/or pre-caching results for the fixed
+ * builtin context. */
 let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   let ctx = Info.ctx_of(ci);
   let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
@@ -125,6 +197,8 @@ let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     bound_variables(ana, ctx)
     @ bound_livelits(ana, ctx)
     @ bound_aps(ana, ctx)
+    @ bound_qualified(ana, ctx)
+    @ bound_qualified_aps(ana, ctx)
     @ bound_constructors(x => Exp(Common(x)), ana, ctx)
     @ bound_constructor_aps(x => Exp(Common(x)), ana, ctx)
   | InfoPat({ana, co_ctx, _}) =>
@@ -169,9 +243,11 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   | InfoExp({ana, _}) =>
     let exp_refs = ty =>
       bound_variables(ty, ctx)
+      @ bound_qualified(ty, ctx)
       @ bound_constructors(x => Exp(Common(x)), ty, ctx);
     let exp_aps = ty =>
       bound_aps(ty, ctx)
+      @ bound_qualified_aps(ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>

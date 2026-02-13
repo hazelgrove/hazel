@@ -16,7 +16,7 @@ let single: Simple.t = {
     ],
     [],
   ),
-  explanation: "A module keyword declaration inside a module body binds a nested module accessible as a field.",
+  explanation: "A module declaration inside a module body defines a nested module accessible as a field, equivalent to a let declaration.",
   examples: [
     {
       sub_id: ModuleKeywordDecl1,
