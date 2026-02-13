@@ -559,3 +559,202 @@ module JsonCodec = {
     | Error(msg) => Error(msg)
     };
 };
+
+/* Codec for converting between Yojson and Hazel expressions of the
+   built-in JSON ADT type (Assoc | Bool | Float | Int | List | String | Null) */
+module JsonADT = {
+  module Fresh = Language.IdTagged.FreshGrammar;
+
+  let ctr = (name: string): Language.Exp.t =>
+    Fresh.Exp.constructor(name, None);
+
+  let ap_ctr = (name: string, arg: Language.Exp.t): Language.Exp.t =>
+    Fresh.Exp.ap(Forward, ctr(name), arg);
+
+  /* Convert Yojson to a Hazel expression of the JSON ADT type */
+  let rec yojson_to_exp =
+          (json: Yojson.Safe.t): result(Language.Exp.t, string) =>
+    switch (json) {
+    | `Null => Ok(ctr("Null"))
+    | `Bool(b) => Ok(ap_ctr("Bool", Fresh.Exp.bool(b)))
+    | `Int(i) =>
+      let exp =
+        if (i < 0) {
+          Fresh.Exp.un_op(
+            Int(Minus),
+            Fresh.Exp.big_int(Bigint.of_int(- i)),
+          );
+        } else {
+          Fresh.Exp.big_int(Bigint.of_int(i));
+        };
+      Ok(ap_ctr("Int", exp));
+    | `Float(f) =>
+      let exp =
+        if (f < 0.0) {
+          Fresh.Exp.un_op(Float(Minus), Fresh.Exp.float(-. f));
+        } else {
+          Fresh.Exp.float(f);
+        };
+      Ok(ap_ctr("Float", exp));
+    | `String(s) => Ok(ap_ctr("String", Fresh.Exp.string(s)))
+    | `List(elements) =>
+      let rec convert = (acc, remaining) =>
+        switch (remaining) {
+        | [] => Ok(List.rev(acc))
+        | [hd, ...tl] =>
+          switch (yojson_to_exp(hd)) {
+          | Ok(exp) => convert([exp, ...acc], tl)
+          | Error(_) as e => e
+          }
+        };
+      switch (convert([], elements)) {
+      | Ok(exps) => Ok(ap_ctr("List", Fresh.Exp.list_lit(exps)))
+      | Error(msg) => Error(msg)
+      };
+    | `Assoc(pairs) =>
+      let rec convert = (acc, remaining) =>
+        switch (remaining) {
+        | [] => Ok(List.rev(acc))
+        | [(key, value), ...tl] =>
+          switch (yojson_to_exp(value)) {
+          | Ok(v_exp) =>
+            let pair = Fresh.Exp.tuple([Fresh.Exp.string(key), v_exp]);
+            convert([pair, ...acc], tl);
+          | Error(_) as e => e
+          }
+        };
+      switch (convert([], pairs)) {
+      | Ok(pair_exps) => Ok(ap_ctr("Assoc", Fresh.Exp.list_lit(pair_exps)))
+      | Error(msg) => Error(msg)
+      };
+    | `Intlit(_) => Error("Intlit not supported in JsonADT")
+    | `Tuple(_) => Error("Tuple not supported in JsonADT")
+    | `Variant(_) => Error("Variant not supported in JsonADT")
+    };
+
+  let yojson_to_any = (json: Yojson.Safe.t): result(Language.Any.t, string) =>
+    switch (yojson_to_exp(json)) {
+    | Ok(exp) => Ok(Exp(exp))
+    | Error(msg) => Error(msg)
+    };
+
+  /* Convert a Hazel expression of the JSON ADT type back to Yojson */
+  let rec exp_to_yojson =
+          (exp: Language.Exp.t): result(Yojson.Safe.t, string) => {
+    /* Strip parens */
+    let exp =
+      switch (Exp.term_of(exp)) {
+      | Parens(inner) => inner
+      | _ => exp
+      };
+    switch (Exp.term_of(exp)) {
+    | Constructor("Null", _) => Ok(`Null)
+    | Ap(_, fn_exp, arg) =>
+      switch (Exp.term_of(fn_exp)) {
+      | Constructor("Bool", _) =>
+        switch (Exp.term_of(arg)) {
+        | Atom(Bool(b)) => Ok(`Bool(b))
+        | _ => Error("JsonADT: Bool expects a boolean literal")
+        }
+      | Constructor("Int", _) =>
+        switch (Exp.term_of(arg)) {
+        | Atom(Int(i)) =>
+          switch (Bigint.to_int(i)) {
+          | Some(n) => Ok(`Int(n))
+          | None => Error("JsonADT: integer too large")
+          }
+        | UnOp(Int(Minus), neg_arg) =>
+          switch (Exp.term_of(neg_arg)) {
+          | Atom(Int(i)) =>
+            switch (Bigint.to_int(i)) {
+            | Some(n) => Ok(`Int(- n))
+            | None => Error("JsonADT: integer too large")
+            }
+          | _ => Error("JsonADT: Int expects an integer literal")
+          }
+        | _ => Error("JsonADT: Int expects an integer literal")
+        }
+      | Constructor("Float", _) =>
+        switch (Exp.term_of(arg)) {
+        | Atom(Float(f)) => Ok(`Float(f))
+        | UnOp(Float(Minus), neg_arg) =>
+          switch (Exp.term_of(neg_arg)) {
+          | Atom(Float(f)) => Ok(`Float(-. f))
+          | _ => Error("JsonADT: Float expects a float literal")
+          }
+        | _ => Error("JsonADT: Float expects a float literal")
+        }
+      | Constructor("String", _) =>
+        switch (Exp.term_of(arg)) {
+        | Atom(String(s)) => Ok(`String(s))
+        | _ => Error("JsonADT: String expects a string literal")
+        }
+      | Constructor("List", _) =>
+        switch (Exp.term_of(arg)) {
+        | ListLit(elements) =>
+          let rec convert = (acc, remaining) =>
+            switch (remaining) {
+            | [] => Ok(List.rev(acc))
+            | [hd, ...tl] =>
+              switch (exp_to_yojson(hd)) {
+              | Ok(j) => convert([j, ...acc], tl)
+              | Error(_) as e => e
+              }
+            };
+          switch (convert([], elements)) {
+          | Ok(json_elems) => Ok(`List(json_elems))
+          | Error(msg) => Error(msg)
+          };
+        | _ => Error("JsonADT: List expects a list literal")
+        }
+      | Constructor("Assoc", _) =>
+        switch (Exp.term_of(arg)) {
+        | ListLit(elements) =>
+          let rec convert = (acc, remaining) =>
+            switch (remaining) {
+            | [] => Ok(List.rev(acc))
+            | [hd, ...tl] =>
+              let pair = convert_assoc_pair(hd);
+              switch (pair) {
+              | Ok(p) => convert([p, ...acc], tl)
+              | Error(_) as e => e
+              };
+            };
+          switch (convert([], elements)) {
+          | Ok(pairs) => Ok(`Assoc(pairs))
+          | Error(msg) => Error(msg)
+          };
+        | _ => Error("JsonADT: Assoc expects a list literal")
+        }
+      | _ => Error("JsonADT: unrecognized JSON constructor")
+      }
+    | _ => Error("JsonADT: unrecognized JSON expression")
+    };
+  }
+  and convert_assoc_pair =
+      (pair_exp: Language.Exp.t): result((string, Yojson.Safe.t), string) => {
+    let term =
+      switch (Exp.term_of(pair_exp)) {
+      | Parens(inner) => Exp.term_of(inner)
+      | t => t
+      };
+    switch (term) {
+    | Tuple([key_exp, val_exp]) =>
+      switch (Exp.term_of(key_exp)) {
+      | Atom(String(k)) =>
+        switch (exp_to_yojson(val_exp)) {
+        | Ok(v) => Ok((k, v))
+        | Error(_) as e => e
+        }
+      | _ => Error("JsonADT: Assoc key must be a string literal")
+      }
+    | _ => Error("JsonADT: Assoc expects (String, JSON) pairs")
+    };
+  };
+
+  let any_to_yojson = (any: Language.Any.t): result(Yojson.Safe.t, string) =>
+    switch (any) {
+    | Exp(exp) => exp_to_yojson(exp)
+    | _ => Error("JsonADT: only Exp terms are supported")
+    };
+};

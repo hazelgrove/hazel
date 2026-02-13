@@ -168,11 +168,54 @@ module Option = {
   ];
 };
 
+module JSON = {
+  /* Self-reference for the recursive type */
+  let self: Typ.t = var("JSON");
+
+  /* type JSON =
+     + Assoc([(String, JSON)])
+     + Bool(Bool)
+     + Float(Float)
+     + Int(Int)
+     + List([JSON])
+     + String(String)
+     + Null */
+  let t: Typ.t =
+    rec_(
+      Fresh.TPat.var("JSON"),
+      sum_type([
+        ("Assoc", Some(list(prod([string(), self])))),
+        ("Bool", Some(bool())),
+        ("Float", Some(float())),
+        ("Int", Some(int())),
+        ("List", Some(list(self))),
+        ("String", Some(string())),
+        ("Null", None),
+      ]),
+    );
+
+  open IdTagged.FreshGrammar;
+  let json_assoc =
+    Exp.constructor("Assoc", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_bool =
+    Exp.constructor("Bool", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_float =
+    Exp.constructor("Float", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_int =
+    Exp.constructor("Int", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_list =
+    Exp.constructor("List", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_string =
+    Exp.constructor("String", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_null = Exp.constructor("Null", Some(Some(t)));
+};
+
 // List of type aliases to add to the context
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
   ("Either", Either.t),
+  ("JSON", JSON.t),
   ("$Meta", meta_type),
 ];
 
@@ -194,6 +237,11 @@ let constructors: Ctx.t = {
       let cons_map =
         switch (Typ.term_of(typ)) {
         | Sum(cons_map) => cons_map
+        | Rec(_, tbody) =>
+          switch (Typ.term_of(tbody)) {
+          | Sum(cons_map) => cons_map
+          | _ => failwith("Type alias must be a sum type")
+          }
         | _ => failwith("Type alias must be a sum type")
         };
       Ctx.add_ctrs(ctx, name, Id.invalid, cons_map);
