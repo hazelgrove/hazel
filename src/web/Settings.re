@@ -10,11 +10,14 @@ module Model = {
     context_inspector: bool,
     instructor_mode: bool,
     benchmark: bool,
+    show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
     quiver: bool, /* Show completion visualization (quiver arrows) */
-    backpack: bool /* Show backpack display */
+    backpack: bool, /* Show backpack display */
+    line_numbers: bool,
+    relative_line_numbers: bool,
   };
 
   let init = {
@@ -32,6 +35,7 @@ module Model = {
         show_fn_bodies: false,
         show_fixpoints: false,
         show_ascription_steps: false,
+        show_ascriptions: false,
         show_case_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
@@ -45,6 +49,7 @@ module Model = {
     context_inspector: false,
     instructor_mode: false,
     benchmark: false,
+    show_log_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
@@ -61,7 +66,9 @@ module Model = {
       show: true,
     },
     quiver: true, /* Enable by default for now, can change later */
-    backpack: true /* Show backpack by default */
+    backpack: true, /* Show backpack by default */
+    line_numbers: false,
+    relative_line_numbers: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -98,6 +105,7 @@ module Update = {
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
+    | ShowAscriptions
     | ShowCaseSteps
     | ShowFixpoints
     | ShowLookups
@@ -117,13 +125,16 @@ module Update = {
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | ShowLogPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
     | Assistant(AssistantSettings.action)
     | FlipAnimations
     | Quiver
-    | Backpack;
+    | Backpack
+    | ToggleLineNumbers
+    | ToggleRelativeLineNumbers;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -212,6 +223,10 @@ module Update = {
           | ShowAscriptionSteps => {
               ...evaluation,
               show_ascription_steps: !evaluation.show_ascription_steps,
+            }
+          | ShowAscriptions => {
+              ...evaluation,
+              show_ascriptions: !evaluation.show_ascriptions,
             }
           | ShowCaseSteps => {
               ...evaluation,
@@ -318,6 +333,11 @@ module Update = {
             },
           }
         }
+      | ShowLogPanel => {
+          ...settings,
+          show_log_panel:
+            !settings.show_log_panel && ExerciseSettings.show_instructor,
+        }
       | Benchmark => {
           ...settings,
           benchmark: !settings.benchmark,
@@ -345,6 +365,14 @@ module Update = {
       | Backpack => {
           ...settings,
           backpack: !settings.backpack,
+        }
+      | ToggleLineNumbers => {
+          ...settings,
+          line_numbers: !settings.line_numbers,
+        }
+      | ToggleRelativeLineNumbers => {
+          ...settings,
+          relative_line_numbers: !settings.relative_line_numbers,
         }
       }
     )

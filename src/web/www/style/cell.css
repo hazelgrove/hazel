@@ -15,7 +15,14 @@
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
+  flex-direction: row;
+  padding-left: 1em;
 }
+
+#main .code-editor.has-line-numbers{
+  padding-left: 0;
+}
+
 
 #main.Scratch,
 #main.Documentation {
