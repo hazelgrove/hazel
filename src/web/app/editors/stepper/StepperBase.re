@@ -173,7 +173,7 @@ module rec StepKind: {
           AlgebriteStep(_),
           _,
         ) =>
-        model |> Updated.return_quiet
+        model |> Updated.raise_invalid_action
       }
     );
   };
@@ -632,7 +632,7 @@ and Stepper: {
       switch (action, model.step_kind, model.next_step) {
       | (EditorAction(ea), _, _) =>
         switch (model.editor) {
-        | Calc.Pending => model |> return_quiet
+        | Calc.Pending => model |> raise_invalid_action
         | Calc.Calculated(editor) =>
           let* new_editor =
             CodeSelectable.Update.update(~settings, ea, editor);
@@ -647,7 +647,7 @@ and Stepper: {
           ...model,
           next_step: Some(new_next_step),
         };
-      | (NextStep(_), _, None) => model |> return_quiet
+      | (NextStep(_), _, None) => model |> raise_invalid_action
       | (RemoveStep, _, _) =>
         {
           ...model,
@@ -675,23 +675,23 @@ and Stepper: {
               }),
           }
           |> return
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         };
-      | (StepForward(_), _, _) => model |> return_quiet
+      | (StepForward(_), _, _) => model |> raise_invalid_action
       | (AddInduction(exp), MissingStep(_), _) =>
         {
           ...model,
           step_kind: InductionStep(InductionStep.init(~exp?, ())),
         }
         |> return
-      | (AddInduction(_), _, _) => model |> return_quiet
+      | (AddInduction(_), _, _) => model |> raise_invalid_action
       | (AddForall, MissingStep(_), _) =>
         {
           ...model,
           step_kind: ForallStep(ForallStep.init(init)),
         }
         |> return
-      | (AddForall, _, _) => model |> return_quiet
+      | (AddForall, _, _) => model |> raise_invalid_action
       | (
           AddAxiomStep(name, at_idx, at_exp, direction, equality),
           MissingStep(_),
@@ -710,7 +710,7 @@ and Stepper: {
             }),
         }
         |> return
-      | (AddAxiomStep(_, _, _, _, _), _, _) => model |> return_quiet
+      | (AddAxiomStep(_, _, _, _, _), _, _) => model |> raise_invalid_action
       | (AddAlgebriteStep(at_idx, at_exp, with_exp), MissingStep(_), _) =>
         {
           ...model,
@@ -723,7 +723,7 @@ and Stepper: {
             }),
         }
         |> return
-      | (AddAlgebriteStep(_, _, _), _, _) => model |> return_quiet
+      | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
