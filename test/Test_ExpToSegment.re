@@ -721,6 +721,21 @@ end|}),
       {|Module: with type alias|},
       {|{ type T = Int; let x = 1 }|},
     ),
+    /* ModuleExp round-trip tests */
+    roundtrip_test({|ModuleExp: basic|}, {|module M = { let x = 1 } in M|}),
+    roundtrip_test(
+      {|ModuleExp: with sig annotation|},
+      {|module M : { let x : Int } = { let x = 1 } in M|},
+    ),
+    roundtrip_test(
+      {|ModuleExp: nested module keyword|},
+      {|module M = { module N = { let x = 1 } } in M|},
+    ),
+    /* Module: with module keyword item */
+    roundtrip_test(
+      {|Module: module keyword item|},
+      {|{ module Inner = { let x = 1 } }|},
+    ),
     /* Sig text round-trip tests */
     roundtrip_test(
       {|Sig: single let|},

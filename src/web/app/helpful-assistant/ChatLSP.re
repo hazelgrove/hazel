@@ -99,10 +99,16 @@ module Completion = {
       let relevant = RelevantValues.get(ctx, ana);
       (expected_type ? ["expected_ty: " ++ expected] : [])
       @ (relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : []);
+    | InfoMod({ctx, _})
+    | InfoSig({ctx, _})
+    | InfoMPat({ctx, _}) =>
+      let ana = Typ.fresh(Unknown(Internal));
+      let expected = RelevantTypes.get(ctx, ana, hole_label);
+      let relevant = RelevantValues.get(ctx, ana);
+      (expected_type ? ["expected_ty: " ++ expected] : [])
+      @ (relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : []);
     | InfoTyp(_)
     | InfoTPat(_)
-    | InfoMod(_)
-    | InfoSig(_)
     | Secondary(_) => []
     };
 
@@ -234,10 +240,14 @@ module Composition = {
     | InfoPat({ana, ctx, _}) =>
       let relevant = RelevantValues.get(ctx, ana);
       relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : [];
+    | InfoMod({ctx, _})
+    | InfoSig({ctx, _})
+    | InfoMPat({ctx, _}) =>
+      let ana = Typ.fresh(Unknown(Internal));
+      let relevant = RelevantValues.get(ctx, ana);
+      relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : [];
     | InfoTyp(_)
     | InfoTPat(_)
-    | InfoMod(_)
-    | InfoSig(_)
     | Secondary(_) => []
     };
 

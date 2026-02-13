@@ -56,6 +56,7 @@ type any_t('a) =
   | Rul(rul_t('a))
   | Mod(mod_t('a))
   | Sig(sig_t('a))
+  | MPat(mpat_t('a))
   | Any(unit)
 and exp_term('a) =
   | Invalid(string)
@@ -107,6 +108,7 @@ and exp_term('a) =
   | TupleExtension(exp_t('a), exp_t('a))
   | Asc(exp_t('a), typ_t('a))
   | Module(list(mod_t('a)))
+  | ModuleExp(mpat_t('a), exp_t('a), exp_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
   | Invalid(string)
@@ -165,6 +167,7 @@ and mod_term('a) =
   | ModLet(pat_t('a), exp_t('a))
   | ModType(tpat_t('a), typ_t('a))
   | ModExp(exp_t('a))
+  | ModuleMod(mpat_t('a), exp_t('a))
 and mod_t('a) = Annotated.t(mod_term('a), 'a)
 and sig_term('a) =
   | Invalid(string)
@@ -173,6 +176,13 @@ and sig_term('a) =
   | SigLet(pat_t('a))
   | SigType(tpat_t('a), typ_t('a))
 and sig_t('a) = Annotated.t(sig_term('a), 'a)
+and mpat_term('a) =
+  | Invalid(string)
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+  | Var(Var.t)
+  | Asc(mpat_t('a), typ_t('a))
+and mpat_t('a) = Annotated.t(mpat_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -309,6 +319,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Asc(e, t) =>
           Asc(map_exp_annotation(f, e), map_typ_annotation(f, t))
         | Module(items) => Module(List.map(map_mod_annotation(f), items))
+        | ModuleExp(mp, def, body) =>
+          ModuleExp(
+            map_mpat_annotation(f, mp),
+            map_exp_annotation(f, def),
+            map_exp_annotation(f, body),
+          )
         };
       {
         term,
@@ -328,6 +344,7 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Rul(r) => Rul(map_rul_annotation(f, r))
     | Mod(m) => Mod(map_mod_annotation(f, m))
     | Sig(s) => Sig(map_sig_annotation(f, s))
+    | MPat(mp) => MPat(map_mpat_annotation(f, mp))
     | Any(_) => Any()
     };
   }
@@ -462,6 +479,8 @@ and map_mod_annotation: 'a 'b. ('a => 'b, mod_t('a)) => mod_t('b) =
         | ModType(tp, t) =>
           ModType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | ModExp(e) => ModExp(map_exp_annotation(f, e))
+        | ModuleMod(mp, e) =>
+          ModuleMod(map_mpat_annotation(f, mp), map_exp_annotation(f, e))
         },
       annotation: new_annotation,
     };
@@ -480,6 +499,24 @@ and map_sig_annotation: 'a 'b. ('a => 'b, sig_t('a)) => sig_t('b) =
         | SigLet(p) => SigLet(map_pat_annotation(f, p))
         | SigType(tp, t) =>
           SigType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        },
+      annotation: new_annotation,
+    };
+  }
+and map_mpat_annotation: 'a 'b. ('a => 'b, mpat_t('a)) => mpat_t('b) =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Invalid(s) => Invalid(s)
+        | EmptyHole => EmptyHole
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        | Var(v) => Var(v)
+        | Asc(mp, t) =>
+          Asc(map_mpat_annotation(f, mp), map_typ_annotation(f, t))
         },
       annotation: new_annotation,
     };
@@ -749,6 +786,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Module(m),
       annotation: default_annotation(ann),
     };
+    let module_exp = (~ann=?, mp, def, body): exp_t(DefaultAnnotation.t) => {
+      term: ModuleExp(mp, def, body),
+      annotation: default_annotation(ann),
+    };
   };
   module Pat = {
     let invalid = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
@@ -1002,6 +1043,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: ModExp(e),
       annotation: default_annotation(ann),
     };
+    let module_mod = (~ann=?, mp, e): mod_t(DefaultAnnotation.t) => {
+      term: ModuleMod(mp, e),
+      annotation: default_annotation(ann),
+    };
   };
 
   module Sig = {
@@ -1023,6 +1068,29 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let sig_type = (~ann=?, tp, t): sig_t(DefaultAnnotation.t) => {
       term: SigType(tp, t),
+      annotation: default_annotation(ann),
+    };
+  };
+
+  module MPat = {
+    let invalid = (~ann=?, s): mpat_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let empty_hole = (~ann=?, ()): mpat_t(DefaultAnnotation.t) => {
+      term: EmptyHole,
+      annotation: default_annotation(ann),
+    };
+    let multi_hole = (~ann=?, l): mpat_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+    let var = (~ann=?, v): mpat_t(DefaultAnnotation.t) => {
+      term: Var(v),
+      annotation: default_annotation(ann),
+    };
+    let asc = (~ann=?, mp, t): mpat_t(DefaultAnnotation.t) => {
+      term: Asc(mp, t),
       annotation: default_annotation(ann),
     };
   };

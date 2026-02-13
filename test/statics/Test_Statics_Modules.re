@@ -401,6 +401,95 @@ let test_limitation_label_mismatch_hole =
     Some(prod([tup_label(label("x"), unknown(Hole(EmptyHole)))])),
   );
 
+/* ===== MODULE KEYWORD TESTS ===== */
+
+/* Test module keyword with lowercase name */
+let test_module_keyword_lowercase =
+  fully_consistent_typecheck(
+    "Module keyword with lowercase name",
+    {|module m = { let x = 1 } in m.x|},
+    Some(int()),
+  );
+
+/* Test module keyword with capitalized name */
+let test_module_keyword_capitalized =
+  fully_consistent_typecheck(
+    "Module keyword with capitalized name",
+    {|module M = { let x = 1; let y = 2 } in M.x + M.y|},
+    Some(int()),
+  );
+
+/* Test module keyword inside module body */
+let test_module_keyword_in_mod =
+  fully_consistent_typecheck(
+    "Module keyword inside module body",
+    {|{ module Inner = { let z = 42 }; let r = Inner.z }|},
+    Some(
+      prod([
+        tup_label(label("Inner"), prod([tup_label(label("z"), int())])),
+        tup_label(label("r"), int()),
+      ]),
+    ),
+  );
+
+/* Test module keyword returning the module itself */
+let test_module_keyword_returns_module =
+  fully_consistent_typecheck(
+    "Module keyword returns module value",
+    {|module M = { let a = 1; let b = true } in M|},
+    Some(
+      prod([tup_label(label("a"), int()), tup_label(label("b"), bool())]),
+    ),
+  );
+
+/* Test capitalized name in dot position (chained access) */
+let test_capitalized_dot_access =
+  fully_consistent_typecheck(
+    "Capitalized name in dot position",
+    {|module Outer = { module Inner = { let x = 10 } } in Outer.Inner.x|},
+    Some(int()),
+  );
+
+/* Test module keyword with prod annotation */
+let test_module_keyword_prod_annotation =
+  fully_consistent_typecheck(
+    "Module keyword with prod annotation",
+    {|module M : (x=Int) = { let x = 1 } in M.x|},
+    Some(int()),
+  );
+
+/* Test module keyword with sig annotation */
+let test_module_keyword_sig_annotation =
+  fully_consistent_typecheck(
+    "Module keyword with sig annotation",
+    {|module M : { let x : Int } = { let x = 42 } in M.x|},
+    Some(int()),
+  );
+
+/* Test module keyword with multi-field annotation */
+let test_module_keyword_multi_annotation =
+  fully_consistent_typecheck(
+    "Module keyword with multi-field annotation",
+    {|module M : (x=Int, y=Bool) = { let x = 1; let y = true } in M|},
+    Some(
+      prod([tup_label(label("x"), int()), tup_label(label("y"), bool())]),
+    ),
+  );
+
+/* Test module keyword annotation type mismatch */
+let test_error_module_keyword_annotation_mismatch =
+  inconsistent_typecheck(
+    "Module keyword annotation type mismatch",
+    {|module M : (x=Int) = { let x = "hello" } in M|} |> parse_exp,
+  );
+
+/* Test module keyword sig annotation mismatch */
+let test_error_module_keyword_sig_mismatch =
+  inconsistent_typecheck(
+    "Module keyword sig annotation mismatch",
+    {|module M : { let x : Int } = { let x = true } in M|} |> parse_exp,
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -456,5 +545,17 @@ let tests = (
     test_limitation_extra_member_multi,
     test_limitation_sig_too_narrow,
     test_limitation_label_mismatch_hole,
+    /* Module keyword tests */
+    test_module_keyword_lowercase,
+    test_module_keyword_capitalized,
+    test_module_keyword_in_mod,
+    test_module_keyword_returns_module,
+    test_capitalized_dot_access,
+    /* Module keyword annotation tests */
+    test_module_keyword_prod_annotation,
+    test_module_keyword_sig_annotation,
+    test_module_keyword_multi_annotation,
+    test_error_module_keyword_annotation_mismatch,
+    test_error_module_keyword_sig_mismatch,
   ],
 );

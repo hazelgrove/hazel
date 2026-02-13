@@ -801,6 +801,48 @@ in f(1)|},
   ),
 ];
 
+let module_tests = [
+  probe_line_test(
+    "Probe inside module body",
+    {|let m = { let x = ^^probe(1 + 2) } in m.x|},
+    [(0, ["3"])],
+  ),
+  /* Note: ^^probe({ let x = 1 }) captures nothing — this is a known issue.
+     ^^probe(let x = 1 in (x=x)) DOES capture (x=1) because the probe wraps
+     the let directly. But module elaboration reconstructs the let chain with
+     fresh IDs, so the probe wrapper's relationship to the elaborated term
+     gets lost. See plan for potential fix. */
+  probe_line_test(
+    "Probe on module value via variable",
+    {|let m = { let x = 5 } in ^^probe(m)|},
+    [(0, ["(x=5)"])],
+  ),
+  probe_line_test(
+    "Probe on module dot access",
+    {|let m = { let x = 5 } in ^^probe(m.x)|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Module keyword with probe in body",
+    {|module m = { let x = ^^probe(2 + 3) } in m.x|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Probe on function defined in module",
+    {|let m = { let f = fun x -> ^^probe(x + 1) }
+in m.f(5)|},
+    [(0, ["6"])],
+  ),
+  probe_line_test(
+    "Probe on module with multiple bindings",
+    {|let m = {
+  let x = ^^probe(1 + 2);
+  let y = ^^probe(3 + 4)
+} in m.x + m.y|},
+    [(1, ["3"]), (2, ["7"])],
+  ),
+];
+
 let tests = [
   ("Evaluator.Probes.Basic", basic_tests),
   ("Evaluator.Probes.Operators", operator_tests),
@@ -809,4 +851,5 @@ let tests = [
   ("Evaluator.Probes.Nested", nested_probe_tests),
   ("Evaluator.Probes.Recursion", recursion_tests),
   ("Evaluator.Probes.Ascription", ascription_tests),
+  ("Evaluator.Probes.Modules", module_tests),
 ];

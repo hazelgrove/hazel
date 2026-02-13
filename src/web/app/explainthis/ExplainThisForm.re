@@ -156,7 +156,9 @@ type example_id =
   | ModType1
   | Sig1
   | SigLet1
-  | SigType1;
+  | SigType1
+  | ModuleKeyword1
+  | ModuleKeywordDecl1;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -294,7 +296,9 @@ type form_id =
   | ModTypeDecl
   | SigTyp
   | SigLetDecl
-  | SigTypeDecl;
+  | SigTypeDecl
+  | ModuleKeywordExp
+  | ModuleKeywordDecl;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -413,7 +417,9 @@ type group_id =
   | ModTypeDecl
   | SigTyp
   | SigLetDecl
-  | SigTypeDecl;
+  | SigTypeDecl
+  | ModuleKeywordExp
+  | ModuleKeywordDecl;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {

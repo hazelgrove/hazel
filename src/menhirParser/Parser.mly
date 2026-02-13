@@ -37,6 +37,7 @@ open AST
 %token <int> INT
 %token <float> FLOAT
 %token LET
+%token MODULE
 %token FUN
 %token CASE
 %token OPEN_SQUARE_BRACKET
@@ -261,6 +262,7 @@ typ:
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
+    | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { TupleType([TupLabelType(LabelType(l), t)]) }
     | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
     | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
     | OPEN_CURLY; items = separated_list(SEMI_COLON, sigItem); CLOSE_CURLY { Sig(items) }
@@ -344,6 +346,7 @@ exp:
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
+    | l = QUOTED_LABEL { Label(l) }
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) }
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | e = exp; COLON; t = typ { Asc(e, t) }
@@ -359,6 +362,10 @@ exp:
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
+    | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
+    | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP
+    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(c), t), e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
@@ -391,6 +398,10 @@ modItemExp:
 
 modItem:
     | LET; i = pat; SINGLE_EQUAL; e = modItemExp { ModItemLet(i, e) }
+    | MODULE; i = IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(i), e) }
+    | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(c), e) }
+    | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(i), t), e) }
+    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(c), t), e) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { ModItemType(tp, ty) }
     | e = modItemExp { ModItemExp(e) }
 

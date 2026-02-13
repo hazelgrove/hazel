@@ -29,6 +29,30 @@ let bound_vars_of_tpat = (tpat: TPat.t): list(Var.t) =>
   | MultiHole(_) => []
   };
 
+/* Convert an MPat to a Pat, preserving the MPat's ID.
+   This ensures the same Pat ID is used in both expansion and binding computation. */
+let rec mpat_to_pat = (mp: MPat.t): Pat.t =>
+  switch (mp.term) {
+  | Var(name) => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Var(name)))
+  | Asc(inner, typ) =>
+    /* Desugar Sig types to Prod so the evaluator can handle them.
+       e.g. { let x : Int } becomes (x=Int) */
+    let typ = Typ.desugar_sig(Ctx.empty, typ);
+    IdTagged.fast_copy(
+      MPat.rep_id(mp),
+      Pat.fresh(Asc(mpat_to_pat(inner), typ)),
+    );
+  | _ => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Wild))
+  };
+
+/* Extract the variable name from an MPat, looking through Asc wrappers */
+let rec mpat_names = (mp: MPat.t): list(Var.t) =>
+  switch (mp.term) {
+  | Var(name) => [name]
+  | Asc(inner, _) => mpat_names(inner)
+  | _ => []
+  };
+
 /* Collect all variable names that will be bound by later items in the module.
    Used to determine which bindings are shadowed. */
 let rec collect_later_names = (items: list(Mod.t)): list(Var.t) =>
@@ -38,6 +62,7 @@ let rec collect_later_names = (items: list(Mod.t)): list(Var.t) =>
     let names =
       switch (item.term) {
       | ModLet(pat, _) => bound_vars_of_pat(pat)
+      | ModuleMod(mp, _) => mpat_names(mp)
       | ModType(_, _) => [] /* Type bindings don't shadow value bindings */
       | ModExp(_) => []
       | Invalid(_)
@@ -62,6 +87,14 @@ let compute_non_shadowed_bindings =
         /* Keep only names not shadowed by later items */
         let non_shadowed =
           names |> List.filter(n => !List.mem(n, later_names));
+        let entries = non_shadowed |> List.map(n => (n, pat));
+        entries @ go(rest);
+      | ModuleMod(mp, _) =>
+        let names = mpat_names(mp);
+        let later_names = collect_later_names(rest);
+        let non_shadowed =
+          names |> List.filter(n => !List.mem(n, later_names));
+        let pat = mpat_to_pat(mp);
         let entries = non_shadowed |> List.map(n => (n, pat));
         entries @ go(rest);
       | ModType(_, _)
@@ -152,6 +185,10 @@ let wrap_item =
        The inner expression e keeps its original IDs. */
     let wild_pat = Pat.fresh(Wild);
     Exp.fresh(Let(wild_pat, e, body));
+  | ModuleMod(mp, def) =>
+    let item_id = Mod.rep_id(item);
+    let pat = mpat_to_pat(mp);
+    IdTagged.fast_copy(item_id, Exp.fresh(Let(pat, def, body)));
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) =>

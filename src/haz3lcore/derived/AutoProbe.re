@@ -195,6 +195,18 @@ let term_is_let = (term: Language.Any.t): bool =>
   | _ => false
   };
 
+/* Module declarations (ModLet, ModType, ModuleMod) don't have runtime
+ * values — they're declarations, not expressions. Auto-probe should
+ * never probe them; it should probe their definition subexpression
+ * instead (which appears as a separate candidate on the same line).
+ * ModExp (bare expression in module body) is excluded — it wraps
+ * an expression that does have a value. */
+let term_is_mod_declaration = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Mod({term: ModLet(_, _) | ModType(_, _) | ModuleMod(_, _), _}) => true
+  | _ => false
+  };
+
 let let_body_is_hole = (term: Language.Any.t): bool =>
   switch (term) {
   | Exp({term: Let(_, _, body), _}) => term_is_hole(Exp(body))
@@ -492,6 +504,13 @@ let candidate_allowed_by_term_sort =
     Language.Statics.Map.lookup(candidate_id, env.info_map),
   );
 
+let candidate_allowed_by_mod_declaration =
+    (candidate_id: Id.t, env: selection_env): bool =>
+  switch (get_term(candidate_id, env.terms)) {
+  | Some(term) => !term_is_mod_declaration(term)
+  | None => true
+  };
+
 let candidate_is_allowed =
     (
       candidate_id: Id.t,
@@ -501,6 +520,7 @@ let candidate_is_allowed =
     )
     : bool =>
   candidate_allowed_by_term_sort(candidate_id, env)
+  && candidate_allowed_by_mod_declaration(candidate_id, env)
   && candidate_allowed_by_holes(candidate_id, row, env)
   && candidate_allowed_by_function_types(candidate_id, env)
   && candidate_allowed_by_container(candidate_id, env)

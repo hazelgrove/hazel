@@ -318,6 +318,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Module(_)
+  | ModuleExp(_)
   | Asc(_)
   | ProofObject(_)
   | Forall(_)

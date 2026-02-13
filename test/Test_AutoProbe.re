@@ -367,6 +367,54 @@ end           # case x | 0 => a | _ => b end #|},
   ),
 ];
 
+/* MODULE SPECIAL CASES - module body items.
+ * Module declarations (ModLet, ModType, ModuleMod) are not expressions
+ * and have no runtime value, so auto-probe skips them in favor of
+ * their definition subexpressions. */
+let module_tests = [
+  test_probe_placement(
+    ~name="Single-line module - probe module expression",
+    ~code={|let m = { let x = 1 } in # { let x = 1 } #
+m.x # m.x #|},
+  ),
+  test_probe_placement(
+    ~name="Multi-line module - probe definition expressions, not declarations",
+    ~code=
+      {|let m = { # m #
+  let x = 1 + 2; # 1 + 2 #
+  let y = 3 + 4 # 3 + 4 #
+} in              # { let x = 1 + 2; let y = 3 + 4 } #
+m.x + m.y # m.x + m.y #|},
+  ),
+  test_probe_placement(
+    ~name="Module keyword - probe definition expression",
+    ~code=
+      {|module m = { # m #
+  let x = 1 + 2 # 1 + 2 #
+} in              # { let x = 1 + 2 } #
+m.x # m.x #|},
+  ),
+  test_probe_placement(
+    ~name="Module with type declaration - probe definition expression",
+    ~code=
+      {|let m = { # m #
+  type T = Int;
+  let x : T = 42 # 42 #
+} in              # { type T = Int; let x : T = 42 } #
+m.x # m.x #|},
+  ),
+  test_probe_placement(
+    ~name=
+      "Module with bare expression - probe definitions and bare expression",
+    ~code=
+      {|let m = { # m #
+  let x = 1; # 1 #
+  1 + 3 # 1 + 3 #
+} in              # { let x = 1; 1 + 3 } #
+m.x # m.x #|},
+  ),
+];
+
 let tests = [
   ("AutoProbe.Basic", basic_tests),
   ("AutoProbe.DefaultSelection", nested_multiline_tests),
@@ -376,4 +424,5 @@ let tests = [
   ("AutoProbe.IfExpressions", if_expression_tests),
   ("AutoProbe.FunctionTypes", function_type_tests),
   ("AutoProbe.CaseExpressions", case_expression_tests),
+  ("AutoProbe.Modules", module_tests),
 ];

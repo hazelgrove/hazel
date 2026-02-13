@@ -7,7 +7,8 @@ type t =
   | Rul(Rul.cls)
   | Secondary(Secondary.cls)
   | Mod(Mod.cls)
-  | Sig(Sig.cls);
+  | Sig(Sig.cls)
+  | MPat(MPat.cls);
 
 let show = (cls: t) =>
   switch (cls) {
@@ -19,4 +20,5 @@ let show = (cls: t) =>
   | Secondary(cls) => Secondary.show_cls(cls)
   | Mod(cls) => Mod.show_cls(cls)
   | Sig(cls) => Sig.show_cls(cls)
+  | MPat(cls) => MPat.show_cls(cls)
   };

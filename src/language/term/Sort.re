@@ -7,7 +7,8 @@ type t =
   | Rul
   | Exp
   | Mod
-  | Sig;
+  | Sig
+  | MPat;
 
 let root = Exp;
 
@@ -22,4 +23,5 @@ let to_string_verbose =
   | Rul => "rule"
   | Exp => "expression"
   | Mod => "module"
-  | Sig => "signature";
+  | Sig => "signature"
+  | MPat => "module pattern";

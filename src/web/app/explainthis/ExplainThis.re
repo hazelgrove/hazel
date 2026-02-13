@@ -537,6 +537,7 @@ let get_doc =
     switch (cls) {
     | Mod(ModLet) => message_single(ModLetDecl.single)
     | Mod(ModType) => message_single(ModTypeDecl.single)
+    | Mod(ModuleMod) => message_single(ModuleKeywordDecl.single)
     | _ => simple("Module item")
     }
   | Some(InfoSig({cls, _})) =>
@@ -545,10 +546,13 @@ let get_doc =
     | Sig(SigType) => message_single(SigTypeDecl.single)
     | _ => simple("Signature item")
     }
+  | Some(InfoMPat(_)) => simple("Module name")
   | Some(InfoExp({cls: Mod(ModLet), _})) =>
     message_single(ModLetDecl.single)
   | Some(InfoExp({cls: Mod(ModType), _})) =>
     message_single(ModTypeDecl.single)
+  | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
+    message_single(ModuleKeywordDecl.single)
   | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
@@ -2199,6 +2203,7 @@ let get_doc =
           TerminalExp.ctr(v),
         )
       | Module(_) => message_single(ModuleExp.single)
+      | ModuleExp(_) => message_single(ModuleKeywordExp.single)
       | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);

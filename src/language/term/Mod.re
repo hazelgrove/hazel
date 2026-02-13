@@ -5,7 +5,8 @@ type cls =
   | MultiHole
   | ModLet
   | ModType
-  | ModExp;
+  | ModExp
+  | ModuleMod;
 
 include TermBase.Mod;
 
@@ -29,7 +30,8 @@ let cls_of_term: Grammar.mod_term('a) => cls =
   | MultiHole(_) => MultiHole
   | ModLet(_, _) => ModLet
   | ModType(_, _) => ModType
-  | ModExp(_) => ModExp;
+  | ModExp(_) => ModExp
+  | ModuleMod(_) => ModuleMod;
 
 let show_cls: cls => string =
   fun
@@ -38,7 +40,8 @@ let show_cls: cls => string =
   | EmptyHole => "Module hole"
   | ModLet => "Let declaration"
   | ModType => "Type declaration"
-  | ModExp => "Module expression";
+  | ModExp => "Module expression"
+  | ModuleMod => "Module binding";
 
 let temp: term => t =
   term => {

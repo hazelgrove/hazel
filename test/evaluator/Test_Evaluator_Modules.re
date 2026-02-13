@@ -75,6 +75,59 @@ let test_type_alias =
     parse_and_evaluate_test("(x=42)", {|{ type T = Int; let x = 42 : T }|})
   });
 
+/* ===== MODULE KEYWORD TESTS ===== */
+
+/* Test module keyword with lowercase name in exp context */
+let test_module_keyword_lowercase =
+  test_case("Module keyword with lowercase name", `Quick, () => {
+    parse_and_evaluate_test("1", {|module m = { let x = 1 } in m.x|})
+  });
+
+/* Test module keyword with capitalized name in exp context */
+let test_module_keyword_capitalized =
+  test_case("Module keyword with capitalized name", `Quick, () => {
+    parse_and_evaluate_test(
+      "3",
+      {|module M = { let x = 1; let y = 2 } in M.x + M.y|},
+    )
+  });
+
+/* Test module keyword inside module body */
+let test_module_keyword_in_mod =
+  test_case("Module keyword inside module body", `Quick, () => {
+    parse_and_evaluate_test(
+      "42",
+      {|{ module Inner = { let z = 42 }; let r = Inner.z }.r|},
+    )
+  });
+
+/* Test nested module keyword with capitalized inner name */
+let test_nested_module_keyword =
+  test_case("Nested module keyword", `Quick, () => {
+    parse_and_evaluate_test(
+      "10",
+      {|module Outer = { module Inner = { let x = 10 } } in Outer.Inner.x|},
+    )
+  });
+
+/* Test module keyword with type annotation */
+let test_module_keyword_annotated =
+  test_case("Module keyword with annotation", `Quick, () => {
+    parse_and_evaluate_test(
+      "1",
+      {|module M : (x=Int) = { let x = 1 } in M.x|},
+    )
+  });
+
+/* Test module keyword with sig annotation */
+let test_module_keyword_sig_annotated =
+  test_case("Module keyword with sig annotation", `Quick, () => {
+    parse_and_evaluate_test(
+      "42",
+      {|module M : { let x : Int } = { let x = 42 } in M.x|},
+    )
+  });
+
 let tests = (
   "Evaluator.Modules",
   [
@@ -91,5 +144,12 @@ let tests = (
     test_case("Nested modules", `Quick, () => {
       parse_and_evaluate_test("(m=(y=1))", {|{ let m = { let y = 1 } }|})
     }),
+    /* Module keyword tests */
+    test_module_keyword_lowercase,
+    test_module_keyword_capitalized,
+    test_module_keyword_in_mod,
+    test_nested_module_keyword,
+    test_module_keyword_annotated,
+    test_module_keyword_sig_annotated,
   ],
 );

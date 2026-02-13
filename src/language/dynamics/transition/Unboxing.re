@@ -259,7 +259,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         BinOp(_) |
         LivelitName(_) |
         Match(_) |
-        Module(_),
+        Module(_) |
+        ModuleExp(_),
       ) =>
       IndetMatch
     };

@@ -491,7 +491,8 @@ let rec replace_exp =
         | ProofObject(_)
         | Asc(_, _)
         | ExplicitNonlabel
-        | Module(_) => continue(exp)
+        | Module(_)
+        | ModuleExp(_) => continue(exp)
         };
       },
     in_exp,

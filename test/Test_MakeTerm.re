@@ -365,5 +365,31 @@ let tests =
           {|{ let m = { let y = 1 } }|},
         )
       ),
+      /* Note: M.x parses as Dot(Constructor("M"), Label("x")) because
+         MakeTerm produces Constructor for capitalized names in expression
+         position. The capitalized-to-Var fallback happens during statics. */
+      test_case("Module keyword", `Quick, () =>
+        exp_check(
+          module_exp(
+            MPat.var("M"),
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            dot(constructor("M", None), label("x")),
+          ),
+          {|module M = { let x = 1 } in M.x|},
+        )
+      ),
+      test_case("Module keyword lowercase", `Quick, () =>
+        exp_check(
+          module_exp(
+            MPat.var("m"),
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            dot(var("m"), label("x")),
+          ),
+          {|module m = { let x = 1 } in m.x|},
+        )
+      ),
+      test_case("Module with bare expression", `Quick, () =>
+        exp_check(module_([Mod.mod_exp(int(42))]), {|{ 42 }|})
+      ),
     ],
   );

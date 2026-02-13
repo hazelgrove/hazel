@@ -181,11 +181,13 @@ and exp =
   | IndicationExp(exp)
   | TupleExtension(exp, exp)
   | Module(list(mod_item))
+  | ModuleExp(pat, exp, exp)
 
 and mod_item =
   | ModItemLet(pat, exp)
   | ModItemType(tpat, typ)
   | ModItemExp(exp)
+  | ModItemModule(pat, exp)
 
 and sig_item =
   | SigItemLet(pat)
@@ -1023,6 +1025,20 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e3);
             return(If(e1, e2, shrunk));
+          }
+        | ModuleExp(p, e1, e2) =>
+          of_list([e1, e2])
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(ModuleExp(p, shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(ModuleExp(p, e1, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(ModuleExp(shrunk, e1, e2));
           }
         | IndicationExp(_)
         | EmptyHole

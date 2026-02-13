@@ -63,6 +63,34 @@ Later bindings can reference earlier ones in the same module:
 let m = { let x = 1; let y = x + 1 } in m.y   -- evaluates to 2
 ```
 
+### Module Keyword
+
+The `module` keyword provides a binding form that supports capitalized names:
+
+```
+module M = { let x = 1; let y = 2 } in M.x + M.y   -- evaluates to 3
+```
+
+With type annotations:
+
+```
+module M : { let x : Int } = { let x = 42 } in M.x
+module M : (x=Int) = { let x = 1 } in M.x
+```
+
+Inside module bodies:
+
+```
+{
+  module Inner = { let z = 42 };
+  let result = Inner.z
+}
+```
+
+The `module` keyword introduces a new **MPat** sort for module name patterns, which treats both lowercase and capitalized identifiers as variable bindings (not constructors). MPat supports optional type annotation with `:`.
+
+`ModuleExp(mpat, def, body)` expands to `Let(pat, def, body)` during statics (same expansion model as `Module(items)`). `ModuleMod(mpat, def)` expands to `ModLet(pat, def)` inside module bodies.
+
 ## What Works
 
 | Feature                              | Status |
@@ -79,6 +107,10 @@ let m = { let x = 1; let y = x + 1 } in m.y   -- evaluates to 2
 | Type-directed error attribution      | Works  |
 | Cursor inspector for Mod/Sig sorts   | Works  |
 | Empty module `{}`                    | Works  |
+| `module` keyword (`module M = ...`)  | Works  |
+| Capitalized module names (`M`, `Io`) | Works  |
+| MPat type annotations (`M : Sig`)    | Works  |
+| Menhir parser (all module forms)     | Works  |
 
 ## Known Limitations
 
@@ -106,14 +138,17 @@ let m : { let x : Int } = { let x = 1; let y = 2 }
 
 Similarly, a singleton module doesn't match an empty signature, and a singleton signature doesn't match a multi-member module, even though width subtyping would allow this in a full module system.
 
-### Lowercase module names only
+### Capitalized names require `module` keyword
 
-Capitalized identifiers are parsed as constructors. Module names must be lowercase:
+Capitalized identifiers are parsed as constructors in normal `let` bindings. Use the `module` keyword for capitalized module names:
 
 ```
-let m = { let x = 1 }     -- OK
-let M = { let x = 1 }     -- M parsed as Constructor, not Var
+module M = { let x = 1 } in M.x   -- OK: module keyword treats M as binding
+let m = { let x = 1 } in m.x      -- OK: lowercase works with let
+let M = { let x = 1 } in M.x      -- WRONG: M parsed as Constructor pattern
 ```
+
+The statics has a fallback: if a capitalized name isn't a known constructor, it checks variable bindings. So `M.x` works in the body.
 
 ### Type declarations in signatures don't work
 
@@ -125,10 +160,6 @@ let m : { type T = Int; let x : T } = { type T = Int; let x = 1 }
 ```
 
 The `type T = Int` in the signature is simply dropped.
-
-### Menhir parser: multi-item modules
-
-`{ let x = 1; let y = 2 }` fails in the Menhir parser due to a shift-reduce conflict between expression-level `;` (Seq) and module `;` (ModSeq). The tile editor handles this correctly. Some evaluator tests are skipped because of this.
 
 ### Labeled tuple edge cases
 
@@ -144,12 +175,13 @@ let m : { let x : Int } = { let x = 1 }
 
 ### Sorts
 
-Two sorts were added for the module system:
+Three sorts were added for the module system:
 
 - **Mod** (`Sort.Mod`): Module items — `let x = 1`, `type T = Int`, bare expressions
 - **Sig** (`Sort.Sig`): Signature items — `let x : Int`, `type T = Int`
+- **MPat** (`Sort.MPat`): Module name patterns — `M`, `M : { let x : Int }`
 
-Both follow the established sort patterns with forms, remolding, and MakeTerm parsing.
+All follow the established sort patterns with forms, remolding, and MakeTerm parsing.
 
 ### Term Structure
 
@@ -157,6 +189,7 @@ Both follow the established sort patterns with forms, remolding, and MakeTerm pa
 
 - `ModLet(pat, exp)` — let binding
 - `ModType(tpat, typ)` — type alias
+- `ModuleMod(mpat, exp)` — module keyword binding (`module M = ...`)
 - `ModExp(exp)` — bare expression (side effects)
 - `Invalid`, `EmptyHole`, `MultiHole` — error cases
 
@@ -166,7 +199,13 @@ Both follow the established sort patterns with forms, remolding, and MakeTerm pa
 - `SigType(tpat, typ)` — type alias declaration
 - `Invalid`, `EmptyHole`, `MultiHole` — error cases
 
-**Expression level**: `Module(list(mod_t))` in `exp_term`
+**Module name patterns** (`mpat_term` in `Grammar.re`):
+
+- `Var(string)` — name (lowercase or capitalized)
+- `Asc(mpat, typ)` — annotated name (`M : { let x : Int }`)
+- `Invalid`, `EmptyHole`, `MultiHole` — error cases
+
+**Expression level**: `Module(list(mod_t))` and `ModuleExp(mpat, exp, exp)` in `exp_term`
 **Type level**: `Sig(list(sig_t))` in `typ_term`
 
 ### Expansion Model
@@ -269,14 +308,15 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 
 | File                                    | Purpose                                                            |
 | --------------------------------------- | ------------------------------------------------------------------ |
-| `src/language/term/Sort.re`             | Sort enum with `Mod` and `Sig`                                     |
-| `src/language/term/Grammar.re`          | `mod_term`, `sig_term`, `Module` in exp_term, `Sig` in typ_term    |
+| `src/language/term/Sort.re`             | Sort enum with `Mod`, `Sig`, and `MPat`                            |
+| `src/language/term/Grammar.re`          | `mod_term`, `sig_term`, `mpat_term`, `Module`/`ModuleExp` in exp   |
 | `src/language/term/Mod.re`              | Mod term utilities and cls type                                    |
 | `src/language/term/Sig.re`              | Sig term utilities and cls type                                    |
-| `src/language/term/Cls.re`              | `Mod(Mod.cls)` and `Sig(Sig.cls)` variants for cursor inspector    |
+| `src/language/term/MPat.re`             | MPat term utilities and cls type                                   |
+| `src/language/term/Cls.re`              | `Mod(Mod.cls)`, `Sig(Sig.cls)`, `MPat(MPat.cls)` variants         |
 | `src/haz3lcore/lang/Form.re`            | Module/Sig forms, `mk_pre_c'` helper                               |
 | `src/haz3lcore/tiles/Mold.re`           | `mk_pre'` for heterogeneous prefix forms                           |
-| `src/haz3lcore/tiles/Segment.re`        | `remold_mod`/`remold_sig` with fallback patterns                   |
+| `src/haz3lcore/tiles/Segment.re`        | `remold_mod`/`remold_sig`/`remold_mpat` with fallback patterns     |
 | `src/haz3lcore/tiles/Skel.re`           | ModSeq/SigSeq semicolons chainable, sort-specific grout precedence |
 | `src/haz3lcore/zipper/action/Insert.re` | `effective_sort` with Mod→Exp / Sig→Typ fallback                   |
 | `src/haz3lcore/lang/MakeTerm.re`        | Module/Sig parsing with flattening                                 |
@@ -299,16 +339,22 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 
 ### Tests
 
-| File                                       | What                                                                    |
-| ------------------------------------------ | ----------------------------------------------------------------------- |
-| `test/statics/Test_Statics_Modules.re`     | 48 statics tests (well-typed, errors, sig annotations, limitations)     |
-| `test/evaluator/Test_Evaluator_Modules.re` | 10 evaluator tests (1 skipped for Menhir)                               |
-| `test/Test_MakeTerm.re`                    | Module parsing tests including nested modules                           |
-| `test/Test_Elaboration.re`                 | 4 module elaboration tests (module → labeled tuple)                     |
-| `test/Test_ExpToSegment.re`                | 6 module/sig roundtrip tests + 1 skipped (empty module structural diff) |
-| `test/Test_Editing.re`                     | 4 module editing tests (brace insertion, let inside module)             |
-| `test/Test_Abbreviate.re`                  | 2 module abbreviation tests                                             |
-| `test/Test_Menhir.re`                      | 5 Sig round-trip tests                                                  |
+| File                                       | What                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `test/statics/Test_Statics_Modules.re`     | 58 statics tests + 10 module keyword tests                                |
+| `test/evaluator/Test_Evaluator_Modules.re` | 17 evaluator tests (module exprs, keyword, nested, probes)                |
+| `test/evaluator/Test_Evaluator_Probes.re`  | Module probe tests (probes inside module bodies)                          |
+| `test/evaluator/Test_Evaluator_ProbeCallStack.re` | Module functions in probe call stacks                               |
+| `test/Test_MakeTerm.re`                    | Module/keyword parsing tests including nested modules                     |
+| `test/Test_Elaboration.re`                 | 4 module elaboration tests (module → labeled tuple)                       |
+| `test/Test_ExpToSegment.re`                | 6 module/sig roundtrip tests + 1 skipped (empty module structural diff)   |
+| `test/Test_Editing.re`                     | 4 module editing tests (brace insertion, let inside module)               |
+| `test/Test_Abbreviate.re`                  | 2 module abbreviation tests                                               |
+| `test/Test_Menhir.re`                      | 73 tests including module keyword, sig annotations, QCheck round-trips    |
+| `test/Test_Equality.re`                    | Module alpha-equivalence tests (ModLet, MPat, ModuleMod)                  |
+| `test/Test_Indentation.re`                 | Module body indentation and nesting tests                                 |
+| `test/Test_RefractorSerialization.re`      | Module syntax round-trip through parse/print                              |
+| `test/Test_AutoProbe.re`                   | Auto-probe in modules: probes definition exprs, not declarations          |
 
 ### In-Editor Documentation
 

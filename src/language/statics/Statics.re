@@ -123,6 +123,10 @@ let rec any_to_info_map =
     | ModExp(e) =>
       let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
       (co_ctx, add_mod_info(m));
+    | ModuleMod(mp, e) =>
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
+      let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
+      (co_ctx, add_mod_info(m));
     };
   | Sig(s_term) =>
     let ids = IdTagged.ids(s_term);
@@ -153,6 +157,34 @@ let rec any_to_info_map =
       let (_, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
       let (_, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
       (CoCtx.empty, add_sig_info(m));
+    };
+  | MPat(mp_term) =>
+    let ids = IdTagged.ids(mp_term);
+    let cls = Cls.MPat(MPat.cls_of_term(mp_term.term));
+    let add_mpat_info = m =>
+      add_info(
+        ids,
+        InfoMPat({
+          id: IdTagged.rep_id(mp_term),
+          term: mp_term,
+          cls,
+          sort: MPat,
+          ctx,
+          ancestors,
+        }),
+        m,
+      );
+    switch (mp_term.term) {
+    | Invalid(_)
+    | EmptyHole
+    | Var(_) => (CoCtx.empty, add_mpat_info(m))
+    | MultiHole(tms) =>
+      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
+      (CoCtx.union(co_ctxs), add_mpat_info(m));
+    | Asc(inner, typ) =>
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, MPat(inner), m);
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, Typ(typ), m);
+      (CoCtx.empty, add_mpat_info(m));
     };
   | Any () => (CoCtx.empty, m)
   }
@@ -877,7 +909,30 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
       );
-    | Constructor(ctr, ty) => atomic(Self.of_ctr(ctx, ctr, ana, ty))
+    | Constructor(ctr, ty) =>
+      let self = Self.of_ctr(ctx, ctr, ana, ty);
+      switch (self) {
+      | FreeConstructor(name) =>
+        /* If not a known constructor, try looking up as a variable.
+           This supports capitalized module names like M.x where M is
+           parsed as Constructor but is actually a variable binding. */
+        switch (Ctx.lookup_var(ctx, name)) {
+        | Some({typ, _}) =>
+          let (info, m) = atomic(Just(typ));
+          let m =
+            add_info(
+              ids,
+              Info.InfoExp({
+                ...info,
+                cls: Exp(Var),
+              }),
+              m,
+            );
+          (info, m);
+        | None => atomic(self)
+        }
+      | _ => atomic(self)
+      };
     | Ap(_, fn, arg) =>
       switch (fn.term) {
       | LivelitName(s) =>
@@ -1487,6 +1542,32 @@ and uexp_to_info_map =
         Prod(fields) |> Typ.temp;
       };
       add(~self=Just(actual_ty), ~co_ctx=expanded_info.co_ctx, m);
+    | ModuleExp(mp, def, body) =>
+      /* Expand module M = def in body → let M = def in body.
+         Process the MPat for cursor info, then expand to Let and type-check. */
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
+      let pat = ExpandModule.mpat_to_pat(mp);
+      let expanded =
+        IdTagged.fast_copy(
+          Exp.rep_id(uexp),
+          Exp.fresh(Let(pat, def, body)),
+        );
+      let (expanded_info, m) = go(~ana, expanded, m);
+      /* Override cls to show "Module binding" */
+      let m =
+        switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
+        | Some(Info.InfoExp(info)) =>
+          add_info(
+            ids,
+            Info.InfoExp({
+              ...info,
+              cls: Exp(ModuleExp),
+            }),
+            m,
+          )
+        | _ => m
+        };
+      add(~self=Just(expanded_info.ty), ~co_ctx=expanded_info.co_ctx, m);
     };
   };
 

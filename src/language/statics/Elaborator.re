@@ -235,12 +235,18 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | Some(Info.InfoExp({self, ty, _})) => (self, ty)
         | _ => raise(MissingTypeInfo)
         };
-      let t =
-        switch (self) {
-        | Common(FreeConstructor(_)) => Some(None)
-        | _ => Some(Some(Typ.normalize(ctx, ty)))
-        };
-      Constructor(c, t) |> rewrap;
+      /* If name is not a constructor but is a variable (e.g. capitalized
+         module name), elaborate to Var instead of Constructor */
+      switch (Ctx.lookup_ctr(ctx, c), Ctx.lookup_var(ctx, c)) {
+      | (None, Some(_)) => Var(c) |> rewrap
+      | _ =>
+        let t =
+          switch (self) {
+          | Common(FreeConstructor(_)) => Some(None)
+          | _ => Some(Some(Typ.normalize(ctx, ty)))
+          };
+        Constructor(c, t) |> rewrap;
+      };
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
@@ -481,6 +487,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           let (e', _) = elaborate(m, e);
           let wild_pat = Pat.fresh(Wild);
           Exp.fresh(Let(wild_pat, e', body));
+        | ModuleMod(mp, def) =>
+          let pat = ExpandModule.mpat_to_pat(mp);
+          let (def', _) = elaborate(m, def);
+          IdTagged.fast_copy(item_id, Exp.fresh(Let(pat, def', body)));
         | Invalid(_)
         | EmptyHole
         | MultiHole(_) =>
@@ -495,6 +505,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
       /* Wrap with elaborated items from bottom to top */
       List.fold_right(elaborate_mod_item, items, tuple_body);
+    | ModuleExp(mp, def, body) =>
+      /* ModuleExp is expanded to Let during statics; elaborate as Let */
+      let pat = ExpandModule.mpat_to_pat(mp);
+      let (pat', _) = elaborate_pattern(m, pat, false);
+      let (def', _) = elaborate(m, def);
+      let (body', _) = elaborate(m, body);
+      Let(pat', def', body') |> rewrap;
     };
   (dhexp, elaborated_type);
 };

@@ -99,6 +99,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
           empty_hole(),
         )
       | Module => module_([Mod.empty_hole()])
+      | ModuleExp => module_exp(MPat.var("M"), empty_hole(), empty_hole())
       }
     )
   );

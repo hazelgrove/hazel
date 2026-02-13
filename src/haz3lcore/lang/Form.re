@@ -113,6 +113,7 @@ type atomic_form =
   | TyVar
   | TyVarP
   | Ctr
+  | MPatName
   | Type
   | InfixDelimiterPrefix;
 
@@ -220,6 +221,10 @@ type compound_form =
   | ModSeq
   | ModLet
   | ModType
+  // MODULE KEYWORD FORMS
+  | ModuleExp
+  | ModuleMod
+  | MPatTypeann
   // SIGNATURE FORMS
   | SigBody
   | SigSeq
@@ -325,6 +330,11 @@ let get: compound_form => t =
   | ModSeq => mk_infix(";", Mod, P.mod_seq)
   | ModLet => mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)
   | ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ)
+  // MODULE KEYWORD FORMS
+  | ModuleExp =>
+    mk_pre_c'(L, ["module", "=", "in"], P.let_, Exp, [MPat, Exp], Exp)
+  | ModuleMod => mk_pre_c'(L, ["module", "="], P.let_, Mod, [MPat], Exp)
+  | MPatTypeann => mk_infix(":", MPat, ~l=MPat, ~r=Typ, P.asc)
   // SIGNATURE FORMS
   | SigBody => mk_op_c(LT, ["{", "}"], Typ, [Sig])
   | SigSeq => mk_infix(";", Sig, P.mod_seq)
@@ -432,6 +442,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | TyVar => (Token.is_typ_var, [op(Typ)])
   | TyVarP => (Token.is_typ_var, [op(TPat)])
   | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
+  | MPatName => ((t => Token.is_var(t) || Token.is_ctr(t)), [op(MPat)])
   | Type => (Token.is_base_typ, [op(Typ)]);
 
 module Molds = {

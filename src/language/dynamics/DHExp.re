@@ -120,7 +120,8 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Parens(_)
           | UnOp(_)
           | Projector(_)
-          | Module(_) => continue(exp)
+          | Module(_)
+          | ModuleExp(_) => continue(exp)
           },
       exp,
     )
@@ -223,6 +224,7 @@ let rec ty_comparable = (d1, d2) => {
   | (Constructor(_), _) => false
   | (Ap(_), _) => false
   | (Module(_), _) => false
+  | (ModuleExp(_), _) => false
   };
 };
 
@@ -324,5 +326,6 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Ap(_), _) => None
   | (Constructor(_), _) => None
   | (Module(_), _) => None
+  | (ModuleExp(_), _) => None
   };
 };

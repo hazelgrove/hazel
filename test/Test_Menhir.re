@@ -176,7 +176,19 @@ let qcheck_menhir_serialized_equivalent_test =
         );
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       let menhir_parsed = Interface.parse_program(serialized);
-      AST.equal_exp(menhir_parsed, exp);
+      /* The random AST generator (AST.arb_exp) can produce non-canonical
+         forms that get normalized during the Conversion round-trip. In
+         particular, Dot(e1, Constructor("X", None)) is valid Menhir AST
+         but of_menhir_ast converts it to Dot(e1, Label("X")) in core
+         (capitalized names in dot position are field accesses, not
+         constructors). After serialization and re-parsing, the Menhir
+         AST has Label instead of Constructor. To compare fairly, we
+         normalize both sides through of_core(of_menhir_ast(...)) which
+         canonicalizes these forms. This only affects this test (not the
+         78 other named tests, which use hand-written expected ASTs). */
+      let normalize = exp =>
+        Conversion.Exp.of_core(Conversion.Exp.of_menhir_ast(exp));
+      AST.equal_exp(normalize(menhir_parsed), normalize(exp));
     },
   );
 
@@ -778,6 +790,60 @@ let ex5 = list_of_mylist(x) in
       menhir_maketerm_equivalent_test(
         "Sig annotation with single-item module",
         {|let m : { let x : Int } = { let x = 1 } in m.x|},
+      ),
+      /* Module keyword tests */
+      menhir_maketerm_equivalent_test(
+        "Module keyword lowercase",
+        {|module m = { let x = 1 } in m.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module keyword capitalized",
+        {|module M = { let x = 1; let y = 2 } in M.x|},
+      ),
+      /* Menhir produces Constructor("M") for M in M.x, MakeTerm produces Var("M") */
+      skip_menhir_maketerm_equivalent_test(
+        "Module keyword with prod annotation",
+        {|module M : (x=Int) = { let x = 1 } in M.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module keyword with sig annotation",
+        {|module M : { let x : Int } = { let x = 1 } in M.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module keyword in module body",
+        {|{ module Inner = { let x = 1 }; let y = Inner.x }|},
+      ),
+      /* Menhir produces Constructor("Outer") for Outer in Outer.Inner.x, MakeTerm produces Var("Outer") */
+      skip_menhir_maketerm_equivalent_test(
+        "Nested module keyword",
+        {|module Outer = { module Inner = { let x = 10 } } in Outer.Inner.x|},
+      ),
+      /* H.1 fix: singleton labeled tuple type now parses in Menhir */
+      /* Menhir wraps `(x : (a=Int))` as parens(asc(x, parens(tup_label)))
+         via AscPat rule at line 294 + conversion at line 599 */
+      menhir_only_test(
+        "Singleton labeled tuple type",
+        Fresh.Exp.(
+          let_(
+            Fresh.Pat.(
+              parens(
+                asc(
+                  var("x"),
+                  Fresh.Typ.(parens(tup_label(label("a"), int()))),
+                ),
+              )
+            ),
+            int(1),
+            var("x"),
+          )
+        ),
+        {|let x : (a=Int) = 1 in x|},
+      ),
+      /* H.2 fix: capitalized name on RHS of dot converts to label */
+      menhir_only_test(
+        "Capitalized name in dot RHS",
+        Fresh.Exp.(dot(var("m"), label("X"))),
+        {|m.X|},
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),

@@ -935,6 +935,17 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         available := available^ - 2; // { }
         Module(List.map(abbreviate_mod_item, items));
       }
+    | ModuleExp(mp, def, body) =>
+      if (available^ <= 12) {
+        indet_term;
+      } else {
+        available := available^ - 13; /* "module " " = " " in " */
+        ModuleExp(
+          abbreviate_mpat(mp),
+          abbreviate_exp(def),
+          abbreviate_exp(body),
+        );
+      }
     };
   rewrap(term);
 }
@@ -967,6 +978,63 @@ and abbreviate_mod_item = (item: Mod.t): Mod.t => {
         ModType(tp', t');
       }
     | ModExp(e) => ModExp(abbreviate_exp(e))
+    | ModuleMod(mp, e) =>
+      if (available^ <= 9) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 10; // "module " " = "
+        ModuleMod(abbreviate_mpat(mp), abbreviate_exp(e));
+      }
+    };
+  rewrap(term);
+}
+and abbreviate_sig_item = (item: Sig.t): Sig.t => {
+  let rewrap = (term: Sig.term): Sig.t => {
+    ...item,
+    term,
+  };
+  let term: Sig.term =
+    switch (item.term) {
+    | Invalid(s) => Invalid(abbreviate_str(available^, s))
+    | EmptyHole => EmptyHole
+    | MultiHole(things) => MultiHole(List.map(abbreviate_any, things))
+    | SigLet(p) =>
+      if (available^ <= 3) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 4; /* "let " */
+        SigLet(abbreviate_pat(p));
+      }
+    | SigType(tp, t) =>
+      if (available^ <= 6) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 7; /* "type " " = " */
+        let tp' = abbreviate_tpat(tp);
+        let t' = abbreviate_typ(t);
+        SigType(tp', t');
+      }
+    };
+  rewrap(term);
+}
+and abbreviate_mpat = (mp: MPat.t): MPat.t => {
+  let rewrap = (term: MPat.term): MPat.t => {
+    ...mp,
+    term,
+  };
+  let term: MPat.term =
+    switch (mp.term) {
+    | Var(v) => Var(abbreviate_str(available^, v))
+    | Asc(inner, typ) =>
+      if (available^ <= 2) {
+        Var(flat_ellipses);
+      } else {
+        available := available^ - 2; /* ": " */
+        Asc(abbreviate_mpat(inner), abbreviate_typ(typ));
+      }
+    | EmptyHole => EmptyHole
+    | Invalid(s) => Invalid(abbreviate_str(available^, s))
+    | MultiHole(things) => MultiHole(List.map(abbreviate_any, things))
     };
   rewrap(term);
 }
@@ -1319,7 +1387,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         e,
       )
     | Projector(data, t) => Projector(data, abbreviate_typ(t))
-    | Sig(_) => Sig([])
+    | Sig(items) =>
+      if (available^ <= 2) {
+        Sig([]);
+      } else {
+        available := available^ - 2; /* { } */
+        Sig(List.map(abbreviate_sig_item, items));
+      }
     };
   rewrap(term);
 }
@@ -1356,7 +1430,8 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_) => any
   | Mod(m) => Mod(abbreviate_mod_item(m))
-  | Sig(_) => any
+  | Sig(s) => Sig(abbreviate_sig_item(s))
+  | MPat(mp) => MPat(abbreviate_mpat(mp))
   | Any(_) => any
   };
 

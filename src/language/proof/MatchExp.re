@@ -255,6 +255,7 @@ let rec match_exp =
     Some(ctx);
   | (Use(_, _), _) => None
   | (Module(_), _) => None // TODO (Phase 1.3): Implement module matching
+  | (ModuleExp(_), _) => None
   };
 }
 

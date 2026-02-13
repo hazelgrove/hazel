@@ -49,6 +49,7 @@ rule token =
     | projector_invoke as p { PROJECTOR_INVOKE p }
     | "true" { TRUE }
     | "false" { FALSE }
+    | "module" { MODULE }
     | "let" { LET }
     | "in" { IN }
     | "end" { END }

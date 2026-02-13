@@ -81,6 +81,7 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   | ModLet(_, _)
   | ModType(_, _)
   | ModExp(_)
+  | ModuleMod(_, _)
   | EmptyHole
   | Invalid(_) => [m]
   };
@@ -301,6 +302,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   | Rul => Rul(rul(unsorted(Rul, skel, seg)))
   | Mod => Mod(mod_(unsorted(Mod, skel, seg))) /* Phase 1.2: proper module parsing */
   | Sig => Sig(sig_(unsorted(Sig, skel, seg)))
+  | MPat => MPat(mpat(unsorted(MPat, skel, seg)))
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
@@ -434,6 +436,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["module", "=", "in"], [MPat(mp), Exp(def)]) =>
+          ModuleExp(mp, def, r)
         | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
           Theorem(pat, thm, r)
         | (["hide", "in"], [Exp(filter)]) =>
@@ -614,7 +618,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }
           | (["."], []) =>
             switch (r.term) {
-            | Var(name) =>
+            | Var(name)
+            | Constructor(name, _) =>
               Dot(
                 l,
                 {
@@ -967,6 +972,9 @@ and mod_term: unsorted => TermBase.Mod.term = {
   /* ModLet: let p = e - the pattern is inside the tile, expression is the body */
   | Pre(([(_id, (["let", "="], [Pat(p)]))], []), Exp(e)) =>
     ret(ModLet(p, e))
+  /* ModuleMod: module M = e - MPat inside tile, expression is the body */
+  | Pre(([(_id, (["module", "="], [MPat(mp)]))], []), Exp(e)) =>
+    ret(ModuleMod(mp, e))
   /* ModType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
     ret(ModType(tp, ty))
@@ -1012,6 +1020,30 @@ and sig_term: unsorted => TermBase.Sig.term = {
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+}
+and mpat = unsorted => {
+  let term = mpat_term(unsorted);
+  let ids = ids(unsorted);
+  return(mp => MPat(mp), ids, IdTagged.mk(ids, get_secondary(ids), term));
+}
+and mpat_term: unsorted => TermBase.MPat.term = {
+  let ret = (term: TermBase.MPat.term) => term;
+  let hole = unsorted => MPat.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, ([t], []))], []) when Token.is_var(t) || Token.is_ctr(t) =>
+      ret(Var(t))
+    | ([(_id, ([t], []))], []) when is_hole_label(t) => ret(hole(tm))
+    | ([(_id, ([t], []))], []) => ret(Invalid(t))
+    | _ => ret(hole(tm))
+    }
+  | Bin(MPat(mp), tiles, Typ(ty)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) => ret(Asc(mp, ty))
+    | _ => ret(hole(tm))
+    }
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 
@@ -1232,6 +1264,7 @@ let for_projection =
         | Rul => None
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
+        | MPat => Some(MPat(mpat(unsorted)))
         | Any => Some(Any()) /* grout */
         };
       };

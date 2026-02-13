@@ -263,7 +263,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Cons(_), _)
     | (ProofObject(_), _)
     | (Constructor(_), _)
-    | (Module(_), _) => None
+    | (Module(_), _)
+    | (ModuleExp(_), _) => None
     }
   | _ => None
   };

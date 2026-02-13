@@ -45,7 +45,8 @@ type cls =
   | LivelitName
   | LivelitAp
   | ListConcat
-  | Module;
+  | Module
+  | ModuleExp;
 
 include TermBase.Exp;
 
@@ -128,7 +129,8 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Match(_) => Match
   | LivelitName(_) => LivelitName
   | Asc(_) => Asc
-  | Module(_) => Module;
+  | Module(_) => Module
+  | ModuleExp(_) => ModuleExp;
 
 let show_cls: cls => string =
   fun
@@ -182,7 +184,8 @@ let show_cls: cls => string =
   | LivelitAp => "Livelit application"
   | Projector => "Projector"
   | Asc => "Type ascription expression"
-  | Module => "Module expression";
+  | Module => "Module expression"
+  | ModuleExp => "Module binding";
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
   e => {
@@ -266,7 +269,8 @@ let rec is_fun = (e: t) => {
   | Match(_)
   | LivelitName(_)
   | Constructor(_)
-  | Module(_) => false
+  | Module(_)
+  | ModuleExp(_) => false
   };
 };
 
@@ -333,7 +337,8 @@ let rec is_tuple_of_functions = (e: t) =>
     | Match(_)
     | LivelitName(_)
     | Constructor(_)
-    | Module(_) => false
+    | Module(_)
+    | ModuleExp(_) => false
     }
   );
 
@@ -399,7 +404,8 @@ let rec get_num_of_functions = (e: t) =>
     | Match(_)
     | LivelitName(_)
     | Constructor(_)
-    | Module(_) => None
+    | Module(_)
+    | ModuleExp(_) => None
     };
   };
 

@@ -130,6 +130,23 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
       l |> find_fn(name, u1),
       ul,
     )
+  | Module(items) =>
+    List.fold_left(
+      (acc, item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(p, def) => acc |> find_in_let(name, p, def)
+        | ModuleMod(_, def)
+        | ModExp(def) => acc |> find_fn(name, def)
+        | ModType(_, _)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => acc
+        },
+      l,
+      items,
+    )
+  | ModuleExp(_, def, body) =>
+    l |> find_fn(name, def) |> find_fn(name, body)
   | EmptyHole
   | Deferral(_)
   | Invalid(_)
@@ -142,7 +159,6 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
-  | Module(_)
   | Var(_) => l
   };
 };
@@ -179,6 +195,16 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   };
 };
 
+let rec var_mention_mpat = (name: string, mp: MPat.t): bool => {
+  switch (mp.term) {
+  | Var(x) => x == name
+  | Asc(inner, _) => var_mention_mpat(name, inner)
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_) => false
+  };
+};
+
 /*
  Finds whether variable name is ever mentioned in uexp.
  */
@@ -194,8 +220,24 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Constructor(_)
   | Undefined
   | LivelitName(_)
-  | Module(_)
   | Deferral(_) => false
+  | Module(items) =>
+    List.exists(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(_, def)
+        | ModuleMod(_, def)
+        | ModExp(def) => var_mention(name, def)
+        | ModType(_, _)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => false
+        },
+      items,
+    )
+  | ModuleExp(mp, def, body) =>
+    var_mention(name, def)
+    || (var_mention_mpat(name, mp) ? false : var_mention(name, body))
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
@@ -267,8 +309,24 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Constructor(_)
   | Undefined
   | LivelitName(_)
-  | Module(_)
   | Deferral(_) => false
+  | Module(items) =>
+    List.exists(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(_, def)
+        | ModuleMod(_, def)
+        | ModExp(def) => var_applied(name, def)
+        | ModType(_, _)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => false
+        },
+      items,
+    )
+  | ModuleExp(mp, def, body) =>
+    var_applied(name, def)
+    || (var_mention_mpat(name, mp) ? false : var_applied(name, body))
   | Fun(args, body, _, _)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
@@ -370,8 +428,26 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Undefined
   | Var(_)
   | LivelitName(_)
-  | Module(_)
   | BuiltinFun(_) => true
+  | Module(items) =>
+    /* Module items are not in tail position; check that none mention the variable */
+    !
+      List.exists(
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModLet(_, def)
+          | ModuleMod(_, def)
+          | ModExp(def) => var_mention(name, def)
+          | ModType(_, _)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => false
+          },
+        items,
+      )
+  | ModuleExp(mp, def, body) =>
+    var_mention_mpat(name, mp) || var_mention(name, def)
+      ? false : tail_check(name, body)
   | FixF(args, body, _)
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)

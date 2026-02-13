@@ -754,6 +754,13 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       annotation:
         Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
+  | ModuleExp(mp, def, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: ModuleExp(mp, def, ebody'),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
+    };
   };
 };
 

@@ -991,6 +991,10 @@ module Transition = (EV: EV_MODE) => {
     | Module(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    // ModuleExp should be expanded to Let before reaching dynamics
+    | ModuleExp(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     };
   };
 };

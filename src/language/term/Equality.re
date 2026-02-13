@@ -35,6 +35,7 @@ type equality = {
   rul: (Rul.t, Rul.t) => bool,
   mod_: (TermBase.Mod.t, TermBase.Mod.t) => bool,
   sig_: (TermBase.Sig.t, TermBase.Sig.t) => bool,
+  mpat: (TermBase.MPat.t, TermBase.MPat.t) => bool,
   any: (Any.t, Any.t) => bool,
 };
 
@@ -408,6 +409,40 @@ let equality =
       List.length(items1) == List.length(items2)
       && List.for_all2(mod', items1, items2)
     | (Module(_), _) => false
+    | (ModuleExp(mp1, def1, body1), ModuleExp(mp2, def2, body2)) =>
+      switch (mpat(alphas_exp, alphas_typ, mp1, mp2)) {
+      | Some(alphas_exp') =>
+        exp'(def1, def2)
+        && exp(
+             Alphas.combine(alphas_exp', alphas_exp),
+             alphas_typ,
+             body1,
+             body2,
+           )
+      | None => false
+      }
+    | (ModuleExp(_, _, _), _) => false
+    };
+  }
+  /* Compare patterns with literal variable names (no alpha-renaming).
+     Used for ModLet/SigLet where binding names become labels. */
+  and pat_names_equal =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t): bool => {
+    let pne = pat_names_equal(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
+    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
+    | (Parens(x), _) when ignore_parens => pne(x, p2)
+    | (_, Parens(x)) when ignore_parens => pne(p1, x)
+    | (Var(x), Var(y)) => x == y
+    | (Wild, Wild) => true
+    | (EmptyHole, EmptyHole) => true
+    | (Parens(x), Parens(y)) => pne(x, y)
+    | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
+    | (Tuple(ps1), Tuple(ps2)) =>
+      List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
+    | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
+    | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
+    | _ => false
     };
   }
   and mod_ =
@@ -419,11 +454,11 @@ let equality =
       )
       : bool => {
     let exp' = exp(alphas_exp, alphas_typ);
-    let pat' = (p1, p2) =>
-      Option.is_some(pat(alphas_exp, alphas_typ, p1, p2));
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
     let any' = any(alphas_exp, alphas_typ);
+    let mpat' = (mp1, mp2) =>
+      Option.is_some(mpat(alphas_exp, alphas_typ, mp1, mp2));
     switch (m1 |> Grammar.Annotated.term_of, m2 |> Grammar.Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
@@ -432,13 +467,19 @@ let equality =
     | (MultiHole(xs1), MultiHole(xs2)) =>
       List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
     | (MultiHole(_), _) => false
-    | (ModLet(p1, e1), ModLet(p2, e2)) => pat'(p1, p2) && exp'(e1, e2)
+    /* ModLet pattern names become labels (like labeled tuples),
+       so compare literally, not with alpha-equiv. */
+    | (ModLet(p1, e1), ModLet(p2, e2)) =>
+      pat_names_equal(alphas_exp, alphas_typ, p1, p2) && exp'(e1, e2)
     | (ModLet(_, _), _) => false
     | (ModType(tp1, t1), ModType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
     | (ModType(_, _), _) => false
     | (ModExp(e1), ModExp(e2)) => exp'(e1, e2)
     | (ModExp(_), _) => false
+    | (ModuleMod(mp1, e1), ModuleMod(mp2, e2)) =>
+      mpat'(mp1, mp2) && exp'(e1, e2)
+    | (ModuleMod(_, _), _) => false
     };
   }
   and pat =
@@ -658,8 +699,6 @@ let equality =
         s2: TermBase.Sig.t,
       )
       : bool => {
-    let pat' = (p1, p2) =>
-      Option.is_some(pat(alphas_exp, alphas_typ, p1, p2));
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
     let any' = any(alphas_exp, alphas_typ);
@@ -671,11 +710,47 @@ let equality =
     | (MultiHole(xs1), MultiHole(xs2)) =>
       List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
     | (MultiHole(_), _) => false
-    | (SigLet(p1), SigLet(p2)) => pat'(p1, p2)
+    /* SigLet names become labels, like ModLet */
+    | (SigLet(p1), SigLet(p2)) =>
+      pat_names_equal(alphas_exp, alphas_typ, p1, p2)
     | (SigLet(_), _) => false
     | (SigType(tp1, t1), SigType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
     | (SigType(_, _), _) => false
+    };
+  }
+  and mpat =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        mp1: TermBase.MPat.t,
+        mp2: TermBase.MPat.t,
+      )
+      : option(Alphas.t) => {
+    let any' = any(alphas_exp, alphas_typ);
+    switch (
+      mp1 |> Grammar.Annotated.term_of,
+      mp2 |> Grammar.Annotated.term_of,
+    ) {
+    | (EmptyHole, EmptyHole) => Some(Alphas.empty)
+    | (EmptyHole, _) => None
+    | (Invalid(s1), Invalid(s2)) => s1 == s2 ? Some(Alphas.empty) : None
+    | (Invalid(_), _) => None
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+        ? Some(Alphas.empty) : None
+    | (MultiHole(_), _) => None
+    /* MPat.Var supports alpha-equivalence: module names are binders */
+    | (Var(v1), Var(v2)) when exp_alpha => Some(Alphas.singleton(v1, v2))
+    | (Var(v1), Var(v2)) when v1 == v2 => Some(Alphas.singleton(v1, v1))
+    | (Var(_), _) => None
+    | (Asc(mp1, t1), Asc(mp2, t2)) =>
+      switch (mpat(alphas_exp, alphas_typ, mp1, mp2)) {
+      | Some(alphas) when typ(alphas_exp, alphas_typ, t1, t2) =>
+        Some(alphas)
+      | _ => None
+      }
+    | (Asc(_, _), _) => None
     };
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
@@ -781,6 +856,9 @@ let equality =
     | (Mod(_), _) => false
     | (Sig(s1), Sig(s2)) => sig_(alphas_exp, alphas_typ, s1, s2)
     | (Sig(_), _) => false
+    | (MPat(mp1), MPat(mp2)) =>
+      mpat(alphas_exp, alphas_typ, mp1, mp2) |> Option.is_some
+    | (MPat(_), _) => false
     | (Any (), Any ()) => true
     | (Any (), _) => false
     };
@@ -795,6 +873,8 @@ let equality =
     rul: rul(Alphas.empty, Alphas.empty),
     mod_: (m1, m2) => mod_(Alphas.empty, Alphas.empty, m1, m2),
     sig_: (s1, s2) => sig_(Alphas.empty, Alphas.empty, s1, s2),
+    mpat: (mp1, mp2) =>
+      mpat(Alphas.empty, Alphas.empty, mp1, mp2) |> Option.is_some,
     any: any(Alphas.empty, Alphas.empty),
   };
 };

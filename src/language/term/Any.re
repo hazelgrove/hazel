@@ -35,6 +35,7 @@ let rec ids: TermBase.any_t => list(Id.t) =
   | Rul(tm) => Rul.ids(~any_ids=ids, tm)
   | Mod(tm) => IdTagged.ids(tm)
   | Sig(tm) => IdTagged.ids(tm)
+  | MPat(tm) => IdTagged.ids(tm)
   | Any () => [];
 
 // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -57,4 +58,5 @@ let rep_id =
   | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
   | Mod(tm) => IdTagged.rep_id(tm)
   | Sig(tm) => IdTagged.rep_id(tm)
+  | MPat(tm) => IdTagged.rep_id(tm)
   | Any () => raise(Invalid_argument("Term.rep_id"));

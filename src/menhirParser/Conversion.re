@@ -207,9 +207,20 @@ module Operators = {
   };
 };
 
+/* Convert an indicated Pat to an indicated MPat for module name position */
+let rec mpat_of_pat = (p: IndicatedG.pat): Language.Grammar.mpat_t(bool) => {
+  switch (p.term) {
+  | Var(name) => IndicatedG.MPat.var(name)
+  | Asc(inner, typ) => IndicatedG.MPat.asc(mpat_of_pat(inner), typ)
+  | Parens(inner) => mpat_of_pat(inner)
+  | _ => IndicatedG.MPat.empty_hole()
+  };
+};
+
 module rec Exp: {
   let of_menhir_ast: AST.exp => IndicatedG.exp;
   let of_core: IndicatedG.exp => AST.exp;
+  let pat_of_mpat: Language.Grammar.mpat_t(bool) => AST.pat;
   let get_indicated_ids:
     IndicatedG.exp => (Language.Exp.t, list(Language.Id.t));
 } = {
@@ -234,7 +245,8 @@ module rec Exp: {
     | Dot(e1, e2) =>
       switch (e2) {
       | Var(s)
-      | Label(s) => dot(of_menhir_ast(e1), label(s))
+      | Label(s)
+      | Constructor(s, None) => dot(of_menhir_ast(e1), label(s))
       | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
       | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
       }
@@ -333,6 +345,17 @@ module rec Exp: {
         term: of_menhir_ast(e).term,
       }
     | Module(items) => module_(List.map(ModItem.of_menhir_ast, items))
+    | ModuleExp(p, e1, e2) =>
+      let mp = mpat_of_pat(Pat.of_menhir_ast(p));
+      module_exp(mp, of_menhir_ast(e1), of_menhir_ast(e2));
+    };
+  };
+
+  let rec pat_of_mpat = (mp: Language.Grammar.mpat_t(bool)): AST.pat => {
+    switch (mp.term) {
+    | Var(name) => VarPat(name)
+    | Asc(inner, typ) => AscPat(pat_of_mpat(inner), Typ.of_core(typ))
+    | _ => WildPat
     };
   };
 
@@ -401,6 +424,8 @@ module rec Exp: {
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
     | Projector(_, e) => of_core(e)
     | Module(items) => Module(List.map(ModItem.of_core, items))
+    | ModuleExp(mp, def, body) =>
+      ModuleExp(pat_of_mpat(mp), of_core(def), of_core(body))
     };
   };
 
@@ -627,6 +652,9 @@ and ModItem: {
     | ModItemType(tp, t) =>
       mod_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
     | ModItemExp(e) => mod_exp(Exp.of_menhir_ast(e))
+    | ModItemModule(p, e) =>
+      let mp = mpat_of_pat(Pat.of_menhir_ast(p));
+      module_mod(mp, Exp.of_menhir_ast(e));
     };
   };
 
@@ -635,6 +663,8 @@ and ModItem: {
     | ModLet(p, e) => ModItemLet(Pat.of_core(p), Exp.of_core(e))
     | ModType(tp, t) => ModItemType(TPat.of_core(tp), Typ.of_core(t))
     | ModExp(e) => ModItemExp(Exp.of_core(e))
+    | ModuleMod(mp, e) =>
+      ModItemModule(Exp.pat_of_mpat(mp), Exp.of_core(e))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) => ModItemExp(EmptyHole)

@@ -105,6 +105,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | TPat => remold_tpat(shape, seg)
   | Mod => remold_mod(shape, seg)
   | Sig => remold_sig(shape, seg)
+  | MPat => remold_mpat(shape, seg)
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
@@ -647,6 +648,72 @@ and remold_sig = (shape, seg: t): t =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl, [Sig]);
           [Piece.Tile(t), ...remolded] @ remold_sig(shape, rest);
         | _ => [Tile(t), ...remold_sig(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  }
+and remold_mpat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) =>
+      let (remolded, shape, rest) = remold_mpat_uni(shape, tl, parent_sorts);
+      ([hd, ...remolded], shape, rest);
+    | Projector(p) =>
+      let (remolded, shape, rest) =
+        remold_mpat_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
+      ([hd, ...remolded], shape, rest);
+    | Tile(t) =>
+      switch (remold_tile(MPat, shape, t)) {
+      | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded_typ, shape, rest) =
+            remold_typ_uni(shape, tl, [Sort.MPat, ...parent_sorts]);
+          let (remolded_mpat, shape, rest) =
+            remold_mpat_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_typ] @ remolded_mpat, shape, rest);
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_mpat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+          ([Tile(t), ...remolded], shape, rest);
+        }
+      }
+    }
+  }
+and remold_mpat = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) => [hd, ...remold_mpat(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_mpat(snd(ProjectorCore.shapes(p)), tl),
+      ]
+    | Tile(t) =>
+      switch (remold_tile(MPat, shape, t)) {
+      | None => [Tile(t), ...remold_mpat(snd(Tile.shapes(t)), tl)]
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        [Tile(t), ...remolded];
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) =
+            remold_typ_uni(shape, tl, [Sort.MPat]);
+          [Piece.Tile(t), ...remolded] @ remold_mpat(shape, rest);
+        | _ => [Tile(t), ...remold_mpat(snd(Tile.shapes(t)), tl)]
         }
       }
     }
