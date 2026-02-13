@@ -6,7 +6,8 @@ module Settings = {
     | LanguageDocumentation
     | HelpfulAssistant
     | Probes
-    | AppView;
+    | AppView
+    | LogControl;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

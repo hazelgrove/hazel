@@ -75,7 +75,7 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-let cls_of_term: type a. Grammar.exp_term(a) => cls =
+let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole
@@ -116,7 +116,9 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Filter(_) => Filter
   | Closure(_) => Closure
   | Parens(_) => Parens
-  | Projector(_) => Projector
+  // We're bypassing projectors from cls because they're breaking cursor inspector messages.
+  // Future work could be to specialize projectors in the cursor inspector.
+  | Projector(_, e) => cls_of_term(e.term)
   | Cons(_) => Cons
   | ListConcat(_) => ListConcat
   | UnOp(op, _) => UnOp(op)
