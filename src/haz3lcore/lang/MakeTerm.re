@@ -96,7 +96,7 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.map(
          fun
          | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
-         | _ => [Sig.fresh(EmptyHole)],
+         | other => [Sig.fresh(MultiHole([other]))],
        )
     |> List.flatten
   | SigLet(_)

@@ -139,15 +139,6 @@ let m : { let x : Int } = { let x = 1 }
 -- m.x works, but m also has type (x=Int) which is a labeled tuple
 ```
 
-### ExplainThis crash on Sig items
-
-Navigating the cursor into a module signature (onto a `let` or `type` declaration within `{ }` in type position) crashes the editor with:
-```
-Unhandled exception (Failure "ExplainThis: Secondary Impossible")
-```
-
-This indicates missing ExplainThis handlers for Mod/Sig sort items. See `plans/modules-pre-merge.md`.
-
 ---
 
 ## Architecture
