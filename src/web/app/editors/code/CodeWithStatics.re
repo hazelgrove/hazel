@@ -162,12 +162,14 @@ module View = {
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
       );
+    let warning_ids =
+      globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let warning_decos =
       Arms.Errors.of_ids(
         ~is_warning=true,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        model.statics.warning_ids,
+        warning_ids,
       );
     let container_classes =
       ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
