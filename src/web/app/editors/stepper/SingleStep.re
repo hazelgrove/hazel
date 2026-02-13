@@ -75,20 +75,27 @@ module F =
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx as _: Calc.t(Ctx.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~info_map as _,
+        ~ana as _,
         model: model,
       ) => {
     let {persistent_evalobj, evalobj, next_exp} = model;
     let* hidden_and_eo =
-      Calc.pair_saved(hidden, evalobj)
+      Calc.saved_pair((hidden, evalobj))
       |> Calc.map_saved(Option.some)
       |> {
         let.calc settings = settings
-        and.calc exp = exp;
-
+        and.calc exp = exp
+        and.calc ctx = ctx;
         let+ (filter_action, eo) =
-          EvaluatorStep.refresh_step(~settings, exp, persistent_evalobj);
+          EvaluatorStep.refresh_step(
+            ~settings,
+            exp,
+            SemanticCtx.get_env(ctx),
+            persistent_evalobj,
+          );
         let hidden =
           switch (filter_action) {
           | FilterAction.Step => false
@@ -114,6 +121,7 @@ module F =
       },
       hidden,
       Some(next_exp),
+      Calc.OldValue(Some(true)),
     );
   };
 

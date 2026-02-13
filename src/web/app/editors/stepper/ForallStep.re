@@ -10,7 +10,7 @@ open Calc.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model'('stepper) = {
   inner_exp: Calc.saved(Exp.t),
-  bindings: Calc.saved(Ctx.t),
+  inner_ctx: Calc.saved(SemanticCtx.t),
   inner_stepper: 'stepper,
   result_function: Calc.saved(Exp.t),
 };
@@ -28,7 +28,7 @@ type focus'('step) =
 
 let init = init_step => {
   inner_exp: Calc.Pending,
-  bindings: Calc.Pending,
+  inner_ctx: Calc.Pending,
   inner_stepper: init_step,
   result_function: Calc.Pending,
 };
@@ -64,7 +64,7 @@ module F =
   let unpersist = (p: persistent) => {
     {
       inner_exp: Calc.Pending,
-      bindings: Calc.Pending,
+      inner_ctx: Calc.Pending,
       inner_stepper: Stepper.unpersist(p.inner_stepper),
       result_function: Calc.Pending,
     };
@@ -94,13 +94,15 @@ module F =
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx: Calc.t(Ctx.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~info_map as _,
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
-    let {inner_exp, bindings, inner_stepper, result_function} = model;
-    let+ (bindings, inner_exp) =
-      (bindings, inner_exp)
+    let {inner_exp, inner_ctx, inner_stepper, result_function} = model;
+    let+ (inner_ctx, inner_exp) =
+      (inner_ctx, inner_exp)
       |> Calc.saved_pair
       |> Calc.map_saved(Option.some)
       |> {
@@ -109,18 +111,18 @@ module F =
         switch (exp |> Exp.term_of) {
         | Fun(p, d1, t, _) =>
           let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
-          let* bindings = ProofHacks.dhpat_extend_ctx(p, t, ctx);
-          Some((bindings, d1));
+          Some((SemanticCtx.add_from_pattern(ctx, p, t), d1));
         | _ => None
         };
       }
       |> Calc.to_option
       |> Option.map(Calc.to_pair);
-    let (inner_stepper, last) =
+    let (inner_stepper, last, validity) =
       Stepper.calculate(
         ~settings,
-        ~ctx=bindings,
+        ~ctx=inner_ctx,
         ~exp=inner_exp,
+        ~ana,
         inner_stepper,
       );
     let result_function =
@@ -144,12 +146,13 @@ module F =
     (
       {
         inner_exp: inner_exp |> Calc.save,
-        bindings: bindings |> Calc.save,
+        inner_ctx: inner_ctx |> Calc.save,
         inner_stepper,
         result_function: result_function |> Calc.save,
       },
       hidden |> Calc.set(false),
       Some(result_function),
+      validity,
     );
   };
 

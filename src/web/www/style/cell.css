@@ -15,10 +15,22 @@
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
+  flex-direction: row;
+  padding-left: 1em;
 }
+
+#main .code-editor.has-line-numbers{
+  padding-left: 0;
+}
+
 
 #main.Scratch,
 #main.Documentation {
+  background-color: var(--ui-bkg);
+}
+
+:is(#main.Scratch,
+#main.Documentation) > * > .code-editor {
   background-color: var(--cell-active);
 }
 
@@ -33,6 +45,7 @@
   padding-top: 3.5em;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   gap: 1.2em;
   background-color: var(--ui-bkg);
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
