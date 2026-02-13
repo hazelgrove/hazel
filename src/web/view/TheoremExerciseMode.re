@@ -225,16 +225,20 @@ module Update = {
     let stitched_scratch =
       Exercise.append_exp(just_prelude_term, just_lemmas_term);
     let stitched_theorem =
-      Exercise.append_exp(
-        stitched_scratch,
-        Language.Exp.replace_all_ids(just_prelude_term),
-      )
+      stitched_scratch
+      |> Exercise.append_exp(
+           _,
+           just_prelude_term
+           |> Language.ProofHacks.strip_theorems
+           |> Language.Exp.replace_all_ids,
+         )
       |> Exercise.append_exp(_, just_theorem_term);
 
     // Worker Setup
-    let worker_request: ref(list((string, Language.Exp.t))) = ref([]);
-    let queue_worker = (pos, expr) => {
-      worker_request := worker_request^ @ [(pos, expr)];
+    let worker_request: ref(list((string, WorkerServer.Request.value))) =
+      ref([]);
+    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
+      worker_request := worker_request^ @ [(pos, req_value)];
     };
 
     // Calculate each cell

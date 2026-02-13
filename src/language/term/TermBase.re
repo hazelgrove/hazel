@@ -229,7 +229,7 @@ and Exp: {
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
-        | Probe(e, tag) => Probe(exp_map_term(e), tag)
+        | Projector(data, e) => Projector(data, exp_map_term(e))
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
@@ -310,7 +310,7 @@ and Pat: {
         | TupLabel(label, e) =>
           TupLabel(pat_map_term(label), pat_map_term(e))
         | Parens(e) => Parens(pat_map_term(e))
-        | Probe(e, tag) => Probe(pat_map_term(e), tag)
+        | Projector(data, p) => Projector(data, pat_map_term(p))
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))
         },
     };
@@ -381,27 +381,29 @@ and Typ: {
         | TupLabel(label, e) =>
           TupLabel(typ_map_term(label), typ_map_term(e))
         | Parens(e) => Parens(typ_map_term(e))
+        | Projector(data, t) => Projector(data, typ_map_term(t))
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
         | Sum(variants) =>
           Sum(
             List.map(
               fun
-              | ConstructorMap.Variant(c, ids, t) => {
+              | ConstructorMap.Variant(c, ann, t) => {
                   /* We turn a variant back into its original term (see MakeTerm.parse_sum_term)
-                   * in order to map over it. The main reason this was implemeted is to that
+                   * in order to map over it. The main reason this was implemented is so that
                    * id renaming passes work. */
                   switch (
                     typ_map_term({
                       term: Var(c),
-                      annotation: {
-                        ids: ids,
-                      },
+                      annotation: IdTagged.IdTag.mk_internal(ann.ids),
                     })
                   ) {
                   | {term: Var(c), annotation: {ids, _}} =>
                     ConstructorMap.Variant(
                       c,
-                      ids,
+                      {
+                        ids,
+                        secondary: ann.secondary,
+                      },
                       Option.map(typ_map_term, t),
                     )
                   | t => BadEntry(typ_map_term(t))

@@ -148,13 +148,6 @@ module Model = {
     | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
     };
 
-  let export_grading_module = (e: exercise): string =>
-    switch (e) {
-    | Implementation(e) =>
-      Exercise.export_grading_module(e.editors.module_name, {eds: e.editors})
-    | Theorem(_) => "(* Theorem exercises do not have an exportable grading module *)\n"
-    };
-
   // Used for the assistant or something
   let get_editor = (model: t): CodeEditable.Model.t => {
     let current = List.nth(model.exercises, model.current);
@@ -278,6 +271,17 @@ module Store = {
       exercise_export.exercise_data,
     );
   };
+
+  let reset = (~settings, ~instructor_mode) => {
+    let _ = StoreExerciseKey.reset();
+    List.iter(
+      spec => {
+        let _ = init_exercise(~settings, spec, ~instructor_mode);
+        ();
+      },
+      ExerciseSettings.exercises,
+    );
+  };
 };
 
 module Update = {
@@ -290,8 +294,7 @@ module Update = {
     | TheoremExercise(TheoremExerciseMode.Update.t)
     | ExportModule
     | ExportSubmission
-    | ExportTransitionary
-    | ExportGrading;
+    | ExportTransitionary;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -301,7 +304,6 @@ module Update = {
     | ExportModule => false
     | ExportSubmission => false
     | ExportTransitionary => false
-    | ExportGrading => false
     };
   };
   let export_exercise_module = (exercises: Model.t): unit => {
@@ -335,15 +337,6 @@ module Update = {
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 
-  let export_instructor_grading_report = (exercises: Model.t) => {
-    let exercise = Model.get_current(exercises);
-    // .ml files because show uses OCaml syntax (dune handles seamlessly)
-    let filename = (exercise |> Model.get_exercise_name) ++ "_grading.ml";
-    let content_type = "text/plain";
-    let contents = Model.export_grading_module(exercise);
-    JsUtil.download_string_file(~filename, ~content_type, ~contents);
-  };
-
   let update =
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (Model.get_current(model), action) {
@@ -365,7 +358,7 @@ module Update = {
         current: model.current,
         exercises: new_exercises,
       };
-    | (_, Exercise(_)) => model |> return_quiet
+    | (_, Exercise(_)) => model |> raise_invalid_action
     | (Theorem(ex), TheoremExercise(action)) =>
       let* new_current =
         TheoremExerciseMode.Update.update(
@@ -383,7 +376,7 @@ module Update = {
         current: model.current,
         exercises: new_exercises,
       };
-    | (_, TheoremExercise(_)) => model |> return_quiet
+    | (_, TheoremExercise(_)) => model |> raise_invalid_action
     | (_, SwitchExercise(n)) =>
       Model.{
         current: n,
@@ -401,10 +394,6 @@ module Update = {
     | (_, ExportTransitionary) =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_transitionary(model);
-      model |> return_quiet;
-    | (_, ExportGrading) =>
-      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-      export_instructor_grading_report(model);
       model |> return_quiet;
     };
   };
@@ -571,13 +560,6 @@ module View = {
         ~tooltip="Export Transitionary Exercise Module",
       );
 
-    let instructor_grading_export =
-      Widgets.button_named(
-        Icons.export,
-        _ => {inject(ExportGrading)},
-        ~tooltip="Export Grading Exercise Module",
-      );
-
     let export_submission =
       Widgets.button_named(
         Icons.star,
@@ -596,6 +578,18 @@ module View = {
           }
         },
         ~tooltip="Import Submission",
+      );
+    let import_logs =
+      Widgets.file_select_button_named(
+        "import-logs",
+        Icons.import,
+        file => {
+          switch (file) {
+          | None => Virtual_dom.Vdom.Effect.Ignore
+          | Some(file) => globals.inject_global(Log(InitImport(file)))
+          }
+        },
+        ~tooltip="Import Logs",
       );
 
     let reset_hazel =
@@ -626,7 +620,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "File",
-        [export_submission, import_submission],
+        [export_submission, import_submission, import_logs],
       );
 
     let reset_group_exercises = () =>
@@ -640,11 +634,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "Developer Export",
-        [
-          instructor_export,
-          instructor_transitionary_export,
-          instructor_grading_export,
-        ],
+        [instructor_export, instructor_transitionary_export],
       );
 
     if (globals.settings.instructor_mode) {

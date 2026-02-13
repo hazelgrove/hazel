@@ -1,23 +1,20 @@
 open Util;
 open Haz3lcore;
 
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
+[@deriving (show({with_path: false}), sexp, yojson)]
+type hint = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type wrong_impl('code) = {
   impl: 'code,
-  hint: string,
+  hint,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type hidden_tests('code) = {
   tests: 'code,
-  hints: list(string),
+  hints: list(hint),
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type hint = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax_test = (hint, SyntaxTest.predicate);
@@ -448,7 +445,7 @@ let delete_buggy_impl = (state: state, index: int) => {
 };
 
 let edit_buggy_impl = (state: state, idx: int, impl: Editor.t, new_hint: hint) => {
-  let buggy_impl = {
+  let buggy_impl: wrong_impl(Editor.t) = {
     impl,
     hint: new_hint,
   };
@@ -489,9 +486,9 @@ let update_mut_test_rep =
       (i, bug) => {
         let new_hint = List.nth_opt(new_hints, i);
         switch (new_hint) {
-        | Some(hint) => {
+        | Some(hint_string) => {
             ...bug,
-            hint,
+            hint: hint_string,
           }
         | None => bug
         };
@@ -655,16 +652,12 @@ let wrap_filter =
               "$e",
               Some(Some(Unknown(Internal) |> Language.Typ.fresh)),
             ),
-          annotation: {
-            ids: [Id.mk()],
-          },
+          annotation: Language.IdTagged.IdTag.fresh(),
         },
       }),
       term,
     ),
-  annotation: {
-    ids: [Id.mk()],
-  },
+  annotation: Language.IdTagged.IdTag.fresh(),
 };
 
 let wrap = (term, editor: Editor.t): TermItem.t => {
@@ -705,7 +698,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Test(_)
   | HintedTest(_)
   | Parens(_)
-  | Probe(_)
+  | Projector(_)
   | Cons(_)
   | ListConcat(_)
   | LivelitName(_)
@@ -716,57 +709,49 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | ProofObject(_)
   | Match(_) => {
       term: Seq(e1, e2),
-      annotation: {
-        ids: [Id.mk()],
-      },
+      annotation: Language.IdTagged.IdTag.fresh(),
     }
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
     {
       term: Seq(e11, e12'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Filter(kind, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Theorem(p, thm, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Theorem(p, thm, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: TyAlias(tp, tdef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Use(t, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Use(t, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   };
 };
@@ -852,8 +837,10 @@ let pos_of_key = (key: string): pos =>
 
 let editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
+  /* Reset non-persistable refractor state before serialization.
+   * See Refractors.for_serialization - keeps manuals, resets autos/sample_cursor. */
+  let zipper = Zipper.update_refractors(zipper, Refractors.for_serialization);
   let serialization = Zipper.show(zipper);
-  // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
   Format.pp_print_string(fmt, serialization);
 };
 
@@ -878,14 +865,6 @@ let export_transitionary_module = (module_name, {eds, _}: state) => {
     ++ "let exercise: Exercise.spec = Exercise.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
-  data;
-};
-
-let export_grading_module = (module_name, {eds, _}: state) => {
-  let header = output_header_grading(module_name);
-  let prefix = "let exercise: Exercise.spec = ";
-  let record = show_p(editor_pp, eds);
-  let data = header ++ prefix ++ record ++ "\n";
   data;
 };
 

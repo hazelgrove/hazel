@@ -23,7 +23,12 @@ module Print = {
     let segment = remove_projectors(segment);
     Printer.of_segment(
       ~holes,
-      ~measured=Measured.of_segment(segment, Id.Map.empty),
+      ~measured=
+        Measured.of_segment(
+          segment,
+          ProjectorCore.Shape.Map.empty,
+          Id.Map.empty,
+        ),
       ~caret=None,
       ~indent=" ",
       segment,

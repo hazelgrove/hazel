@@ -9,39 +9,39 @@ type bad_token_cls =
   | Other
   | BadInt;
 
-let length = Unicode.length;
 let compare = String.compare;
 let equal = String.equal;
 let sub = String.sub;
 let concat = String.concat;
 let starts_with = String.starts_with;
 let split_on_char = String.split_on_char;
-let append = (++);
 let sort_uniq = List.sort_uniq(compare);
-let rm_nth = StringUtil.remove_nth;
-let rm_last = StringUtil.remove_last;
-let rm_first = StringUtil.remove_first;
+let match = StringUtil.match;
+let regexp = StringUtil.regexp;
+let prefixes = StringUtil.prefixes;
+let abbreviate = StringUtil.abbreviate;
+let num_linebreaks = StringUtil.num_linebreaks;
+let max_line_width = StringUtil.max_line_width;
+
+let length = Unicode.length;
+let append = Unicode.append;
+let rm_nth = Unicode.remove_nth;
+let rm_last = Unicode.remove_last;
+let rm_first = Unicode.remove_first;
 let rm_edge = (d: Direction.t, t) =>
   switch (d) {
   | Left => rm_last(t)
   | Right => rm_first(t)
   };
-let split_nth = StringUtil.split_nth;
-let insert_nth = StringUtil.insert_nth;
-let match = StringUtil.match;
-let regexp = StringUtil.regexp;
-let prefixes = StringUtil.prefixes;
-let to_list = StringUtil.to_list;
-let abbreviate = StringUtil.abbreviate;
-let num_linebreaks = StringUtil.num_linebreaks;
-let max_line_width = StringUtil.max_line_width;
-
-let bounding_box = (t: t): Point.t =>
-  Point.mk(~row=num_linebreaks(t), ~col=max_line_width(t));
+let split_nth = Unicode.split_nth;
+let insert_nth = (idx, s, t) => Unicode.insert_nth(t, idx, s);
+let to_list = Unicode.to_list;
+let of_list = Unicode.of_list;
 
 /* Token Recognition Predicates */
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
+let empty = ""; /* This is invalid for view */
 let space = " ";
 let linebreak = "\n";
 let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
@@ -70,6 +70,29 @@ let strip_quotes = (~quote="\"", s) =>
   };
 
 let string_quote = s => "\"" ++ s ++ "\"";
+
+/* Grapheme width: Functions taking into account that some unicode
+   chracters have greater than 1 character grid width */
+
+let column_to_grapheme_index = Unicode.Width.column_to_grapheme_index;
+
+/* Number of measured columns occupied by the first `count` graphemes of a
+   string literal (excluding surrounding quotes). Non-strings fall back to
+   the legacy "one column per char" assumption. */
+let string_prefix_columns = (t: t, count: int): int =>
+  is_string(t)
+    ? Unicode.Width.columns_through_prefix(strip_quotes(t), count) : count;
+
+let bounding_box = (t: t): Point.t => {
+  /* Currently only supporting emojis in strings; this is a
+     conservative choice to guard against perf regressions;
+     it can likely be relaxed. See also Code.re */
+  let (row, col) =
+    is_string(t)
+      ? Unicode.Width.bounding_box_for(t)
+      : (num_linebreaks(t), max_line_width(t));
+  Point.mk(~row, ~col);
+};
 
 let quoted_label_regexp = regexp("^`[^`\n]*`$");
 let is_quoted_label = t => match(quoted_label_regexp, t);

@@ -17,9 +17,9 @@ let tests = (
               Some(
                 Typ.(
                   sum([
-                    Variant("A", [], None),
-                    Variant("B", [], None),
-                    Variant("C", [], None),
+                    Variant("A", ConstructorMap.empty_variant_ann, None),
+                    Variant("B", ConstructorMap.empty_variant_ann, None),
+                    Variant("C", ConstructorMap.empty_variant_ann, None),
                   ])
                 ),
               ),
@@ -31,9 +31,25 @@ let tests = (
                 asc(
                   constructor(
                     "A",
-                    Some(Some(Typ.(sum([Variant("A", [], None)])))),
+                    Some(
+                      Some(
+                        Typ.(
+                          sum([
+                            Variant(
+                              "A",
+                              ConstructorMap.empty_variant_ann,
+                              None,
+                            ),
+                          ])
+                        ),
+                      ),
+                    ),
                   ),
-                  Typ.(sum([Variant("A", [], None)])),
+                  Typ.(
+                    sum([
+                      Variant("A", ConstructorMap.empty_variant_ann, None),
+                    ])
+                  ),
                 )
               ),
               bool(true),

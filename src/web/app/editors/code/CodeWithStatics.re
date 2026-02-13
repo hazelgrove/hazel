@@ -1,3 +1,4 @@
+open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -8,13 +9,20 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
+  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type context_menu_state = option(int);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Updated:
     editor: Editor.t,
+    context_menu: context_menu_state,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
   };
+
+  let context_menu_is_open = (model: t): bool => model.context_menu != None;
 
   let mk =
       (
@@ -25,6 +33,7 @@ module Model = {
     editor,
     statics,
     dynamics,
+    context_menu: None,
   };
 
   let mk_from_exp =
@@ -53,7 +62,11 @@ module Model = {
       |> Option.map(((p, _, _)) => p),
     selected_text:
       Some(
-        () => Printer.of_segment(model.editor.state.zipper.selection.content),
+        () =>
+          Printer.of_segment(
+            ~refractors=model.editor.state.zipper.refractors.manuals,
+            model.editor.state.zipper.selection.content,
+          ),
       ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
@@ -61,6 +74,7 @@ module Model = {
     editor_action: x => Some(x),
     undo_action: None,
     redo_action: None,
+    error_ids: model.statics.error_ids,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -87,9 +101,17 @@ module Update = {
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, dynamics: _}: Model.t,
+        {editor, statics, context_menu, dynamics: _}: Model.t,
       )
       : Model.t => {
+    let editor =
+      Editor.Update.calculate(
+        ~settings,
+        ~is_edited,
+        statics,
+        dynamics,
+        editor,
+      );
     let statics =
       is_edited
         ? CachedStatics.init(
@@ -101,18 +123,11 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
-    let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
-      );
     {
       editor,
       statics,
       dynamics,
+      context_menu,
     };
   };
 };
@@ -139,6 +154,7 @@ module View = {
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
+        ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
       );
     let statics_decos =
       Arms.Errors.of_ids(
@@ -146,6 +162,11 @@ module View = {
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
       );
-    div_c("code-container", [code_text_view, statics_decos] @ overlays);
+    let container_classes =
+      ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
+    Node.div(
+      ~attrs=[Attr.classes(container_classes)],
+      [code_text_view, statics_decos] @ overlays,
+    );
   };
 };

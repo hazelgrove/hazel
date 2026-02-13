@@ -251,17 +251,19 @@ module MkDeferredLinebreaks = () => {
   let of_secondary = (): int => 1 + consume();
 };
 
-let of_segment =
+let of_segment_inner =
     (
-      ~indent_level=Id.Map.empty,
+      indent_level: Id.Map.t(int),
+      is_single_line: bool,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
+      refractor_shape_map: Id.Map.t(int),
     )
     : t => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
 
   let indent_level =
-    Id.Map.is_empty(indent_level)
+    Id.Map.is_empty(indent_level) && !is_single_line
       ? Indentation.level_map(seg) : indent_level;
 
   let indent_of_linebreak = (w: Secondary.t): option(int) =>
@@ -305,6 +307,14 @@ let of_segment =
 
   let add_projector = ((seg, indent, origin, map): acc, pr: Base.projector) => {
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
+    let shape = ProjectorCore.Shape.Map.lookup(pr.id, shape_map);
+    let indent =
+      switch (shape.vertical) {
+      | Inline
+      | Block(0)
+      | Tab(_) => indent
+      | Block(_) => origin.col
+      };
     let (measure, map) = calc(indent, origin, map, size);
     let map =
       size.row == 0
@@ -325,8 +335,12 @@ let of_segment =
             ~col=new_indent - origin.col,
           );
         // add seg to map and reset seg
-        //TODO(andrew): decide if should actually add linebreak here
-        let map = add_piece_row(origin.row, seg, map);
+        let map =
+          add_piece_row(
+            origin.row,
+            seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
+            map,
+          );
         let map =
           size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
         ([], new_indent, size, map);
@@ -344,7 +358,11 @@ let of_segment =
         ? {
           let g = DeferredLinebreaks.of_secondary();
           add_n_rows(origin, indent, g, map)
-          |> add_piece_row(origin.row, seg, _)
+          |> add_piece_row(
+               origin.row,
+               seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
+               _,
+             )
           |> add_n_empty_piece_rows(g - 1);
         }
         : map;
@@ -362,18 +380,43 @@ let of_segment =
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
     | Tile(t) =>
+      switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+      | Some(_) =>
+        DeferredLinebreaks.update(2) |> ignore;
+        ();
+      | None => ()
+      };
       Aba.fold_left(
         add_shard(acc, t),
         (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
         Aba.mk(t.shards, t.children),
-      )
+      );
     };
   let (_, _, _, map) = go(~top_level=true, ([], 0, Point.zero, empty), seg);
   map;
 };
 
-/* Memoized for perf */
-let of_segment = Core.Memo.general(of_segment);
+/* Memoized for perf. We use an inner function with positional args
+   because Core.Memo.general doesn't preserve labeled argument types.
+   The wrapper provides the nice labeled argument interface. */
+let of_segment_memo = Core.Memo.general(of_segment_inner);
+
+let of_segment =
+    (
+      ~indent_level=Id.Map.empty,
+      ~is_single_line=false,
+      seg: Segment.t,
+      shape_map: Id.Map.t(ProjectorCore.Shape.t),
+      refractor_shape_map: Id.Map.t(int),
+    )
+    : t =>
+  of_segment_memo(
+    indent_level,
+    is_single_line,
+    seg,
+    shape_map,
+    refractor_shape_map,
+  );
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>

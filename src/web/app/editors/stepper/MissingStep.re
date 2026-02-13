@@ -78,7 +78,7 @@ module Update = {
         ...model,
         open_box,
       }
-      |> Updated.return_quiet;
+      |> Updated.return_quiet(~logged=true);
     | (ProposeRewrite, _) =>
       let open_box =
         switch (model.open_box) {
@@ -95,7 +95,7 @@ module Update = {
         ...model,
         open_box,
       }
-      |> Updated.return_quiet(~recalculate=true);
+      |> Updated.return_quiet(~recalculate=true, ~logged=true);
     | (RewriteEditorAction(action), RewritesOpen({editor, _} as r)) =>
       let* new_editor = CodeEditable.Update.update(~settings, action, editor);
       Model.{
@@ -106,7 +106,7 @@ module Update = {
             editor: new_editor,
           }),
       };
-    | (RewriteEditorAction(_), _) => model |> Updated.return_quiet
+    | (RewriteEditorAction(_), _) => model |> Updated.raise_invalid_action
     | (UpdateResult(result), RewritesOpen(r)) =>
       Model.{
         ...model,
@@ -116,15 +116,15 @@ module Update = {
             cached_result: Some(result),
           }),
       }
-      |> Updated.return_quiet
-    | (UpdateResult(_), _) => model |> Updated.return_quiet
+      |> Updated.return_quiet(~logged=true)
+    | (UpdateResult(_), _) => model |> Updated.raise_invalid_action
     | (AxiomBoxAction(action), AxiomsOpen(m)) =>
       let* updated = AxiomsBox.Update.update(~settings, action, m);
       Model.{
         ...model,
         open_box: Model.AxiomsOpen(updated),
       };
-    | (AxiomBoxAction(_), _) => model |> Updated.return_quiet
+    | (AxiomBoxAction(_), _) => model |> Updated.raise_invalid_action
     };
   };
 
@@ -162,16 +162,19 @@ module Update = {
       // hacky way to get a currently-selected id
       {
         let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
-        try({
-          let zipper = editor.editor.state.zipper;
-          let selection = zipper.selection.content;
-          let skel = Segment.skel(selection);
-          let root = Skel.root(skel);
-          let idx = Aba.first_a(root);
-          let piece = List.nth(selection, idx);
-          let id = Piece.id(piece);
-          Some(id);
-        }) {
+        try(
+          {
+            open OptUtil.Syntax;
+            let zipper = editor.editor.state.zipper;
+            let* id =
+              TermData.get_root_id_using_ranges(
+                zipper.selection.content,
+                editor.editor.syntax.term_data,
+                editor.editor.syntax.measured,
+              );
+            Some(id);
+          }
+        ) {
         | _ => None
         };
       }
@@ -621,6 +624,7 @@ module View = {
                                 | Some(RewriteEditor ()) => true
                                 | _ => false
                                 },
+                              ~dynamics=Dynamics.Map.empty,
                               editor,
                             ),
                           ],

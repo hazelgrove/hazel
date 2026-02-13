@@ -116,7 +116,11 @@ let typ_of: t => option(Typ.t) =
   | FreeConstructor(name) =>
     Some(
       Sum([
-        ConstructorMap.Variant(name, [Id.invalid], None),
+        ConstructorMap.Variant(
+          name,
+          ConstructorMap.mk_variant_ann(~ids=[Id.invalid], ()),
+          None,
+        ),
         ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
       ])
       |> Typ.temp,

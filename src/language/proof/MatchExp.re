@@ -43,10 +43,10 @@ let rec match_exp =
   let match_exp = match_exp(~info_map);
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */
-  | (Parens(e1), _) => match_exp(alphas, ctx, e1, exp)
-  | (_, Parens(e2)) => match_exp(alphas, ctx, exp_r, e2)
-  | (Probe(e1, _), _) => match_exp(alphas, ctx, e1, exp)
-  | (_, Probe(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
+  | (Parens(e1), _)
+  | (Projector(_, e1), _) => match_exp(alphas, ctx, e1, exp)
+  | (_, Parens(e2))
+  | (_, Projector(_, e2)) => match_exp(alphas, ctx, exp_r, e2)
   // TODO: Better cast logic
   | (Asc(e1, _), _) => match_exp(alphas, ctx, e1, exp)
   | (_, Asc(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
@@ -71,7 +71,10 @@ let rec match_exp =
             ctx,
           ),
         )
-      | Some(e) => Equality.semantic.exp(e, exp) ? Some(ctx) : None
+      | Some(e) =>
+        print_endline("ASSIGNED");
+        print_endline("assigned exp: " ++ Exp.show(e));
+        Equality.ignoring_ascriptions.exp(e, exp) ? Some(ctx) : None;
       }
     };
   | (Var(x), Var(y)) when are_alpha_equiv(alphas, x, y) => Some(ctx)
@@ -261,8 +264,12 @@ and match_any = (_: match_ctx, _: Any.t, _: Any.t): option(unit) => None
 
 and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   switch (pat_r |> Pat.term_of, pat |> Pat.term_of) {
-  | (Parens(p1) | Probe(p1, _), _) => match_pat(p1, pat)
-  | (_, Parens(p2) | Probe(p2, _)) => match_pat(pat_r, p2)
+  | (Parens(p1), _)
+  | (Projector(_, p1), _) => match_pat(p1, pat)
+  | (_, Parens(p2))
+  | (_, Projector(_, p2)) => match_pat(pat_r, p2)
+  | (Asc(p1, _), _) => match_pat(p1, pat)
+  | (_, Asc(p2, _)) => match_pat(pat_r, p2)
   | (Invalid(x), Invalid(y)) when x == y => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])
@@ -317,11 +324,6 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
     let* alphas2 = match_pat(x2, y2);
     Some(alphas1 @ alphas2);
   | (Ap(_, _), _) => None
-  | (Asc(x, t1), Asc(y, t2)) =>
-    let* alphas1 = match_pat(x, y);
-    let* () = match_typ(t1, t2);
-    Some(alphas1);
-  | (Asc(_, _), _) => None
   | (Label(l1), Label(l2)) when l1 == l2 => Some([])
   | (Label(_), _) => None
   | (TupLabel({term: ExplicitNonlabel, _}, pat_r), _) =>

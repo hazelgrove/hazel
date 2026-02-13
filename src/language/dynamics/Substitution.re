@@ -96,7 +96,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | HintedTest(_)
         | Filter(_)
         | Parens(_)
-        | Probe(_)
+        | Projector(_)
         | Cons(_)
         | ListConcat(_)
         | UnOp(_)
@@ -148,9 +148,9 @@ and in_pat =
   | Parens(p1) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Parens(p1') |> Pat.fresh);
-  | Probe(p1, probe) =>
+  | Projector(data, p1) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
-    (env', Probe(p1', probe) |> Pat.fresh);
+    (env', Projector(data, p1') |> Pat.fresh);
   | Tuple(l) =>
     let (env', l') =
       List.fold_left(
@@ -214,6 +214,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Label(_)
         | TupLabel(_, _)
         | Parens(_)
+        | Projector(_)
         | Rec(_, _)
         | Poly(_, _)
         | ProdProjection(_, _)

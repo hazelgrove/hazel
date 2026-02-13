@@ -183,7 +183,7 @@ module Update = {
         ...model,
         cells: Tutorial.put_stitched(pos, model.cells, new_cell),
       };
-    | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
+    | Editor(_, ResultAction(_)) => Updated.raise_invalid_action(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Tutorial.main_editor_of_state(~selection=pos, model.spec);
       let new_editor = Editor.Model.mk(spec);
@@ -227,9 +227,9 @@ module Update = {
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Tutorial.stitch_term(model.editors);
     let worker_request = ref([]);
-    let queue_worker = (pos, expr) => {
+    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
       worker_request :=
-        worker_request^ @ [(pos |> Tutorial.key_for_statics, expr)];
+        worker_request^ @ [(pos |> Tutorial.key_for_statics, req_value)];
     };
     let cells =
       Tutorial.map2_stitched(
@@ -239,6 +239,7 @@ module Update = {
               editor,
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
+              context_menu: None,
             },
             result: cell.result,
           }
@@ -447,6 +448,7 @@ module View = {
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
         ~caption=CellCommon.caption(caption, ~rest=?subcaption),
+        ~lines=true,
         cell,
       );
     };

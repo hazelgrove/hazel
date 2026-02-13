@@ -12,4 +12,5 @@
    %{project_root}/node_modules/esbuild/bin/esbuild
    prebundle.js
    --bundle
+   --external:web-worker
    --outfile=bundled.js)))

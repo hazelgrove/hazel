@@ -21,6 +21,20 @@ module Model = {
   };
 
   let equal = (===);
+
+  let reset = (~font_metrics=?, ()) => {
+    let globals = Globals.Model.init(~font_metrics?, ());
+    let settings = globals.settings;
+    let instructor_mode = globals.settings.instructor_mode;
+    let editors = Editors.Store.reset(~settings, ~instructor_mode);
+    {
+      globals,
+      editors,
+      explain_this: ExplainThisModel.init,
+      assistant: AssistantModel.init(),
+      selection: Editors.Selection.default_selection(editors),
+    };
+  };
 };
 
 module Store = {
@@ -131,7 +145,7 @@ module Update = {
           model.editors,
         );
       switch (jump) {
-      | None => model |> Updated.return_quiet
+      | None => model |> Updated.raise_invalid_action
       | Some((action, selection)) =>
         let* editors =
           Editors.Update.update(
@@ -153,6 +167,26 @@ module Update = {
         schedule_action(Globals(FinishImportAll(data)))
       );
       model |> return_quiet;
+    | SetMetaDown(meta_down) =>
+      model.globals.meta_down == meta_down
+        ? model |> return_quiet
+        : {
+            ...model,
+            globals: {
+              ...model.globals,
+              meta_down,
+            },
+          }
+          |> return_quiet
+    | UpdateVisibleRows(visible_rows) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          visible_rows: Some(visible_rows),
+        },
+      }
+      |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
@@ -177,11 +211,7 @@ module Update = {
                 current |> fst,
                 current
                 |> snd
-                |> ((e: CellEditor.Model.t) => e.editor)
-                |> (
-                  (e: CodeWithStatics.Model.t) =>
-                    Zipper.zip(e.editor.state.zipper)
-                )
+                |> (e => e.editor.editor.state.zipper)
                 |> PersistentSegment.persist,
               ))
             );
@@ -228,8 +258,14 @@ module Update = {
           editors,
         };
       };
+    | Log(_)
     | Undo
-    | Redo => failwith("Undo/Redo are handled in the history module")
+    | Redo
+    | RethrowException
+    | ClearException =>
+      failwith(
+        "Undo/Redo/Log import/RethrowException/ClearException are handled in higher-level modules",
+      )
     };
   };
 
@@ -259,9 +295,20 @@ module Update = {
           action,
           model.editors,
         );
+      /* Reset visible_rows when switching to modes without viewport culling,
+       * otherwise stale culling bounds hide projectors incorrectly */
+      let globals =
+        switch (action) {
+        | SwitchMode(Tutorial | Exercises) => {
+            ...model.globals,
+            visible_rows: None,
+          }
+        | _ => model.globals
+        };
       {
         ...model,
         editors,
+        globals,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -289,7 +336,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return
+      |> Updated.return(~is_edit=false, ~scroll_active=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -412,9 +459,35 @@ module View = {
     };
   };
 
+  let selection_has_refractors =
+      (
+        refractors: Haz3lcore.Zipper.Refractor.t,
+        selection: Haz3lcore.Segment.t,
+      )
+      : bool =>
+    if (List.is_empty(refractors.manuals)) {
+      false;
+    } else {
+      let ids = Haz3lcore.Segment.ids(selection);
+      List.exists(
+        id =>
+          List.exists(((id2, _)) => Id.equal(id, id2), refractors.manuals),
+        ids,
+      );
+    };
+
   let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
     let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-    ClipboardCache.set(cursor.selection, str);
+    let should_set =
+      switch (cursor.editor, cursor.selection) {
+      | (Some(editor), Some(selection)) =>
+        /* If the selection contains refractors, we forgo the segment cache
+         * for the sake of preserving refractors in the copy via expanding
+         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
+        !selection_has_refractors(editor.state.zipper.refractors, selection)
+      | _ => true
+      };
+    should_set ? ClipboardCache.set(cursor.selection, str) : ();
     JsUtil.copy(str);
   };
 
@@ -424,9 +497,16 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
+    let update_meta =
+        (evt: Js.t(Dom_html.keyboardEvent)): list(Effect.t(unit)) => {
+      let meta_down = Js.to_bool(evt##.metaKey);
+      model.globals.meta_down == meta_down
+        ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+    };
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) =>
+        : Effect.t(unit) => {
+      let meta_effects = update_meta(evt);
       Effect.(
         switch (
           Selection.handle_key_event(
@@ -435,17 +515,23 @@ module View = {
             model,
           )
         ) {
-        | None => Ignore
+        | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
-          Many([Prevent_default, Stop_propagation, inject(action)])
+          Many(
+            [Prevent_default, Stop_propagation, inject(action)]
+            @ meta_effects,
+          )
         }
       );
+    };
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
       Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
-        Effect.Ignore;
+        model.globals.meta_down
+          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
+          : Effect.Ignore;
       }),
       Attr.on_focus(_ => {
         JsUtil.focus_clipboard_shim();
@@ -593,6 +679,7 @@ module View = {
   let main_view =
       (
         ~get_log_and: (string => unit) => unit,
+        ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
         {
@@ -603,21 +690,20 @@ module View = {
           selection,
         } as model: Model.t,
       ) => {
+    let log_count = LogCount.get();
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),
       get_log_and,
+      get_log_count: _ =>
+        failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
-    let bottom_bar =
-      CursorInspector.view(
-        ~globals,
-        ~inject=a => inject(Editors(a)),
-        cursor,
-      );
+    let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
       Sidebar.view(
         ~globals,
+        ~cursor,
         ~explain_this_inject=action => inject(ExplainThis(action)),
         ~assistant_inject=action => inject(Assistant(action)),
         ~signal=
@@ -625,6 +711,8 @@ module View = {
           | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
+        ~log_model,
+        ~log_count,
         ~editor=Update.get_editor(model),
         cursor.info,
       );
@@ -640,12 +728,48 @@ module View = {
         ~selection=Some(selection),
         model.editors,
       );
+
+    /* Scroll handler for viewport culling. Only enabled for Scratch and
+     * Documentation modes where there's a single editor filling the
+     * scrollable area. Tutorial and Exercises have multiple editors. */
+    let on_scroll = (evt: Js.t(Dom_html.event)) => {
+      let culling_enabled =
+        switch (editors) {
+        | Scratch(_)
+        | Documentation(_) => false /* Disabled for now due to layout issues */
+        | Tutorial(_)
+        | Exercises(_) => false
+        };
+      if (!culling_enabled) {
+        Effect.Ignore;
+      } else {
+        let container =
+          Js.Opt.to_option(evt##.currentTarget)
+          |> Option.map(Js.Unsafe.coerce);
+        switch (container) {
+        | None => Effect.Ignore
+        | Some(c) =>
+          let new_visible =
+            Globals.VisibleRows.compute(
+              ~scroll_top=float_of_int(c##.scrollTop),
+              ~client_height=float_of_int(c##.clientHeight),
+              ~row_height=globals.font_metrics.row_height,
+              (),
+            );
+          Globals.VisibleRows.changed(globals.visible_rows, new_visible)
+            ? inject(Globals(UpdateVisibleRows(new_visible)))
+            : Effect.Ignore;
+        };
+      };
+    };
+
     [
       top_bar(~globals, ~inject, ~editors),
       div(
         ~attrs=[
           Attr.id("main"),
           Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.on_scroll(on_scroll),
         ],
         editors_view,
       ),
@@ -656,12 +780,17 @@ module View = {
   };
 
   let view =
-      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+      (
+        ~log_model,
+        ~get_log_and,
+        ~inject: Update.t => Ui_effect.t(unit),
+        model: Model.t,
+      ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
+      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };
 };

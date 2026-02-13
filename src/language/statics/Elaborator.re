@@ -150,14 +150,13 @@ let rec elaborate_pattern =
     // Type annotations should already appeard
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
-      p';
+      Parens(p') |> rewrap;
+    | Projector(data, p) =>
+      let (p', _) = elaborate_pattern(m, p);
+      Projector(data, p') |> rewrap;
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
-    | Probe(p, probe) =>
-      let (e', _) = elaborate_pattern(m, p);
-      let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
-      Probe(e', probe) |> rewrap;
     | Constructor(c, _) =>
       let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -209,11 +208,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
-      e';
-    | Probe(e, probe) =>
+      Parens(e') |> rewrap;
+    | Projector(data, e) =>
       let (e', _) = elaborate(m, e);
-      let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
-      Probe(e', probe) |> rewrap;
+      Projector(data, e') |> rewrap;
     | Deferral(_) => uexp
     | Atom(c) =>
       let c =

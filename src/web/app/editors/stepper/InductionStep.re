@@ -137,7 +137,7 @@ module F =
             ...model,
             cases: ListUtil.put_nth(i, new_case, model.cases),
           };
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       | AddCase =>
         let new_case = InductionCase.init;
@@ -154,7 +154,7 @@ module F =
             cases: new_cases,
           }
           |> return
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       }
     );
@@ -401,6 +401,7 @@ module F =
           | Some(_)
           | None => false
           },
+        ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );
 
