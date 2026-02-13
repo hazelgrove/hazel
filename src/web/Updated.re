@@ -54,3 +54,9 @@ let return_quiet =
     historic,
   };
 };
+
+exception InvalidAction;
+
+let raise_invalid_action = _ => {
+  raise(InvalidAction);
+};

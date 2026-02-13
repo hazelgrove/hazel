@@ -300,3 +300,190 @@
   align-items: center;
   gap: 0.5em;
 }
+
+/* Log Sidebar Styles */
+.log-sidebar {
+  background-color: var(--T1);
+  border: 1px solid var(--BR1);
+  border-radius: 0.3em;
+  padding: 1em;
+  margin-bottom: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.log-header {
+  font-weight: bold;
+  font-size: 1.1em;
+  color: var(--ui-header-text);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--BR1);
+  padding-bottom: 0.5em;
+}
+
+.log-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.log-control-row {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.log-button {
+  padding: 0.4em 0.8em;
+  background-color: var(--T2);
+  border: 1px solid var(--BR1);
+  border-radius: 0.3em;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease;
+  user-select: none;
+}
+
+.log-button:hover {
+  background-color: var(--BR1);
+}
+
+.log-button:active {
+  background-color: var(--BR2);
+}
+
+.log-button[disabled] {
+  background-color: var(--T2);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.log-progress {
+  position: relative;
+  background-color: var(--T2);
+  border: 1px solid var(--BR1);
+  border-radius: 0.3em;
+  height: 1.5em;
+  overflow: hidden;
+}
+
+.log-progress-bar {
+  background-color: var(--G1);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.log-progress-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8em;
+  color: var(--text-primary);
+  font-weight: bold;
+}
+
+.log-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.log-messages-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: var(--ui-header-text);
+}
+
+.log-clear-btn,
+.log-details-btn {
+  padding: 0.2em 0.5em;
+  background-color: var(--T2);
+  border: 1px solid var(--BR1);
+  border-radius: 0.2em;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.8em;
+  transition: background-color 0.2s ease;
+}
+
+.log-clear-btn:hover,
+.log-details-btn:hover {
+  background-color: var(--BR1);
+}
+
+.log-messages-content {
+  border: 1px solid var(--BR1);
+  border-radius: 0.3em;
+  padding: 0.5em;
+  background-color: var(--T2);
+  max-height: 20em;
+  overflow-y: auto;
+}
+
+.log-message {
+  display: flex;
+  gap: 0.5em;
+  margin-bottom: 0.3em;
+  font-family: monospace;
+  font-size: 0.85em;
+  line-height: 1.3;
+}
+
+.log-message:last-child {
+  margin-bottom: 0;
+}
+
+.log-timestamp {
+  color: var(--G2);
+  flex-shrink: 0;
+  font-weight: bold;
+}
+
+.log-content {
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.log-empty {
+  color: var(--text-disabled);
+  font-style: italic;
+  text-align: center;
+  padding: 1em;
+}
+
+.log-debug {
+  border-top: 1px solid var(--BR1);
+  padding-top: 0.75em;
+  margin-top: 0.75em;
+}
+
+.log-debug-header {
+  font-weight: bold;
+  font-size: 0.9em;
+  color: var(--ui-header-text);
+  margin-bottom: 0.5em;
+}
+
+.log-debug-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.log-debug-info {
+  font-size: 0.85em;
+  color: var(--text-primary);
+  font-family: monospace;
+}
