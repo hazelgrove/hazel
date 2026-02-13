@@ -211,7 +211,6 @@ let rec get_bindings = (pat: t) =>
     }
   };
 
-
 let rec get_num_of_vars = (pat: t) =>
   switch (is_var(pat)) {
   | Some(_) => Some(1)
