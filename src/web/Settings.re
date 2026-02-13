@@ -14,12 +14,9 @@ module Model = {
     explainThis: ExplainThisModel.Settings.t,
     assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
-<<<<<<< HEAD
     vimzel: bool,
-=======
     line_numbers: bool,
     relative_line_numbers: bool,
->>>>>>> dev
   };
 
   let init = {
@@ -67,12 +64,9 @@ module Model = {
       panel: LanguageDocumentation,
       show: true,
     },
-<<<<<<< HEAD
     vimzel: false,
-=======
     line_numbers: false,
     relative_line_numbers: false,
->>>>>>> dev
   };
 
   let fix_instructor_mode = settings =>
@@ -135,12 +129,9 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | Assistant(AssistantSettings.action)
     | FlipAnimations
-<<<<<<< HEAD
-    | Vimzel;
-=======
+    | Vimzel
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers;
->>>>>>> dev
 
   let can_undo = (action: t) => {
     switch (action) {
