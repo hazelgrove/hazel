@@ -167,11 +167,19 @@ let equality =
           // Both variables are free, so we first check ctxs, and then use the free_var_handler if provided.
           let lookup1 = {
             let* env1 = env1;
-            Environment.lookup(env1, x);
+            let v = Environment.lookup(env1, x);
+            switch (v) {
+            | Some({term: Var(v), _}) when v == x => None
+            | _ => v
+            };
           };
           let lookup2 = {
             let* env2 = env2;
-            Environment.lookup(env2, y);
+            let v = Environment.lookup(env2, y);
+            switch (v) {
+            | Some({term: Var(v), _}) when v == y => None
+            | _ => v
+            };
           };
           switch (lookup1, lookup2) {
           | (Some(v1), Some(v2)) => exp'(v1, v2)
@@ -924,3 +932,9 @@ let semantic_settings = {
 };
 
 let semantic = equality(semantic_settings);
+
+let ignoring_ascriptions =
+  equality({
+    ...semantic_settings,
+    ignore_ascriptions: true,
+  });

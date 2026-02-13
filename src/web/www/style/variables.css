@@ -120,6 +120,7 @@
   --shard-sig: var(--shard-caret-sig);
   --shard-mpat: var(--shard-caret-mpat);
   --shard-selected: var(--Y1);
+  --shard-selected-expanded: var(--Y0);
   --shard-buffer: var(--T1);
   --shard_projector: var(--T2);
   --shard-rul: var(--shard-exp);
@@ -224,6 +225,7 @@
   --projector-indicated-z: 11;
   --projector-hover-z: 12;
   --caret-z: 20;
+  --line-number-z: 21;
   --projector-overlay-z: 29;
 
   /* TOP LEVEL UI */
