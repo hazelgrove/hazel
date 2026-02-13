@@ -10,9 +10,12 @@ module Model = {
     context_inspector: bool,
     instructor_mode: bool,
     benchmark: bool,
+    show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
+    line_numbers: bool,
+    relative_line_numbers: bool,
   };
 
   let init = {
@@ -23,6 +26,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      probe_all: false,
       flip_animations: true,
       display_warnings: false,
       evaluation: {
@@ -30,6 +34,8 @@ module Model = {
         show_fn_bodies: false,
         show_fixpoints: false,
         show_ascription_steps: false,
+        show_ascriptions: false,
+        show_case_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
         stepper_history: false,
@@ -42,6 +48,7 @@ module Model = {
     context_inspector: false,
     instructor_mode: false,
     benchmark: false,
+    show_log_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
@@ -57,6 +64,8 @@ module Model = {
       panel: LanguageDocumentation,
       show: true,
     },
+    line_numbers: false,
+    relative_line_numbers: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -93,6 +102,8 @@ module Update = {
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
+    | ShowAscriptions
+    | ShowCaseSteps
     | ShowFixpoints
     | ShowLookups
     | ShowFilters
@@ -105,17 +116,21 @@ module Update = {
     | SecondaryIcons
     | Statics
     | Dynamics
+    | ProbeAll
     | Assist
     | Elaborate
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | ShowLogPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | Assistant(AssistantSettings.action)
-    | FlipAnimations;
+    | FlipAnimations
+    | ToggleLineNumbers
+    | ToggleRelativeLineNumbers;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -150,6 +165,16 @@ module Update = {
             ...settings.core,
             statics: !settings.core.dynamics || settings.core.statics,
             dynamics: !settings.core.dynamics,
+          },
+        }
+      | ProbeAll => {
+          ...settings,
+          core: {
+            ...settings.core,
+            /* Turning on probe_all requires dynamics to be on */
+            dynamics: !settings.core.probe_all || settings.core.dynamics,
+            statics: !settings.core.probe_all || settings.core.statics,
+            probe_all: !settings.core.probe_all,
           },
         }
       | Assist => {
@@ -201,6 +226,14 @@ module Update = {
           | ShowAscriptionSteps => {
               ...evaluation,
               show_ascription_steps: !evaluation.show_ascription_steps,
+            }
+          | ShowAscriptions => {
+              ...evaluation,
+              show_ascriptions: !evaluation.show_ascriptions,
+            }
+          | ShowCaseSteps => {
+              ...evaluation,
+              show_case_steps: !evaluation.show_case_steps,
             }
           | ShowFixpoints => {
               ...evaluation,
@@ -303,6 +336,11 @@ module Update = {
             },
           }
         }
+      | ShowLogPanel => {
+          ...settings,
+          show_log_panel:
+            !settings.show_log_panel && ExerciseSettings.show_instructor,
+        }
       | Benchmark => {
           ...settings,
           benchmark: !settings.benchmark,
@@ -322,6 +360,15 @@ module Update = {
       | InstructorMode => {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
+        }
+
+      | ToggleLineNumbers => {
+          ...settings,
+          line_numbers: !settings.line_numbers,
+        }
+      | ToggleRelativeLineNumbers => {
+          ...settings,
+          relative_line_numbers: !settings.relative_line_numbers,
         }
       }
     )

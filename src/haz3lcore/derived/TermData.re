@@ -85,3 +85,41 @@ let segment = (id: Id.t, data: t): option(Segment.t) => {
   let (l, r) = Skel.range(skel);
   ListUtil.sublist((l, r + 1), base_seg);
 };
+
+let get_term_rows =
+    (id: Id.t, data: t, measured: Measured.t)
+    : option((int, list(Segment.t))) => {
+  let+ (start, final) = extreme_measures(id, data, measured);
+  let term_rows =
+    measured.piece_rows
+    |> List.rev
+    |> Util.ListUtil.sublist((start.row, final.row + 1))
+    |> List.map(List.rev);
+  (start.row, term_rows);
+};
+
+let get_root_id_using_ranges =
+    (s: Base.segment, data: t, measured: Measured.t): option(Id.t) => {
+  let id_and_ranges =
+    s
+    |> List.filter_map((p: Piece.t) => {
+         let id = Piece.id(p);
+         let range_opt = extreme_measures(id, data, measured);
+         Option.map(r => (id, r), range_opt);
+       });
+  ListUtil.max(
+    ((_, (start1, end1)), (_, (start2, end2))) =>
+      switch (Point.comp(start1, start2)) {
+      | Under => Direction.Left
+      | Over => Direction.Right
+      | Exact =>
+        switch (Point.comp(end1, end2)) {
+        | Under => Direction.Right
+        | Over => Direction.Left
+        | Exact => Direction.Right
+        }
+      },
+    id_and_ranges,
+  )
+  |> Option.map(fst);
+};

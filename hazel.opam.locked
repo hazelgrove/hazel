@@ -34,7 +34,6 @@ depends: [
   "base64" {= "3.5.2"}
   "base_bigstring" {= "v0.16.0"}
   "base_quickcheck" {= "v0.16.0"}
-  "bigarray-compat" {= "1.1.0"}
   "bignum" {= "v0.16.0"}
   "bigstringaf" {= "0.10.0"}
   "bin_prot" {= "v0.16.0"}
@@ -63,8 +62,8 @@ depends: [
   "cryptokit" {= "1.16.1"}
   "csexp" {= "1.5.2"}
   "csv" {= "2.4"}
-  "ctypes" {= "0.23.0"}
-  "ctypes-foreign" {= "0.23.0"}
+  "ctypes" {= "0.24.0"}
+  "ctypes-foreign" {= "0.24.0"}
   "diffable" {= "v0.16.0"}
   "domain-name" {= "0.5.0"}
   "dune" {= "3.19.1"}

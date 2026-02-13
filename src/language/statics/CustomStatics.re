@@ -437,7 +437,7 @@ let to_lvs_statics =
       let val_typs = List.map(snd, entries);
       let joined_typ =
         Util.OptUtil.fold_left_opt(
-          (acc, t) => Typ.join(ctx, acc, t),
+          (acc, t) => Typ.meet(ctx, acc, t),
           val_typs,
           unknown,
         )

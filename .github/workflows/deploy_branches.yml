@@ -51,6 +51,9 @@ jobs:
           eval $(opam env)
           export OPAMYES=1
           opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
+      - name: Setup zarith native BigInt runtime
+        run: opam exec -- make setup-zarith
+        working-directory: ./source
       - name: Build Release
         run: |
           export DUNE_CACHE=enabled

@@ -112,6 +112,7 @@
   --shard-typ: var(--shard-caret-typ);
   --shard-tpat: var(--shard-caret-tpat);
   --shard-selected: var(--Y1);
+  --shard-selected-expanded: var(--Y0);
   --shard-buffer: var(--T1);
   --shard_projector: var(--T2);
   --shard-rul: var(--shard-exp);
@@ -223,9 +224,11 @@
   --projector-indicated-z: 11;
   --projector-hover-z: 12;
   --caret-z: 20;
+  --line-number-z: 21;
   --projector-overlay-z: 29;
 
   /* TOP LEVEL UI */
+  --context-menu-z: 30; /* must be over num-samples badge */
   --context-inspector-z: 30; /* keep below bottom bar */
   --bottom-bar-z: 31;
   --top-bar-z: 31;

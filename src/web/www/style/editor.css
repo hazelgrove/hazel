@@ -22,6 +22,42 @@
   white-space: pre;
 }
 
+.line-numbers{
+  background-color: var(--ui-bkg);
+  left: 0;
+  position: sticky; 
+  display: flex;
+  padding: 0 1em 0 0.2em;
+  margin: -2px -0.6em -2px 0;
+  min-width: 31px; /*The width of three digits*/
+  text-align: right;
+  justify-content: flex-end;
+  z-index: var(--line-number-z);
+  border-top: 2px solid var(--ui-bkg);
+  border-bottom: 2px solid var(--ui-bkg);
+}
+
+/* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
+#main.Documentation .line-numbers,
+#main.Scratch .line-numbers{
+  background-color: var(--cell-active);
+  border-color: var(--cell-active);
+}
+
+.line-numbers.line-numbers-selected{
+  background-color: var(--cell-active);
+  border-color: var(--cell-active);
+}
+
+.code .code-text.line-numbers-text :not(.line-numbers-bold){
+  color: var(--BR1);
+}
+
+.code .code-text.line-numbers-text .line-numbers-bold{
+  font-weight: bolder; 
+  color: var(--BR2);
+}
+
 /* This is a hack to compensating for default linebreak handling
 * preventing a trailing linebreak in code editors from leaving a
 * trailing blank line, as per https://stackoverflow.com/questions/43492826/.
@@ -31,6 +67,8 @@
 .code-text:after {
   content: "​";
 }
+
+
 
 /* TOKEN COLORS */
 
@@ -95,6 +133,27 @@
 .code .token.llm-waiting {
   animation: rainbow 4s linear infinite;
   font-weight: bold;
+}
+
+/* For emoji rendering in code */
+.code .grapheme-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  vertical-align: baseline;
+  white-space: pre;
+}
+
+.code-container.meta-down .token.ref {
+  cursor: pointer;
+}
+
+.code-container.meta-down .token.ref:hover {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.08em;
+  filter: brightness(1.5);
 }
 
 @keyframes rainbow {
@@ -207,6 +266,16 @@ svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
+}
+
+svg.shard.selected-expanded {
+  z-index: var(--select-z);
+  filter: drop-shadow(2px 2px 2px var(--shadow-selected));
+}
+svg.shard.selected-expanded > path {
+  fill: var(--shard-selected-expanded);
+  stroke-width: 0.5px;
+  stroke: var(--shard-selected-expanded);
 }
 
 .errors .errors-piece svg.shard,
@@ -353,4 +422,101 @@ svg:has(.child-line) {
 
 .restructuring-genie {
   z-index: var(--backpack-z);
+}
+
+/* Invisible backdrop to capture clicks outside context menu */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--context-menu-z) - 1);
+}
+
+.context-menu {
+  position: absolute;
+  min-width: 160px;
+  z-index: var(--context-menu-z);
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--menu-bkg);
+  border-radius: 0 0.5em 0.5em 0.5em;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 0.2em;
+}
+
+/* Border radius, transforms, and animations based on opening direction */
+.context-menu.open-down-right {
+  border-radius: 0 0.5em 0.5em 0.5em; /* top-left sharp */
+  transform-origin: top left;
+  animation: context-menu-open-down-right 0.12s ease-out;
+}
+.context-menu.open-down-left {
+  border-radius: 0.5em 0 0.5em 0.5em; /* top-right sharp */
+  transform: translateX(-100%);
+  transform-origin: top right;
+  animation: context-menu-open-down-left 0.12s ease-out;
+}
+.context-menu.open-up-right {
+  border-radius: 0.5em 0.5em 0.5em 0; /* bottom-left sharp */
+  transform: translateY(-100%);
+  transform-origin: bottom left;
+  animation: context-menu-open-up-right 0.12s ease-out;
+}
+.context-menu.open-up-left {
+  border-radius: 0.5em 0.5em 0 0.5em; /* bottom-right sharp */
+  transform: translate(-100%, -100%);
+  transform-origin: bottom right;
+  animation: context-menu-open-up-left 0.12s ease-out;
+}
+
+/* Open animations for each direction - scale from origin while maintaining translate */
+@keyframes context-menu-open-down-right {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes context-menu-open-down-left {
+  from { opacity: 0; transform: translateX(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateX(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-right {
+  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateY(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-left {
+  from { opacity: 0; transform: translate(-100%, -100%) scale(0.95); }
+  to { opacity: 1; transform: translate(-100%, -100%) scale(1); }
+}
+
+.context-menu .group .contents {
+  display: flex;
+  flex-direction: column;
+}
+.context-menu .named-menu-item {
+  display: flex;
+  align-items: center;
+  color: var(--menu-item-text);
+  cursor: pointer;
+  gap: 0.5em;
+}
+.context-menu .group .contents .named-menu-item {
+  padding: 0.05em 0.5em 0.05em 0.7em;
+}
+.context-menu .group .contents .named-menu-item:hover,
+.context-menu .group .contents .named-menu-item.selected {
+  background-color: var(--SAND);
+  border-radius: 0.2em;
+}
+.context-menu .named-menu-item .menu-shortcut {
+  margin-left: auto;
+  padding-left: 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+.context-menu .named-menu-item .menu-colon {
+  opacity: 0.6;
+}
+.context-menu .menu-divider {
+  height: 0.6px;
+  background: var(--menu-outline);
+  margin: 6px 0.5em;
 }

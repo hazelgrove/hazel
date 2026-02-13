@@ -18,6 +18,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
+    refractors: Refractor.init,
   };
 
 let next_blank = _ => Id.mk();
@@ -41,6 +42,7 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
+  refractors: Refractor.init,
 };
 
 let regrout = (d: Direction.t, z: t): t => {
@@ -218,14 +220,27 @@ let neighbor_tokens = (z: t): (option(Token.t), option(Token.t)) => (
   neighbor_token(Right, z),
 );
 
-let rec do_until_piece =
-        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
-  let* z = action(z);
-  if (p_n(Siblings.neighbors(z.relatives.siblings))) {
-    Some(z);
-  } else {
-    do_until_piece(action, p_n, z);
+/* Iterative version to avoid stack overflow on large programs */
+let do_until_piece =
+    (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let current = ref(action(z));
+  let result = ref(None);
+  let done_ = ref(false);
+  while (! done_^) {
+    switch (current^) {
+    | None =>
+      result := None;
+      done_ := true;
+    | Some(z) =>
+      if (p_n(Siblings.neighbors(z.relatives.siblings))) {
+        result := Some(z);
+        done_ := true;
+      } else {
+        current := action(z);
+      }
+    };
   };
+  result^;
 };
 
 /* Do `action` until the predicate on the generalized neigbors of the
@@ -234,15 +249,31 @@ let rec do_until_piece =
    we are at the edge of a segment, in which case it's the relevant shard
    of the parent. The None case strictly means the beginning/end of the program.
    If no such piece is found, don't move. Does not check predicate before
-   moving; caller should handle that case if necessary */
-let rec do_until =
-        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
-  let* z = action(z);
-  if (p_n(generalized_neighbors(z))) {
-    Some(z);
-  } else {
-    do_until(action, p_n, z);
+   moving; caller should handle that case if necessary.
+
+   NOTE: This is implemented iteratively to avoid stack overflow on large
+   programs. The previous recursive implementation would overflow when
+   traversing documents with thousands of tokens. */
+let do_until =
+    (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let current = ref(action(z));
+  let result = ref(None);
+  let done_ = ref(false);
+  while (! done_^) {
+    switch (current^) {
+    | None =>
+      result := None;
+      done_ := true;
+    | Some(z) =>
+      if (p_n(generalized_neighbors(z))) {
+        result := Some(z);
+        done_ := true;
+      } else {
+        current := action(z);
+      }
+    };
   };
+  result^;
 };
 
 let do_to_extreme = (action: t => option(t), z: t): t =>
@@ -379,10 +410,30 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
 };
 
 module Caret = {
-  let offset: caret => int =
-    fun
+  /* String shards can span multiple columns because emoji render wider than
+     ASCII.  Translate an inner caret index into measured columns by consulting
+     the token width table. */
+  let string_offset = (token: Token.t, idx: int): int =>
+    1 + Token.string_prefix_columns(token, idx);
+
+  /* Determine how many columns to advance for an Inner caret.  Prefer the
+     token on the left; if none exists fall back to the token on the right.
+     Non-strings retain the classic one-column-per-character behaviour. */
+  let inner_offset = (idx: int, z: t): int =>
+    switch (neighbor_token(Left, z)) {
+    | Some(token) when Token.is_string(token) => string_offset(token, idx)
+    | _ =>
+      switch (neighbor_token(Right, z)) {
+      | Some(token) when Token.is_string(token) => string_offset(token, idx)
+      | _ => idx + 1
+      }
+    };
+
+  let offset = (z: t): int =>
+    switch (z.caret) {
     | Outer => 0
-    | Inner(idx) => idx + 1;
+    | Inner(idx) => inner_offset(idx, z)
+    };
 
   let set = (caret: caret, z: t): t => {
     ...z,
@@ -426,11 +477,12 @@ module Caret = {
     };
 
   /* Grid position of the caret */
+  /* Convert a caret to a concrete grid point for rendering and hit testing. */
   let point = (measured: Measured.t, z: t): Point.t => {
     let Point.{row, col} = base_point(measured, z);
     {
       row,
-      col: col + offset(z.caret),
+      col: col + offset(z),
     };
   };
 
