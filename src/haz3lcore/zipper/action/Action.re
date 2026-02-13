@@ -34,6 +34,7 @@ type rel =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type select =
   | All
+  | PointToPoint((Point.t, Point.t))
   | Resize(move)
   | Smart(int)
   | Tile(rel)
@@ -91,6 +92,8 @@ type probe =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
+  | SyncReplace(FlatTypes.Doc.t)
+  | UpdateRemoteCarets /* Trigger re-render for remote cursor display */
   | Reparse
   | Buffer(buffer)
   | Paste(paste)
@@ -133,6 +136,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | SyncReplace(_)
   | Paste(_)
   | Cut
   | Reparse
@@ -145,6 +149,7 @@ let is_edit: t => bool =
   | Copy
   | Move(_)
   | Select(_)
+  | UpdateRemoteCarets
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
@@ -164,6 +169,8 @@ let is_historic: t => bool =
   | Copy
   | Move(_)
   | Select(_)
+  | SyncReplace(_)
+  | UpdateRemoteCarets
   | Unselect(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
@@ -191,7 +198,9 @@ let prevent_in_read_only_editor = (a: t) =>
   | Copy
   | Move(_)
   | Unselect(_)
+  | UpdateRemoteCarets
   | Select(_) => false
+  | SyncReplace(_)
   | Buffer(Set(_) | Accept | Clear)
   | Cut
   | Paste(_)
@@ -224,12 +233,15 @@ let should_animate: t => bool =
     switch (s) {
     | Resize(_) => false
     | All
+    | PointToPoint(_)
     | Smart(_)
     | Tile(_)
     | Term(_)
     | ToggleFocus
     | SetFocus(_) => true
     }
+  | SyncReplace(_)
+  | UpdateRemoteCarets
   | Unselect(_)
   | Paste(_)
   | Cut

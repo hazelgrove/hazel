@@ -22,6 +22,42 @@
   white-space: pre;
 }
 
+.line-numbers{
+  background-color: var(--ui-bkg);
+  left: 0;
+  position: sticky; 
+  display: flex;
+  padding: 0 1em 0 0.2em;
+  margin: -2px -0.6em -2px 0;
+  min-width: 31px; /*The width of three digits*/
+  text-align: right;
+  justify-content: flex-end;
+  z-index: var(--line-number-z);
+  border-top: 2px solid var(--ui-bkg);
+  border-bottom: 2px solid var(--ui-bkg);
+}
+
+/* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
+#main.Documentation .line-numbers,
+#main.Scratch .line-numbers{
+  background-color: var(--cell-active);
+  border-color: var(--cell-active);
+}
+
+.line-numbers.line-numbers-selected{
+  background-color: var(--cell-active);
+  border-color: var(--cell-active);
+}
+
+.code .code-text.line-numbers-text :not(.line-numbers-bold){
+  color: var(--BR1);
+}
+
+.code .code-text.line-numbers-text .line-numbers-bold{
+  font-weight: bolder; 
+  color: var(--BR2);
+}
+
 /* This is a hack to compensating for default linebreak handling
 * preventing a trailing linebreak in code editors from leaving a
 * trailing blank line, as per https://stackoverflow.com/questions/43492826/.
@@ -31,6 +67,8 @@
 .code-text:after {
   content: "​";
 }
+
+
 
 /* TOKEN COLORS */
 
@@ -222,6 +260,16 @@ svg.shard.selected > path {
   stroke: var(--shard-selected);
 }
 
+svg.shard.selected-expanded {
+  z-index: var(--select-z);
+  filter: drop-shadow(2px 2px 2px var(--shadow-selected));
+}
+svg.shard.selected-expanded > path {
+  fill: var(--shard-selected-expanded);
+  stroke-width: 0.5px;
+  stroke: var(--shard-selected-expanded);
+}
+
 .errors .errors-piece svg.shard {
   z-index: var(--err-hole-z);
   filter: none;
@@ -279,6 +327,42 @@ svg.shard.selected.buffer-parsed > path {
 .caret-path {
   fill: var(--caret-color);
   stroke: none;
+}
+
+/* Remote caret styling for collaborative cursor display */
+.remote-caret {
+  pointer-events: none;
+  opacity: 0.8;
+  z-index: var(--caret-z);
+}
+
+.remote-caret-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.remote-caret-path {
+  /* fill is set inline via style attribute */
+  stroke: none;
+}
+
+.remote-caret-label {
+  /* Positioned above the caret, left-aligned */
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  /* Small rounded rectangle */
+  padding: 1px 4px;
+  border-radius: 3px;
+  /* Small, unobtrusive font */
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  /* Text color - white for contrast against colored background */
+  color: white;
+  /* Slight shadow for readability */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 /* TERM INDICATION DECO */
@@ -403,20 +487,44 @@ svg:has(.child-line) {
 
 /* Open animations for each direction - scale from origin while maintaining translate */
 @keyframes context-menu-open-down-right {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @keyframes context-menu-open-down-left {
-  from { opacity: 0; transform: translateX(-100%) scale(0.95); }
-  to { opacity: 1; transform: translateX(-100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateX(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-100%) scale(1);
+  }
 }
 @keyframes context-menu-open-up-right {
-  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
-  to { opacity: 1; transform: translateY(-100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%) scale(1);
+  }
 }
 @keyframes context-menu-open-up-left {
-  from { opacity: 0; transform: translate(-100%, -100%) scale(0.95); }
-  to { opacity: 1; transform: translate(-100%, -100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translate(-100%, -100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-100%, -100%) scale(1);
+  }
 }
 
 .context-menu .group .contents {

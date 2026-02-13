@@ -39,6 +39,10 @@ jobs:
           eval $(opam env)
           export OPAMYES=1
           opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+
+      - name: Add the world's hackiest package
+        run: |
+          opam pin add ts2ocaml-jsoo-stdlib https://github.com/ocsigen/ts2ocaml.git\#jsoo-stdlib-v1.4.6
       - name: Install dependencies
         run: |
           eval $(opam env)

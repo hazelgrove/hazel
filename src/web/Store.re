@@ -54,21 +54,21 @@ module F =
   let save = (data: t): unit =>
     JsUtil.set_localstore(key_to_string(key), serialize(data));
 
-  let init = () => {
+  let reset = () => {
     JsUtil.set_localstore(key_to_string(key), serialize(default()));
     default();
   };
 
   let load = (): t =>
     switch (JsUtil.get_localstore(key_to_string(key))) {
-    | None => init()
+    | None => reset()
     | Some(data) => deserialize(data, default())
     };
 
   let rec export = () =>
     switch (JsUtil.get_localstore(key_to_string(key))) {
     | None =>
-      let _ = init();
+      let _ = reset();
       export();
     | Some(data) => data
     };

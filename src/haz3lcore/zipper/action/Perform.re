@@ -94,6 +94,13 @@ let go =
     |> return(Cant_select)
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
+  | Select(PointToPoint((p1, p2))) =>
+    z
+    |> Move.to_point(~measured=syntax.measured, ~goal=p1)
+    |> OptUtil.and_then(z =>
+         Select.to_point(~measured=syntax.measured, ~goal=p2, z)
+       )
+    |> return(Cant_select)
   | Select(Term(Current)) =>
     Select.current_term(
       syntax.term_data,
@@ -131,6 +138,11 @@ let go =
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> return(Cant_insert)
+  | SyncReplace(delta_doc) => Ok(SyncReplace.sync_replace(z, delta_doc))
+
+  | UpdateRemoteCarets =>
+    /* No-op on zipper state, just triggers re-render for remote cursors */
+    Ok(z)
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))

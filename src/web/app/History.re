@@ -13,8 +13,14 @@ module Model = {
 
   let equal = (===);
 
-  let init = () => {
+  let load = () => {
     current: Page.Store.load(),
+    undo_stack: [],
+    redo_stack: [],
+  };
+
+  let reset = (~font_metrics=?, ()) => {
+    current: Page.Model.reset(~font_metrics?, ()),
     undo_stack: [],
     redo_stack: [],
   };
@@ -42,7 +48,9 @@ module Update = {
       | [] =>
         print_endline("Cannot undo");
         model |> return_quiet;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        PatchworkUndoSync.sync(model.current, x.model);
+        {
           ...x,
           model: {
             current: x.model,
@@ -55,14 +63,16 @@ module Update = {
               ...model.redo_stack,
             ],
           },
-        }
+        };
       }
     | Globals(Redo) =>
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
         model |> return_quiet;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        PatchworkUndoSync.sync(model.current, x.model);
+        {
           ...x,
           model: {
             current: x.model,
@@ -75,7 +85,7 @@ module Update = {
             ],
             redo_stack: rest,
           },
-        }
+        };
       }
     | action =>
       let current =
@@ -86,7 +96,6 @@ module Update = {
           action,
           model.current,
         );
-      let _ = Log.update(action, current);
       if (Page.Update.can_undo(action)) {
         {
           ...current,

@@ -38,6 +38,7 @@
   haz3lcore
   b2t2
   pretty
+  ts2ocaml-jsoo-stdlib
   omd)
  (js_of_ocaml)
  (preprocess

@@ -21,16 +21,42 @@ module Model = {
   };
 
   let equal = (===);
+
+  let reset = (~font_metrics=?, ()) => {
+    let globals = Globals.Model.init(~font_metrics?, ());
+    let settings = globals.settings;
+    let instructor_mode = globals.settings.instructor_mode;
+    let editors = Editors.Store.reset(~settings, ~instructor_mode);
+    {
+      globals,
+      editors,
+      explain_this: ExplainThisModel.init,
+      assistant: AssistantModel.init(),
+      selection: Editors.Selection.default_selection(editors),
+    };
+  };
 };
 
 module Store = {
+  /* In Patchwork mode (running in iframe), we disable localStorage persistence
+     for editor content because Automerge handles persistence. We still load/save
+     settings (globals) since those are just UI preferences. */
+
   let load = (): Model.t => {
     let globals = Globals.Model.load();
     let editors =
-      Editors.Store.load(
-        ~settings=globals.settings.core,
-        ~instructor_mode=globals.settings.instructor_mode,
-      );
+      if (Haz3lcore.PatchworkComm.is_in_iframe()) {
+        /* In Patchwork mode: use default empty scratch editor.
+           Automerge will send the actual content via SyncReplace. */
+        Editors.Store.load_default(
+          ~settings=globals.settings.core,
+        );
+      } else {
+        Editors.Store.load(
+          ~settings=globals.settings.core,
+          ~instructor_mode=globals.settings.instructor_mode,
+        );
+      };
     let explain_this = ExplainThisModel.Store.load();
     let assistant = AssistantModel.Store.load();
     {
@@ -43,10 +69,14 @@ module Store = {
   };
 
   let save = (m: Model.t): unit => {
-    Editors.Store.save(
-      ~instructor_mode=m.globals.settings.instructor_mode,
-      m.editors,
-    );
+    /* In Patchwork mode: skip saving editor content to localStorage.
+       Automerge handles persistence. We still save settings. */
+    if (!Haz3lcore.PatchworkComm.is_in_iframe()) {
+      Editors.Store.save(
+        ~instructor_mode=m.globals.settings.instructor_mode,
+        m.editors,
+      );
+    };
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
     AssistantModel.Store.save(m.assistant);
@@ -131,7 +161,7 @@ module Update = {
           model.editors,
         );
       switch (jump) {
-      | None => model |> Updated.return_quiet
+      | None => model |> Updated.raise_invalid_action
       | Some((action, selection)) =>
         let* editors =
           Editors.Update.update(
@@ -244,8 +274,14 @@ module Update = {
           editors,
         };
       };
+    | Log(_)
     | Undo
-    | Redo => failwith("Undo/Redo are handled in the history module")
+    | Redo
+    | RethrowException
+    | ClearException =>
+      failwith(
+        "Undo/Redo/Log import/RethrowException/ClearException are handled in higher-level modules",
+      )
     };
   };
 
@@ -411,6 +447,9 @@ module Selection = {
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Globals(Undo))
+    | {key: D("K" | "k"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("K" | "k"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.Globals(Set(Zen)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
@@ -659,6 +698,7 @@ module View = {
   let main_view =
       (
         ~get_log_and: (string => unit) => unit,
+        ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
         {
@@ -669,10 +709,13 @@ module View = {
           selection,
         } as model: Model.t,
       ) => {
+    let log_count = LogCount.get();
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),
       get_log_and,
+      get_log_count: _ =>
+        failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
@@ -687,6 +730,8 @@ module View = {
           | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
+        ~log_model,
+        ~log_count,
         ~editor=Update.get_editor(model),
         cursor.info,
       );
@@ -742,7 +787,10 @@ module View = {
       div(
         ~attrs=[
           Attr.id("main"),
-          Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.classes(
+            [Editors.Model.mode_string(editors)]
+            @ (globals.settings.zen ? ["zen"] : []),
+          ),
           Attr.on_scroll(on_scroll),
         ],
         editors_view,
@@ -754,12 +802,17 @@ module View = {
   };
 
   let view =
-      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+      (
+        ~log_model,
+        ~get_log_and,
+        ~inject: Update.t => Ui_effect.t(unit),
+        model: Model.t,
+      ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
+      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };
 };
