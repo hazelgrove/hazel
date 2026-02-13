@@ -27,12 +27,23 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want backpack candidates to show up first */
   switch (ci) {
+  | InfoExp({dot_labels, _}) when dot_labels != [] =>
+    List.map(
+      label =>
+        TyDiSuggestion.{
+          content: label,
+          strategy: Exp(Common(FromCtx(Label(label) |> Typ.fresh))),
+        },
+      dot_labels,
+    )
+  | InfoExp({label_sort: true, _})
+  | InfoPat({label_sort: true, _})
   | InfoExp({cls: Exp(Label), _})
   | InfoPat({cls: Pat(Label), _})
   | InfoTyp({cls: Typ(Label), _})
   | InfoExp({cls: Exp(TupLabel), _})
   | InfoPat({cls: Pat(TupLabel), _})
-  | InfoTyp({cls: Typ(TupLabel), _}) => [] // TODO: Autocomplete for labels
+  | InfoTyp({cls: Typ(TupLabel), _}) => []
   | _ =>
     suggest_backpack(z)
     @ (

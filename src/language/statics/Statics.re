@@ -208,6 +208,7 @@ and uexp_to_info_map =
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       ~label_sort,
+      ~dot_labels: list(string)=[],
       {annotation: {ids, _}, term} as uexp: Exp.t,
       m: Map.t,
     )
@@ -231,6 +232,7 @@ and uexp_to_info_map =
         ~label_inference,
         ~inferred_label,
         ~label_sort,
+        ~dot_labels,
       );
 
     (info, add_info(ids, InfoExp(info), m));
@@ -250,6 +252,7 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=?,
         ~override_self=?,
         ~label_sort=false,
+        ~dot_labels=[],
         uexp: Exp.t,
         m: Map.t,
       ) => {
@@ -263,6 +266,7 @@ and uexp_to_info_map =
       ~override_self?,
       ~inferred_label?,
       ~label_sort,
+      ~dot_labels,
       uexp,
       m,
     );
@@ -278,6 +282,7 @@ and uexp_to_info_map =
         ~co_ctx=original_info.co_ctx,
         ~label_inference=original_info.label_inference,
         ~inferred_label=original_info.inferred_label,
+        ~dot_labels=original_info.dot_labels,
         ~label_sort=original_info.label_sort,
       );
     (
@@ -295,6 +300,7 @@ and uexp_to_info_map =
       ~inferred_label: string=?,
       ~override_self: Self.exp=?,
       ~label_sort: bool=?,
+      ~dot_labels: list(string)=?,
       TermBase.exp_t,
       Map.t
     ) =>
@@ -792,8 +798,24 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~ana=syn, e1, m);
+      let available_labels = {
+        let ty = Typ.normalize(ctx, info_e1.ty);
+        switch (ty.term) {
+        | Prod(ts) =>
+          List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
+        | List({term: Prod(ts), _}) =>
+          List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
+        | _ => []
+        };
+      };
       let (info_e2, m) =
-        go(~label_sort=true, ~ana=Label("") |> Typ.temp, e2, m);
+        go(
+          ~label_sort=true,
+          ~dot_labels=available_labels,
+          ~ana=Label("") |> Typ.temp,
+          e2,
+          m,
+        );
 
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {

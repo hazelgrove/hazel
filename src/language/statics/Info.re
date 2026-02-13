@@ -274,7 +274,8 @@ type exp = {
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
-  label_sort: bool /* When in the position of a label */
+  label_sort: bool, /* When in the position of a label */
+  dot_labels: list(string) /* Available labels when in dot-access position */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -970,6 +971,7 @@ let derived_exp =
       ~co_ctx,
       ~label_inference: option(label_inference(exp)),
       ~inferred_label: option(LabeledTuple.label),
+      ~dot_labels: list(string),
       ~label_sort,
     )
     : exp => {
@@ -989,6 +991,7 @@ let derived_exp =
     label_inference,
     inferred_label,
     label_sort,
+    dot_labels,
   };
 };
 
