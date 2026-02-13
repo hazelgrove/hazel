@@ -21,6 +21,20 @@ module Model = {
   };
 
   let equal = (===);
+
+  let reset = (~font_metrics=?, ()) => {
+    let globals = Globals.Model.init(~font_metrics?, ());
+    let settings = globals.settings;
+    let instructor_mode = globals.settings.instructor_mode;
+    let editors = Editors.Store.reset(~settings, ~instructor_mode);
+    {
+      globals,
+      editors,
+      explain_this: ExplainThisModel.init,
+      assistant: AssistantModel.init(),
+      selection: Editors.Selection.default_selection(editors),
+    };
+  };
 };
 
 module Store = {
@@ -147,7 +161,7 @@ module Update = {
           model.editors,
         );
       switch (jump) {
-      | None => model |> Updated.return_quiet
+      | None => model |> Updated.raise_invalid_action
       | Some((action, selection)) =>
         let* editors =
           Editors.Update.update(
@@ -260,8 +274,14 @@ module Update = {
           editors,
         };
       };
+    | Log(_)
     | Undo
-    | Redo => failwith("Undo/Redo are handled in the history module")
+    | Redo
+    | RethrowException
+    | ClearException =>
+      failwith(
+        "Undo/Redo/Log import/RethrowException/ClearException are handled in higher-level modules",
+      )
     };
   };
 
@@ -678,6 +698,7 @@ module View = {
   let main_view =
       (
         ~get_log_and: (string => unit) => unit,
+        ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
         {
@@ -688,10 +709,13 @@ module View = {
           selection,
         } as model: Model.t,
       ) => {
+    let log_count = LogCount.get();
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),
       get_log_and,
+      get_log_count: _ =>
+        failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
@@ -706,6 +730,8 @@ module View = {
           | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
+        ~log_model,
+        ~log_count,
         ~editor=Update.get_editor(model),
         cursor.info,
       );
@@ -776,12 +802,17 @@ module View = {
   };
 
   let view =
-      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+      (
+        ~log_model,
+        ~get_log_and,
+        ~inject: Update.t => Ui_effect.t(unit),
+        model: Model.t,
+      ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
+      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };
 };

@@ -98,6 +98,15 @@ module Store = {
       ExercisesMode.Store.save(~instructor_mode, m);
     };
   };
+
+  let reset = (~settings, ~instructor_mode) => {
+    StoreMode.save(Tutorial);
+    let _ = ScratchMode.Store.reset();
+    let _ = ScratchMode.StoreDocumentation.reset();
+    let _ = TutorialsMode.Store.reset(~settings, ~instructor_mode);
+    let _ = ExercisesMode.Store.reset(~settings, ~instructor_mode);
+    load(~settings, ~instructor_mode);
+  };
 };
 
 module Update = {
@@ -176,10 +185,10 @@ module Update = {
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Scratch(_))
-    | (Exercises(_), Documentation(_)) => model |> return_quiet
+    | (Exercises(_), Tutorial(_))
+    | (Exercises(_), Documentation(_)) => model |> raise_invalid_action
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
-    | (Exercises(_), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(
@@ -193,7 +202,7 @@ module Update = {
         |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
       |> return
-    | (SwitchMode(Tutorial), Tutorial(_)) => model |> return_quiet
+    | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(
         TutorialsMode.Store.load(
@@ -366,6 +375,7 @@ module View = {
         editors: Model.t,
       ) =>
     switch (editors) {
+    // Add in the line numbering for Scratch editor
     | Scratch(m) =>
       ScratchMode.View.view(
         ~signal=
@@ -380,6 +390,7 @@ module View = {
         ~inject=a => Update.Scratch(a) |> inject,
         m,
       )
+    // Add in the line numbering for Documentation editor
     | Documentation(m) =>
       ScratchMode.View.view(
         ~signal=

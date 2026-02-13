@@ -13,8 +13,14 @@ module Model = {
 
   let equal = (===);
 
-  let init = () => {
+  let load = () => {
     current: Page.Store.load(),
+    undo_stack: [],
+    redo_stack: [],
+  };
+
+  let reset = (~font_metrics=?, ()) => {
+    current: Page.Model.reset(~font_metrics?, ()),
     undo_stack: [],
     redo_stack: [],
   };
@@ -90,7 +96,6 @@ module Update = {
           action,
           model.current,
         );
-      let _ = Log.update(action, current);
       if (Page.Update.can_undo(action)) {
         {
           ...current,

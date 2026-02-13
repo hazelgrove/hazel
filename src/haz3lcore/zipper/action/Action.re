@@ -34,6 +34,7 @@ type rel =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type select =
   | All
+  | PointToPoint((Point.t, Point.t))
   | Resize(move)
   | Smart(int)
   | Tile(rel)
@@ -232,6 +233,7 @@ let should_animate: t => bool =
     switch (s) {
     | Resize(_) => false
     | All
+    | PointToPoint(_)
     | Smart(_)
     | Tile(_)
     | Term(_)
