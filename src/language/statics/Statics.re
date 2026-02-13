@@ -123,7 +123,7 @@ let rec any_to_info_map =
     | ModExp(e) =>
       let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
       (co_ctx, add_mod_info(m));
-    }
+    };
   | Sig(s_term) =>
     let ids = IdTagged.ids(s_term);
     let cls = Cls.Sig(Sig.cls_of_term(s_term.term));

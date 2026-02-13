@@ -4,7 +4,18 @@ open Example;
 let single: Simple.t = {
   group_id: SigTypeDecl,
   form_id: SigTypeDecl,
-  abstract: ([typ("type"), space(), tpat("T"), space(), typ("="), space(), typ("ty")], []),
+  abstract: (
+    [
+      typ("type"),
+      space(),
+      tpat("T"),
+      space(),
+      typ("="),
+      space(),
+      typ("ty"),
+    ],
+    [],
+  ),
   explanation: "A type declaration in a signature defines a type alias within the signature. Note: type declarations in signatures are currently limited -- they are parsed but not yet used during type checking. See the Modules documentation for details.",
   examples: [
     {
