@@ -179,15 +179,15 @@ let build_type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
 };
 
 /* Collect type alias exports from module items, resolving each type
-   against an accumulated context so internal references are resolved.
+      against an accumulated context so internal references are resolved.
 
-   Example:
-     { type Helper = Int -> Bool; type T = Helper }
-   Collects: [("Helper", Int -> Bool), ("T", Int -> Bool)]
-   NOT:      [("Helper", Int -> Bool), ("T", Helper)]  -- Helper out of scope outside
-*/
+      Example:
+        { type Helper = Int -> Bool; type T = Helper }
+      Collects: [("Helper", Int -> Bool), ("T", Int -> Bool)]
+      NOT:      [("Helper", Int -> Bool), ("T", Helper)]  -- Helper out of scope outside
+   */
 let rec collect_type_exports =
-    (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t)) =>
+        (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t)) =>
   items
   |> List.fold_left(
        ((ctx, acc), item: Mod.t) =>
@@ -199,8 +199,7 @@ let rec collect_type_exports =
                 wrap in Rec if self-referential, normalize otherwise */
              let (resolved, alias_ty) =
                if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec =
-                   Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
+                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
                  (ty_rec, ty_rec);
                } else {
                  (Typ.normalize(ctx, typ), typ);

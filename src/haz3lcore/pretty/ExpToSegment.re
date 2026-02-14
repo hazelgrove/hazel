@@ -993,9 +993,7 @@ let should_add_space = (s1, s2) =>
       when
         s1 == "."
         && (
-          Token.is_quoted_label(s2)
-          || Token.is_var(s2)
-          || Token.is_ctr(s2)
+          Token.is_quoted_label(s2) || Token.is_var(s2) || Token.is_ctr(s2)
         ) =>
     false
   | _
