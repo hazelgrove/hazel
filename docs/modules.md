@@ -43,7 +43,41 @@ let outer = { let inner = { let a = 42 } }
 in outer.inner.a                             -- evaluates to 42
 ```
 
-Field access uses dot notation, the same as labeled tuple access. TyDi (type-directed completion) provides autocomplete suggestions for available member names when typing after a dot, based on the inferred type of the left-hand expression. This also works for labeled tuple field access and list dot projection.
+Field access uses dot notation, the same as labeled tuple access. TyDi (type-directed completion) provides autocomplete suggestions for available member names when typing after a dot, based on the inferred type of the left-hand expression. This also works for labeled tuple field access and list dot projection. Jump-to-definition (Ctrl/Cmd+click) works for module names, navigating to the module's definition site.
+
+### Qualified Type Access (`M.T`)
+
+Type aliases defined inside modules can be accessed in type annotations using dot notation:
+
+```
+module M = { type T = Int } in
+let x : M.T = 6 in x                        -- M.T resolves to Int
+
+module M = { type A = Int -> Bool; type B = A } in
+let f : M.B = fun x -> x > 0 in f           -- M.B resolves to Int -> Bool
+
+module M = { module P = { type S = Int } } in
+let x : M.P.S = 5 in x                      -- nested module access
+```
+
+This works for both `module` keyword and lowercase `let` bindings:
+
+```
+let m = { type T = Int } in let y : m.T = 6 in y   -- lowercase works too
+```
+
+Module aliasing propagates type exports:
+
+```
+module Geometry = { type Point = (Int, Int) } in
+module Shapes = { module Geo = Geometry } in
+let p : Shapes.Geo.Point = (0, 1) in p      -- aliasing preserves type exports
+
+module M = { type T = Int } in
+let n = M in let x : n.T = 5 in x           -- variable aliasing works too
+```
+
+TyDi provides type-aware completions after the dot in type position — typing `Mod.` will suggest available type members like `MyType`.
 
 ### Shadowing
 
@@ -112,6 +146,12 @@ The `module` keyword introduces a new **MPat** sort for module name patterns, wh
 | MPat type annotations (`M : Sig`)    | Works  |
 | Menhir parser (all module forms)     | Works  |
 | Dot-label TyDi completion            | Works  |
+| Qualified type access (`M.T`)        | Works  |
+| Nested qualified types (`M.P.T`)     | Works  |
+| Module aliasing (`module N = M`)     | Works  |
+| Type-level dot TyDi completion       | Works  |
+| Jump-to-definition for modules       | Works  |
+| Explain-this for type projection     | Works  |
 
 ## Known Limitations
 
@@ -259,6 +299,21 @@ Module expansion carefully preserves tile IDs for cursor inspector integration:
 
 This ensures clicking on any part of a module shows correct type information in the cursor inspector. The Elaborator keeps inline expansion (rather than calling `ExpandModule.expand` and then `elaborate`) to avoid ID lookup issues — it constructs wrapper expressions directly with preserved IDs.
 
+### Qualified Type Access (M.T)
+
+Type aliases inside modules are exposed via **TVarEntry injection**. When statics processes `let M = Module(items)`, `ExpandModule.collect_type_exports(ctx, items)` walks the items collecting type aliases resolved against a running context (handling internal references and recursive types). The result is injected as a `TVarEntry(Singleton(exports_ty))` into the body's context.
+
+Resolution uses the existing `ProdProjection` normalization: `M.T` parses as `ProdProjection(Var("M"), Label("T"))`, and `weak_head_normalize` resolves `Var("M")` through `lookup_alias` → gets the exports Prod → `project_type` extracts the labeled field. Nested modules (`M.P.S`) work via chained ProdProjection.
+
+**TVarEntry propagation** handles aliasing: when `def.term` is `Var(v)` or `Constructor(v, _)`, `Ctx.lookup_tvar(ctx, v)` finds the original TVarEntry, which is then injected for the new binding name. This covers `let n = M`, `module N = M`, and chained aliasing.
+
+**Module aliasing in `collect_type_exports`**: `ModuleMod(Geo, Geometry)` where the RHS is a variable reference (not a literal module body) resolves the RHS variable's TVarEntry to propagate its type exports into the parent module's exports.
+
+**Known limitations** (require TypeMember enrichment — see `plans/module-future-work.md`):
+- Module-typed function parameters: `fun (m : { type T; let x : T }) -> m.T`
+- Function return values: `let m = some_fn() in m.T`
+- Signature type preservation: `SigType` entries dropped by `desugar_sig`
+
 ### Sort Fallback Patterns
 
 **Mod→Exp**: Bare expressions are valid module items. When in Mod context and no Mod form matches, the system falls back to Exp forms. This affects:
@@ -348,7 +403,7 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 
 | File                                       | What                                                                      |
 | ------------------------------------------ | ------------------------------------------------------------------------- |
-| `test/statics/Test_Statics_Modules.re`     | 58 statics tests + 10 module keyword tests                                |
+| `test/statics/Test_Statics_Modules.re`     | 58 statics tests + 10 module keyword + 13 qualified type access tests     |
 | `test/evaluator/Test_Evaluator_Modules.re` | 17 evaluator tests (module exprs, keyword, nested, probes)                |
 | `test/evaluator/Test_Evaluator_Probes.re`  | Module probe tests (probes inside module bodies)                          |
 | `test/evaluator/Test_Evaluator_ProbeCallStack.re` | Module functions in probe call stacks                               |
@@ -357,7 +412,7 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 | `test/Test_ExpToSegment.re`                | 6 module/sig roundtrip tests + 1 skipped (empty module structural diff)   |
 | `test/Test_Editing.re`                     | 4 module editing tests (brace insertion, let inside module)               |
 | `test/Test_Abbreviate.re`                  | 2 module abbreviation tests                                               |
-| `test/Test_TyDi.re`                        | Dot-label completion tests and TyDi suppression in label positions        |
+| `test/Test_TyDi.re`                        | Dot-label, qualified, type-level dot completion and suppression tests     |
 | `test/Test_Menhir.re`                      | 73 tests including module keyword, sig annotations, QCheck round-trips    |
 | `test/Test_Equality.re`                    | Module alpha-equivalence tests (ModLet, MPat, ModuleMod)                  |
 | `test/Test_Indentation.re`                 | Module body indentation and nesting tests                                 |
@@ -368,4 +423,5 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 
 | File                           | What                                                                                    |
 | ------------------------------ | --------------------------------------------------------------------------------------- |
+| `src/web/app/explainthis/data/DotTyp.re` | Explain-this content for type-level dot projection (`M.T`) |
 | `src/web/init/docs/Modules.ml` | In-editor doc slide with 26 examples covering construction, signatures, and limitations |
