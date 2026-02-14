@@ -598,7 +598,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               ) // Unlabeled tuple using deferred ap in tuplabel
-            | Var(name) =>
+            | Var(name)
+            | Constructor(name, None) =>
               TupLabel(
                 {
                   annotation: l.annotation,
@@ -745,7 +746,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           ) // Unlabeled tuple using deferred ap in tuplabel
-        | Var(name) =>
+        | Var(name)
+        | Constructor(name, None) =>
           ret(
             TupLabel(
               {

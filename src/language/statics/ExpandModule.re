@@ -148,6 +148,89 @@ let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) => {
   };
 };
 
+/* Extract a single variable name from a pattern, if it binds exactly one */
+let single_bound_var = (p: Pat.t): option(Var.t) =>
+  switch (Pat.bound_vars(p)) {
+  | [name] => Some(name)
+  | _ => None
+  };
+
+/* Build a labeled tuple type from type exports: [("T", Int)] => (T=Int)
+   Deduplicates by name, keeping the last definition (last-wins shadowing). */
+let build_type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
+  let deduped =
+    List.fold_right(
+      ((name, ty), (seen, acc)) =>
+        if (List.mem(name, seen)) {
+          (seen, acc);
+        } else {
+          ([name, ...seen], [(name, ty), ...acc]);
+        },
+      exports,
+      ([], []),
+    )
+    |> snd;
+  let fields =
+    deduped
+    |> List.map(((name, ty)) =>
+         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp
+       );
+  Prod(fields) |> Typ.temp;
+};
+
+/* Collect type alias exports from module items, resolving each type
+   against an accumulated context so internal references are resolved.
+
+   Example:
+     { type Helper = Int -> Bool; type T = Helper }
+   Collects: [("Helper", Int -> Bool), ("T", Int -> Bool)]
+   NOT:      [("Helper", Int -> Bool), ("T", Helper)]  -- Helper out of scope outside
+*/
+let rec collect_type_exports =
+    (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t)) =>
+  items
+  |> List.fold_left(
+       ((ctx, acc), item: Mod.t) =>
+         switch (item.term) {
+         | ModType(tpat, typ) =>
+           switch (tpat.term) {
+           | Var(name) =>
+             /* Mirror TyAlias statics: detect recursive types via free_vars,
+                wrap in Rec if self-referential, normalize otherwise */
+             let (resolved, alias_ty) =
+               if (List.mem(name, Typ.free_vars(typ))) {
+                 let ty_rec =
+                   Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
+                 (ty_rec, ty_rec);
+               } else {
+                 (Typ.normalize(ctx, typ), typ);
+               };
+             let ctx =
+               Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
+             (ctx, [(name, resolved), ...acc]);
+           | _ => (ctx, acc)
+           }
+         | ModuleMod(mp, def) =>
+           switch (def.term) {
+           | Module(inner_items) =>
+             let inner_exports = collect_type_exports(ctx, inner_items);
+             switch (mpat_names(mp), inner_exports) {
+             | ([name], [_, ..._]) =>
+               let exports_ty = build_type_exports_type(inner_exports);
+               let ctx =
+                 Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
+               (ctx, [(name, exports_ty), ...acc]);
+             | _ => (ctx, acc)
+             };
+           | _ => (ctx, acc)
+           }
+         | _ => (ctx, acc)
+         },
+       (ctx, []),
+     )
+  |> snd
+  |> List.rev;
+
 /* Wrap the body with a single module item.
    ModLet becomes Let, ModType becomes TyAlias, ModExp becomes let _ = e in body.
 

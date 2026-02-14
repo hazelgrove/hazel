@@ -1205,6 +1205,12 @@ and uexp_to_info_map =
         m,
       );
     | Let(p, def, body) =>
+      /* Save module items before def is shadowed by Info.exp */
+      let module_items =
+        switch (def.term) {
+        | Module(items) => Some(items)
+        | _ => None
+        };
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
@@ -1253,6 +1259,25 @@ and uexp_to_info_map =
             };
           let (def, m) = go'(~ctx=def_ctx, ~ana, def, m);
           (def, def_ctx, m, ty_p_ana);
+        };
+      /* Inject module type exports into body context */
+      let p_ana_ctx =
+        switch (module_items) {
+        | Some(items) =>
+          switch (ExpandModule.single_bound_var(p)) {
+          | Some(name) =>
+            let exports =
+              ExpandModule.collect_type_exports(ctx, items);
+            switch (exports) {
+            | [] => p_ana_ctx
+            | _ =>
+              let exports_ty =
+                ExpandModule.build_type_exports_type(exports);
+              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty);
+            };
+          | None => p_ana_ctx
+          }
+        | None => p_ana_ctx
         };
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */

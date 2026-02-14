@@ -989,7 +989,14 @@ let should_add_space = (s1, s2) =>
   | _ when String.ends_with(s1, ~suffix="…") =>
     /* Hack case for probe projector abbreviations */
     false
-  | _ when s1 == "." && (Token.is_quoted_label(s2) || Token.is_var(s2)) =>
+  | _
+      when
+        s1 == "."
+        && (
+          Token.is_quoted_label(s2)
+          || Token.is_var(s2)
+          || Token.is_ctr(s2)
+        ) =>
     false
   | _
       when
@@ -997,6 +1004,7 @@ let should_add_space = (s1, s2) =>
         && (
           Token.is_quoted_label(s1)
           || Token.is_var(s1)
+          || Token.is_ctr(s1)
           || String.ends_with(s1, ~suffix=")")
         ) =>
     false
