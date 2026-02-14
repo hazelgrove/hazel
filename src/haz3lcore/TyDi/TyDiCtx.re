@@ -169,6 +169,34 @@ let bound_qualified_aps =
     ctx.entries,
   );
 
+/* Suggest qualified type member access: for TVarEntry entries with
+ * Singleton(exports_ty) that normalize to a Prod, suggest Name.label
+ * for each labeled field. E.g., if M has type exports (T=Int, U=Bool),
+ * suggest "M.T" and "M.U" in type position. */
+let bound_qualified_types = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
+  List.concat_map(
+    fun
+    | Ctx.TVarEntry({kind: Singleton(exports_ty), name, _}) =>
+      switch (Typ.normalize(ctx, exports_ty) |> Typ.term_of) {
+      | Prod(ts) =>
+        List.filter_map(
+          label_ty =>
+            switch (Typ.match_tup_label(label_ty)) {
+            | Some((type_name, _)) =>
+              Some({
+                content: name ++ "." ++ type_name,
+                strategy: Typ(FromCtx),
+              })
+            | _ => None
+            },
+          ts,
+        )
+      | _ => []
+      }
+    | _ => [],
+    ctx.entries,
+  );
+
 /* Suggest bound type aliases in type annotations or definitions */
 let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
@@ -205,7 +233,7 @@ let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     free_variables(ana, ctx, co_ctx)
     @ bound_constructors(x => Pat(Common(x)), ana, ctx)
     @ bound_constructor_aps(x => Pat(Common(x)), ana, ctx)
-  | InfoTyp(_) => typ_context_entries(ctx)
+  | InfoTyp(_) => typ_context_entries(ctx) @ bound_qualified_types(ctx)
   | _ => []
   };
 };

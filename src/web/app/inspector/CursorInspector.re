@@ -444,15 +444,15 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | InvalidLabel(name, expected_labels) =>
     switch (expected_labels) {
     | [] => [
-        text("Invalid label: "),
+        text("Member "),
         label_view(name),
-        text(". No labels were expected."),
+        text(" not found — no members available"),
       ]
     | _ => [
-        text("Invalid label: "),
+        text("Member "),
         label_view(name),
-        text(" is not part of the expected labels: "),
-        ...List.map(code, expected_labels),
+        text(" not found. Available: "),
+        text(String.concat(", ", expected_labels)),
       ]
     }
   | DuplicateLabels(labels, _) => [

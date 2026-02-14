@@ -1205,10 +1205,16 @@ and uexp_to_info_map =
         m,
       );
     | Let(p, def, body) =>
-      /* Save module items before def is shadowed by Info.exp */
+      /* Save module items and RHS variable name before def is shadowed */
       let module_items =
         switch (def.term) {
         | Module(items) => Some(items)
+        | _ => None
+        };
+      let def_rhs_var =
+        switch (def.term) {
+        | Var(v) => Some(v)
+        | Constructor(v, _) when Ctx.lookup_var(ctx, v) != None => Some(v)
         | _ => None
         };
       let (p_syn, _) =
@@ -1266,18 +1272,26 @@ and uexp_to_info_map =
         | Some(items) =>
           switch (ExpandModule.single_bound_var(p)) {
           | Some(name) =>
-            let exports =
-              ExpandModule.collect_type_exports(ctx, items);
+            let exports = ExpandModule.collect_type_exports(ctx, items);
             switch (exports) {
             | [] => p_ana_ctx
             | _ =>
-              let exports_ty =
-                ExpandModule.build_type_exports_type(exports);
+              let exports_ty = ExpandModule.build_type_exports_type(exports);
               Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty);
             };
           | None => p_ana_ctx
           }
-        | None => p_ana_ctx
+        | None =>
+          /* Phase 1b: variable aliasing — propagate TVarEntry from RHS */
+          switch (ExpandModule.single_bound_var(p), def_rhs_var) {
+          | (Some(name), Some(rhs)) =>
+            switch (Ctx.lookup_tvar(ctx, rhs)) {
+            | Some(Singleton(exports_ty)) =>
+              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
+            | _ => p_ana_ctx
+            }
+          | _ => p_ana_ctx
+          }
         };
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */

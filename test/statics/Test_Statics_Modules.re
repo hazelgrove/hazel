@@ -490,6 +490,91 @@ let test_error_module_keyword_sig_mismatch =
     {|module M : { let x : Int } = { let x = true } in M|} |> parse_exp,
   );
 
+/* ===== QUALIFIED TYPE ACCESS TESTS (Phase 1) ===== */
+/* Use `x + 0` etc. to force the result to a concrete type, since
+   the annotation M.T stores as ProdProjection in the info map. */
+
+/* Basic M.T access */
+let test_qualified_type_basic =
+  fully_consistent_typecheck(
+    "Qualified type access: M.T",
+    {|module M = { type T = Int } in let x : M.T = 6 in x + 0|},
+    Some(int()),
+  );
+
+/* Multiple type exports */
+let test_qualified_type_multiple =
+  fully_consistent_typecheck(
+    "Qualified type access: multiple exports",
+    {|module M = { type T = Int; type U = Bool } in let x : M.T = 1 in let y : M.U = true in x + 0|},
+    Some(int()),
+  );
+
+/* Internal type reference resolution */
+let test_qualified_type_internal_ref =
+  fully_consistent_typecheck(
+    "Qualified type access: internal reference",
+    {|module M = { type A = Int -> Bool; type B = A } in let f : M.B = fun x -> x > 0 in f(1)|},
+    Some(bool()),
+  );
+
+/* Nested module type access */
+let test_qualified_type_nested =
+  fully_consistent_typecheck(
+    "Qualified type access: nested M.P.S",
+    {|module M = { module P = { type S = Int } } in let x : M.P.S = 5 in x + 0|},
+    Some(int()),
+  );
+
+/* Lowercase let binding with type access */
+let test_qualified_type_lowercase =
+  fully_consistent_typecheck(
+    "Qualified type access: lowercase let",
+    {|let m = { type T = Int } in let y : m.T = 6 in y + 0|},
+    Some(int()),
+  );
+
+/* Type shadowing in module (last wins) — has ShadowsType diagnostic */
+let test_qualified_type_shadowing =
+  fully_consistent_typecheck(
+    "Qualified type access: type used after non-shadowed definition",
+    {|module M = { type T = Int; let x : T = 1 } in let y : M.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+/* Unknown type member (error) */
+let test_error_qualified_type_unknown =
+  inconsistent_typecheck(
+    "Qualified type access: unknown member M.U",
+    {|module M = { type T = Int } in let x : M.U = 5 in x|} |> parse_exp,
+  );
+
+/* ===== QUALIFIED TYPE ACCESS: ALIASING TESTS (Phase 1b) ===== */
+
+/* Variable aliasing */
+let test_qualified_type_var_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: variable aliasing",
+    {|module M = { type T = Int } in let n = M in let x : n.T = 5 in x + 0|},
+    Some(int()),
+  );
+
+/* Module aliasing */
+let test_qualified_type_module_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: module aliasing",
+    {|module M = { type T = Int } in module N = M in let x : N.T = 5 in x + 0|},
+    Some(int()),
+  );
+
+/* Chained aliasing */
+let test_qualified_type_chained_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: chained aliasing",
+    {|module M = { type T = Int } in let n = M in let p = n in let x : p.T = 5 in x + 0|},
+    Some(int()),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -557,5 +642,17 @@ let tests = (
     test_module_keyword_multi_annotation,
     test_error_module_keyword_annotation_mismatch,
     test_error_module_keyword_sig_mismatch,
+    /* Qualified type access tests (Phase 1) */
+    test_qualified_type_basic,
+    test_qualified_type_multiple,
+    test_qualified_type_internal_ref,
+    test_qualified_type_nested,
+    test_qualified_type_lowercase,
+    test_qualified_type_shadowing,
+    test_error_qualified_type_unknown,
+    /* Qualified type access aliasing tests (Phase 1b) */
+    test_qualified_type_var_alias,
+    test_qualified_type_module_alias,
+    test_qualified_type_chained_alias,
   ],
 );
