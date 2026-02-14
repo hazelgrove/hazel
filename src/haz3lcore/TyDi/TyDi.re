@@ -36,6 +36,16 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         },
       dot_labels,
     )
+  | InfoTyp({expects: LabelProjectionExpected(Some(labels)), _})
+      when labels != [] =>
+    List.map(
+      label =>
+        TyDiSuggestion.{
+          content: label,
+          strategy: Typ(FromCtx),
+        },
+      labels,
+    )
   | InfoExp({label_sort: true, _})
   | InfoPat({label_sort: true, _})
   | InfoExp({cls: Exp(Label), _})

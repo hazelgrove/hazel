@@ -184,6 +184,21 @@ let type_tests = (
       ~code="let x : St¦",
       ~expect=Some("ring"),
     ),
+    tydi_test(
+      ~name="Qualified type: dot label prefix match",
+      ~code="module Mod = { type MyType = Int } in let x : Mod.My¦",
+      ~expect=Some("Type"),
+    ),
+    tydi_test(
+      ~name="Qualified type: dot label exact match",
+      ~code="module Mod = { type MyType = Int } in let x : Mod.MyType¦",
+      ~expect=None,
+    ),
+    tydi_test(
+      ~name="Qualified type: dot label no match",
+      ~code="module Mod = { type MyType = Int } in let x : Mod.Z¦",
+      ~expect=None,
+    ),
   ],
 );
 

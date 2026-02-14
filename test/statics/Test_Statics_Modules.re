@@ -575,6 +575,30 @@ let test_qualified_type_chained_alias =
     Some(int()),
   );
 
+/* Nested module with values alongside type exports (Shapes.Geo.Point scenario) */
+let test_qualified_type_nested_with_values =
+  fully_consistent_typecheck(
+    "Qualified type access: nested with sibling value bindings",
+    {|module Shapes = { let radius = 5; module Geo = { type Point = (x=Int, y=Int) } } in let home : Shapes.Geo.Point = (x=0, y=0) in home.x + 0|},
+    Some(int()),
+  );
+
+/* Module aliasing inside module: module Geo = Geometry propagates type exports */
+let test_qualified_type_nested_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: nested module alias",
+    {|module Geometry = { type Point = (Int, Int) } in module Shapes = { module Geo = Geometry } in let (a, _) : Shapes.Geo.Point = (0, 1) in a + 0|},
+    Some(int()),
+  );
+
+/* Module aliasing with sibling type exports */
+let test_qualified_type_nested_alias_with_sibling =
+  fully_consistent_typecheck(
+    "Qualified type access: nested module alias with sibling type",
+    {|module Geometry = { type Point = (Int, Int) } in module Shapes = { module Geo = Geometry; type Radius = Int } in let (a, _) : Shapes.Geo.Point = (0, 1) in a + 0|},
+    Some(int()),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -654,5 +678,8 @@ let tests = (
     test_qualified_type_var_alias,
     test_qualified_type_module_alias,
     test_qualified_type_chained_alias,
+    test_qualified_type_nested_with_values,
+    test_qualified_type_nested_alias,
+    test_qualified_type_nested_alias_with_sibling,
   ],
 );

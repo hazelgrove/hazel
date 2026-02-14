@@ -2700,8 +2700,8 @@ let get_doc =
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | ProdProjection(_) => get_message(DotTyp.dot)
     | ExplicitNonlabel
-    | ProdProjection(_)
     | ProdExtension(_)
     | Parens(_)
     | Sig(_) => message_single(SigTyp.single)

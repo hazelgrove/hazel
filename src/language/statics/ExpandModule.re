@@ -210,19 +210,40 @@ let rec collect_type_exports =
            | _ => (ctx, acc)
            }
          | ModuleMod(mp, def) =>
-           switch (def.term) {
-           | Module(inner_items) =>
-             let inner_exports = collect_type_exports(ctx, inner_items);
-             switch (mpat_names(mp), inner_exports) {
-             | ([name], [_, ..._]) =>
-               let exports_ty = build_type_exports_type(inner_exports);
-               let ctx =
-                 Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
-               (ctx, [(name, exports_ty), ...acc]);
-             | _ => (ctx, acc)
+           /* Resolve RHS type exports: either a literal module body
+              or a variable alias (module Geo = Geometry) */
+           let rhs_exports_ty =
+             switch (def.term) {
+             | Module(inner_items) =>
+               switch (collect_type_exports(ctx, inner_items)) {
+               | [_, ..._] as inner_exports =>
+                 Some(build_type_exports_type(inner_exports))
+               | [] => None
+               }
+             | _ =>
+               /* Module aliasing: look up RHS variable's TVarEntry */
+               let rhs_name =
+                 switch (def.term) {
+                 | Var(v)
+                 | Constructor(v, _) => Some(v)
+                 | _ => None
+                 };
+               switch (rhs_name) {
+               | Some(rhs) =>
+                 switch (Ctx.lookup_tvar(ctx, rhs)) {
+                 | Some(Singleton(exports_ty)) => Some(exports_ty)
+                 | _ => None
+                 }
+               | None => None
+               };
              };
+           switch (mpat_names(mp), rhs_exports_ty) {
+           | ([name], Some(exports_ty)) =>
+             let ctx =
+               Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
+             (ctx, [(name, exports_ty), ...acc]);
            | _ => (ctx, acc)
-           }
+           };
          | _ => (ctx, acc)
          },
        (ctx, []),

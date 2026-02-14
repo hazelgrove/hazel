@@ -1083,8 +1083,14 @@ let get_binding_site = (info: t): option(Id.t) => {
     entry.id == Id.invalid ? None : Some(entry.id);
   | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
   | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
-    let* entry = Ctx.lookup_ctr(ctx, name);
-    entry.id == Id.invalid ? None : Some(entry.id);
+    switch (Ctx.lookup_ctr(ctx, name)) {
+    | Some(entry) when entry.id != Id.invalid => Some(entry.id)
+    | _ =>
+      /* Fallback: capitalized names (modules) parse as Constructor
+         but bind as VarEntry via the Constructor-to-Var fallback */
+      let* entry = Ctx.lookup_var(ctx, name);
+      entry.id == Id.invalid ? None : Some(entry.id);
+    }
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
     let* id = Ctx.lookup_tvar_id(ctx, name);
     id == Id.invalid ? None : Some(id);
