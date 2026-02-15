@@ -694,6 +694,11 @@ let go =
     | Some(z) => z
     | None => z
     }
+  | RemoveAll =>
+    z
+    |> Zipper.update_manuals(_ => [])
+    |> Zipper.update_ephemerals(_ => Id.Map.empty)
+    |> SampleCursorPerform.reset
   };
 
 /* Check if id has either manual or ephermeral probe on it */

@@ -389,6 +389,18 @@ let view =
         ];
       };
 
+    let clear_all_button =
+      span(
+        ~attrs=[
+          Attr.classes(["clear-all"]),
+          Attr.title("Remove all probes"),
+          Attr.on_pointerdown(_ =>
+            globals.inject_global(ActiveEditor(Probe(RemoveAll)))
+          ),
+        ],
+        [text("Clear all")],
+      );
+
     div(
       ~attrs=[
         Attr.id("closure-cursor-bar"),
@@ -397,6 +409,9 @@ let view =
           key_handler(~globals, ~index, ~max_index, ~call_stack, ~info_map),
         ),
       ],
-      [div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon)],
+      [
+        div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
+        clear_all_button,
+      ],
     );
   };

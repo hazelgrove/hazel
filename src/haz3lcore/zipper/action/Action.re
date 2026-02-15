@@ -88,7 +88,8 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
-  | StepInto(Language.Sample.call_stack, Id.t);
+  | StepInto(Language.Sample.call_stack, Id.t)
+  | RemoveAll;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

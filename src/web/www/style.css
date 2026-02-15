@@ -305,6 +305,23 @@ select {
   background-color: white;
 }
 
+#closure-cursor-bar .clear-all {
+  margin-left: auto;
+  color: var(--BR4);
+  font-family: var(--ui-font);
+  font-size: 0.75em;
+  padding: 0.15em 0.5em;
+  border: 0.75px solid var(--BR3);
+  border-radius: 3px;
+  cursor: pointer;
+  background-color: transparent;
+  transition: background-color 0.1s;
+}
+
+#closure-cursor-bar .clear-all:hover {
+  background-color: var(--Y1);
+}
+
 #bottom-bar {
   z-index: var(--bottom-bar-z);
   grid-row: 4 / span 1;
