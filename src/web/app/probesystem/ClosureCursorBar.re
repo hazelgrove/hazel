@@ -309,7 +309,15 @@ let view =
               | _ => []
               };
 
-            let entry_tooltip = "Jump to call site";
+            let entry_tooltip =
+              if (is_in_user_code(~info_map, app_id)) {
+                "Jump to call site";
+              } else {
+                switch (call_site_target) {
+                | Some(_) => {js|Internal call — jump to enclosing call site|js}
+                | None => "Internal call"
+                };
+              };
 
             let entry =
               div(

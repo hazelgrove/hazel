@@ -261,11 +261,11 @@ select {
 
 #closure-cursor-bar .breadcrumb-entry.unknown {
   color: var(--BR1);
-  cursor: default;
 }
 
-#closure-cursor-bar .breadcrumb-entry.unknown:hover {
-  background-color: transparent;
+#closure-cursor-bar .breadcrumb-entry.unknown.focused {
+  color: var(--G0);
+  background-color: var(--G5);
 }
 
 /* Pin icon - same style as sample pin but positioned for breadcrumb */
