@@ -556,6 +556,16 @@ let step_into_call_stack =
     Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
   let* ci_body = Statics.Map.lookup(body_id, info_map);
 
+  /* Ensure a manual probe on the source expression (ap_id) before jumping.
+     If there's only an auto probe, promote it to manual so it persists. */
+  let z =
+    switch (probe_status(ap_id, info_map, z.refractors)) {
+    | Manual(_)
+    | Statics(_) => z
+    | Auto
+    | Non => Zipper.add_manual(ap_id, Probe, z)
+    };
+
   /* Add auto probe on function body if not already probed */
   let z =
     switch (probe_status(body_id, info_map, z.refractors)) {
