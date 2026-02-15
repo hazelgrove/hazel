@@ -169,6 +169,36 @@ definition, fall back to the nearest user-visible call site (same as
 the separator fallback). All fold_left names would jump to the
 `fold_left(actions, update, ledger)` application in user code.
 
+## Future idea: step-into through built-in higher-order functions
+
+**Status:** Not implemented. Recording for future consideration.
+
+**Problem:** When debugging a chain like `test → run → fold_left → update`,
+step-into can get you from the test into `run`, but then you hit
+`fold_left(actions, update, ledger)`. Step-into on this call lands inside
+`fold_left` (a built-in), which isn't useful. You want to get to `update`.
+
+Manually eta-expanding — replacing `update` with `fun a -> update(a)` — gives
+you a user-visible application site that step-into can target. This works
+because the lambda body has an explicit `update(a)` call you can step into,
+which places a probe on `update`'s body and sets the dynamic cursor to the
+right call context.
+
+**Idea:** The system could simulate eta-expansion at the cursor level. When
+step-into targets a built-in call:
+1. Identify function-typed arguments (e.g. `update` in `fold_left(xs, update, acc)`)
+2. Resolve the argument to its definition via statics/binding site
+3. Place an auto-probe on the callback's body
+4. Set the dynamic cursor to include intermediate built-in frames
+
+This would behave as if the user had eta-expanded and stepped through manually.
+
+**Challenges:**
+- Identifying which argument is the callback (type-based or heuristic)
+- Multiple function arguments: which one to step into? May need user choice.
+- Constructing cursor state for frames the user never explicitly navigated through
+- Non-trivial interaction with pin system and sample filtering
+
 ## `fn_def_id` pipeline
 
 The `fn_def_id` field is populated during evaluation:
