@@ -545,9 +545,28 @@ let step_into_sample =
     (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
   parent(Probe(StepInto(sample.call_stack, ap_id)));
 
+/* Check if step-into is possible for this probe's function call.
+ * Requires: Ap of a named variable that isn't a built-in. */
+let can_step_into =
+    (statics: option(Language.Statics.Info.t)): bool =>
+  switch (statics) {
+  | Some(InfoExp({term: {term: Ap(_, fn_exp, _), _}, _})) =>
+    switch (fn_exp.term) {
+    | Var(name) => Environment.lookup(Builtins.env_init, name) == None
+    | _ => false
+    }
+  | _ => false
+  };
+
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
 let sample_context_actions =
-    (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t, sample: Sample.t)
+    (
+      ~parent,
+      ~ap_id: option(Id.t),
+      ~di: Dynamics.Info.t,
+      ~can_step_into: bool,
+      sample: Sample.t,
+    )
     : list(Node.t) =>
   switch (ap_id) {
   | Some(ap_id) =>
@@ -572,27 +591,33 @@ let sample_context_actions =
               span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
             ],
           ),
-          /* Step Into action */
-          div(
-            ~attrs=[
-              Attr.classes(["action-item", "step-into-action"]),
-              Attr.on_pointerdown(_
-                /* Stop propagation to prevent parent wrapper's Focus action
-                   from moving cursor back to the probe after we jump */
-                =>
-                  Effect.Many([
-                    Effect.Stop_propagation,
-                    step_into_sample(~parent, ~sample, ~ap_id),
-                  ])
-                ),
-            ],
-            [
-              div(~attrs=[Attr.classes(["step-into-icon"])], []),
-              text("Step into"),
-              span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
-            ],
-          ),
-        ],
+        ]
+        @ (
+          can_step_into
+            ? [
+              /* Step Into action */
+              div(
+                ~attrs=[
+                  Attr.classes(["action-item", "step-into-action"]),
+                  Attr.on_pointerdown(_
+                    /* Stop propagation to prevent parent wrapper's Focus action
+                       from moving cursor back to the probe after we jump */
+                    =>
+                      Effect.Many([
+                        Effect.Stop_propagation,
+                        step_into_sample(~parent, ~sample, ~ap_id),
+                      ])
+                    ),
+                ],
+                [
+                  div(~attrs=[Attr.classes(["step-into-icon"])], []),
+                  text("Step into"),
+                  span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
+                ],
+              ),
+            ]
+            : []
+        ),
       ),
     ];
   | None => []
@@ -862,7 +887,13 @@ let sample_context_menu =
         ),
       ]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
-    sample_context_actions(~parent, ~ap_id, ~di, sample)
+    sample_context_actions(
+      ~parent,
+      ~ap_id,
+      ~di,
+      ~can_step_into=can_step_into(statics),
+      sample,
+    )
     @ sample_call_display(~settings, ~statics, sample, view_seg, utility)
     @ sample_environment(~settings, ~filter_vars, sample, view_seg, utility),
   );
