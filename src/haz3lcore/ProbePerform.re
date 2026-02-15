@@ -184,14 +184,21 @@ let sort_ids_lexically =
   List.map(((id, _, _)) => id, sorted);
 };
 
+/* Check if id has either manual or ephemeral probe on it */
+let has_probe = (id: Id.t, z: Zipper.t): bool =>
+  List.assoc_opt(id, z.refractors.manuals) != None
+  || Id.Map.mem(id, z.refractors.autos.ephemerals);
+
 let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
-  SampleCursorPerform.update_pinned_call(_, p =>
-    switch (p) {
-    | Some([{id: hd_id, _}, ..._] as call_stack) =>
-      List.mem(hd_id, ids) ? None : Some(call_stack)
-    | x => x
-    }
-  );
+  z =>
+    SampleCursorPerform.update_pinned_call(z, p =>
+      switch (p) {
+      | Some([{id: hd_id, _}, ..._] as call_stack) =>
+        List.mem(hd_id, ids) && !has_probe(hd_id, z)
+          ? None : Some(call_stack)
+      | x => x
+      }
+    );
 
 /* Check if there are no probes (manual or auto) remaining */
 let has_no_probes = (z: Zipper.t): bool =>
@@ -711,11 +718,7 @@ let go =
     |> SampleCursorPerform.reset
   };
 
-/* Check if id has either manual or ephermeral probe on it */
-let has_probe = (id: Id.t, z: Zipper.t): bool => {
-  List.assoc_opt(id, z.refractors.manuals) != None
-  || Id.Map.mem(id, z.refractors.autos.ephemerals);
-};
+/* Note: has_probe is defined earlier (above maybe_rm_pin) */
 
 /* Get the kind of refractor at the given id, if any */
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
