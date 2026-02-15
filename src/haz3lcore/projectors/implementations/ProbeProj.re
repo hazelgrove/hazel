@@ -638,6 +638,30 @@ let get_arg_var_names =
   };
 };
 
+/* Extract per-position variable info from arguments.
+ * Returns list(option(string)) where Some(name) means that argument
+ * position is a bare variable reference. Used to render "name = value"
+ * labels in the call display for variable arguments. */
+let get_arg_var_info =
+    (statics: option(Language.Statics.Info.t)): list(option(string)) => {
+  let rec extract_var = (e: Exp.t): option(string) =>
+    switch (e.term) {
+    | Var(name) => Some(name)
+    | Parens(inner) => extract_var(inner)
+    | _ => None
+    };
+  switch (statics) {
+  | Some(InfoExp({term: {term: Ap(_, _, arg), _}, _})) =>
+    switch (arg.term) {
+    | Var(name) => [Some(name)]
+    | Parens(inner) => [extract_var(inner)]
+    | Tuple(elements) => List.map(extract_var, elements)
+    | _ => [None]
+    }
+  | _ => []
+  };
+};
+
 /* Call display section showing function call with argument values */
 let sample_call_display =
     (
@@ -651,6 +675,7 @@ let sample_call_display =
   switch (sample.args, get_fn_name_from_statics(statics)) {
   | (Some(arg_val), Some(fn_name)) =>
     let length = SampleLength.get(settings.window, sample);
+    let arg_var_info = get_arg_var_info(statics);
     let render_exp = (exp: Exp.t) => {
       let (seg, _) = abbreviated_seg_of(utility, length, exp);
       view_seg(~text_only=false, Sort.Exp, seg);
@@ -680,9 +705,21 @@ let sample_call_display =
           List.mapi(
             (i, elem) => {
               let is_last = i == num_elems - 1;
+              let var_label =
+                switch (List.nth_opt(arg_var_info, i)) {
+                | Some(Some(name)) => [
+                    Node.span(
+                      ~attrs=[Attr.classes(["arg-name"])],
+                      [Node.text(name)],
+                    ),
+                    Node.text(" = "),
+                  ]
+                | _ => []
+                };
               div(
                 ~attrs=[Attr.classes(["call-arg-row"])],
-                [render_exp(elem)]
+                var_label
+                @ [render_exp(elem)]
                 @ (is_last ? [] : [Node.text(",")])
                 @ (
                   is_last
@@ -721,6 +758,17 @@ let sample_call_display =
         ];
       | _ =>
         /* Single argument - render inline with parens */
+        let var_label =
+          switch (arg_var_info) {
+          | [Some(name)] => [
+              Node.span(
+                ~attrs=[Attr.classes(["arg-name"])],
+                [Node.text(name)],
+              ),
+              Node.text(" = "),
+            ]
+          | _ => []
+          };
         [
           div(
             ~attrs=[Attr.classes(["call-display"])],
@@ -733,6 +781,9 @@ let sample_call_display =
                 ~attrs=[Attr.classes(["paren"])],
                 [Node.text("(")],
               ),
+            ]
+            @ var_label
+            @ [
               render_exp(arg_exp),
               Node.span(
                 ~attrs=[Attr.classes(["paren"])],
@@ -740,7 +791,7 @@ let sample_call_display =
               ),
             ],
           ),
-        ]
+        ];
       }
     };
   | _ => []
