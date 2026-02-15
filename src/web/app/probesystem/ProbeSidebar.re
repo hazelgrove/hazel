@@ -742,12 +742,18 @@ let print_string = (probes: Sample.Map.t) => {
     collect_print_samples(probes)
     |> List.sort((a, b) => Int.compare(a.Sample.seq, b.Sample.seq))
     |> List.map(sample =>
-         sample.Sample.value
-         |> ExpToSegment.exp_to_segment(
-              ~settings=
-                ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
-            )
-         |> Printer.of_segment(~holes="")
+         "›"
+         ++ (
+           sample.Sample.value
+           |> ExpToSegment.exp_to_segment(
+                ~settings=
+                  ExpToSegment.Settings.of_core(
+                    ~inline=true,
+                    CoreSettings.off,
+                  ),
+              )
+           |> Printer.of_segment(~holes="")
+         )
        );
 
   let print_summary = (probes: Sample.Map.t): option(string) =>

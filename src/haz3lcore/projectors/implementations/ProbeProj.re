@@ -547,8 +547,7 @@ let step_into_sample =
 
 /* Check if step-into is possible for this probe's function call.
  * Requires: Ap of a named variable that isn't a built-in. */
-let can_step_into =
-    (statics: option(Language.Statics.Info.t)): bool =>
+let can_step_into = (statics: option(Language.Statics.Info.t)): bool =>
   switch (statics) {
   | Some(InfoExp({term: {term: Ap(_, fn_exp, _), _}, _})) =>
     switch (fn_exp.term) {
@@ -612,7 +611,10 @@ let sample_context_actions =
                 [
                   div(~attrs=[Attr.classes(["step-into-icon"])], []),
                   text("Step into"),
-                  span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
+                  span(
+                    ~attrs=[Attr.classes(["shortcut"])],
+                    [text("Enter")],
+                  ),
                 ],
               ),
             ]

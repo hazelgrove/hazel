@@ -244,7 +244,7 @@
 }
 
 #probesys .panel.prints .body {
-  white-space: pre;
+  white-space: pre-wrap;
 }
 
 #probesys .eval-controls {
