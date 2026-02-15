@@ -244,7 +244,43 @@
 }
 
 #probesys .panel.prints .body {
+  user-select: text;
+  cursor: text;
+}
+
+#probesys .panel.prints .print-entry {
+  display: flex;
+  align-items: baseline;
+  padding: 0.2em 0.4em;
+  border-bottom: 0.5px solid var(--BR1);
+  gap: 0.5em;
+}
+
+#probesys .panel.prints .print-entry:last-child {
+  border-bottom: none;
+}
+
+#probesys .panel.prints .print-seq {
+  color: var(--BR1);
+  font-size: 0.85em;
+  min-width: 2em;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+#probesys .panel.prints .print-value {
+  flex: 1;
   white-space: pre-wrap;
+  word-break: break-word;
+  min-width: 0;
+}
+
+#probesys .panel.prints .print-line {
+  color: var(--BR1);
+  font-size: 0.85em;
+  flex-shrink: 0;
+  align-self: flex-start;
+  text-align: right;
 }
 
 #probesys .eval-controls {
@@ -254,24 +290,10 @@
   padding: 0.25em 0;
 }
 
-#probesys .eval-mode-button {
-  padding: 0.3em 0.7em;
-  font-size: 0.8em;
-  color: var(--BR2);
-  cursor: pointer;
-  border-radius: 3px;
-  background-color: var(--T1);
-  border: 0.75px solid var(--BR1);
-}
-
-#probesys .eval-mode-button:hover {
-  background-color: var(--T2);
-}
-
-#probesys .eval-mode-button.active {
-  background-color: var(--T3);
-  color: var(--BR4);
-  border-color: var(--BR2);
+#probesys .eval-controls .named-menu-item {
+  display: flex;
+  gap: 0.5em;
+  color: var(--BR3);
 }
 
 #probesys .run-button {

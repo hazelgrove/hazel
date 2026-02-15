@@ -724,8 +724,15 @@ let probes_panel_view =
       );
 };
 
-let print_string = (probes: Sample.Map.t) => {
-  let collect_print_samples = (probes: Sample.Map.t): list(Sample.t) =>
+type print_entry = {
+  seq: int,
+  value_str: string,
+  line: option(int),
+};
+
+let collect_print_entries =
+    (probes: Sample.Map.t, measured: Measured.t): list(print_entry) => {
+  let samples =
     Id.Map.fold(
       (_, samples, acc) =>
         List.fold_left(
@@ -737,32 +744,27 @@ let print_string = (probes: Sample.Map.t) => {
       probes,
       [],
     );
-
-  let collect_print_outputs = (probes: Sample.Map.t): list(string) =>
-    collect_print_samples(probes)
-    |> List.sort((a, b) => Int.compare(a.Sample.seq, b.Sample.seq))
-    |> List.map(sample =>
-         "›"
-         ++ (
-           sample.Sample.value
-           |> ExpToSegment.exp_to_segment(
-                ~settings=
-                  ExpToSegment.Settings.of_core(
-                    ~inline=true,
-                    CoreSettings.off,
-                  ),
-              )
-           |> Printer.of_segment(~holes="")
-         )
-       );
-
-  let print_summary = (probes: Sample.Map.t): option(string) =>
-    switch (collect_print_outputs(probes)) {
-    | [] => None
-    | outputs => Some(String.concat("\n", outputs))
-    };
-
-  probes |> print_summary;
+  samples
+  |> List.sort((a, b) => Int.compare(a.Sample.seq, b.Sample.seq))
+  |> List.map(sample => {
+       let value_str =
+         sample.Sample.value
+         |> ExpToSegment.exp_to_segment(
+              ~settings=
+                ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+            )
+         |> Printer.of_segment(~holes="");
+       let line =
+         switch (Measured.find_by_id(sample.syntax_id, measured)) {
+         | Some(m) => Some(m.origin.row + 1)
+         | None => None
+         };
+       {
+         seq: sample.seq + 1,
+         value_str,
+         line,
+       };
+     });
 };
 
 type panel_mode =
@@ -777,7 +779,7 @@ type eval_mode =
   | Manual;
 
 let eval_mode_ref = ref(Auto);
-let cached_print_output = ref(None: option(string));
+let cached_print_entries = ref(None: option(list(print_entry)));
 
 let mode_toggle = (~explain_this_inject) =>
   Widgets.toggle(
@@ -790,37 +792,54 @@ let mode_toggle = (~explain_this_inject) =>
     },
   );
 
-let eval_mode_button = (~explain_this_inject, ~label, ~is_active, ~action) =>
-  div(
-    ~attrs=[
-      clss(["eval-mode-button", is_active ? "active" : "inactive"]),
-      Attr.on_click(_ => {
-        action();
-        explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-      }),
-    ],
-    [text(label)],
-  );
-
-let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) =>
+let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
+  let measured = editor.editor.syntax.measured;
   div(
     ~attrs=[
       clss(["run-button"]),
       Attr.title("Run and refresh print output"),
       Attr.on_click(_ => {
-        cached_print_output := print_string(editor.dynamics);
+        let entries = collect_print_entries(editor.dynamics, measured);
+        cached_print_entries := List.is_empty(entries) ? None : Some(entries);
         explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
       }),
     ],
     [text("Run")],
   );
+};
+
+let render_print_entry = (entry: print_entry): Node.t =>
+  div(
+    ~attrs=[clss(["print-entry"])],
+    [
+      span(
+        ~attrs=[clss(["print-seq"])],
+        [text(string_of_int(entry.seq))],
+      ),
+      span(~attrs=[clss(["print-value"])], [text(entry.value_str)]),
+      span(
+        ~attrs=[clss(["print-line"])],
+        [
+          text(
+            switch (entry.line) {
+            | Some(n) => ":" ++ string_of_int(n)
+            | None => ""
+            },
+          ),
+        ],
+      ),
+    ],
+  );
 
 let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
-  /* Determine what output to display */
-  let output =
+  let measured = editor.editor.syntax.measured;
+  /* Determine what entries to display */
+  let entries =
     switch (eval_mode_ref^) {
-    | Auto => print_string(editor.dynamics)
-    | Manual => cached_print_output^
+    | Auto =>
+      let es = collect_print_entries(editor.dynamics, measured);
+      List.is_empty(es) ? Option.none : Option.some(es);
+    | Manual => cached_print_entries^
     };
   [
     div(
@@ -835,19 +854,14 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     div(
       ~attrs=[clss(["eval-controls"])],
       [
-        eval_mode_button(
-          ~explain_this_inject,
-          ~label="",
-          ~is_active=eval_mode_ref^ == Auto,
-          ~action=() =>
-          eval_mode_ref := Auto
-        ),
-        eval_mode_button(
-          ~explain_this_inject,
-          ~label="",
-          ~is_active=eval_mode_ref^ == Manual,
-          ~action=() =>
-          eval_mode_ref := Manual
+        Widgets.toggle_named(
+          ~tooltip="Auto-eval",
+          eval_mode_ref^ == Auto ? "A" : "M",
+          eval_mode_ref^ == Auto,
+          _ => {
+            eval_mode_ref := eval_mode_ref^ == Auto ? Manual : Auto;
+            explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+          },
         ),
         ...eval_mode_ref^ == Manual
              ? [run_button(~explain_this_inject, ~editor)] : [],
@@ -858,16 +872,15 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
       [
         div(
           ~attrs=[clss(["body", "code"])],
-          [
-            switch (output) {
-            | Some(summary) => text(summary)
-            | None =>
+          switch (entries) {
+          | Some(es) => List.map(render_print_entry, es)
+          | None => [
               text(
                 eval_mode_ref^ == Manual
                   ? "Click Run to see print outputs" : "No print outputs",
-              )
-            },
-          ],
+              ),
+            ]
+          },
         ),
       ],
     ),
