@@ -211,7 +211,7 @@ let view =
         )
       );
 
-    /* Top-level λ entry (always present when bar is shown)
+    /* Top-level entry (always present when bar is shown)
      * Clicking resets cursor to top level (index -1) */
     let top_level_entry =
       span(
@@ -220,7 +220,7 @@ let view =
           Attr.title("Go to top level"),
           Attr.on_pointerdown(set_cursor_index(~globals, -1)),
         ],
-        [text({js|λ|js})],
+        [text({js|○|js})],
       );
 
     /* Build breadcrumb entries with separators */
@@ -259,7 +259,7 @@ let view =
               };
             let is_unknown = Option.is_none(display_name);
             let display_text =
-              is_unknown ? {js|○|js} : Option.get(display_name);
+              is_unknown ? {js|λ|js} : Option.get(display_name);
 
             /* Check if this entry is indicated (syntax cursor on the app) */
             //let is_indicated = Some(app_id) == indicated_id;
