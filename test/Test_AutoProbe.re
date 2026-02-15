@@ -273,6 +273,24 @@ list # list #|},
   ),
 ];
 
+/* TUPLABEL SPECIAL CASES - probe RHS value, not the label */
+let tuplabel_tests = [
+  test_probe_placement(
+    ~name="Multi-line record - probe values not tuplabels",
+    ~code=
+      {|let x = ( # x #
+  brush = "a", # "a" #
+  palette = 1 + 2 # 1 + 2 #
+) in
+x # x #|},
+  ),
+  test_probe_placement(
+    ~name="Single-line record - probe values not tuplabels",
+    ~code={|let x = (a = 1, b = 2) in # a = 1, b = 2 #
+x # x #|},
+  ),
+];
+
 /* LET EXPRESSION SPECIAL CASES - testing let body handling */
 let let_expression_tests = [
   test_probe_placement(
@@ -373,6 +391,7 @@ let tests = [
   ("AutoProbe.DefaultSelection", nested_multiline_tests),
   ("AutoProbe.HoleAvoidance", hole_avoidance_tests),
   ("AutoProbe.Containers", container_tests),
+  ("AutoProbe.TupLabels", tuplabel_tests),
   ("AutoProbe.LetExpressions", let_expression_tests),
   ("AutoProbe.IfExpressions", if_expression_tests),
   ("AutoProbe.FunctionTypes", function_type_tests),
