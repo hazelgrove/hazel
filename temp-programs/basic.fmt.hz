@@ -93,8 +93,7 @@ let exp_equal : (Exp, Exp) -> Bool =
   fun es ->
     case es
     | Var(x), Var(y) => x $== y
-    | Lam(x1, e1), Lam(x2, e2) =>
-      x1 $== x2 && exp_equal(e1, e2)
+    | Lam(x1, e1), Lam(x2, e2) => x1 $== x2 && exp_equal(e1, e2)
     | Ap(e1, e2), Ap(e3, e4) =>
       exp_equal(e1, e3) && exp_equal(e2, e4)
     | _ => false

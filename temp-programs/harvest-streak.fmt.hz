@@ -61,7 +61,9 @@ let qualityMultiplier : Quality -> Int =
 # Calculate the value of a single harvest #
 let harvestValue : Harvest -> Int =
   fun h ->
-    cropValue(h.crop) * qualityMultiplier(h.quality) * h.quantity in
+    cropValue(h.crop)
+    * qualityMultiplier(h.quality)
+    * h.quantity in
 
 # Initial empty ledger #
 let initLedger : Ledger = (

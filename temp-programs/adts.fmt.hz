@@ -10,8 +10,7 @@ let subst : (Exp, String, Exp) -> Exp =
     case e
     | Var(x) => if x == name then v else e
     | Lam(x, body) => Lam(x, subst(v, name, body))
-    | Ap(f, arg) =>
-      Ap(subst(v, name, f), subst(v, name, arg))
+    | Ap(f, arg) => Ap(subst(v, name, f), subst(v, name, arg))
     end in
 
 # Evaluation can result in either an Exp or an Error #

@@ -871,7 +871,10 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
 
   /* Default: space between pieces, Group for independent breaking.
      Trailing comments stay attached to the preceding piece.
-     HardBreak before case rules so they always start on a new line. */
+     HardBreak before case rules so they always start on a new line.
+     Application tightening: when a right-convex piece is followed by
+     a paren/bracket, concatenate directly (no Break) so layout sees
+     the correct combined width (e.g., RecordHarvest(Harvest) as a unit). */
   | [p, ...rest] =>
     let (comments, rest_after) =
       if (is_comment(p)) {
@@ -887,6 +890,8 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
       | [] => Empty
       | [next, ..._] when is_case_rule_tile(next) =>
         Cat(HardBreak, segment_to_doc(s, rest_after))
+      | [next, ..._] when is_right_convex(p) && is_paren_or_bracket(next) =>
+        segment_to_doc(s, rest_after)
       | _ => Cat(Break, Group(segment_to_doc(s, rest_after)))
       },
     )

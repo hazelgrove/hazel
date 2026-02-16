@@ -372,7 +372,10 @@ f(1, 2, 3)|},
     ~input="let f = fun (canvas, emoji) -> map(canvas, fun row -> map(row, fun x -> emoji)) in 1",
     ~expected={|let f =
     fun (canvas, emoji) ->
-        map(canvas, fun row -> map(row, fun x -> emoji)) in
+        map(
+            canvas,
+            fun row -> map(row, fun x -> emoji)
+        ) in
 1|},
     (),
   ),
@@ -381,8 +384,7 @@ f(1, 2, 3)|},
     ~name="Typed let with fun body",
     ~width=45,
     ~input="let f : Int -> Int = fun x -> x + 1 in f(5)",
-    ~expected={|let f : (Int -> Int) = fun x -> x + 1 in
-f(5)|},
+    ~expected="let f : (Int -> Int) = fun x -> x + 1 in f(5)",
     (),
   ),
   /* Case inside fun body */

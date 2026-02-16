@@ -16,9 +16,11 @@ type Action =
   # Set the brush using a palette index #
   + PaintCell(Row, Col)
   # Stamp the current emoji at the specified position #
-  + ClearCell(Row, Col) # Clear the emoji at the specified position #
+  + ClearCell(Row, Col)
+  # Clear the emoji at the specified position #
   + ClearGrid # Clear the entire grid #
-  + PaintRow(Row) # Fill the specified row with the current emoji # in
+  + PaintRow(Row)
+  # Fill the specified row with the current emoji # in
 
 let init : Model = (
   canvas = [["", "", ""], ["", "", ""], ["", "", ""]],
