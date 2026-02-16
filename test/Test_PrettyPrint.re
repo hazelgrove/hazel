@@ -17,20 +17,20 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
 let segmentize =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings);
 
-let format = (~width=80, input: string): string => {
+let format = (~width=80, ~settings=PrettySegment.default_settings, input: string): string => {
   switch (Parser.to_term(input)) {
   | Some(exp) =>
     let segment = segmentize(exp);
-    let pretty = PrettySegment.prettify(~width, segment);
+    let pretty = PrettySegment.prettify(~width, ~settings, segment);
     Printer.of_segment(~holes="?", ~indent="  ", pretty)
     |> Util.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
   };
 };
 
-let test_format = (~name, ~width=80, ~input, ~expected, ()): test_case(_) =>
+let test_format = (~name, ~width=80, ~settings=PrettySegment.default_settings, ~input, ~expected, ()): test_case(_) =>
   test_case(name, `Quick, () =>
-    check(string, name, expected, format(~width, input))
+    check(string, name, expected, format(~width, ~settings, input))
   );
 
 /* === Flat (fits on one line) === */
@@ -284,11 +284,14 @@ let comma_compound_tests = [
     (),
   ),
   test_format(
-    ~name="Let body with tuple preserves scope",
+    ~name="Let body with tuple hanging delimiters",
     ~width=15,
     ~input="let p = (1, 2, 3) in p",
-    ~expected={|let p =
-    (1, 2, 3) in
+    ~expected={|let p = (
+    1,
+    2,
+    3
+) in
 p|},
     (),
   ),
@@ -389,6 +392,126 @@ f(5)|},
   ),
 ];
 
+/* === Settings: hanging_delimiters === */
+
+let no_hanging: PrettySegment.settings = {
+  ...PrettySegment.default_settings,
+  hanging_delimiters: false,
+};
+
+let hanging_delimiter_tests = [
+  /* Default (true): opener stays on = line */
+  test_format(
+    ~name="Hanging on: tuple in let",
+    ~width=15,
+    ~input="let p = (1, 2, 3) in p",
+    ~expected={|let p = (
+    1,
+    2,
+    3
+) in
+p|},
+    (),
+  ),
+  test_format(
+    ~name="Hanging on: list in let",
+    ~width=15,
+    ~input="let p = [1, 2, 3] in p",
+    ~expected={|let p = [
+    1,
+    2,
+    3
+] in
+p|},
+    (),
+  ),
+  /* Off: opener goes on its own indented line */
+  test_format(
+    ~name="Hanging off: tuple in let",
+    ~settings=no_hanging,
+    ~width=15,
+    ~input="let p = (1, 2, 3) in p",
+    ~expected={|let p =
+    (1, 2, 3) in
+p|},
+    (),
+  ),
+  test_format(
+    ~name="Hanging off: list in let",
+    ~settings=no_hanging,
+    ~width=15,
+    ~input="let p = [1, 2, 3] in p",
+    ~expected={|let p =
+    [1, 2, 3] in
+p|},
+    (),
+  ),
+  /* When it fits on one line, both settings produce the same result */
+  test_format(
+    ~name="Hanging on: tuple fits flat",
+    ~input="let p = (1, 2) in p",
+    ~expected="let p = (1, 2) in p",
+    (),
+  ),
+  test_format(
+    ~name="Hanging off: tuple fits flat",
+    ~settings=no_hanging,
+    ~input="let p = (1, 2) in p",
+    ~expected="let p = (1, 2) in p",
+    (),
+  ),
+];
+
+/* === Settings: break_fun_params === */
+
+let break_params: PrettySegment.settings = {
+  ...PrettySegment.default_settings,
+  break_fun_params: true,
+};
+
+let break_fun_params_tests = [
+  /* Default (false): fun header stays flat, body breaks independently */
+  test_format(
+    ~name="Params together: fun with long body",
+    ~width=25,
+    ~input="let f = fun a, b, c -> a + b + c + 1 + 2 in 1",
+    ~expected={|let f =
+    fun (a, b, c) ->
+        a + b + c + 1 + 2 in
+1|},
+    (),
+  ),
+  /* With break_fun_params=true: params break vertically */
+  test_format(
+    ~name="Params break: fun with long body",
+    ~settings=break_params,
+    ~width=25,
+    ~input="let f = fun a, b, c -> a + b + c + 1 + 2 in 1",
+    ~expected={|let f =
+    fun (
+        a,
+        b,
+        c
+    ) -> a + b + c + 1 + 2 in
+1|},
+    (),
+  ),
+  /* Both settings: flat when it fits */
+  test_format(
+    ~name="Params together: fits flat",
+    ~input="fun x -> x + 1",
+    ~expected="fun x -> x + 1",
+    (),
+  ),
+  test_format(
+    ~name="Params break: fits flat",
+    ~settings=break_params,
+    ~input="fun x -> x + 1",
+    ~expected="fun x -> x + 1",
+    (),
+  ),
+];
+
 let tests = [
   ("PrettyPrint.Flat", flat_tests),
   ("PrettyPrint.Breaking", breaking_tests),
@@ -397,4 +520,6 @@ let tests = [
   ("PrettyPrint.Complex", complex_tests),
   ("PrettyPrint.CommaCompound", comma_compound_tests),
   ("PrettyPrint.Realworld", realworld_tests),
+  ("PrettyPrint.HangingDelimiters", hanging_delimiter_tests),
+  ("PrettyPrint.BreakFunParams", break_fun_params_tests),
 ];

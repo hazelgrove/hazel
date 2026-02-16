@@ -35,9 +35,14 @@
 type settings = {
   width: int,
   break_fun_params: bool, /* break function params onto separate lines */
+  hanging_delimiters: bool, /* keep ( and [ on the = line in bindings */
 };
 
-let default_settings: settings = {width: 60, break_fun_params: false};
+let default_settings: settings = {
+  width: 60,
+  break_fun_params: false,
+  hanging_delimiters: true,
+};
 
 /* === Document IR === */
 
@@ -491,34 +496,76 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     let eq_shard = Tile.to_piece(Tile.shard_of(t, 1));
     switch (triples) {
     | [(_, pat_child, _), (_, binding_child, _)] =>
-      /* Group(kw Space pat Space = Break binding Space in) body_doc
-         The Group wraps the entire let...in so it's evaluated independently
-         of the body. The Break after = only fires if let...in is too wide. */
-      let let_in_doc =
-        Group(
+      let prefix =
+        Cat(
+          piece_doc(first_shard),
           Cat(
-            piece_doc(first_shard),
+            Space,
             Cat(
-              Space,
+              Group(child_doc(s, pat_child)),
+              Cat(Space, piece_doc(eq_shard)),
+            ),
+          ),
+        );
+      /* Check if binding starts with a delimiter for hanging style:
+         let x = (     vs     let x =
+           ...                    (...)
+         ) in                 in
+         The opener stays on the = line; SoftBreaks handle content. */
+      let binding_content = strip_whitespace(binding_child);
+      let let_in_doc =
+        switch (binding_content) {
+        | [Tile(dt)]
+            when
+              s.hanging_delimiters
+              && (dt.label == ["(", ")"] || dt.label == ["[", "]"])
+              && List.length(dt.children) > 0 =>
+          let open_shard = Tile.to_piece(Tile.shard_of(dt, 0));
+          let close_shard =
+            Tile.to_piece(
+              Tile.shard_of(dt, List.length(dt.label) - 1),
+            );
+          let inner_triples = Tile.contained_children(dt);
+          switch (inner_triples) {
+          | [(_, inner_child, _)] =>
+            let inner = child_doc(s, inner_child);
+            Group(
               Cat(
-                Group(child_doc(s, pat_child)),
+                prefix,
                 Cat(
                   Space,
                   Cat(
-                    piece_doc(eq_shard),
+                    piece_doc(open_shard),
                     Cat(
-                      Break,
+                      SoftBreak,
                       Cat(
-                        Group(child_doc(s, binding_child)),
-                        Cat(Space, last_shard_doc),
+                        inner,
+                        Cat(
+                          SoftBreak,
+                          Cat(piece_doc(close_shard), Cat(Space, last_shard_doc)),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
+            )
+          | _ =>
+            Group(
+              Cat(
+                prefix,
+                Cat(Break, Cat(Group(child_doc(s, binding_child)), Cat(Space, last_shard_doc))),
+              ),
+            )
+          };
+        | _ =>
+          Group(
+            Cat(
+              prefix,
+              Cat(Break, Cat(Group(child_doc(s, binding_child)), Cat(Space, last_shard_doc))),
             ),
-          ),
-        );
+          )
+        };
       /* Wrap entire let+body in Group so short bodies stay on the in line.
          HardBreak in body_doc for let-chains prevents the flat check. */
       Group(Cat(let_in_doc, body_doc(true)));
