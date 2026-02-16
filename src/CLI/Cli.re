@@ -26,12 +26,17 @@ let run_hazel = path => {
 
 let format_hazel = (width, path) => {
   let program = read_input(path);
-  let parsed = parse_program(program);
-  let segment = Print.segmentize(parsed);
-  let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
-  let output =
-    Haz3lcore.Printer.of_segment(~holes="?", ~indent="  ", pretty_seg);
-  print_endline(output);
+  /* Use segment-based path (like the editor's Cmd+S) to preserve comments.
+     The AST round-trip (parse_program + segmentize) loses comments because
+     MakeTerm drops Secondary pieces and ExpToSegment reconstructs from AST. */
+  switch (Haz3lcore.Parser.to_segment(program)) {
+  | None => failwith("Failed to parse: " ++ path)
+  | Some(segment) =>
+    let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
+    let output =
+      Haz3lcore.Printer.of_segment(~holes="?", ~indent="  ", pretty_seg);
+    print_endline(output);
+  };
 };
 
 /* Parse program and return zipper (preserving projectors like probes) */
@@ -474,8 +479,8 @@ let run_cmd = {
 let format_cmd = {
   let doc = {|
     Pretty-prints Hazel code, inserting line breaks to fit within a target
-    width. Reconstructs code from its AST, producing formatted concrete
-    syntax without preserving original whitespace or comments.
+    width. Preserves comments but replaces original whitespace with
+    structured formatting.
   |};
   let width_arg = {
     let doc = "Target line width in columns (default: 60).";

@@ -178,6 +178,73 @@ let is_infix = (p: Piece.t): bool =>
   | _ => false
   };
 
+let is_dot = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label: ["."], _}) => true
+  | _ => false
+  };
+
+/* Label binding = in records/labeled tuples (not ==) */
+let is_label_eq = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label: ["="], _}) => true
+  | _ => false
+  };
+
+/* Get precedence from an infix piece's left nib */
+let infix_precedence = (p: Piece.t): option(int) =>
+  switch (p) {
+  | Tile(t) =>
+    let (l, _) = Tile.nibs(t);
+    switch (l.shape) {
+    | Concave(prec) => Some(prec)
+    | Convex => None
+    };
+  | _ => None
+  };
+
+/* Get effective precedence: infix ops + commas (for chain splitting) */
+let piece_precedence = (p: Piece.t): option(int) =>
+  if (is_infix(p)) {
+    infix_precedence(p);
+  } else if (is_comma(p)) {
+    Some(Precedence.comma);
+  } else {
+    None;
+  };
+
+/* Find the loosest (highest int) precedence among operators in pieces */
+let find_loosest_prec = (pieces: list(Piece.t)): option(int) =>
+  List.fold_left(
+    (best, p) =>
+      switch (piece_precedence(p), best) {
+      | (Some(prec), None) => Some(prec)
+      | (Some(prec), Some(best_prec)) when prec > best_prec => Some(prec)
+      | _ => best
+      },
+    None,
+    pieces,
+  );
+
+/* Split pieces into operands at operators matching the given precedence.
+   Returns (operands, operators) where len(operands) == len(operators) + 1. */
+let split_infix_chain =
+    (prec: int, pieces: list(Piece.t))
+    : (list(list(Piece.t)), list(Piece.t)) => {
+  let rec go = (current_rev, pieces) =>
+    switch (pieces) {
+    | [] => ([List.rev(current_rev)], [])
+    | [p, ...rest] =>
+      switch (piece_precedence(p)) {
+      | Some(p_prec) when p_prec == prec =>
+        let (more_operands, ops) = go([], rest);
+        ([List.rev(current_rev), ...more_operands], [p, ...ops]);
+      | _ => go([p, ...current_rev], rest)
+      }
+    };
+  go([], pieces);
+};
+
 let is_compound_prefix = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
@@ -308,22 +375,35 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
     | _ => Cat(rule_doc, Cat(HardBreak, segment_to_doc(remaining)))
     };
 
-  /* Infix operator: break before operator, space between op and operand.
-     All-or-nothing: no Group wrapper on rest. */
+  /* Dot accessor: keep tight, no space or break */
+  | [p, op, ...rest] when is_infix(op) && is_dot(op) =>
+    Cat(piece_doc(p), Cat(piece_doc(op), segment_to_doc(rest)))
+
+  /* Infix operator: precedence-aware chain splitting.
+     Find the loosest operator, split the whole expression there,
+     and wrap each operand in a Group so tight sub-expressions stay flat. */
   | [p, op, ...rest] when is_infix(op) =>
-    Cat(
-      piece_doc(p),
+    let all = [p, op, ...rest];
+    switch (find_loosest_prec(all)) {
+    | Some(prec) =>
+      let (operands, operators) = split_infix_chain(prec, all);
+      build_infix_chain_doc(operands, operators);
+    | None =>
+      /* Fallback (shouldn't happen since op is infix) */
       Cat(
-        Break,
+        piece_doc(p),
         Cat(
-          piece_doc(op),
-          switch (rest) {
-          | [] => Empty
-          | _ => Cat(Space, segment_to_doc(rest))
-          },
+          Break,
+          Cat(
+            piece_doc(op),
+            switch (rest) {
+            | [] => Empty
+            | _ => Cat(Space, segment_to_doc(rest))
+            },
+          ),
         ),
-      ),
-    )
+      )
+    };
 
   /* Compound prefix form (let, fun, if, etc.): body in own Group.
      Binding forms (ending with "in": let, type, hint) use HardBreak
@@ -371,12 +451,53 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
       | _ => Cat(Break, Group(segment_to_doc(rest)))
       },
     )
+  }
+
+/* Build doc for an infix chain: operands joined by Break+op+Space.
+   Comma operators stay with the left operand (trailing comma style).
+   Label = operators stay with the left operand (break before value). */
+and build_infix_chain_doc =
+    (operands: list(list(Piece.t)), operators: list(Piece.t)): doc =>
+  switch (operands) {
+  | [] => Empty
+  | [first, ...rest_operands] =>
+    let first_doc = Group(segment_to_doc(first));
+    let rec join = (acc, ops, operands) =>
+      switch (ops, operands) {
+      | ([], _)
+      | (_, []) => acc
+      | ([op, ...rest_ops], [operand, ...rest_operands]) =>
+        let operand_doc = Group(segment_to_doc(operand));
+        let next =
+          if (is_comma(op)) {
+            /* Comma stays with left operand */
+            Cat(
+              Cat(acc, piece_doc(op)),
+              Cat(Break, operand_doc),
+            );
+          } else if (is_label_eq(op)) {
+            /* label =: stays with left, break before value */
+            Cat(
+              acc,
+              Cat(Space, Cat(piece_doc(op), Cat(Break, operand_doc))),
+            );
+          } else {
+            /* Regular infix: break before operator */
+            Cat(
+              acc,
+              Cat(Break, Cat(piece_doc(op), Cat(Space, operand_doc))),
+            );
+          };
+        join(next, rest_ops, rest_operands);
+      };
+    join(first_doc, operators, rest_operands);
   };
 
 /* === Post-processing: tight function application === */
 
 /* Remove spaces/newlines between convex-right pieces and following parens/brackets.
-   e.g., f (5) → f(5), f\n(5) → f(5), but let x = 5 in (x) stays unchanged. */
+   e.g., f (5) → f(5), f\n(5) → f(5), but let x = 5 in (x) stays unchanged.
+   Also remove spaces around dot accessor: g . width → g.width */
 let rec tighten_applications = (outputs: list(output)): list(output) =>
   switch (outputs) {
   | [OPiece(prev), OSpace, OPiece(next), ...rest]
@@ -387,6 +508,16 @@ let rec tighten_applications = (outputs: list(output)): list(output) =>
   | [OPiece(prev), ONewline, OPiece(next), ...rest]
       when is_right_convex(prev) && is_paren_or_bracket(next) => [
       OPiece(prev),
+      ...tighten_applications([OPiece(next), ...rest]),
+    ]
+  /* Remove space before dot */
+  | [OPiece(prev), OSpace, OPiece(dot), ...rest] when is_dot(dot) => [
+      OPiece(prev),
+      ...tighten_applications([OPiece(dot), ...rest]),
+    ]
+  /* Remove space after dot */
+  | [OPiece(dot), OSpace, OPiece(next), ...rest] when is_dot(dot) => [
+      OPiece(dot),
       ...tighten_applications([OPiece(next), ...rest]),
     ]
   | [out, ...rest] => [out, ...tighten_applications(rest)]
