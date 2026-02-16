@@ -863,6 +863,12 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
   | [p, ...rest] when is_single_prefix(p) =>
     Cat(piece_doc(p), Cat(Space, segment_to_doc(s, rest)))
 
+  /* Infix operator at start of piece list (e.g., + between sum type
+     constructors after preceding piece was processed): keep attached
+     to the following piece with Space, since there's nothing to its left. */
+  | [p, ...rest] when is_infix(p) =>
+    Cat(piece_doc(p), Cat(Space, segment_to_doc(s, rest)))
+
   /* Default: space between pieces, Group for independent breaking.
      Trailing comments stay attached to the preceding piece.
      HardBreak before case rules so they always start on a new line. */

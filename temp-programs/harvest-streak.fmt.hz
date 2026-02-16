@@ -4,16 +4,14 @@
 
 # Quality tiers from the moonlit fields #
 type Quality =
-  + Bronze
-  # Common harvest, basic value #
+  + Bronze # Common harvest, basic value #
   + Silver # Good quality, moderate bonus #
   + Gold # Excellent harvest, high value #
   + Starlight # Legendary, blessed by the moon # in
 
 # Crops that grow under the night sky #
 type Crop =
-  + Moonmelon
-  # Glows faintly, sweet taste #
+  + Moonmelon # Glows faintly, sweet taste #
   + Starfruit # Shaped like stars, tangy #
   + Nightberry # Deep purple, magical properties #
   + Duskwheat # Golden stalks, hearty grain # in

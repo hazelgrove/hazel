@@ -575,6 +575,19 @@ let x = 1 in x|},
 let x = 1 in x|},
     (),
   ),
+  /* Sum type constructors with trailing comments:
+     infix + stays attached to following constructor */
+  test_format_seg(
+    ~name="Sum type + with trailing comments",
+    ~width=40,
+    ~input="type T = + A # a long comment here # + B # another long comment # + C # third # in 1",
+    ~expected={|type T =
+  + A # a long comment here #
+  + B # another long comment #
+  + C # third # in
+1|},
+    (),
+  ),
 ];
 
 let tests = [
