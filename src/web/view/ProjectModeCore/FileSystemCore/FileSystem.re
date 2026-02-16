@@ -481,6 +481,24 @@ module Update = {
     };
   };
 
+  let update_current_after_rename =
+      (model: Model.t, old_path: Model.path, new_path: Model.path): Model.t => {
+    // If the renamed path is the current path, or an ancestor of it,
+    // update current to reflect the new path.
+    let old_len = List.length(old_path);
+    let cur_len = List.length(model.current);
+    if (cur_len >= old_len
+        && List.filteri((i, _) => i < old_len, model.current) == old_path) {
+      let suffix = List.filteri((i, _) => i >= old_len, model.current);
+      {
+        ...model,
+        current: new_path @ suffix,
+      };
+    } else {
+      model;
+    };
+  };
+
   let rename = (model: Model.t, path: Model.path, new_name: string): result =>
     if (path == [""]) {
       Failure("Cannot rename the root project folder.");
@@ -497,7 +515,11 @@ module Update = {
         let model'' =
           Utils.add_file_system(path, Model.File(new_file), model');
         let new_path = List.rev(List.tl(List.rev(path))) @ [new_name];
-        rename_paths(model'', path, new_path);
+        switch (rename_paths(model'', path, new_path)) {
+        | Success(m) =>
+          Success(update_current_after_rename(m, path, new_path))
+        | Failure(_) as f => f
+        };
       | Some(Model.Folder(folder)) =>
         let model' = Utils.remove(path, model);
         let new_folder: Model.folder = {
@@ -507,7 +529,11 @@ module Update = {
         let model'' =
           Utils.add_file_system(path, Model.Folder(new_folder), model');
         let new_path = List.rev(List.tl(List.rev(path))) @ [new_name];
-        rename_paths(model'', path, new_path);
+        switch (rename_paths(model'', path, new_path)) {
+        | Success(m) =>
+          Success(update_current_after_rename(m, path, new_path))
+        | Failure(_) as f => f
+        };
       | None => Failure("File or folder does not exist.")
       };
     };
