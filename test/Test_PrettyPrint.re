@@ -275,7 +275,8 @@ let comma_compound_tests = [
     ~name="Three functions in tuple",
     ~width=25,
     ~input="(fun x -> x + 1, fun y -> y + 2, fun z -> z + 3)",
-    ~expected={|(
+    ~expected=
+      {|(
     fun x -> x + 1,
     fun y -> y + 2,
     fun z -> z + 3
