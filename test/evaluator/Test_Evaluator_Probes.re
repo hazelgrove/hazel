@@ -549,7 +549,7 @@ in case Some(42) | Some(^^probe(x)) => x | None => 0 end|},
   probe_line_test(
     "Pattern probe with labeled tuple type (value coercion)",
     {|let ^^probe(x) : (l=String) = "a" in x|},
-    [(0, ["(l=\"a\")"])],
+    [(0, ["(l= \"a\")"])],
   ),
 ];
 
@@ -761,12 +761,12 @@ in f(1)|},
   probe_line_test(
     "Probe in let with labeled tuple type (value coercion)",
     {|let x : (l=String) = ^^probe("a") in x|},
-    [(0, ["(l=\"a\")"])],
+    [(0, ["(l= \"a\")"])],
   ),
   probe_line_test(
     "Probe with outer ascription (singleton tuple coercion)",
     {|^^probe("a") : (l=String)|},
-    [(0, ["(l=\"a\")"])],
+    [(0, ["(l= \"a\")"])],
   ),
   /* Compound expressions with ascriptions */
   probe_line_test(

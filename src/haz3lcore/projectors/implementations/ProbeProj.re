@@ -138,6 +138,9 @@ module SampleLength = {
     Hashtbl.clear(lengths);
   };
 
+  let is_explicit = (sample: Sample.t): bool =>
+    Hashtbl.mem(lengths, sample.id);
+
   let get = (window: Sample.Window.mode, sample: Sample.t): int =>
     Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
@@ -197,7 +200,7 @@ let abbreviate = (exp: Exp.t, available: int): Exp.t => {
 };
 
 let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> String.length;
+  seg |> utility.seg_to_string |> Unicode.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
   let seg = utility.term_to_seg(Exp(exp));
@@ -211,10 +214,22 @@ let abbreviated_seg_of =
   seg_of_exp(utility, abbr_exp);
 };
 
+/* Measure actual font metrics from the #font-specimen element.
+ * Falls back to 10.0 if the element isn't available. */
+let font_metrics = (): (float, float) => {
+  switch (JsUtil.get_elem_by_id_opt("font-specimen")) {
+  | Some(specimen) =>
+    let rect = specimen##getBoundingClientRect;
+    let col_width = max(1.0, rect##.right -. rect##.left);
+    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    (col_width, row_height);
+  | None => (10.0, 10.0)
+  };
+};
+
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
-  let row_height = 10.0;
-  let col_width = 10.0;
+  let (col_width, row_height) = font_metrics();
   let text_box =
     e##.currentTarget
     |> Js.Opt.get(_, _ => failwith(""))
@@ -458,16 +473,49 @@ let value_view =
     switch (ValueState.mousedown^) {
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
-      local(ChangeLength(sample.id, goal.col));
+      let target_width = max(0, goal.col);
+      /* Find the largest budget whose output fits within target_width.
+         By hard cap, output(b) <= b, so target_width always works.
+         But a larger budget may also fit due to budget distribution
+         overhead. Binary search upward for the max fitting budget. */
+      let width_at = (b: int): int =>
+        abbreviated_seg_of(utility, b, sample.value) |> snd;
+      /* Find upper bound: double from target_width until output exceeds */
+      let rec find_upper = (b: int): int =>
+        if (b > 500 || width_at(b) > target_width) {
+          b;
+        } else {
+          find_upper(b * 2 + 1);
+        };
+      let upper = find_upper(max(1, target_width));
+      /* Binary search between target_width and upper */
+      let rec bisect = (lo: int, hi: int): int =>
+        if (lo >= hi) {
+          lo;
+        } else {
+          let mid = (lo + hi + 1) / 2;
+          if (width_at(mid) <= target_width) {
+            bisect(mid, hi);
+          } else {
+            bisect(lo, mid - 1);
+          };
+        };
+      let budget = bisect(target_width, upper);
+      local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
     };
   };
 
-  /* Crude way of giving more space when there's only one sample shown.
-   * Really should figure out total length of all samples and divide accordingly */
-  let length = SampleLength.get(settings.window, sample);
-  /* Use pre-computed num_total instead of filtering again */
-  let length = length == 12 && num_total == 1 ? 150 : length;
+  /* If the user hasn't explicitly set a length for this sample,
+   * give more space when there's only one sample shown. */
+  let length =
+    if (SampleLength.is_explicit(sample)) {
+      SampleLength.get(settings.window, sample);
+    } else if (num_total == 1) {
+      150;
+    } else {
+      SampleLength.get(settings.window, sample);
+    };
   let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
   div(
