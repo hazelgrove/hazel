@@ -85,6 +85,14 @@ let init = {
 let persist = (refractors: t): string =>
   refractors.manuals |> RefractorList.sexp_of_t |> Sexplib.Sexp.to_string;
 
+/* Prepares refractors for serialization by resetting non-persistable state.
+ * Only `manuals` is persisted - see state location docs at top of file.
+ * Used by both sexp serialization (persist) and show serialization (Exercise export). */
+let for_serialization = (refractors: t): t => {
+  ...init,
+  manuals: refractors.manuals,
+};
+
 /* Refractors store a simplified `entry` type in Zipper.Refractor.Map
  * (just kind + model), avoiding redundant id/syntax in serialization.
  * When the full Base.projector is needed for rendering, use `to_projector`. */
