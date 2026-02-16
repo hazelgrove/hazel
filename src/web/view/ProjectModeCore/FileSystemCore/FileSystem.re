@@ -145,22 +145,33 @@ module Utils = {
   };
 
   let init = (): Model.t => {
-    // Initializes a new file system with the root folder as the current folder
-    // It also places a read_me.hz file in the root folder
+    // Initializes a new file system with the root folder and a default file
     let root = "";
+    let default_file_name = "main.hz";
+    let default_file_path = [root, default_file_name];
+    let default_file: Model.file = {
+      path: default_file_path,
+      name: default_file_name,
+      editor: CellEditor.Model.mk(Editor.Model.mk(Zipper.init())),
+    };
     let root_project_folder: Model.folder = {
       path: [root],
       name: root,
-      children: [],
+      children: [default_file_path],
       expanded: true,
     };
     {
       file_tree:
-        Maps.StringMap.singleton(
-          string_of_path([root]),
-          Model.Folder(root_project_folder),
-        ),
-      current: [root],
+        Maps.StringMap.empty
+        |> Maps.StringMap.add(
+             string_of_path([root]),
+             Model.Folder(root_project_folder),
+           )
+        |> Maps.StringMap.add(
+             string_of_path(default_file_path),
+             Model.File(default_file),
+           ),
+      current: default_file_path,
     };
   };
 
