@@ -98,10 +98,7 @@ module Update = {
       |> Updated.return_quiet(~scroll_active=true)
     | Set(action) =>
       let* settings =
-        Settings.Update.update(
-          ~action, ~settings=model.globals.settings, ~schedule_action=a =>
-          schedule_action(Globals(Set(a)))
-        );
+        Settings.Update.update(~action, ~settings=model.globals.settings);
       {
         ...model,
         globals: {
@@ -109,6 +106,23 @@ module Update = {
           settings,
         },
       };
+    | AgentGlobals(agent_globals_action) =>
+      let agent_globals =
+        AgentGlobals.Update.update(
+          agent_globals_action, model.globals.settings.agent_globals, action =>
+          schedule_action(Globals(AgentGlobals(action)))
+        );
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings: {
+            ...model.globals.settings,
+            agent_globals,
+          },
+        },
+      }
+      |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
