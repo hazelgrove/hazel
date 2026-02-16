@@ -219,6 +219,24 @@ let reinsert_blank_lines =
   go(blank_ids, formatted);
 };
 
+let is_comment = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(s) => Secondary.is_comment(s)
+  | _ => false
+  };
+
+/* Absorb leading comment pieces from a piece list.
+   Returns (comments, remaining) where comments should stay
+   on the same line as the preceding code piece. */
+let rec absorb_comments =
+        (pieces: list(Piece.t)): (list(Piece.t), list(Piece.t)) =>
+  switch (pieces) {
+  | [p, ...rest] when is_comment(p) =>
+    let (more, remaining) = absorb_comments(rest);
+    ([p, ...more], remaining);
+  | _ => ([], pieces)
+  };
+
 let is_semi = (p: Piece.t): bool =>
   switch (p) {
   | Tile({label: [";"], _}) => true
@@ -437,6 +455,14 @@ let rec split_at_comma =
 /* === Doc construction from segment content === */
 
 let piece_doc = (p: Piece.t): doc => Piece(p, piece_width(p));
+
+/* Build doc for a piece followed by trailing comments (Space-separated) */
+let piece_with_comments = (p: Piece.t, comments: list(Piece.t)): doc =>
+  List.fold_left(
+    (acc, c) => Cat(acc, Cat(Space, piece_doc(c))),
+    piece_doc(p),
+    comments,
+  );
 
 /* Helper: build doc for a child segment (recursive) */
 let rec child_doc = (s: settings, child: Segment.t): doc => {
@@ -767,13 +793,21 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
     Cat(piece_doc(p), Cat(HardBreak, segment_to_doc(s, rest)))
 
   /* Piece followed by comma: keep comma with left operand, break after.
+     Trailing comments after comma stay on the same line.
      All-or-nothing: no Group wrapper on rest. */
   | [p, comma, ...rest] when is_comma(comma) =>
+    let (comments, rest_after) = absorb_comments(rest);
+    let left =
+      List.fold_left(
+        (acc, c) => Cat(acc, Cat(Space, piece_doc(c))),
+        Cat(piece_doc(p), piece_doc(comma)),
+        comments,
+      );
     Cat(
-      Cat(piece_doc(p), piece_doc(comma)),
-      switch (rest) {
+      left,
+      switch (rest_after) {
       | [] => Empty
-      | _ => Cat(Break, segment_to_doc(s, rest))
+      | _ => Cat(Break, segment_to_doc(s, rest_after))
       },
     )
 
@@ -830,22 +864,33 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
     Cat(piece_doc(p), Cat(Space, segment_to_doc(s, rest)))
 
   /* Default: space between pieces, Group for independent breaking.
+     Trailing comments stay attached to the preceding piece.
      HardBreak before case rules so they always start on a new line. */
   | [p, ...rest] =>
+    let (comments, rest_after) =
+      if (is_comment(p)) {
+        /* Don't absorb: standalone comment shouldn't grab following comments */
+        ([], rest);
+      } else {
+        absorb_comments(rest);
+      };
+    let p_doc = piece_with_comments(p, comments);
     Cat(
-      piece_doc(p),
-      switch (rest) {
+      p_doc,
+      switch (rest_after) {
       | [] => Empty
       | [next, ..._] when is_case_rule_tile(next) =>
-        Cat(HardBreak, segment_to_doc(s, rest))
-      | _ => Cat(Break, Group(segment_to_doc(s, rest)))
+        Cat(HardBreak, segment_to_doc(s, rest_after))
+      | _ => Cat(Break, Group(segment_to_doc(s, rest_after)))
       },
     )
   }
 
 /* Build doc for an infix chain: operands joined by Break+op+Space.
    Comma operators stay with the left operand (trailing comma style).
-   Label = operators stay with the left operand (break before value). */
+   Label = operators stay with the left operand (break before value).
+   Leading comments in each operand are moved to the preceding line
+   so that trailing comments stay with their code (e.g., after commas). */
 and build_infix_chain_doc =
     (s: settings, operands: list(list(Piece.t)), operators: list(Piece.t)): doc =>
   switch (operands) {
@@ -857,24 +902,34 @@ and build_infix_chain_doc =
       | ([], _)
       | (_, []) => acc
       | ([op, ...rest_ops], [operand, ...rest_operands]) =>
-        let operand_doc = Group(segment_to_doc(s, operand));
+        /* Absorb leading comments from the next operand and keep them
+           on the previous line (after the operator/comma). This preserves
+           trailing comment style: `x, # comment #\ny` not `x,\n# comment # y` */
+        let (leading_comments, actual_operand) = absorb_comments(operand);
+        let operand_doc = Group(segment_to_doc(s, actual_operand));
+        let comment_suffix =
+          List.fold_left(
+            (acc, c) => Cat(acc, Cat(Space, piece_doc(c))),
+            Empty,
+            leading_comments,
+          );
         let next =
           if (is_comma(op)) {
-            /* Comma stays with left operand */
+            /* Comma stays with left operand, comments after comma */
             Cat(
-              Cat(acc, piece_doc(op)),
+              Cat(Cat(acc, piece_doc(op)), comment_suffix),
               Cat(Break, operand_doc),
             );
           } else if (is_label_eq(op)) {
             /* label =: stays with left, break before value */
             Cat(
-              acc,
+              Cat(acc, comment_suffix),
               Cat(Space, Cat(piece_doc(op), Cat(Break, operand_doc))),
             );
           } else {
             /* Regular infix: break before operator */
             Cat(
-              acc,
+              Cat(acc, comment_suffix),
               Cat(Break, Cat(piece_doc(op), Cat(Space, operand_doc))),
             );
           };

@@ -462,7 +462,9 @@ an MVP.
 ## Implementation Status
 
 Option C (Doc IR) has been implemented in `PrettySegment.re`. The implementation
-uses a Wadler/Lindig-style Doc IR with a greedy O(n) layout algorithm.
+uses a Wadler/Lindig-style Doc IR with a greedy O(n) layout algorithm, plus
+on-demand tile decomposition for coordinated break decisions across tile
+boundaries.
 
 ### Doc IR
 
@@ -472,19 +474,56 @@ type doc =
   | Piece(Piece.t, int)  /* piece with pre-computed flat width */
   | Space                /* always emits a space */
   | Break                /* space if flat, newline if broken */
+  | SoftBreak            /* nothing if flat, newline if broken */
   | HardBreak            /* always a newline */
   | Cat(doc, doc)        /* concatenation */
   | Group(doc);          /* try flat first; if doesn't fit, use breaks */
 ```
 
+`SoftBreak` was added for delimiter pairs — `(content)` in flat mode, with
+newlines around content in breaking mode, without extra spaces.
+
+### Settings
+
+```reasonml
+type settings = {
+  width: int,
+  break_fun_params: bool,    /* break function params onto separate lines */
+  hanging_delimiters: bool,  /* keep ( and [ on the = line in bindings */
+};
+
+let default_settings = {
+  width: 60,
+  break_fun_params: false,
+  hanging_delimiters: true,
+};
+```
+
+Settings are threaded through all mutually recursive doc-building functions
+(`child_doc`, `build_tile_doc`, `segment_to_doc`, `build_infix_chain_doc`).
+
+### On-Demand Tile Decomposition
+
+When `segment_to_doc` encounters a tile with children (e.g., `let x = 5 in`),
+it decomposes it on-demand using `Tile.contained_children` and `Tile.shard_of`,
+building a doc that interleaves keyword nodes with child docs. This allows the
+layout algorithm to make coordinated break decisions across tile boundaries
+(e.g., keeping `(` on the same line as `let x =`).
+
+After layout, `Segment.reassemble` reconstructs full tiles from the single-shard
+pieces in the output segment.
+
 ### Integration Points
 
 - **Cmd+S in web editor**: Triggers `PrettyPrint` action → `Perform.re` →
   `Zipper.unselect_and_zip(z)` → `PrettySegment.prettify` → `Zipper.unzip`.
-  Preserves refractors (probes/projectors).
-- **CLI**: `hazel format [--width N] file.hz` (default width 80)
-- **Tests**: 26 tests in `Test_PrettyPrint.re` covering flat, breaking,
-  delimiters, case expressions, and complex combinations.
+  Preserves projectors (probes/projectors).
+- **CLI**: `hazel format [--width N] file.hz` (default width 80).
+  Uses `Parser.to_segment` path (preserves original syntax); test suite
+  uses `Parser.to_term` → `ExpToSegment` path (adds defensive parens).
+- **Tests**: 49 tests in `Test_PrettyPrint.re` across 9 test suites:
+  Flat, Breaking, Delimiters, Case, Complex, CommaCompound, Realworld,
+  HangingDelimiters, BreakFunParams.
 
 ---
 
@@ -538,141 +577,162 @@ newline in breaking mode. `Group` wrappers determine flat vs broken.
    flat layout, its children break at boundaries defined by
    `child_break_style`.
 
+### Function Parameter Grouping (`break_fun_params` setting)
+
+When `break_fun_params` is **false** (default), `fun (a, b, c) ->` is wrapped
+in its own `Group(header)`, separated from the body by a bare `Break`. Because
+`fits()` returns true at a `(Breaking, Break)` boundary, the header Group is
+evaluated independently — params stay flat even when the body is too long:
+
+```
+fun (a, b, c) ->
+    very_long_body
+```
+
+When `break_fun_params` is **true**, the header is not wrapped in a Group, so
+the enclosing Group's mode controls params. Params can break vertically:
+
+```
+fun (
+    a,
+    b,
+    c
+) -> very_long_body
+```
+
+The key insight: two Groups connected by a bare `Break` (not inside another
+Group) evaluate independently because `fits()` sees `(Breaking, Break)` and
+returns true immediately. This is the standard Wadler/Lindig technique for
+independent flat/break evaluation.
+
+### Hanging Delimiters (`hanging_delimiters` setting)
+
+When `hanging_delimiters` is **true** (default), if a binding's body is a
+single delimiter tile (`(...)` or `[...]`), the opener stays on the `=` line:
+
+```
+let init = (
+    field1,
+    field2,
+    field3
+) in
+```
+
+When **false**, the binding breaks normally and the delimiter stays grouped:
+
+```
+let init =
+    (field1, field2, field3) in
+```
+
+Implemented by detecting single-delimiter binding children in the let/type/hint
+handler and restructuring as `= Space ( SoftBreak content SoftBreak ) Space in`.
+
 ### Post-Processing Rules
 
 1. **Tight function application**: Whitespace (both spaces and newlines)
    between a convex-right piece and a following paren/bracket piece is
    removed. This ensures `f(x)` never becomes `f (x)` or `f\n(x)`.
+   After decomposition, closing shards (e.g., `)`) are excluded from
+   matching to prevent tightening from eating newlines before `)`.
 
 2. **Blank line preservation**: Blank lines (2+ consecutive newlines) in the
-   original segment are detected before formatting and re-inserted afterward.
-   This preserves user-intended paragraph breaks between definitions. Only
-   works when formatting from the original segment (Cmd+S path), not when
-   reconstructing from AST (CLI format path).
+   original segment are detected before formatting and re-inserted afterward,
+   using ID-based matching (`Id.Map.t(unit)`) rather than sequential position.
+   This is robust to tile decomposition, which splits one tile into multiple
+   shard pieces sharing the same ID. Works from both the Cmd+S path and CLI.
 
 ### Key `fits` Behavior
 
-The `fits` function determines if a Group can go flat:
+The `fits` function determines if a Group can go flat. It examines the
+**entire remaining line** (the rest of the command stack), not just the
+Group's own content:
+
+- `(Flat, Break)` → costs 1 (becomes a space)
+- `(Breaking, Break)` → **true** immediately (line is done). This is the
+  key mechanism for independent Group evaluation.
+- `(Flat, SoftBreak)` → costs 0 (nothing in flat mode)
+- `(Breaking, SoftBreak)` → **true** (line is done)
 - `(Flat, HardBreak)` → **false**: Any Group containing a HardBreak is forced
-  to go Breaking. This prevents HardBreaks from causing Breaks in the same
-  Group to become spaces.
-- `(Breaking, HardBreak)` → **true**: Line is done, next content starts fresh.
+  to go Breaking.
+- `(_, Group(x))` → tries `x` flat (Groups are transparent to fits)
 
-### Multiline Children
-
-When a tile's children contain newlines (from structural breaks in recursive
-formatting), the tile skips the flat attempt and goes directly to breaking
-mode. This ensures compound tiles like `case...end` properly break when
-their child content has structural breaks.
+Because `fits` sees through Groups, the only way to make two Groups evaluate
+independently is to connect them with a bare `Break` (not inside a Group).
+When mode is Breaking, `fits()` hits the Break and returns true, so the
+preceding Group's flat attempt isn't affected by later content.
 
 ---
 
-## Formatting Design Options (Open Questions)
+## Formatting Design Options
 
-### Trailing Delimiter Style (**config candidate**)
+### Resolved
 
-Current: `end` stays on the same line as the last case rule.
+**Opening Delimiter Placement** — Resolved via `hanging_delimiters` setting.
+When true (default), opening `(` and `[` stay on the `=` line in bindings.
+When false, they break normally. See "Hanging Delimiters" section above.
+
+**Function Parameter Line Breaking** — Resolved via `break_fun_params` setting.
+When false (default), fun headers get their own Group so params stay flat.
+When true, params can break with the body. See "Function Parameter Grouping"
+section above.
+
+### Open Questions
+
+#### Trailing Delimiter Style (config candidate)
+
+Current: `end` gets its own line in case expressions.
 
 ```
 case x
 | 0 => "zero"
-| 1 => "one" end
+| 1 => "one"
+end
 ```
 
-This is controlled by `child_break_style` for `["case", "end"]`: `(false, false)`.
-Changing the second value to `true` puts `end` on its own line.
+The `in` keyword stays on the same line as its binding's end, which is
+natural. A config for trailing keyword placement (`end`, and possibly `in`)
+could be added.
 
-Options:
-- **Same line** (current): `| _ => body end`. More compact.
-- **Own line**: `end` on a line by itself. Clearer block structure.
-
-This is a strong candidate for a configuration option. The `in` keyword
-(end of `let...=...in` tiles) could be correlated — both are trailing
-keywords that close a block. Currently `in` stays on the same line as the
-end of its binding, which is the natural behavior. A "trailing keywords on
-own line" config could flip both `end` and potentially affect how `in`
-bodies are laid out.
-
-### Sum Type Constructor Layout
+#### Sum Type Constructor Layout
 
 Currently width-dependent. Options:
 - **Always vertical for 3+ constructors**: More readable for type definitions.
 - **Width-dependent** (current): May inline short definitions.
 - Needs more investigation with real programs.
 
-### Comment Handling
+#### Comment Handling
 
-Currently, comments on their own line may merge with the following code line.
-This is because `strip_whitespace` removes the newline between the comment
-and the next piece. Needs investigation — may need special handling to detect
-standalone comments and preserve their line boundary.
+Comments (`# ... #`) interact with the pretty printer in several ways that
+need investigation:
+
+1. **Standalone comments** (on their own line) may merge with the following
+   code line because `strip_whitespace` removes the newline between the
+   comment and the next piece.
+2. **Inline comments** (after code on the same line) may cause the line to
+   exceed the target width in ways the formatter doesn't account for.
+3. **Comments inside structured forms** (e.g., between fields in a record)
+   need to be associated with the right field and formatted accordingly.
 
 Options:
 - Detect comment pieces and always HardBreak after them
 - Preserve the whitespace around comments during strip_whitespace
 - Treat comments as structural breaks
+- Track comment association (trailing vs standalone) during blank line analysis
 
-### Opening Delimiter Placement After Breaks
-
-When a binding's body starts with a delimiter (parens, brackets), and the
-body breaks to a new line, the opening delimiter ends up alone on an
-indented line:
-
-```
-let result =
-    (
-        alpha,
-        beta,
-        gamma,
-        delta
-    ) in
-result
-```
-
-An alternative is "cuddle" style, where the opening delimiter stays on the
-same line as the `=`, and the closing delimiter outdents:
-
-```
-let result = (
-    alpha,
-    beta,
-    gamma,
-    delta
-) in
-result
-```
-
-The cuddle style is common in JavaScript/TypeScript (objects after `=` or
-in function arguments) and avoids using a line just for `(`. The current
-style is a natural consequence of the algorithm — the body is a single
-Group that either goes flat or breaks as a whole, and when it breaks, the
-entire body (including the `(`) moves to the next line.
-
-Implementing cuddle style would require the layout engine to detect when
-the first token of a broken body is an opening delimiter, and keep it
-attached to the preceding line while still indenting the contents. This
-is non-trivial in Wadler-style formatters.
-
-Options:
-- **Current** (body on own line): Simple, consistent. The `(` on its own
-  line is the cost of uniformity.
-- **Cuddle style**: More compact, familiar to JS/Python developers. Would
-  require special-case logic or a new combinator (e.g., `SoftIndent` that
-  only indents after the first break).
-- **Hybrid**: Only cuddle for specific contexts (let bindings, function
-  args) where it's most natural.
-
-### Preserve User Breaks Mode
+#### Preserve User Breaks Mode
 
 The formatter currently normalizes all whitespace. A "preserve user breaks"
 mode could keep existing line breaks and only add new ones where needed.
-Blank line preservation is a first step toward this.
+Blank line preservation (via ID-based reinsertion) is a first step.
 
-### Width Configuration
+#### Width / Indentation Coordination
 
-- Default width: 60 columns (both CLI `--width` and `PrettySegment.prettify`)
-- Configurable via `--width` / `-w` CLI flag
-- Web editor: could use editor viewport width or a fixed setting
-- Indent amount: currently 4 spaces (via `child_width = width - 4`).
-  The Printer uses the `~indent` parameter (default `"  "` = 2 spaces) for
-  rendering. These should be coordinated.
+- Default width: 60 columns (settings record, CLI `--width`)
+- Indentation: `Indentation.re` uses level increments of 2. The `~indent`
+  parameter in `Printer.of_segment` controls the visual string per level.
+  CLI uses `~indent=" "` (1 space, so 2 spaces per indent level).
+  Tests use `~indent="  "` (2 spaces, so 4 spaces per indent level).
+  The layout algorithm's `fits()` check does NOT account for indentation —
+  it resets `col` to 0 on newline, while actual display adds indent.
+  This means lines may exceed the target width by the indent amount.

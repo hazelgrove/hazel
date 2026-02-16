@@ -28,6 +28,23 @@ let format = (~width=80, ~settings=PrettySegment.default_settings, input: string
   };
 };
 
+/* Segment-path formatter: preserves comments (like the CLI does).
+   Uses Parser.to_segment instead of Parser.to_term. */
+let format_seg = (~width=80, ~settings=PrettySegment.default_settings, input: string): string => {
+  switch (Parser.to_segment(input)) {
+  | Some(segment) =>
+    let pretty = PrettySegment.prettify(~width, ~settings, segment);
+    Printer.of_segment(~holes="?", ~indent=" ", pretty)
+    |> Util.StringUtil.trim_trailing_whitespace;
+  | None => failwith("Failed to parse: " ++ input)
+  };
+};
+
+let test_format_seg = (~name, ~width=80, ~settings=PrettySegment.default_settings, ~input, ~expected, ()): test_case(_) =>
+  test_case(name, `Quick, () =>
+    check(string, name, expected, format_seg(~width, ~settings, input))
+  );
+
 let test_format = (~name, ~width=80, ~settings=PrettySegment.default_settings, ~input, ~expected, ()): test_case(_) =>
   test_case(name, `Quick, () =>
     check(string, name, expected, format(~width, ~settings, input))
@@ -512,6 +529,54 @@ let break_fun_params_tests = [
   ),
 ];
 
+/* === Comments (segment-path tests, preserves comments) === */
+
+let comment_tests = [
+  /* Trailing comments stay on same line after comma */
+  test_format_seg(
+    ~name="Record trailing comments break",
+    ~width=45,
+    ~input="let x = (canvas = 1, # The 2D grid # brush = 2, # Selected emoji # palette = 3 # Available emojis #) in x",
+    ~expected={|let x = (
+  canvas = 1, # The 2D grid #
+  brush = 2, # Selected emoji #
+  palette = 3 # Available emojis #
+) in
+x|},
+    (),
+  ),
+  /* When flat, comments stay inline */
+  test_format_seg(
+    ~name="Record trailing comments flat",
+    ~width=80,
+    ~input="let x = (a = 1, # field a # b = 2, # field b # c = 3) in x",
+    ~expected="let x = (a = 1, # field a # b = 2, # field b # c = 3) in x",
+    (),
+  ),
+  /* Simple trailing comment after comma */
+  test_format_seg(
+    ~name="Trailing comment after comma",
+    ~width=30,
+    ~input="let x = (a = 1, # hi # b = 2) in x",
+    ~expected={|let x = (
+  a = 1, # hi #
+  b = 2
+) in
+x|},
+    (),
+  ),
+  /* Standalone comment on its own line */
+  test_format_seg(
+    ~name="Standalone comment before let",
+    ~width=25,
+    ~input={|# standalone comment #
+let x = 1 in x|},
+    ~expected={|# standalone comment #
+let x = 1 in x|},
+    (),
+  ),
+];
+
 let tests = [
   ("PrettyPrint.Flat", flat_tests),
   ("PrettyPrint.Breaking", breaking_tests),
@@ -522,4 +587,5 @@ let tests = [
   ("PrettyPrint.Realworld", realworld_tests),
   ("PrettyPrint.HangingDelimiters", hanging_delimiter_tests),
   ("PrettyPrint.BreakFunParams", break_fun_params_tests),
+  ("PrettyPrint.Comments", comment_tests),
 ];
