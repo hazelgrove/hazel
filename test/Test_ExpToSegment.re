@@ -168,24 +168,24 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          Parser.to_segment("(x=1)"),
+          Parser.to_segment("(x= 1)"),
           Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
-        equivalent_to_make_term({|(x=1, y=2)|});
+        equivalent_to_make_term({|(x= 1, y= 2)|});
       },
     ),
     test_case("Labels in types with single quotes", `Quick, () => {
-      equivalent_to_make_term({|type t = (``=Int, ab=String) in 7|})
+      equivalent_to_make_term({|type t = (``= Int, ab= String) in 7|})
     }),
     test_case("Labels in  patterns with single quotes", `Quick, () => {
-      equivalent_to_make_term({|fun (``=a, ab=_) -> 3|})
+      equivalent_to_make_term({|fun (``= a, ab= _) -> 3|})
     }),
     test_case("Function call with label arguments", `Quick, () => {
-      equivalent_to_make_term({|omit_labels((a=1), `a`)|})
+      equivalent_to_make_term({|omit_labels((a= 1), `a`)|})
     }),
     test_case("Doc page labeled tuple example", `Quick, () => {
       equivalent_to_make_term(
-        {|let labeled_tuple = (a=1, b=2.000000, c=true) in let prj_a = labeled_tuple.a in prj_a|},
+        {|let labeled_tuple = (a= 1, b= 2.000000, c= true) in let prj_a = labeled_tuple.a in prj_a|},
       )
     }),
     test_case(
@@ -365,35 +365,35 @@ let tests = (
       )
     }),
     test_case("ProdProjection - basic product type", `Quick, () => {
-      type_equivalent_to_make_term("(a=Int, b=String).a")
+      type_equivalent_to_make_term("(a= Int, b= String).a")
     }),
     test_case("ProdProjection - empty label", `Quick, () => {
-      type_equivalent_to_make_term("(``=Int).``")
+      type_equivalent_to_make_term("(``= Int).``")
     }),
     test_case("ProdProjection - label with spaces", `Quick, () => {
       type_equivalent_to_make_term(
-        "(`label with spaces`=Int).`label with spaces`",
+        "(`label with spaces`= Int).`label with spaces`",
       )
     }),
     test_case("ProdProjection - type variable", `Quick, () => {
       type_equivalent_to_make_term("t.a")
     }),
     test_case("ProdExtension - product types", `Quick, () => {
-      type_equivalent_to_make_term("(a=Int) ... (b=String)")
+      type_equivalent_to_make_term("(a= Int) ... (b= String)")
     }),
     test_case("ProdExtension - type variables", `Quick, () => {
       type_equivalent_to_make_term("t ... u")
     }),
     test_case("ProdExtension - with special labels", `Quick, () => {
       type_equivalent_to_make_term(
-        "(``=Int) ... (`label with spaces`=String)",
+        "(``= Int) ... (`label with spaces`= String)",
       )
     }),
     test_case("Singleton unlabeled tuple", `Quick, () =>
       check(
         string,
         "Singleton unlabeled tuple",
-        "(_=1)",
+        "(_= 1)",
         print_seg(
           exp_to_segment(IdTagged.FreshGrammar.Exp.(tuple([int(1)]))),
         ),
@@ -403,7 +403,7 @@ let tests = (
       check(
         string,
         "Singleton unlabeled tuple type",
-        "(_=Int)",
+        "(_= Int)",
         print_seg(
           ExpToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,

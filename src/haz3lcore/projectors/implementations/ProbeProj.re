@@ -138,6 +138,9 @@ module SampleLength = {
     Hashtbl.clear(lengths);
   };
 
+  let is_explicit = (sample: Sample.t): bool =>
+    Hashtbl.mem(lengths, sample.id);
+
   let get = (window: Sample.Window.mode, sample: Sample.t): int =>
     Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
@@ -197,7 +200,7 @@ let abbreviate = (exp: Exp.t, available: int): Exp.t => {
 };
 
 let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> String.length;
+  seg |> utility.seg_to_string |> Unicode.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
   let seg = utility.term_to_seg(Exp(exp));
@@ -439,6 +442,24 @@ let value_view =
           row: e##.clientY,
           col: e##.clientX,
         });
+      /* Dump full monotonicity sweep on drag start */
+      let (_, max_width) =
+        seg_of_exp(utility, DHExp.strip_ascriptions(sample.value));
+      Printf.printf("[SWEEP] max_width=%d\n", max_width);
+      let prev_width = ref(0);
+      for (b in 0 to max_width + 5) {
+        let (seg, w) = abbreviated_seg_of(utility, b, sample.value);
+        let text = seg |> utility.seg_to_string;
+        let violation = w < prev_width^ ? " *** VIOLATION ***" : "";
+        Printf.printf(
+          "[SWEEP] budget=%d width=%d text=%s%s\n",
+          b,
+          w,
+          text,
+          violation,
+        );
+        prev_width := w;
+      };
     };
     parent(SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)));
   };
@@ -458,16 +479,45 @@ let value_view =
     switch (ValueState.mousedown^) {
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
-      local(ChangeLength(sample.id, goal.col));
+      let target_width = goal.col;
+      /* Search for the largest budget whose output fits within target_width.
+         This ensures the text edge tracks the mouse position, and filters
+         out budget values where display width jumps non-linearly. */
+      let rec find_budget = (budget: int): int =>
+        if (budget <= 0) {
+          0;
+        } else {
+          let (_, width) = abbreviated_seg_of(utility, budget, sample.value);
+          if (width <= target_width) {
+            budget;
+          } else {
+            find_budget(budget - 1);
+          };
+        };
+      let budget = find_budget(target_width);
+      let (_, actual_width) =
+        abbreviated_seg_of(utility, budget, sample.value);
+      Printf.printf(
+        "[DRAG] target_col=%d -> budget=%d -> width=%d\n",
+        target_width,
+        budget,
+        actual_width,
+      );
+      local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
     };
   };
 
-  /* Crude way of giving more space when there's only one sample shown.
-   * Really should figure out total length of all samples and divide accordingly */
-  let length = SampleLength.get(settings.window, sample);
-  /* Use pre-computed num_total instead of filtering again */
-  let length = length == 12 && num_total == 1 ? 150 : length;
+  /* If the user hasn't explicitly set a length for this sample,
+   * give more space when there's only one sample shown. */
+  let length =
+    if (SampleLength.is_explicit(sample)) {
+      SampleLength.get(settings.window, sample);
+    } else if (num_total == 1) {
+      150;
+    } else {
+      SampleLength.get(settings.window, sample);
+    };
   let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
   div(

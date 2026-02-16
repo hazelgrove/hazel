@@ -715,7 +715,13 @@ let go =
     z
     |> Zipper.update_manuals(_ => [])
     |> Zipper.update_refractors(_, r =>
-         {...r, autos: {...r.autos, ids: Id.Map.empty}}
+         {
+           ...r,
+           autos: {
+             ...r.autos,
+             ids: Id.Map.empty,
+           },
+         }
        )
     |> SampleCursorPerform.reset
   };
