@@ -489,6 +489,7 @@ module View = {
           | _ => None
           },
         ~locked=false,
+        ~lines=true,
         List.nth(model.scratchpads, model.current) |> snd,
       ),
     ];

@@ -318,5 +318,4 @@ let high_level_node_map_tests = (
   ],
 );
 
-let tests =
-  IdTagged.FreshGrammar.[edit_action_tests, high_level_node_map_tests];
+let tests = [edit_action_tests, high_level_node_map_tests];
