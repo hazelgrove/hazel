@@ -256,7 +256,7 @@ let structural_tests = [
           tup_label(label("beta"), string("bbbbbbbbbbbb")),
           tup_label(label("gamma"), string("cccccccccccc")),
         ]);
-      let abbreviated: Exp.t = run_abbreviation(~available=24, original);
+      let abbreviated: Exp.t = run_abbreviation(~available=28, original);
       switch (abbreviated.term) {
       | Tuple(elements) =>
         check(Alcotest.int, "field count", 3, List.length(elements));
@@ -349,7 +349,73 @@ let budget_tests = [
   ),
 ];
 
+/* ===== Hard cap tests: rendered width must never exceed budget ===== */
+
+let check_hard_cap = (name: string, src: string): unit => {
+  let max_budget = full_length(src) + 5;
+  let violation = ref(None);
+  let rec sweep = (budget: int): unit =>
+    if (budget > max_budget) {
+      ();
+    } else {
+      let rendered = abbreviate_and_render(~available=budget, src);
+      let len = Util.Unicode.length(rendered);
+      if (len > budget && violation^ == None) {
+        violation :=
+          Some(
+            Printf.sprintf(
+              "%s: hard cap violated at budget %d: len=%d rendered=%s",
+              name,
+              budget,
+              len,
+              rendered,
+            ),
+          );
+      };
+      sweep(budget + 1);
+    };
+  /* Budget 0 can never be satisfied (minimum output is ellipsis = 1 char),
+     so start sweep at 1. */
+  sweep(1);
+  switch (violation^) {
+  | Some(msg) => fail(msg)
+  | None => ()
+  };
+};
+
+let hard_cap_tests =
+  List.map(
+    ((name, src)) =>
+      test_case("hard cap: " ++ name, `Quick, () =>
+        check_hard_cap(name, src)
+      ),
+    [
+      ("int literal", "42"),
+      ("bool true", "true"),
+      ("bool false", "false"),
+      ("string literal", "\"hello\""),
+      ("short var", "x"),
+      ("long var", "myLongVariable"),
+      ("tuple 3", "(1, 2, 3)"),
+      ("tuple 5", "(1, 2, 3, 4, 5)"),
+      ("list 5", "[1, 2, 3, 4, 5]"),
+      ("binary op", "1 + 2"),
+      ("let expr", "let x = 1 in x + 1"),
+      ("constructor app", "Some(42)"),
+      ("labeled tuple", "(alpha=1, beta=2, gamma=3)"),
+      ("empty list", "[]"),
+      ("empty tuple", "()"),
+      ("cons", "1::2::[]"),
+      ("negation", "-5"),
+      ("nested tuple", "((1, 2), (3, 4))"),
+      ("list of tuples", "[(1, 2), (3, 4)]"),
+      ("nested constructor app", {|Lam("bro", Var("bro"))|}),
+      ("simple constructor app", {|Some(42)|}),
+      ("constructor string arg", {|Lam("bro")|}),
+    ],
+  );
+
 let tests = (
   "Abbreviate",
-  structural_tests @ monotonicity_tests @ budget_tests,
+  structural_tests @ monotonicity_tests @ budget_tests @ hard_cap_tests,
 );

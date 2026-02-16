@@ -214,10 +214,22 @@ let abbreviated_seg_of =
   seg_of_exp(utility, abbr_exp);
 };
 
+/* Measure actual font metrics from the #font-specimen element.
+ * Falls back to 10.0 if the element isn't available. */
+let font_metrics = (): (float, float) => {
+  switch (JsUtil.get_elem_by_id_opt("font-specimen")) {
+  | Some(specimen) =>
+    let rect = specimen##getBoundingClientRect;
+    let col_width = max(1.0, rect##.right -. rect##.left);
+    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    (col_width, row_height);
+  | None => (10.0, 10.0)
+  };
+};
+
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
-  let row_height = 10.0;
-  let col_width = 10.0;
+  let (col_width, row_height) = font_metrics();
   let text_box =
     e##.currentTarget
     |> Js.Opt.get(_, _ => failwith(""))
@@ -442,24 +454,6 @@ let value_view =
           row: e##.clientY,
           col: e##.clientX,
         });
-      /* Dump full monotonicity sweep on drag start */
-      let (_, max_width) =
-        seg_of_exp(utility, DHExp.strip_ascriptions(sample.value));
-      Printf.printf("[SWEEP] max_width=%d\n", max_width);
-      let prev_width = ref(0);
-      for (b in 0 to max_width + 5) {
-        let (seg, w) = abbreviated_seg_of(utility, b, sample.value);
-        let text = seg |> utility.seg_to_string;
-        let violation = w < prev_width^ ? " *** VIOLATION ***" : "";
-        Printf.printf(
-          "[SWEEP] budget=%d width=%d text=%s%s\n",
-          b,
-          w,
-          text,
-          violation,
-        );
-        prev_width := w;
-      };
     };
     parent(SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)));
   };
@@ -479,30 +473,34 @@ let value_view =
     switch (ValueState.mousedown^) {
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
-      let target_width = goal.col;
-      /* Search for the largest budget whose output fits within target_width.
-         This ensures the text edge tracks the mouse position, and filters
-         out budget values where display width jumps non-linearly. */
-      let rec find_budget = (budget: int): int =>
-        if (budget <= 0) {
-          0;
+      let target_width = max(0, goal.col);
+      /* Find the largest budget whose output fits within target_width.
+         By hard cap, output(b) <= b, so target_width always works.
+         But a larger budget may also fit due to budget distribution
+         overhead. Binary search upward for the max fitting budget. */
+      let width_at = (b: int): int =>
+        abbreviated_seg_of(utility, b, sample.value) |> snd;
+      /* Find upper bound: double from target_width until output exceeds */
+      let rec find_upper = (b: int): int =>
+        if (b > 500 || width_at(b) > target_width) {
+          b;
         } else {
-          let (_, width) = abbreviated_seg_of(utility, budget, sample.value);
-          if (width <= target_width) {
-            budget;
+          find_upper(b * 2 + 1);
+        };
+      let upper = find_upper(max(1, target_width));
+      /* Binary search between target_width and upper */
+      let rec bisect = (lo: int, hi: int): int =>
+        if (lo >= hi) {
+          lo;
+        } else {
+          let mid = (lo + hi + 1) / 2;
+          if (width_at(mid) <= target_width) {
+            bisect(mid, hi);
           } else {
-            find_budget(budget - 1);
+            bisect(lo, mid - 1);
           };
         };
-      let budget = find_budget(target_width);
-      let (_, actual_width) =
-        abbreviated_seg_of(utility, budget, sample.value);
-      Printf.printf(
-        "[DRAG] target_col=%d -> budget=%d -> width=%d\n",
-        target_width,
-        budget,
-        actual_width,
-      );
+      let budget = bisect(target_width, upper);
       local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
     };

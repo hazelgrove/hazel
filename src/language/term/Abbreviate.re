@@ -103,12 +103,18 @@ module AbbrevSequence = {
   let separator_cost: int = 2;
   let ellipsis_cost: int = 1;
 
-  /* Minimum display cost for an item. String literals need at least 3
-     ("…" = quote + ellipsis + quote). Most other items collapse to just
-     "…" (1 char) via the budget guard. */
+  /* Minimum display cost for an item when it renders structurally
+     (not collapsed to bare ellipsis). Used to ensure items_to_show
+     doesn't over-commit. Safety net will collapse to 1 (ellipsis)
+     for any item that can't render at its minimum. */
   let min_display_cost = (item: Exp.t): int =>
     switch (item.term) {
-    | Atom(String(_)) => 3
+    | Atom(String(_)) => 3 /* "…" */
+    | TupLabel(_, _) => 7 /* `…` = … (label 3 + " = " 3 + value 1) */
+    | Ap(Forward, {term: Constructor(_, _), _}, _) => 4 /* …(…) */
+    | Parens(_) => 3 /* (…) */
+    | ListLit([_, ..._]) => 3 /* […] */
+    | Tuple([_, _, ..._]) => 3 /* (…) */
     | _ => 1
     };
 
@@ -120,7 +126,14 @@ module AbbrevSequence = {
       if (c <= 0) {
         0;
       } else {
-        let seps = (c - 1) * separator_cost;
+        /* When c < total, there's a trailing ellipsis with a separator before it.
+           So separators = c (between items + before ellipsis), not c-1. */
+        let seps =
+          if (c < total) {
+            c * separator_cost;
+          } else {
+            (c - 1) * separator_cost;
+          };
         let ellipsis = c < total ? ellipsis_cost : 0;
         let needed = c * min_item + seps + ellipsis;
         if (needed <= budget) {
@@ -190,7 +203,12 @@ module AbbrevSequence = {
       } else {
         /* Compute budgets for only the items we'll show */
         let items_overhead: int = {
-          let seps = (show_count - 1) * separator_cost;
+          let seps =
+            if (show_count < count) {
+              show_count * separator_cost;
+            } else {
+              (show_count - 1) * separator_cost;
+            };
           let ellipsis = show_count < count ? ellipsis_cost : 0;
           seps + ellipsis;
         };
@@ -303,17 +321,22 @@ let abbreviate_string_token = (~min_len: int, s: string): string => {
    that ExpToSegment adds when a label contains non-identifier chars like "…".
    Truncated labels get quoted: `ab…` (len + 2), so only truncate if
    prefix + ellipsis + 2 (backticks) < full label length. */
-let abbreviate_label_str = (min_len: int, s: string): string => {
+let abbreviate_label_str = (_min_len: int, s: string): string => {
   let len = String.length(s);
-  if (len < 2 || len <= min_len) {
+  let budget = available^;
+  /* Full label cost: len chars (valid identifiers not quoted by ExpToSegment) */
+  if (budget >= len) {
     available := available^ - len;
     s;
   } else {
-    let prefix_len = max(0, min_len - 1);
-    let quoting_overhead = 2; /* backticks added by ExpToSegment for non-ident labels */
-    let truncated_rendered_len = prefix_len + ellipsis_cost + quoting_overhead;
-    /* Only truncate if it would actually produce shorter rendered output */
-    if (truncated_rendered_len >= len) {
+    /* Truncated labels get backtick-quoted by ExpToSegment (2 chars overhead).
+       Cost of truncated form: prefix_len + 1 (ellipsis) + 2 (backticks) */
+    let max_prefix = budget - ellipsis_cost - 2; /* backtick overhead */
+    let prefix_len = max(0, max_prefix);
+    let truncated_cost = prefix_len + ellipsis_cost + 2;
+    /* Only truncate if it's actually shorter than the full form */
+    if (truncated_cost >= len) {
+      /* Truncation not shorter; use full form (safety net will handle overspend) */
       available := available^ - len;
       s;
     } else {
@@ -323,7 +346,7 @@ let abbreviate_label_str = (min_len: int, s: string): string => {
         } else {
           flat_ellipses;
         };
-      available := available^ - (prefix_len + ellipsis_cost + quoting_overhead);
+      available := available^ - truncated_cost;
       str;
     };
   };
@@ -335,8 +358,9 @@ let indet_term_pat: Pat.term = Invalid("?");
 let indet_term_rul: Rul.term = Invalid("?");
 let indet_term_tpat: TPat.term = Invalid("?");
 
-let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
-  if (available^ <= 0) {
+let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
+  let initial = available^;
+  if (initial <= 0) {
     available := available^ - ellipsis_cost;
     flat_ellipses_term();
   } else {
@@ -347,45 +371,15 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
       };
     };
     let wrap_or = (term, str): Exp.term =>
-      if (available^ > String.length(str)) {
+      if (available^ >= String.length(str)) {
         available := available^ - String.length(str);
         term;
       } else {
         Invalid(abbreviate_str(available^, str));
       };
 
-    let abbreviate_list_seq = (xs: list(Exp.t)): list(Exp.t) => {
-      /* Pre-compute how many items to show, same as AbbrevSequence */
-      let total = List.length(xs);
-      let min_item =
-        List.fold_left(
-          (acc, item) => max(acc, AbbrevSequence.min_display_cost(item)),
-          1,
-          xs,
-        );
-      let show_count =
-        AbbrevSequence.items_to_show(~total, ~budget=available^, ~min_item);
-      let shown = ref(0);
-      let rec go = (seq: list(Exp.t)): list(Exp.t) =>
-        switch (seq) {
-        | [] => []
-        | [x, ...rest] =>
-          if (shown^ >= show_count && rest != [] || shown^ > show_count) {
-            available := available^ - ellipsis_cost;
-            [flat_ellipses_term()];
-          } else {
-            shown := shown^ + 1;
-            let head: Exp.t = abbreviate_exp(x);
-            if (rest == []) {
-              [head];
-            } else {
-              available := available^ - 2; /* comma space */
-              [head, ...go(rest)];
-            };
-          }
-        };
-      go(xs);
-    };
+    let abbreviate_list_seq = (xs: list(Exp.t)): list(Exp.t) =>
+      AbbrevSequence.run(~items=xs, ~abbreviate=abbreviate_exp);
     let abbreviate_tuple_seq = (xs: list(Exp.t)): list(Exp.t) =>
       AbbrevSequence.run(~items=xs, ~abbreviate=abbreviate_exp);
 
@@ -399,7 +393,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
         )
         : Exp.term =>
       if (available^ <= cost) {
-        indet_term;
+        available := available^ - ellipsis_cost;
+        Invalid(flat_ellipses);
       } else {
         available := available^ - cost;
         let e1' = abbreviate_exp(e1);
@@ -415,7 +410,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
     let handle_unary =
         (~cost: int, ~make_term: Exp.t => Exp.term, e: Exp.t): Exp.term =>
       if (available^ <= cost) {
-        indet_term;
+        available := available^ - ellipsis_cost;
+        Invalid(flat_ellipses);
       } else {
         available := available^ - cost;
         make_term(abbreviate_exp(e));
@@ -453,10 +449,28 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
       | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
 
       // Other atomic cases
-      | EmptyHole => EmptyHole
-      | ListLit([]) => ListLit([])
-      | Tuple([]) => Tuple([])
-      | Deferral(pos) => Deferral(pos)
+      | EmptyHole =>
+        available := available^ - 1;
+        EmptyHole;
+      | ListLit([]) =>
+        if (available^ < 2) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else {
+          available := available^ - 2;
+          ListLit([]);
+        }
+      | Tuple([]) =>
+        if (available^ < 2) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else {
+          available := available^ - 2;
+          Tuple([]);
+        }
+      | Deferral(pos) =>
+        available := available^ - 1;
+        Deferral(pos);
       | Undefined => wrap_or(Undefined, "undefined")
       | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
       | Atom(Int(n) | Nat(n)) =>
@@ -468,46 +482,50 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       // composite literal cases
       | ListLit(xs) =>
-        if (available^ <= 3) {
-          // minimum case: […]
-          available := available^ - 3;
-          ListLit([flat_ellipses_term()]);
+        if (available^ < 3) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
-          available := available^ - 2; // square brackets
+          available := available^ - 2; /* brackets */
           ListLit(abbreviate_list_seq(xs));
         }
       | Tuple([_, _, ..._] as xs) =>
-        let abbreviated = abbreviate_tuple_seq(xs);
-        /* Avoid producing single-element tuples from multi-element inputs,
-           since ExpToSegment renders Tuple([e]) as (_ = e) which can be
-           longer than the abbreviated content. */
-        switch (abbreviated) {
-        | [_single] => Invalid(flat_ellipses)
-        | _ => Tuple(abbreviated)
-        };
-      | TupLabel(e1, e2) =>
-        if (available^ <= 3) {
+        if (available^ < 3) {
+          /* Min: ( + 1 content + ) = 3 */
+          available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
         } else {
-          available := available^ - 3;
+          available := available^ - 2; /* parens */
+          let abbreviated = abbreviate_tuple_seq(xs);
+          /* Avoid producing single-element tuples from multi-element inputs,
+             since ExpToSegment renders Tuple([e]) as (_ = e) which can be
+             longer than the abbreviated content. */
+          switch (abbreviated) {
+          | [_single] => Invalid(flat_ellipses)
+          | _ => Tuple(abbreviated)
+          };
+        }
+      | TupLabel(e1, e2) =>
+        /* Min TupLabel: label (3 quoted `…`) + " = " (3) + value (1) = 7 */
+        if (available^ < 7) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else {
+          available := available^ - 3; /* " = " */
           let remaining: int = available^;
-          let label_min_budget: int =
-            if (remaining <= 0) {
-              0;
+          /* Label needs at least 3 for quoted "…" form.
+             Give label its estimated length if possible, else min 3. */
+          let label_est = AbbrevBudget.label_estimated_length(~label=e1);
+          let label_budget =
+            if (remaining >= label_est) {
+              label_est;
             } else {
-              min(AbbrevBudget.label_min_budget(~label=e1), remaining);
+              max(
+                3,
+                remaining - 1 /* at least 3 for quoted label */
+              );
             };
-          let label_preferred: int =
-            min(
-              AbbrevBudget.label_cap(~label=e1, ~available=remaining),
-              remaining,
-            );
-          let label_budget: int =
-            if (label_preferred < label_min_budget) {
-              label_min_budget;
-            } else {
-              label_preferred;
-            };
+          let label_budget = min(label_budget, remaining - 1);
           let (label', _): (Exp.t, int) =
             AbbrevBudget.with_budget(~budget=label_budget, ~run=() =>
               abbreviate_exp(e1)
@@ -526,13 +544,29 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
           Dot(abbreviate_exp(e1), abbreviate_exp(e2));
         }
       | Ap(Forward, {term: Constructor(_str, _), _} as konst, arg) =>
-        let konst = abbreviate_exp(konst);
-        available := available^ - 2;
-        let arg = abbreviate_exp(arg);
-        Ap(Forward, konst, arg);
+        if (available^ < 4) {
+          /* Min: 1 name + ( + 1 arg + ) = 4 */
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else {
+          let name_budget = available^ - 3; /* reserve ( + 1 arg + ) */
+          let (konst, _) =
+            AbbrevBudget.with_budget(~budget=name_budget, ~run=() =>
+              abbreviate_exp(konst)
+            );
+          available := available^ - 2; /* parens */
+          let arg = abbreviate_exp(arg);
+          Ap(Forward, konst, arg);
+        }
       | Parens(e) =>
-        available := available^ - 2;
-        Parens(abbreviate_exp(e));
+        if (available^ < 3) {
+          /* Min: ( + 1 content + ) = 3 */
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else {
+          available := available^ - 2;
+          Parens(abbreviate_exp(e));
+        }
 
       // Ascriptions
 
@@ -564,37 +598,37 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
       // Unary operations
       | UnOp(Bool(Not), e) =>
         handle_unary(
-          ~cost=1, // "!"
+          ~cost=2, // "! " (op + space)
           ~make_term=e' => UnOp(Bool(Not), e'),
           e,
         )
       | UnOp(SInt(Minus), e) =>
         handle_unary(
-          ~cost=1, // "-"
+          ~cost=2, // "- " (op + space)
           ~make_term=e' => UnOp(SInt(Minus), e'),
           e,
         )
       | UnOp(Float(Minus), e) =>
         handle_unary(
-          ~cost=1, // "~"
+          ~cost=2, // "~. " (op + space) -- actually "-. " is 3 chars
           ~make_term=e' => UnOp(Float(Minus), e'),
           e,
         )
       | UnOp(Nat(Minus), e) =>
         handle_unary(
-          ~cost=1, // "-"
+          ~cost=2, // "- " (op + space)
           ~make_term=e' => UnOp(Nat(Minus), e'),
           e,
         )
       | UnOp(Int(Minus), e) =>
         handle_unary(
-          ~cost=1, // "-"
+          ~cost=2, // "- " (op + space)
           ~make_term=e' => UnOp(Int(Minus), e'),
           e,
         )
       | UnOp(Meta(Unquote), e) =>
         handle_unary(
-          ~cost=1, // "$"
+          ~cost=2, // "$ " (op + space)
           ~make_term=e' => UnOp(Meta(Unquote), e'),
           e,
         )
@@ -602,11 +636,15 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
       // Binary operations
       | BinOp(op, e1, e2) =>
         let op_str = Operators.bin_op_to_string(op);
+        /* Display cost: " op " = op_len + 2 spaces */
+        let op_cost = String.length(op_str) + 2;
 
-        if (available^ <= String.length(op_str)) {
-          indet_term;
+        if (available^ < op_cost + 2) {
+          /* Not enough for op + minimum 1-char operands */
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
-          available := available^ - String.length(op_str);
+          available := available^ - op_cost;
           let e1' = abbreviate_exp(e1);
           if (available^ > 0) {
             let e2' = abbreviate_exp(e2);
@@ -618,7 +656,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | TupleExtension(e1, e2) =>
         if (available^ <= 3) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 3; // "..."
           let e1' = abbreviate_exp(e1);
@@ -631,7 +670,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
         }
       | Ap(Forward, e1, e2) =>
         if (available^ <= 1) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 1; // space between terms
           let e1' = abbreviate_exp(e1);
@@ -646,7 +686,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
       //similar to ap, except with builtin tuple for args
       | DeferredAp(e, es) =>
         if (available^ <= 1) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 1; // space between terms
           let e' = abbreviate_exp(e);
@@ -681,7 +722,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
       | If(e1, e2, e3) =>
         if (available^ <= 14) {
           // "if then else "
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 14;
           let e1' = abbreviate_exp(e1);
@@ -707,103 +749,80 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | Let(p, e1, e2) =>
         if (available^ < 3) {
-          indet_term;
-        } else if (available^ <= 3) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else if (available^ < 4) {
+          available := available^ - 3;
           Invalid("let");
-        } else if (available^ <= 4) {
+        } else if (available^ < 6) {
+          available := available^ - 4;
           Invalid("let…");
-        } else if (available^ <= 6) {
+        } else if (available^ < 7) {
+          available := available^ - 6;
           Invalid("let…in");
-        } else if (available^ <= 8) {
+        } else if (available^ < 14) {
+          available := available^ - 7;
           Invalid("let…in…");
         } else {
-          available := available^ - 8;
-          let p' = abbreviate_pat(p);
-          if (available^ > 3) {
-            // " = "
-            available := available^ - 3;
-            let e1' = abbreviate_exp(e1);
-            if (available^ > 4) {
-              // " in "
-              available := available^ - 4;
-              let e2' = abbreviate_exp(e2);
-              Let(p', e1', e2');
-            } else {
-              Let(
-                p',
-                e1',
-                {
-                  ...e2,
-                  term: indet_term,
-                },
-              );
-            };
-          } else {
-            Let(
-              p',
-              {
-                ...e1,
-                term: indet_term,
-              },
-              {
-                ...e2,
-                term: indet_term,
-              },
+          /* Full form: "let " (4) + p + " = " (3) + e1 + " in " (4) + e2 */
+          available := available^ - 11; /* 4 + 3 + 4 overhead */
+          let pool = available^;
+          let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=3);
+          let (p', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 0), ~run=() =>
+              abbreviate_pat(p)
             );
-          };
+          let (e1', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 1), ~run=() =>
+              abbreviate_exp(e1)
+            );
+          let (e2', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 2), ~run=() =>
+              abbreviate_exp(e2)
+            );
+          Let(p', e1', e2');
         }
 
       | Theorem(p, e1, e2) =>
         if (available^ < 3) {
-          indet_term;
-        } else if (available^ <= 7) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else if (available^ < 8) {
+          available := available^ - 3;
           Invalid("thm");
-        } else if (available^ <= 9) {
+        } else if (available^ < 10) {
+          available := available^ - 8;
           Invalid("theorem…");
-        } else if (available^ <= 10) {
+        } else if (available^ < 11) {
+          available := available^ - 10;
           Invalid("theorem…in");
-        } else if (available^ <= 14) {
+        } else if (available^ < 18) {
+          available := available^ - 11;
           Invalid("theorem…in…");
         } else {
-          available := available^ - 12;
-          let p' = abbreviate_pat(p);
-          if (available^ > 3) {
-            // " = "
-            available := available^ - 3;
-            let e1' = abbreviate_exp(e1);
-            if (available^ > 4) {
-              // " in "
-              available := available^ - 4;
-              let e2' = abbreviate_exp(e2);
-              Let(p', e1', e2');
-            } else {
-              Let(
-                p',
-                e1',
-                {
-                  ...e2,
-                  term: indet_term,
-                },
-              );
-            };
-          } else {
-            Theorem(
-              p',
-              {
-                ...e1,
-                term: indet_term,
-              },
-              {
-                ...e2,
-                term: indet_term,
-              },
+          /* Full: "theorem " (8) + p + " = " (3) + e1 + " in " (4) + e2 */
+          available := available^ - 15;
+          let pool = available^;
+          let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=3);
+          let (p', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 0), ~run=() =>
+              abbreviate_pat(p)
             );
-          };
+          let (e1', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 1), ~run=() =>
+              abbreviate_exp(e1)
+            );
+          let (e2', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 2), ~run=() =>
+              abbreviate_exp(e2)
+            );
+          Theorem(p', e1', e2');
         }
 
       | ProofObject(t) =>
         if (available^ < 8) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 12) {
           Invalid("proof_object");
         } else if (available^ <= 13) {
@@ -818,7 +837,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | Use(t1, e1) =>
         if (available^ < 3) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 3) {
           Invalid("use");
         } else if (available^ <= 4) {
@@ -848,7 +868,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | TyAlias(tp, t, e) =>
         if (available^ < 4) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 4) {
           Invalid("type");
         } else if (available^ <= 6) {
@@ -896,7 +917,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | FixF(p, e, t) =>
         if (available^ < 3) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 3) {
           Invalid("fix");
         } else if (available^ <= 5) {
@@ -927,7 +949,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | Match(exp, pat_exp_pairs) =>
         if (available^ <= 3) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 4) {
           Invalid("case");
         } else if (available^ <= 7) {
@@ -965,7 +988,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
       | TypAp(e, t) =>
         // <e> "@<"" <t> ">"
         if (available^ < 5) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 5) {
           Invalid("…@<…>");
         } else {
@@ -988,7 +1012,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | TypFun(tpat, e, name) =>
         if (available^ < 6) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 6) {
           Invalid("typfun");
         } else if (available^ <= 7) {
@@ -1019,7 +1044,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | Forall(p, e) =>
         if (available^ < 6) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 6) {
           Invalid("forall");
         } else if (available^ <= 7) {
@@ -1056,18 +1082,45 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
 
       | MultiHole(things) =>
         if (available^ <= 1) {
-          indet_term;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 1; // space
           MultiHole(List.map(abbreviate_any, things));
         }
-      | Filter(_) => indet_term //TODO
+      | Filter(_) =>
+        //TODO
+
+        available := available^ - ellipsis_cost;
+        Invalid(flat_ellipses);
       | Projector(data, e) => Projector(data, abbreviate_exp(e))
       };
-    rewrap(term);
-  }
-and abbreviate_pat = (pat: Pat.t): Pat.t =>
-  if (available^ <= 0) {
+    let result = rewrap(term);
+    /* Safety net: if the form overspent, retry with budget-1.
+       This ensures monotonicity: output at budget B is at least as wide
+       as output at budget B-1, since we fall back to exactly that. */
+    if (available^ < 0) {
+      /* Restore available to initial before retrying */
+      available := initial;
+      let retry_budget = initial - 1;
+      if (retry_budget <= 0) {
+        available := initial - ellipsis_cost;
+        flat_ellipses_term();
+      } else {
+        let (retried, _) =
+          AbbrevBudget.with_budget(~budget=retry_budget, ~run=() =>
+            abbreviate_exp(exp)
+          );
+        retried;
+      };
+    } else {
+      result;
+    };
+  };
+}
+and abbreviate_pat = (pat: Pat.t): Pat.t => {
+  let initial = available^;
+  if (initial <= 0) {
     available := available^ - ellipsis_cost;
     flat_ellipses_term_pat();
   } else {
@@ -1079,7 +1132,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
     };
 
     let wrap_or = (term, str): Pat.term =>
-      if (available^ > String.length(str)) {
+      if (available^ >= String.length(str)) {
         available := available^ - String.length(str);
         term;
       } else {
@@ -1109,7 +1162,8 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
       | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
       | Cons(p1, p2) =>
         if (available^ < 4) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 4) {
           Invalid("…::…");
         } else {
@@ -1132,7 +1186,8 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
 
       | Ap(p1, p2) =>
         if (available^ < 3) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 3) {
           Invalid("(…)");
         } else {
@@ -1155,7 +1210,8 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
 
       | Asc(p, t1) =>
         if (available^ < 3) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 3) {
           Invalid("…:…");
         } else {
@@ -1172,7 +1228,8 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
 
       | ListLit(ps) =>
         if (available^ < 3) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 3) {
           Invalid("[…]");
         } else {
@@ -1183,7 +1240,8 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
 
       | Tuple(ps) =>
         if (available^ < 3) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else if (available^ <= 3) {
           Invalid("(…)");
         } else {
@@ -1194,7 +1252,8 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
 
       | TupLabel(p1, p2) =>
         if (available^ <= 3) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 3;
           TupLabel(abbreviate_pat(p1), abbreviate_pat(p2));
@@ -1202,7 +1261,8 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
 
       | MultiHole(things) =>
         if (available^ <= 1) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 1; // space
           MultiHole(List.map(abbreviate_any, things));
@@ -1217,24 +1277,44 @@ and abbreviate_pat = (pat: Pat.t): Pat.t =>
       | EmptyHole => EmptyHole
       | Constructor(name, typ) =>
         if (available^ <= 1) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 1; // space
           Constructor(name, typ);
         }
       | Parens(p) =>
         if (available^ <= 3) {
-          indet_term_pat;
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
         } else {
           available := available^ - 3; // "()"
           Parens(abbreviate_pat(p));
         }
       | Projector(data, p) => Projector(data, abbreviate_pat(p))
       };
-    rewrap(term);
-  }
-and abbreviate_typ = (typ: Typ.t): Typ.t =>
-  if (available^ <= 0) {
+    let result = rewrap(term);
+    if (available^ < 0) {
+      available := initial;
+      let retry_budget = initial - 1;
+      if (retry_budget <= 0) {
+        available := initial - ellipsis_cost;
+        flat_ellipses_term_pat();
+      } else {
+        let (retried, _) =
+          AbbrevBudget.with_budget(~budget=retry_budget, ~run=() =>
+            abbreviate_pat(pat)
+          );
+        retried;
+      };
+    } else {
+      result;
+    };
+  };
+}
+and abbreviate_typ = (typ: Typ.t): Typ.t => {
+  let initial = available^;
+  if (initial <= 0) {
     available := available^ - 1;
     {
       ...typ,
@@ -1251,6 +1331,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
     let handle_unary =
         (~cost: int, ~make_term: Exp.t => Typ.term, t: Exp.t): Typ.term =>
       if (available^ <= cost) {
+        available := available^ - 1;
         indet_term_typ;
       } else {
         available := available^ - cost;
@@ -1262,36 +1343,42 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
       | Unknown(prov) => Unknown(prov)
       | Atom(Int) =>
         if (available^ < 3) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           Atom(Int);
         }
       | Atom(SInt) =>
         if (available^ < 3) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           Atom(SInt);
         }
       | Atom(Nat) =>
         if (available^ < 3) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           Atom(Nat);
         }
       | Atom(Float) =>
         if (available^ < 5) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           Atom(Float);
         }
       | Atom(Bool) =>
         if (available^ < 4) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           Atom(Bool);
         }
       | Atom(String) =>
         if (available^ < 6) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           Atom(String);
@@ -1301,6 +1388,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
       | Label(v) => Label(abbreviate_label_str(available^, v))
       | List(t) =>
         if (available^ <= 2) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 2; // "[]"
@@ -1308,6 +1396,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | Arrow(t1, t2) =>
         if (available^ <= 2) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 2; // "->"
@@ -1327,6 +1416,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | TupLabel(t1, t2) =>
         if (available^ <= 3) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 3;
@@ -1334,6 +1424,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | ProdProjection(t1, t2) =>
         if (available^ <= 3) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 3;
@@ -1341,6 +1432,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | ProdExtension(t1, t2) =>
         if (available^ <= 3) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 3; // "..."
@@ -1360,6 +1452,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | Sum(ctors) =>
         if (available^ <= 1) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           //TODO: abbreviate these like tuples
@@ -1370,6 +1463,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | Prod(ts) =>
         if (available^ <= 2) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           //TODO: abbreviate these like tuples
@@ -1379,6 +1473,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | Parens(t) =>
         if (available^ <= 2) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 2; // "()"
@@ -1386,6 +1481,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | Rec(tp, t) =>
         if (available^ <= 3) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 3; // "rec"
@@ -1406,6 +1502,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         }
       | Poly(tp, t) =>
         if (available^ <= 6) {
+          available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 3; // "poly"
@@ -1432,8 +1529,28 @@ and abbreviate_typ = (typ: Typ.t): Typ.t =>
         )
       | Projector(data, t) => Projector(data, abbreviate_typ(t))
       };
-    rewrap(term);
-  }
+    let result = rewrap(term);
+    if (available^ < 0) {
+      available := initial;
+      let retry_budget = initial - 1;
+      if (retry_budget <= 0) {
+        available := initial - 1;
+        {
+          ...typ,
+          term: indet_term_typ,
+        };
+      } else {
+        let (retried, _) =
+          AbbrevBudget.with_budget(~budget=retry_budget, ~run=() =>
+            abbreviate_typ(typ)
+          );
+        retried;
+      };
+    } else {
+      result;
+    };
+  };
+}
 and abbreviate_tpat = (tpat: TPat.t): TPat.t =>
   if (available^ <= 0) {
     available := available^ - ellipsis_cost;
