@@ -23,7 +23,7 @@ type Crop =
 in
 
 # A garden plot has soil state, optionally a growing crop, and season #
-type Plot = (
+type Model = (
   soil = Soil,
   crop = +None +Some(Crop),
   season = Int
@@ -57,7 +57,7 @@ in
 let balancedSoil : Soil = (n = 60, p = 60, k = 60) in
 
 # A fresh plot starts with balanced soil #
-let newPlot : Plot = (
+let initModel : Model = (
   soil = balancedSoil,
   crop = None,
   season = 1
@@ -124,7 +124,7 @@ in
 # ========================================= #
 
 # Process a single action on a plot #
-let update : (Plot, Action) -> Plot =
+let update : (Model, Action) -> Model =
   fun (p, action) ->
     case action
     | Plant(crop) =>
@@ -165,7 +165,7 @@ let update : (Plot, Action) -> Plot =
 in
 
 # Process a sequence of actions #
-let farm : (Plot, [Action]) -> Plot =
+let farm : (Model, [Action]) -> Model =
   fun (plot, actions) ->
     fold_left(actions, update, plot)
 in
@@ -176,38 +176,38 @@ in
 
 hint "planting sets the current crop"
 test
-  let p = update(newPlot, Plant(Mooncorn)) in
+  let p = update(initModel, Plant(Mooncorn)) in
   p.crop == Some(Mooncorn)
 end;
 
 hint "cannot plant when crop already growing"
 test
-  let p = farm(newPlot, [Plant(Mooncorn), Plant(Startomatoes)]) in
+  let p = farm(initModel, [Plant(Mooncorn), Plant(Startomatoes)]) in
   p.crop == Some(Mooncorn)
 end;
 
 hint "planting has small nutrient cost"
 test
-  let p = update(newPlot, Plant(Startomatoes)) in
-  p.soil.n < newPlot.soil.n
+  let p = update(initModel, Plant(Startomatoes)) in
+  p.soil.n < initModel.soil.n
 end;
 
 hint "harvesting clears the crop"
 test
-  let p = farm(newPlot, [Plant(Mooncorn), Harvest]) in
+  let p = farm(initModel, [Plant(Mooncorn), Harvest]) in
   p.crop == None
 end;
 
 hint "harvesting nothing changes nothing"
 test
-  let p = update(newPlot, Harvest) in
-  p == newPlot
+  let p = update(initModel, Harvest) in
+  p == initModel
 end;
 
 hint "mooncorn depletes nitrogen heavily"
 test
-  let p = farm(newPlot, [Plant(Mooncorn), Harvest]) in
-  p.soil.n < newPlot.soil.n - 20
+  let p = farm(initModel, [Plant(Mooncorn), Harvest]) in
+  p.soil.n < initModel.soil.n - 20
 end;
 
 hint "nightbeans restore nitrogen"
@@ -234,18 +234,18 @@ end;
 
 hint "startomatoes deplete all nutrients moderately"
 test
-  let p = farm(newPlot, [Plant(Startomatoes), Harvest]) in
-  p.soil.n < newPlot.soil.n &&
-  p.soil.p < newPlot.soil.p &&
-  p.soil.k < newPlot.soil.k
+  let p = farm(initModel, [Plant(Startomatoes), Harvest]) in
+  p.soil.n < initModel.soil.n &&
+  p.soil.p < initModel.soil.p &&
+  p.soil.k < initModel.soil.k
 end;
 
 hint "compost boosts all nutrients"
 test
-  let p = update(newPlot, Compost) in
-  p.soil.n > newPlot.soil.n &&
-  p.soil.p > newPlot.soil.p &&
-  p.soil.k > newPlot.soil.k
+  let p = update(initModel, Compost) in
+  p.soil.n > initModel.soil.n &&
+  p.soil.p > initModel.soil.p &&
+  p.soil.k > initModel.soil.k
 end;
 
 hint "compost respects maximum (100)"
@@ -257,14 +257,14 @@ end;
 
 hint "season advances counter"
 test
-  let p = update(newPlot, SeasonChange) in
+  let p = update(initModel, SeasonChange) in
   p.season == 2
 end;
 
 hint "season change causes minor nutrient loss"
 test
-  let p = update(newPlot, SeasonChange) in
-  p.soil.n < newPlot.soil.n
+  let p = update(initModel, SeasonChange) in
+  p.soil.n < initModel.soil.n
 end;
 
 hint "mooncorn then clover rotation restores nitrogen"
@@ -293,7 +293,7 @@ end;
 # ========================================= #
 # DEMO: Full growing season                 #
 # ========================================= #
-farm(newPlot, [
+farm(initModel, [
   Plant(Mooncorn),
   SeasonChange,
   Harvest,

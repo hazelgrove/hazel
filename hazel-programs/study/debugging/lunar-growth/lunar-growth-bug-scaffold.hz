@@ -1,4 +1,4 @@
-# LUNAR GROWTH TRACKER - A Mystical Greenhouse Simulation #
+# LUNAR GROWTH TRACKER - A Mystical Model Simulation #
 # Plants grow based on lunar energy, each responding differently to moon phases #
 
 # Moon phases cycle through the night sky #
@@ -26,7 +26,7 @@ type Plant = (
 ) in
 
 # The greenhouse state #
-type Greenhouse = (
+type Model = (
   plants = [Plant],
   currentPhase = MoonPhase,
   nightCount = Int
@@ -135,7 +135,7 @@ let growPlant : (Plant, MoonPhase) -> Plant =
 in
 
 # Initialize an empty greenhouse on a New moon night #
-let initGreenhouse : Greenhouse =
+let initModel : Model =
   (
     plants = [],
     currentPhase = New,
@@ -145,7 +145,7 @@ in
 
 # Apply an action to the greenhouse #
 # PlantSeed adds a new plant, NightPasses grows all plants, etc. #
-let update : (Greenhouse, Action) -> Greenhouse =
+let update : (Model, Action) -> Model =
   fun (gh, action) ->
     case action
     | PlantSeed(kind, name) =>
@@ -187,8 +187,8 @@ let update : (Greenhouse, Action) -> Greenhouse =
 in
 
 # Run multiple actions in sequence #
-let tend : (Greenhouse, [Action]) -> Greenhouse =
-  fun (gh: Greenhouse, actions: [Action]) ->
+let tend : (Model, [Action]) -> Model =
+  fun (gh: Model, actions: [Action]) ->
     fold_left(actions, update, gh)
 in
 
@@ -200,13 +200,13 @@ let moonNights : (Int, MoonPhase) -> [Action] =
 in
 
 # Get a plant by name from the greenhouse #
-let findPlant : (Greenhouse, String) -> Plant =
+let findPlant : (Model, String) -> Plant =
   fun (gh, name) ->
     find(gh.plants, fun p -> p.name == name)
 in
 
 # Count plants at full growth (ready to harvest) #
-let countHarvestable : Greenhouse -> Int =
+let countHarvestable : Model -> Int =
   fun gh ->
     length(filter(gh.plants, fun p -> p.growth >= 100))
 in
@@ -215,20 +215,20 @@ in
 
 hint "can plant a seedling"
 test
-  let gh = update(initGreenhouse, PlantSeed(Moonbloom, "Luna")) in
+  let gh = update(initModel, PlantSeed(Moonbloom, "Luna")) in
   length(gh.plants) == 1
 end;
 
 hint "seedling starts at 0 growth"
 test
-  let gh = update(initGreenhouse, PlantSeed(Starfern, "Stella")) in
+  let gh = update(initModel, PlantSeed(Starfern, "Stella")) in
   let plant = findPlant(gh, "Stella") in
   plant.growth == 0
 end;
 
 hint "Moonbloom grows fast during New moon"
 test
-  let gh = tend(initGreenhouse, [
+  let gh = tend(initModel, [
     PlantSeed(Moonbloom, "Luna"),
     NightPasses(New)
   ]) in
@@ -238,7 +238,7 @@ end;
 
 hint "Moonbloom grows slowly during Full moon (opposite)"
 test
-  let gh = tend(initGreenhouse, [
+  let gh = tend(initModel, [
     PlantSeed(Moonbloom, "Luna"),
     NightPasses(Full)
   ]) in
@@ -248,7 +248,7 @@ end;
 
 hint "Starfern grows fast during Full moon"
 test
-  let gh = tend(initGreenhouse, [
+  let gh = tend(initModel, [
     PlantSeed(Starfern, "Stella"),
     NightPasses(Full)
   ]) in
@@ -258,7 +258,7 @@ end;
 
 hint "Starfern grows slowly during New moon (opposite)"
 test
-  let gh = tend(initGreenhouse, [
+  let gh = tend(initModel, [
     PlantSeed(Starfern, "Stella"),
     NightPasses(New)
   ]) in
@@ -268,7 +268,7 @@ end;
 
 hint "Duskrose loves Waxing phase"
 test
-  let gh = tend(initGreenhouse, [
+  let gh = tend(initModel, [
     PlantSeed(Duskrose, "Twilight"),
     NightPasses(Waxing)
   ]) in
@@ -278,11 +278,11 @@ end;
 
 hint "Evergreen grows steadily regardless of phase"
 test
-  let gh1 = tend(initGreenhouse, [
+  let gh1 = tend(initModel, [
     PlantSeed(Evergreen, "Cedar"),
     NightPasses(New)
   ]) in
-  let gh2 = tend(initGreenhouse, [
+  let gh2 = tend(initModel, [
     PlantSeed(Evergreen, "Cedar"),
     NightPasses(Full)
   ]) in
@@ -293,7 +293,7 @@ end;
 
 hint "watering adds 5 growth to all plants"
 test
-  let gh = tend(initGreenhouse, [
+  let gh = tend(initModel, [
     PlantSeed(Moonbloom, "Luna"),
     PlantSeed(Starfern, "Stella"),
     NightPasses(New),
@@ -306,7 +306,7 @@ end;
 
 hint "harvest removes fully grown plants"
 test
-  let gh = tend(initGreenhouse, [
+  let gh = tend(initModel, [
     PlantSeed(Moonbloom, "Luna"),
     NightPasses(New), NightPasses(New), NightPasses(New),
     NightPasses(New), NightPasses(New),
@@ -317,7 +317,7 @@ end;
 
 hint "Moonbloom in opposite phase grows slowly over multiple nights"
 test
-  let gh = tend(initGreenhouse, [
+  let gh = tend(initModel, [
     PlantSeed(Moonbloom, "Luna")
   ] @ moonNights(4, Full)) in
   let plant = findPlant(gh, "Luna") in
@@ -325,7 +325,7 @@ test
 end;
 
 # Demo: A full lunar cycle garden #
-let lunarCycle = tend(initGreenhouse, [
+let lunarCycle = tend(initModel, [
   PlantSeed(Moonbloom, "Luna"),
   PlantSeed(Starfern, "Stella"),
   PlantSeed(Duskrose, "Twilight"),

@@ -35,7 +35,7 @@ type Harvest = (
 # totalValue: cumulative value of all harvests plus claimed bonuses #
 # streakBonus: current unclaimed streak bonus #
 # lastQuality: quality of the most recent harvest (for streak tracking) #
-type Ledger = (
+type Model = (
   harvests = [Harvest],
   totalValue = Int,
   streakBonus = Int,
@@ -86,7 +86,7 @@ in
 
 # Initial empty ledger #
 # Start of a new harvest day with no recorded harvests #
-let initLedger : Ledger = (
+let initModel : Model = (
   harvests = [],
   totalValue = 0,
   streakBonus = 0,
@@ -98,7 +98,7 @@ let initLedger : Ledger = (
 # Process a harvest action and update the ledger #
 # This function handles streak detection and bonus calculation #
 # A streak continues when consecutive harvests have the same quality #
-let processHarvest : (Ledger, Harvest) -> Ledger =
+let processHarvest : (Model, Harvest) -> Model =
   fun (ledger, h) ->
     # Calculate the base value of this harvest #
     let value = harvestValue(h) in
@@ -128,7 +128,7 @@ in
 
 # Claim the streak bonus and reset it #
 # Adds current streak bonus to total, then zeroes streak #
-let claimBonus : Ledger -> Ledger =
+let claimBonus : Model -> Model =
   fun ledger ->
     (
       harvests = ledger.harvests,
@@ -140,7 +140,7 @@ in
 
 # Close the harvest day - reset streak tracking #
 # Preserves harvests and total, resets streak state #
-let closeDay : Ledger -> Ledger =
+let closeDay : Model -> Model =
   fun ledger ->
     (
       harvests = ledger.harvests,
@@ -154,7 +154,7 @@ in
 
 # Main update function - dispatch actions #
 # Routes each action type to its handler #
-let update : (Ledger, Action) -> Ledger =
+let update : (Model, Action) -> Model =
   fun (ledger, action) ->
     case action
     | RecordHarvest(h) => processHarvest(ledger, h)
@@ -165,7 +165,7 @@ in
 
 # Run multiple actions in sequence #
 # Folds actions left-to-right, threading the ledger through #
-let run : (Ledger, [Action]) -> Ledger =
+let run : (Model, [Action]) -> Model =
   fun (ledger, actions) ->
     fold_left(actions, update, ledger)
 in
@@ -176,14 +176,14 @@ in
 hint "recording harvest adds to total value"
 test
   let h = (crop = Moonmelon, quality = Bronze, quantity = 2) in
-  let ledger = update(initLedger, RecordHarvest(h)) in
+  let ledger = update(initModel, RecordHarvest(h)) in
   ledger.totalValue == 30
 end;
 
 hint "harvest is added to harvests list"
 test
   let h = (crop = Starfruit, quality = Silver, quantity = 1) in
-  let ledger = update(initLedger, RecordHarvest(h)) in
+  let ledger = update(initModel, RecordHarvest(h)) in
   length(ledger.harvests) == 1
 end;
 
@@ -191,21 +191,21 @@ end;
 hint "silver quality doubles value"
 test
   let h = (crop = Duskwheat, quality = Silver, quantity = 1) in
-  let ledger = update(initLedger, RecordHarvest(h)) in
+  let ledger = update(initModel, RecordHarvest(h)) in
   ledger.totalValue == 20
 end;
 
 hint "gold quality triples value"
 test
   let h = (crop = Duskwheat, quality = Gold, quantity = 1) in
-  let ledger = update(initLedger, RecordHarvest(h)) in
+  let ledger = update(initModel, RecordHarvest(h)) in
   ledger.totalValue == 30
 end;
 
 hint "starlight quality gives 5x value"
 test
   let h = (crop = Nightberry, quality = Starlight, quantity = 1) in
-  let ledger = update(initLedger, RecordHarvest(h)) in
+  let ledger = update(initModel, RecordHarvest(h)) in
   ledger.totalValue == 125
 end;
 
@@ -214,7 +214,7 @@ hint "same quality builds streak"
 test
   let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let ledger = run(initLedger, [RecordHarvest(h1), RecordHarvest(h2)]) in
+  let ledger = run(initModel, [RecordHarvest(h1), RecordHarvest(h2)]) in
   ledger.streakBonus == 5
 end;
 
@@ -223,7 +223,7 @@ test
   let h1 = (crop = Moonmelon, quality = Silver, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Silver, quantity = 1) in
   let h3 = (crop = Nightberry, quality = Silver, quantity = 1) in
-  let ledger = run(initLedger, [
+  let ledger = run(initModel, [
     RecordHarvest(h1),
     RecordHarvest(h2),
     RecordHarvest(h3)
@@ -235,7 +235,7 @@ hint "different quality resets streak"
 test
   let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let ledger = run(initLedger, [RecordHarvest(h1), RecordHarvest(h2)]) in
+  let ledger = run(initModel, [RecordHarvest(h1), RecordHarvest(h2)]) in
   ledger.streakBonus == 0
 end;
 
@@ -244,7 +244,7 @@ test
   let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
   let h3 = (crop = Nightberry, quality = Gold, quantity = 1) in
-  let ledger = run(initLedger, [
+  let ledger = run(initModel, [
     RecordHarvest(h1),
     RecordHarvest(h2),
     RecordHarvest(h3)
@@ -257,7 +257,7 @@ hint "claiming bonus adds to total"
 test
   let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let ledger = run(initLedger, [
+  let ledger = run(initModel, [
     RecordHarvest(h1),
     RecordHarvest(h2),
     ClaimBonus
@@ -270,7 +270,7 @@ hint "closing day resets streak tracking"
 test
   let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let ledger = run(initLedger, [
+  let ledger = run(initModel, [
     RecordHarvest(h1),
     RecordHarvest(h2),
     CloseDay
@@ -282,7 +282,7 @@ end;
 hint "lastQuality tracks most recent harvest quality"
 test
   let h = (crop = Moonmelon, quality = Starlight, quantity = 1) in
-  let ledger = update(initLedger, RecordHarvest(h)) in
+  let ledger = update(initModel, RecordHarvest(h)) in
   ledger.lastQuality == Starlight
 end;
 
@@ -291,8 +291,8 @@ hint "nightberry has highest base value"
 test
   let h1 = (crop = Nightberry, quality = Bronze, quantity = 1) in
   let h2 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
-  let ledger1 = update(initLedger, RecordHarvest(h1)) in
-  let ledger2 = update(initLedger, RecordHarvest(h2)) in
+  let ledger1 = update(initModel, RecordHarvest(h1)) in
+  let ledger2 = update(initModel, RecordHarvest(h2)) in
   ledger1.totalValue > ledger2.totalValue
 end;
 
@@ -300,8 +300,8 @@ hint "duskwheat has lowest base value"
 test
   let h1 = (crop = Duskwheat, quality = Bronze, quantity = 1) in
   let h2 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
-  let ledger1 = update(initLedger, RecordHarvest(h1)) in
-  let ledger2 = update(initLedger, RecordHarvest(h2)) in
+  let ledger1 = update(initModel, RecordHarvest(h1)) in
+  let ledger2 = update(initModel, RecordHarvest(h2)) in
   ledger1.totalValue < ledger2.totalValue
 end;
 
@@ -309,14 +309,14 @@ end;
 hint "quantity multiplies value"
 test
   let h = (crop = Moonmelon, quality = Bronze, quantity = 5) in
-  let ledger = update(initLedger, RecordHarvest(h)) in
+  let ledger = update(initModel, RecordHarvest(h)) in
   ledger.totalValue == 75
 end;
 
 # Complex scenario test #
 hint "full harvest day scenario"
 test
-  let ledger = run(initLedger, [
+  let ledger = run(initModel, [
     RecordHarvest((crop = Duskwheat, quality = Bronze, quantity = 3)),
     RecordHarvest((crop = Moonmelon, quality = Bronze, quantity = 2)),
     RecordHarvest((crop = Starfruit, quality = Gold, quantity = 1)),
@@ -329,7 +329,7 @@ test
 end;
 
 # Demo: A festival harvest day #
-run(initLedger, [
+run(initModel, [
   RecordHarvest((crop = Moonmelon, quality = Silver, quantity = 2)),
   RecordHarvest((crop = Starfruit, quality = Silver, quantity = 1)),
   RecordHarvest((crop = Nightberry, quality = Gold, quantity = 1)),
