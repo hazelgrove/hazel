@@ -221,7 +221,7 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
       ),
       legend_item(
         ~tooltip=
-          "This sample was collected before the cursor position in the call stack.",
+          "This sample was collected before/above the cursor position in the call stack.",
         legend_sample_view(
           ~indicated=false,
           ~ap_id=None,
@@ -278,7 +278,7 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
       ),
       legend_item(
         ~tooltip=
-          "This sample was collected after the cursor position in the call stack.",
+          "This sample was collected after/below the cursor position in the call stack.",
         legend_sample_view(
           ~indicated=false,
           ~ap_id=None,
@@ -309,7 +309,7 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
       ),
       legend_item(
         ~tooltip=
-          "This sample is from a call site that contains the cursor position.",
+          "This sample is from function call site which isabove the cursor position in the call stack.",
         legend_sample_view(
           ~indicated=false,
           ~indicated_call=None,
@@ -338,35 +338,44 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
           ~caption="Contains",
         ),
       ),
+      switch (mode) {
+      | Single =>
+        legend_item(
+          ~tooltip=
+            "Samples not shown as they are not aligned with dynamic cursor; click to align the cursor and show them.",
+          div(~attrs=[clss(["legend-not-aligned"])], [text({js|⊖|js})]),
+        )
+      | Many =>
+        legend_item(
+          ~tooltip=
+            "This sample is from a different branch of the call stack than the cursor.",
+          legend_sample_view(
+            ~indicated=false,
+            ~ap_id=None,
+            ~indicated_call=None,
+            ~cursor_stack=[
+              {
+                id: Id.mk(),
+                name: None,
+                fn_def_id: None,
+              },
+            ],
+            ~sample_stack=[
+              {
+                id: Id.invalid,
+                name: None,
+                fn_def_id: None,
+              },
+            ],
+            ~step_range=(0, 0),
+            ~focus_step_range=None,
+            ~caption="Off Cursor",
+          ),
+        )
+      },
       legend_item(
         ~tooltip=
-          "This sample is from a different branch of the call stack than the cursor.",
-        legend_sample_view(
-          ~indicated=false,
-          ~ap_id=None,
-          ~indicated_call=None,
-          ~cursor_stack=[
-            {
-              id: Id.mk(),
-              name: None,
-              fn_def_id: None,
-            },
-          ],
-          ~sample_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
-          ~step_range=(0, 0),
-          ~focus_step_range=None,
-          ~caption="Off Cursor",
-        ),
-      ),
-      legend_item(
-        ~tooltip=
-          "This sample is from inside a function call at the cursor position.",
+          "This sample was collected inside the function call at the cursor position, or in a call made from that call.",
         legend_sample_view(
           ~indicated=false,
           ~indicated_call=Some(Id.invalid),

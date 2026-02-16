@@ -142,14 +142,14 @@
 #probesys .legend .legend-tooltip {
   display: none;
   position: absolute;
-  top: 100%;
+  top: 101%;
   left: 0;
   right: 0;
-  margin-top: 0.25em;
+  /* margin-top: 0.25em; */
   padding: 0.5em 0.75em;
-  background-color: var(--T2);
-  color: var(--BR2);
-  border-radius: 0.4em;
+  background-color: var(--BR1);
+  color: var(--BR4);
+  border-radius: 0.5em;
   font-size: 0.85em;
   line-height: 1.4;
   white-space: normal;
@@ -159,6 +159,20 @@
 
 #probesys .legend .legend-item:hover .legend-tooltip {
   display: block;
+}
+
+#probesys .legend-not-aligned {
+  outline: 1.5px dotted var(--BR1);
+  border-radius: 0.2em;
+  height: 1.3em;
+  width: 6em;
+  display: flex;
+  justify-content: center;
+}
+#probesys .legend-item:has(.legend-not-aligned) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* #probesys .code {
