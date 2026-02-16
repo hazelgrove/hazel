@@ -3,7 +3,41 @@
    Uses a Wadler/Lindig-style document IR with a greedy layout algorithm.
    Converts Segment.t → Doc → Segment.t, inserting linebreaks to keep
    code within a target line width. Indentation of linebreaks is handled
-   downstream by Indentation.re / Measured.re. */
+   downstream by Indentation.re / Measured.re.
+
+   == Segment vs Term Nesting ==
+
+   Segments represent delimiter-delimited nesting only — a tile's children
+   are the segments between its matched delimiters. This does NOT include
+   operator precedence parsing (done by Skel / MakeTerm). For prefix forms
+   like `fun x -> body`, the segment doesn't know where `body` ends — the
+   rest of the segment after `->` may include operators that bind looser
+   than `fun`, which are NOT part of the body in the parsed term.
+
+   The pretty printer works at the segment level, not the term level. The
+   split_at_comma workaround and precedence-aware infix chains are sufficient
+   for formatting. Full Skel/MakeTerm integration would add complexity for
+   marginal benefit.
+
+   == On-Demand Tile Decomposition ==
+
+   When segment_to_doc encounters a tile with children, it decomposes the
+   tile on-demand using Tile.contained_children and Tile.shard_of, building
+   a doc that interleaves keyword doc nodes with child docs. This allows
+   the layout algorithm to make coordinated break decisions across tile
+   boundaries (e.g., keeping `(` on the same line as `let x =`).
+
+   After layout, Segment.reassemble reconstructs full tiles from the
+   single-shard pieces in the output segment. */
+
+/* === Settings === */
+
+type settings = {
+  width: int,
+  break_fun_params: bool, /* break function params onto separate lines */
+};
+
+let default_settings: settings = {width: 60, break_fun_params: false};
 
 /* === Document IR === */
 
@@ -12,6 +46,7 @@ type doc =
   | Piece(Piece.t, int) /* piece with pre-computed flat width */
   | Space /* always emits a space */
   | Break /* space if flat, newline if broken */
+  | SoftBreak /* nothing if flat, newline if broken */
   | HardBreak /* always a newline */
   | Cat(doc, doc) /* concatenation */
   | Group(doc); /* try flat first; if doesn't fit, use breaks */
@@ -21,8 +56,15 @@ type doc =
 let rec piece_width = (p: Piece.t): int =>
   switch (p) {
   | Tile(t) =>
+    /* Use effective_label to only count tokens for present shards.
+       For complete tiles this is the full label; for single-shard
+       pieces from decomposition it's just the shard's token. */
     let label_w =
-      List.fold_left((acc, s) => acc + Token.length(s), 0, t.label);
+      List.fold_left(
+        (acc, s) => acc + Token.length(s),
+        0,
+        Tile.effective_label(t),
+      );
     let children_w =
       List.fold_left(
         (acc, child) => acc + segment_flat_width(child),
@@ -57,6 +99,8 @@ let rec fits = (remaining: int, cmds: list((mode, doc))): bool =>
       fits(remaining, [(m, x), (m, y), ...rest])
     | [(Flat, Break), ...rest] => fits(remaining - 1, rest)
     | [(Breaking, Break), ..._] => true
+    | [(Flat, SoftBreak), ...rest] => fits(remaining, rest) /* 0 cost */
+    | [(Breaking, SoftBreak), ..._] => true
     | [(Flat, HardBreak), ..._] => false /* Group can't go flat with HardBreak */
     | [(Breaking, HardBreak), ..._] => true
     | [(_, Group(x)), ...rest] => fits(remaining, [(Flat, x), ...rest])
@@ -84,6 +128,11 @@ let rec layout =
     layout(width, col, [(m, x), (m, y), ...rest])
   | [(Flat, Break), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
   | [(Breaking, Break), ...rest] => [ONewline, ...layout(width, 0, rest)]
+  | [(Flat, SoftBreak), ...rest] => layout(width, col, rest) /* emit nothing */
+  | [(Breaking, SoftBreak), ...rest] => [
+      ONewline,
+      ...layout(width, 0, rest),
+    ]
   | [(_, HardBreak), ...rest] => [ONewline, ...layout(width, 0, rest)]
   | [(_, Group(x)), ...rest] =>
     if (fits(width - col, [(Flat, x), ...rest])) {
@@ -121,42 +170,48 @@ let strip_whitespace = (seg: Segment.t): list(Piece.t) =>
   List.filter(p => !is_whitespace(p), seg);
 
 /* Detect blank lines in original segment.
-   Returns a bool list (one per content piece) indicating whether
-   each content piece had a blank line (2+ newlines) before it. */
-let classify_blank_lines = (seg: Segment.t): list(bool) => {
+   Returns a set of piece IDs that had a blank line (2+ newlines) before them.
+   Uses IDs rather than sequential position so that tile decomposition
+   (which splits one tile into multiple shard pieces sharing the same ID)
+   doesn't cause misalignment. */
+let classify_blank_lines = (seg: Segment.t): Id.Map.t(unit) => {
   let rec go = (newline_count, seg) =>
     switch (seg) {
-    | [] => []
+    | [] => Id.Map.empty
     | [p, ...rest] =>
       if (is_whitespace(p)) {
         go(is_linebreak(p) ? newline_count + 1 : newline_count, rest);
       } else {
-        [newline_count >= 2, ...go(0, rest)];
+        let set = go(0, rest);
+        newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set;
       }
     };
   go(0, seg);
 };
 
-/* Re-insert blank lines into formatted segment based on blank line flags.
-   Walks formatted output, matching content pieces to flags in order. */
+/* Re-insert blank lines into formatted segment based on piece IDs.
+   Inserts a newline before the first occurrence of each flagged ID. */
 let reinsert_blank_lines =
-    (flags: list(bool), formatted: Segment.t): Segment.t => {
+    (blank_ids: Id.Map.t(unit), formatted: Segment.t): Segment.t => {
   let nl = () => Piece.secondary(Secondary.mk_newline(Id.mk()));
-  let rec go = (flags, formatted) =>
+  let rec go = (remaining_ids, formatted) =>
     switch (formatted) {
     | [] => []
     | [p, ...rest] =>
       if (is_whitespace(p)) {
-        [p, ...go(flags, rest)];
+        [p, ...go(remaining_ids, rest)];
       } else {
-        switch (flags) {
-        | [true, ...rest_flags] => [nl(), p, ...go(rest_flags, rest)]
-        | [false, ...rest_flags] => [p, ...go(rest_flags, rest)]
-        | [] => [p, ...go([], rest)]
+        let pid = Piece.id(p);
+        if (Id.Map.mem(pid, remaining_ids)) {
+          /* Insert blank line and remove ID so we don't double-insert
+             for other shards of the same decomposed tile */
+          [nl(), p, ...go(Id.Map.remove(pid, remaining_ids), rest)];
+        } else {
+          [p, ...go(remaining_ids, rest)];
         };
       }
     };
-  go(flags, formatted);
+  go(blank_ids, formatted);
 };
 
 let is_semi = (p: Piece.t): bool =>
@@ -245,6 +300,51 @@ let split_infix_chain =
   go([], pieces);
 };
 
+/* A shard is a single-shard piece from a multi-keyword tile (e.g., the "if"
+   shard from an if/then/else tile that was decomposed via shard_of) */
+let is_shard = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    List.length(t.label) >= 2
+    && List.length(t.shards) == 1
+    && List.length(t.children) == 0
+  | _ => false
+  };
+
+/* Get the token text of a shard piece */
+let shard_token = (p: Piece.t): option(string) =>
+  switch (p) {
+  | Tile(t) when is_shard(p) =>
+    switch (t.shards) {
+    | [i] => Some(List.nth(t.label, i))
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* Single-token prefix operator (e.g., leading + in sum types) */
+let is_single_prefix = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) => List.length(t.label) == 1 && Mold.is_prefix_op(t.mold)
+  | _ => false
+  };
+
+/* Last shard of a prefix form — the keyword after which the body follows
+   (e.g., "in", "->", "else"). Right nib is Concave. */
+let is_body_shard = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) when is_shard(p) =>
+    switch (t.shards) {
+    | [i] when i == List.length(t.label) - 1 =>
+      switch (Tile.shapes(t)) {
+      | (_, Concave(_)) => true
+      | _ => false
+      }
+    | _ => false
+    }
+  | _ => false
+  };
+
 let is_compound_prefix = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
@@ -278,10 +378,15 @@ let is_binding_form = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* Match opening parens/brackets for tighten_applications.
+   After decomposition, closing shards (e.g., ")") should not match —
+   we only want to tighten f (x) → f(x), not remove breaks before ")". */
 let is_paren_or_bracket = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["(", ")"], _})
-  | Tile({label: ["[", "]"], _}) => true
+  | Tile({label: ["(", ")"], shards, children, _})
+  | Tile({label: ["[", "]"], shards, children, _}) =>
+    /* Complete tile (has children) or opening shard (index 0) */
+    List.length(children) > 0 || shards == [0]
   | _ => false
   };
 
@@ -328,12 +433,277 @@ let rec split_at_comma =
 
 let piece_doc = (p: Piece.t): doc => Piece(p, piece_width(p));
 
+/* Helper: build doc for a child segment (recursive) */
+let rec child_doc = (s: settings, child: Segment.t): doc => {
+  let content = strip_whitespace(child);
+  switch (content) {
+  | [] => Empty
+  | _ => segment_to_doc(s, content)
+  };
+}
+
+/* On-demand tile decomposition: when segment_to_doc encounters a tile
+   with children, decompose it into shards + child segments and build
+   a doc that interleaves keyword doc nodes with child docs. This lets
+   the layout algorithm make coordinated decisions across tile boundaries.
+
+   After layout, Segment.reassemble reconstructs the full tiles from
+   the single-shard pieces in the output segment. */
+and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
+  let triples = Tile.contained_children(t);
+  let last_shard_idx = List.length(t.label) - 1;
+  let last_shard = Tile.to_piece(Tile.shard_of(t, last_shard_idx));
+  let last_shard_doc = piece_doc(last_shard);
+
+  /* Build the body doc (content after the tile in the segment).
+     For binding forms, use HardBreak when next piece is also a compound
+     prefix (let-chain formatting). For non-binding prefixes, commas take
+     priority since they bind more loosely in MakeTerm. */
+  let body_doc = (is_binding): doc =>
+    switch (rest) {
+    | [] => Empty
+    | [next, ..._] when is_binding && is_compound_prefix(next) =>
+      Cat(HardBreak, segment_to_doc(s, rest))
+    | [next, ..._] when is_binding && is_case_rule_tile(next) =>
+      Cat(HardBreak, segment_to_doc(s, rest))
+    | _ when is_binding => Cat(Break, Group(segment_to_doc(s, rest)))
+    | _ =>
+      switch (split_at_comma(rest)) {
+      | Some((before, comma, after)) =>
+        let bd = Group(Cat(Break, Group(segment_to_doc(s, before))));
+        Cat(
+          Cat(bd, piece_doc(comma)),
+          switch (after) {
+          | [] => Empty
+          | _ => Cat(Break, segment_to_doc(s, after))
+          },
+        );
+      | None => Group(Cat(Break, Group(segment_to_doc(s, rest))))
+      }
+    };
+
+  switch (t.label) {
+  /* Binding forms: let/=/in, type/=/in, hint/=/in */
+  | ["let", "=", "in"]
+  | ["type", "=", "in"]
+  | ["hint", "=", "in"] =>
+    let first_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    let eq_shard = Tile.to_piece(Tile.shard_of(t, 1));
+    switch (triples) {
+    | [(_, pat_child, _), (_, binding_child, _)] =>
+      /* Group(kw Space pat Space = Break binding Space in) body_doc
+         The Group wraps the entire let...in so it's evaluated independently
+         of the body. The Break after = only fires if let...in is too wide. */
+      let let_in_doc =
+        Group(
+          Cat(
+            piece_doc(first_shard),
+            Cat(
+              Space,
+              Cat(
+                Group(child_doc(s, pat_child)),
+                Cat(
+                  Space,
+                  Cat(
+                    piece_doc(eq_shard),
+                    Cat(
+                      Break,
+                      Cat(
+                        Group(child_doc(s, binding_child)),
+                        Cat(Space, last_shard_doc),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      /* Wrap entire let+body in Group so short bodies stay on the in line.
+         HardBreak in body_doc for let-chains prevents the flat check. */
+      Group(Cat(let_in_doc, body_doc(true)));
+    | _ =>
+      /* Fallback for unexpected structure */
+      Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
+    };
+
+  /* if/then/else */
+  | ["if", "then", "else"] =>
+    let if_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    let then_shard = Tile.to_piece(Tile.shard_of(t, 1));
+    switch (triples) {
+    | [(_, cond_child, _), (_, conseq_child, _)] =>
+      /* Group(if Space Group(cond) Break then Space Group(conseq) Break else)
+         Space Group(body) */
+      let tile_doc =
+        Group(
+          Cat(
+            piece_doc(if_shard),
+            Cat(
+              Space,
+              Cat(
+                Group(child_doc(s, cond_child)),
+                Cat(
+                  Break,
+                  Cat(
+                    piece_doc(then_shard),
+                    Cat(
+                      Space,
+                      Cat(
+                        Group(child_doc(s, conseq_child)),
+                        Cat(Break, last_shard_doc),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      Cat(tile_doc, body_doc(false));
+    | _ => Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
+    };
+
+  /* fun/-> */
+  | ["fun", "->"] =>
+    let fun_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    switch (triples) {
+    | [(_, param_child, _)] =>
+      /* When break_fun_params is false (default), wrap the entire
+         fun...-> header in a Group so params stay on one line even
+         when the body is too long. Break separates header from body
+         so fits() returns true at the Break boundary. */
+      let param_doc = child_doc(s, param_child);
+      let header =
+        Cat(
+          piece_doc(fun_shard),
+          Cat(Space, Cat(param_doc, Cat(Space, last_shard_doc))),
+        );
+      if (s.break_fun_params) {
+        Cat(header, body_doc(false));
+      } else {
+        /* Comma case: body_doc handles comma splitting (tuples/lists).
+           No-comma case: bare Break so fits() sees (Breaking, Break)
+           → true, letting Group(header) go flat independently. */
+        switch (rest) {
+        | [] => Group(header)
+        | _ =>
+          switch (split_at_comma(rest)) {
+          | Some(_) => Cat(Group(header), body_doc(false))
+          | None =>
+            Group(
+              Cat(
+                Group(header),
+                Cat(Break, Group(segment_to_doc(s, rest))),
+              ),
+            )
+          }
+        };
+      }
+    | _ => Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
+    };
+
+  /* Delimiter pairs: (...), [...] */
+  | ["(", ")"]
+  | ["[", "]"] =>
+    let open_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    switch (triples) {
+    | [(_, content_child, _)] =>
+      let inner = child_doc(s, content_child);
+      let delim_doc =
+        switch (inner) {
+        | Empty =>
+          /* Empty delimiters: () or [] */
+          Cat(piece_doc(open_shard), last_shard_doc)
+        | _ =>
+          Group(
+            Cat(
+              piece_doc(open_shard),
+              Cat(SoftBreak, Cat(inner, Cat(SoftBreak, last_shard_doc))),
+            ),
+          )
+        };
+      switch (rest) {
+      | [] => delim_doc
+      | _ => Cat(delim_doc, Cat(Break, Group(segment_to_doc(s, rest))))
+      };
+    | _ => Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
+    };
+
+  /* case/end */
+  | ["case", "end"] =>
+    let case_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    switch (triples) {
+    | [(_, body_child, _)] =>
+      let inner = child_doc(s, body_child);
+      let case_doc =
+        Group(
+          Cat(
+            piece_doc(case_shard),
+            Cat(Space, Cat(inner, Cat(SoftBreak, last_shard_doc))),
+          ),
+        );
+      switch (rest) {
+      | [] => case_doc
+      | _ => Cat(case_doc, Cat(Break, Group(segment_to_doc(s, rest))))
+      };
+    | _ => Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
+    };
+
+  /* Rule |/=> (case rule tiles with children) */
+  | ["|", "=>"] =>
+    let bar_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    switch (triples) {
+    | [(_, pat_child, _)] =>
+      /* | pat => */
+      Cat(
+        piece_doc(bar_shard),
+        Cat(Space, Cat(child_doc(s, pat_child), Cat(Space, last_shard_doc))),
+      )
+    | _ => piece_doc(Tile.to_piece(t))
+    };
+
+  /* Generic multi-keyword tile: interleave shards and children with Break */
+  | _ =>
+    let first_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    let rec build_rest = (triples: list((Tile.t, Segment.t, Tile.t))): doc =>
+      switch (triples) {
+      | [] => Empty
+      | [(_, child, r_shard), ...rest_triples] =>
+        Cat(
+          Space,
+          Cat(
+            child_doc(s, child),
+            Cat(
+              Break,
+              Cat(
+                piece_doc(Tile.to_piece(r_shard)),
+                build_rest(rest_triples),
+              ),
+            ),
+          ),
+        )
+      };
+    let tile_doc = Cat(piece_doc(first_shard), build_rest(triples));
+    switch (rest) {
+    | [] => tile_doc
+    | _ => Cat(tile_doc, body_doc(false))
+    };
+  };
+}
+
 /* Build a doc from a list of content pieces (whitespace already stripped).
-   Uses all-or-nothing for infix/comma chains, waterfall for compound forms. */
-let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
+   Uses all-or-nothing for infix/comma chains, waterfall for compound forms.
+   Tiles with children are decomposed on-demand via build_tile_doc. */
+and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
   switch (pieces) {
   | [] => Empty
-  | [p] => piece_doc(p)
+  | [p] =>
+    switch (p) {
+    /* Single tile with children: decompose */
+    | Tile(t) when List.length(t.children) > 0 => build_tile_doc(s, t, [])
+    | _ => piece_doc(p)
+    }
 
   /* Piece followed by semicolon: keep semi with left operand, hard break */
   | [p, semi, ...rest] when is_semi(semi) =>
@@ -341,13 +711,13 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
       Cat(piece_doc(p), piece_doc(semi)),
       switch (rest) {
       | [] => Empty
-      | _ => Cat(HardBreak, segment_to_doc(rest))
+      | _ => Cat(HardBreak, segment_to_doc(s, rest))
       },
     )
 
   /* Semicolon at start: hard break after */
   | [p, ...rest] when is_semi(p) =>
-    Cat(piece_doc(p), Cat(HardBreak, segment_to_doc(rest)))
+    Cat(piece_doc(p), Cat(HardBreak, segment_to_doc(s, rest)))
 
   /* Piece followed by comma: keep comma with left operand, break after.
      All-or-nothing: no Group wrapper on rest. */
@@ -356,7 +726,7 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
       Cat(piece_doc(p), piece_doc(comma)),
       switch (rest) {
       | [] => Empty
-      | _ => Cat(Break, segment_to_doc(rest))
+      | _ => Cat(Break, segment_to_doc(s, rest))
       },
     )
 
@@ -367,17 +737,17 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
     let body_doc =
       switch (body) {
       | [] => Empty
-      | _ => Cat(Break, Group(segment_to_doc(body)))
+      | _ => Cat(Break, Group(segment_to_doc(s, body)))
       };
     let rule_doc = Group(Cat(piece_doc(p), body_doc));
     switch (remaining) {
     | [] => rule_doc
-    | _ => Cat(rule_doc, Cat(HardBreak, segment_to_doc(remaining)))
+    | _ => Cat(rule_doc, Cat(HardBreak, segment_to_doc(s, remaining)))
     };
 
   /* Dot accessor: keep tight, no space or break */
   | [p, op, ...rest] when is_infix(op) && is_dot(op) =>
-    Cat(piece_doc(p), Cat(piece_doc(op), segment_to_doc(rest)))
+    Cat(piece_doc(p), Cat(piece_doc(op), segment_to_doc(s, rest)))
 
   /* Infix operator: precedence-aware chain splitting.
      Find the loosest operator, split the whole expression there,
@@ -387,9 +757,8 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
     switch (find_loosest_prec(all)) {
     | Some(prec) =>
       let (operands, operators) = split_infix_chain(prec, all);
-      build_infix_chain_doc(operands, operators);
+      build_infix_chain_doc(s, operands, operators);
     | None =>
-      /* Fallback (shouldn't happen since op is infix) */
       Cat(
         piece_doc(p),
         Cat(
@@ -398,46 +767,20 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
             piece_doc(op),
             switch (rest) {
             | [] => Empty
-            | _ => Cat(Space, segment_to_doc(rest))
+            | _ => Cat(Space, segment_to_doc(s, rest))
             },
           ),
         ),
       )
     };
 
-  /* Compound prefix form (let, fun, if, etc.): body in own Group.
-     Binding forms (ending with "in": let, type, hint) use HardBreak
-     when followed by another compound prefix, giving uniform
-     let-chain formatting. Non-binding compound prefixes (fun, if)
-     use width-based Group so e.g. fun n -> if ... stays flat.
+  /* Tile with children: decompose on-demand */
+  | [Tile(t), ...rest] when List.length(t.children) > 0 =>
+    build_tile_doc(s, t, rest)
 
-     For non-binding prefixes, commas in the remaining pieces take
-     priority: commas bind more loosely than fun/if in MakeTerm, so
-     fun x -> a, b is (fun x -> a), b. Without this, the prefix
-     absorbs past the comma, causing asymmetric tuple formatting. */
-  | [p, ...rest] when is_compound_prefix(p) =>
-    Cat(
-      piece_doc(p),
-      switch (rest) {
-      | [] => Empty
-      | [next, ..._] when is_binding_form(p) && is_compound_prefix(next) =>
-        Cat(HardBreak, segment_to_doc(rest))
-      | _ when !is_binding_form(p) =>
-        switch (split_at_comma(rest)) {
-        | Some((before, comma, after)) =>
-          let body_doc = Group(Cat(Break, Group(segment_to_doc(before))));
-          Cat(
-            Cat(body_doc, piece_doc(comma)),
-            switch (after) {
-            | [] => Empty
-            | _ => Cat(Break, segment_to_doc(after))
-            },
-          );
-        | None => Group(Cat(Break, Group(segment_to_doc(rest))))
-        }
-      | _ => Group(Cat(Break, Group(segment_to_doc(rest))))
-      },
-    )
+  /* Single-token prefix (leading +): keep attached via Space */
+  | [p, ...rest] when is_single_prefix(p) =>
+    Cat(piece_doc(p), Cat(Space, segment_to_doc(s, rest)))
 
   /* Default: space between pieces, Group for independent breaking.
      HardBreak before case rules so they always start on a new line. */
@@ -447,8 +790,8 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
       switch (rest) {
       | [] => Empty
       | [next, ..._] when is_case_rule_tile(next) =>
-        Cat(HardBreak, segment_to_doc(rest))
-      | _ => Cat(Break, Group(segment_to_doc(rest)))
+        Cat(HardBreak, segment_to_doc(s, rest))
+      | _ => Cat(Break, Group(segment_to_doc(s, rest)))
       },
     )
   }
@@ -457,17 +800,17 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
    Comma operators stay with the left operand (trailing comma style).
    Label = operators stay with the left operand (break before value). */
 and build_infix_chain_doc =
-    (operands: list(list(Piece.t)), operators: list(Piece.t)): doc =>
+    (s: settings, operands: list(list(Piece.t)), operators: list(Piece.t)): doc =>
   switch (operands) {
   | [] => Empty
   | [first, ...rest_operands] =>
-    let first_doc = Group(segment_to_doc(first));
+    let first_doc = Group(segment_to_doc(s, first));
     let rec join = (acc, ops, operands) =>
       switch (ops, operands) {
       | ([], _)
       | (_, []) => acc
       | ([op, ...rest_ops], [operand, ...rest_operands]) =>
-        let operand_doc = Group(segment_to_doc(operand));
+        let operand_doc = Group(segment_to_doc(s, operand));
         let next =
           if (is_comma(op)) {
             /* Comma stays with left operand */
@@ -524,130 +867,36 @@ let rec tighten_applications = (outputs: list(output)): list(output) =>
   | [] => []
   };
 
-/* === Tile child formatting === */
-
-/* Determine how children should be wrapped when the tile breaks.
-   Returns (break_before, break_after) for each child index. */
-let child_break_style = (label: Label.t, i: int): (bool, bool) =>
-  switch (label) {
-  | ["if", "then", "else"] =>
-    /* Break after condition and consequent (before then/else keywords) */
-    (false, true)
-  | ["let", "=", "in"]
-  | ["type", "=", "in"]
-  | ["hint", "=", "in"] =>
-    /* Break before binding (child 1 only) */
-    i == 1 ? (true, false) : (false, false)
-  | ["case", "end"] =>
-    /* Keep scrutinee with case keyword, end on same line as last rule */
-    (false, false)
-  | ["|", "=>"] =>
-    /* Pattern stays with |, no breaking */
-    (false, false)
-  | ["(", ")"]
-  | ["[", "]"] =>
-    /* Break before and after content */
-    (true, true)
-  | _ when List.length(label) >= 2 =>
-    /* Generic: break before later children */
-    i > 0 ? (true, false) : (false, false)
-  | _ => (false, false)
-  };
-
-/* Whether a tile's children need boundary spaces in flat mode.
-   Delimiter pairs like (...) and [...] render tight: f(x) not f( x ). */
-let needs_boundary_spaces = (label: Label.t): bool =>
-  switch (label) {
-  | ["(", ")"]
-  | ["[", "]"] => false
-  | _ => true
-  };
-
-/* Add boundary whitespace to tile children.
-   In flat mode: space before and after content (except for delimiters).
-   In broken mode: break before/after based on child_break_style. */
-let wrap_children =
-    (~breaking: bool, label: Label.t, children: list(Segment.t))
-    : list(Segment.t) => {
-  let sp = () => Piece.secondary(Secondary.mk_space(Id.mk()));
-  let nl = () => Piece.secondary(Secondary.mk_newline(Id.mk()));
-  let is_delim = !needs_boundary_spaces(label);
-  List.mapi(
-    (i, child) => {
-      let (break_before, break_after) = child_break_style(label, i);
-      if (breaking && (break_before || break_after) && child != []) {
-        let leader = break_before ? nl() : sp();
-        let trailer = break_after ? nl() : sp();
-        [leader, ...child] @ [trailer];
-      } else if (is_delim) {
-        child;
-      } else {
-        [sp(), ...child] @ [sp()];
-      };
-    },
-    children,
-  );
-};
-
 /* === Main formatting === */
 
-let rec format_segment = (~width: int, seg: Segment.t): Segment.t => {
-  /* Step 1: Recursively format tile children (bottom-up) */
-  let seg = List.map(format_piece(~width), seg);
-
-  /* Step 2: Detect blank lines in original segment before stripping */
+let format_segment = (~settings: settings, seg: Segment.t): Segment.t => {
+  /* Step 1: Detect blank lines in original segment before stripping */
   let blank_lines = classify_blank_lines(seg);
 
-  /* Step 3: Strip whitespace, build doc */
+  /* Step 2: Strip whitespace, build doc */
   let content = strip_whitespace(seg);
   switch (content) {
   | [] => []
   | _ =>
-    let doc = Group(segment_to_doc(content));
-    /* Step 4: Layout */
-    let outputs = layout(width, 0, [(Breaking, doc)]);
-    /* Step 5: Post-process (tight application) */
+    let doc = Group(segment_to_doc(settings, content));
+    /* Step 3: Layout */
+    let outputs = layout(settings.width, 0, [(Breaking, doc)]);
+    /* Step 4: Post-process (tight application) */
     let outputs = tighten_applications(outputs);
-    /* Step 6: Convert to segment */
+    /* Step 5: Convert to segment */
     let seg = output_to_segment(outputs);
-    /* Step 7: Re-insert blank lines from original */
-    reinsert_blank_lines(blank_lines, seg);
+    /* Step 6: Re-insert blank lines from original */
+    let seg = reinsert_blank_lines(blank_lines, seg);
+    /* Step 7: Reassemble tiles from single-shard pieces */
+    Segment.reassemble(seg);
   };
-}
-and format_piece = (~width: int, p: Piece.t): Piece.t =>
-  switch (p) {
-  | Tile(t) when List.length(t.children) > 0 =>
-    /* Recursively format children (reduced width to account for indentation) */
-    let child_width = max(width - 4, 4);
-    let raw_children =
-      List.map(format_segment(~width=child_width), t.children);
-    /* If any child has newlines (from structural breaks), skip flat attempt */
-    let has_multiline_child =
-      List.exists(seg => List.exists(is_linebreak, seg), raw_children);
-    /* Try flat layout with boundary spaces */
-    let flat_children = wrap_children(~breaking=false, t.label, raw_children);
-    let flat_tile = {
-      ...t,
-      children: flat_children,
-    };
-    let w = piece_width(Tile(flat_tile));
-    if (!has_multiline_child && w <= width) {
-      Tile(flat_tile);
-    } else {
-      /* Break: use newlines at child boundaries */
-      let broken_children =
-        wrap_children(~breaking=true, t.label, raw_children);
-      Tile({
-        ...t,
-        children: broken_children,
-      });
-    };
-  | _ => p
-  };
+};
 
 /* Main entry point: pretty-print a segment to fit within width columns */
-let prettify = (~width: int=60, seg: Segment.t): Segment.t =>
-  format_segment(~width, seg);
+let prettify =
+    (~width: int=default_settings.width, ~settings=default_settings, seg: Segment.t)
+    : Segment.t =>
+  format_segment(~settings={...settings, width}, seg);
 
 /* === Legacy API (used by ExpToSegment.re) === */
 

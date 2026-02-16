@@ -93,8 +93,7 @@ x + 1|},
     ~input="if true then 1 else 2",
     ~expected={|if true
 then 1
-else
-    2|},
+else 2|},
     (),
   ),
   test_format(
@@ -184,7 +183,8 @@ let case_tests = [
     ~input={|case x | 0 => "zero" | 1 => "one" end|},
     ~expected={|case x
 | 0 => "zero"
-| 1 => "one" end|},
+| 1 => "one"
+end|},
     (),
   ),
   test_format(
@@ -194,7 +194,8 @@ let case_tests = [
     ~expected={|case x
 | 0 => "zero"
 | 1 => "one"
-| _ => "other" end|},
+| _ => "other"
+end|},
     (),
   ),
 ];
@@ -217,8 +218,7 @@ f(5)|},
     ~input="if x > 0 then x + 1 else x - 1",
     ~expected={|if x > 0
 then x + 1
-else
-    x - 1|},
+else x - 1|},
     (),
   ),
   test_format(
@@ -304,6 +304,91 @@ p|},
   ),
 ];
 
+/* === Real-world patterns (from emojipaint) === */
+
+let realworld_tests = [
+  /* Type alias chain: each should get its own line */
+  test_format(
+    ~name="Type alias chain",
+    ~width=60,
+    ~input="type A = Int in type B = String in type C = Bool in 1",
+    ~expected={|type A = Int in
+type B = String in
+type C = Bool in 1|},
+    (),
+  ),
+  /* Simple type alias stays flat */
+  test_format(
+    ~name="Type alias flat",
+    ~input="type Emoji = String in 1",
+    ~expected="type Emoji = String in 1",
+    (),
+  ),
+  /* Fun with multiple params: params stay on one line
+     (ExpToSegment parenthesizes multi-param funs) */
+  test_format(
+    ~name="Fun multi-param stays flat",
+    ~width=40,
+    ~input="let f = fun a, b, c -> a + b + c in f(1, 2, 3)",
+    ~expected={|let f = fun (a, b, c) -> a + b + c in
+f(1, 2, 3)|},
+    (),
+  ),
+  /* Fun with long body: header stays flat, body breaks */
+  test_format(
+    ~name="Fun header flat with long body",
+    ~width=30,
+    ~input="let f = fun a, b, c -> a + b + c + 1 + 2 + 3 in 1",
+    ~expected={|let f =
+    fun (a, b, c) ->
+        a + b + c + 1 + 2 + 3 in
+1|},
+    (),
+  ),
+  /* Fun with paren params and nested funs */
+  test_format(
+    ~name="Fun paren params flat",
+    ~width=50,
+    ~input="let f = fun (canvas, emoji) -> map(canvas, fun row -> map(row, fun x -> emoji)) in 1",
+    ~expected={|let f =
+    fun (canvas, emoji) ->
+        map(canvas, fun row -> map(row, fun x -> emoji)) in
+1|},
+    (),
+  ),
+  /* Let with type annotation and fun body */
+  test_format(
+    ~name="Typed let with fun body",
+    ~width=45,
+    ~input="let f : Int -> Int = fun x -> x + 1 in f(5)",
+    ~expected={|let f : (Int -> Int) = fun x -> x + 1 in
+f(5)|},
+    (),
+  ),
+  /* Case inside fun body */
+  test_format(
+    ~name="Fun with case body",
+    ~width=40,
+    ~input={|let f = fun m, action -> case action | 0 => m + 1 | 1 => m - 1 end in 1|},
+    ~expected={|let f =
+    fun (m, action) ->
+        case action
+        | 0 => m + 1
+        | 1 => m - 1
+        end in
+1|},
+    (),
+  ),
+  /* Nested fun in arguments: inner funs stay flat */
+  test_format(
+    ~name="Nested fun args stay flat",
+    ~width=50,
+    ~input="map(xs, fun x -> x + 1)",
+    ~expected="map(xs, fun x -> x + 1)",
+    (),
+  ),
+];
+
 let tests = [
   ("PrettyPrint.Flat", flat_tests),
   ("PrettyPrint.Breaking", breaking_tests),
@@ -311,4 +396,5 @@ let tests = [
   ("PrettyPrint.Case", case_tests),
   ("PrettyPrint.Complex", complex_tests),
   ("PrettyPrint.CommaCompound", comma_compound_tests),
+  ("PrettyPrint.Realworld", realworld_tests),
 ];

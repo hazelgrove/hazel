@@ -24,8 +24,14 @@ let run_hazel = path => {
   print_endline(Print.print(evaluated));
 };
 
+let strip_leading_whitespace = (s: string): string => {
+  let lines = String.split_on_char('\n', s);
+  let stripped = List.map(String.trim, lines);
+  String.concat("\n", stripped);
+};
+
 let format_hazel = (width, path) => {
-  let program = read_input(path);
+  let program = read_input(path) |> strip_leading_whitespace;
   /* Use segment-based path (like the editor's Cmd+S) to preserve comments.
      The AST round-trip (parse_program + segmentize) loses comments because
      MakeTerm drops Secondary pieces and ExpToSegment reconstructs from AST. */
@@ -34,7 +40,7 @@ let format_hazel = (width, path) => {
   | Some(segment) =>
     let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
     let output =
-      Haz3lcore.Printer.of_segment(~holes="?", ~indent="  ", pretty_seg);
+      Haz3lcore.Printer.of_segment(~holes="?", ~indent=" ", pretty_seg);
     print_endline(output);
   };
 };
