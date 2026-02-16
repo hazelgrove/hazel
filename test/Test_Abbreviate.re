@@ -239,6 +239,12 @@ let monotonicity_tests =
       ("nested constructor app", {|Lam("bro", Var("bro"))|}),
       ("simple constructor app", {|Some(42)|}),
       ("constructor string arg", {|Lam("bro")|}),
+      ("long list 10", "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"),
+      (
+        "long list 20",
+        "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]",
+      ),
+      ("list of record", "[(crop=Moonmelon, quality=Bronze, quantity=2)]"),
     ],
   );
 
@@ -246,7 +252,7 @@ let monotonicity_tests =
 
 let structural_tests = [
   test_case(
-    "labeled tuples keep field names under tight budget",
+    "labeled tuples: greedy distribution with count annotation",
     `Quick,
     (): unit => {
       open IdTagged.FreshGrammar;
@@ -257,23 +263,36 @@ let structural_tests = [
           tup_label(label("beta"), string("bbbbbbbbbbbb")),
           tup_label(label("gamma"), string("cccccccccccc")),
         ]);
-      let abbreviated: Exp.t = run_abbreviation(~available=22, original);
-      switch (abbreviated.term) {
+      /* Budget 12: shows 1 field + annotation (1*5 + 1*2 + 3 = 10 ≤ 12).
+         Greedy gives first field surplus budget. */
+      let abbreviated_12: Exp.t = run_abbreviation(~available=12, original);
+      switch (abbreviated_12.term) {
       | Tuple(elements) =>
-        check(Alcotest.int, "field count", 3, List.length(elements));
-        let labels: list(string) = collect_labels(elements);
-        check(Alcotest.int, "label count", 3, List.length(labels));
-        List.iter(
-          (label: string) =>
+        check(Alcotest.int, "element count at 12", 2, List.length(elements));
+        switch (List.nth(elements, 0)) {
+        | {term: TupLabel(label_exp, _), _} =>
+          switch (label_exp.term) {
+          | Label(name) =>
+            check(Alcotest.string, "first label name", "alpha", name)
+          | Invalid(name) =>
             check(
               Alcotest.bool,
-              "label not empty",
+              "label has content",
               true,
-              String.length(label) > 0,
-            ),
-          labels,
-        );
-      | _ => fail("expected tuple after abbreviation")
+              String.length(name) > 0,
+            )
+          | _ => fail("expected label expression")
+          }
+        | _ => fail("expected TupLabel as first element")
+        };
+      | _ => fail("expected tuple at budget 12")
+      };
+      /* Budget 22: all 3 fields fit (3*5 + 2*2 = 19 ≤ 22), no annotation. */
+      let abbreviated_22: Exp.t = run_abbreviation(~available=22, original);
+      switch (abbreviated_22.term) {
+      | Tuple(elements) =>
+        check(Alcotest.int, "element count at 22", 3, List.length(elements))
+      | _ => fail("expected tuple at budget 22")
       };
     },
   ),
@@ -414,10 +433,64 @@ let hard_cap_tests =
       ("nested constructor app", {|Lam("bro", Var("bro"))|}),
       ("simple constructor app", {|Some(42)|}),
       ("constructor string arg", {|Lam("bro")|}),
+      ("long list 10", "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"),
+      (
+        "long list 20",
+        "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]",
+      ),
+      ("list of record", "[(crop=Moonmelon, quality=Bronze, quantity=2)]"),
     ],
   );
 
+/* ===== Count annotation tests ===== */
+
+let count_annotation_tests = [
+  test_case(
+    "count annotation appears for truncated list",
+    `Quick,
+    () => {
+      let src = "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]";
+      /* Budget 15: should show some items + count annotation */
+      let rendered = abbreviate_and_render(~available=15, src);
+      check(
+        Alcotest.bool,
+        "contains +N annotation",
+        true,
+        {
+          let has_plus =
+            try({
+              let _ =
+                Str.search_forward(Str.regexp({|\+[0-9]+|}), rendered, 0);
+              true;
+            }) {
+            | Not_found => false
+            };
+          has_plus;
+        },
+      );
+    },
+  ),
+  test_case(
+    "full budget shows all items without annotation",
+    `Quick,
+    () => {
+      let src = "[1, 2, 3, 4, 5]";
+      let rendered = abbreviate_and_render(~available=100, src);
+      check(
+        Alcotest.bool,
+        "no + annotation",
+        true,
+        !String.contains(rendered, '+'),
+      );
+    },
+  ),
+];
+
 let tests = (
   "Abbreviate",
-  structural_tests @ monotonicity_tests @ budget_tests @ hard_cap_tests,
+  structural_tests
+  @ monotonicity_tests
+  @ budget_tests
+  @ hard_cap_tests
+  @ count_annotation_tests,
 );

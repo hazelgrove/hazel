@@ -114,28 +114,44 @@ module AbbrevSequence = {
     | Ap(Forward, {term: Constructor(_, _), _}, _) => 4 /* …(…) */
     | Parens(_) => 3 /* (…) */
     | ListLit([_, ..._]) => 3 /* […] */
-    | Tuple([_, _, ..._]) => 3 /* (…) */
+    | Tuple([_, _, ..._]) => 1 /* bare tuple has no parens */
     | _ => 1
     };
 
+  /* Display cost of "…+N" count annotation: …(1) + +(1) + digits */
+  let count_annotation_cost = (remaining: int): int =>
+    1 + 1 + String.length(string_of_int(remaining));
+
+  let count_annotation_term = (remaining: int): Exp.t =>
+    IdTagged.fresh(
+      Invalid(flat_ellipses ++ "+" ++ string_of_int(remaining)): Exp.term,
+    );
+
   /* Pre-compute how many items to show: choose largest c where
-     c items + (c-1) separators + (ellipsis if c < total) fits in budget.
-     This ensures monotonicity: higher budget => same or more items. */
-  let items_to_show = (~total: int, ~budget: int, ~min_item: int): int => {
+     c items + separators + trailing annotation fits in budget.
+     Uses per-item "useful" cost (2x min for composites, 1x for atomics)
+     to avoid committing to items that would render as empty shells. */
+  let items_to_show = (~total: int, ~budget: int, ~useful_item: int): int => {
     let rec try_count = (c: int): int =>
       if (c <= 0) {
         0;
       } else {
-        /* When c < total, there's a trailing ellipsis with a separator before it.
-           So separators = c (between items + before ellipsis), not c-1. */
+        /* When c < total, there's a trailing annotation with a separator
+           before it. So separators = c, not c-1. */
+        let unshown = total - c;
         let seps =
-          if (c < total) {
+          if (unshown > 0) {
             c * separator_cost;
           } else {
             (c - 1) * separator_cost;
           };
-        let ellipsis = c < total ? ellipsis_cost : 0;
-        let needed = c * min_item + seps + ellipsis;
+        let trailing =
+          if (unshown > 0) {
+            count_annotation_cost(unshown);
+          } else {
+            0;
+          };
+        let needed = c * useful_item + seps + trailing;
         if (needed <= budget) {
           c;
         } else {
@@ -145,23 +161,54 @@ module AbbrevSequence = {
     try_count(total);
   };
 
+  /* Greedy left-to-right: each item gets all available budget minus
+     what's reserved (at min cost) for remaining items + trailing. */
   let rec consume =
           (
             items: list(Exp.t),
-            budgets: list(int),
-            ~remaining_to_show: int,
+            ~items_left_to_show: int,
+            ~total_remaining: int,
+            ~min_per_item: int,
             ~abbreviate: Exp.t => Exp.t,
           )
           : list(Exp.t) =>
-    switch (items, budgets) {
-    | ([], _) => []
-    | (_, _) when remaining_to_show <= 0 =>
-      available := available^ - ellipsis_cost;
-      [flat_ellipses_term()];
-    | ([item, ...rest], [budget, ...rest_budgets]) =>
+    switch (items) {
+    | [] => []
+    | _ when items_left_to_show <= 0 =>
+      if (total_remaining > 0) {
+        let cost = count_annotation_cost(total_remaining);
+        available := available^ - cost;
+        [count_annotation_term(total_remaining)];
+      } else {
+        [];
+      }
+    | [item, ...rest] =>
+      let remaining_shown = items_left_to_show - 1;
+      let unshown = total_remaining - items_left_to_show;
+      let trailing_exists = unshown > 0;
+      let has_more = remaining_shown > 0 || trailing_exists;
+
+      /* Reserve: min budget for remaining shown items, seps between
+         remaining outputs, and trailing annotation cost. */
+      let remaining_outputs = remaining_shown + (trailing_exists ? 1 : 0);
+      let seps_between_remaining = max(0, remaining_outputs - 1);
+      let trailing_cost =
+        trailing_exists ? count_annotation_cost(unshown) : 0;
+      let reserve =
+        remaining_shown
+        * min_per_item
+        + seps_between_remaining
+        * separator_cost
+        + trailing_cost;
+      let sep_here = has_more ? separator_cost : 0;
+      let this_budget = max(min_per_item, available^ - sep_here - reserve);
+
       let (abbreviated_item: Exp.t, _): (Exp.t, int) =
-        AbbrevBudget.with_budget(~budget, ~run=() => abbreviate(item));
-      if (rest == []) {
+        AbbrevBudget.with_budget(~budget=this_budget, ~run=() =>
+          abbreviate(item)
+        );
+
+      if (!has_more) {
         [abbreviated_item];
       } else {
         available := available^ - separator_cost;
@@ -169,13 +216,13 @@ module AbbrevSequence = {
           abbreviated_item,
           ...consume(
                rest,
-               rest_budgets,
-               ~remaining_to_show=remaining_to_show - 1,
+               ~items_left_to_show=items_left_to_show - 1,
+               ~total_remaining=total_remaining - 1,
+               ~min_per_item,
                ~abbreviate,
              ),
         ];
       };
-    | (_, _) => []
     };
 
   let run = (~items: list(Exp.t), ~abbreviate: Exp.t => Exp.t): list(Exp.t) => {
@@ -184,44 +231,59 @@ module AbbrevSequence = {
       [];
     } else {
       let available_now: int = available^;
-      /* Compute min_item from the maximum per-item minimum cost.
-         This prevents showing more items than we can meaningfully render,
-         which would cause monotonicity violations when budget increases
-         but per-item allocation shrinks below the rendering minimum. */
+      /* Compute min_item from the maximum per-item minimum cost. */
       let min_item: int =
         List.fold_left(
           (acc, item) => max(acc, min_display_cost(item)),
           1,
           items,
         );
+      /* Useful cost: same as min — items are shown when they can render
+         at least their minimum structural form. For TupLabels (min=5) that's
+         "…= …", for Parens (min=3) that's "(…)", for atomics it's the value. */
+      let useful_item: int = min_item;
       /* Pre-decide how many items to show */
       let show_count: int =
-        items_to_show(~total=count, ~budget=available_now, ~min_item);
+        items_to_show(~total=count, ~budget=available_now, ~useful_item);
       if (show_count <= 0) {
-        available := available^ - ellipsis_cost;
-        [flat_ellipses_term()];
-      } else {
-        /* Compute budgets for only the items we'll show */
-        let items_overhead: int = {
-          let seps =
-            if (show_count < count) {
-              show_count * separator_cost;
-            } else {
-              (show_count - 1) * separator_cost;
-            };
-          let ellipsis = show_count < count ? ellipsis_cost : 0;
-          seps + ellipsis;
-        };
-        let available_for_items: int = {
-          let diff: int = available_now - items_overhead;
-          diff < 0 ? 0 : diff;
-        };
-        let budgets: list(int) =
-          AbbrevBudget.split_evenly(
-            ~total=available_for_items,
-            ~parts=show_count,
+        /* Tier 2: try showing items as bare ellipses (cost 1 each).
+           This adds intermediates like (…, …+2) between (…) and (…= …, …+2)
+           for composite items like TupLabels that have high structural min. */
+        let fallback_count: int =
+          min_item > 1
+            ? items_to_show(
+                ~total=count,
+                ~budget=available_now,
+                ~useful_item=1,
+              )
+            : 0;
+        if (fallback_count <= 0) {
+          /* Try count annotation (…+N) if budget allows, else bare … */
+          let ann_cost = count_annotation_cost(count);
+          if (available^ >= ann_cost) {
+            available := available^ - ann_cost;
+            [count_annotation_term(count)];
+          } else {
+            available := available^ - ellipsis_cost;
+            [flat_ellipses_term()];
+          };
+        } else {
+          consume(
+            items,
+            ~items_left_to_show=fallback_count,
+            ~total_remaining=count,
+            ~min_per_item=1,
+            ~abbreviate,
           );
-        consume(items, budgets, ~remaining_to_show=show_count, ~abbreviate);
+        };
+      } else {
+        consume(
+          items,
+          ~items_left_to_show=show_count,
+          ~total_remaining=count,
+          ~min_per_item=min_item,
+          ~abbreviate,
+        );
       };
     };
   };
@@ -322,7 +384,12 @@ let abbreviate_string_token = (~min_len: int, s: string): string => {
    avoids backtick-quoting by ExpToSegment (which quotes labels
    containing non-identifier chars like "…"), keeping display cost
    equal to string length with no quoting overhead. */
-let abbreviate_label = (s: string): [ | `Label(string) | `Invalid(string)] => {
+let abbreviate_label =
+    (s: string)
+    : [
+        | `Label(string)
+        | `Invalid(string)
+      ] => {
   let len = String.length(s);
   let budget = available^;
   if (budget >= len) {
@@ -485,18 +552,21 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           ListLit(abbreviate_list_seq(xs));
         }
       | Tuple([_, _, ..._] as xs) =>
-        if (available^ < 3) {
-          /* Min: ( + 1 content + ) = 3 */
+        if (available^ < 1) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
         } else {
-          available := available^ - 2; /* parens */
+          /* No parens deduction: bare Tuple renders as comma-separated
+             items without parens. Parens come from the Parens wrapper
+             (which already deducts 2). */
           let abbreviated = abbreviate_tuple_seq(xs);
           /* Avoid producing single-element tuples from multi-element inputs,
              since ExpToSegment renders Tuple([e]) as (_ = e) which can be
-             longer than the abbreviated content. */
+             longer than the abbreviated content. Extract the text from the
+             single Invalid element to preserve count annotations (…+N). */
           switch (abbreviated) {
-          | [_single] => Invalid(flat_ellipses)
+          | [{term: Invalid(s), _}] => Invalid(s)
+          | [single] => single.term
           | _ => Tuple(abbreviated)
           };
         }
@@ -1385,7 +1455,8 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         /* Typ has no Invalid constructor; keep as Label even when truncated.
            Backtick quoting in type abbreviations is a minor cosmetic issue. */
         switch (abbreviate_label(v)) {
-        | `Label(s) | `Invalid(s) => Label(s)
+        | `Label(s)
+        | `Invalid(s) => Label(s)
         }
       | List(t) =>
         if (available^ <= 2) {
