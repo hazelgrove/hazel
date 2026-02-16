@@ -225,6 +225,39 @@ module AbbrevSequence = {
       };
     };
 
+  /* Even distribution: each shown item gets an equal share of the budget.
+     Used for all-labeled tuples so field names become visible simultaneously.
+     Deducts separator + trailing costs upfront, splits remainder evenly. */
+  let consume_even =
+      (
+        items: list(Exp.t),
+        ~show_count: int,
+        ~total_count: int,
+        ~abbreviate: Exp.t => Exp.t,
+      )
+      : list(Exp.t) => {
+    let unshown = total_count - show_count;
+    let trailing_exists = unshown > 0;
+    let num_seps = trailing_exists ? show_count : max(0, show_count - 1);
+    let trailing_cost = trailing_exists ? count_annotation_cost(unshown) : 0;
+    /* Deduct overhead upfront, split remainder evenly */
+    available := available^ - num_seps * separator_cost - trailing_cost;
+    let pool = max(0, available^);
+    let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=show_count);
+    let rec go = (idx: int, rest: list(Exp.t)): list(Exp.t) =>
+      switch (rest) {
+      | [] => trailing_exists ? [count_annotation_term(unshown)] : []
+      | _ when idx >= show_count =>
+        trailing_exists ? [count_annotation_term(unshown)] : []
+      | [item, ...rest'] =>
+        let b = List.nth(budgets, idx);
+        let (abbr, _) =
+          AbbrevBudget.with_budget(~budget=b, ~run=() => abbreviate(item));
+        [abbr, ...go(idx + 1, rest')];
+      };
+    go(0, items);
+  };
+
   let run = (~items: list(Exp.t), ~abbreviate: Exp.t => Exp.t): list(Exp.t) => {
     let count: int = List.length(items);
     if (count <= 0) {
@@ -236,6 +269,17 @@ module AbbrevSequence = {
         List.fold_left(
           (acc, item) => max(acc, min_display_cost(item)),
           1,
+          items,
+        );
+      /* Check if all items are TupLabels (record-like). If so, use even
+         distribution so all field names become visible simultaneously. */
+      let all_labeled: bool =
+        List.for_all(
+          item =>
+            switch (item |> Exp.term_of) {
+            | TupLabel(_, _) => true
+            | _ => false
+            },
           items,
         );
       /* Useful cost: same as min — items are shown when they can render
@@ -276,6 +320,8 @@ module AbbrevSequence = {
             ~abbreviate,
           );
         };
+      } else if (all_labeled) {
+        consume_even(items, ~show_count, ~total_count=count, ~abbreviate);
       } else {
         consume(
           items,
