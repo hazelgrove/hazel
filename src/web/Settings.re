@@ -360,7 +360,7 @@ module Update = {
       | AutoProbeMode => {
           ...settings,
           auto_probe_mode: !settings.auto_probe_mode,
-
+        }
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
