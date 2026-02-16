@@ -181,6 +181,7 @@ let collect_labels = (elements: list(Exp.t)): list(string) =>
        | TupLabel(label_exp, _value_exp) =>
          switch (label_exp.term) {
          | Label(name) => Some(name)
+         | Invalid(name) => Some(name) /* abbreviated labels use Invalid */
          | _ => None
          }
        | _ => None
@@ -256,7 +257,7 @@ let structural_tests = [
           tup_label(label("beta"), string("bbbbbbbbbbbb")),
           tup_label(label("gamma"), string("cccccccccccc")),
         ]);
-      let abbreviated: Exp.t = run_abbreviation(~available=28, original);
+      let abbreviated: Exp.t = run_abbreviation(~available=22, original);
       switch (abbreviated.term) {
       | Tuple(elements) =>
         check(Alcotest.int, "field count", 3, List.length(elements));
@@ -294,7 +295,8 @@ let structural_tests = [
       | Tuple([{term: TupLabel(label_exp, value_exp), _}]) =>
         let label_text: string =
           switch (label_exp.term) {
-          | Label(text) => text
+          | Label(text)
+          | Invalid(text) => text /* abbreviated labels use Invalid */
           | _ => fail("expected label expression")
           };
         check(

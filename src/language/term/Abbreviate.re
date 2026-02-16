@@ -110,7 +110,7 @@ module AbbrevSequence = {
   let min_display_cost = (item: Exp.t): int =>
     switch (item.term) {
     | Atom(String(_)) => 3 /* "…" */
-    | TupLabel(_, _) => 7 /* `…` = … (label 3 + " = " 3 + value 1) */
+    | TupLabel(_, _) => 5 /* …= … (label 1 + " = " 3 + value 1) */
     | Ap(Forward, {term: Constructor(_, _), _}, _) => 4 /* …(…) */
     | Parens(_) => 3 /* (…) */
     | ListLit([_, ..._]) => 3 /* […] */
@@ -317,38 +317,29 @@ let abbreviate_string_token = (~min_len: int, s: string): string => {
   };
 };
 
-/* Abbreviate a label string, accounting for the backtick-quoting overhead
-   that ExpToSegment adds when a label contains non-identifier chars like "…".
-   Truncated labels get quoted: `ab…` (len + 2), so only truncate if
-   prefix + ellipsis + 2 (backticks) < full label length. */
-let abbreviate_label_str = (_min_len: int, s: string): string => {
+/* Abbreviate a label. Returns `Label(s) if the full label fits,
+   or `Invalid(s) if truncated. Using Invalid for truncated labels
+   avoids backtick-quoting by ExpToSegment (which quotes labels
+   containing non-identifier chars like "…"), keeping display cost
+   equal to string length with no quoting overhead. */
+let abbreviate_label = (s: string): [ | `Label(string) | `Invalid(string)] => {
   let len = String.length(s);
   let budget = available^;
-  /* Full label cost: len chars (valid identifiers not quoted by ExpToSegment) */
   if (budget >= len) {
     available := available^ - len;
-    s;
+    `Label(s);
   } else {
-    /* Truncated labels get backtick-quoted by ExpToSegment (2 chars overhead).
-       Cost of truncated form: prefix_len + 1 (ellipsis) + 2 (backticks) */
-    let max_prefix = budget - ellipsis_cost - 2; /* backtick overhead */
-    let prefix_len = max(0, max_prefix);
-    let truncated_cost = prefix_len + ellipsis_cost + 2;
-    /* Only truncate if it's actually shorter than the full form */
-    if (truncated_cost >= len) {
-      /* Truncation not shorter; use full form (safety net will handle overspend) */
-      available := available^ - len;
-      s;
-    } else {
-      let str =
-        if (prefix_len > 0) {
-          String.sub(s, 0, prefix_len) ++ flat_ellipses;
-        } else {
-          flat_ellipses;
-        };
-      available := available^ - truncated_cost;
-      str;
-    };
+    /* Truncated form: prefix + ellipsis, rendered as Invalid (no quoting) */
+    let prefix_len = max(0, budget - ellipsis_cost);
+    let cost = prefix_len + ellipsis_cost;
+    let str =
+      if (prefix_len > 0) {
+        String.sub(s, 0, prefix_len) ++ flat_ellipses;
+      } else {
+        flat_ellipses;
+      };
+    available := available^ - cost;
+    `Invalid(str);
   };
 };
 
@@ -443,7 +434,11 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Atom(String(str));
         };
       | Var(v) => Var(abbreviate_str(available^, v))
-      | Label(v) => Label(abbreviate_label_str(available^, v))
+      | Label(v) =>
+        switch (abbreviate_label(v)) {
+        | `Label(s) => Label(s)
+        | `Invalid(s) => Invalid(s)
+        }
       | ExplicitNonlabel => ExplicitNonlabel
       | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
       | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
@@ -506,24 +501,21 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           };
         }
       | TupLabel(e1, e2) =>
-        /* Min TupLabel: label (3 quoted `…`) + " = " (3) + value (1) = 7 */
-        if (available^ < 7) {
+        /* Min TupLabel: label (1) + " = " (3) + value (1) = 5.
+           Truncated labels use Invalid (no backtick quoting). */
+        if (available^ < 5) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
         } else {
           available := available^ - 3; /* " = " */
           let remaining: int = available^;
-          /* Label needs at least 3 for quoted "…" form.
-             Give label its estimated length if possible, else min 3. */
+          /* Give label its estimated length if possible, else at least 1. */
           let label_est = AbbrevBudget.label_estimated_length(~label=e1);
           let label_budget =
             if (remaining >= label_est) {
               label_est;
             } else {
-              max(
-                3,
-                remaining - 1 /* at least 3 for quoted label */
-              );
+              max(1, remaining - 1);
             };
           let label_budget = min(label_budget, remaining - 1);
           let (label', _): (Exp.t, int) =
@@ -1144,7 +1136,11 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
       | Wild => Wild
       | ExplicitNonlabel => ExplicitNonlabel
       | Var(v) => Var(abbreviate_str(available^, v))
-      | Label(v) => Label(abbreviate_label_str(available^, v))
+      | Label(v) =>
+        switch (abbreviate_label(v)) {
+        | `Label(s) => Label(s)
+        | `Invalid(s) => Invalid(s)
+        }
       | Atom(Int(n)) => wrap_or(Atom(Int(n)), Bigint.to_string(n))
       | Atom(Nat(n)) => wrap_or(Atom(Nat(n)), Bigint.to_string(n))
       | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
@@ -1251,7 +1247,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         }
 
       | TupLabel(p1, p2) =>
-        if (available^ <= 3) {
+        if (available^ < 5) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
         } else {
@@ -1385,7 +1381,12 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         }
       | Var(v) => Var(abbreviate_str(available^, v))
       | ExplicitNonlabel => ExplicitNonlabel
-      | Label(v) => Label(abbreviate_label_str(available^, v))
+      | Label(v) =>
+        /* Typ has no Invalid constructor; keep as Label even when truncated.
+           Backtick quoting in type abbreviations is a minor cosmetic issue. */
+        switch (abbreviate_label(v)) {
+        | `Label(s) | `Invalid(s) => Label(s)
+        }
       | List(t) =>
         if (available^ <= 2) {
           available := available^ - 1;
@@ -1415,7 +1416,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           };
         }
       | TupLabel(t1, t2) =>
-        if (available^ <= 3) {
+        if (available^ < 5) {
           available := available^ - 1;
           indet_term_typ;
         } else {
