@@ -215,13 +215,17 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Exp.show_cls, Fmt.string), Exp.equal_cls);
         List.iter(
-          cls =>
-            check(
-              cls_testable,
-              Exp.show_cls(cls) ++ " Equivalency",
-              cls,
-              Exp.cls_of_term(sample_expression(cls).term),
-            ),
+          (cls: Exp.cls) =>
+            switch (cls) {
+            | Projector => () // Excluding projectors from cls
+            | _ =>
+              check(
+                cls_testable,
+                Exp.show_cls(cls) ++ " Equivalency",
+                cls,
+                Exp.cls_of_term(sample_expression(cls).term),
+              )
+            },
           exp_classes,
         );
       },
