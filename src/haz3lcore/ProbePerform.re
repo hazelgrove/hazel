@@ -714,7 +714,9 @@ let go =
   | RemoveAll =>
     z
     |> Zipper.update_manuals(_ => [])
-    |> Zipper.update_ephemerals(_ => Id.Map.empty)
+    |> Zipper.update_refractors(_, r =>
+         {...r, autos: {...r.autos, ids: Id.Map.empty}}
+       )
     |> SampleCursorPerform.reset
   };
 
