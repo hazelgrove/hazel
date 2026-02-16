@@ -382,15 +382,29 @@ let add_ids_from_auto_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let auto_ids = Id.Map.bindings(z.refractors.autos.ids) |> List.map(fst);
   let ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
-  Zipper.update_ephemerals(
-    _ =>
-      List.fold_left(
-        (map, id) => Id.Map.add(id, Refractors.mk_entry(Probe), map),
-        Id.Map.empty,
-        ids,
-      ),
-    z,
-  );
+  let old_ephemerals = z.refractors.autos.ephemerals;
+  let new_ephemeral_map =
+    List.fold_left(
+      (map, id) => Id.Map.add(id, Refractors.mk_entry(Probe), map),
+      Id.Map.empty,
+      ids,
+    );
+  let z = Zipper.update_ephemerals(_ => new_ephemeral_map, z);
+  /* If there are genuinely new ephemeral IDs, set pending_probe_cursor
+     so the sample cursor aligns when evaluation results arrive. */
+  let new_ids =
+    List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
+  switch (new_ids) {
+  | [] => z
+  | _ =>
+    let sorted = sort_ids_lexically(~syntax, new_ids);
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        pending_probe_cursor: Some(sorted),
+      }
+    );
+  };
 };
 
 /* Whether to update sample cursor when auto-def mode moves probes.
