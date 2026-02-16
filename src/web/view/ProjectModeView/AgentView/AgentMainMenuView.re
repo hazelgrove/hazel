@@ -152,7 +152,7 @@ let view =
                   Attr.on_copy(_ => Effect.Stop_propagation),
                   Attr.on_paste(_ => Effect.Stop_propagation),
                   Attr.on_cut(_ => Effect.Stop_propagation),
-                  Attr.string_property(
+                  Attr.create(
                     "value",
                     switch (agent_globals.api_key) {
                     | Some(key) => key

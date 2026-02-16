@@ -4,7 +4,9 @@ open Alcotest;
 let path_eq =
   testable(
     Fmt.of_to_string(path =>
-      "[" ++ String.concat(", ", List.map(s => "\"" ++ s ++ "\"", path)) ++ "]"
+      "["
+      ++ String.concat(", ", List.map(s => "\"" ++ s ++ "\"", path))
+      ++ "]"
     ),
     (==),
   );

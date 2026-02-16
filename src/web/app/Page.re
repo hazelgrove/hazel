@@ -397,7 +397,8 @@ module View = {
     | Some("module-name-input")
     | Some("prompt-input-box")
     | Some("test-required-input")
-    | Some("point-max-input") => true
+    | Some("point-max-input")
+    | Some("agent-api-key-input") => true
     | Some(id) when String.starts_with(~prefix="hint-input", id) => true
     | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
       true
