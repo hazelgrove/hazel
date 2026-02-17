@@ -35,7 +35,7 @@
 type settings = {
   width: int,
   break_fun_params: bool, /* break function params onto separate lines */
-  hanging_delimiters: bool, /* keep ( and [ on the = line in bindings */
+  hanging_delimiters: bool /* keep ( and [ on the = line in bindings */
 };
 
 let default_settings: settings = {
@@ -216,9 +216,13 @@ let reinsert_blank_lines =
       } else {
         let pid = Piece.id(p);
         if (Id.Map.mem(pid, remaining_ids)) {
-          /* Insert blank line and remove ID so we don't double-insert
-             for other shards of the same decomposed tile */
-          [nl(), p, ...go(Id.Map.remove(pid, remaining_ids), rest)];
+          [
+            /* Insert blank line and remove ID so we don't double-insert
+               for other shards of the same decomposed tile */
+            nl(),
+            p,
+            ...go(Id.Map.remove(pid, remaining_ids), rest),
+          ];
         } else {
           [p, ...go(remaining_ids, rest)];
         };
@@ -442,9 +446,11 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   let triples = Tile.contained_children(t);
   let last_shard_idx = List.length(t.label) - 1;
   /* Shard doc: extract a single shard from this tile as a doc node */
-  let shard = (i) => piece_doc(Tile.to_piece(Tile.shard_of(t, i)));
-  /* Fallback for unexpected tile structure: emit whole tile + rest */
-  let fallback = cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)]);
+  let shard = i => piece_doc(Tile.to_piece(Tile.shard_of(t, i)));
+  /* Fallback for unexpected tile structure: emit whole tile + rest.
+     Must be a thunk to avoid eagerly processing the entire rest segment. */
+  let fallback = () =>
+    cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)]);
 
   /* Build the body doc (content after the tile in the segment).
      For binding forms, use HardBreak when next piece is also a compound
@@ -529,7 +535,13 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     switch (triples) {
     | [(_, pat_child, _), (_, binding_child, _)] =>
       let prefix =
-        cats([shard(0), Space, Group(child_doc(s, pat_child)), Space, shard(1)]);
+        cats([
+          shard(0),
+          Space,
+          Group(child_doc(s, pat_child)),
+          Space,
+          shard(1),
+        ]);
       /* Hanging style: let x = (\n...\n) in
          Otherwise:      let x =\n  (...) in */
       let binding_content = strip_whitespace(binding_child);
@@ -542,8 +554,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         };
       let let_in_doc = Group(cats([prefix, binding_doc]));
       Group(cats([let_in_doc, body_doc(true)]));
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* if/then/else */
   | ["if", "then", "else"] =>
@@ -564,8 +576,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           ]),
         );
       cats([tile_doc, body_doc(false)]);
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* Prefix arrow forms: fun/->, fix/->, typfun/->, poly/->, forall/->, rec/-> */
   | [_, "->"] =>
@@ -584,16 +596,21 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           | Some(_) => cats([Group(header), body_doc(false)])
           | None =>
             switch (try_hanging_delim(rest, ())) {
-            | Some(hanging) =>
-              Group(cats([Group(header), Space, hanging]))
+            | Some(hanging) => Group(cats([Group(header), Space, hanging]))
             | None =>
-              Group(cats([Group(header), Break, Group(segment_to_doc(s, rest))]))
+              Group(
+                cats([
+                  Group(header),
+                  Break,
+                  Group(segment_to_doc(s, rest)),
+                ]),
+              )
             }
           }
         };
-      }
-    | _ => fallback
-    };
+      };
+    | _ => fallback()
+    }
 
   /* Delimiter pairs: (...), [...], {...} */
   | ["(", ")"]
@@ -607,15 +624,21 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         | Empty => cats([shard(0), shard(last_shard_idx)])
         | _ =>
           Group(
-            cats([shard(0), SoftBreak, inner, SoftBreak, shard(last_shard_idx)]),
+            cats([
+              shard(0),
+              SoftBreak,
+              inner,
+              SoftBreak,
+              shard(last_shard_idx),
+            ]),
           )
         };
       switch (rest) {
       | [] => delim_doc
       | _ => cats([delim_doc, Break, Group(segment_to_doc(s, rest))])
       };
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* Type application: @<...> — tight delimiters, no internal spacing */
   | ["@<", ">"] =>
@@ -627,8 +650,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       | [] => delim_doc
       | _ => cats([delim_doc, Break, Group(segment_to_doc(s, rest))])
       };
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* case/end */
   | ["case", "end"] =>
@@ -636,10 +659,12 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
       let tile_doc =
-        Group(cats([shard(0), Space, inner, Break, shard(last_shard_idx)]));
+        Group(
+          cats([shard(0), Space, inner, Break, shard(last_shard_idx)]),
+        );
       tile_with_rest(tile_doc);
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* test/end: always break after "test", "end" trails the last body line */
   | ["test", "end"] =>
@@ -653,8 +678,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           Group(cats([inner, Space, shard(last_shard_idx)])),
         ]);
       tile_with_rest(tile_doc);
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* hint/test/end: hint message on first line, test on own line, end trails body */
   | ["hint", "test", "end"] =>
@@ -673,8 +698,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           Group(cats([inner, Space, shard(last_shard_idx)])),
         ]);
       tile_with_rest(tile_doc);
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* Other operand forms ending in "end": proof_of/end, proof_object/end.
      Same treatment as case/end (Space after keyword, Break before end). */
@@ -683,18 +708,26 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
       let tile_doc =
-        Group(cats([shard(0), Space, inner, Break, shard(last_shard_idx)]));
+        Group(
+          cats([shard(0), Space, inner, Break, shard(last_shard_idx)]),
+        );
       tile_with_rest(tile_doc);
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* Rule |/=> (case rule tiles with children) */
   | ["|", "=>"] =>
     switch (triples) {
     | [(_, pat_child, _)] =>
-      cats([shard(0), Space, child_doc(s, pat_child), Space, shard(last_shard_idx)])
+      cats([
+        shard(0),
+        Space,
+        child_doc(s, pat_child),
+        Space,
+        shard(last_shard_idx),
+      ])
     | _ => piece_doc(Tile.to_piece(t))
-    };
+    }
 
   /* Filter/use forms: hide/eval/pause/debug/use expr in body.
      Simple binding-like prefix: chains with HardBreak like let-chains. */
@@ -703,15 +736,22 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | [(_, expr_child, _)] =>
       let tile_doc =
         Group(
-          cats([shard(0), Space, Group(child_doc(s, expr_child)), Space, shard(last_shard_idx)]),
+          cats([
+            shard(0),
+            Space,
+            Group(child_doc(s, expr_child)),
+            Space,
+            shard(last_shard_idx),
+          ]),
         );
       Group(cats([tile_doc, body_doc(true)]));
-    | _ => fallback
-    };
+    | _ => fallback()
+    }
 
   /* Generic multi-keyword tile: interleave shards and children with Break */
   | _ =>
-    let rec build_rest = (idx, triples: list((Tile.t, Segment.t, Tile.t))): doc =>
+    let rec build_rest =
+            (idx, triples: list((Tile.t, Segment.t, Tile.t))): doc =>
       switch (triples) {
       | [] => Empty
       | [(_, child, _), ...rest_triples] =>
@@ -747,7 +787,8 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
   /* Tile with children followed by semicolon: decompose the tile.
      build_tile_doc handlers (test/end, case/end, etc.) handle the semi
      in rest, so the tile gets proper Group wrapping for layout. */
-  | [Tile(t), semi, ...rest] when List.length(t.children) > 0 && is_semi(semi) =>
+  | [Tile(t), semi, ...rest]
+      when List.length(t.children) > 0 && is_semi(semi) =>
     build_tile_doc(s, t, [semi, ...rest])
 
   /* Piece followed by semicolon: keep semi with left operand, hard break */
@@ -782,7 +823,7 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
       | [] => Empty
       | _ => cats([Break, segment_to_doc(s, rest_after)])
       },
-    ])
+    ]);
 
   /* Case rule (|...=>): group rule with its body, HardBreak between rules
      so case rules always appear on separate lines */
@@ -847,8 +888,11 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
   | [p, ...rest] =>
     let (comments, rest_after) =
       if (is_comment(p)) {
-        /* Don't absorb: standalone comment shouldn't grab following comments */
-        ([], rest);
+        (
+          /* Don't absorb: standalone comment shouldn't grab following comments */
+          [],
+          rest,
+        );
       } else {
         absorb_comments(rest);
       };
@@ -863,7 +907,7 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
         segment_to_doc(s, rest_after)
       | _ => cats([Break, Group(segment_to_doc(s, rest_after))])
       },
-    ])
+    ]);
   }
 
 /* Build doc for an infix chain: operands joined by Break+op+Space.
@@ -872,7 +916,8 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
    Leading comments in each operand are moved to the preceding line
    so that trailing comments stay with their code (e.g., after commas). */
 and build_infix_chain_doc =
-    (s: settings, operands: list(list(Piece.t)), operators: list(Piece.t)): doc =>
+    (s: settings, operands: list(list(Piece.t)), operators: list(Piece.t))
+    : doc =>
   switch (operands) {
   | [] => Empty
   | [first, ...rest_operands] =>
@@ -897,9 +942,23 @@ and build_infix_chain_doc =
           if (is_comma(op)) {
             cats([acc, piece_doc(op), comment_suffix, Break, operand_doc]);
           } else if (is_label_eq(op)) {
-            cats([acc, comment_suffix, Space, piece_doc(op), Break, operand_doc]);
+            cats([
+              acc,
+              comment_suffix,
+              Space,
+              piece_doc(op),
+              Break,
+              operand_doc,
+            ]);
           } else {
-            cats([acc, comment_suffix, Break, piece_doc(op), Space, operand_doc]);
+            cats([
+              acc,
+              comment_suffix,
+              Break,
+              piece_doc(op),
+              Space,
+              operand_doc,
+            ]);
           };
         join(next, rest_ops, rest_operands);
       };
@@ -964,9 +1023,19 @@ let format_segment = (~settings: settings, seg: Segment.t): Segment.t => {
 
 /* Main entry point: pretty-print a segment to fit within width columns */
 let prettify =
-    (~width: int=default_settings.width, ~settings=default_settings, seg: Segment.t)
+    (
+      ~width: int=default_settings.width,
+      ~settings=default_settings,
+      seg: Segment.t,
+    )
     : Segment.t =>
-  format_segment(~settings={...settings, width}, seg);
+  format_segment(
+    ~settings={
+      ...settings,
+      width,
+    },
+    seg,
+  );
 
 /* === Legacy API (used by ExpToSegment.re) === */
 

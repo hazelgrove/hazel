@@ -108,13 +108,13 @@ let apply_both
   typfun a ->
     typfun b ->
       fun f : poly c -> (c -> c) ->
-        fun (x, y) : (a, b) -> (f @< a >(x), f @< b >(y)) in
+        fun (x, y) : (a, b) -> (f@<a>(x), f@<b>(y)) in
 let list_length : poly a -> [a] -> Int =
   typfun a ->
     fun l : [a] ->
       case l
       | [] => 0
-      | hd::tl => 1 + list_length @< a >(tl)
+      | hd::tl => 1 + list_length@<a>(tl)
       end in
 
 # Tests, separated by semicolons #

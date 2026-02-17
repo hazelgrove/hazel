@@ -17,7 +17,9 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
 let segmentize =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings);
 
-let format = (~width=80, ~settings=PrettySegment.default_settings, input: string): string => {
+let format =
+    (~width=80, ~settings=PrettySegment.default_settings, input: string)
+    : string => {
   switch (Parser.to_term(input)) {
   | Some(exp) =>
     let segment = segmentize(exp);
@@ -30,7 +32,9 @@ let format = (~width=80, ~settings=PrettySegment.default_settings, input: string
 
 /* Segment-path formatter: preserves comments (like the CLI does).
    Uses Parser.to_segment instead of Parser.to_term. */
-let format_seg = (~width=80, ~settings=PrettySegment.default_settings, input: string): string => {
+let format_seg =
+    (~width=80, ~settings=PrettySegment.default_settings, input: string)
+    : string => {
   switch (Parser.to_segment(input)) {
   | Some(segment) =>
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
@@ -40,12 +44,30 @@ let format_seg = (~width=80, ~settings=PrettySegment.default_settings, input: st
   };
 };
 
-let test_format_seg = (~name, ~width=80, ~settings=PrettySegment.default_settings, ~input, ~expected, ()): test_case(_) =>
+let test_format_seg =
+    (
+      ~name,
+      ~width=80,
+      ~settings=PrettySegment.default_settings,
+      ~input,
+      ~expected,
+      (),
+    )
+    : test_case(_) =>
   test_case(name, `Quick, () =>
     check(string, name, expected, format_seg(~width, ~settings, input))
   );
 
-let test_format = (~name, ~width=80, ~settings=PrettySegment.default_settings, ~input, ~expected, ()): test_case(_) =>
+let test_format =
+    (
+      ~name,
+      ~width=80,
+      ~settings=PrettySegment.default_settings,
+      ~input,
+      ~expected,
+      (),
+    )
+    : test_case(_) =>
   test_case(name, `Quick, () =>
     check(string, name, expected, format(~width, ~settings, input))
   );
@@ -359,7 +381,8 @@ f(1, 2, 3)|},
     ~name="Fun header flat with long body",
     ~width=30,
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 + 3 in 1",
-    ~expected={|let f =
+    ~expected=
+      {|let f =
     fun (a, b, c) ->
         a + b + c + 1 + 2 + 3 in
 1|},
@@ -369,8 +392,10 @@ f(1, 2, 3)|},
   test_format(
     ~name="Fun paren params flat",
     ~width=50,
-    ~input="let f = fun (canvas, emoji) -> map(canvas, fun row -> map(row, fun x -> emoji)) in 1",
-    ~expected={|let f =
+    ~input=
+      "let f = fun (canvas, emoji) -> map(canvas, fun row -> map(row, fun x -> emoji)) in 1",
+    ~expected=
+      {|let f =
     fun (canvas, emoji) ->
         map(
             canvas,
@@ -391,8 +416,10 @@ f(1, 2, 3)|},
   test_format(
     ~name="Fun with case body",
     ~width=40,
-    ~input={|let f = fun m, action -> case action | 0 => m + 1 | 1 => m - 1 end in 1|},
-    ~expected={|let f =
+    ~input=
+      {|let f = fun m, action -> case action | 0 => m + 1 | 1 => m - 1 end in 1|},
+    ~expected=
+      {|let f =
     fun (m, action) ->
         case action
         | 0 => m + 1
@@ -506,7 +533,8 @@ let break_fun_params_tests = [
     ~settings=break_params,
     ~width=25,
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 in 1",
-    ~expected={|let f =
+    ~expected=
+      {|let f =
     fun (
         a,
         b,
@@ -538,8 +566,10 @@ let comment_tests = [
   test_format_seg(
     ~name="Record trailing comments break",
     ~width=45,
-    ~input="let x = (canvas = 1, # The 2D grid # brush = 2, # Selected emoji # palette = 3 # Available emojis #) in x",
-    ~expected={|let x = (
+    ~input=
+      "let x = (canvas = 1, # The 2D grid # brush = 2, # Selected emoji # palette = 3 # Available emojis #) in x",
+    ~expected=
+      {|let x = (
   canvas = 1, # The 2D grid #
   brush = 2, # Selected emoji #
   palette = 3 # Available emojis #
@@ -582,8 +612,10 @@ let x = 1 in x|},
   test_format_seg(
     ~name="Sum type + with trailing comments",
     ~width=40,
-    ~input="type T = + A # a long comment here # + B # another long comment # + C # third # in 1",
-    ~expected={|type T =
+    ~input=
+      "type T = + A # a long comment here # + B # another long comment # + C # third # in 1",
+    ~expected=
+      {|type T =
   + A # a long comment here #
   + B # another long comment #
   + C # third # in
@@ -641,8 +673,10 @@ test
   test_format_seg(
     ~name="Poly arrow breaks in type annotation",
     ~width=30,
-    ~input="let f : poly a -> poly b -> (a, b) -> (a, b) = typfun a -> typfun b -> fun x -> x in f",
-    ~expected={|let f
+    ~input=
+      "let f : poly a -> poly b -> (a, b) -> (a, b) = typfun a -> typfun b -> fun x -> x in f",
+    ~expected=
+      {|let f
 : poly a ->
   poly b -> (a, b) -> (a, b) =
   typfun a ->
@@ -654,8 +688,10 @@ f|},
   test_format_seg(
     ~name="Fun hanging delimiter record body",
     ~width=40,
-    ~input="let closeDay = fun ledger -> (harvests = 1, totalValue = 2, streakBonus = 0, lastQuality = 3) in 1",
-    ~expected={|let closeDay =
+    ~input=
+      "let closeDay = fun ledger -> (harvests = 1, totalValue = 2, streakBonus = 0, lastQuality = 3) in 1",
+    ~expected=
+      {|let closeDay =
   fun ledger -> (
     harvests = 1,
     totalValue = 2,
@@ -722,9 +758,114 @@ let x = 1 in x|},
   test_format_seg(
     ~name="Type application breaking",
     ~width=40,
-    ~input="let f = typfun a -> fun x : a -> x in f @< Int >(5) + f @< String >(\"hello\")",
-    ~expected={|let f = typfun a -> fun x : a -> x in
+    ~input=
+      "let f = typfun a -> fun x : a -> x in f @< Int >(5) + f @< String >(\"hello\")",
+    ~expected=
+      {|let f = typfun a -> fun x : a -> x in
 f@<Int>(5) + f@<String>("hello")|},
+    (),
+  ),
+];
+
+/* === Composition and regression tests === */
+
+let composition_tests = [
+  /* Nested case/end: case rule body contains another case expression */
+  test_format_seg(
+    ~name="Nested case/end",
+    ~width=30,
+    ~input=
+      {|case x | 0 => case y | 0 => "both zero" | _ => "x zero" end | _ => "other" end|},
+    ~expected=
+      {|case x
+| 0 =>
+  case y
+  | 0 => "both zero"
+  | _ => "x zero"
+  end
+| _ => "other"
+end|},
+    (),
+  ),
+  /* Case rule with body that wraps to next line */
+  test_format_seg(
+    ~name="Case rule long body wraps",
+    ~width=35,
+    ~input=
+      {|case x | 0 => longfunction(a, b) + anotherfunc(c) | 1 => short end|},
+    ~expected=
+      {|case x
+| 0 =>
+  longfunction(a, b) + anotherfunc(c)
+| 1 => short
+end|},
+    (),
+  ),
+  /* Block expression {} flat */
+  test_format_seg(
+    ~name="Block flat",
+    ~input="let x = { 1 + 2 } in x",
+    ~expected="let x = {1 + 2} in x",
+    (),
+  ),
+  /* Block expression {} breaking */
+  test_format_seg(
+    ~name="Block breaking",
+    ~width=20,
+    ~input="let x = { 1 + 2 + 3 + 4 + 5 } in x",
+    ~expected={|let x =
+  {
+    1
+    + 2
+    + 3
+    + 4
+    + 5
+  } in
+x|},
+    (),
+  ),
+  /* Blank line preservation between let chains */
+  test_format_seg(
+    ~name="Blank lines preserved",
+    ~width=40,
+    ~input={|let a = 1 in
+
+let b = 2 in
+
+a + b|},
+    ~expected={|let a = 1 in
+
+let b = 2 in
+a + b|},
+    (),
+  ),
+  /* Long let chain: regression test for O(2^N) blowup */
+  test_format_seg(
+    ~name="Long let chain (20 bindings)",
+    ~width=40,
+    ~input=
+      "let a = 1 in let b = 2 in let c = 3 in let d = 4 in let e = 5 in let f = 6 in let g = 7 in let h = 8 in let i = 9 in let j = 10 in let k = 11 in let l = 12 in let m = 13 in let n = 14 in let o = 15 in let p = 16 in let q = 17 in let r = 18 in let s = 19 in let t = 20 in t",
+    ~expected=
+      {|let a = 1 in
+let b = 2 in
+let c = 3 in
+let d = 4 in
+let e = 5 in
+let f = 6 in
+let g = 7 in
+let h = 8 in
+let i = 9 in
+let j = 10 in
+let k = 11 in
+let l = 12 in
+let m = 13 in
+let n = 14 in
+let o = 15 in
+let p = 16 in
+let q = 17 in
+let r = 18 in
+let s = 19 in
+let t = 20 in t|},
     (),
   ),
 ];
@@ -741,4 +882,5 @@ let tests = [
   ("PrettyPrint.BreakFunParams", break_fun_params_tests),
   ("PrettyPrint.Comments", comment_tests),
   ("PrettyPrint.Forms", form_tests),
+  ("PrettyPrint.Composition", composition_tests),
 ];

@@ -96,23 +96,21 @@ let processHarvest : (Ledger, Harvest) -> Ledger =
 
 # Claim the streak bonus and reset it #
 let claimBonus : Ledger -> Ledger =
-  fun ledger ->
-    (
-      harvests = ledger.harvests,
-      totalValue = ledger.totalValue + ledger.streakBonus,
-      streakBonus = 0,
-      lastQuality = ledger.lastQuality
-    ) in
+  fun ledger -> (
+    harvests = ledger.harvests,
+    totalValue = ledger.totalValue + ledger.streakBonus,
+    streakBonus = 0,
+    lastQuality = ledger.lastQuality
+  ) in
 
 # Close the harvest day - reset streak tracking #
 let closeDay : Ledger -> Ledger =
-  fun ledger ->
-    (
-      harvests = ledger.harvests,
-      totalValue = ledger.totalValue,
-      streakBonus = 0,
-      lastQuality = Bronze
-    ) in
+  fun ledger -> (
+    harvests = ledger.harvests,
+    totalValue = ledger.totalValue,
+    streakBonus = 0,
+    lastQuality = Bronze
+  ) in
 
 # Main update function - dispatch actions #
 let update : (Ledger, Action) -> Ledger =
