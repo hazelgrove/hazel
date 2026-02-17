@@ -392,8 +392,7 @@ let add_ids_from_auto_term =
   let z = Zipper.update_ephemerals(_ => new_ephemeral_map, z);
   /* If there are genuinely new ephemeral IDs, set pending_probe_cursor
      so the sample cursor aligns when evaluation results arrive. */
-  let new_ids =
-    List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
+  let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
   switch (new_ids) {
   | [] => z
   | _ =>
