@@ -302,3 +302,11 @@ let bound_var_ids = (ctx, pat): list(Binding.t) =>
          }
        }
      );
+
+let get_duplicate_bindings = (pat: t) => {
+  let bindings = bound_vars(pat);
+  List.filter(
+    binding => {List.length(List.filter(x => x == binding, bindings)) > 1},
+    bindings,
+  );
+};
