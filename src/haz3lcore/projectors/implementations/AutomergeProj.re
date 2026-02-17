@@ -167,8 +167,18 @@ module M: Projector = {
     JsUtil.get_elem_by_id(input_id(id))##focus;
   };
 
-  let focus_keyboard = (id: Id.t, _d: Direction.t) => {
-    JsUtil.get_elem_by_id(input_id(id))##focus;
+  let focus_keyboard = (id: Id.t, d: Direction.t) => {
+    let el = JsUtil.get_elem_by_id(input_id(id));
+    el##focus;
+    switch (d) {
+    | Left =>
+      Js.Unsafe.set(el, "selectionStart", 0);
+      Js.Unsafe.set(el, "selectionEnd", 0);
+    | Right =>
+      let len: int = Js.Unsafe.get(Js.Unsafe.get(el, "value"), "length");
+      Js.Unsafe.set(el, "selectionStart", len);
+      Js.Unsafe.set(el, "selectionEnd", len);
+    };
   };
 
   let focusable =
