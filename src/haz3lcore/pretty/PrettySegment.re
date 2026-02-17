@@ -331,48 +331,10 @@ let split_infix_chain =
   go([], pieces);
 };
 
-/* A shard is a single-shard piece from a multi-keyword tile (e.g., the "if"
-   shard from an if/then/else tile that was decomposed via shard_of) */
-let is_shard = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) =>
-    List.length(t.label) >= 2
-    && List.length(t.shards) == 1
-    && List.length(t.children) == 0
-  | _ => false
-  };
-
-/* Get the token text of a shard piece */
-let shard_token = (p: Piece.t): option(string) =>
-  switch (p) {
-  | Tile(t) when is_shard(p) =>
-    switch (t.shards) {
-    | [i] => Some(List.nth(t.label, i))
-    | _ => None
-    }
-  | _ => None
-  };
-
 /* Single-token prefix operator (e.g., leading + in sum types) */
 let is_single_prefix = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) => List.length(t.label) == 1 && Mold.is_prefix_op(t.mold)
-  | _ => false
-  };
-
-/* Last shard of a prefix form — the keyword after which the body follows
-   (e.g., "in", "->", "else"). Right nib is Concave. */
-let is_body_shard = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) when is_shard(p) =>
-    switch (t.shards) {
-    | [i] when i == List.length(t.label) - 1 =>
-      switch (Tile.shapes(t)) {
-      | (_, Concave(_)) => true
-      | _ => false
-      }
-    | _ => false
-    }
   | _ => false
   };
 
@@ -396,26 +358,14 @@ let is_case_rule_tile = (p: Piece.t): bool =>
   | _ => false
   };
 
-/* A binding form is a compound prefix whose label ends with "in"
-   (let, type, hint). Used to restrict HardBreak chaining to
-   sequential binding chains, not fun+if or fun+fun. */
-let is_binding_form = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) =>
-    switch (List.rev(t.label)) {
-    | ["in", ..._] => true
-    | _ => false
-    }
-  | _ => false
-  };
-
-/* Match opening parens/brackets for tighten_applications.
+/* Match opening parens/brackets/type-application for tighten_applications.
    After decomposition, closing shards (e.g., ")") should not match —
    we only want to tighten f (x) → f(x), not remove breaks before ")". */
 let is_paren_or_bracket = (p: Piece.t): bool =>
   switch (p) {
   | Tile({label: ["(", ")"], shards, children, _})
-  | Tile({label: ["[", "]"], shards, children, _}) =>
+  | Tile({label: ["[", "]"], shards, children, _})
+  | Tile({label: ["@<", ">"], shards, children, _}) =>
     /* Complete tile (has children) or opening shard (index 0) */
     List.length(children) > 0 || shards == [0]
   | _ => false
@@ -491,8 +441,10 @@ let rec child_doc = (s: settings, child: Segment.t): doc => {
 and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   let triples = Tile.contained_children(t);
   let last_shard_idx = List.length(t.label) - 1;
-  let last_shard = Tile.to_piece(Tile.shard_of(t, last_shard_idx));
-  let last_shard_doc = piece_doc(last_shard);
+  /* Shard doc: extract a single shard from this tile as a doc node */
+  let shard = (i) => piece_doc(Tile.to_piece(Tile.shard_of(t, i)));
+  /* Fallback for unexpected tile structure: emit whole tile + rest */
+  let fallback = cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)]);
 
   /* Build the body doc (content after the tile in the segment).
      For binding forms, use HardBreak when next piece is also a compound
@@ -555,7 +507,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     };
 
   /* Attach semi and rest after a tile doc. Used by case/end, test/end,
-     hint/test/end to avoid duplicating this pattern. */
+     hint/test/end, and other operand forms ending in "end". */
   let tile_with_rest = (tile_doc: doc): doc =>
     switch (rest) {
     | [semi, ...rest2] when is_semi(semi) =>
@@ -572,24 +524,16 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     };
 
   switch (t.label) {
-  /* Binding forms: [keyword, "=", "in"] — let, type, theorem */
+  /* Binding forms: let/=/in, type/=/in, theorem/=/in */
   | [_, "=", "in"] =>
-    let first_shard = Tile.to_piece(Tile.shard_of(t, 0));
-    let eq_shard = Tile.to_piece(Tile.shard_of(t, 1));
     switch (triples) {
     | [(_, pat_child, _), (_, binding_child, _)] =>
       let prefix =
-        cats([
-          piece_doc(first_shard),
-          Space,
-          Group(child_doc(s, pat_child)),
-          Space,
-          piece_doc(eq_shard),
-        ]);
+        cats([shard(0), Space, Group(child_doc(s, pat_child)), Space, shard(1)]);
       /* Hanging style: let x = (\n...\n) in
          Otherwise:      let x =\n  (...) in */
       let binding_content = strip_whitespace(binding_child);
-      let in_suffix = cats([Space, last_shard_doc]);
+      let in_suffix = cats([Space, shard(last_shard_idx)]);
       let binding_doc =
         switch (try_hanging_delim(binding_content, ~suffix=in_suffix, ())) {
         | Some(hanging) => cats([Space, hanging])
@@ -598,42 +542,38 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         };
       let let_in_doc = Group(cats([prefix, binding_doc]));
       Group(cats([let_in_doc, body_doc(true)]));
-    | _ =>
-      cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)])
+    | _ => fallback
     };
 
   /* if/then/else */
   | ["if", "then", "else"] =>
-    let if_shard = Tile.to_piece(Tile.shard_of(t, 0));
-    let then_shard = Tile.to_piece(Tile.shard_of(t, 1));
     switch (triples) {
     | [(_, cond_child, _), (_, conseq_child, _)] =>
       let tile_doc =
         Group(
           cats([
-            piece_doc(if_shard),
+            shard(0),
             Space,
             Group(child_doc(s, cond_child)),
             Break,
-            piece_doc(then_shard),
+            shard(1),
             Space,
             Group(child_doc(s, conseq_child)),
             Break,
-            last_shard_doc,
+            shard(last_shard_idx),
           ]),
         );
       cats([tile_doc, body_doc(false)]);
-    | _ => cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)])
+    | _ => fallback
     };
 
   /* Prefix arrow forms: fun/->, fix/->, typfun/->, poly/->, forall/->, rec/-> */
   | [_, "->"] =>
-    let fun_shard = Tile.to_piece(Tile.shard_of(t, 0));
     switch (triples) {
     | [(_, param_child, _)] =>
       let param_doc = child_doc(s, param_child);
       let header =
-        cats([piece_doc(fun_shard), Space, param_doc, Space, last_shard_doc]);
+        cats([shard(0), Space, param_doc, Space, shard(last_shard_idx)]);
       if (s.break_fun_params) {
         cats([header, body_doc(false)]);
       } else {
@@ -652,114 +592,138 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           }
         };
       }
-    | _ => cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)])
+    | _ => fallback
     };
 
-  /* Delimiter pairs: (...), [...] */
+  /* Delimiter pairs: (...), [...], {...} */
   | ["(", ")"]
-  | ["[", "]"] =>
-    let open_shard = Tile.to_piece(Tile.shard_of(t, 0));
+  | ["[", "]"]
+  | ["{", "}"] =>
     switch (triples) {
     | [(_, content_child, _)] =>
       let inner = child_doc(s, content_child);
       let delim_doc =
         switch (inner) {
-        | Empty => cats([piece_doc(open_shard), last_shard_doc])
+        | Empty => cats([shard(0), shard(last_shard_idx)])
         | _ =>
           Group(
-            cats([piece_doc(open_shard), SoftBreak, inner, SoftBreak, last_shard_doc]),
+            cats([shard(0), SoftBreak, inner, SoftBreak, shard(last_shard_idx)]),
           )
         };
       switch (rest) {
       | [] => delim_doc
       | _ => cats([delim_doc, Break, Group(segment_to_doc(s, rest))])
       };
-    | _ => cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)])
+    | _ => fallback
+    };
+
+  /* Type application: @<...> — tight delimiters, no internal spacing */
+  | ["@<", ">"] =>
+    switch (triples) {
+    | [(_, content_child, _)] =>
+      let inner = child_doc(s, content_child);
+      let delim_doc = cats([shard(0), inner, shard(last_shard_idx)]);
+      switch (rest) {
+      | [] => delim_doc
+      | _ => cats([delim_doc, Break, Group(segment_to_doc(s, rest))])
+      };
+    | _ => fallback
     };
 
   /* case/end */
   | ["case", "end"] =>
-    let open_shard = Tile.to_piece(Tile.shard_of(t, 0));
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
       let tile_doc =
-        Group(
-          cats([piece_doc(open_shard), Space, inner, Break, last_shard_doc]),
-        );
+        Group(cats([shard(0), Space, inner, Break, shard(last_shard_idx)]));
       tile_with_rest(tile_doc);
-    | _ => cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)])
+    | _ => fallback
     };
 
   /* test/end: always break after "test", "end" trails the last body line */
   | ["test", "end"] =>
-    let open_shard = Tile.to_piece(Tile.shard_of(t, 0));
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
       let tile_doc =
         cats([
-          piece_doc(open_shard),
+          shard(0),
           HardBreak,
-          Group(cats([inner, Space, last_shard_doc])),
+          Group(cats([inner, Space, shard(last_shard_idx)])),
         ]);
       tile_with_rest(tile_doc);
-    | _ => cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)])
+    | _ => fallback
     };
 
   /* hint/test/end: hint message on first line, test on own line, end trails body */
   | ["hint", "test", "end"] =>
-    let hint_shard = Tile.to_piece(Tile.shard_of(t, 0));
-    let test_shard = Tile.to_piece(Tile.shard_of(t, 1));
     switch (triples) {
     | [(_, msg_child, _), (_, body_child, _)] =>
       let msg = child_doc(s, msg_child);
       let inner = child_doc(s, body_child);
       let tile_doc =
         cats([
-          piece_doc(hint_shard),
+          shard(0),
           Space,
           msg,
           HardBreak,
-          piece_doc(test_shard),
+          shard(1),
           HardBreak,
-          Group(cats([inner, Space, last_shard_doc])),
+          Group(cats([inner, Space, shard(last_shard_idx)])),
         ]);
       tile_with_rest(tile_doc);
-    | _ => cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)])
+    | _ => fallback
+    };
+
+  /* Other operand forms ending in "end": proof_of/end, proof_object/end.
+     Same treatment as case/end (Space after keyword, Break before end). */
+  | [_, "end"] =>
+    switch (triples) {
+    | [(_, body_child, _)] =>
+      let inner = child_doc(s, body_child);
+      let tile_doc =
+        Group(cats([shard(0), Space, inner, Break, shard(last_shard_idx)]));
+      tile_with_rest(tile_doc);
+    | _ => fallback
     };
 
   /* Rule |/=> (case rule tiles with children) */
   | ["|", "=>"] =>
-    let bar_shard = Tile.to_piece(Tile.shard_of(t, 0));
     switch (triples) {
     | [(_, pat_child, _)] =>
-      cats([
-        piece_doc(bar_shard),
-        Space,
-        child_doc(s, pat_child),
-        Space,
-        last_shard_doc,
-      ])
+      cats([shard(0), Space, child_doc(s, pat_child), Space, shard(last_shard_idx)])
     | _ => piece_doc(Tile.to_piece(t))
+    };
+
+  /* Filter/use forms: hide/eval/pause/debug/use expr in body.
+     Simple binding-like prefix: chains with HardBreak like let-chains. */
+  | [_, "in"] =>
+    switch (triples) {
+    | [(_, expr_child, _)] =>
+      let tile_doc =
+        Group(
+          cats([shard(0), Space, Group(child_doc(s, expr_child)), Space, shard(last_shard_idx)]),
+        );
+      Group(cats([tile_doc, body_doc(true)]));
+    | _ => fallback
     };
 
   /* Generic multi-keyword tile: interleave shards and children with Break */
   | _ =>
-    let first_shard = Tile.to_piece(Tile.shard_of(t, 0));
-    let rec build_rest = (triples: list((Tile.t, Segment.t, Tile.t))): doc =>
+    let rec build_rest = (idx, triples: list((Tile.t, Segment.t, Tile.t))): doc =>
       switch (triples) {
       | [] => Empty
-      | [(_, child, r_shard), ...rest_triples] =>
+      | [(_, child, _), ...rest_triples] =>
         cats([
           Space,
           child_doc(s, child),
           Break,
-          piece_doc(Tile.to_piece(r_shard)),
-          build_rest(rest_triples),
+          shard(idx),
+          build_rest(idx + 1, rest_triples),
         ])
       };
-    let tile_doc = cats([piece_doc(first_shard), build_rest(triples)]);
+    let tile_doc = cats([shard(0), build_rest(1, triples)]);
     switch (rest) {
     | [] => tile_doc
     | _ => cats([tile_doc, body_doc(false)])

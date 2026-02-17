@@ -676,6 +676,57 @@ test
 5|},
     (),
   ),
+  /* use/in: flat when body is simple */
+  test_format_seg(
+    ~name="Use/in flat",
+    ~input="use Int in 5",
+    ~expected="use Int in 5",
+    (),
+  ),
+  /* use/in: chains with let like binding forms */
+  test_format_seg(
+    ~name="Use/in chains with let",
+    ~width=30,
+    ~input="use Int in let x = 1 in x",
+    ~expected={|use Int in
+let x = 1 in x|},
+    (),
+  ),
+  /* use/in: multiple use forms chain */
+  test_format_seg(
+    ~name="Use/in chaining",
+    ~width=30,
+    ~input="use Int in use String in let x = 1 in x",
+    ~expected={|use Int in
+use String in
+let x = 1 in x|},
+    (),
+  ),
+  /* hide/in: chains with let */
+  test_format_seg(
+    ~name="Hide/in chains with let",
+    ~width=40,
+    ~input="hide 1 + 2 in let x = 1 in x",
+    ~expected={|hide 1 + 2 in
+let x = 1 in x|},
+    (),
+  ),
+  /* Type application @<>: tight delimiters, no internal spacing */
+  test_format_seg(
+    ~name="Type application tight",
+    ~input="let f = typfun a -> fun x : a -> x in f @< Int >(5)",
+    ~expected="let f = typfun a -> fun x : a -> x in f@<Int>(5)",
+    (),
+  ),
+  /* Type application breaking */
+  test_format_seg(
+    ~name="Type application breaking",
+    ~width=40,
+    ~input="let f = typfun a -> fun x : a -> x in f @< Int >(5) + f @< String >(\"hello\")",
+    ~expected={|let f = typfun a -> fun x : a -> x in
+f@<Int>(5) + f@<String>("hello")|},
+    (),
+  ),
 ];
 
 let tests = [
