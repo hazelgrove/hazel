@@ -650,6 +650,21 @@ test
 f|},
     (),
   ),
+  /* Hanging delimiter in fun body (paren stays on -> line) */
+  test_format_seg(
+    ~name="Fun hanging delimiter record body",
+    ~width=40,
+    ~input="let closeDay = fun ledger -> (harvests = 1, totalValue = 2, streakBonus = 0, lastQuality = 3) in 1",
+    ~expected={|let closeDay =
+  fun ledger -> (
+    harvests = 1,
+    totalValue = 2,
+    streakBonus = 0,
+    lastQuality = 3
+  ) in
+1|},
+    (),
+  ),
   /* hint/test/end: hint on first line, test on own line, end trails */
   test_format_seg(
     ~name="Hint/test/end formatting",

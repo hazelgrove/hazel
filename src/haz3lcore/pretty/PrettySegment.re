@@ -662,12 +662,57 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           switch (split_at_comma(rest)) {
           | Some(_) => Cat(Group(header), body_doc(false))
           | None =>
-            Group(
-              Cat(
-                Group(header),
-                Cat(Break, Group(segment_to_doc(s, rest))),
-              ),
-            )
+            /* Hanging delimiters: when body is a single paren/bracket,
+               keep the opener on the -> line (like let = (...) in). */
+            switch (rest) {
+            | [Tile(dt)]
+                when
+                  s.hanging_delimiters
+                  && (dt.label == ["(", ")"] || dt.label == ["[", "]"])
+                  && List.length(dt.children) > 0 =>
+              let open_shard = Tile.to_piece(Tile.shard_of(dt, 0));
+              let close_shard =
+                Tile.to_piece(
+                  Tile.shard_of(dt, List.length(dt.label) - 1),
+                );
+              let inner_triples = Tile.contained_children(dt);
+              switch (inner_triples) {
+              | [(_, inner_child, _)] =>
+                let inner = child_doc(s, inner_child);
+                Group(
+                  Cat(
+                    Group(header),
+                    Cat(
+                      Space,
+                      Cat(
+                        piece_doc(open_shard),
+                        Cat(
+                          SoftBreak,
+                          Cat(
+                            inner,
+                            Cat(SoftBreak, piece_doc(close_shard)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              | _ =>
+                Group(
+                  Cat(
+                    Group(header),
+                    Cat(Break, Group(segment_to_doc(s, rest))),
+                  ),
+                )
+              };
+            | _ =>
+              Group(
+                Cat(
+                  Group(header),
+                  Cat(Break, Group(segment_to_doc(s, rest))),
+                ),
+              )
+            }
           }
         };
       }
