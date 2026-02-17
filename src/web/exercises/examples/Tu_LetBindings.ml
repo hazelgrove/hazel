@@ -9,27 +9,16 @@ let exercise : Tutorial.spec =
       "A `let` expression binds a variable to a value within a body \
        expression. The syntax is `let x = expr in body`, where `x` is \
        available for use in `body`.\n\n\
-       For example, `let x = 2 * 3 in x + 1` first binds `x` to the value of \
-       `2 * 3` (which is `6`), then evaluates `x + 1` with that binding, \
-       giving `7`. Variables are given computational meaning simply by \
-       substitution — use the stepper to see how this works.\n\n\
-       Type `let x = 2 * 3 in x + 1` into the expression editor below. \
-       Remember to use `Tab` to drop the `=` and `in` delimiters from the \
-       backpack.";
+       The editor below shows `let x = ▢ in let y = x + 1 in y` — nested let \
+       bindings where `x`'s value is missing (shown as a hole). The variable \
+       `y` is defined as `x + 1`, and the overall result is `y`.\n\n\
+       Fill in a value for `x` (e.g. `5`). If you type `5`, then `x` becomes \
+       `5`, `y` becomes `x + 1 = 6`, and the result is `6`.";
     wrapper = true;
     show_report = false;
     version = 5;
     your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+      Option.get (Haz3lcore.Parser.to_zipper "let x = in let y = x + 1 in y");
     hidden_tests =
       {
         tests =
@@ -94,7 +83,7 @@ let exercise : Tutorial.spec =
                                 Tile
                                   {
                                     id = Id.mk ();
-                                    label = [ "7" ];
+                                    label = [ "6" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -134,7 +123,7 @@ let exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints = [ "Make sure the expression evaluates to 7." ];
+        hints = [ "Fill in a value for x, e.g. 5." ];
       };
-    display_hint = "Start typing `let` to see how bindings work";
+    display_hint = "Fill in the missing value for x";
   }

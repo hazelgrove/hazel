@@ -8,16 +8,17 @@ let exercise : Tutorial.spec =
     prompt =
       "Hazel uses a tile-based parser called Tylr. When you type a multi-part \
        keyword like `let`, Tylr automatically creates `obligations` — the \
-       remaining delimiters (`=` and `in`) that are needed to complete the \
-       syntactic form. These obligations are held in the `backpack`, shown at \
-       the top of the editor.\n\n\
-       You can `drop` an obligation from the backpack by pressing `Tab` when \
-       your cursor is at the right position. For example, after typing `let \
-       x`, press `Tab` to drop the `=` delimiter, then type the value, and \
-       press `Tab` again to drop the `in` delimiter.\n\n\
-       Try it: type `let x = 1 in x + 1` in the cell below, using `Tab` to \
-       drop the `=` and `in` delimiters from the backpack. The result should \
-       evaluate to `2`.";
+       remaining delimiters that are needed to complete the syntactic form. \
+       These obligations are held in the `backpack`, shown at the top of the \
+       editor.\n\n\
+       The editor below already contains `let x =` with a hole after the `=`. \
+       Notice that the `in` delimiter is in the backpack — it still needs to \
+       be dropped into the program.\n\n\
+       Complete the expression step by step:\n\
+       1. Type `1` to fill in the value for `x`\n\
+       2. Press `Tab` to drop the `in` delimiter from the backpack\n\
+       3. Type `x + 1` as the body of the let expression\n\n\
+       The result should evaluate to `2`.";
     wrapper = true;
     show_report = false;
     version = 2;
