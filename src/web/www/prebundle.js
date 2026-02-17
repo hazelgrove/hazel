@@ -34,8 +34,8 @@ const moduleWatcher = new ModuleWatcher(
 	// rabbitcounter tool + datatype
   // ["automerge:4GHeCq7k1BEhPdpPDWyF2EQFXKrG"],
   // codemirror-base
-  // ["automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX"],
-  ["automerge:9omX3o8Ch387BWzEKW2KXfySPxe"],
+  ["automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX"],
+  // ["automerge:9omX3o8Ch387BWzEKW2KXfySPxe"],
 	(name, mod) => {
 		console.log("Prebundled module loaded:", name, mod)
 		if (Array.isArray(mod.plugins)) {
@@ -54,7 +54,9 @@ window.plugins = getRegistry("patchwork:tool")
 moduleWatcher.loadModules([
   "automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX",
   "automerge:L45rfzTVcMDsyXRyuhpNMPXqPwf",
-  "automerge:3Fj5zE7QdhbbWVJNsAHPbf84YfX6"
+  "automerge:3Fj5zE7QdhbbWVJNsAHPbf84YfX6",
+  // petrinaut tool?
+  "automerge:3phkB7HzGoQ67w2ahmj9gepELErw"
 ])
 
 registerPatchworkViewElement({repo, moduleWatcher})

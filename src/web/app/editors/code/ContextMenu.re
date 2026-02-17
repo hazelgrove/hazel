@@ -423,6 +423,7 @@ module Projectors = {
     | Graph => "Graph"
     | Patchwork => "Patchwork"
     | ObservablePlot => "Plot"
+    | Automerge => "Automerge"
     | Exo(exo_kind) => Exo.name(exo_kind)
     };
 

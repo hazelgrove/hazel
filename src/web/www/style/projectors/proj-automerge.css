@@ -1,0 +1,6 @@
+/* PROJECTOR: AUTOMERGE */
+
+/* Turn off caret when automerge projector is focused */
+.code-deco:has(~ .projectors .projector.Automerge *:focus) #caret .caret-path {
+  fill: #0000;
+}

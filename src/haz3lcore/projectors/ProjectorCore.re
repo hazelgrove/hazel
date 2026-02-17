@@ -32,7 +32,8 @@ module Kind = {
     | Exo(Exo.kind)
     | Graph
     | Patchwork
-    | ObservablePlot;
+    | ObservablePlot
+    | Automerge;
 
   let livelit_projectors: list(t) =
     [Checkbox, Slider, SliderF, TextArea, Card, Livelit, Csv]
@@ -40,7 +41,7 @@ module Kind = {
 
   /* Note: Probe intentionally excluded - probes use separate action path */
   let projectors: list(t) =
-    livelit_projectors @ [Fold, Graph, Patchwork, ObservablePlot];
+    livelit_projectors @ [Fold, Graph, Patchwork, ObservablePlot, Automerge];
 
   /* Refractors are like probes - additive decorations, not syntax-replacing */
   let refractors: list(t) = [Probe, Statics];
@@ -66,6 +67,7 @@ module Kind = {
     | Graph => "graph"
     | Patchwork => "Patchwork"
     | ObservablePlot => "ObservablePlot"
+    | Automerge => "Automerge"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -86,6 +88,7 @@ module Kind = {
     | "graph" => Graph
     | "Patchwork" => Patchwork
     | "ObservablePlot" => ObservablePlot
+    | "Automerge" => Automerge
     | _ => Exo(Exo.of_name(p))
     };
 
