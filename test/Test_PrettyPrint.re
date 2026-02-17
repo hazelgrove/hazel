@@ -592,6 +592,53 @@ let x = 1 in x|},
   ),
 ];
 
+/* === Form handling: arrow forms, test/end, hint/test/end === */
+
+let form_tests = [
+  /* typfun/-> keeps header on one line (previously fell through to generic) */
+  test_format_seg(
+    ~name="Typfun arrow stays on one line",
+    ~width=20,
+    ~input="typfun a -> fun x -> x + 1",
+    ~expected={|typfun a ->
+  fun x -> x + 1|},
+    (),
+  ),
+  /* poly/-> in type context keeps header on one line */
+  test_format_seg(
+    ~name="Poly arrow in type annotation",
+    ~width=30,
+    ~input="let f : poly a -> a -> a = typfun a -> fun x : a -> x in 1",
+    ~expected={|let f : poly a -> a -> a =
+  typfun a -> fun x : a -> x in
+1|},
+    (),
+  ),
+  /* test/end with semicolons: test on own line, end trails body */
+  test_format_seg(
+    ~name="Test/end with semicolons consistent",
+    ~width=40,
+    ~input="test 1 + 1 == 2 end; test 3 + 3 == 6 end; 5",
+    ~expected={|test
+  1 + 1 == 2 end;
+test
+  3 + 3 == 6 end;
+5|},
+    (),
+  ),
+  /* hint/test/end: hint on first line, test on own line, end trails */
+  test_format_seg(
+    ~name="Hint/test/end formatting",
+    ~width=40,
+    ~input={|hint "msg" test 1 + 1 == 2 end; 5|},
+    ~expected={|hint "msg"
+test
+  1 + 1 == 2 end;
+5|},
+    (),
+  ),
+];
+
 let tests = [
   ("PrettyPrint.Flat", flat_tests),
   ("PrettyPrint.Breaking", breaking_tests),
@@ -603,4 +650,5 @@ let tests = [
   ("PrettyPrint.HangingDelimiters", hanging_delimiter_tests),
   ("PrettyPrint.BreakFunParams", break_fun_params_tests),
   ("PrettyPrint.Comments", comment_tests),
+  ("PrettyPrint.Forms", form_tests),
 ];

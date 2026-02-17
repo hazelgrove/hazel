@@ -514,10 +514,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     };
 
   switch (t.label) {
-  /* Binding forms: let/=/in, type/=/in, hint/=/in */
-  | ["let", "=", "in"]
-  | ["type", "=", "in"]
-  | ["hint", "=", "in"] =>
+  /* Binding forms: [keyword, "=", "in"] — let, type, theorem */
+  | [_, "=", "in"] =>
     let first_shard = Tile.to_piece(Tile.shard_of(t, 0));
     let eq_shard = Tile.to_piece(Tile.shard_of(t, 1));
     switch (triples) {
@@ -637,8 +635,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
     };
 
-  /* fun/-> */
-  | ["fun", "->"] =>
+  /* Prefix arrow forms: fun/->, fix/->, typfun/->, poly/->, forall/->, rec/-> */
+  | [_, "->"] =>
     let fun_shard = Tile.to_piece(Tile.shard_of(t, 0));
     switch (triples) {
     | [(_, param_child, _)] =>
