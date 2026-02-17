@@ -2946,7 +2946,7 @@ let go: ([?], [?], [?]) -> [?] =
           list(unknown(Internal)),
           arrow(unknown(Internal), string()),
           arrow(unknown(Internal), string()),
-          arrow(unknown(Internal), unknown(Internal)),
+          arrow(list(unknown(Internal)), unknown(Internal)),
         ]),
       ret: List(unknown(Internal)),
       imp: {
