@@ -103,17 +103,14 @@ let exp_equal : (Exp, Exp) -> Bool =
 let poly_id : poly a -> a -> a =
   typfun a -> fun x : a -> x in
 let apply_both
-: poly a
--> poly b -> (poly c -> c -> c) -> ((a, b) -> (a, b)) =
-  typfun a
-  ->
-    typfun b
-    ->
+: poly a ->
+  poly b -> (poly c -> c -> c) -> ((a, b) -> (a, b)) =
+  typfun a ->
+    typfun b ->
       fun f : poly c -> (c -> c) ->
         fun (x, y) : (a, b) -> (f @< a >(x), f @< b >(y)) in
 let list_length : poly a -> [a] -> Int =
-  typfun a
-  ->
+  typfun a ->
     fun l : [a] ->
       case l
       | [] => 0

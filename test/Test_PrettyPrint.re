@@ -626,6 +626,30 @@ test
 5|},
     (),
   ),
+  /* Nested typfun waterfall (matches basic.hz polymorphic section) */
+  test_format_seg(
+    ~name="Nested typfun waterfall",
+    ~width=30,
+    ~input="let f = typfun a -> typfun b -> fun x -> x in 1",
+    ~expected={|let f =
+  typfun a ->
+    typfun b -> fun x -> x in
+1|},
+    (),
+  ),
+  /* poly/-> in breaking type annotation keeps arrow on same line */
+  test_format_seg(
+    ~name="Poly arrow breaks in type annotation",
+    ~width=30,
+    ~input="let f : poly a -> poly b -> (a, b) -> (a, b) = typfun a -> typfun b -> fun x -> x in f",
+    ~expected={|let f
+: poly a ->
+  poly b -> (a, b) -> (a, b) =
+  typfun a ->
+    typfun b -> fun x -> x in
+f|},
+    (),
+  ),
   /* hint/test/end: hint on first line, test on own line, end trails */
   test_format_seg(
     ~name="Hint/test/end formatting",
