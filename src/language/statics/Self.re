@@ -30,8 +30,9 @@ type meet_type =
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoMeet(meet_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
-  | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
+  | DuplicateLabel(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | CompareFun(Typ.t) /* Type equality failed because of arrow type inside */
+  | DuplicateVar(string, t)
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label)) /* Invalid label in a labeled tuple where these labels are expected */
@@ -108,7 +109,8 @@ let meet_of = (j: meet_type, ty: Typ.t): Typ.t =>
 let typ_of: t => option(Typ.t) =
   fun
   | Just(typ)
-  | Duplicate(_, Just(typ))
+  | DuplicateLabel(_, Just(typ))
+  | DuplicateVar(_, Just(typ))
   | TupleLabelError({typ, _}) => Some(typ)
   | CompareFun(_) => Some(Atom(Bool) |> Typ.fresh)
   | FreeConstructor(name) =>
@@ -125,7 +127,8 @@ let typ_of: t => option(Typ.t) =
     )
   | BadToken(_)
   | IsMulti
-  | Duplicate(_)
+  | DuplicateLabel(_)
+  | DuplicateVar(_)
   | BadLabel(_)
   | InvalidLabel(_)
   | ExplicitNonlabel
