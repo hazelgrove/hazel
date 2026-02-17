@@ -34,17 +34,15 @@ let go : Exp -> Result =
     end in
 
 test
-  go(Var("yo"))
-  == Error("Free Variable") end;
+  go(Var("yo")) == Error("Free Variable") end;
 
 test
   go(Ap(Var("no"), Lam("bro", Var("bro"))))
   == Error("Not a Function") end;
 
 test
-  go(Lam("yo", Var("yo")))
-  == Ok(Lam("yo", Var("yo"))) end;
+  go(Lam("yo", Var("yo"))) == Ok(Lam("yo", Var("yo"))) end;
 
-test go(Ap(Lam("yo", Var("yo")), Lam("bro", Var("bro"))))
-== Ok(Lam("bro", Var("bro")))
-end
+test
+  go(Ap(Lam("yo", Var("yo")), Lam("bro", Var("bro"))))
+  == Ok(Lam("bro", Var("bro"))) end

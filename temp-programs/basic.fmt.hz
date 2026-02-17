@@ -121,9 +121,12 @@ let list_length : poly a -> [a] -> Int =
       end in
 
 # Tests, separated by semicolons #
-test 2 + 2 == 4 end;
-test 3 + 3 == 6 end;
-test 2 + 2 == 5 end;
+test
+  2 + 2 == 4 end;
+test
+  3 + 3 == 6 end;
+test
+  2 + 2 == 5 end;
 
 # The value of the program is shown at the bottom #
 2 + 2

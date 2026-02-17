@@ -705,20 +705,88 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
   /* case/end */
   | ["case", "end"] =>
-    let case_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    let open_shard = Tile.to_piece(Tile.shard_of(t, 0));
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
-      let case_doc =
+      let tile_doc =
         Group(
           Cat(
-            piece_doc(case_shard),
-            Cat(Space, Cat(inner, Cat(SoftBreak, last_shard_doc))),
+            piece_doc(open_shard),
+            Cat(Space, Cat(inner, Cat(Break, last_shard_doc))),
           ),
         );
       switch (rest) {
-      | [] => case_doc
-      | _ => Cat(case_doc, Cat(Break, Group(segment_to_doc(s, rest))))
+      | [semi, ...rest2] when is_semi(semi) =>
+        Cat(
+          Cat(tile_doc, piece_doc(semi)),
+          switch (rest2) {
+          | [] => Empty
+          | _ => Cat(HardBreak, segment_to_doc(s, rest2))
+          },
+        )
+      | [] => tile_doc
+      | _ => Cat(tile_doc, Cat(Break, Group(segment_to_doc(s, rest))))
+      };
+    | _ => Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
+    };
+
+  /* test/end: always break after "test", "end" trails the last body line */
+  | ["test", "end"] =>
+    let open_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    switch (triples) {
+    | [(_, body_child, _)] =>
+      let inner = child_doc(s, body_child);
+      let tile_doc =
+        Cat(
+          piece_doc(open_shard),
+          Cat(HardBreak, Group(Cat(inner, Cat(Space, last_shard_doc)))),
+        );
+      switch (rest) {
+      | [semi, ...rest2] when is_semi(semi) =>
+        Cat(
+          Cat(tile_doc, piece_doc(semi)),
+          switch (rest2) {
+          | [] => Empty
+          | _ => Cat(HardBreak, segment_to_doc(s, rest2))
+          },
+        )
+      | [] => tile_doc
+      | _ => Cat(tile_doc, Cat(Break, Group(segment_to_doc(s, rest))))
+      };
+    | _ => Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
+    };
+
+  /* hint/test/end: hint message on first line, test on own line, end trails body */
+  | ["hint", "test", "end"] =>
+    let hint_shard = Tile.to_piece(Tile.shard_of(t, 0));
+    let test_shard = Tile.to_piece(Tile.shard_of(t, 1));
+    switch (triples) {
+    | [(_, msg_child, _), (_, body_child, _)] =>
+      let msg = child_doc(s, msg_child);
+      let inner = child_doc(s, body_child);
+      let tile_doc =
+        Cat(
+          Cat(piece_doc(hint_shard), Cat(Space, msg)),
+          Cat(
+            HardBreak,
+            Cat(
+              piece_doc(test_shard),
+              Cat(HardBreak, Group(Cat(inner, Cat(Space, last_shard_doc)))),
+            ),
+          ),
+        );
+      switch (rest) {
+      | [semi, ...rest2] when is_semi(semi) =>
+        Cat(
+          Cat(tile_doc, piece_doc(semi)),
+          switch (rest2) {
+          | [] => Empty
+          | _ => Cat(HardBreak, segment_to_doc(s, rest2))
+          },
+        )
+      | [] => tile_doc
+      | _ => Cat(tile_doc, Cat(Break, Group(segment_to_doc(s, rest))))
       };
     | _ => Cat(piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest))
     };
@@ -777,6 +845,12 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
     | Tile(t) when List.length(t.children) > 0 => build_tile_doc(s, t, [])
     | _ => piece_doc(p)
     }
+
+  /* Tile with children followed by semicolon: decompose the tile.
+     build_tile_doc handlers (test/end, case/end, etc.) handle the semi
+     in rest, so the tile gets proper Group wrapping for layout. */
+  | [Tile(t), semi, ...rest] when List.length(t.children) > 0 && is_semi(semi) =>
+    build_tile_doc(s, t, [semi, ...rest])
 
   /* Piece followed by semicolon: keep semi with left operand, hard break */
   | [p, semi, ...rest] when is_semi(semi) =>

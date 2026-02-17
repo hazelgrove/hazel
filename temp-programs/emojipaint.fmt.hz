@@ -75,7 +75,6 @@ let do : (Model, [Action]) -> Model =
 hint "paint single cell"
 test
   let m = update(init, PaintCell(0, 0)) in
-  m.canvas == [["😄", "", ""], ["", "", ""], ["", "", ""]]
-end;
+  m.canvas == [["😄", "", ""], ["", "", ""], ["", "", ""]] end;
 
 do(init, [SetBrush(1), PaintCell(2, 2)])
