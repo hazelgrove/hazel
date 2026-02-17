@@ -13,22 +13,12 @@ let int_exercise : Tutorial.spec =
        division). Hazel computes the value of your expression by equationally \
        simplifying it (i.e. evaluating it). The symbol `≡` is pronounced \"is \
        equivalent to\".\n\n\
-       Enter the program `2 + 2` in the expression editor below and observe \
-       that it evaluates to `4`.";
+       The editor below contains `2 +` with a hole after the `+`. Complete the \
+       expression by typing `2` to make `2 + 2`. It should evaluate to `4`.";
     wrapper = true;
     show_report = false;
     version = 3;
-    your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+    your_impl = Option.get (Haz3lcore.Parser.to_zipper "2 + ");
     hidden_tests =
       {
         tests =
@@ -133,9 +123,9 @@ let int_exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints = [ "Enter `2 + 2`." ];
+        hints = [ "Type `2` after the `+` to complete the expression." ];
       };
-    display_hint = "Type `2 + 2` in the cell below";
+    display_hint = "Complete `2 + ▢` by typing `2`";
   }
 
 let float_exercise : Tutorial.spec =
@@ -152,22 +142,14 @@ let float_exercise : Tutorial.spec =
        This distinction ensures type safety — you cannot accidentally mix \
        integer and float operations. The type of float values is `Float`, and \
        the type of integer values is `Int`.\n\n\
-       Compute `3.0 *. 2.0` in the expression editor below. It should evaluate \
-       to `6.`.";
+       The editor below contains `3.0 * 2.0`, which uses the integer \
+       multiplication operator `*` on float values, causing a type error. Fix \
+       it by changing `*` to `*.` (the float multiplication operator). The \
+       result should evaluate to `6.`.";
     wrapper = true;
     show_report = false;
     version = 4;
-    your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+    your_impl = Option.get (Haz3lcore.Parser.to_zipper "3.0 * 2.0");
     hidden_tests =
       {
         tests =

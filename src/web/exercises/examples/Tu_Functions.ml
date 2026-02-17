@@ -9,25 +9,16 @@ let def_exercise : Tutorial.spec =
       "Functions are expressions that take inputs and produce outputs. In \
        Hazel, you write an anonymous function as `fun x -> body`, where `x` is \
        the parameter and `body` is an expression that can use `x`.\n\n\
-       Functions in Hazel do not themselves have names. Instead, you can use a \
-       `let` expression to give a function a name. For example, `let f = fun x \
-       -> x + 1 in f(2)` defines a function that adds 1 to its argument and \
-       then applies it to `2`, evaluating to `3`.\n\n\
-       Type `let f = fun x -> x + 1 in f(2)` in the editor below.";
+       The editor below contains `let f = fun x ->` with the function body \
+       missing and `in` in the backpack. Complete the function:\n\
+       1. Type `x + 1` as the function body\n\
+       2. Press `Tab` to drop the `in` delimiter from the backpack\n\
+       3. Type `f(2)` to apply the function\n\n\
+       The result should evaluate to `3`.";
     wrapper = true;
     show_report = false;
     version = 6;
-    your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+    your_impl = Option.get (Haz3lcore.Parser.to_zipper "let f = fun x -> ");
     hidden_tests =
       {
         tests =
@@ -132,9 +123,9 @@ let def_exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints = [ "Define a function that adds 1 and apply it to 2." ];
+        hints = [ "Type `x + 1`, then Tab, then `f(2)`." ];
       };
-    display_hint = "Functions are written as `fun x -> ...`";
+    display_hint = "Complete the function body and apply it";
   }
 
 let call_exercise : Tutorial.spec =
@@ -146,24 +137,15 @@ let call_exercise : Tutorial.spec =
       "You apply a function to an argument by writing `f(arg)`. Hazel supports \
        multi-argument functions via currying: `fun x -> fun y -> x + y` is a \
        function that takes two arguments one at a time.\n\n\
-       You apply a curried function as `f(arg1)(arg2)`. For example, `let add \
-       = fun x -> fun y -> x + y in add(2)(3)` evaluates to `5`.\n\n\
-       Write a curried two-argument addition function and apply it so that the \
-       result is `5`.";
+       The editor below already defines `add` as a curried two-argument \
+       addition function. Your task is to apply it so the result is `5`. Type \
+       `add(2)(3)` after the cursor.";
     wrapper = true;
     show_report = false;
     version = 7;
     your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+      Option.get
+        (Haz3lcore.Parser.to_zipper "let add = fun x -> fun y -> x + y in ");
     hidden_tests =
       {
         tests =
@@ -268,7 +250,7 @@ let call_exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints = [ "Write a curried function and apply it so the result is 5." ];
+        hints = [ "Type `add(2)(3)` to apply the function." ];
       };
     display_hint = "";
   }
@@ -284,25 +266,13 @@ let pipeline_exercise : Tutorial.spec =
        to `(fun x -> x + 1)(5)` but reads left-to-right.\n\n\
        You can chain pipelines: `5 |> fun x -> x + 1 |> fun x -> x * 2` first \
        adds 1 (giving `6`), then doubles (giving `12`).\n\n\
-       Hazel also supports partial application using `_` as a placeholder. For \
-       example, if `add` is a two-argument function, then `add(1, _)` is a new \
-       function that adds 1 to its argument.\n\n\
-       Use `|>` to pipe `10` through a function that doubles its input. The \
+       The editor below contains `10 |>` with a hole after the pipe. Complete \
+       it with a function that doubles its input, e.g. `fun x -> x * 2`. The \
        result should be `20`.";
     wrapper = true;
     show_report = false;
     version = 8;
-    your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+    your_impl = Option.get (Haz3lcore.Parser.to_zipper "10 |> ");
     hidden_tests =
       {
         tests =
@@ -407,7 +377,7 @@ let pipeline_exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints = [ "Pipe 10 into a function that doubles its input." ];
+        hints = [ "Type `fun x -> x * 2` after the `|>`." ];
       };
-    display_hint = "Use `|>` to send a value into a function";
+    display_hint = "Complete the pipeline with a doubling function";
   }

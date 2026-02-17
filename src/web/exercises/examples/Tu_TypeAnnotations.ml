@@ -11,27 +11,15 @@ let exercise : Tutorial.spec =
        `:` operator. For example, `(1 : Int)` asserts that `1` has type \
        `Int`.\n\n\
        If the annotation does not match the expression, Hazel will report a \
-       type error. For example, `(true : Int)` is a type error because `true` \
-       has type `Bool`, not `Int`. You will see the type mismatch highlighted \
-       in the editor.\n\n\
-       Type annotations are especially useful for documenting the expected \
-       types of let bindings and function parameters.\n\n\
-       Write `(42 : Int)` in the editor below to see a correctly annotated \
-       expression.";
+       type error. The editor below contains `(\"1\" : Int)`, which has a type \
+       error because `\"1\"` is a `String`, not an `Int`. You will see the \
+       type mismatch highlighted in the editor.\n\n\
+       Fix the type error by replacing the string `\"1\"` with the integer \
+       `1`. The result should evaluate to `1`.";
     wrapper = true;
     show_report = false;
     version = 9;
-    your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+    your_impl = Option.get (Haz3lcore.Parser.to_zipper "(\"1\" : Int)");
     hidden_tests =
       {
         tests =
@@ -96,7 +84,7 @@ let exercise : Tutorial.spec =
                                 Tile
                                   {
                                     id = Id.mk ();
-                                    label = [ "42" ];
+                                    label = [ "1" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -136,8 +124,7 @@ let exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints =
-          [ "Provide an Int value with an Int type annotation: `(42 : Int)`." ];
+        hints = [ "Replace the string `\"1\"` with the integer `1`." ];
       };
-    display_hint = "Annotate a value with its type using `:`";
+    display_hint = "Fix the type error by using an integer instead of a string";
   }

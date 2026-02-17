@@ -11,23 +11,14 @@ let if_exercise : Tutorial.spec =
        The syntax is `if condition then expr1 else expr2`. If the condition \
        evaluates to `true`, the result is `expr1`; otherwise, it is `expr2`. \
        The condition must have type `Bool`.\n\n\
-       For example, `if 2 < 3 then 4 * 4 else 5 * 5` evaluates to `16` because \
-       `2 < 3` is `true`.\n\n\
-       Write `if 3 < 5 then 10 else 20` in the editor below.";
+       The editor below contains `if 3 < 5 then` with the condition and `then` \
+       keyword already provided. The `else` delimiter is in the backpack. \
+       Complete the expression by typing `10`, then press `Tab` to drop the \
+       `else`, then type `20`. The result should evaluate to `10`.";
     wrapper = true;
     show_report = false;
     version = 10;
-    your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+    your_impl = Option.get (Haz3lcore.Parser.to_zipper "if 3 < 5 then ");
     hidden_tests =
       {
         tests =
@@ -132,7 +123,7 @@ let if_exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints = [ "Write a conditional that evaluates to 10." ];
+        hints = [ "Type `10`, then Tab, then `20`." ];
       };
     display_hint = "";
   }
@@ -151,23 +142,14 @@ let case_exercise : Tutorial.spec =
        Hazel checks each pattern from top to bottom and evaluates the result \
        of the first matching branch. You can use `_` as a wildcard pattern \
        that matches anything.\n\n\
-       For example, `case 1 | 1 => 100 | _ => 0 end` evaluates to `100`.\n\n\
-       Write a case expression that matches on `2`: return `20` when the value \
-       is `2`, and `0` otherwise (using `_`).";
+       The editor below contains `case 2` with the scrutinee already provided. \
+       The `end` delimiter is in the backpack. Add pattern branches: type `| 2 \
+       => 20 | _ => 0`, then press `Tab` to drop `end`. The result should be \
+       `20`.";
     wrapper = true;
     show_report = false;
     version = 11;
-    your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+    your_impl = Option.get (Haz3lcore.Parser.to_zipper "case 2 ");
     hidden_tests =
       {
         tests =
@@ -272,7 +254,7 @@ let case_exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints = [ "Match on 2 and return 20 for that case." ];
+        hints = [ "Type `| 2 => 20 | _ => 0` then Tab to drop `end`." ];
       };
-    display_hint = "Use `case ... | pattern => result end`";
+    display_hint = "Add pattern branches and drop `end` from backpack";
   }
