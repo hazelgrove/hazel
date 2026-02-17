@@ -211,9 +211,7 @@ and uexp_to_info_map =
         go(~ana, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  // TODO: probably broken
-  let go_pat =
-    upat_to_info_map(~ctx, ~ancestors, ~duplicate_labels=duplicates);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let label_to_info_map =
       (expected_labels, labmode, label: Exp.t, m: Map.t)
@@ -1398,7 +1396,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicate_bindings: list(string)=[],
-      ~duplicate_labels: list(string),
+      ~duplicate_labels: list(string)=[],
       ~expected_labels=?,
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
