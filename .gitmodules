@@ -1,0 +1,3 @@
+[submodule "src/llm-tests"]
+	path = src/llm-tests
+	url = git@github.com:hazelgrove/llm-tests.git
