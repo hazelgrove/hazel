@@ -1,14 +1,15 @@
 let filename = "haz3l-demo";
 let log_key = filename;
 let lessons: list(Tutorial.spec) = [
-  Tu_ExpressiveProgramming.exercise,
-  Tu_ComposingArithmetic_and_Scope.exercise,
-  Tu_ComputingEquationally_Shadow.exercise,
-  Tu_Variables_and_Compositionality.exercise,
-  Tu_Variables_and_Compositionality.comp_exercise,
-  Tu_ComposingArithmetic_and_Scope.scope_exercise,
-  Tu_ComputingEquationally_Shadow.shadow_exercise,
-  Tu_More.bools_ex,
-  Tu_More.cond_ex,
-  Tu_More.func_ex,
+  Tu_Holes.exercise,
+  Tu_TylrParser.exercise,
+  Tu_Arithmetic.int_exercise,
+  Tu_Arithmetic.float_exercise,
+  Tu_LetBindings.exercise,
+  Tu_Functions.def_exercise,
+  Tu_Functions.call_exercise,
+  Tu_Functions.pipeline_exercise,
+  Tu_TypeAnnotations.exercise,
+  Tu_Conditionals.if_exercise,
+  Tu_Conditionals.case_exercise,
 ];
