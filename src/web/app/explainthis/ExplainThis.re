@@ -201,12 +201,38 @@ let mk_translation =
             };
           (List.append(msg, [heading_node]), mapping);
         | Omd.Code_block(_, lang, code) =>
+          let trimmed_lang = String.trim(lang);
+          let settings_override =
+            if (trimmed_lang == "hazel") {
+              Some(globals.settings.core);
+            } else if (trimmed_lang == "hazelnoeval") {
+              Some({
+                ...globals.settings.core,
+                dynamics: false,
+              });
+            } else if (trimmed_lang == "hazelnostatics") {
+              Some({
+                ...globals.settings.core,
+                statics: false,
+                dynamics: false,
+              });
+            } else {
+              None;
+            };
           let code_node =
-            if (String.trim(lang) == "hazel") {
+            switch (settings_override) {
+            | Some(settings) =>
+              let globals' = {
+                ...globals,
+                settings: {
+                  ...globals.settings,
+                  core: settings,
+                },
+              };
               switch (Parser.to_zipper(String.trim(code))) {
               | Some(zipper) =>
                 CellEditor.View.view(
-                  ~globals,
+                  ~globals=globals',
                   ~signal=_ => Ui_effect.Ignore,
                   ~inject=_ => Ui_effect.Ignore,
                   ~selected=None,
@@ -217,7 +243,7 @@ let mk_translation =
                     |> Editor.Model.mk
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
-                         ~settings=globals.settings.core,
+                         ~settings,
                          ~is_edited=true,
                          ~stitch=x => x,
                          ~queue_worker=None,
@@ -226,8 +252,7 @@ let mk_translation =
                 )
               | None => Node.pre([Node.code([Node.text(code)])])
               };
-            } else {
-              Node.pre([Node.code([Node.text(code)])]);
+            | None => Node.pre([Node.code([Node.text(code)])])
             };
           (List.append(msg, [code_node]), mapping);
         | Omd.List(_, list_type, list_spacing, items) =>
