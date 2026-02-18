@@ -87,6 +87,13 @@ let read_file = (file, k) => {
     });
 };
 
+let reset_file_input = (input_id: string): unit => {
+  switch (get_elem_by_id_opt(input_id)) {
+  | Some(elem) => Js.Unsafe.set(elem, "value", Js.string(""))
+  | None => ()
+  };
+};
+
 let set_localstore = (k: string, v: string): unit => {
   let local_store =
     Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
