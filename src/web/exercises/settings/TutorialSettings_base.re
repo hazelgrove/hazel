@@ -12,4 +12,8 @@ let lessons: list(Tutorial.spec) = [
   Tu_Functions.pipeline_exercise,
   Tu_Conditionals.if_exercise,
   Tu_Conditionals.case_exercise,
+  Tu_Lists.list_exercise,
+  Tu_Lists.concat_exercise,
+  Tu_Lists.map_exercise,
+  Tu_Lists.fold_exercise,
 ];
