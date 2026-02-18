@@ -52,14 +52,14 @@ test answer(["0", "0", "6"]) == 2. end|hz});
       {md|## Quick Reference
 
 ### Syntax Recap
-```
+```hazel
 let x : Int = 5 in
 x + 1
 ```
-```
+```hazel
 fun x -> x + 1
 ```
-```
+```hazel
 fun (acc, x) -> acc +. x
 ```
 

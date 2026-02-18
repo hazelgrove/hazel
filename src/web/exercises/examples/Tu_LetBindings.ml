@@ -8,9 +8,9 @@ let exercise : Tutorial.spec =
     prompt =
       {md|A `let` expression binds a variable to a value within a body expression.
       
-The syntax is 
-```
-let x = expr in 
+The syntax is
+```hazel
+let x = expr in
 body
 ```
 
@@ -141,10 +141,10 @@ y|hz});
       {md|## Quick Reference
 
 ### Let Expression
-```
+```hazel
 let x = 5 in
 let y = x + 1 in
-y # Evaluates to 6 #
+y
 ```
 
 Variables bound by `let` are available in the body after `in`.|md};

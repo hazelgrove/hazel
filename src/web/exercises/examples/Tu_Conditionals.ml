@@ -133,7 +133,7 @@ The result should evaluate to `10`.|md};
       {md|## Quick Reference
 
 ### If Expression
-```
+```hazel
 if 3 < 5 then 10 else 20
 ```
 
@@ -279,7 +279,7 @@ The result should be `20`.|md};
       {md|## Quick Reference
 
 ### Case Expression
-```
+```hazel
 case x
 | 0 => "zero"
 | 1 => "one"

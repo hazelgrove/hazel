@@ -134,9 +134,9 @@ The result should evaluate to **2**.|md};
       {md|## Quick Reference
 
 ### Let Expression
-```
+```hazel
 let a = 1 in
-a # Evaluates to 1 #
+a
 ```
 
 ### Backpack
