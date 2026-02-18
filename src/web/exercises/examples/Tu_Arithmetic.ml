@@ -140,7 +140,7 @@ let float_exercise : Tutorial.spec =
 
 Float literals must include a decimal point, e.g. `3.14` or `1.0`. This distinction ensures type safety — you cannot accidentally mix integer and float operations.
 
-The editor below contains `3.0 * 2.0`, which uses the *integer* multiplication operator `*` on float values, causing a type error. Fix it by changing `*` to `*.` (the float multiplication operator). The result should evaluate to `6.`.|md};
+The editor below contains `3.0 * 2.0`, which uses the *integer* multiplication operator `*` on float values, causing a type error. Fix it by changing `*` to `*.` (the float multiplication operator). The result should evaluate to `6.0`.|md};
     wrapper = true;
     show_report = false;
     version = 4;

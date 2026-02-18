@@ -6,11 +6,19 @@ let exercise : Tutorial.spec =
     title = "Let Bindings";
     module_name = "Tu_LetBindings";
     prompt =
-      {md|A `let` expression binds a variable to a value within a body expression. The syntax is `let x = expr in body`, where `x` is available for use in `body`.
+      {md|A `let` expression binds a variable to a value within a body expression.
+      
+The syntax is 
+```
+let x = expr in 
+body
+```
 
-The editor below shows `let x = ▢ in let y = x + 1 in y` — nested let bindings where `x`'s value is missing (shown as a hole). The variable `y` is defined as `x + 1`, and the overall result is `y`.
+where `x` is available for use in `body`.
 
-Fill in a value for `x` (e.g. `5`). Here's what happens:
+The editor below shows nested let bindings where `x`'s value is missing (shown as a hole). The variable `y` is defined as `x + 1`, and the overall result is `y`. 
+
+Fill in the value for 5 for x. Here's what happens:
 - `x` becomes `5`
 - `y` becomes `x + 1` = `6`
 - The result is `y` = `6`|md};
@@ -18,7 +26,10 @@ Fill in a value for `x` (e.g. `5`). Here's what happens:
     show_report = false;
     version = 5;
     your_impl =
-      Option.get (Haz3lcore.Parser.to_zipper "let x = in let y = x + 1 in y");
+      Option.get
+        (Haz3lcore.Parser.to_zipper {hz|let x = in
+let y = x + 1 in
+y|hz});
     hidden_tests =
       {
         tests =
