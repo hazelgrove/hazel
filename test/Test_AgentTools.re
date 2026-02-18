@@ -318,5 +318,30 @@ let high_level_node_map_tests = (
   ],
 );
 
-let tests =
-  IdTagged.FreshGrammar.[edit_action_tests, high_level_node_map_tests];
+let composition_view_print_tests = (
+  "CompositionView.print_zipper",
+  [
+    test_case("hole renders as question mark, not absence", `Quick, () =>
+      check_rendered(
+        "hole as question mark",
+        "let a = 1 in ?",
+        "let a = 1 in " |> mk_zipper |> CompositionView.Public.print_zipper,
+      )
+    ),
+    test_case("fold renders as folded, not as invocation", `Quick, () =>
+      check_rendered(
+        "fold as ellipsis",
+        {|let a = ⋱ in a|},
+        "let a = ^^fold(1) in a"
+        |> mk_zipper
+        |> CompositionView.Public.print_zipper,
+      )
+    ),
+  ],
+);
+
+let tests = [
+  edit_action_tests,
+  high_level_node_map_tests,
+  composition_view_print_tests,
+];

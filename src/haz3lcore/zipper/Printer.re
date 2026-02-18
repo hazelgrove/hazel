@@ -74,7 +74,7 @@ let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
-      ~special_folds=false,
+      ~projector_to_segment=Triggers.projector_to_invoke,
       ~indent="",
       ~refractors=[],
       ~caret: option((string, Point.t))=None,
@@ -90,8 +90,7 @@ let of_segment =
        ~concave_holes,
        ~refractors,
        ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
-       ~projector_to_segment=Triggers.projector_to_invoke,
-       ~special_folds,
+       ~projector_to_segment,
      )
   |> String.split_on_char('\n')
   |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
@@ -103,7 +102,7 @@ let of_zipper =
     (
       ~holes=?,
       ~concave_holes=?,
-      ~special_folds=?,
+      ~projector_to_segment=?,
       ~indent=?,
       ~caret=?,
       ~selection_anchor=?,
@@ -125,7 +124,7 @@ let of_zipper =
   of_segment(
     ~holes?,
     ~concave_holes?,
-    ~special_folds?,
+    ~projector_to_segment?,
     ~indent?,
     ~refractors=z.refractors.manuals,
     ~caret,
