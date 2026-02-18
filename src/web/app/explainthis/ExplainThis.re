@@ -204,11 +204,17 @@ let mk_translation =
             List.append(msg, [Node.pre([Node.code([Node.text(code)])])]),
             mapping,
           )
-        | Omd.List(_, list_type, _, items) =>
+        | Omd.List(_, list_type, list_spacing, items) =>
+          let translate_item = (d, mapping) =>
+            switch (list_spacing, d) {
+            | (Omd.Tight, [Omd.Paragraph(_, inline)]) =>
+              translate_inline(inline, [], mapping, ~inject)
+            | _ => translate_block(d, mapping)
+            };
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
-                let (n, mapping) = translate_block(d, mapping);
+                let (n, mapping) = translate_item(d, mapping);
                 (List.append(nodes, [Node.li(n)]), mapping);
               },
               ([], mapping),
