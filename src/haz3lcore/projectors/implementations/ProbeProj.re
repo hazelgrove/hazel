@@ -97,6 +97,17 @@ module Settings = {
 open Settings;
 open Node;
 
+/* Shared context for probe view functions. Constructed once in offside_view
+ * after unwrapping dynamics and statics, then threaded to all child views. */
+type probe_ctx = {
+  ap_id: option(Id.t),
+  statics: Language.Statics.Info.t,
+  settings,
+  dynamics: Dynamics.Info.t,
+  utility,
+  parent: external_action => Ui_effect.t(unit),
+};
+
 /* Stateful window offset management (GUI-specific) */
 module WindowState = {
   let get_offset = (k: Id.t): int =>
@@ -155,7 +166,7 @@ let select_samples =
       ~id: Id.t,
       ~ap_id: option(Id.t),
       ~filtered: option(list(Sample.t))=?,
-      di: Dynamics.Info.t,
+      dynamics: Dynamics.Info.t,
     )
     : list(Sample.t) => {
   let samples =
@@ -164,15 +175,15 @@ let select_samples =
     | None =>
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=di.sample_cursor.pinned_stack,
-        di.samples,
+        ~pinned=dynamics.sample_cursor.pinned_stack,
+        dynamics.samples,
       )
     };
   let first_idx =
     Sample.Selection.first_related_index(
       ~trimmed=true,
       ~ap_id,
-      di.sample_cursor,
+      dynamics.sample_cursor,
       samples,
     );
   if (first_idx == None && settings.window == Single) {
@@ -212,11 +223,9 @@ let abbreviated_seg_of =
   seg_of_exp(utility, abbr_exp);
 };
 
-let font_metrics = JsUtil.font_metrics_from_specimen;
-
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
-  let (col_width, row_height) = font_metrics();
+  let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
   let text_box =
     e##.currentTarget
     |> Js.Opt.get(_, _ => failwith(""))
@@ -241,24 +250,18 @@ let length_cls = (length: int): string =>
     "s0";
   };
 
-module ValueState = {
-  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
-
-  let click_coords: ref(option(Point.t)) = ref(Option.None);
-};
-
 let cursor_clss =
-    (
-      ~settings: settings,
-      ~ap_id: option(Id.t),
-      di: Dynamics.Info.t,
-      sample: Sample.t,
-    )
+    (~settings, ~ap_id, dynamics: Dynamics.Info.t, sample: Sample.t)
     : list(string) => {
   switch (settings.sample_base) {
   | Calls =>
     let relation =
-      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.sample_cursor, sample);
+      Sample.Cursor.relation(
+        ~trimmed=true,
+        ~ap_id,
+        dynamics.sample_cursor,
+        sample,
+      );
     let cursor_class =
       switch (
         relation.is_call_cursor,
@@ -299,18 +302,9 @@ let cursor_clss =
     cursor_class @ level_class;
 
   | StepRange =>
-    /* StepRange mode: color samples based on step-range containment
-       relative to the focused (cursor) sample. Returns complete class
-       list matching the legend categories:
-       - At Cursor (StepEqual): cursor + level0
-       - Inside (StepContainedWithin): cursor-callee + below
-       - Contains (StepContains): cursor-caller + above
-       - Before (StepDisjointBefore): cursor-unrelated + above
-       - After (StepDisjointAfter): cursor-unrelated + below
-       - Off Cursor (StepNoFocus): cursor-unrelated only */
     switch (
       Sample.Cursor.step_containment(
-        ~focus_range=di.sample_cursor.step_range,
+        ~focus_range=dynamics.sample_cursor.step_range,
         sample,
       )
     ) {
@@ -351,10 +345,10 @@ module Debug = {
     ++ Printf.sprintf("%.0f", sample.time);
 };
 
-let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
-  switch (ap_id, Dynamics.Info.is_in(di)) {
+let pin_call = (ctx: probe_ctx) =>
+  switch (ctx.ap_id, Dynamics.Info.is_in(ctx.dynamics)) {
   | (Some(ap_id), Some(sample)) =>
-    parent(
+    ctx.parent(
       SampleCursor(
         TogglePin([
           {
@@ -366,9 +360,7 @@ let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
         ]),
       ),
     )
-  | _ =>
-    print_endline("ignoring");
-    Effect.Ignore;
+  | _ => Effect.Ignore
   };
 
 /* Find the largest budget whose rendered width fits within target_width.
@@ -395,32 +387,23 @@ let find_best_budget = (width_at: int => int, target_width: int): int => {
   bisect(target_width, upper);
 };
 
+module ValueState = {
+  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+};
+
 let value_view =
-    (
-      ~ap_id: option(Id.t),
-      ~settings: settings,
-      ~num_total: int,
-      di: Dynamics.Info.t,
-      utility: utility,
-      view_seg,
-      local,
-      parent: external_action => Ui_effect.t(unit),
-      sample: Sample.t,
-      _index: int,
-    ) => {
+    (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
+  let {settings, ap_id, utility, _} = ctx;
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
       ValueState.mousedown := Some(target);
-      ValueState.click_coords :=
-        Some({
-          row: e##.clientY,
-          col: e##.clientX,
-        });
     };
-    parent(SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)));
+    ctx.parent(
+      SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)),
+    );
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
@@ -430,7 +413,6 @@ let value_view =
       JsUtil.releasePointerCapture(target, e##.pointerId);
     };
     ValueState.mousedown := None;
-    ValueState.click_coords := None;
     Effect.Ignore;
   };
 
@@ -447,12 +429,8 @@ let value_view =
     };
   };
 
-  /* If the user hasn't explicitly set a length for this sample,
-   * give more space when there's only one sample shown. */
   let length =
-    if (SampleLength.is_explicit(sample)) {
-      SampleLength.get(settings.window, sample);
-    } else if (num_total == 1) {
+    if (!SampleLength.is_explicit(sample) && num_total == 1) {
       150;
     } else {
       SampleLength.get(settings.window, sample);
@@ -464,31 +442,27 @@ let value_view =
       // Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
         ["value", length_cls(length)]
-        @ cursor_clss(~settings, ~ap_id, di, sample)
+        @ cursor_clss(
+            ~settings=ctx.settings,
+            ~ap_id=ctx.ap_id,
+            ctx.dynamics,
+            sample,
+          )
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleWindowMode)),
       Attr.on_pointerdown(evt =>
-        Key.meta_held(evt)
-          ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
+        Key.meta_held(evt) ? pin_call(ctx) : val_pointerdown(evt)
       ),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [view_seg(~text_only=false, Sort.Exp, seg)],
+    [view_seg(~text_only=false, seg)],
   );
 };
 
-let env_val =
-    (
-      ~settings: settings,
-      sample,
-      view_seg,
-      utility: utility,
-      en: Sample.Env.entry,
-    )
-    : Node.t => {
+let env_val = (ctx: probe_ctx, view_seg, sample, en: Sample.Env.entry): Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
@@ -498,18 +472,18 @@ let env_val =
       | Val(d) =>
         let (seg, _) =
           abbreviated_seg_of(
-            utility,
-            SampleLength.get(settings.window, sample),
+            ctx.utility,
+            SampleLength.get(ctx.settings.window, sample),
             d,
           );
-        view_seg(~text_only=false, Sort.Exp, seg);
+        view_seg(~text_only=false, seg);
       },
     ],
   );
 };
 
-let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) => {
-  switch (ap_id, di.sample_cursor.pinned_stack) {
+let show_pin = (ctx: probe_ctx, sample: Sample.t) => {
+  switch (ctx.ap_id, ctx.dynamics.sample_cursor.pinned_stack) {
   | (Some(ap_id), Some(pinned_stack)) =>
     /* Compare by ID only - function names may differ */
     Sample.ids_of_stack(pinned_stack)
@@ -518,9 +492,8 @@ let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) => 
   };
 };
 
-let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) =>
-  show_pin(~ap_id, di, sample)
-    ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
+let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
+  show_pin(ctx, sample) ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
 /* Generate unique dropdown ID for a sample */
 let dropdown_id = (sample_id: int): string =>
@@ -533,9 +506,9 @@ let step_into_sample =
 
 /* Check if step-into is possible for this probe's function call.
  * Requires: Ap of a named variable that isn't a built-in. */
-let can_step_into = (statics: option(Language.Statics.Info.t)): bool =>
+let can_step_into = (statics: Language.Statics.Info.t): bool =>
   switch (statics) {
-  | Some(InfoExp({term: {term: Ap(_, fn_exp, _), _}, _})) =>
+  | InfoExp({term: {term: Ap(_, fn_exp, _), _}, _}) =>
     switch (fn_exp.term) {
     | Var(name) => Environment.lookup(Builtins.env_init, name) == None
     | _ => false
@@ -545,17 +518,10 @@ let can_step_into = (statics: option(Language.Statics.Info.t)): bool =>
 
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
 let sample_context_actions =
-    (
-      ~parent,
-      ~ap_id: option(Id.t),
-      ~di: Dynamics.Info.t,
-      ~can_step_into: bool,
-      sample: Sample.t,
-    )
-    : list(Node.t) =>
-  switch (ap_id) {
+    (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) =>
+  switch (ctx.ap_id) {
   | Some(ap_id) =>
-    let is_pinned = show_pin(~ap_id=Some(ap_id), di, sample);
+    let is_pinned = show_pin(ctx, sample);
     [
       div(
         ~attrs=[Attr.classes(["context-actions"])],
@@ -566,9 +532,7 @@ let sample_context_actions =
               Attr.classes(
                 ["action-item", "pin-action"] @ (is_pinned ? ["pinned"] : []),
               ),
-              Attr.on_pointerdown(_ =>
-                pin_call(~parent, ~ap_id=Some(ap_id), ~di)
-              ),
+              Attr.on_pointerdown(_ => pin_call(ctx)),
             ],
             [
               div(~attrs=[Attr.classes(["pin-icon"])], []),
@@ -590,7 +554,7 @@ let sample_context_actions =
                     =>
                       Effect.Many([
                         Effect.Stop_propagation,
-                        step_into_sample(~parent, ~sample, ~ap_id),
+                        step_into_sample(~parent=ctx.parent, ~sample, ~ap_id),
                       ])
                     ),
                 ],
@@ -613,9 +577,9 @@ let sample_context_actions =
 
 /* Get function name from statics info if this is an Ap expression */
 let get_fn_name_from_statics =
-    (statics: option(Language.Statics.Info.t)): option(string) =>
+    (statics: Language.Statics.Info.t): option(string) =>
   switch (statics) {
-  | Some(InfoExp({term: {term: Ap(_, fn_exp, _), _}, _})) =>
+  | InfoExp({term: {term: Ap(_, fn_exp, _), _}, _}) =>
     switch (fn_exp.term) {
     | Var(name) => Some(name)
     | Constructor(name, _) => Some(name)
@@ -631,7 +595,7 @@ let get_fn_name_from_statics =
  * position is a bare variable reference. Used to render "name = value"
  * labels in the call display for variable arguments. */
 let get_arg_var_info =
-    (statics: option(Language.Statics.Info.t)): list(option(string)) => {
+    (statics: Language.Statics.Info.t): list(option(string)) => {
   let rec extract_var = (e: Exp.t): option(string) =>
     switch (e.term) {
     | Var(name) => Some(name)
@@ -639,7 +603,7 @@ let get_arg_var_info =
     | _ => None
     };
   switch (statics) {
-  | Some(InfoExp({term: {term: Ap(_, _, arg), _}, _})) =>
+  | InfoExp({term: {term: Ap(_, _, arg), _}, _}) =>
     switch (arg.term) {
     | Var(name) => [Some(name)]
     | Parens(inner) => [extract_var(inner)]
@@ -686,21 +650,14 @@ let arg_row =
 
 /* Call display section showing function call with argument values */
 let sample_call_display =
-    (
-      ~settings: settings,
-      ~statics: option(Language.Statics.Info.t),
-      sample: Sample.t,
-      view_seg,
-      utility: utility,
-    )
-    : list(Node.t) =>
-  switch (sample.args, get_fn_name_from_statics(statics)) {
+    (ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) =>
+  switch (sample.args, get_fn_name_from_statics(ctx.statics)) {
   | (Some(arg_val), Some(fn_name)) =>
-    let length = SampleLength.get(settings.window, sample);
-    let arg_var_info = get_arg_var_info(statics);
+    let length = SampleLength.get(ctx.settings.window, sample);
+    let arg_var_info = get_arg_var_info(ctx.statics);
     let render_exp = (exp: Exp.t) => {
-      let (seg, _) = abbreviated_seg_of(utility, length, exp);
-      view_seg(~text_only=false, Sort.Exp, seg);
+      let (seg, _) = abbreviated_seg_of(ctx.utility, length, exp);
+      view_seg(~text_only=false, seg);
     };
     switch (arg_val) {
     | Opaque => [
@@ -788,11 +745,10 @@ let filtered_env_entries =
  * filter_vars: variable names to exclude (already shown in call display) */
 let sample_environment =
     (
-      ~settings: settings,
+      ctx: probe_ctx,
       ~filter_vars: list(string)=[],
-      sample: Sample.t,
       view_seg,
-      utility: utility,
+      sample: Sample.t,
     )
     : list(Node.t) => {
   let elems = filtered_env_entries(~filter_vars, sample);
@@ -804,7 +760,7 @@ let sample_environment =
         [
           div(
             ~attrs=[Attr.classes(["live-env"])],
-            List.map(env_val(~settings, sample, view_seg, utility), elems),
+            List.map(env_val(ctx, view_seg, sample), elems),
           ),
         ],
       ),
@@ -812,20 +768,9 @@ let sample_environment =
 };
 
 /* Sample context menu (dropdown) combining actions and environment */
-let sample_context_menu =
-    (
-      ~settings: settings,
-      ~statics: option(Language.Statics.Info.t),
-      ~parent,
-      ~ap_id,
-      ~di,
-      sample: Sample.t,
-      view_seg,
-      utility: utility,
-    )
-    : Node.t => {
+let sample_context_menu = (ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
   /* Get variable names shown in call display to filter from environment */
-  let filter_vars = List.filter_map(Fun.id, get_arg_var_info(statics));
+  let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
   let has_env = env_elems != [];
   let has_call = Option.is_some(sample.args);
@@ -838,32 +783,27 @@ let sample_context_menu =
       ]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
     sample_context_actions(
-      ~parent,
-      ~ap_id,
-      ~di,
-      ~can_step_into=can_step_into(statics),
+      ctx,
+      ~can_step_into=can_step_into(ctx.statics),
       sample,
     )
-    @ sample_call_display(~settings, ~statics, sample, view_seg, utility)
-    @ sample_environment(~settings, ~filter_vars, sample, view_seg, utility),
+    @ sample_call_display(ctx, view_seg, sample)
+    @ sample_environment(ctx, ~filter_vars, view_seg, sample),
   );
 };
 
+/* Don't redundantly show an env for variable references, patterns */
+let hide_env = (statics: Language.Statics.Info.t): bool =>
+  switch (statics) {
+  | InfoExp({term: {term: Var(_), _}, _}) => true
+  | InfoPat(_) => true
+  | _ => false
+  };
+
 let sample_view =
-    (
-      ~ap_id: option(Id.t),
-      ~hide_env: bool,
-      ~settings: settings,
-      ~statics: option(Language.Statics.Info.t),
-      ~num_total: int,
-      di: Dynamics.Info.t,
-      utility: utility,
-      view_seg,
-      local,
-      parent,
-      (index: int, sample: Sample.t),
-    ) => {
-  let has_dropdown = !(hide_env && ap_id == None);
+    (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
+  let hide_env = hide_env(ctx.statics);
+  let has_dropdown = !(hide_env && ctx.ap_id == None);
   div(
     ~attrs=
       [Attr.classes(["sample"])]
@@ -872,114 +812,36 @@ let sample_view =
           ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
           : []
       ),
-    [
-      value_view(
-        ~ap_id,
-        ~settings,
-        ~num_total,
-        di,
-        utility,
-        view_seg,
-        local,
-        parent,
-        sample,
-        index,
-      ),
-    ]
-    @ pin_view(~ap_id, di, sample)
-    @ (
-      has_dropdown
-        ? [
-          sample_context_menu(
-            ~settings,
-            ~statics,
-            ~parent,
-            ~ap_id,
-            ~di,
-            sample,
-            view_seg,
-            utility,
-          ),
-        ]
-        : []
-    ),
+    [value_view(ctx, ~num_total, view_seg, local, sample)]
+    @ pin_view(ctx, sample)
+    @ (has_dropdown ? [sample_context_menu(ctx, view_seg, sample)] : []),
   );
-};
-
-let sample_group_view =
-    (
-      ~ap_id: option(Id.t),
-      ~hide_env: bool,
-      ~settings: settings,
-      ~statics: option(Language.Statics.Info.t),
-      ~num_total: int,
-      di: Dynamics.Info.t,
-      utility,
-      view_seg,
-      local,
-      parent,
-      groups: list(list((int, Sample.t))),
-    ) => {
-  let group_views =
-    List.map(
-      samples =>
-        Node.div(
-          ~attrs=[Attr.classes(["sample-group"])],
-          List.map(
-            sample_view(
-              ~ap_id,
-              ~hide_env,
-              ~settings,
-              ~statics,
-              ~num_total,
-              di,
-              utility,
-              view_seg,
-              local,
-              parent,
-            ),
-            samples,
-          ),
-        ),
-      groups,
-    );
-  group_views == []
-    ? [] : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)];
 };
 
 /* Select a default sample by preferring the closest match to the current
  * dynamic cursor. */
-let mv_least_distant_sample =
-    (
-      ~ap_id: option(Id.t),
-      parent: external_action => Ui_effect.t(unit),
-      dynamics: option(Dynamics.Info.t),
-      _evt,
+let mv_least_distant_sample = (ctx: probe_ctx, _evt): Effect.t(unit) => {
+  let {ap_id, dynamics, parent, _} = ctx;
+  let samples =
+    Sample.Selection.filter_by_pin(
+      ~ap_id,
+      ~pinned=dynamics.sample_cursor.pinned_stack,
+      dynamics.samples,
+    );
+  switch (
+    Sample.Selection.closest_to_cursor(
+      ~ap_id,
+      ~cursor=dynamics.sample_cursor,
+      samples,
     )
-    : Effect.t(unit) =>
-  switch (dynamics) {
-  | Some(di) =>
-    let samples =
-      Sample.Selection.filter_by_pin(
-        ~ap_id,
-        ~pinned=di.sample_cursor.pinned_stack,
-        di.samples,
-      );
-    switch (
-      Sample.Selection.closest_to_cursor(
-        ~ap_id,
-        ~cursor=di.sample_cursor,
-        samples,
-      )
-    ) {
-    | Some(selected) =>
-      parent(
-        SampleCursor(Capture(Sample.capture_of_sample(selected), ap_id)),
-      )
-    | None => Effect.Ignore
-    };
+  ) {
+  | Some(selected) =>
+    parent(
+      SampleCursor(Capture(Sample.capture_of_sample(selected), ap_id)),
+    )
   | None => Effect.Ignore
   };
+};
 
 let ellipsis_view = (local): Node.t =>
   div(
@@ -992,14 +854,7 @@ let ellipsis_view = (local): Node.t =>
 
 /* Unified view for explaining why no samples are shown */
 let empty_status_view =
-    (
-      ~ap_id: option(Id.t),
-      ~status: Sample.Selection.empty_status,
-      local,
-      parent: external_action => Ui_effect.t(unit),
-      info: info,
-    )
-    : Node.t =>
+    (ctx: probe_ctx, ~status: Sample.Selection.empty_status, local): Node.t =>
   switch (status) {
   | NoSamplesExist =>
     div(
@@ -1014,7 +869,7 @@ let empty_status_view =
       ~attrs=[
         Attr.classes(["empty-status", "hidden-by-pin"]),
         Attr.title("Samples hidden by pin — click to unpin"),
-        Attr.on_pointerdown(_ => parent(SampleCursor(Reset))),
+        Attr.on_pointerdown(_ => ctx.parent(SampleCursor(Reset))),
       ],
       [text("⍟")] //📌◌🔒
     )
@@ -1024,9 +879,7 @@ let empty_status_view =
       ~attrs=[
         Attr.classes(["empty-status", "not-aligned"]),
         Attr.title("Samples not aligned with cursor — click to align"),
-        Attr.on_pointerdown(
-          mv_least_distant_sample(~ap_id, parent, info.dynamics),
-        ),
+        Attr.on_pointerdown(mv_least_distant_sample(ctx)),
         Attr.on_double_click(_ => local(ToggleWindowMode)),
       ],
       [text("⊖")],
@@ -1042,24 +895,19 @@ let empty_status_view =
     )
   };
 
-let move_cursor =
-    (
-      ~ap_id: option(Id.t),
-      di: Dynamics.Info.t,
-      parent: external_action => Ui_effect.t(unit),
-      offset: int,
-    ) => {
+let move_cursor = (ctx: probe_ctx, offset: int) => {
+  let {ap_id, dynamics, parent, _} = ctx;
   let samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=di.sample_cursor.pinned_stack,
-      di.samples,
+      ~pinned=dynamics.sample_cursor.pinned_stack,
+      dynamics.samples,
     );
   let cursor_idx =
     Sample.Selection.first_related_index(
       ~trimmed=true,
       ~ap_id,
-      di.sample_cursor,
+      dynamics.sample_cursor,
       samples,
     );
   switch (cursor_idx) {
@@ -1078,39 +926,29 @@ let move_cursor =
   };
 };
 
-let nav_bar_view =
-    (
-      ap_id: option(Id.t),
-      ~settings: settings,
-      di: Dynamics.Info.t,
-      num_total: int,
-      parent: external_action => Ui_effect.t(unit),
-    ) => {
+let nav_bar_view = (ctx: probe_ctx, ~num_total) => {
   let nav_arrow = (cond: bool, offset: int): Node.t =>
     Node.div(
       ~attrs=[
         Attr.classes(["nav-arrow"] @ (cond ? ["disabled"] : [])),
-        Attr.on_click(_ => move_cursor(~ap_id, di, parent, offset)),
+        Attr.on_click(_ => move_cursor(ctx, offset)),
       ],
       [],
     );
-  let show_left = num_total < Sample.Window.max_samples(settings.window);
-  let show_right = num_total < Sample.Window.max_samples(settings.window);
+  let show_left = num_total < Sample.Window.max_samples(ctx.settings.window);
+  let show_right = num_total < Sample.Window.max_samples(ctx.settings.window);
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
     [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
   );
 };
 
-let equals_view =
-  div(~attrs=[Attr.classes(["live-equals"])], [text("≡")]);
-
-let num_samples_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
+let num_samples_view = (~ap_id: option(Id.t), dynamics: Dynamics.Info.t) => {
   let num_samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=di.sample_cursor.pinned_stack,
-      di.samples,
+      ~pinned=dynamics.sample_cursor.pinned_stack,
+      dynamics.samples,
     )
     |> List.length;
   let description = num_samples < 1000 ? string_of_int(num_samples) : "1k+";
@@ -1123,30 +961,19 @@ let num_samples_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
   );
 };
 
-let syntax_str = (utility: utility) =>
-  Core.Memo.general(seg => {
-    let max_len = 30;
-    let seg = Segment.unparenthesize(seg);
-    let str = utility.seg_to_string(seg);
-    let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
-    String.length(str) > max_len
-      ? String.sub(str, 0, max_len) ++ "..." : str;
-  });
-let icon = div(~attrs=[Attr.classes(["icon"])], []);
-
-let round_up = (~settings: settings, utility: utility, sample): int => {
+let round_up = (ctx: probe_ctx, sample): int => {
   let (_, cur) =
     abbreviated_seg_of(
-      utility,
-      SampleLength.get(settings.window, sample),
+      ctx.utility,
+      SampleLength.get(ctx.settings.window, sample),
       sample.value,
     );
   let goal = cur + 1;
   let (_, max_len) =
-    seg_of_exp(utility, DHExp.strip_ascriptions(sample.value));
+    seg_of_exp(ctx.utility, DHExp.strip_ascriptions(sample.value));
   let rec find_target = (target: int): int => {
     let attempt_len =
-      abbreviated_seg_of(utility, target, sample.value) |> snd;
+      abbreviated_seg_of(ctx.utility, target, sample.value) |> snd;
     if (attempt_len < goal && target <= max_len) {
       find_target(target + 1);
     } else {
@@ -1156,18 +983,17 @@ let round_up = (~settings: settings, utility: utility, sample): int => {
   find_target(goal);
 };
 
-let round_down =
-    (~settings: settings, utility: utility, sample: Sample.t): int => {
+let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
   let (_, cur) =
     abbreviated_seg_of(
-      utility,
-      SampleLength.get(settings.window, sample),
+      ctx.utility,
+      SampleLength.get(ctx.settings.window, sample),
       sample.value,
     );
   let goal = cur - 1;
   let rec find_target = (target: int): int => {
     let attempt_len =
-      abbreviated_seg_of(utility, target, sample.value) |> snd;
+      abbreviated_seg_of(ctx.utility, target, sample.value) |> snd;
     if (attempt_len > goal && target > 0) {
       find_target(target - 1);
     } else {
@@ -1177,21 +1003,11 @@ let round_down =
   find_target(goal);
 };
 
-let indicated_sample =
-    (~ap_id: option(Id.t), di: Dynamics.Info.t): option(Sample.t) =>
-  Dynamics.Info.first_cursor_sample(ap_id, di);
+let indicated_sample = (ctx: probe_ctx): option(Sample.t) =>
+  Dynamics.Info.first_cursor_sample(ctx.ap_id, ctx.dynamics);
 
-let key_handler =
-    (
-      local,
-      ~id: Id.t,
-      ~ap_id: option(Id.t),
-      ~settings: settings,
-      di: Dynamics.Info.t,
-      utility,
-      parent: external_action => Ui_effect.t(unit),
-      evt,
-    ) => {
+let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
+  let {ap_id, parent, _} = ctx;
   open Effect;
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
@@ -1204,106 +1020,83 @@ let key_handler =
     Ignore;
   | D("ArrowRight") when key.shift == Down =>
     let effect =
-      switch (indicated_sample(~ap_id, di)) {
+      switch (indicated_sample(ctx)) {
       | Some(sample) =>
-        local(ChangeLength(sample.id, round_up(~settings, utility, sample)))
+        local(ChangeLength(sample.id, round_up(ctx, sample)))
       | None => Ignore
       };
     Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowLeft") when key.shift == Down =>
     let effect =
-      switch (indicated_sample(~ap_id, di)) {
+      switch (indicated_sample(ctx)) {
       | Some(sample) =>
-        local(
-          ChangeLength(sample.id, round_down(~settings, utility, sample)),
-        )
+        local(ChangeLength(sample.id, round_down(ctx, sample)))
       | None => Ignore
       };
     Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowRight") =>
     // Prevent_default below stops aggressive horizontal scroll
-    Many([
-      move_cursor(~ap_id, di, parent, -1),
-      Stop_propagation,
-      Prevent_default,
-    ])
+    Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default])
   | D("ArrowLeft") =>
-    Many([
-      move_cursor(~ap_id, di, parent, 1),
-      Stop_propagation,
-      Prevent_default,
-    ])
+    Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
   | D(" ") =>
     Many([local(ToggleWindowMode), Stop_propagation, Prevent_default])
   | D("p") =>
     /* Pin/Unpin the indicated sample */
-    switch (indicated_sample(~ap_id, di), ap_id) {
-    | (Some(_), Some(ap_id)) =>
-      Many([
-        pin_call(~parent, ~ap_id=Some(ap_id), ~di),
-        Stop_propagation,
-        Prevent_default,
-      ])
-    | _ =>
-      print_endline("pin: no sample or ap_id");
-      Many([Stop_propagation, Prevent_default]);
+    switch (indicated_sample(ctx), ap_id) {
+    | (Some(_), Some(_)) =>
+      Many([pin_call(ctx), Stop_propagation, Prevent_default])
+    | _ => Many([Stop_propagation, Prevent_default])
     }
   | D("Enter") =>
     /* Step into the indicated sample */
-    switch (indicated_sample(~ap_id, di), ap_id) {
+    switch (indicated_sample(ctx), ap_id) {
     | (Some(sample), Some(ap_id)) =>
       Many([
         Stop_propagation,
         Prevent_default,
         step_into_sample(~parent, ~sample, ~ap_id),
       ])
-    | _ =>
-      print_endline("step into: no sample or ap_id");
-      Many([Stop_propagation, Prevent_default]);
+    | _ => Many([Stop_propagation, Prevent_default])
     }
   | _ => Many([Stop_propagation])
   };
 };
 
-/* Don't redundantly show an env for variable references, patterns */
-let hide_env = (info: info): bool =>
-  switch (info.statics) {
-  | Some(InfoExp({term: {term: Var(_), _}, _})) => true
-  | Some(InfoPat(_)) => true
-  | _ => false
-  };
-
-let offside_view =
-    (
-      info: info,
-      local,
-      parent,
-      ~settings: settings,
-      view_seg:
-        (~background: bool=?, ~text_only: bool=?, Sort.t, list(syntax)) =>
-        Node.t,
-      utility: utility,
-    ) =>
-  switch (info.dynamics) {
-  | Some(di) =>
+let offside_view = (info: info, local, parent, ~settings: settings, view_seg) =>
+  switch (info.dynamics, info.statics) {
+  | (Some(dynamics), Some(statics)) =>
     let id = info.id;
-    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
-    let hide_env = hide_env(info);
+    let ap_id = Sample.Cursor.cur_var_ap(Some(statics));
+    let ctx = {
+      ap_id,
+      statics,
+      settings,
+      dynamics,
+      utility: info.utility,
+      parent,
+    };
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=di.sample_cursor.pinned_stack,
-        di.samples,
+        ~pinned=dynamics.sample_cursor.pinned_stack,
+        dynamics.samples,
       );
     let num_total = List.length(filtered_samples);
     let samples =
-      select_samples(~settings, ~id, ~ap_id, ~filtered=filtered_samples, di);
+      select_samples(
+        ~settings,
+        ~id,
+        ~ap_id,
+        ~filtered=filtered_samples,
+        dynamics,
+      );
     let (num_shown, groups) = Sample.Selection.collate(samples);
 
     /* Check if this probe is the target of a pending step-into focus */
     let is_evaluating =
-      switch (di.sample_cursor.pending_focus) {
+      switch (dynamics.sample_cursor.pending_focus) {
       | Some({probe_id, _}) => probe_id == id
       | None => false
       };
@@ -1317,50 +1110,45 @@ let offside_view =
         (),
       );
 
-    /* Overflow indicator: shown when samples ARE displayed but more exist */
-    let has_overflow = num_shown > 0 && num_shown < num_total;
-    let overflow_extras = [
-      nav_bar_view(~settings, ap_id, di, num_total, parent),
-      ellipsis_view(local),
-    ];
-
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(id)),
         Attr.tabindex(0),
-        Attr.on_keydown(
-          key_handler(local, ~id, ~ap_id, ~settings, di, utility, parent),
-        ),
+        Attr.on_keydown(key_handler(ctx, ~id, local)),
         Attr.classes([
           "live-offside",
           settings.window |> Sample.Window.show_mode,
         ]),
       ],
       switch (empty_status) {
-      | Some(status) => [
-          empty_status_view(~ap_id, ~status, local, parent, info),
-        ]
+      | Some(status) => [empty_status_view(ctx, ~status, local)]
       | None =>
-        [equals_view]
-        @ sample_group_view(
-            ~ap_id,
-            ~hide_env,
-            ~settings,
-            ~statics=info.statics,
-            ~num_total,
-            di,
-            utility,
-            (~text_only: bool) => view_seg(~text_only, ~background=false),
-            local,
-            parent,
+        /* Overflow indicator: shown when samples ARE displayed but more exist */
+        let overflow_view =
+          num_shown > 0 && num_shown < num_total
+            ? [nav_bar_view(ctx, ~num_total), ellipsis_view(local)] : [];
+        let group_views =
+          List.map(
+            samples =>
+              Node.div(
+                ~attrs=[Attr.classes(["sample-group"])],
+                List.map(
+                  sample_view(ctx, ~num_total, view_seg, local),
+                  samples,
+                ),
+              ),
             groups,
-          )
-        @ (has_overflow ? overflow_extras : [])
+          );
+        (
+          group_views == []
+            ? []
+            : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)]
+        )
+        @ overflow_view;
       },
     );
-  | None =>
-    /* No dynamics info means probe was never evaluated */
-    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
+  | _ =>
+    /* No dynamics/statics — probe was never evaluated */
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(info.id)),
@@ -1370,30 +1158,26 @@ let offside_view =
         ]),
       ],
       [
-        empty_status_view(~ap_id, ~status=NoSamplesExist, local, parent, info),
+        div(
+          ~attrs=[
+            Attr.classes(["empty-status", "no-samples"]),
+            Attr.title("This expression was never evaluated"),
+          ],
+          [text("∅")],
+        ),
       ],
-    );
+    )
   };
-
-let update = ((), _info: info, a: action) => {
-  switch (a) {
-  | ChangeLength(id, len) => SampleLength.set(id, len)
-  | ToggleWindowMode => Settings.go(ToggleWindow)
-  | ResetSettings =>
-    Settings.reset_mode();
-    SampleLength.reset();
-  };
-};
 
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics) {
-  | Some(di) =>
+  | Some(dynamics) =>
     let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     div(
       ~attrs=[
         Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),
       ],
-      [num_samples_view(~ap_id, di)],
+      [num_samples_view(~ap_id, dynamics)],
     );
   | None => Node.div([])
   };
@@ -1426,27 +1210,32 @@ module M: Projector = {
 
   let placeholder = (_, _) => ProjectorCore.Shape.default;
 
-  let update = update;
+  let update = (_, _, a: action) => {
+    switch (a) {
+    | ChangeLength(id, len) => SampleLength.set(id, len)
+    | ToggleWindowMode => Settings.go(ToggleWindow)
+    | ResetSettings =>
+      Settings.reset_mode();
+      SampleLength.reset();
+    };
+  };
 
   let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
     /* Wrap view_seg to fix single_line=true for all probe displays */
-    let view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
-      view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
+    let view_seg_line = (~text_only, segment) =>
+      view_seg(
+        ~single_line=true,
+        ~background=false,
+        ~text_only,
+        Sort.Exp,
+        segment,
+      );
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
       offside:
-        Some(
-          offside_view(
-            ~settings,
-            info,
-            local,
-            parent,
-            view_seg_single_line,
-            info.utility,
-          ),
-        ),
+        Some(offside_view(~settings, info, local, parent, view_seg_line)),
     };
   };
 };

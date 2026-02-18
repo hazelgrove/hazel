@@ -4,19 +4,8 @@ open Util.WebUtil;
 open Haz3lcore;
 open Language;
 
-module StaticsBase = StaticsBase;
-
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
-
-let basic = (~globals: Globals.t, id: Id.t) =>
-  div(
-    ~attrs=[
-      Attr.create("style", "cursor: pointer;"),
-      Attr.on_pointerdown(jump_to(~globals, id)),
-    ],
-    [text(Id.str3(id))],
-  );
 
 let exp_view = (~available, term: Exp.t) =>
   Abbreviate.abbreviate_exp(~available, term)
@@ -130,11 +119,10 @@ let sort_ids_by_measurement = (~measured: Measured.t, ids: list((Id.t, _))) =>
 
 let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 
-let legend_sample_view =
+let legend_sample =
     (
       ~indicated: bool,
       ~mode: Sample.Window.mode,
-      ~font_metrics: FontMetrics.t,
       ~ap_id: option(Id.t),
       ~indicated_call: option(Id.t),
       ~cursor_stack: Sample.call_stack,
@@ -157,7 +145,7 @@ let legend_sample_view =
     step_start,
     step_end,
   };
-  let di: Dynamics.Info.t = {
+  let dynamics: Dynamics.Info.t = {
     samples: [sample],
     sample_cursor: {
       call_stack: cursor_stack,
@@ -170,28 +158,19 @@ let legend_sample_view =
       pending_focus: None,
     },
   };
-  ProbeProj.sample_view(
-    ~ap_id,
-    ~hide_env=true,
-    ~settings={
-      ...ProbeProj.Settings.s^,
-      window: mode,
-    },
-    ~statics=None,
-    ~num_total=1,
-    di,
-    ProjectorInfo.utility,
-    (~text_only) =>
-      ProjectorView.flex_code(
-        ~font_metrics,
-        ~single_line=true,
-        ~background=false,
-        ~text_only,
-      ),
-    _ => Effect.Ignore,
-    _ => Effect.Ignore,
-    (0, sample),
-  )
+  let settings = {
+    ...ProbeProj.Settings.s^,
+    window: mode,
+  };
+  let cursor_clss =
+    ProbeProj.cursor_clss(~settings, ~ap_id, dynamics, sample);
+  let caption_node =
+    div(
+      ~attrs=[clss(["code"])],
+      [span(~attrs=[clss(["code-text"])], [span(~attrs=[clss(["token"])], [text(caption)])])],
+    );
+  div(~attrs=[Attr.classes(["value"] @ cursor_clss)], [caption_node])
+  |> div_cs(["sample"])
   |> div_cs(["sample-group"])
   |> div_cs(["sample-groups"])
   |> div_cs(["live-offside", Sample.Window.show_mode(mode)])
@@ -207,11 +186,15 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
     ],
   );
 
-let legend_view = (~font_metrics: FontMetrics.t) => {
+let legend_view = () => {
   let mode = ProbeProj.Settings.s^.window;
-  /* Focus step range for StepRange mode comparisons */
   let focus = Some((10, 20));
-  let legend_sample_view = legend_sample_view(~mode, ~font_metrics);
+  let f: Sample.stack_frame = {
+    id: Id.invalid,
+    name: None,
+    fn_def_id: None,
+  };
+  let legend_sample = legend_sample(~mode);
   div(
     ~attrs=[clss(["legend", "panel"])],
     [
@@ -222,29 +205,12 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
       legend_item(
         ~tooltip=
           "This sample was collected before/above the cursor position in the call stack.",
-        legend_sample_view(
+        legend_sample(
           ~indicated=false,
           ~ap_id=None,
           ~indicated_call=None,
-          ~cursor_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
-          ~sample_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
+          ~cursor_stack=[f, f],
+          ~sample_stack=[f],
           ~step_range=(0, 5),
           ~focus_step_range=focus,
           ~caption="Before",
@@ -253,24 +219,12 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
       legend_item(
         ~tooltip=
           "This sample is at the current cursor position in the call stack.",
-        legend_sample_view(
+        legend_sample(
           ~indicated=true,
           ~ap_id=None,
           ~indicated_call=None,
-          ~cursor_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
-          ~sample_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
+          ~cursor_stack=[f],
+          ~sample_stack=[f],
           ~step_range=(10, 20),
           ~focus_step_range=None,
           ~caption="At Cursor",
@@ -279,29 +233,12 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
       legend_item(
         ~tooltip=
           "This sample was collected after/below the cursor position in the call stack.",
-        legend_sample_view(
+        legend_sample(
           ~indicated=false,
           ~ap_id=None,
           ~indicated_call=None,
-          ~cursor_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
-          ~sample_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
+          ~cursor_stack=[f],
+          ~sample_stack=[f, f],
           ~step_range=(25, 30),
           ~focus_step_range=focus,
           ~caption="After",
@@ -309,30 +246,13 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
       ),
       legend_item(
         ~tooltip=
-          "This sample is from function call site which isabove the cursor position in the call stack.",
-        legend_sample_view(
+          "This sample is from a function call site which is above the cursor position in the call stack.",
+        legend_sample(
           ~indicated=false,
           ~indicated_call=None,
           ~ap_id=Some(Id.invalid),
-          ~cursor_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
-          ~sample_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
+          ~cursor_stack=[f, f],
+          ~sample_stack=[f],
           ~step_range=(5, 25),
           ~focus_step_range=focus,
           ~caption="Contains",
@@ -349,24 +269,17 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         legend_item(
           ~tooltip=
             "This sample is from a different branch of the call stack than the cursor.",
-          legend_sample_view(
+          legend_sample(
             ~indicated=false,
             ~ap_id=None,
             ~indicated_call=None,
             ~cursor_stack=[
               {
+                ...f,
                 id: Id.mk(),
-                name: None,
-                fn_def_id: None,
               },
             ],
-            ~sample_stack=[
-              {
-                id: Id.invalid,
-                name: None,
-                fn_def_id: None,
-              },
-            ],
+            ~sample_stack=[f],
             ~step_range=(0, 0),
             ~focus_step_range=None,
             ~caption="Off Cursor",
@@ -376,29 +289,12 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
       legend_item(
         ~tooltip=
           "This sample was collected inside the function call at the cursor position, or in a call made from that call.",
-        legend_sample_view(
+        legend_sample(
           ~indicated=false,
           ~indicated_call=Some(Id.invalid),
           ~ap_id=None,
-          ~cursor_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
-          ~sample_stack=[
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-            {
-              id: Id.invalid,
-              name: None,
-              fn_def_id: None,
-            },
-          ],
+          ~cursor_stack=[f],
+          ~sample_stack=[f, f],
           ~step_range=(12, 18),
           ~focus_step_range=focus,
           ~caption="Inside",
@@ -511,38 +407,6 @@ let sketch_view = (~globals: Globals.t, ~explain_this_inject): Node.t =>
     ],
   );
 
-let call_cursor_view = (~sample_cursor: Sample.Cursor.t, ~fancyd) =>
-  div(
-    ~attrs=[clss(["panel", "call-cursor"])],
-    [
-      div(~attrs=[clss(["title"])], [text("Call Stack")]),
-      div(
-        ~attrs=[clss(["stack"])],
-        List.mapi(
-          (i, frame: Sample.stack_frame) => {
-            let frame_id = frame.id;
-            div(
-              ~attrs=[
-                Attr.classes([
-                  i == sample_cursor.index ? "is-index" : "not",
-                  i > sample_cursor.index ? "after-index" : "not",
-                  List.exists(
-                    (f: Sample.stack_frame) => f.id == frame_id,
-                    sample_cursor.call_stack,
-                  )
-                  && Some(frame_id) == sample_cursor.indicated_call
-                    ? "indicated-call" : "not",
-                ]),
-              ],
-              [fancyd(frame_id)],
-            );
-          },
-          sample_cursor.call_stack |> List.rev,
-        ),
-      ),
-    ],
-  );
-
 /* probe_type tracks whether a probe is manual or auto.
  * Auto probes include the list of ephemeral IDs they expand to. */
 type probe_type =
@@ -620,9 +484,8 @@ let group_refractors =
       let final_groups =
         push_group(~label=current_label, ~entries=current_entries, groups);
       List.rev(final_groups);
-    | [entry, ...rest] =>
-      let (id: Id.t, _probe: probe_type) = entry;
-      let label: option(Pat.t) = top_level_pattern(~info_map, ~id);
+    | [(id, _) as entry, ...rest] =>
+      let label = top_level_pattern(~info_map, ~id);
       if (same_top_level(label, current_label)) {
         loop(rest, current_label, [entry, ...current_entries], groups);
       } else {
@@ -634,32 +497,20 @@ let group_refractors =
   loop(entries, None, [], []);
 };
 
-let render_entry =
-    (~fancyd: Id.t => option(Node.t), entry: (Id.t, probe_type))
-    : option(Node.t) =>
+let render_entry = (~fancyd, entry) =>
   switch (entry) {
   | (id, Manual) => fancyd(id)
-  | (_id, Auto(ephemeral_ids)) =>
+  | (_, Auto(ephemeral_ids)) =>
     let ephemerals = List.filter_map(fancyd, ephemeral_ids);
     ephemerals == []
       ? None : Some(div(~attrs=[clss(["auto"])], ephemerals));
   };
 
-let render_group =
-    (
-      ~globals: Globals.t,
-      ~fancyd: Id.t => option(Node.t),
-      group: refractor_group,
-    )
-    : list(Node.t) => {
-  let body_nodes: list(Node.t) =
-    List.filter_map(
-      (entry: (Id.t, probe_type)) => render_entry(~fancyd, entry),
-      group.entries,
-    );
+let render_group = (~globals: Globals.t, ~fancyd, group: refractor_group) => {
+  let body_nodes = List.filter_map(render_entry(~fancyd), group.entries);
   switch (group.top_pat) {
   | Some(pat) =>
-    let title_option: option(Node.t) =
+    let title_node =
       term_view(
         ~globals,
         ~default=None,
@@ -667,12 +518,8 @@ let render_group =
         ~available=17,
         ~text_only=false,
         Grammar.Pat(pat),
-      );
-    let title_node: Node.t =
-      Option.value(
-        ~default=div([text("Untitled definition")]),
-        title_option,
-      );
+      )
+      |> Option.value(~default=div([text("Untitled definition")]));
     [
       div(
         ~attrs=[clss(["top-level-group"])],
@@ -686,26 +533,6 @@ let render_group =
   };
 };
 
-let append_group_nodes =
-    (
-      ~globals: Globals.t,
-      ~fancyd: Id.t => option(Node.t),
-      groups: list(refractor_group),
-    )
-    : list(Node.t) => {
-  let rec loop =
-          (remaining: list(refractor_group), acc: list(Node.t))
-          : list(Node.t) =>
-    switch (remaining) {
-    | [] => List.rev(acc)
-    | [group, ...rest] =>
-      let nodes_for_group: list(Node.t) =
-        render_group(~globals, ~fancyd, group);
-      loop(rest, List.rev_append(nodes_for_group, acc));
-    };
-  loop(groups, []);
-};
-
 let probes_panel_view =
     (
       ~globals: Globals.t,
@@ -714,13 +541,10 @@ let probes_panel_view =
       ~syntax: CachedSyntax.t,
       ~fancyd: Id.t => option(Node.t),
     ) => {
-  let grouped: list(refractor_group) =
-    group_refractors(
-      ~info_map,
-      prep_refractors(~refractors, ~info_map, ~syntax),
-    );
-  let group_nodes: list(Node.t) =
-    append_group_nodes(~globals, ~fancyd, grouped);
+  let group_nodes =
+    prep_refractors(~refractors, ~info_map, ~syntax)
+    |> group_refractors(~info_map)
+    |> List.concat_map(render_group(~globals, ~fancyd));
   group_nodes == []
     ? div([])
     : div(
@@ -921,18 +745,8 @@ let probearium =
         ),
       ],
     ),
-    legend_view(~font_metrics=globals.font_metrics),
+    legend_view(),
     sketch_view(~globals, ~explain_this_inject),
-    // call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
-    //   fancy(
-    //     ~refractor_data,
-    //     ~info_map=editor.statics.info_map,
-    //     ~default=None, /*Some([Example.exp("<In Builtin>")]),*/
-    //     ~globals,
-    //     id,
-    //   )
-    //   |> Option.value(~default=div([]))
-    // ),
     //TODO(andrew): don't show autos here? or collapse them by default at least
     probes_panel_view(
       ~globals,

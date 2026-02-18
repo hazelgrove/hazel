@@ -129,10 +129,6 @@
   line-height: 1.41;
 }
 
-.refractors .live-offside .live-equals {
-  display: none;
-}
-
 .refractors svg:has(.child-line) {
   z-index: 2;
 }
@@ -316,26 +312,6 @@
   display: none;
 }
 
-.projector.probe .live-equals {
-  font-weight: 800;
-  opacity: 80%;
-}
-.projector.probe.Exp .live-equals {
-  color: var(--exp-base);
-}
-.projector.probe.Pat .live-equals {
-  color: var(--pat-base);
-}
-.projector.probe.indicated .live-equals {
-  opacity: 100%;
-}
-.projector.probe.Exp.indicated .live-equals {
-  color: var(--exp-indicated);
-}
-.projector.probe.Pat.indicated .live-equals {
-  color: var(--pat-indicated);
-}
-
 .live-offside .nav-bar {
   display: flex;
   flex-direction: row;
@@ -406,8 +382,11 @@
   padding: 0 0.1em;
   border-bottom-color: var(--bottom-border-clr);
   border-radius: 0.05em 0.05em 0.05em 0.2em;
-  transition: scale 0.1s ease-in-out, transform 0.1s ease-in-out,
-    translate 0.1s ease-in-out, box-shadow 0.1s ease-in-out,
+  transition:
+    scale 0.1s ease-in-out,
+    transform 0.1s ease-in-out,
+    translate 0.1s ease-in-out,
+    box-shadow 0.1s ease-in-out,
     top 0.1s ease-in-out;
 }
 
@@ -454,8 +433,10 @@
 }
 .live-offside.Many .sample:has(.value.below) {
   translate: 0 3px;
-  box-shadow: 0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
+  box-shadow:
+    0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow),
+    0px -2.25px 0 var(--below-shadow),
     0px -3px 0 var(--below-shadow);
   height: calc(1.45em - 4.25px);
 }
@@ -527,7 +508,8 @@
 .live-offside.Many .sample:has(.value.below.L2) {
   border: none;
   translate: 0 1.5px;
-  box-shadow: 0px -0.75px 0 var(--below-shadow),
+  box-shadow:
+    0px -0.75px 0 var(--below-shadow),
     0px -1.5px 0 var(--below-shadow);
   height: calc(1.45em - 2.75px);
 }
@@ -535,16 +517,20 @@
 .live-offside.Many .sample:has(.value.below.L3) {
   border: none;
   translate: 0 2.25px;
-  box-shadow: 0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow);
+  box-shadow:
+    0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow),
+    0px -2.25px 0 var(--below-shadow);
   height: calc(1.45em - 3.5px);
 }
 
 .live-offside.Many .sample:has(.value.below.L4) {
   border: none;
   translate: 0 3px;
-  box-shadow: 0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
+  box-shadow:
+    0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow),
+    0px -2.25px 0 var(--below-shadow),
     0px -3px 0 var(--below-shadow);
   height: calc(1.45em - 4.25px);
 }

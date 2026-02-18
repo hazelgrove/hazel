@@ -646,12 +646,10 @@ module Selection = {
     };
 
   /* Group samples by function call, with indices */
-  let group_by_call = (samples: list((int, t))): list(list((int, t))) => {
+  let group_by_call = (samples: list(t)): list(list(t)) => {
     let grouped =
       samples
-      |> ListUtil.group_consecutive(((_, s1), (_, s2)) =>
-           is_same_call(s1, s2)
-         )
+      |> ListUtil.group_consecutive((s1, s2) => is_same_call(s1, s2))
       |> List.map(List.rev);
     /* Flatten if all groups are singletons */
     List.for_all(g => List.length(g) == 1, grouped)
@@ -659,11 +657,10 @@ module Selection = {
   };
 
   /* Number and group samples for display */
-  let collate = (samples: list(t)): (int, list(list((int, t)))) => {
-    let numbered =
-      List.mapi((i, s) => (List.length(samples) - i - 1, s), samples);
-    (List.length(samples), group_by_call(numbered));
-  };
+  let collate = (samples: list(t)): (int, list(list(t))) => (
+    List.length(samples),
+    group_by_call(samples),
+  );
 
   /* Select samples to display based on cursor position and window mode.
    * Pure function - offset is passed in and new offset returned. */
