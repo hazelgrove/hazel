@@ -6,15 +6,16 @@ let def_exercise : Tutorial.spec =
     title = "Function Definitions";
     module_name = "Tu_FunctionDefinitions";
     prompt =
-      "Functions are expressions that take inputs and produce outputs. In \
-       Hazel, you write an anonymous function as `fun x -> body`, where `x` is \
-       the parameter and `body` is an expression that can use `x`.\n\n\
-       The editor below contains `let f = fun x ->` with the function body \
-       missing and `in` in the backpack. Complete the function:\n\
-       1. Type `x + 1` as the function body\n\
-       2. Press `Tab` to drop the `in` delimiter from the backpack\n\
-       3. Type `f(2)` to apply the function\n\n\
-       The result should evaluate to `3`.";
+      {md|Functions are expressions that take inputs and produce outputs. In Hazel, you write an anonymous function as `fun x -> body`, where `x` is the parameter and `body` is an expression that can use `x`.
+
+The editor below contains `let f = fun x ->` with the function body missing and `in` in the backpack.
+
+Complete the function:
+1. Type `x + 1` as the function body
+2. Press `Tab` to drop the `in` delimiter from the backpack
+3. Type `f(2)` to apply the function
+
+The result should evaluate to `3`.|md};
     wrapper = true;
     show_report = false;
     version = 6;
@@ -134,12 +135,11 @@ let call_exercise : Tutorial.spec =
     title = "Function Application";
     module_name = "Tu_FunctionApplication";
     prompt =
-      "You apply a function to an argument by writing `f(arg)`. Hazel supports \
-       multi-argument functions via currying: `fun x -> fun y -> x + y` is a \
-       function that takes two arguments one at a time.\n\n\
-       The editor below already defines `add` as a curried two-argument \
-       addition function. Your task is to apply it so the result is `5`. Type \
-       `add(2)(3)` after the cursor.";
+      {md|You apply a function to an argument by writing `f(arg)`. Hazel supports multi-argument functions via currying — `fun x -> fun y -> x + y` is a function that takes two arguments one at a time. You apply a curried function as `f(arg1)(arg2)`.
+
+The editor below already defines `add` as a curried two-argument addition function.
+
+Type `add(2)(3)` after the cursor. The result should be `5`.|md};
     wrapper = true;
     show_report = false;
     version = 7;
@@ -261,14 +261,13 @@ let pipeline_exercise : Tutorial.spec =
     title = "Pipelines and Partial Application";
     module_name = "Tu_Pipelines";
     prompt =
-      "The pipeline operator `|>` feeds a value into a function on its right. \
-       For example, `5 |> fun x -> x + 1` evaluates to `6`. This is equivalent \
-       to `(fun x -> x + 1)(5)` but reads left-to-right.\n\n\
-       You can chain pipelines: `5 |> fun x -> x + 1 |> fun x -> x * 2` first \
-       adds 1 (giving `6`), then doubles (giving `12`).\n\n\
-       The editor below contains `10 |>` with a hole after the pipe. Complete \
-       it with a function that doubles its input, e.g. `fun x -> x * 2`. The \
-       result should be `20`.";
+      {md|The pipeline operator `|>` feeds a value into a function on its right:
+- `5 |> fun x -> x + 1` evaluates to `6`
+- This is equivalent to `(fun x -> x + 1)(5)` but reads left-to-right
+
+You can chain pipelines: `5 |> fun x -> x + 1 |> fun x -> x * 2` first adds 1 (giving `6`), then doubles (giving `12`).
+
+The editor below contains `10 |>` with a hole after the pipe. Complete it with a function that doubles its input, e.g. `fun x -> x * 2`. The result should be `20`.|md};
     wrapper = true;
     show_report = false;
     version = 8;

@@ -6,13 +6,9 @@ let exercise : Tutorial.spec =
     title = "Expressive Programming";
     module_name = "Tu_ExpressiveProgramming";
     prompt =
-      "You might not have realized it, but you wrote your first computer \
-       programs in grade school in the form of arithmetic expressions! \n\n\
-       For example, enter the program `2 + 2` in the expression editor below. \
-       Hazel operates like a calculator, computing the value of your \
-       expression by equationally simplifying it (i.e. evaluating it), here to \
-       the integer value `4`. The symbol `≡` is pronounced \"is equivalent \
-       to\".";
+      {md|You might not have realized it, but you wrote your first computer programs in grade school in the form of arithmetic expressions!
+
+For example, enter the program `2 + 2` in the expression editor below. Hazel operates like a calculator, computing the value of your expression by equationally simplifying it (i.e. evaluating it), here to the integer value `4`. The symbol `≡` is pronounced "is equivalent to".|md};
     wrapper = true;
     show_report = false;
     version = 1;

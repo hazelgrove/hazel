@@ -6,19 +6,16 @@ let exercise : Tutorial.spec =
     title = "The Tylr Parser and Backpack";
     module_name = "Tu_TylrParser";
     prompt =
-      "Hazel uses a tile-based parser called Tylr. When you type a multi-part \
-       keyword like `let`, Tylr automatically creates `obligations` — the \
-       remaining delimiters that are needed to complete the syntactic form. \
-       These obligations are held in the `backpack`, shown at the top of the \
-       editor.\n\n\
-       The editor below already contains `let x =` with a hole after the `=`. \
-       Notice that the `in` delimiter is in the backpack — it still needs to \
-       be dropped into the program.\n\n\
-       Complete the expression step by step:\n\
-       1. Type `1` to fill in the value for `x`\n\
-       2. Press `Tab` to drop the `in` delimiter from the backpack\n\
-       3. Type `x + 1` as the body of the let expression\n\n\
-       The result should evaluate to `2`.";
+      {md|Hazel uses a tile-based parser called Tylr. When you type a multi-token form like `let`, Tylr automatically tracks the remaining delimiters that are needed to complete the syntactic form. These obligations are held in the *backpack*, shown in yellow above the cursor.
+
+The editor below already contains `let x =` with a hole automatically placed after the `=`. Notice that the `in` delimiter is in the backpack — it still needs to be *dropped* into the program.
+
+Complete the expression step by step:
+1. Type `1` to fill in the value for `x`
+2. Press `Tab` or type `in` to drop the `in` delimiter from the backpack
+3. Type `x + 1` as the body of the let expression
+
+The result should evaluate to `2`.|md};
     wrapper = true;
     show_report = false;
     version = 2;

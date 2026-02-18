@@ -6,15 +6,18 @@ let if_exercise : Tutorial.spec =
     title = "If Expressions";
     module_name = "Tu_IfExpressions";
     prompt =
-      "Given a boolean expression, you can use it to choose between two \
-       expressions using a conditional expression.\n\n\
-       The syntax is `if condition then expr1 else expr2`. If the condition \
-       evaluates to `true`, the result is `expr1`; otherwise, it is `expr2`. \
-       The condition must have type `Bool`.\n\n\
-       The editor below contains `if 3 < 5 then` with the condition and `then` \
-       keyword already provided. The `else` delimiter is in the backpack. \
-       Complete the expression by typing `10`, then press `Tab` to drop the \
-       `else`, then type `20`. The result should evaluate to `10`.";
+      {md|Given a boolean expression, you can use it to choose between two expressions using a conditional expression.
+
+The syntax is `if condition then expr1 else expr2`. If the condition evaluates to `true`, the result is `expr1`; otherwise, it is `expr2`. The condition must have type `Bool`.
+
+The editor below contains `if 3 < 5 then` with the condition and `then` keyword already provided. The `else` delimiter is in the backpack.
+
+Complete the expression:
+1. Type `10` as the then-branch
+2. Press `Tab` to drop the `else` from the backpack
+3. Type `20` as the else-branch
+
+The result should evaluate to `10`.|md};
     wrapper = true;
     show_report = false;
     version = 10;
@@ -134,18 +137,23 @@ let case_exercise : Tutorial.spec =
     title = "Case Expressions";
     module_name = "Tu_CaseExpressions";
     prompt =
-      "A `case` expression lets you pattern match on a value. The syntax is:\n\n\
-       `case expr`\n\
-       `| pattern1 => result1`\n\
-       `| pattern2 => result2`\n\
-       `end`\n\n\
-       Hazel checks each pattern from top to bottom and evaluates the result \
-       of the first matching branch. You can use `_` as a wildcard pattern \
-       that matches anything.\n\n\
-       The editor below contains `case 2` with the scrutinee already provided. \
-       The `end` delimiter is in the backpack. Add pattern branches: type `| 2 \
-       => 20 | _ => 0`, then press `Tab` to drop `end`. The result should be \
-       `20`.";
+      {md|A `case` expression lets you pattern match on a value. The syntax is:
+
+`case expr`
+`| pattern1 => result1`
+`| pattern2 => result2`
+`end`
+
+Hazel checks each pattern from top to bottom and evaluates the result of the first matching branch. You can use `_` as a wildcard pattern that matches anything.
+
+The editor below contains `case 2` with the scrutinee already provided. The `end` delimiter is in the backpack.
+
+Add pattern branches:
+1. Type `| 2 => 20` for the matching case
+2. Type `| _ => 0` for the default case
+3. Press `Tab` to drop `end` from the backpack
+
+The result should be `20`.|md};
     wrapper = true;
     show_report = false;
     version = 11;
