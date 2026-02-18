@@ -85,6 +85,7 @@ let indicator_select =
        // Create a dropdown (select element) for the current path component
        select(
          ~attrs=[
+           Attr.value(slide_segment),
            // Signal the selected slide index when the dropdown value changes
            Attr.on_change((_, name) => {
              signal(
