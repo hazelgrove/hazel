@@ -16,4 +16,5 @@ let lessons: list(Tutorial.spec) = [
   Tu_Lists.concat_exercise,
   Tu_Lists.map_exercise,
   Tu_Lists.fold_exercise,
+  Tu_Tasks.string_mean_exercise,
 ];
