@@ -167,7 +167,12 @@ let legend_sample =
   let caption_node =
     div(
       ~attrs=[clss(["code"])],
-      [span(~attrs=[clss(["code-text"])], [span(~attrs=[clss(["token"])], [text(caption)])])],
+      [
+        span(
+          ~attrs=[clss(["code-text"])],
+          [span(~attrs=[clss(["token"])], [text(caption)])],
+        ),
+      ],
     );
   div(~attrs=[Attr.classes(["value"] @ cursor_clss)], [caption_node])
   |> div_cs(["sample"])
@@ -414,21 +419,9 @@ type probe_type =
   | Auto(list(Id.t));
 
 let prep_refractors =
-    (~refractors: Zipper.Refractor.t, ~info_map, ~syntax: CachedSyntax.t) => {
-  let manuals = refractors.manuals |> List.map(((id, _)) => (id, Manual));
-  let autos =
-    refractors.autos.ids
-    |> Id.Map.bindings
-    |> List.map(((id, ())) => {
-         let ids = ProbePerform.ids_from_term(~syntax, ~info_map, id);
-         let ephemeral_ids =
-           List.filter(
-             id => Id.Map.mem(id, refractors.autos.ephemerals),
-             ids,
-           );
-         (id, Auto(ephemeral_ids));
-       });
-  List.concat([manuals, autos])
+    (~refractors: Zipper.Refractor.t, ~syntax: CachedSyntax.t) => {
+  refractors.manuals
+  |> List.map(((id, _)) => (id, Manual))
   |> sort_ids_by_measurement(~measured=syntax.measured);
 };
 
@@ -542,7 +535,7 @@ let probes_panel_view =
       ~fancyd: Id.t => option(Node.t),
     ) => {
   let group_nodes =
-    prep_refractors(~refractors, ~info_map, ~syntax)
+    prep_refractors(~refractors, ~syntax)
     |> group_refractors(~info_map)
     |> List.concat_map(render_group(~globals, ~fancyd));
   group_nodes == []
@@ -747,7 +740,6 @@ let probearium =
     ),
     legend_view(),
     sketch_view(~globals, ~explain_this_inject),
-    //TODO(andrew): don't show autos here? or collapse them by default at least
     probes_panel_view(
       ~globals,
       ~refractors,

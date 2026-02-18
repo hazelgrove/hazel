@@ -458,11 +458,9 @@ module Cursor = {
   /* Returns Some(ap_id) only when cursor is on an application with a variable
      in function position (enabling step-into and pinning). Excludes constructor
      applications and applications with non-variable functions (e.g. lambdas). */
-  let cur_var_ap = (info: option(Info.t)): option(Id.t) =>
+  let cur_var_ap = (info: Info.t): option(Id.t) =>
     switch (info) {
-    | Some(
-        InfoExp({term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}),
-      ) =>
+    | InfoExp({term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}) =>
       Some(Exp.rep_id(ap))
     | _ => None
     };

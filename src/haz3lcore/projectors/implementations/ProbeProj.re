@@ -104,7 +104,7 @@ type probe_ctx = {
   statics: Language.Statics.Info.t,
   settings,
   dynamics: Dynamics.Info.t,
-  utility,
+  utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
 };
 
@@ -202,12 +202,6 @@ let select_samples =
   };
 };
 
-let abbreviate = (exp: Exp.t, available: int): Exp.t => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
-  abbr_exp;
-};
-
 let len_seg = (utility: utility, seg: Segment.t): int =>
   seg |> utility.seg_to_string |> Unicode.length;
 
@@ -300,7 +294,6 @@ let cursor_clss =
       | _ => []
       };
     cursor_class @ level_class;
-
   | StepRange =>
     switch (
       Sample.Cursor.step_containment(
@@ -335,8 +328,6 @@ module Debug = {
       | _ => "None"
       }
     )
-    // ++ "\nvalue:\n"
-    // ++ DHExp.show(sample.value)
     ++ "\nstack:\n"
     ++ stack(sample.call_stack)
     ++ "\nstep-range:\n"
@@ -516,62 +507,56 @@ let can_step_into = (statics: Language.Statics.Info.t): bool =>
   | _ => false
   };
 
+let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
+  let is_pinned = show_pin(ctx, sample);
+  div(
+    ~attrs=[
+      Attr.classes(
+        ["action-item", "pin-action"] @ (is_pinned ? ["pinned"] : []),
+      ),
+      Attr.on_pointerdown(_ => pin_call(ctx)),
+    ],
+    [
+      div(~attrs=[Attr.classes(["pin-icon"])], []),
+      text(is_pinned ? "Unpin" : "Pin"),
+      span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
+    ],
+  );
+};
+
+/* Step Into action */
+let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "step-into-action"]),
+      Attr.on_pointerdown(_
+        /* Stop propagation to prevent parent wrapper's Focus action
+           from moving cursor back to the probe after we jump */
+        =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            step_into_sample(~parent=ctx.parent, ~sample, ~ap_id),
+          ])
+        ),
+    ],
+    [
+      div(~attrs=[Attr.classes(["step-into-icon"])], []),
+      text("Step into"),
+      span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
+    ],
+  );
+
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
 let sample_context_actions =
     (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) =>
   switch (ctx.ap_id) {
-  | Some(ap_id) =>
-    let is_pinned = show_pin(ctx, sample);
-    [
+  | Some(ap_id) => [
       div(
         ~attrs=[Attr.classes(["context-actions"])],
-        [
-          /* Pin/Unpin action */
-          div(
-            ~attrs=[
-              Attr.classes(
-                ["action-item", "pin-action"] @ (is_pinned ? ["pinned"] : []),
-              ),
-              Attr.on_pointerdown(_ => pin_call(ctx)),
-            ],
-            [
-              div(~attrs=[Attr.classes(["pin-icon"])], []),
-              text(is_pinned ? "Unpin" : "Pin"),
-              span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
-            ],
-          ),
-        ]
-        @ (
-          can_step_into
-            ? [
-              /* Step Into action */
-              div(
-                ~attrs=[
-                  Attr.classes(["action-item", "step-into-action"]),
-                  Attr.on_pointerdown(_
-                    /* Stop propagation to prevent parent wrapper's Focus action
-                       from moving cursor back to the probe after we jump */
-                    =>
-                      Effect.Many([
-                        Effect.Stop_propagation,
-                        step_into_sample(~parent=ctx.parent, ~sample, ~ap_id),
-                      ])
-                    ),
-                ],
-                [
-                  div(~attrs=[Attr.classes(["step-into-icon"])], []),
-                  text("Step into"),
-                  span(
-                    ~attrs=[Attr.classes(["shortcut"])],
-                    [text("Enter")],
-                  ),
-                ],
-              ),
-            ]
-            : []
-        ),
+        [pin_action(ctx, sample)]
+        @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : []),
       ),
-    ];
+    ]
   | None => []
   };
 
@@ -1063,11 +1048,32 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   };
 };
 
-let offside_view = (info: info, local, parent, ~settings: settings, view_seg) =>
+let empty_view = (~id: Id.t, ~settings: settings) =>
+  Node.div(
+    ~attrs=[
+      Attr.id(Id.cls(id)),
+      Attr.classes([
+        "live-offside",
+        settings.window |> Sample.Window.show_mode,
+      ]),
+    ],
+    [
+      div(
+        ~attrs=[
+          Attr.classes(["empty-status", "no-samples"]),
+          Attr.title("This expression was never evaluated"),
+        ],
+        [text("∅")],
+      ),
+    ],
+  );
+
+let offside_view =
+    (info: info, local, parent, ~settings: settings, view_seg: View.seg) =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
-    let ap_id = Sample.Cursor.cur_var_ap(Some(statics));
+    let ap_id = Sample.Cursor.cur_var_ap(statics);
     let ctx = {
       ap_id,
       statics,
@@ -1127,15 +1133,21 @@ let offside_view = (info: info, local, parent, ~settings: settings, view_seg) =>
         let overflow_view =
           num_shown > 0 && num_shown < num_total
             ? [nav_bar_view(ctx, ~num_total), ellipsis_view(local)] : [];
+        let view_seg_line = (~text_only, segment) =>
+          view_seg(
+            ~single_line=true,
+            ~background=false,
+            ~text_only,
+            Sort.Exp,
+            segment,
+          );
+        let sample_view = sample_view(ctx, ~num_total, view_seg_line, local);
         let group_views =
           List.map(
             samples =>
               Node.div(
                 ~attrs=[Attr.classes(["sample-group"])],
-                List.map(
-                  sample_view(ctx, ~num_total, view_seg, local),
-                  samples,
-                ),
+                List.map(sample_view, samples),
               ),
             groups,
           );
@@ -1147,39 +1159,20 @@ let offside_view = (info: info, local, parent, ~settings: settings, view_seg) =>
         @ overflow_view;
       },
     );
-  | _ =>
-    /* No dynamics/statics — probe was never evaluated */
-    Node.div(
-      ~attrs=[
-        Attr.id(Id.cls(info.id)),
-        Attr.classes([
-          "live-offside",
-          settings.window |> Sample.Window.show_mode,
-        ]),
-      ],
-      [
-        div(
-          ~attrs=[
-            Attr.classes(["empty-status", "no-samples"]),
-            Attr.title("This expression was never evaluated"),
-          ],
-          [text("∅")],
-        ),
-      ],
-    )
+  | _ => empty_view(~id=info.id, ~settings)
   };
 
 let overlay_view = (info: info): Node.t =>
-  switch (info.dynamics) {
-  | Some(dynamics) =>
-    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
+  switch (info.dynamics, info.statics) {
+  | (Some(dynamics), Some(statics)) =>
+    let ap_id = Sample.Cursor.cur_var_ap(statics);
     div(
       ~attrs=[
         Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),
       ],
       [num_samples_view(~ap_id, dynamics)],
     );
-  | None => Node.div([])
+  | _ => Node.div([])
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1196,7 +1189,7 @@ module M: Projector = {
     switch (any) {
     | Exp(_)
     | Pat(_) => Some()
-    | Any(_) => Some() /* Grout don't have sorts rn */
+    | Any(_) => Some() /* Grout don't have sorts */
     | _ => None
     };
 
@@ -1222,20 +1215,10 @@ module M: Projector = {
 
   let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
-    /* Wrap view_seg to fix single_line=true for all probe displays */
-    let view_seg_line = (~text_only, segment) =>
-      view_seg(
-        ~single_line=true,
-        ~background=false,
-        ~text_only,
-        Sort.Exp,
-        segment,
-      );
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
-      offside:
-        Some(offside_view(~settings, info, local, parent, view_seg_line)),
+      offside: Some(offside_view(~settings, info, local, parent, view_seg)),
     };
   };
 };
