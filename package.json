@@ -13,20 +13,12 @@
     "@esbuild-plugins/node-resolve": "^0.2.2",
     "hotkeys-js": "^3.8.7",
     "ninja-keys": "^1.2.2",
-    "algebrite": "^1.4.0",
-    "web-worker": "^1.5.0"
+    "algebrite": "^1.4.0"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
+    "@types/node": "^22.14.0",
     "esbuild": "^0.25.1",
-    "@types/js-yaml": "^4.0.9",
-    "@types/minimist": "^1.2.5",
-    "js-yaml": "^4.1.0",
-    "minimist": "^1.2.8",
-    "playwright": "^1.55.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.2",
-    "vite": "^6.4.1",
+    "vite": "^6.3.4",
     "vite-plugin-static-copy": "^2.3.0"
   }
 }

@@ -38,10 +38,11 @@ let view =
       );
     if (String.length(api_key_input) > 0) {
       let set_api_key_action =
-        AgentGlobals.Update.SetApiKey(api_key_input)
-        |> (action => Settings.Update.AgentGlobals(action));
+        Globals.Action.AgentGlobals(
+          AgentGlobals.Update.SetApiKey(api_key_input),
+        );
       Effect.Many([
-        globals.inject_global(Globals.Action.Set(set_api_key_action)),
+        globals.inject_global(set_api_key_action),
         Effect.Stop_propagation,
       ]);
     } else {
@@ -70,10 +71,11 @@ let view =
   // LLM selection handler
   let set_active_llm = (llm_info: OpenRouter.AvailableLLMs.Model.llm_info) => {
     let set_active_llm_action =
-      AgentGlobals.Update.SetActiveLlm(llm_info)
-      |> (action => Settings.Update.AgentGlobals(action));
+      Globals.Action.AgentGlobals(
+        AgentGlobals.Update.SetActiveLlm(llm_info),
+      );
     Effect.Many([
-      globals.inject_global(Globals.Action.Set(set_active_llm_action)),
+      globals.inject_global(set_active_llm_action),
       Effect.Stop_propagation,
     ]);
   };
@@ -81,12 +83,13 @@ let view =
   // Switch to chat interface handler
   let switch_to_chat = _ => {
     let switch_interface_action =
-      AgentGlobals.Update.SwitchInterface(
-        AgentGlobals.Model.AgentChatInterface,
-      )
-      |> (action => Settings.Update.AgentGlobals(action));
+      Globals.Action.AgentGlobals(
+        AgentGlobals.Update.SwitchInterface(
+          AgentGlobals.Model.AgentChatInterface,
+        ),
+      );
     Effect.Many([
-      globals.inject_global(Globals.Action.Set(switch_interface_action)),
+      globals.inject_global(switch_interface_action),
       Effect.Stop_propagation,
     ]);
   };
@@ -152,7 +155,7 @@ let view =
                   Attr.on_copy(_ => Effect.Stop_propagation),
                   Attr.on_paste(_ => Effect.Stop_propagation),
                   Attr.on_cut(_ => Effect.Stop_propagation),
-                  Attr.string_property(
+                  Attr.create(
                     "value",
                     switch (agent_globals.api_key) {
                     | Some(key) => key

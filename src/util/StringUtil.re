@@ -259,14 +259,5 @@ let subseq_search = (s: string, sub: string): bool => {
       );
     };
 
-  print_endline(
-    "Subseq search: "
-    ++ sub
-    ++ " in "
-    ++ s
-    ++ "returns"
-    ++ string_of_bool(search(0, 0)),
-  );
-
   search(0, 0);
 };

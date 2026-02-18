@@ -17,10 +17,11 @@ let view =
   // Settings button - switch back to main menu
   let switch_to_settings = _ => {
     let switch_interface_action =
-      AgentGlobals.Update.SwitchInterface(AgentGlobals.Model.MainMenu)
-      |> (action => Settings.Update.AgentGlobals(action));
+      Globals.Action.AgentGlobals(
+        AgentGlobals.Update.SwitchInterface(AgentGlobals.Model.MainMenu),
+      );
     Effect.Many([
-      globals.inject_global(Globals.Action.Set(switch_interface_action)),
+      globals.inject_global(switch_interface_action),
       Effect.Stop_propagation,
     ]);
   };

@@ -10,9 +10,12 @@ module Model = {
     context_inspector: bool,
     instructor_mode: bool,
     benchmark: bool,
+    show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
     agent_globals: AgentGlobals.Model.t,
+    line_numbers: bool,
+    relative_line_numbers: bool,
   };
 
   let init = {
@@ -30,6 +33,7 @@ module Model = {
         show_fn_bodies: false,
         show_fixpoints: false,
         show_ascription_steps: false,
+        show_ascriptions: false,
         show_case_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
@@ -43,6 +47,7 @@ module Model = {
     context_inspector: false,
     instructor_mode: false,
     benchmark: false,
+    show_log_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
@@ -53,6 +58,8 @@ module Model = {
       show: true,
     },
     agent_globals: AgentGlobals.init(),
+    line_numbers: false,
+    relative_line_numbers: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -89,6 +96,7 @@ module Update = {
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
+    | ShowAscriptions
     | ShowCaseSteps
     | ShowFixpoints
     | ShowLookups
@@ -108,11 +116,13 @@ module Update = {
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | ShowLogPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
-    | AgentGlobals(AgentGlobals.Update.action)
-    | FlipAnimations;
+    | FlipAnimations
+    | ToggleLineNumbers
+    | ToggleRelativeLineNumbers;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -121,9 +131,7 @@ module Update = {
     };
   };
 
-  let update =
-      (~action, ~settings: Model.t, ~schedule_action: t => unit)
-      : Updated.t(Model.t) => {
+  let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
       | Statics => {
@@ -204,6 +212,10 @@ module Update = {
               ...evaluation,
               show_ascription_steps: !evaluation.show_ascription_steps,
             }
+          | ShowAscriptions => {
+              ...evaluation,
+              show_ascriptions: !evaluation.show_ascriptions,
+            }
           | ShowCaseSteps => {
               ...evaluation,
               show_case_steps: !evaluation.show_case_steps,
@@ -278,6 +290,11 @@ module Update = {
           ...settings,
           explainThis,
         };
+      | ShowLogPanel => {
+          ...settings,
+          show_log_panel:
+            !settings.show_log_panel && ExerciseSettings.show_instructor,
+        }
       | Benchmark => {
           ...settings,
           benchmark: !settings.benchmark,
@@ -298,16 +315,13 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | AgentGlobals(agent_globals_action) =>
-        // AgentGlobals updates are handled at Page level with proper async scheduling
-        // This case should not be reached, but we include it for completeness
-        {
+      | ToggleLineNumbers => {
           ...settings,
-          agent_globals:
-            AgentGlobals.Update.update(
-              agent_globals_action, settings.agent_globals, a =>
-              schedule_action(AgentGlobals(a))
-            ) // Dummy schedule_action - will be handled at Page level
+          line_numbers: !settings.line_numbers,
+        }
+      | ToggleRelativeLineNumbers => {
+          ...settings,
+          relative_line_numbers: !settings.relative_line_numbers,
         }
       }
     )

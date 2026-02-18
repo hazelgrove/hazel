@@ -32,7 +32,7 @@ let exp_idx = (e1: Exp.t, e2: Exp.t) => {
         (cont, exp) =>
           if (Exp.rep_id(exp) == Exp.rep_id(e1)) {
             raise(Found(exp));
-          } else if (DHExp.fast_equal(exp, e1)) {
+          } else if (Equality.ignoring_ascriptions.exp(exp, e1)) {
             n := n^ + 1;
             exp;
           } else {
@@ -58,7 +58,7 @@ let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
     Exp.map_term(
       ~f_exp=
         (cont, exp) =>
-          if (DHExp.fast_equal(exp, e1)) {
+          if (Equality.ignoring_ascriptions.exp(exp, e1)) {
             if (count^ == n) {
               raise(Found(exp));
             } else {
@@ -349,7 +349,7 @@ let rec replace_exp =
         switch (term) {
         /* Note[Matt]: We are not currently checking alpha-equivalence here because it's unlikely
            to come up, but we could. */
-        | _ when Exp.fast_equal(exp, replace) =>
+        | _ when Equality.ignoring_ascriptions.exp(exp, replace) =>
           with_exp |> Exp.replace_all_ids
         /* Forms with binders: check if any bound variables are in the coctx,
            if so, stop. */
@@ -555,4 +555,17 @@ let goal_of_typ = (ty: Typ.t): Exp.t => {
   | ProofOf(e) => e
   | _ => Exp.fresh(Invalid("Bad_Goal"))
   };
+};
+
+let strip_theorems = (exp: Exp.t): Exp.t => {
+  Exp.map_term(
+    ~f_exp=
+      (cont, exp) => {
+        switch (exp |> Exp.term_of) {
+        | Theorem(_, _, e2) => cont(e2)
+        | _ => cont(exp)
+        }
+      },
+    exp,
+  );
 };
