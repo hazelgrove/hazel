@@ -14,14 +14,13 @@ open Language;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
-  | ToggleShowAllVals(int)
-  | NoOp;
+  | ToggleWindowMode
+  | ResetSettings;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sample_base =
     | Calls
-    | Steps
     | StepRange;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -61,8 +60,7 @@ module Settings = {
         ...settings,
         sample_base:
           switch (settings.sample_base) {
-          | Calls => Steps
-          | Steps => StepRange
+          | Calls => StepRange
           | StepRange => Calls
           },
       }
@@ -214,18 +212,7 @@ let abbreviated_seg_of =
   seg_of_exp(utility, abbr_exp);
 };
 
-/* Measure actual font metrics from the #font-specimen element.
- * Falls back to 10.0 if the element isn't available. */
-let font_metrics = (): (float, float) => {
-  switch (JsUtil.get_elem_by_id_opt("font-specimen")) {
-  | Some(specimen) =>
-    let rect = specimen##getBoundingClientRect;
-    let col_width = max(1.0, rect##.right -. rect##.left);
-    let row_height = max(1.0, rect##.bottom -. rect##.top);
-    (col_width, row_height);
-  | None => (10.0, 10.0)
-  };
-};
+let font_metrics = JsUtil.font_metrics_from_specimen;
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
@@ -248,18 +235,8 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
 let length_cls = (length: int): string =>
   if (length > 10) {
     "extra";
-  } else if (length > 9) {
-    "s6";
-  } else if (length > 8) {
-    "s5";
-  } else if (length > 7) {
-    "s4";
-  } else if (length > 6) {
-    "s3";
-  } else if (length > 5) {
-    "s2";
   } else if (length > 4) {
-    "s1";
+    "s" ++ string_of_int(length - 4);
   } else {
     "s0";
   };
@@ -321,41 +298,6 @@ let cursor_clss =
       };
     cursor_class @ level_class;
 
-  | Steps =>
-    let relation =
-      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.sample_cursor, sample);
-    let cursor_class =
-      switch (
-        relation.is_call_cursor,
-        relation.is_call_above_call_cursor,
-        relation.is_below_indicated_call,
-      ) {
-      | (true, _, _) when sample.seq == di.sample_cursor.seq => ["cursor"]
-      | (_, Some(0), _) => ["cursor-caller", "direct"]
-      | (_, Some(_), _) when settings.caller_cutoff == None => [
-          "cursor-caller",
-          "indirect",
-        ]
-      | (_, _, Some(0)) => ["cursor-callee", "direct"]
-      | (_, _, Some(_)) when settings.callee_cutoff == None => [
-          "cursor-callee",
-          "indirect",
-        ]
-      | (_, _, _) => ["cursor-unrelated"]
-      };
-    let level_class =
-      switch (relation.is_before_cursor) {
-      | n when n == 0 => ["level0"]
-      | n when n > 0 =>
-        settings.before_cutoff == None || Some(n) <= settings.before_cutoff
-          ? ["below", "L" ++ string_of_int(n)] : []
-      | n when n < 0 =>
-        settings.after_cutoff == None || Some(- n) <= settings.after_cutoff
-          ? ["above", "L" ++ string_of_int(- n)] : []
-      | _ => []
-      };
-    cursor_class @ level_class;
-
   | StepRange =>
     /* StepRange mode: color samples based on step-range containment
        relative to the focused (cursor) sample. Returns complete class
@@ -412,7 +354,6 @@ module Debug = {
 let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
   | (Some(ap_id), Some(sample)) =>
-    print_endline("actually pinning call");
     parent(
       SampleCursor(
         TogglePin([
@@ -424,11 +365,35 @@ let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
           ...sample.call_stack,
         ]),
       ),
-    );
+    )
   | _ =>
     print_endline("ignoring");
     Effect.Ignore;
   };
+
+/* Find the largest budget whose rendered width fits within target_width.
+ * width_at(b) returns the rendered width for budget b. */
+let find_best_budget = (width_at: int => int, target_width: int): int => {
+  let rec find_upper = (b: int): int =>
+    if (b > 500 || width_at(b) > target_width) {
+      b;
+    } else {
+      find_upper(b * 2 + 1);
+    };
+  let upper = find_upper(max(1, target_width));
+  let rec bisect = (lo: int, hi: int): int =>
+    if (lo >= hi) {
+      lo;
+    } else {
+      let mid = (lo + hi + 1) / 2;
+      if (width_at(mid) <= target_width) {
+        bisect(mid, hi);
+      } else {
+        bisect(lo, mid - 1);
+      };
+    };
+  bisect(target_width, upper);
+};
 
 let value_view =
     (
@@ -474,33 +439,9 @@ let value_view =
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
       let target_width = max(0, goal.col);
-      /* Find the largest budget whose output fits within target_width.
-         By hard cap, output(b) <= b, so target_width always works.
-         But a larger budget may also fit due to budget distribution
-         overhead. Binary search upward for the max fitting budget. */
       let width_at = (b: int): int =>
         abbreviated_seg_of(utility, b, sample.value) |> snd;
-      /* Find upper bound: double from target_width until output exceeds */
-      let rec find_upper = (b: int): int =>
-        if (b > 500 || width_at(b) > target_width) {
-          b;
-        } else {
-          find_upper(b * 2 + 1);
-        };
-      let upper = find_upper(max(1, target_width));
-      /* Binary search between target_width and upper */
-      let rec bisect = (lo: int, hi: int): int =>
-        if (lo >= hi) {
-          lo;
-        } else {
-          let mid = (lo + hi + 1) / 2;
-          if (width_at(mid) <= target_width) {
-            bisect(mid, hi);
-          } else {
-            bisect(lo, mid - 1);
-          };
-        };
-      let budget = bisect(target_width, upper);
+      let budget = find_best_budget(width_at, target_width);
       local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
     };
@@ -527,10 +468,7 @@ let value_view =
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
-      Attr.on_double_click(_ => {
-        Settings.go(ToggleWindow);
-        local(NoOp);
-      }),
+      Attr.on_double_click(_ => local(ToggleWindowMode)),
       Attr.on_pointerdown(evt =>
         Key.meta_held(evt)
           ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
@@ -688,31 +626,6 @@ let get_fn_name_from_statics =
   | _ => None
   };
 
-/* Extract variable names that appear directly as arguments.
- * For Var(x) -> [x]
- * For Tuple([Var(x), expr, Var(y)]) -> [x, y]
- * Unwraps Parens as needed.
- * Used to filter redundant entries from environment display. */
-let get_arg_var_names =
-    (statics: option(Language.Statics.Info.t)): list(string) => {
-  let rec extract_var = (e: Exp.t): option(string) =>
-    switch (e.term) {
-    | Var(name) => Some(name)
-    | Parens(inner) => extract_var(inner)
-    | _ => None
-    };
-  switch (statics) {
-  | Some(InfoExp({term: {term: Ap(_, _, arg), _}, _})) =>
-    switch (arg.term) {
-    | Var(name) => [name]
-    | Parens(inner) => extract_var(inner) |> Option.to_list
-    | Tuple(elements) => List.filter_map(extract_var, elements)
-    | _ => []
-    }
-  | _ => []
-  };
-};
-
 /* Extract per-position variable info from arguments.
  * Returns list(option(string)) where Some(name) means that argument
  * position is a bare variable reference. Used to render "name = value"
@@ -737,6 +650,40 @@ let get_arg_var_info =
   };
 };
 
+/* fn_name span + opening paren, used in call display */
+let fn_header = (fn_name: string): list(Node.t) => [
+  Node.span(~attrs=[Attr.classes(["fn-name"])], [Node.text(fn_name)]),
+  Node.span(~attrs=[Attr.classes(["paren"])], [Node.text("(")]),
+];
+
+/* A single argument row with optional var label, value, and comma/close-paren */
+let arg_row =
+    (~var_info: option(string), ~is_last: bool, rendered: Node.t): Node.t =>
+  div(
+    ~attrs=[Attr.classes(["call-arg-row"])],
+    (
+      switch (var_info) {
+      | Some(name) => [
+          Node.span(
+            ~attrs=[Attr.classes(["arg-name"])],
+            [Node.text(name)],
+          ),
+          Node.text(" = "),
+        ]
+      | None => []
+      }
+    )
+    @ [rendered]
+    @ (is_last ? [] : [Node.text(",")])
+    @ (
+      is_last
+        ? [
+          Node.span(~attrs=[Attr.classes(["paren"])], [Node.text(")")]),
+        ]
+        : []
+    ),
+  );
+
 /* Call display section showing function call with argument values */
 let sample_call_display =
     (
@@ -755,17 +702,12 @@ let sample_call_display =
       let (seg, _) = abbreviated_seg_of(utility, length, exp);
       view_seg(~text_only=false, Sort.Exp, seg);
     };
-    /* Check if arg is a tuple with multiple elements - render multi-line */
     switch (arg_val) {
     | Opaque => [
         div(
           ~attrs=[Attr.classes(["call-display"])],
-          [
-            Node.span(
-              ~attrs=[Attr.classes(["fn-name"])],
-              [Node.text(fn_name)],
-            ),
-            Node.span(~attrs=[Attr.classes(["paren"])], [Node.text("(")]),
+          fn_header(fn_name)
+          @ [
             Node.text({js|⟨fn⟩|js}),
             Node.span(~attrs=[Attr.classes(["paren"])], [Node.text(")")]),
           ],
@@ -774,40 +716,19 @@ let sample_call_display =
     | Val(arg_exp) =>
       switch (arg_exp.term) {
       | Tuple(elements) when List.length(elements) > 1 =>
-        /* Multi-line display for tuple arguments */
         let num_elems = List.length(elements);
         let arg_rows =
           List.mapi(
-            (i, elem) => {
-              let is_last = i == num_elems - 1;
-              let var_label =
-                switch (List.nth_opt(arg_var_info, i)) {
-                | Some(Some(name)) => [
-                    Node.span(
-                      ~attrs=[Attr.classes(["arg-name"])],
-                      [Node.text(name)],
-                    ),
-                    Node.text(" = "),
-                  ]
-                | _ => []
-                };
-              div(
-                ~attrs=[Attr.classes(["call-arg-row"])],
-                var_label
-                @ [render_exp(elem)]
-                @ (is_last ? [] : [Node.text(",")])
-                @ (
-                  is_last
-                    ? [
-                      Node.span(
-                        ~attrs=[Attr.classes(["paren"])],
-                        [Node.text(")")],
-                      ),
-                    ]
-                    : []
-                ),
-              );
-            },
+            (i, elem) =>
+              arg_row(
+                ~var_info=
+                  switch (List.nth_opt(arg_var_info, i)) {
+                  | Some(v) => v
+                  | None => None
+                  },
+                ~is_last=i == num_elems - 1,
+                render_exp(elem),
+              ),
             elements,
           );
         [
@@ -816,23 +737,13 @@ let sample_call_display =
             [
               div(
                 ~attrs=[Attr.classes(["call-header"])],
-                [
-                  Node.span(
-                    ~attrs=[Attr.classes(["fn-name"])],
-                    [Node.text(fn_name)],
-                  ),
-                  Node.span(
-                    ~attrs=[Attr.classes(["paren"])],
-                    [Node.text("(")],
-                  ),
-                ],
+                fn_header(fn_name),
               ),
             ]
             @ arg_rows,
           ),
         ];
       | _ =>
-        /* Single argument - render inline with parens */
         let var_label =
           switch (arg_var_info) {
           | [Some(name)] => [
@@ -847,16 +758,7 @@ let sample_call_display =
         [
           div(
             ~attrs=[Attr.classes(["call-display"])],
-            [
-              Node.span(
-                ~attrs=[Attr.classes(["fn-name"])],
-                [Node.text(fn_name)],
-              ),
-              Node.span(
-                ~attrs=[Attr.classes(["paren"])],
-                [Node.text("(")],
-              ),
-            ]
+            fn_header(fn_name)
             @ var_label
             @ [
               render_exp(arg_exp),
@@ -872,6 +774,16 @@ let sample_call_display =
   | _ => []
   };
 
+/* Filter environment entries: dedup, remove opaques, exclude filter_vars */
+let filtered_env_entries =
+    (~filter_vars: list(string), sample: Sample.t): list(Sample.Env.entry) =>
+  sample.env
+  |> ListUtil.dedup
+  |> Sample.Env.remove_opaques
+  |> List.filter((en: Sample.Env.entry) =>
+       !List.mem(en.binding.name, filter_vars)
+     );
+
 /* Environment section showing variable bindings.
  * filter_vars: variable names to exclude (already shown in call display) */
 let sample_environment =
@@ -883,13 +795,7 @@ let sample_environment =
       utility: utility,
     )
     : list(Node.t) => {
-  let elems =
-    sample.env
-    |> ListUtil.dedup
-    |> Sample.Env.remove_opaques
-    |> List.filter((en: Sample.Env.entry) =>
-         !List.mem(en.binding.name, filter_vars)
-       );
+  let elems = filtered_env_entries(~filter_vars, sample);
   elems == []
     ? []
     : [
@@ -919,14 +825,8 @@ let sample_context_menu =
     )
     : Node.t => {
   /* Get variable names shown in call display to filter from environment */
-  let filter_vars = get_arg_var_names(statics);
-  let env_elems =
-    sample.env
-    |> ListUtil.dedup
-    |> Sample.Env.remove_opaques
-    |> List.filter((en: Sample.Env.entry) =>
-         !List.mem(en.binding.name, filter_vars)
-       );
+  let filter_vars = List.filter_map(Fun.id, get_arg_var_info(statics));
+  let env_elems = filtered_env_entries(~filter_vars, sample);
   let has_env = env_elems != [];
   let has_call = Option.is_some(sample.args);
   div(
@@ -1085,7 +985,7 @@ let ellipsis_view = (local): Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
-      Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
+      Attr.on_double_click(_ => local(ToggleWindowMode)),
     ],
     [text("⋯")],
   );
@@ -1127,7 +1027,7 @@ let empty_status_view =
         Attr.on_pointerdown(
           mv_least_distant_sample(~ap_id, parent, info.dynamics),
         ),
-        Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
+        Attr.on_double_click(_ => local(ToggleWindowMode)),
       ],
       [text("⊖")],
     )
@@ -1234,7 +1134,7 @@ let syntax_str = (utility: utility) =>
   });
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let round_up = (~settings: settings, utility: utility, sample): unit => {
+let round_up = (~settings: settings, utility: utility, sample): int => {
   let (_, cur) =
     abbreviated_seg_of(
       utility,
@@ -1253,11 +1153,11 @@ let round_up = (~settings: settings, utility: utility, sample): unit => {
       target;
     };
   };
-  SampleLength.set(sample.id, find_target(goal));
+  find_target(goal);
 };
 
 let round_down =
-    (~settings: settings, utility: utility, sample: Sample.t): unit => {
+    (~settings: settings, utility: utility, sample: Sample.t): int => {
   let (_, cur) =
     abbreviated_seg_of(
       utility,
@@ -1274,7 +1174,7 @@ let round_down =
       target;
     };
   };
-  SampleLength.set(sample.id, find_target(goal));
+  find_target(goal);
 };
 
 let indicated_sample =
@@ -1298,24 +1198,28 @@ let key_handler =
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Settings.reset_mode();
-    SampleLength.reset();
-    parent(SampleCursor(Reset));
+    Many([local(ResetSettings), parent(SampleCursor(Reset))]);
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Ignore;
   | D("ArrowRight") when key.shift == Down =>
-    switch (indicated_sample(~ap_id, di)) {
-    | Some(sample) => round_up(~settings, utility, sample)
-    | None => ()
-    };
-    Many([local(NoOp), Stop_propagation, Prevent_default]);
+    let effect =
+      switch (indicated_sample(~ap_id, di)) {
+      | Some(sample) =>
+        local(ChangeLength(sample.id, round_up(~settings, utility, sample)))
+      | None => Ignore
+      };
+    Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowLeft") when key.shift == Down =>
-    switch (indicated_sample(~ap_id, di)) {
-    | Some(sample) => round_down(~settings, utility, sample)
-    | None => ()
-    };
-    Many([local(NoOp), Stop_propagation, Prevent_default]);
+    let effect =
+      switch (indicated_sample(~ap_id, di)) {
+      | Some(sample) =>
+        local(
+          ChangeLength(sample.id, round_down(~settings, utility, sample)),
+        )
+      | None => Ignore
+      };
+    Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowRight") =>
     // Prevent_default below stops aggressive horizontal scroll
     Many([
@@ -1330,8 +1234,7 @@ let key_handler =
       Prevent_default,
     ])
   | D(" ") =>
-    Settings.go(ToggleWindow);
-    Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
+    Many([local(ToggleWindowMode), Stop_propagation, Prevent_default])
   | D("p") =>
     /* Pin/Unpin the indicated sample */
     switch (indicated_sample(~ap_id, di), ap_id) {
@@ -1472,11 +1375,13 @@ let offside_view =
     );
   };
 
-let update = (() as m, _info: info, a: action) => {
+let update = ((), _info: info, a: action) => {
   switch (a) {
   | ChangeLength(id, len) => SampleLength.set(id, len)
-  | ToggleShowAllVals(_) => Settings.go(ToggleWindow)
-  | NoOp => m
+  | ToggleWindowMode => Settings.go(ToggleWindow)
+  | ResetSettings =>
+    Settings.reset_mode();
+    SampleLength.reset();
   };
 };
 

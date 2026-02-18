@@ -299,6 +299,18 @@ let prompt = (message: string, default: string): option(string) => {
   |> Option.map(Js.to_string);
 };
 
+/* Measure actual font metrics from the #font-specimen element.
+ * Falls back to 10.0 if the element isn't available. */
+let font_metrics_from_specimen = (): (float, float) =>
+  switch (get_elem_by_id_opt("font-specimen")) {
+  | Some(specimen) =>
+    let rect = specimen##getBoundingClientRect;
+    let col_width = max(1.0, rect##.right -. rect##.left);
+    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    (col_width, row_height);
+  | None => (10.0, 10.0)
+  };
+
 module QueryParams = {
   let get_arguments = (url: Url.url): list((string, string)) =>
     switch (url) {

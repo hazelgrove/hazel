@@ -440,16 +440,12 @@ let settings = (~globals: Globals.t, ~explain_this_inject) => {
         ~action=ToggleWindow,
       ),
       {
-        /* 3-way cycle toggle for sample coloring mode */
+        /* 2-way toggle for sample coloring mode */
         let (icon, tooltip) =
           switch (ProbeProj.Settings.s^.sample_base) {
           | Calls => (
               "\xF0\x9F\x93\x9E",
-              "Color by Calls (click to switch to Steps)",
-            )
-          | Steps => (
-              "\xF0\x9F\x91\xA3",
-              "Color by Steps (click to switch to StepRange)",
+              "Color by Calls (click to switch to StepRange)",
             )
           | StepRange => (
               "\xE2\x8F\xB1",

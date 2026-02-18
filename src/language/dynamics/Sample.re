@@ -431,7 +431,6 @@ module Cursor = {
     relative_level_to_cursor: relative_level,
     is_call_above_call_cursor: option(int),
     is_below_indicated_call: option(int),
-    is_before_cursor: int,
   };
 
   let is_below = ListUtil.suffix_at_depth(~eq=equal_stack_frame);
@@ -496,7 +495,6 @@ module Cursor = {
           this,
         );
       },
-      is_before_cursor: sample.seq - cursor.seq,
     };
   };
 
