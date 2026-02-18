@@ -354,6 +354,13 @@ let pin_call = (ctx: probe_ctx) =>
   | _ => Effect.Ignore
   };
 
+let focus_call = (ctx: probe_ctx) =>
+  switch (Dynamics.Info.is_in(ctx.dynamics)) {
+  | Some(sample) when sample.call_stack != [] =>
+    ctx.parent(SampleCursor(TogglePin(sample.call_stack)))
+  | _ => Effect.Ignore
+  };
+
 /* Find the largest budget whose rendered width fits within target_width.
  * width_at(b) returns the rendered width for budget b. */
 let find_best_budget = (width_at: int => int, target_width: int): int => {
@@ -444,7 +451,9 @@ let value_view =
       ),
       Attr.on_double_click(_ => local(ToggleWindowMode)),
       Attr.on_pointerdown(evt =>
-        Key.meta_held(evt) ? pin_call(ctx) : val_pointerdown(evt)
+        Key.meta_held(evt)
+          ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
+          : val_pointerdown(evt)
       ),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
@@ -483,8 +492,17 @@ let show_pin = (ctx: probe_ctx, sample: Sample.t) => {
   };
 };
 
+let show_focus = (ctx: probe_ctx, sample: Sample.t) =>
+  switch (ctx.ap_id, ctx.dynamics.sample_cursor.pinned_stack) {
+  | (None, Some(pinned_stack)) =>
+    Sample.ids_of_stack(pinned_stack)
+    == Sample.ids_of_stack(sample.call_stack)
+  | _ => false
+  };
+
 let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
-  show_pin(ctx, sample) ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
+  show_pin(ctx, sample) || show_focus(ctx, sample)
+    ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
 /* Generate unique dropdown ID for a sample */
 let dropdown_id = (sample_id: int): string =>
@@ -518,7 +536,24 @@ let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
     ],
     [
       div(~attrs=[Attr.classes(["pin-icon"])], []),
-      text(is_pinned ? "Unpin" : "Pin"),
+      text(is_pinned ? "Unpin this call" : "Pin this call"),
+      span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
+    ],
+  );
+};
+
+let focus_action = (ctx: probe_ctx, sample: Sample.t) => {
+  let is_focused = show_focus(ctx, sample);
+  div(
+    ~attrs=[
+      Attr.classes(
+        ["action-item", "pin-action"] @ (is_focused ? ["pinned"] : []),
+      ),
+      Attr.on_pointerdown(_ => focus_call(ctx)),
+    ],
+    [
+      div(~attrs=[Attr.classes(["pin-icon"])], []),
+      text(is_focused ? "Unpin enclosing call" : "Pin enclosing call"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
     ],
   );
@@ -555,6 +590,12 @@ let sample_context_actions =
         ~attrs=[Attr.classes(["context-actions"])],
         [pin_action(ctx, sample)]
         @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : []),
+      ),
+    ]
+  | None when sample.call_stack != [] => [
+      div(
+        ~attrs=[Attr.classes(["context-actions"])],
+        [focus_action(ctx, sample)],
       ),
     ]
   | None => []
@@ -788,7 +829,8 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
 let sample_view =
     (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
   let hide_env = hide_env(ctx.statics);
-  let has_dropdown = !(hide_env && ctx.ap_id == None);
+  let has_dropdown =
+    !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
   div(
     ~attrs=
       [Attr.classes(["sample"])]
@@ -1027,10 +1069,12 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   | D(" ") =>
     Many([local(ToggleWindowMode), Stop_propagation, Prevent_default])
   | D("p") =>
-    /* Pin/Unpin the indicated sample */
+    /* Pin/Unpin the indicated sample, or Focus/Unfocus for non-ap probes */
     switch (indicated_sample(ctx), ap_id) {
     | (Some(_), Some(_)) =>
       Many([pin_call(ctx), Stop_propagation, Prevent_default])
+    | (Some(_), None) =>
+      Many([focus_call(ctx), Stop_propagation, Prevent_default])
     | _ => Many([Stop_propagation, Prevent_default])
     }
   | D("Enter") =>
