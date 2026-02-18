@@ -15,7 +15,7 @@ Complete the expression step by step:
 2. Press `Tab` or type `in` to drop the `in` delimiter from the backpack
 3. Type `x + 1` as the body of the let expression
 
-The result should evaluate to `2`.|md};
+The result should evaluate to **2**.|md};
     wrapper = true;
     show_report = false;
     version = 2;

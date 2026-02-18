@@ -6,13 +6,13 @@ let exercise : Tutorial.spec =
     title = "Holes";
     module_name = "Tu_Holes";
     prompt =
-      {md|Welcome to Hazel!
+      {md|# Welcome to Hazel!
 
 Hazel is a live functional programming environment where every edit state is a valid program.
 
 Hazel achieves this using `holes`. When part of a program is missing or contains a parse error, Hazel inserts a hole as a placeholder. Holes are displayed as hexagon in the editor and can be evaluated around.
 
-Your goal is to fill the empty hole in the following program to complete the arithmetic expression so that the result is 42.|md};
+Your goal is to fill the empty hole in the following program to complete the arithmetic expression so that the result is **42**.|md};
     wrapper = true;
     show_report = false;
     version = 1;
