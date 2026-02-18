@@ -39,7 +39,6 @@ let rec segment_to_string =
         (
           ~holes=" ",
           ~concave_holes=" ",
-          ~special_folds=false,
           ~projector_to_segment,
           ~refractors: list((Id.t, _))=[],
           ~refractor_seg_to_seg:
@@ -56,7 +55,6 @@ let rec segment_to_string =
          ~projector_to_segment,
          ~refractors,
          ~refractor_seg_to_seg,
-         ~special_folds,
        ),
      )
   |> String.concat("");
@@ -67,7 +65,6 @@ and piece_to_string =
       ~holes: string,
       ~concave_holes: string,
       ~projector_to_segment,
-      ~special_folds,
       ~refractors: list((Id.t, _))=[],
       ~refractor_seg_to_seg:
          (list((Id.t, _)), segment) => (list((Id.t, _)), segment),
@@ -80,7 +77,6 @@ and piece_to_string =
       ~holes,
       ~concave_holes,
       ~projector_to_segment,
-      ~special_folds,
       ~refractors,
       ~refractor_seg_to_seg,
       t,
@@ -89,38 +85,20 @@ and piece_to_string =
   | Grout({shape: Convex, _}) => holes
   | Secondary(w) => Secondary.get_string(w.content)
   | Projector(p) =>
-    if (special_folds) {
-      switch (p.kind) {
-      | ProjectorCore.Kind.Fold => "⋱"
-      | _ =>
-        segment_to_string(
-          ~holes,
-          ~concave_holes,
-          ~projector_to_segment,
-          ~special_folds,
-          ~refractors,
-          ~refractor_seg_to_seg,
-          projector_to_segment(p),
-        )
-      };
-    } else {
-      segment_to_string(
-        ~holes,
-        ~concave_holes,
-        ~projector_to_segment,
-        ~special_folds,
-        ~refractors,
-        ~refractor_seg_to_seg,
-        projector_to_segment(p),
-      );
-    }
+    segment_to_string(
+      ~holes,
+      ~concave_holes,
+      ~projector_to_segment,
+      ~refractors,
+      ~refractor_seg_to_seg,
+      projector_to_segment(p),
+    )
   }
 and tile_to_string =
     (
       ~holes: string,
       ~concave_holes: string,
       ~projector_to_segment,
-      ~special_folds,
       ~refractors: list((Id.t, _))=[],
       ~refractor_seg_to_seg:
          (list((Id.t, _)), segment) => (list((Id.t, _)), segment),
@@ -134,7 +112,6 @@ and tile_to_string =
          ~holes,
          ~concave_holes,
          ~projector_to_segment,
-         ~special_folds,
          ~refractors,
          ~refractor_seg_to_seg,
        ),

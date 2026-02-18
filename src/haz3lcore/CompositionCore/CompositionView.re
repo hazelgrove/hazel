@@ -301,8 +301,19 @@ module Local = {
   };
 
   module Printer = {
-    let convex_char = "?";
-    let concave_char = "~";
+    let fold_abbrev_projector_to_segment = (pr: Base.projector): Segment.t =>
+      switch (pr.kind) {
+      | Fold => [Piece.mk_tile(Form.mk_atom_op(Exp, {|⋱|}), [])]
+      | _ => Triggers.projector_to_invoke(pr)
+      };
+
+    let print_zipper = (z: Zipper.t): string =>
+      Printer.of_zipper(
+        ~holes="?",
+        ~concave_holes="~",
+        ~projector_to_segment=fold_abbrev_projector_to_segment,
+        z,
+      );
 
     let print =
         (editor: Editor.t, agent_context: AgentContext.Model.t): string => {
@@ -310,13 +321,7 @@ module Local = {
       let info_map = Perform.mk_statics(z);
       let node_map = HighLevelNodeMap.build(z, info_map);
       switch (node_map) {
-      | None =>
-        Printer.of_zipper(
-          ~holes=convex_char,
-          ~concave_holes=concave_char,
-          ~special_folds=true,
-          z,
-        )
+      | None => print_zipper(z)
       | Some(node_map) =>
         // Step 1: Expand everything for agent view
         // TODO: Skipping for now. Bottleneck.
@@ -343,12 +348,7 @@ module Local = {
           ViewUtils.collapse_definitions(~z, ~ids=ids_to_collapse, ~info_map);
 
         print_endline("here #3, printing zipper");
-        Printer.of_zipper(
-          ~holes=convex_char,
-          ~concave_holes=concave_char,
-          ~special_folds=true,
-          z',
-        );
+        print_zipper(z');
       };
     };
   };
@@ -357,5 +357,8 @@ module Local = {
 module Public = {
   let print = {
     Local.Printer.print;
+  };
+  let print_zipper = {
+    Local.Printer.print_zipper;
   };
 };
