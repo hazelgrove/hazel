@@ -169,6 +169,9 @@ let mk_translation =
         ),
         mapping,
       );
+    | Omd.Strong(_, d) =>
+      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
+      (List.append(msg, [Node.strong(d)]), mapping);
     | Omd.Soft_break(_) => (List.append(msg, [Node.br()]), mapping)
     | _ => (msg, mapping)
     };
@@ -178,13 +181,30 @@ let mk_translation =
           (doc: Omd.doc, mapping: ColorSteps.t)
           : (list(Node.t), ColorSteps.t) => {
     List.fold_left(
-      ((msg, mapping), elem) => {
+      ((msg, mapping), elem: Omd.block(Omd.attributes)) => {
         switch (elem) {
         | Omd.Paragraph(_, d) =>
           let (inline_nodes, mapping) =
             translate_inline(d, [], mapping, ~inject);
           (List.append(msg, [Node.p(inline_nodes)]), mapping);
-        | Omd.List(_, _, _, items) =>
+        | Omd.Heading(_, level, d) =>
+          let (inline_nodes, mapping) =
+            translate_inline(d, [], mapping, ~inject);
+          let heading_node =
+            switch (level) {
+            | 1 => Node.h1(inline_nodes)
+            | 2 => Node.h2(inline_nodes)
+            | 3 => Node.h3(inline_nodes)
+            | 4 => Node.h4(inline_nodes)
+            | 5 => Node.h5(inline_nodes)
+            | _ => Node.h6(inline_nodes)
+            };
+          (List.append(msg, [heading_node]), mapping);
+        | Omd.Code_block(_, _, code) => (
+            List.append(msg, [Node.pre([Node.code([Node.text(code)])])]),
+            mapping,
+          )
+        | Omd.List(_, list_type, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
@@ -194,7 +214,12 @@ let mk_translation =
               ([], mapping),
               items,
             );
-          (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
+          let list_node =
+            switch (list_type) {
+            | Omd.Ordered(_, _) => Node.ol(bullets)
+            | Omd.Bullet(_) => Node.ul(bullets)
+            };
+          (List.append(msg, [list_node]), mapping);
         | _ => (msg, mapping)
         }
       },
