@@ -130,14 +130,14 @@ triple(10)|hz});
       {md|## Quick Reference
 
 ### Function Definition
-```
+```hazel
 fun n -> n + 1 # Increments n by 1 #
 ```
 
 ### Binding and Calling a Function
-```
+```hazel
 let inc : Int -> Int = fun n -> n + 1 in
-inc(1) # Evaluates to 2 #
+inc(1)
 ```|md};
   }
 
@@ -179,12 +179,12 @@ test answer(10, 2) == 24 end|hz});
       {md|## Quick Reference
 
 ### Multi-Argument Function
-```
+```hazel
 fun (x, y) -> x + y
 ```
 
 ### Binding and Calling
-```
+```hazel
 let add : (Int, Int) -> Int = fun (x, y) -> x + y in
 add(3, 4)
 ```|md};
@@ -318,13 +318,13 @@ The editor below contains `10 |>` with a hole after the pipe. Complete it with a
       {md|## Quick Reference
 
 ### Pipeline Operator
-```
+```hazel
 5 |> (fun x -> x + 1)
 ```
 is equivalent to `(fun x -> x + 1)(5)`
 
 ### Chaining Pipelines
-```
+```hazel
 5 |> fun x -> x + 1 |> fun x -> x * 2
 ```|md};
   }

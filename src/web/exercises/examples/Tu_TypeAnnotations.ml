@@ -128,14 +128,14 @@ Fix the type error by replacing the string `"1"` with the integer `1`. The resul
       {md|## Quick Reference
 
 ### Type Annotation
-```
+```hazel
 (42 : Int)
 ("hello" : String)
 (true : Bool)
 ```
 
 ### Type annotations on patterns
-```
+```hazel
 let x : Int = 42 in
 let y : String = "hello" in
 let z : Bool = true in

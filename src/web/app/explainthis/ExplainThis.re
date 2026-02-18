@@ -200,10 +200,36 @@ let mk_translation =
             | _ => Node.h6(inline_nodes)
             };
           (List.append(msg, [heading_node]), mapping);
-        | Omd.Code_block(_, _, code) => (
-            List.append(msg, [Node.pre([Node.code([Node.text(code)])])]),
-            mapping,
-          )
+        | Omd.Code_block(_, lang, code) =>
+          let code_node =
+            if (String.trim(lang) == "hazel") {
+              switch (Parser.to_zipper(String.trim(code))) {
+              | Some(zipper) =>
+                CellEditor.View.view(
+                  ~globals,
+                  ~signal=_ => Ui_effect.Ignore,
+                  ~inject=_ => Ui_effect.Ignore,
+                  ~selected=None,
+                  ~caption=None,
+                  ~locked=true,
+                  {
+                    zipper
+                    |> Editor.Model.mk
+                    |> CellEditor.Model.mk
+                    |> CellEditor.Update.calculate(
+                         ~settings=globals.settings.core,
+                         ~is_edited=true,
+                         ~stitch=x => x,
+                         ~queue_worker=None,
+                       );
+                  },
+                )
+              | None => Node.pre([Node.code([Node.text(code)])])
+              };
+            } else {
+              Node.pre([Node.code([Node.text(code)])]);
+            };
+          (List.append(msg, [code_node]), mapping);
         | Omd.List(_, list_type, list_spacing, items) =>
           let translate_item = (d, mapping) =>
             switch (list_spacing, d) {

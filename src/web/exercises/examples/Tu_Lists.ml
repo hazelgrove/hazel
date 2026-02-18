@@ -31,7 +31,7 @@ first_four|hz});
       {md|## Quick Reference
 
 ### List Literal
-```
+```hazel
 [1, 2, 3]
 ```
 
@@ -78,15 +78,15 @@ test answer([3]) == [3, 3] end|hz});
       {md|## Quick Reference
 
 ### List Concatenation
-```
+```hazel
 [1, 2] @ [3, 4]
 ```
 evaluates to `[1, 2, 3, 4]`
 
 ### Function Syntax
-```
+```hazel
 let f : [Int] -> [Int] = fun xs -> xs in
-f([1, 2]) # Evaluates to [1, 2] #
+f([1, 2])
 ```|md};
   }
 
@@ -129,7 +129,7 @@ test answer([5]) == [10] end|hz});
       {md|## Quick Reference
 
 ### map
-```
+```hazel
 map([1, 2, 3], fun x -> x + 1)
 ```
 evaluates to `[2, 3, 4]`
@@ -180,7 +180,7 @@ test answer(["hello"]) $== "hello" end|hz});
       {md|## Quick Reference
 
 ### fold_left
-```
+```hazel
 fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)
 ```
 evaluates to `6`
@@ -188,7 +188,7 @@ evaluates to `6`
 `fold_left : ([T], (U, T) -> U, U) -> U`
 
 ### String Concatenation
-```
+```hazel
 "hello" ++ " world"
 ```|md};
   }
