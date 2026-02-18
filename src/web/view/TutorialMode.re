@@ -308,6 +308,7 @@ module Update = {
             model.editors.your_impl,
           ),
         display_hint: model.editors.display_hint,
+        task_reference: model.editors.task_reference,
         hidden_tests: {
           tests:
             calculate(

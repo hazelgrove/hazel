@@ -126,6 +126,19 @@ triple(10)|hz});
         hints = [ "Multiply n by 3." ];
       };
     display_hint = "Complete the function body and apply it";
+    task_reference =
+      {md|## Quick Reference
+
+### Function Definition
+```
+fun n -> n + 1 # Increments n by 1 #
+```
+
+### Binding and Calling a Function
+```
+let inc : Int -> Int = fun n -> n + 1 in
+inc(1) # Evaluates to 2 #
+```|md};
   }
 
 let call_exercise : Tutorial.spec =
@@ -162,6 +175,19 @@ test answer(10, 2) == 24 end|hz});
           ];
       };
     display_hint = "Insert a function with params (width, height) ";
+    task_reference =
+      {md|## Quick Reference
+
+### Multi-Argument Function
+```
+fun (x, y) -> x + y
+```
+
+### Binding and Calling
+```
+let add : (Int, Int) -> Int = fun (x, y) -> x + y in
+add(3, 4)
+```|md};
   }
 
 let pipeline_exercise : Tutorial.spec =
@@ -288,4 +314,17 @@ The editor below contains `10 |>` with a hole after the pipe. Complete it with a
         hints = [ "Type `fun x -> x * 2` after the `|>`." ];
       };
     display_hint = "Complete the pipeline with a doubling function";
+    task_reference =
+      {md|## Quick Reference
+
+### Pipeline Operator
+```
+5 |> (fun x -> x + 1)
+```
+is equivalent to `(fun x -> x + 1)(5)`
+
+### Chaining Pipelines
+```
+5 |> fun x -> x + 1 |> fun x -> x * 2
+```|md};
   }

@@ -82,6 +82,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let task_reference_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=TaskReference,
+    ~cls=["task-reference-button"],
+    ~icon=Icons.info,
+    ~tooltip="Switch to Task Reference",
+    ~globals,
+  );
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -92,7 +101,7 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
   );
 };
 
-let persistent_view = (~globals: Globals.t) =>
+let persistent_view = (~globals: Globals.t, ~task_reference: option(string)) =>
   div(
     ~attrs=[Attr.id("persistent")],
     [
@@ -103,6 +112,7 @@ let persistent_view = (~globals: Globals.t) =>
           assistant_tab(~globals),
           probes_tab(~globals),
         ]
+        @ (task_reference != None ? [task_reference_tab(~globals)] : [])
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
         ),
@@ -196,6 +206,12 @@ let resize_handle = (): Node.t => {
   );
 };
 
+let task_reference_view = (~globals: Globals.t, text: string) => {
+  let (nodes, _) =
+    ExplainThis.mk_translation(~globals, ~inject=_ => (), text);
+  div(~attrs=[clss(["task-reference-panel"])], nodes);
+};
+
 let view =
     (
       ~globals: Globals.t,
@@ -207,6 +223,7 @@ let view =
       ~assistantModel: AssistantModel.t,
       ~log_model: LogSidebar.Model.t,
       ~log_count: int,
+      ~task_reference: option(string),
       ~editor,
       info: option(Language.Info.t),
     ) => {
@@ -245,6 +262,11 @@ let view =
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )
+            | TaskReference =>
+              switch (task_reference) {
+              | Some(text) => task_reference_view(~globals, text)
+              | None => div([text("No task reference available.")])
+              }
             },
           ],
         )
@@ -252,5 +274,8 @@ let view =
         resetElementStyles();
         div([]);
       };
-  div(~attrs=[Attr.id("sidebars")], [sub, persistent_view(~globals)]);
+  div(
+    ~attrs=[Attr.id("sidebars")],
+    [sub, persistent_view(~globals, ~task_reference)],
+  );
 };

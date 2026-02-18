@@ -124,4 +124,24 @@ Fix the type error by replacing the string `"1"` with the integer `1`. The resul
         hints = [ "Replace the string `\"1\"` with the integer `1`." ];
       };
     display_hint = "Fix the type error by using an integer instead of a string";
+    task_reference =
+      {md|## Quick Reference
+
+### Type Annotation
+```
+(42 : Int)
+("hello" : String)
+(true : Bool)
+```
+
+### Type annotations on patterns
+```
+let x : Int = 42 in
+let y : String = "hello" in
+let z : Bool = true in
+(x, y, z)
+```
+
+### Basic Types
+`Int`, `Float`, `Bool`, `String`|md};
   }

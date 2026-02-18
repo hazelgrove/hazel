@@ -30,4 +30,5 @@ test answer end|hz});
         hints = [ "Replace the hole with `22` so that `partial == 42`." ];
       };
     display_hint = "Remove the extra `+` to fix the parse error";
+    task_reference = "";
   }

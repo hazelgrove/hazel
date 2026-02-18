@@ -27,6 +27,16 @@ first_four|hz});
         hints = [ "Enter [0, 1, 2, 3]" ];
       };
     display_hint = "Fill in the list with the first four natural numbers";
+    task_reference =
+      {md|## Quick Reference
+
+### List Literal
+```
+[1, 2, 3]
+```
+
+### List Type
+`[Int]`, `[String]`, `[Bool]`|md};
   }
 
 let concat_exercise : Tutorial.spec =
@@ -64,6 +74,20 @@ test answer([3]) == [3, 3] end|hz});
           ];
       };
     display_hint = "Use the @ operator to concatenate the list with itself";
+    task_reference =
+      {md|## Quick Reference
+
+### List Concatenation
+```
+[1, 2] @ [3, 4]
+```
+evaluates to `[1, 2, 3, 4]`
+
+### Function Syntax
+```
+let f : [Int] -> [Int] = fun xs -> xs in
+f([1, 2]) # Evaluates to [1, 2] #
+```|md};
   }
 
 let map_exercise : Tutorial.spec =
@@ -101,6 +125,16 @@ test answer([5]) == [10] end|hz});
           ];
       };
     display_hint = "Use map with a function that doubles each element";
+    task_reference =
+      {md|## Quick Reference
+
+### map
+```
+map([1, 2, 3], fun x -> x + 1)
+```
+evaluates to `[2, 3, 4]`
+
+`map : ([T], T -> U) -> [U]`|md};
   }
 
 let fold_exercise : Tutorial.spec =
@@ -142,4 +176,19 @@ test answer(["hello"]) $== "hello" end|hz});
           ];
       };
     display_hint = "Use fold_left with ++ to concatenate strings";
+    task_reference =
+      {md|## Quick Reference
+
+### fold_left
+```
+fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)
+```
+evaluates to `6`
+
+`fold_left : ([T], (U, T) -> U, U) -> U`
+
+### String Concatenation
+```
+"hello" ++ " world"
+```|md};
   }

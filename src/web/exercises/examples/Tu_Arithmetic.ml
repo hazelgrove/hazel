@@ -124,6 +124,14 @@ The editor below contains `2 +` with a hole after the `+`. Complete the expressi
         hints = [ "Type `2` after the `+` to complete the expression." ];
       };
     display_hint = "Complete `2 + ⬣` by typing `2`";
+    task_reference =
+      {md|## Quick Reference
+
+### Integer Operators
+- `2 + 3` — addition
+- `5 - 1` — subtraction
+- `4 * 3` — multiplication
+- `10 / 3` — integer division|md};
   }
 
 let float_exercise : Tutorial.spec =
@@ -253,4 +261,20 @@ The editor below contains `3.0 * 2.0`, which uses the *integer* multiplication o
           [ "Use `3.0 *. 2.0` with the float multiplication operator `*.`." ];
       };
     display_hint = "Remember: float operators end with `.`";
+    task_reference =
+      {md|## Quick Reference
+
+### Integer Operators
+- `2 + 3` — addition
+- `5 - 1` — subtraction
+- `4 * 3` — multiplication
+- `10 / 3` — integer division
+
+### Float Operators
+- `2.0 +. 3.0` — addition
+- `5.0 -. 1.0` — subtraction
+- `3.0 *. 2.0` — multiplication
+- `6.0 /. 3.0` — division
+
+Float literals need a decimal point: `3.0`, `1.`, `0.5`|md};
   }

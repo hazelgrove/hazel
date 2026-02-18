@@ -6,7 +6,8 @@ module Settings = {
     | LanguageDocumentation
     | HelpfulAssistant
     | Probes
-    | LogControl;
+    | LogControl
+    | TaskReference;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

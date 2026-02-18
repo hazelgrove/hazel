@@ -137,4 +137,15 @@ y|hz});
         hints = [ "Fill in a value for x, e.g. 5." ];
       };
     display_hint = "Fill in the missing value for x";
+    task_reference =
+      {md|## Quick Reference
+
+### Let Expression
+```
+let x = 5 in
+let y = x + 1 in
+y # Evaluates to 6 #
+```
+
+Variables bound by `let` are available in the body after `in`.|md};
   }
