@@ -130,4 +130,16 @@ The result should evaluate to **2**.|md};
           ];
       };
     display_hint = "Type a let expression and use Tab to complete obligations";
+    task_reference =
+      {md|## Quick Reference
+
+### Let Expression
+```
+let a = 1 in
+a # Evaluates to 1 #
+```
+
+### Backpack
+- **Tab** drops the next obligation from the backpack
+- Typing the delimiter (e.g. `in`) also works|md};
   }

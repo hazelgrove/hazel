@@ -48,4 +48,31 @@ test answer(["0", "0", "6"]) == 2. end|hz});
     display_hint =
       "Convert strings to floats with map, sum with fold_left, then divide by \
        length";
+    task_reference =
+      {md|## Quick Reference
+
+### Syntax Recap
+```
+let x : Int = 5 in
+x + 1
+```
+```
+fun x -> x + 1
+```
+```
+fun (acc, x) -> acc +. x
+```
+
+### List Operations
+- `map : ([T], T -> U) -> [U]` — apply a function to each element
+- `fold_left : ([T], (U, T) -> U, U) -> U` — fold a list from the left
+- `length : [T] -> Int` — return the length of a list
+
+### Float Arithmetic
+- `2.0 +. 3.0` — addition
+- `5.0 -. 1.0` — subtraction
+- `3.0 *. 2.0` — multiplication
+- `6.0 /. 3.0` — division
+
+Float literals need a decimal point: `0.`, `1.0`, `3.14`|md};
   }

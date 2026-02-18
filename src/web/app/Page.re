@@ -700,6 +700,14 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
+    let task_reference: option(string) =
+      switch (model.editors) {
+      | Tutorial(m) =>
+        let c = TutorialsMode.Model.get_current(m);
+        c.editors.task_reference == ""
+          ? None : Some(c.editors.task_reference);
+      | _ => None
+      };
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -713,6 +721,7 @@ module View = {
         ~assistantModel,
         ~log_model,
         ~log_count,
+        ~task_reference,
         ~editor=Update.get_editor(model),
         cursor.info,
       );

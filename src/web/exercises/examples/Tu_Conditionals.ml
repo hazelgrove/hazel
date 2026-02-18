@@ -129,6 +129,16 @@ The result should evaluate to `10`.|md};
         hints = [ "Type `10`, then Tab, then `20`." ];
       };
     display_hint = "";
+    task_reference =
+      {md|## Quick Reference
+
+### If Expression
+```
+if 3 < 5 then 10 else 20
+```
+
+### Comparison Operators
+- `<`, `>`, `<=`, `>=`, `==`|md};
   }
 
 let case_exercise : Tutorial.spec =
@@ -265,4 +275,17 @@ The result should be `20`.|md};
         hints = [ "Type `| 2 => 20 | _ => 0` then Tab to drop `end`." ];
       };
     display_hint = "Add pattern branches and drop `end` from backpack";
+    task_reference =
+      {md|## Quick Reference
+
+### Case Expression
+```
+case x
+| 0 => "zero"
+| 1 => "one"
+| _ => "other"
+end
+```
+
+`_` is a wildcard that matches anything.|md};
   }

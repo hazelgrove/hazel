@@ -118,6 +118,16 @@ select {
   width: 100%;
 }
 
+.task-reference-panel {
+  display: flex;
+  flex: 1;
+  padding: 1em;
+  flex-direction: column;
+  overflow-y: auto;
+  gap: 0.5em;
+  overflow-x: hidden;
+}
+
 #top-bar {
   grid-row: 1 / span 1;
   grid-column: 1 / span 2;
