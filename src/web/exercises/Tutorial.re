@@ -483,10 +483,46 @@ let blank_spec = (~title) => {
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_tutorial_mode = list((pos, PersistentZipper.t));
+// Update functions for instructor editing
+let update_title = ({eds, _}: state, new_title: string) => {
+  eds: {
+    ...eds,
+    title: new_title,
+  },
+};
 
-let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
+let update_prompt = ({eds}: state, new_prompt: string) => {
+  eds: {
+    ...eds,
+    prompt: new_prompt,
+  },
+};
+
+let update_display_hint = ({eds}: state, new_hint: string) => {
+  eds: {
+    ...eds,
+    display_hint: new_hint,
+  },
+};
+
+let update_task_reference = ({eds}: state, new_ref: string) => {
+  eds: {
+    ...eds,
+    task_reference: new_ref,
+  },
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_tutorial_mode = {
+  editors: list((pos, PersistentZipper.t)),
+  prompt: string,
+  title: string,
+  display_hint: string,
+  task_reference: string,
+};
+
+let unpersist = (~instructor_mode, persistent, spec: spec): spec => {
+  let positioned_zippers = persistent.editors;
   let lookup = (pos, default) =>
     if (visible_in(pos, ~instructor_mode)) {
       positioned_zippers
@@ -500,12 +536,14 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
   let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
   {
     id: spec.id,
-    title: spec.title,
+    title: instructor_mode ? persistent.title : spec.title,
     version: spec.version,
     module_name: spec.module_name,
-    prompt: spec.prompt,
-    display_hint: spec.display_hint,
-    task_reference: spec.task_reference,
+    prompt: instructor_mode ? persistent.prompt : spec.prompt,
+    display_hint:
+      instructor_mode ? persistent.display_hint : spec.display_hint,
+    task_reference:
+      instructor_mode ? persistent.task_reference : spec.task_reference,
     wrapper: spec.wrapper,
     show_report: spec.show_report,
     your_impl,
