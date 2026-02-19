@@ -170,5 +170,47 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "string_sub",
+      `Quick,
+      () => {
+        evaluation_test(
+          {|string_sub(("hazel", 1, 3))|},
+          string("aze"),
+          ap(
+            Forward,
+            builtin_fun("string_sub"),
+            tuple([string("hazel"), int(1), int(3)]),
+          ),
+        );
+        evaluation_test(
+          {|string_sub(("hazel", 0, 3))|},
+          string("haz"),
+          ap(
+            Forward,
+            builtin_fun("string_sub"),
+            tuple([string("hazel"), int(0), int(3)]),
+          ),
+        );
+        evaluation_test(
+          {|string_sub(("hazel", 0, 20))|},
+          string("hazel"),
+          ap(
+            Forward,
+            builtin_fun("string_sub"),
+            tuple([string("hazel"), int(0), int(20)]),
+          ),
+        );
+        evaluation_test(
+          {|string_sub(("hazel", 20, 3))|},
+          string(""),
+          ap(
+            Forward,
+            builtin_fun("string_sub"),
+            tuple([string("hazel"), int(20), int(3)]),
+          ),
+        );
+      },
+    ),
   ],
 );
