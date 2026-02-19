@@ -175,7 +175,8 @@ module View = {
       ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
     Node.div(
       ~attrs=[Attr.classes(container_classes)],
-      [code_text_view, error_decos, warning_decos] @ overlays,
+      // errors after warnings to prioritize errors over warnings
+      [code_text_view, warning_decos, error_decos] @ overlays,
     );
   };
 };
