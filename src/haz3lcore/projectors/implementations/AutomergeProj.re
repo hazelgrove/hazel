@@ -214,9 +214,8 @@ module M: Projector = {
     };
   let dynamics = false;
 
-  let placeholder = (_m, info) => {
-    let url = get_url(info);
-    let url_len = String.length(url);
+  let placeholder = (m, _info) => {
+    let url_len = String.length(m.url);
     /* 19 = placeholder text length; +3 for status indicator + padding */
     let display_len = max(19, url_len);
     ProjectorCore.Shape.inline(display_len + 3);
