@@ -11,6 +11,7 @@ type key =
   | Documentation
   | Tutorial(Haz3lcore.Id.t)
   | CurrentTutorial
+  | TutorialSpecs
   | CurrentExercise
   | Exercise(Haz3lcore.Id.t);
 
@@ -24,6 +25,7 @@ let key_to_string =
   | Documentation => "SAVE_DOCUMENTATION"
   | Tutorial(id) => Haz3lcore.Id.to_string(id)
   | CurrentTutorial => "CUR_TUTORIAL"
+  | TutorialSpecs => "TUTORIAL_SPECS"
   | CurrentExercise => "CUR_EXERCISE"
   | Exercise(id) => "TUTORIAL" ++ Haz3lcore.Id.to_string(id);
 

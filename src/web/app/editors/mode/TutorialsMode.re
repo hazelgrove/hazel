@@ -7,12 +7,15 @@ module Model = {
   type t = {
     current: int,
     exercises: list(TutorialMode.Model.t),
+    custom_specs: list(Tutorial.spec),
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
     cur_exercise: Haz3lcore.Id.t,
     exercise_data: list((Haz3lcore.Id.t, TutorialMode.Model.persistent)),
+    custom_specs: list(Tutorial.spec),
   };
+  let all_lessons = custom_specs => TutorialSettings.lessons @ custom_specs;
   let persist = (~instructor_mode, model): persistent => {
     {
       cur_exercise: List.nth(model.exercises, model.current).editors.id,
@@ -25,25 +28,40 @@ module Model = {
             ),
           model.exercises,
         ),
+      custom_specs: model.custom_specs,
     };
   };
   let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
+    let lessons = all_lessons(persistent.custom_specs);
     let exercises =
-      List.map2(
-        TutorialMode.Model.unpersist(~settings, ~instructor_mode),
-        persistent.exercise_data |> List.map(snd),
-        TutorialSettings.lessons,
+      List.map(
+        (spec: Tutorial.spec) => {
+          let persisted = List.assoc_opt(spec.id, persistent.exercise_data);
+          switch (persisted) {
+          | Some(data) =>
+            TutorialMode.Model.unpersist(
+              ~settings,
+              ~instructor_mode,
+              data,
+              spec,
+            )
+          | None =>
+            TutorialMode.Model.of_spec(~settings, ~instructor_mode, spec)
+          };
+        },
+        lessons,
       );
     let current =
       ListUtil.findi_opt(
         (spec: Tutorial.spec) => spec.id == persistent.cur_exercise,
-        TutorialSettings.lessons,
+        lessons,
       )
       |> Option.map(fst)
       |> Option.value(~default=0);
     {
       current,
       exercises,
+      custom_specs: persistent.custom_specs,
     };
   };
   let get_current = (m: t) => List.nth(m.exercises, m.current);
@@ -57,6 +75,26 @@ module StoreTutorialKey =
     let key = Store.CurrentTutorial;
   });
 module Store = {
+  module StoreCustomSpecs = {
+    let key_string = Store.key_to_string(Store.TutorialSpecs);
+    let save = (specs: list(Tutorial.spec)): unit => {
+      let data =
+        specs |> [%sexp_of: list(Tutorial.spec)] |> Sexplib.Sexp.to_string;
+      JsUtil.set_localstore(key_string, data);
+    };
+    let load = (): list(Tutorial.spec) =>
+      switch (JsUtil.get_localstore(key_string)) {
+      | None =>
+        save([]);
+        [];
+      | Some(data) =>
+        try(data |> Sexplib.Sexp.of_string |> [%of_sexp: list(Tutorial.spec)]) {
+        | _ =>
+          print_endline("Could not deserialize TUTORIAL_SPECS.");
+          [];
+        }
+      };
+  };
   let keystring_of_key = key => {
     key |> Haz3lcore.Id.to_string;
   };
@@ -97,13 +135,14 @@ module Store = {
   let save = (model: Model.t, ~instructor_mode) => {
     let exercise = List.nth(model.exercises, model.current);
     save_exercise(exercise, ~instructor_mode);
-    let key =
-      List.nth(TutorialSettings.lessons, model.current) |> Tutorial.id_of;
+    let key = exercise.editors.id;
     StoreTutorialKey.save(key);
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise_export = Model.persistent;
   let load = (~settings, ~instructor_mode): Model.persistent => {
+    let custom_specs = StoreCustomSpecs.load();
+    let lessons = Model.all_lessons(custom_specs);
     let cur_exercise = StoreTutorialKey.load();
     let exercise_data =
       List.map(
@@ -111,14 +150,17 @@ module Store = {
           let key = Tutorial.id_of(spec);
           (key, load_exercise(~settings, key, spec, ~instructor_mode));
         },
-        TutorialSettings.lessons,
+        lessons,
       );
     {
       cur_exercise,
       exercise_data,
+      custom_specs,
     };
   };
-  let export = (~settings, ~instructor_mode) =>
+  let export = (~settings, ~instructor_mode) => {
+    let custom_specs = StoreCustomSpecs.load();
+    let lessons = Model.all_lessons(custom_specs);
     {
       cur_exercise: StoreTutorialKey.load(),
       exercise_data:
@@ -127,36 +169,46 @@ module Store = {
             let key = Tutorial.id_of(spec);
             (key, load_exercise(~settings, key, spec, ~instructor_mode));
           },
-          TutorialSettings.lessons,
+          lessons,
         ),
+      custom_specs,
     }
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
+  };
 
   let import = (~settings, data, ~tutorial_specs, ~instructor_mode) => {
     let exercise_export =
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreTutorialKey.save(exercise_export.cur_exercise);
+    StoreCustomSpecs.save(exercise_export.custom_specs);
+    let all_specs =
+      Model.all_lessons(exercise_export.custom_specs)
+      @ tutorial_specs
+      |> List.sort_uniq((a: Tutorial.spec, b: Tutorial.spec) =>
+           compare(a.id, b.id)
+         );
     List.iter(
       ((key, value)) => {
-        let n =
-          ListUtil.findi_opt(
-            spec => Tutorial.id_of(spec) == key,
-            tutorial_specs,
+        let spec_opt =
+          List.find_opt(
+            (spec: Tutorial.spec) => Tutorial.id_of(spec) == key,
+            all_specs,
+          );
+        switch (spec_opt) {
+        | Some(spec) =>
+          save_exercise(
+            value
+            |> TutorialMode.Model.unpersist(
+                 ~settings,
+                 ~instructor_mode,
+                 _,
+                 spec,
+               ),
+            ~instructor_mode,
           )
-          |> Option.get
-          |> fst;
-        let spec = List.nth(tutorial_specs, n);
-        save_exercise(
-          value
-          |> TutorialMode.Model.unpersist(
-               ~settings,
-               ~instructor_mode,
-               _,
-               spec,
-             ),
-          ~instructor_mode,
-        );
+        | None => ()
+        };
       },
       exercise_export.exercise_data,
     );
@@ -164,6 +216,7 @@ module Store = {
 
   let reset = (~settings, ~instructor_mode) => {
     let _ = StoreTutorialKey.reset();
+    StoreCustomSpecs.save([]);
     List.iter(
       spec => {
         let _ = init_exercise(~settings, spec, ~instructor_mode);
@@ -181,7 +234,9 @@ module Update = {
     | Tutorial(TutorialMode.Update.t)
     | ExportModule
     | ExportSubmission
-    | ExportTransitionary;
+    | ExportTransitionary
+    | AddTutorial
+    | DeleteTutorial;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -190,6 +245,8 @@ module Update = {
     | ExportModule => false
     | ExportSubmission => false
     | ExportTransitionary => false
+    | AddTutorial => true
+    | DeleteTutorial => true
     };
   };
 
@@ -229,6 +286,7 @@ module Update = {
           (model.current + 1 + List.length(model.exercises))
           mod List.length(model.exercises),
         exercises: model.exercises,
+        custom_specs: model.custom_specs,
       }
       |> return
     | Tutorial(TutorialMode.Update.MoveToPrevExercise) =>
@@ -237,6 +295,7 @@ module Update = {
           (model.current - 1 + List.length(model.exercises))
           mod List.length(model.exercises),
         exercises: model.exercises,
+        custom_specs: model.custom_specs,
       }
       |> return
 
@@ -254,11 +313,13 @@ module Update = {
       Model.{
         current: model.current,
         exercises: new_exercises,
+        custom_specs: model.custom_specs,
       };
     | SwitchExercise(n) =>
       Model.{
         current: n,
         exercises: model.exercises,
+        custom_specs: model.custom_specs,
       }
       |> return
     | ExportModule =>
@@ -273,6 +334,68 @@ module Update = {
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_transitionary(model);
       model |> return_quiet;
+    | AddTutorial =>
+      let title = JsUtil.prompt("Enter tutorial title:", "New Tutorial");
+      switch (title) {
+      | None => model |> return_quiet
+      | Some(title) =>
+        let new_spec = Tutorial.blank_spec(~title);
+        let new_custom_specs = model.custom_specs @ [new_spec];
+        Store.StoreCustomSpecs.save(new_custom_specs);
+        let new_exercise =
+          TutorialMode.Model.of_spec(
+            ~settings=globals.settings.core,
+            ~instructor_mode=globals.settings.instructor_mode,
+            new_spec,
+          );
+        Store.save_exercise(
+          new_exercise,
+          ~instructor_mode=globals.settings.instructor_mode,
+        );
+        Model.{
+          current: List.length(model.exercises),
+          exercises: model.exercises @ [new_exercise],
+          custom_specs: new_custom_specs,
+        }
+        |> return;
+      };
+    | DeleteTutorial =>
+      let current_id = List.nth(model.exercises, model.current).editors.id;
+      let is_custom =
+        List.exists(
+          (spec: Tutorial.spec) => Tutorial.id_of(spec) == current_id,
+          model.custom_specs,
+        );
+      if (!is_custom) {
+        // TODO We need a way to unify the stuff that ships and the stuff that's custom
+        model |> return_quiet;
+      } else {
+        let confirmed =
+          JsUtil.confirm(
+            "Are you SURE you want to delete this tutorial? This cannot be undone.",
+          );
+        if (confirmed) {
+          let new_custom_specs =
+            List.filter(
+              (spec: Tutorial.spec) => Tutorial.id_of(spec) != current_id,
+              model.custom_specs,
+            );
+          let new_exercises =
+            ListUtil.remove_nth(model.current, model.exercises)
+            |> Option.value(~default=model.exercises);
+          let new_current =
+            min(model.current, List.length(new_exercises) - 1);
+          Store.StoreCustomSpecs.save(new_custom_specs);
+          Model.{
+            current: new_current,
+            exercises: new_exercises,
+            custom_specs: new_custom_specs,
+          }
+          |> return;
+        } else {
+          model |> return_quiet;
+        };
+      };
     };
   };
   let calculate =
@@ -287,6 +410,7 @@ module Update = {
     Model.{
       current: model.current,
       exercises: ListUtil.put_nth(model.current, exercise, model.exercises),
+      custom_specs: model.custom_specs,
     };
   };
 };
@@ -460,7 +584,7 @@ module View = {
       ~instructor_mode=globals.settings.instructor_mode,
     )
     @ EditorModeView.view(
-        ~edit_buttons=false,
+        ~edit_buttons=globals.settings.instructor_mode,
         ~nav_buttons=true,
         ~signal=
           fun
@@ -478,9 +602,9 @@ module View = {
                 mod List.length(model.exercises),
               ),
             )
-          | Add
-          | Rename
-          | Delete => Ui_effect.Ignore,
+          | Add => inject(AddTutorial)
+          | Delete => inject(DeleteTutorial)
+          | Rename => Ui_effect.Ignore,
         ~indicator=
           EditorModeView.indicator_select(
             ~signal=i => inject(SwitchExercise(i)),
