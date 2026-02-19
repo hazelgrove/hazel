@@ -490,39 +490,89 @@ module ImplGradingReport = {
     };
   };
 
-  let individual_report = (i, ~signal_jump, ~hint: string, ~status, (id, _)) =>
-    div(
-      ~attrs=[
-        Attr.classes(["test-report"]),
-        Attr.on_click(_ => signal_jump(id)),
-      ],
-      [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-id",
-              "Test" ++ TestStatus.to_string(status),
-            ]),
-          ],
-          /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(i + 1))],
-        ),
-      ]
-      @ [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-hint",
-              "test-instance",
-              TestStatus.to_string(status),
-            ]),
-          ],
-          [text(hint)],
-        ),
-      ],
-    );
+  let individual_report =
+      (
+        i,
+        ~signal_jump,
+        ~hint: string,
+        ~status,
+        (id, _),
+        ~editing_impl_grd_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) =>
+    if (globals.settings.instructor_mode && editing_impl_grd_rep) {
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          Attr.on_click(_ => signal_jump(id)),
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+        ]
+        @ [
+          label([text("Hint: ")]),
+          input(
+            ~attrs=[
+              Attr.classes(["test-hint", "test-instance"]),
+              Attr.id("tutorial-impl-hint-input-" ++ string_of_int(i)),
+              Attr.value(hint),
+              Attr.on_focus(_ => select_textbox),
+            ],
+            (),
+          ),
+        ],
+      );
+    } else {
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          Attr.on_click(_ => signal_jump(id)),
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+        ]
+        @ [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-hint",
+                "test-instance",
+                TestStatus.to_string(status),
+              ]),
+            ],
+            [text(hint)],
+          ),
+        ],
+      );
+    };
 
-  let individual_reports = (~signal_jump, ~report) => {
+  let individual_reports =
+      (
+        ~signal_jump,
+        ~report,
+        ~editing_impl_grd_rep,
+        ~globals,
+        ~select_textbox,
+      ) => {
     switch (report.test_results) {
     | Some(test_results)
         when
@@ -539,6 +589,9 @@ module ImplGradingReport = {
                ~hint,
                ~status,
                List.nth(test_results.test_map, i),
+               ~editing_impl_grd_rep,
+               ~globals,
+               ~select_textbox,
              )
            ),
       )
@@ -547,15 +600,32 @@ module ImplGradingReport = {
   };
 
   // HiddenTests
-  let view = (~signal_jump, ~report: t, ~max_points: int) => {
+  let view =
+      (
+        ~globals: Globals.t,
+        ~editing_impl_grd_rep,
+        ~signal_jump,
+        ~inject_set_editing_impl_grd_rep,
+        ~inject_update_impl_grd_hints,
+        ~select_textbox,
+        ~report: t,
+        ~max_points: int,
+      ) => {
+    let subcaption =
+      globals.settings.instructor_mode
+        ? ": Hidden Tests vs. Student's Implementation"
+        : ": Hidden Tests vs. Your Implementation";
     CellCommon.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
-        CellCommon.caption(
-          "Implementation Grading",
-          ~rest=": Hidden Tests vs. Your Implementation",
+        CellCommon.caption("Implementation Grading", ~rest=subcaption),
+        individual_reports(
+          ~signal_jump,
+          ~report,
+          ~editing_impl_grd_rep,
+          ~globals,
+          ~select_textbox,
         ),
-        individual_reports(~signal_jump, ~report),
       ],
       ~footer=
         Some(
@@ -563,15 +633,82 @@ module ImplGradingReport = {
             div(
               ~attrs=[Attr.classes(["test-summary"])],
               [
-                div(
-                  ~attrs=[Attr.class_("test-text")],
-                  [
-                    score_view(
-                      score_of_percent(percentage(report), max_points),
+                globals.settings.instructor_mode
+                  ? editing_impl_grd_rep
+                      ? div(
+                          ~attrs=[Attr.class_("test-text")],
+                          [
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(
+                                  Icons.confirm,
+                                  _ => {
+                                    let new_hints =
+                                      List.init(
+                                        List.length(report.hinted_results), i =>
+                                        Obj.magic(
+                                          Js_of_ocaml.Js.some(
+                                            JsUtil.get_elem_by_id(
+                                              "tutorial-impl-hint-input-"
+                                              ++ string_of_int(i),
+                                            ),
+                                          ),
+                                        )##.value
+                                      );
+
+                                    let update_events = [
+                                      inject_set_editing_impl_grd_rep,
+                                      inject_update_impl_grd_hints(new_hints),
+                                    ];
+                                    Virtual_dom.Vdom.Effect.Many(
+                                      update_events,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(Icons.cancel, _ =>
+                                  inject_set_editing_impl_grd_rep
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      : div(
+                          ~attrs=[Attr.class_("test-text")],
+                          [
+                            score_view(
+                              score_of_percent(
+                                percentage(report),
+                                max_points,
+                              ),
+                            ),
+                          ]
+                          @ textual_summary(report)
+                          @ [
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(Icons.pencil, _ =>
+                                  inject_set_editing_impl_grd_rep
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                  : div(
+                      ~attrs=[Attr.class_("test-text")],
+                      [
+                        score_view(
+                          score_of_percent(percentage(report), max_points),
+                        ),
+                      ]
+                      @ textual_summary(report),
                     ),
-                  ]
-                  @ textual_summary(report),
-                ),
               ]
               @ Option.to_list(
                   report.test_results

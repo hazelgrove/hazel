@@ -12,6 +12,7 @@ module Model = {
     editing_prompt: bool,
     editing_display_hint: bool,
     editing_task_reference: bool,
+    editing_impl_grd_rep: bool,
   };
 
   let editing_flags_false = {
@@ -19,6 +20,7 @@ module Model = {
     editing_prompt: false,
     editing_display_hint: false,
     editing_task_reference: false,
+    editing_impl_grd_rep: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -64,6 +66,7 @@ module Model = {
       title: exercise.editors.title,
       display_hint: exercise.editors.display_hint,
       task_reference: exercise.editors.task_reference,
+      hidden_test_hints: exercise.editors.hidden_tests.hints,
     };
   };
 
@@ -117,10 +120,12 @@ module Update = {
     | EditingPrompt
     | EditingDisplayHint
     | EditingTaskReference
+    | EditingImplGrdRep
     | UpdateTitle(string)
     | UpdatePrompt(string)
     | UpdateDisplayHint(string)
-    | UpdateTaskReference(string);
+    | UpdateTaskReference(string)
+    | UpdateImplGrdHints(list(string));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -167,6 +172,14 @@ module Update = {
           editing_task_reference: !model.editing_flags.editing_task_reference,
         },
       })
+    | EditingImplGrdRep =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_impl_grd_rep: !model.editing_flags.editing_impl_grd_rep,
+        },
+      })
     | UpdateTitle(title) =>
       Updated.return_quiet(
         {
@@ -191,6 +204,12 @@ module Update = {
         ...model,
         editors:
           Tutorial.update_task_reference({eds: model.editors}, ref_).eds,
+      })
+    | UpdateImplGrdHints(hints) =>
+      Updated.return({
+        ...model,
+        editors:
+          Tutorial.update_hidden_test_hints({eds: model.editors}, hints).eds,
       })
     };
 
@@ -1005,6 +1024,8 @@ module View = {
         div([checkmark_view]);
       } else if (test_count > 1) {
         TutorialGrading.ImplGradingReport.view(
+          ~globals,
+          ~editing_impl_grd_rep=editing_flags.editing_impl_grd_rep,
           ~signal_jump=
             id =>
               inject(
@@ -1013,6 +1034,11 @@ module View = {
                   MainEditor(Perform(Move(Goal(TileId(id))))),
                 ),
               ),
+          ~inject_set_editing_impl_grd_rep=
+            inject(Instructor(EditingImplGrdRep)),
+          ~inject_update_impl_grd_hints=
+            hints => inject(Instructor(UpdateImplGrdHints(hints))),
+          ~select_textbox=signal(MakeActive(TextBox)),
           ~report=grading_report.impl_grading_report,
           ~max_points=1,
         );
@@ -1048,6 +1074,8 @@ module View = {
                 ),
                 eds.show_report
                   ? TutorialGrading.ImplGradingReport.view(
+                      ~globals,
+                      ~editing_impl_grd_rep=editing_flags.editing_impl_grd_rep,
                       ~signal_jump=
                         id =>
                           inject(
@@ -1056,6 +1084,12 @@ module View = {
                               MainEditor(Perform(Move(Goal(TileId(id))))),
                             ),
                           ),
+                      ~inject_set_editing_impl_grd_rep=
+                        inject(Instructor(EditingImplGrdRep)),
+                      ~inject_update_impl_grd_hints=
+                        hints =>
+                          inject(Instructor(UpdateImplGrdHints(hints))),
+                      ~select_textbox=signal(MakeActive(TextBox)),
                       ~report=grading_report.impl_grading_report,
                       ~max_points=1,
                     )
