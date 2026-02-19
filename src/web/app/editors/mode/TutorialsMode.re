@@ -195,11 +195,9 @@ module Update = {
 
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
-    let module_name = exercise.editors.module_name;
     let filename = exercise.editors.module_name ++ ".ml";
     let content_type = "text/plain";
-    let contents =
-      Tutorial.export_module(module_name, {eds: exercise.editors});
+    let contents = Tutorial.export_module({eds: exercise.editors});
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
   let export_submission = (~globals: Globals.t) =>
@@ -215,14 +213,10 @@ module Update = {
   let export_transitionary = (exercises: Model.t) => {
     let exercise = Model.get_current(exercises);
     // .ml files because show uses OCaml syntax (dune handles seamlessly)
-    let module_name = exercise.editors.module_name;
     let filename = exercise.editors.module_name ++ ".ml";
     let content_type = "text/plain";
     let contents =
-      Tutorial.export_transitionary_module(
-        module_name,
-        {eds: exercise.editors},
-      );
+      Tutorial.export_transitionary_module({eds: exercise.editors});
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 

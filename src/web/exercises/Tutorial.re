@@ -428,16 +428,13 @@ let pos_of_key = (key: string): pos =>
 
 let editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
+  let zipper = Zipper.update_refractors(zipper, Refractors.for_serialization);
   let serialization = Zipper.show(zipper);
   Format.pp_print_string(fmt, serialization);
 };
 
-let export_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = ";
+let export_module = ({eds, _}: state) => {
+  let prefix = "let exercise : Tutorial.spec =\n";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;
@@ -449,12 +446,10 @@ let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 
-let export_transitionary_module = (module_name, {eds, _}: state) => {
+let export_transitionary_module = ({eds, _}: state) => {
   let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = Exercise.transition(";
+    "open Haz3lcore\n\n"
+    ++ "let exercise : Tutorial.spec = Tutorial.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
   data;
@@ -512,6 +507,16 @@ let update_task_reference = ({eds}: state, new_ref: string) => {
   },
 };
 
+let update_hidden_test_hints = ({eds}: state, new_hints: list(string)) => {
+  eds: {
+    ...eds,
+    hidden_tests: {
+      ...eds.hidden_tests,
+      hints: new_hints,
+    },
+  },
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_tutorial_mode = {
   editors: list((pos, PersistentZipper.t)),
@@ -519,6 +524,7 @@ type persistent_tutorial_mode = {
   title: string,
   display_hint: string,
   task_reference: string,
+  hidden_test_hints: list(string),
 };
 
 let unpersist = (~instructor_mode, persistent, spec: spec): spec => {
@@ -549,7 +555,9 @@ let unpersist = (~instructor_mode, persistent, spec: spec): spec => {
     your_impl,
     hidden_tests: {
       tests: hidden_tests_tests,
-      hints: spec.hidden_tests.hints,
+      hints:
+        instructor_mode
+          ? persistent.hidden_test_hints : spec.hidden_tests.hints,
     },
   };
 };
