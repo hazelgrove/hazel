@@ -7,6 +7,21 @@ open Util;
 /* This file follows conventions in [docs/ui-architecture.md] */
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type editing_flags = {
+    editing_title: bool,
+    editing_prompt: bool,
+    editing_display_hint: bool,
+    editing_task_reference: bool,
+  };
+
+  let editing_flags_false = {
+    editing_title: false,
+    editing_prompt: false,
+    editing_display_hint: false,
+    editing_task_reference: false,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     spec: Tutorial.spec, // The spec that the model will be reset to on ResetExercise
     /* We keep a separate editors field below (even though each cell technically also has its own editor)
@@ -15,6 +30,7 @@ module Model = {
          2. The editors need to be `stitched` together before any cell calculations can be done */
     editors: Tutorial.p(Editor.t),
     cells: Tutorial.stitched(CellEditor.Model.t),
+    editing_flags,
   };
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
     let editors = Tutorial.map(spec, Editor.Model.mk, Editor.Model.mk);
@@ -28,24 +44,32 @@ module Model = {
       spec,
       editors,
       cells,
+      editing_flags: editing_flags_false,
     };
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = Tutorial.persistent_tutorial_mode;
 
   let persist = (exercise: t, ~instructor_mode: bool) => {
-    Tutorial.positioned_editors(exercise.editors)
-    |> List.filter(((pos, _)) =>
-         Tutorial.visible_in(pos, ~instructor_mode)
-       )
-    |> List.map(((pos, editor: Editor.t)) =>
-         (pos, editor.state.zipper |> PersistentZipper.persist)
-       );
+    Tutorial.{
+      editors:
+        Tutorial.positioned_editors(exercise.editors)
+        |> List.filter(((pos, _)) =>
+             Tutorial.visible_in(pos, ~instructor_mode)
+           )
+        |> List.map(((pos, editor: Editor.t)) =>
+             (pos, editor.state.zipper |> PersistentZipper.persist)
+           ),
+      prompt: exercise.editors.prompt,
+      title: exercise.editors.title,
+      display_hint: exercise.editors.display_hint,
+      task_reference: exercise.editors.task_reference,
+    };
   };
 
-  let unpersist = (~instructor_mode, positioned_zippers, spec) => {
-    let spec = Tutorial.unpersist(~instructor_mode, positioned_zippers, spec);
-    of_spec(~instructor_mode, spec);
+  let unpersist = (~settings, ~instructor_mode, persistent, spec) => {
+    let spec = Tutorial.unpersist(~instructor_mode, persistent, spec);
+    of_spec(~settings, ~instructor_mode, spec);
   };
 
   let all_tests_passed = (exercise: t) => {
@@ -86,6 +110,18 @@ module Model = {
 
 module Update = {
   open Updated;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type instructor =
+    | EditingTitle
+    | EditingPrompt
+    | EditingDisplayHint
+    | EditingTaskReference
+    | UpdateTitle(string)
+    | UpdatePrompt(string)
+    | UpdateDisplayHint(string)
+    | UpdateTaskReference(string);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Editor(Tutorial.pos, CellEditor.Update.t)
@@ -93,7 +129,80 @@ module Update = {
     | ResetTutorial
     | MoveToNextExercise
     | MoveToPrevExercise
-    | Change_report_view;
+    | Change_report_view
+    | Instructor(instructor);
+
+  let instructor_update =
+      (action: instructor, model: Model.t): Updated.t(Model.t) =>
+    switch (action) {
+    | EditingTitle =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_title: !model.editing_flags.editing_title,
+        },
+      })
+    | EditingPrompt =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_prompt: !model.editing_flags.editing_prompt,
+        },
+      })
+    | EditingDisplayHint =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_display_hint: !model.editing_flags.editing_display_hint,
+        },
+      })
+    | EditingTaskReference =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_task_reference: !model.editing_flags.editing_task_reference,
+        },
+      })
+    | UpdateTitle(title) =>
+      Updated.return_quiet(
+        {
+          ...model,
+          editors: Tutorial.update_title({eds: model.editors}, title).eds,
+        },
+        ~is_edit=true,
+      )
+    | UpdatePrompt(prompt) =>
+      Updated.return({
+        ...model,
+        editors: Tutorial.update_prompt({eds: model.editors}, prompt).eds,
+      })
+    | UpdateDisplayHint(hint) =>
+      Updated.return({
+        ...model,
+        editors:
+          Tutorial.update_display_hint({eds: model.editors}, hint).eds,
+      })
+    | UpdateTaskReference(ref_) =>
+      Updated.return({
+        ...model,
+        editors:
+          Tutorial.update_task_reference({eds: model.editors}, ref_).eds,
+      })
+    };
+
+  let instructor_update =
+      (~settings: Settings.t, action: instructor, model: Model.t)
+      : Updated.t(Model.t) =>
+    if (settings.instructor_mode) {
+      instructor_update(action, model);
+    } else {
+      Updated.return_quiet(model);
+    };
+
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
@@ -209,6 +318,7 @@ module Update = {
           show_report: !model.editors.show_report,
         },
       })
+    | Instructor(action) => instructor_update(~settings, action, model)
     };
   };
 
@@ -219,7 +329,8 @@ module Update = {
     | ResetTutorial => true
     | MoveToNextExercise
     | MoveToPrevExercise
-    | Change_report_view => false
+    | Change_report_view
+    | Instructor(_) => false
     };
   };
 
@@ -327,6 +438,7 @@ module Update = {
       spec: model.spec,
       editors,
       cells,
+      editing_flags: model.editing_flags,
     };
   };
 };
@@ -413,6 +525,7 @@ module View = {
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
+    let editing_flags = model.editing_flags;
     let eds = model.editors;
     //let has_checkmark = Model.all_tests_passed(model);
     let {user_impl, hidden_tests}: Tutorial.stitched('a) = model.cells;
@@ -456,12 +569,97 @@ module View = {
         cell,
       );
     };
-    let title_view = CellCommon.title_cell(eds.title);
+    let update_title = _ => {
+      let new_title =
+        Obj.magic(
+          Js_of_ocaml.Js.some(
+            JsUtil.get_elem_by_id("tutorial-title-input-box"),
+          ),
+        )##.value;
+      let update_events = [
+        inject(Instructor(UpdateTitle(new_title))),
+        inject(Instructor(EditingTitle)),
+      ];
+      Virtual_dom.Vdom.Effect.Many(update_events);
+    };
 
-    // let prompt_view =
-    //   CellCommon.narrative_cell(
-    //     div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
-    //   );
+    let title_view = {
+      let title_placeholder =
+        eds.title == "" ? "Untitled Tutorial" : eds.title;
+      CellCommon.simple_cell_view([
+        div(
+          ~attrs=[Attr.class_("title-cell")],
+          [
+            globals.settings.instructor_mode
+              ? editing_flags.editing_title
+                  ? div(
+                      ~attrs=[Attr.class_("title-edit")],
+                      [
+                        input(
+                          ~attrs=[
+                            Attr.class_("title-text"),
+                            Attr.id("tutorial-title-input-box"),
+                            Attr.value(eds.title),
+                            Attr.on_focus(_ => signal(MakeActive(TextBox))),
+                          ],
+                          (),
+                        ),
+                        div(
+                          ~attrs=[Attr.class_("edit-icon")],
+                          [Widgets.button(Icons.confirm, update_title)],
+                        ),
+                        div(
+                          ~attrs=[Attr.class_("edit-icon")],
+                          [
+                            Widgets.button(Icons.cancel, _ =>
+                              inject(Instructor(EditingTitle))
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : div(
+                      ~attrs=[Attr.class_("title-edit")],
+                      [
+                        div(
+                          ~attrs=[
+                            Attr.classes([
+                              "title-text",
+                              eds.title == "" ? "title-placeholder" : "",
+                            ]),
+                          ],
+                          [text(title_placeholder)],
+                        ),
+                        div(
+                          ~attrs=[Attr.class_("edit-icon")],
+                          [
+                            Widgets.button(Icons.pencil, _ =>
+                              inject(Instructor(EditingTitle))
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+              : div(~attrs=[Attr.class_("title-text")], [text(eds.title)]),
+          ],
+        ),
+      ]);
+    };
+
+    let update_prompt = _ => {
+      let new_prompt =
+        Obj.magic(
+          Js_of_ocaml.Js.some(
+            JsUtil.get_elem_by_id("tutorial-prompt-input-box"),
+          ),
+        )##.value;
+      let update_events = [
+        inject(Instructor(EditingPrompt)),
+        inject(Instructor(UpdatePrompt(new_prompt))),
+      ];
+      Virtual_dom.Vdom.Effect.Many(update_events);
+    };
+
     let prompt_view = {
       let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
       let (msg, _) =
@@ -472,7 +670,67 @@ module View = {
         );
       div(
         ~attrs=[Attr.class_("cell-prompt")],
-        [div(~attrs=[Attr.class_("prompt-content")], msg)],
+        [
+          globals.settings.instructor_mode
+            ? editing_flags.editing_prompt
+                ? div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      div(
+                        ~attrs=[Attr.id("prompt-textarea-container")],
+                        [
+                          textarea(
+                            ~attrs=[
+                              Attr.class_("prompt-text"),
+                              Attr.id("tutorial-prompt-input-box"),
+                              Attr.on_focus(_ =>
+                                signal(MakeActive(TextBox))
+                              ),
+                              Attr.create("rows", "5"),
+                              Attr.create("cols", "30"),
+                            ],
+                            [text(eds.prompt)],
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_prompt)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Instructor(EditingPrompt))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      div(
+                        ~attrs=[
+                          Attr.classes([
+                            "prompt-content",
+                            eds.prompt == "" ? "prompt-placeholder" : "",
+                          ]),
+                        ],
+                        msg,
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-pencil")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Instructor(EditingPrompt))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+            : div(~attrs=[Attr.class_("prompt-content")], msg),
+        ],
       );
     };
 
@@ -506,6 +764,20 @@ module View = {
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
       );
+    let update_display_hint = _ => {
+      let new_hint =
+        Obj.magic(
+          Js_of_ocaml.Js.some(
+            JsUtil.get_elem_by_id("tutorial-hint-input-box"),
+          ),
+        )##.value;
+      let update_events = [
+        inject(Instructor(EditingDisplayHint)),
+        inject(Instructor(UpdateDisplayHint(new_hint))),
+      ];
+      Virtual_dom.Vdom.Effect.Many(update_events);
+    };
+
     let hint_view = {
       let hint_placeholder =
         eds.display_hint == "" ? "No hints available." : eds.display_hint;
@@ -515,14 +787,157 @@ module View = {
           ~inject=_ => (),
           hint_placeholder,
         );
-      div(
-        ~attrs=[Attr.class_("hint-cell")],
-        [
-          div(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
-          div(~attrs=[Attr.class_("hint-content")], msg),
-        ],
-      );
+      globals.settings.instructor_mode
+        ? editing_flags.editing_display_hint
+            ? div(
+                ~attrs=[Attr.class_("hint-cell")],
+                [
+                  div(~attrs=[Attr.class_("hint-title")], [text("Hint")]),
+                  div(
+                    ~attrs=[Attr.class_("hint-edit")],
+                    [
+                      textarea(
+                        ~attrs=[
+                          Attr.class_("hint-text"),
+                          Attr.id("tutorial-hint-input-box"),
+                          Attr.on_focus(_ => signal(MakeActive(TextBox))),
+                          Attr.create("rows", "3"),
+                          Attr.create("cols", "30"),
+                        ],
+                        [text(eds.display_hint)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_display_hint)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Instructor(EditingDisplayHint))
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : div(
+                ~attrs=[Attr.class_("hint-cell")],
+                [
+                  div(~attrs=[Attr.class_("hint-title")], [text("Hint")]),
+                  div(
+                    ~attrs=[Attr.class_("hint-edit")],
+                    [
+                      div(~attrs=[Attr.class_("hint-content")], msg),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Instructor(EditingDisplayHint))
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              )
+        : div(
+            ~attrs=[Attr.class_("hint-cell")],
+            [
+              div(~attrs=[Attr.class_("hint-title")], [text("Hint")]),
+              div(~attrs=[Attr.class_("hint-content")], msg),
+            ],
+          );
     };
+    let update_task_reference = _ => {
+      let new_ref =
+        Obj.magic(
+          Js_of_ocaml.Js.some(
+            JsUtil.get_elem_by_id("tutorial-taskref-input-box"),
+          ),
+        )##.value;
+      let update_events = [
+        inject(Instructor(EditingTaskReference)),
+        inject(Instructor(UpdateTaskReference(new_ref))),
+      ];
+      Virtual_dom.Vdom.Effect.Many(update_events);
+    };
+
+    let task_reference_view =
+      if (globals.settings.instructor_mode) {
+        let ref_placeholder =
+          eds.task_reference == "" ? "No task reference." : eds.task_reference;
+        let (msg, _) =
+          ExplainThis.mk_translation(
+            ~globals,
+            ~inject=_ => (),
+            ref_placeholder,
+          );
+        editing_flags.editing_task_reference
+          ? div(
+              ~attrs=[Attr.class_("task-reference-cell")],
+              [
+                div(
+                  ~attrs=[Attr.class_("task-reference-title")],
+                  [text("Task Reference")],
+                ),
+                div(
+                  ~attrs=[Attr.class_("task-reference-edit")],
+                  [
+                    textarea(
+                      ~attrs=[
+                        Attr.class_("task-reference-text"),
+                        Attr.id("tutorial-taskref-input-box"),
+                        Attr.on_focus(_ => signal(MakeActive(TextBox))),
+                        Attr.create("rows", "3"),
+                        Attr.create("cols", "30"),
+                      ],
+                      [text(eds.task_reference)],
+                    ),
+                    div(
+                      ~attrs=[Attr.class_("edit-icon")],
+                      [Widgets.button(Icons.confirm, update_task_reference)],
+                    ),
+                    div(
+                      ~attrs=[Attr.class_("edit-icon")],
+                      [
+                        Widgets.button(Icons.cancel, _ =>
+                          inject(Instructor(EditingTaskReference))
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : div(
+              ~attrs=[Attr.class_("task-reference-cell")],
+              [
+                div(
+                  ~attrs=[Attr.class_("task-reference-title")],
+                  [text("Task Reference")],
+                ),
+                div(
+                  ~attrs=[Attr.class_("task-reference-edit")],
+                  [
+                    div(~attrs=[Attr.class_("task-reference-content")], msg),
+                    div(
+                      ~attrs=[Attr.class_("edit-icon")],
+                      [
+                        Widgets.button(Icons.pencil, _ =>
+                          inject(Instructor(EditingTaskReference))
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            );
+      } else {
+        div([]);
+      };
+
     let report_icon_view =
       div(
         ~attrs=[Attr.class_("checkmark-container")],
@@ -610,7 +1025,11 @@ module View = {
         );
       };
     [title_view, prompt_view]
-    @ (eds.display_hint == "" ? [] : [hint_view])
+    @ (
+      eds.display_hint == "" && !globals.settings.instructor_mode
+        ? [] : [hint_view]
+    )
+    @ [task_reference_view]
     @ render_cells(
         globals.settings,
         [

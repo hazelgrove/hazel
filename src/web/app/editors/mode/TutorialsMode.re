@@ -329,11 +329,22 @@ module View = {
   open Widgets;
   open Js_of_ocaml;
 
-  let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
+  let view =
+      (
+        ~signal: TutorialMode.View.event => 'a,
+        ~globals: Globals.t,
+        ~selection: option(TutorialMode.Selection.t),
+        ~inject: Update.t => 'a,
+        ~inject_explainthis: ExplainThisUpdate.update => 'a,
+        model: Model.t,
+      ) => {
     let current = List.nth(model.exercises, model.current);
     TutorialMode.View.view(
       ~globals,
+      ~signal,
       ~inject=a => inject(Update.Tutorial(a)),
+      ~inject_explainthis,
+      ~selection,
       current,
     );
   };
