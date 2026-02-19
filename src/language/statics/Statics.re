@@ -2019,7 +2019,7 @@ and utyp_to_info_map =
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
-    add'(~expects=TypeExpected, m);
+    add(m);
   | Prod(ts) =>
     let duplicate_labels =
       LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
