@@ -4,3 +4,58 @@
 .code-deco:has(~ .projectors .projector.Automerge *:focus) #caret .caret-path {
   fill: #0000;
 }
+
+.projector.Automerge {
+  cursor: default;
+}
+
+.projector.Automerge > svg {
+  stroke-width: 0.5px;
+  stroke: var(--BR2);
+}
+
+.projector.Automerge .wrapper {
+  height: 100%;
+  width: 100%;
+  border-radius: 0.1em;
+}
+
+.projector.Automerge .cols {
+  height: 100%;
+  margin-left: 2px;
+  margin-right: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.projector.Automerge.indicated .cols,
+.projector.Automerge:has(input:focus) .cols {
+  color: var(--R1);
+}
+
+.projector.Automerge.indicated > svg {
+  fill: var(--textarea-indicated);
+}
+
+.projector.Automerge.selected > svg {
+  filter: drop-shadow(1px 1px 0 var(--R0));
+}
+
+.projector.Automerge input {
+  outline: none;
+  caret-color: var(--caret-color);
+  padding: 0;
+  margin: 0;
+  line-height: var(--line-height);
+  font-family: var(--code-font);
+  font-size: inherit;
+  border: none;
+  color: var(--textarea-text);
+  background: none;
+  overflow: hidden;
+}
+
+.projector.Automerge input::selection {
+  color: var(--BLACK);
+  background-color: var(--shard-selected);
+}

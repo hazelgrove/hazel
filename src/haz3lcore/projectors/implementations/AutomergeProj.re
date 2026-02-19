@@ -112,6 +112,32 @@ let ensure_subscribed =
     };
   };
 
+/* --- URL storage in syntax (mirrors TextArea pattern) --- */
+
+let get_url = (info: info): string =>
+  switch (info.syntax |> info.utility.seg_to_term) {
+  | Some(Exp({term: Atom(String(s)), _})) => s
+  | _ => ""
+  };
+
+let put_url = (info, url: string): Base.segment =>
+  switch (
+    info.utility.lift_syntax(
+      fun
+      | Exp(any) =>
+        Exp({
+          ...any,
+          term: Atom(String(url)),
+        })
+      | _ => failwith("AutomergeProj: put_url: not expression"),
+      Inline.Compound,
+      info.syntax,
+    )
+  ) {
+  | Some(s) => s
+  | None => failwith("AutomergeProj: put_url: lift failed")
+  };
+
 /* --- Projector module --- */
 
 module M: Projector = {
@@ -188,7 +214,13 @@ module M: Projector = {
     };
   let dynamics = false;
 
-  let placeholder = (_m, _info) => ProjectorCore.Shape.inline(40);
+  let placeholder = (_m, info) => {
+    let url = get_url(info);
+    let url_len = String.length(url);
+    /* 19 = placeholder text length; +3 for status indicator + padding */
+    let display_len = max(19, url_len);
+    ProjectorCore.Shape.inline(display_len + 3);
+  };
 
   let update = (m: model, _info: info, action: action): model =>
     switch (action) {
@@ -268,18 +300,23 @@ module M: Projector = {
           Attr.class_("automerge-url-input"),
           Attr.placeholder("automerge:<doc-url>"),
           Attr.string_property("value", model.url),
-          Attr.on_input((_evt, value) => {local(SetUrl(value))}),
+          Attr.on_input((_evt, value) =>
+            Effect.(
+              Many([
+                local(SetUrl(value)),
+                parent(SetSyntax(value |> put_url(info))),
+              ])
+            )
+          ),
           Attr.on_keydown(key_handler),
           Attr.on_copy(_ => Effect.Stop_propagation),
           Attr.on_cut(_ => Effect.Stop_propagation),
           Attr.on_paste(_ => Effect.Stop_propagation),
           Attr.style(
             Css_gen.concat([
-              Css_gen.create(~field="width", ~value="280px"),
+              Css_gen.create(~field="width", ~value="100%"),
               Css_gen.create(~field="font-size", ~value="inherit"),
               Css_gen.create(~field="font-family", ~value="inherit"),
-              Css_gen.create(~field="border", ~value="1px solid #ccc"),
-              Css_gen.create(~field="padding", ~value="1px 4px"),
             ]),
           ),
         ],
@@ -303,9 +340,14 @@ module M: Projector = {
     };
 
     View.mk(
-      Node.span(
-        ~attrs=[Attr.class_("automerge-projector")],
-        [status_indicator, url_input],
+      Node.div(
+        ~attrs=[Attr.classes(["wrapper"])],
+        [
+          Node.div(
+            ~attrs=[Attr.classes(["cols", "code"])],
+            [status_indicator, url_input],
+          ),
+        ],
       ),
     );
   };
