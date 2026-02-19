@@ -143,7 +143,7 @@ let tests = (
             tuple([string("hazel"), int(0), int(3)]),
           ),
         );
-          evaluation_test(
+        evaluation_test(
           {|string_sub(("hazel", 0, 20))|},
           string("hazel"),
           ap(
