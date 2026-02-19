@@ -456,8 +456,8 @@ let export_transitionary_module = ({eds, _}: state) => {
 };
 
 let blank_spec = (~title) => {
-  let your_impl = Zipper.next_blank();
-  let hidden_tests_tests = Zipper.next_blank();
+  let your_impl = Zipper.init();
+  let hidden_tests_tests = Zipper.init();
   let wrapper = false;
   let show_report = true;
   {
