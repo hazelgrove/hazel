@@ -1232,14 +1232,7 @@ and uexp_to_info_map =
         );
 
       let e_tys = List.map(Info.exp_ty, es);
-      let p_ctxs_and_ctx_zip =
-        List.combine(p_ctxs, List.map(_ps => ctx, ps));
-      let e_co_ctxs =
-        List.map2(
-          ((p_ctx, _ctx)) => CoCtx.mk(p_ctx, p_ctx),
-          p_ctxs_and_ctx_zip,
-          List.map(Info.exp_co_ctx, es),
-        );
+      let e_co_ctxs = List.map(Info.exp_co_ctx, es);
       let unwrapped_self: Self.exp =
         Common(Self.match(ctx, e_tys, branch_ids));
       let (constraints, m) =
@@ -1299,7 +1292,12 @@ and uexp_to_info_map =
         );
       };
       let m = add_redundancy(ps, redundant_rows, m);
-      add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
+      let co_ctx =
+        CoCtx.union([
+          scrut.co_ctx,
+          ...List.map2(CoCtx.mk(ctx), p_ctxs, e_co_ctxs),
+        ]);
+      add'(~self, ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
       switch (typat.term) {
@@ -1413,6 +1411,7 @@ and upat_to_info_map =
     (
       ~is_synswitch,
       ~ctx,
+      // the co-ctx of the pattern's scope
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicate_bindings: list(string)=[],
