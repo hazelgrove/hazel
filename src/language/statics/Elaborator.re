@@ -317,8 +317,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         };
       let is_recursive =
         Statics.is_recursive(ctx, p, def, ty1)
-        && Pat.get_bindings(p)
-        |> Option.get
+        && Pat.bound_vars(p)
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
         let (def, _) = elaborate(m, def);

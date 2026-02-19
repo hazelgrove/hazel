@@ -65,6 +65,7 @@ type error_common =
   | Inconsistent(error_inconsistent)
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
+  | DuplicateVar(string, Typ.t)
   /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | TupleLabelError({
       malformed_labels: list(Any.t),
@@ -552,9 +553,12 @@ let rec status_common =
         typ,
       }),
     )
-  | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
-  | (Duplicate(lab, _), _) =>
+  | (DuplicateLabel(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
+  | (DuplicateVar(lab, Just(ty)), _) => InHole(DuplicateVar(lab, ty))
+  | (DuplicateLabel(lab, _), _) =>
     InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
+  | (DuplicateVar(lab, _), _) =>
+    InHole(DuplicateVar(lab, Unknown(Internal) |> Typ.temp))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoMeet(PolyEq, tys), _)
   | (NoMeet(_, tys), {term: Unknown(SynSwitch), _}) =>
@@ -606,6 +610,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
             Inconsistent(Internal(_) | Expectation(_) | CompareFun(_)) |
             NoType(_) |
             DuplicateLabel(_) |
+            DuplicateVar(_) |
             TupleLabelError(_),
           ) as err,
         ) =>
@@ -643,6 +648,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(NoType(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
+      | InHole(Common(DuplicateVar(_)))
       | InHole(TupleExtensionRequiresTuples)
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
@@ -885,7 +891,8 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
     | NoType(InvalidLabel(_))
     | NoType(UnexpectedLabelSort(_)) => Unknown(Internal) |> Typ.temp
     | TupleLabelError({typ, _})
-    | DuplicateLabel(_, typ) => typ_or_ana(typ)
+    | DuplicateLabel(_, typ)
+    | DuplicateVar(_, typ) => typ_or_ana(typ)
     | Inconsistent(Expectation({ana, _})) => ana
     | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
     | Inconsistent(CompareFun(_)) => typ_or_ana(Atom(Bool) |> Typ.temp)
