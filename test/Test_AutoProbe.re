@@ -111,20 +111,34 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       /* Build the syntax cache with statics */
       let syntax = CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
 
-      /* Call AutoProbe to get probe term IDs using the sophisticated version */
+      /* Call AutoProbe to get probe term IDs using the sophisticated version.
+         Use target_subterm_ids to narrow the anchor (e.g. Let/Module → def),
+         matching the production pipeline in ProbePerform.add_auto. */
+      let target_ids =
+        ProbePerform.target_subterm_ids(root_id, info_map);
       let probe_ids =
-        switch (
-          AutoProbe.ids_to_autoprobe(
-            root_id,
-            syntax.term_data,
-            syntax.terms,
-            syntax.measured,
-            info_map,
-          )
-        ) {
-        | Some(ids) => List.filter_map(Fun.id, ids)
-        | None => fail("AutoProbe returned None")
-        };
+        List.concat_map(
+          target_id =>
+            switch (
+              AutoProbe.ids_to_autoprobe(
+                target_id,
+                syntax.term_data,
+                syntax.terms,
+                syntax.measured,
+                info_map,
+              )
+            ) {
+            | Some(ids) => List.filter_map(Fun.id, ids)
+            | None => fail("AutoProbe returned None")
+            },
+          target_ids,
+        )
+        |> List.fold_left(
+             (acc, id) =>
+               List.mem(id, acc) ? acc : [id, ...acc],
+             [],
+           )
+        |> List.rev;
 
       /* Convert probe IDs to string representations */
       let actual_probes =
@@ -191,7 +205,7 @@ let nested_multiline_tests = [
 let x = (    # x #
   1 + 1      # 1 + 1 #
 ) in
-1 + 1        # 1 + 1 #|},
+1 + 1        # no probe #|},
   ),
   test_probe_placement(
     ~name="Multi-line function application - probe ap not last arg",
@@ -199,7 +213,7 @@ let x = (    # x #
       {|
 let x = f(1 + 1,  # 1 + 1 #
   2) in           # f(1 + 1, 2) #
-1 + 1             # 1 + 1 #|},
+1 + 1             # no probe #|},
   ),
 ];
 
@@ -210,7 +224,7 @@ let hole_avoidance_tests = [
     ~code=
       {|
 let incomplete = ? in  # incomplete #
-1 + 1                  # 1 + 1 #|},
+1 + 1                  # no probe #|},
   ),
   test_probe_placement(
     ~name="Probe hole if there's no alternative",
@@ -224,12 +238,12 @@ let container_tests = [
     //TODO: consider probing parens instead of tuple
     ~name="Single-line tuple - normal behavior",
     ~code={|let pair = (a, b) in # a, b #
-pair # pair #|},
+pair # no probe #|},
   ),
   test_probe_placement(
     ~name="Single-line list - normal behavior",
     ~code={|let list = [1, 2, 3 + 1] in # [1, 2, 3 + 1] #
-list # list #|},
+list # no probe #|},
   ),
   /* Note: Multi-line containers probe the trailing elements on each line,
      but not the cotainer itself */
@@ -241,7 +255,7 @@ list # list #|},
   b, # b #
   c # c #
 ) in
-1 + 1 # 1 + 1 #|},
+1 + 1 # no probe #|},
   ),
   test_probe_placement(
     ~name="Multi-line tuple - probe trailing elements on each line 1",
@@ -250,7 +264,7 @@ list # list #|},
   a, # a #
   b, c + d # c + d #
 ) in
-1 + 1 # 1 + 1 #|},
+1 + 1 # no probe #|},
   ),
   test_probe_placement(
     ~name="Multi-line tuple - probe trailing elements on each line 2",
@@ -259,7 +273,7 @@ list # list #|},
   a, b + c, # b + c #
   d # d #
 ) in
-1 + 1 # 1 + 1 #|},
+1 + 1 # no probe #|},
   ),
   test_probe_placement(
     ~name="Multi-line list - probe elements but not container",
@@ -269,7 +283,7 @@ list # list #|},
   b, # b #
   c # c #
 ] in
-1 + 1 # 1 + 1 #|},
+1 + 1 # no probe #|},
   ),
 ];
 
@@ -278,12 +292,12 @@ let let_expression_tests = [
   test_probe_placement(
     ~name="Only one term at rightmost position",
     ~code={|let (x, y) = 1 in # 1 #
-1 + 1 # 1 + 1 #|},
+1 + 1 # no probe #|},
   ),
   test_probe_placement(
     ~name="Multiple terms at rightmost - largest wins",
     ~code={|let (x, y) = 2 + 1 in # 2 + 1 #
-1 + 1 # 1 + 1 #|},
+1 + 1 # no probe #|},
   ),
   test_probe_placement(
     ~name="Let with hole body ending on same line - don't probe let or hole",
@@ -307,27 +321,27 @@ let if_expression_tests = [
     ~name="Single-line if - default behavior",
     ~code=
       {|let result = if c then a else b in # if c then a else b #
-1 + 1 # 1 + 1 #|},
+1 + 1 # no probe #|},
   ),
   test_probe_placement(
     ~name="Multi-line if - probe branches",
     ~code=
-      {|let result =  # result #
+      {|let result =  # no probe #
   if condition then   # condition #
   branch1             # branch1 #
   else branch2 in     # branch2 #
-1 + 1                 # 1 + 1 #|},
+1 + 1                 # no probe #|},
   ),
   test_probe_placement(
     ~name="Nested if - probe branches",
     ~code=
-      {|let complex =   # complex #
+      {|let complex =   # no probe #
   if outer_cond then    # outer_cond #
     if inner_cond then  # inner_cond #
     val1                # val1 #
     else val2           # val2 #
   else val3 in          # val3 #
-1 + 1                   # 1 + 1 #|},
+1 + 1                   # no probe #|},
   ),
 ];
 
@@ -375,7 +389,7 @@ let module_tests = [
   test_probe_placement(
     ~name="Single-line module - probe module expression",
     ~code={|let m = { let x = 1 } in # { let x = 1 } #
-m.x # m.x #|},
+m.x # no probe #|},
   ),
   test_probe_placement(
     ~name="Multi-line module - probe definition expressions, not declarations",
@@ -384,7 +398,7 @@ m.x # m.x #|},
   let x = 1 + 2; # 1 + 2 #
   let y = 3 + 4 # 3 + 4 #
 } in              # { let x = 1 + 2; let y = 3 + 4 } #
-m.x + m.y # m.x + m.y #|},
+m.x + m.y # no probe #|},
   ),
   test_probe_placement(
     ~name="Module keyword - probe definition expression",
@@ -392,7 +406,7 @@ m.x + m.y # m.x + m.y #|},
       {|module m = { # m #
   let x = 1 + 2 # 1 + 2 #
 } in              # { let x = 1 + 2 } #
-m.x # m.x #|},
+m.x # no probe #|},
   ),
   test_probe_placement(
     ~name="Module with type declaration - probe definition expression",
@@ -401,7 +415,7 @@ m.x # m.x #|},
   type T = Int;
   let x : T = 42 # 42 #
 } in              # { type T = Int; let x : T = 42 } #
-m.x # m.x #|},
+m.x # no probe #|},
   ),
   test_probe_placement(
     ~name=
@@ -411,7 +425,34 @@ m.x # m.x #|},
   let x = 1; # 1 #
   1 + 3 # 1 + 3 #
 } in              # { let x = 1; 1 + 3 } #
-m.x # m.x #|},
+m.x # no probe #|},
+  ),
+];
+
+/* MODULE KEYWORD WITH SIGNATURE - probes should only appear on
+ * the definition expression, not the signature or the body. */
+let module_sig_tests = [
+  test_probe_placement(
+    ~name="Module keyword with sig - no probe on sig items or body",
+    ~code=
+      {|module M : {
+let x : Int # no probe #
+} = {
+let x = 1 # 1 #
+} in              # { let x = 1 } #
+1 # no probe #|},
+  ),
+  test_probe_placement(
+    ~name="Module keyword with sig - multi member",
+    ~code=
+      {|module M : {
+let x : Int; # no probe #
+let y : Bool # no probe #
+} = {
+let x = 1; # 1 #
+let y = true # true #
+} in              # { let x = 1; let y = true } #
+M.x # no probe #|},
   ),
 ];
 
@@ -425,4 +466,5 @@ let tests = [
   ("AutoProbe.FunctionTypes", function_type_tests),
   ("AutoProbe.CaseExpressions", case_expression_tests),
   ("AutoProbe.Modules", module_tests),
+  ("AutoProbe.ModuleSig", module_sig_tests),
 ];

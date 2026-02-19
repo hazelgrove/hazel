@@ -499,9 +499,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         };
       };
 
-      /* Build the labeled tuple body (fresh ID, not Module's ID) */
+      /* Build the labeled tuple body. In statics, build_labeled_tuple uses a
+         fresh ID to avoid colliding with the Module's InfoExp entry. Here in
+         the elaborator we use the Module's ID so the evaluator records samples
+         under the Module's ID, enabling probes on module expressions. */
       let non_shadowed = ExpandModule.compute_non_shadowed_bindings(items);
-      let tuple_body = ExpandModule.build_labeled_tuple(non_shadowed);
+      let tuple_body =
+        IdTagged.fast_copy(
+          Exp.rep_id(uexp),
+          ExpandModule.build_labeled_tuple(non_shadowed),
+        );
 
       /* Wrap with elaborated items from bottom to top */
       List.fold_right(elaborate_mod_item, items, tuple_body);

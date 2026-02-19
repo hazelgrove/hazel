@@ -810,18 +810,11 @@ let rec status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =
   };
 };
 
-let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
+let status_tpat = (_ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
-  | Var(name) when Ctx.shadows_typ(ctx, name) =>
-    let f = src => InHole(ShadowsType(name, src));
-    if (Ctx.is_base_typ(name)) {
-      f(BaseTyp);
-    } else if (Ctx.is_alias(ctx, name)) {
-      f(TyAlias);
-    } else {
-      f(TyVar);
-    };
+  | Var(name) when Ctx.is_base_typ(name) =>
+    InHole(ShadowsType(name, BaseTyp))
   | Var(name) => NotInHole(Var(name))
   | Invalid(_) => InHole(NotAVar(NotCapitalized))
   | MultiHole(_) => InHole(NotAVar(Other))

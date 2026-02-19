@@ -362,7 +362,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
            IMPORTANT: Only absorb for MultiHole (multiple items with semicolons).
            Single items have ModLet/ModType IDs that would conflict with expansion. */
         switch (body) {
-        | {term: EmptyHole, _} => ret(Module([]))
+        | {term: EmptyHole, _} => ret(Module([body]))
         | {annotation: {ids, _}, term: MultiHole(_)} =>
           adopted_ids := ids @ adopted_ids^;
           (Module(flatten_mod(body)), ids);

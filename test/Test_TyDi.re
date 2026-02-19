@@ -330,6 +330,56 @@ let base_typ_suppression_tests = (
   ],
 );
 
+/* Cursor inspector sort tests — verify that CI returns the correct
+ * sort for various cursor positions, especially module holes. */
+let ci_sort = (code: string): option(Sort.t) => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
+  let info_map =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  switch (Indicated.ci_of(z, info_map)) {
+  | Some(ci) => Some(Info.sort_of(ci))
+  | None => None
+  };
+};
+
+let ci_sort_test = (~name, ~code, ~expect) =>
+  Alcotest.test_case(name, `Quick, () =>
+    Alcotest.check(
+      Alcotest.option(
+        Alcotest.testable(
+          Fmt.using(Sort.show, Fmt.string),
+          Sort.equal,
+        ),
+      ),
+      name,
+      expect,
+      ci_sort(code),
+    )
+  );
+
+let ci_sort_tests = (
+  "CI.ModuleHoleSort",
+  [
+    ci_sort_test(
+      ~name="Hole in module body has Mod sort",
+      ~code="{ let x = 1; ¦ }",
+      ~expect=Some(Mod),
+    ),
+    ci_sort_test(
+      ~name="Hole in expression context has Exp sort",
+      ~code="let x = ¦ in x",
+      ~expect=Some(Exp),
+    ),
+    ci_sort_test(
+      ~name="Trailing hole in module body has Mod sort",
+      ~code="{ ¦ }",
+      ~expect=Some(Mod),
+    ),
+  ],
+);
+
 let tests = [
   dot_label_tests,
   variable_tests,
@@ -341,4 +391,5 @@ let tests = [
   suppression_tests,
   qualified_tests,
   base_typ_suppression_tests,
+  ci_sort_tests,
 ];

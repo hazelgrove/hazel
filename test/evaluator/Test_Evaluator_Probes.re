@@ -807,11 +807,9 @@ let module_tests = [
     {|let m = { let x = ^^probe(1 + 2) } in m.x|},
     [(0, ["3"])],
   ),
-  /* Note: ^^probe({ let x = 1 }) captures nothing — this is a known issue.
-     ^^probe(let x = 1 in (x=x)) DOES capture (x=1) because the probe wraps
-     the let directly. But module elaboration reconstructs the let chain with
-     fresh IDs, so the probe wrapper's relationship to the elaborated term
-     gets lost. See plan for potential fix. */
+  /* ^^probe({ let x = 1 }) captures the module's value (x=1). The elaborator
+     places the Module's ID on the labeled tuple so the evaluator records
+     samples under the correct ID. */
   probe_line_test(
     "Probe on module value via variable",
     {|let m = { let x = 5 } in ^^probe(m)|},
@@ -840,6 +838,11 @@ in m.f(5)|},
   let y = ^^probe(3 + 4)
 } in m.x + m.y|},
     [(1, ["3"]), (2, ["7"])],
+  ),
+  probe_line_test(
+    "Probe on module expression collects sample",
+    {|let m = ^^probe({ let x = 5 }) in m.x|},
+    [(0, ["(x=5)"])],
   ),
 ];
 

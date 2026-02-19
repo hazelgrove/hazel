@@ -599,6 +599,28 @@ let test_qualified_type_nested_alias_with_sibling =
     Some(int()),
   );
 
+/* Type alias shadowing: nested modules should be able to shadow outer type aliases */
+let test_type_alias_shadowing_in_nested_module =
+  fully_consistent_typecheck(
+    "Type alias shadowing in nested module",
+    {|type T = Int in module M = { type T = Bool; let x : T = true } in M.x|},
+    Some(bool()),
+  );
+
+let test_type_alias_shadowing_sequential =
+  fully_consistent_typecheck(
+    "Type alias shadowing sequential",
+    {|type T = Int in type T = Bool in true : T|},
+    Some(bool()),
+  );
+
+let test_type_alias_shadowing_nested_module =
+  fully_consistent_typecheck(
+    "Type alias shadowing in nested module within same body",
+    {|module M = { type T = Int; module Q = { type T = String; let x : T = "abc" } } in M.Q.x|},
+    Some(string()),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -681,5 +703,9 @@ let tests = (
     test_qualified_type_nested_with_values,
     test_qualified_type_nested_alias,
     test_qualified_type_nested_alias_with_sibling,
+    /* Type alias shadowing tests (Issue 5) */
+    test_type_alias_shadowing_in_nested_module,
+    test_type_alias_shadowing_sequential,
+    test_type_alias_shadowing_nested_module,
   ],
 );

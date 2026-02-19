@@ -1176,7 +1176,7 @@ and uexp_to_info_map =
       let (name_expected_opt, item) = Typ.matched_poly(ctx, ana);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
-        | Some(name) when !Ctx.shadows_typ(ctx, name) =>
+        | Some(name) when !Ctx.is_base_typ(name) =>
           let mode_body = {
             switch (name_expected_opt) {
             | Some(name_expected) =>
@@ -1464,8 +1464,7 @@ and uexp_to_info_map =
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
       switch (typat.term) {
-      | Var(name) when !Ctx.shadows_typ(ctx, name) =>
-        /* Currently we disallow all type shadowing */
+      | Var(name) when !Ctx.is_base_typ(name) =>
         /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
            for any type variable reference not in its ctx. So any free variables
            in the definition would be obliterated. But we need to check for free

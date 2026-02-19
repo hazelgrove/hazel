@@ -285,8 +285,6 @@ let is_base_typ = (name: string): bool =>
   || name == "SInt"
   || name == "String";
 
-let shadows_typ = (ctx: t, name: string): bool =>
-  is_base_typ(name) || lookup_tvar(ctx, name) != None;
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),

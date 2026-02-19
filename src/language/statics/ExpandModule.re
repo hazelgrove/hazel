@@ -292,11 +292,23 @@ let wrap_item =
     let item_id = Mod.rep_id(item);
     let pat = mpat_to_pat(mp);
     IdTagged.fast_copy(item_id, Exp.fresh(Let(pat, def, body)));
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) =>
-    /* Error cases - just return the body, effectively ignoring the item */
-    body
+  | EmptyHole =>
+    /* Error cases: treat as bare expressions so statics creates info entries.
+       Preserve item ID so the first fold can override cls to Mod. */
+    let item_id = Mod.rep_id(item);
+    let e: Exp.t = IdTagged.fast_copy(item_id, Exp.fresh(EmptyHole));
+    let wild_pat = Pat.fresh(Wild);
+    Exp.fresh(Let(wild_pat, e, body));
+  | Invalid(s) =>
+    let item_id = Mod.rep_id(item);
+    let e: Exp.t = IdTagged.fast_copy(item_id, Exp.fresh(Invalid(s)));
+    let wild_pat = Pat.fresh(Wild);
+    Exp.fresh(Let(wild_pat, e, body));
+  | MultiHole(es) =>
+    let item_id = Mod.rep_id(item);
+    let e: Exp.t = IdTagged.fast_copy(item_id, Exp.fresh(MultiHole(es)));
+    let wild_pat = Pat.fresh(Wild);
+    Exp.fresh(Let(wild_pat, e, body))
   };
 };
 
