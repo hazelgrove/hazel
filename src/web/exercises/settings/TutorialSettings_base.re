@@ -11,9 +11,8 @@ let lessons: list(Tutorial.spec) = [
   Tu_Partial.exercise,
   Tu_Pipelines.exercise,
   Tu_CaseExpressions.exercise,
-  Tu_Lists.list_exercise,
-  Tu_Lists.concat_exercise,
-  Tu_Lists.map_exercise,
-  Tu_Lists.fold_exercise,
-  Tu_Tasks.string_mean_exercise,
+  Tu_Lists.exercise,
+  Tu_ListMap.exercise,
+  Tu_ListFold.exercise,
+  Ta_StringMean.exercise,
 ];
