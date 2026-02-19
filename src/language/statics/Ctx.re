@@ -285,7 +285,6 @@ let is_base_typ = (name: string): bool =>
   || name == "SInt"
   || name == "String";
 
-
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
   entries: [],

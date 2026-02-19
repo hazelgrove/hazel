@@ -308,7 +308,7 @@ let wrap_item =
     let item_id = Mod.rep_id(item);
     let e: Exp.t = IdTagged.fast_copy(item_id, Exp.fresh(MultiHole(es)));
     let wild_pat = Pat.fresh(Wild);
-    Exp.fresh(Let(wild_pat, e, body))
+    Exp.fresh(Let(wild_pat, e, body));
   };
 };
 

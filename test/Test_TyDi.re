@@ -348,10 +348,7 @@ let ci_sort_test = (~name, ~code, ~expect) =>
   Alcotest.test_case(name, `Quick, () =>
     Alcotest.check(
       Alcotest.option(
-        Alcotest.testable(
-          Fmt.using(Sort.show, Fmt.string),
-          Sort.equal,
-        ),
+        Alcotest.testable(Fmt.using(Sort.show, Fmt.string), Sort.equal),
       ),
       name,
       expect,
