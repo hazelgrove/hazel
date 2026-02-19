@@ -420,6 +420,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox s = (Atom(String), d1);
         let-unbox idx = (Atom(Int), d2);
         let-unbox len = (Atom(Int), d3);
+        let len = min(len, Bigint.( - )(Bigint.of_int(String.length(s)), idx));
+
         try(
           Some(
             string(
@@ -432,10 +434,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
           )
         ) {
         | Invalid_argument(_) =>
-          let d' = BuiltinFun("string_sub") |> DHExp.fresh;
-          let d' = Ap(Forward, d', d1) |> DHExp.fresh;
-          let d' = DynamicErrorHole(d', IndexOutOfBounds) |> DHExp.fresh;
-          Some(d');
+          Some(string("")); // If the arguments are out of bounds, return the empty string.
         };
       }),
     custom_statics: None,
