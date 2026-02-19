@@ -288,25 +288,26 @@ and uexp_to_info_map =
 
     (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
-  // HACK: This "$hole" entry is used to signal that a hole exists in a term's scope,
-  // which prevents false unused variable warnings. Since we don't currently mark
-  // holes in the info term or co-context properly, this workaround adds "$hole"
-  // to the co-context during hole construction. The warning logic then checks for
-  // this key.
-  let hole_co_ctx =
-    switch (term) {
-    | MultiHole(_)
-    | EmptyHole
-    | Invalid(_) =>
-      CoCtx.singleton(
-        "$hole",
-        Exp.rep_id(uexp),
-        Unknown(Internal) |> Typ.temp,
-      )
-    | _ => CoCtx.empty
-    };
 
   let atomic = self => {
+    // HACK: we use the co-context to check for unused variables in surrounding
+    // pattern bindings, but we don't want unused variable warnings to appear
+    // when there are holes present in the binding scopes. so if we detect a
+    // a hole in this expression, we add a "$hole" entry to the co-context
+    // that gets bubbled up to the relevant bindings and is checked for in the
+    // warning logic.
+    let hole_co_ctx =
+      switch (term) {
+      | MultiHole(_)
+      | EmptyHole
+      | Invalid(_) =>
+        CoCtx.singleton(
+          "$hole",
+          Exp.rep_id(uexp),
+          Unknown(Internal) |> Typ.temp,
+        )
+      | _ => CoCtx.empty
+      };
     add(~self, ~co_ctx=hole_co_ctx, m);
   };
   // This is the case where we aren't a singleton labeled tuple
