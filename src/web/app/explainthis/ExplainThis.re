@@ -109,7 +109,10 @@ let highlight =
   ];
   (Node.span(~attrs, msg), mapping);
 };
-
+let memo_parse =
+  Core.Memo.general(~cache_size_bound=1000, code =>
+    Parser.to_zipper(String.trim(code))
+  );
 /*
  Markdown like thing:
  highlighty thing : [thing to highlight](id)
@@ -229,7 +232,11 @@ let mk_translation =
                   core: settings,
                 },
               };
-              switch (Parser.to_zipper(String.trim(code))) {
+              let zipper =
+                Util.TimeUtil.measure_time("Parsing code block", false, () =>
+                  memo_parse(code)
+                );
+              switch (zipper) {
               | Some(zipper) =>
                 CellEditor.View.view(
                   ~globals=globals',
@@ -239,15 +246,18 @@ let mk_translation =
                   ~caption=None,
                   ~locked=true,
                   {
-                    zipper
-                    |> Editor.Model.mk
-                    |> CellEditor.Model.mk
-                    |> CellEditor.Update.calculate(
-                         ~settings,
-                         ~is_edited=true,
-                         ~stitch=x => x,
-                         ~queue_worker=None,
-                       );
+                    Util.TimeUtil.measure_time(
+                      "Creating editor model", false, () =>
+                      zipper
+                      |> Editor.Model.mk
+                      |> CellEditor.Model.mk
+                      |> CellEditor.Update.calculate(
+                           ~settings,
+                           ~is_edited=true,
+                           ~stitch=x => x,
+                           ~queue_worker=None,
+                         )
+                    );
                   },
                 )
               | None => Node.pre([Node.code([Node.text(code)])])
