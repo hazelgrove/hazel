@@ -119,7 +119,9 @@ module Message = {
         role: System(RetryNote),
         api_message:
           sent_to_api
-            ? Some(OpenRouter.Message.Utils.mk_developer_msg(sanitized_content))
+            ? Some(
+                OpenRouter.Message.Utils.mk_developer_msg(sanitized_content),
+              )
             : None,
         children: [],
         current_child: None,
@@ -892,9 +894,13 @@ module ChunkedUIChat = {
               let log =
                 (acc_model.log |> List.rev |> List.tl |> List.rev)
                 @ [Model.AgentResponseChunk(agent_response_chunk)];
-              let updated_model = {...acc_model, log};
+              let updated_model = {
+                ...acc_model,
+                log,
+              };
               convert_helper(rest, updated_model);
-            | UserMessage(_) | ErrorMessage(_) =>
+            | UserMessage(_)
+            | ErrorMessage(_) =>
               let chunk = mk_agent_response_chunk(message);
               let updated_model = {
                 ...acc_model,
@@ -1859,7 +1865,13 @@ module Agent = {
         JsUtil.delay(delay_ms, () =>
           schedule_action(Action.DoRetryApiSend(chat_id, attempt))
         );
-        ({...model, chat_system}, editor |> Updated.return);
+        (
+          {
+            ...model,
+            chat_system,
+          },
+          editor |> Updated.return,
+        );
       | DoRetryApiSend(chat_id, attempt) =>
         let model = update_context(model, editor.editor, chat_id);
         let chat_system = model.chat_system;
