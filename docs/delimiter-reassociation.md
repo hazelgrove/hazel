@@ -182,17 +182,93 @@ reassemble_normalize(sort, seg) =
   | [t, ...] =>
     ...find and group shards of t...
     children = if complete(t):
-      map2(normalize, t.mold.in_, t.children)   /* recurse */
+      map2((child, child_sort) =>
+        if (child_sort != sort) normalize(child_sort, child)
+        else child,                        /* sort-change gate */
+        t.children, t.mold.in_)
     else:
       map(reassemble_normalize(sort), t.children)
     ...continue with remainder...
 ```
 
-**Performance**: `reassemble_normalize` only recurses into children of tiles it
-ACTUALLY ASSEMBLES — typically 1-2 per edit. It does NOT walk all children of
-all complete tiles in the program. If there are no incomplete tiles in a segment,
-`incomplete_tiles(seg)` is empty and it returns immediately. Cost is proportional
-to the number of newly-assembled tiles' children, not total program size.
+### Performance: The Sort-Change Gate
+
+**The problem without gating**: If `reassemble_normalize` unconditionally calls
+`normalize` on every child, forming a tile around large content would trigger
+O(program-size) work. E.g., typing `(` before and `)` after a program creates
+parens with child = entire program → `normalize(Exp, entire_program)` walks
+everything for no benefit.
+
+**The optimization**: Only recurse into children where `child_sort != sort`.
+The content that becomes a child was previously at the sibling level, in sort
+`sort`. Sibling-level processing (rescan + reassemble + remold) already ran on
+it in that sort. If the child sort (from `mold.in_`) equals `sort`, nothing
+changed — skip entirely.
+
+**Concrete examples**:
+- Parens (`in_=[Exp]`): child Exp == parent Exp → **skip**
+- Case (`in_=[Rul]`): child Rul != parent Exp → **recurse** (case body only)
+- Fun (`in_=[Pat]`): child Pat != parent Exp → **recurse** (pattern only)
+- Let (`in_=[Pat,Exp]`): Pat != Exp → recurse on binding; Exp == Exp → skip body
+- Rule (`in_=[Pat]`): Pat != Rul → recurse on pattern
+
+Recursion depth is bounded by the number of sort transitions in the newly-
+assembled chain, which in practice is 1-2 levels.
+
+### Correctness of the Sort-Change Gate
+
+The sort-change gate assumes: if the child sort equals the parent sort, then
+no operation in normalize would change the child segment. This must hold for
+every operation normalize performs:
+
+**1. presplit_orphans** — Sort-irrelevant. Splits multi-shard orphan tiles into
+singletons. Sibling-level `Siblings.rescan` already calls presplit on the flat
+siblings before the main rescan walk. After reassembly, the child segment is
+formed from content that was already presplit. No new orphans appear from
+reassembly itself (reassembly only combines shards, it doesn't create orphans).
+**Gate sufficient: yes.** ✓
+
+**2. rescan — frame matching** — Sort-irrelevant. Matches standalone tokens
+against incomplete tiles' missing-shard frames. Sibling-level rescan already
+ran frame matching on this content (it was part of the flat siblings — rescan
+operates on the combined `pre @ suf` before reassembly splits them into
+children). Any matchable singleton/frame pairs were already matched.
+**Gate sufficient: yes.** ✓
+
+**3. rescan — try_sort_expand** — Sort-dependent. Promotes standalone tokens
+to multi-token incomplete tiles when the expansion has `out == sort`. If the
+sort didn't change, the same expansions were available at the sibling level.
+Specifically: `try_sort_expand(sort, tile)` checks `Form.Expansion.get(token)`
+and filters by `mold.out == sort`. With the same sort, the same filter applies.
+Any token that should have been promoted in this sort was already promoted by
+sibling-level sort-aware rescan (or by Insert.re at insert time).
+**Gate sufficient: yes.** ✓
+
+**4. reassemble** — Depends on incomplete tiles. If rescan didn't create any
+new incomplete tiles (because try_sort_expand found nothing to promote), and
+sibling-level rescan already matched everything, there are no incomplete tiles
+in the segment. `incomplete_tiles(seg)` returns empty, reassemble returns
+immediately. **Gate sufficient: yes.** ✓
+
+**5. remold** — Sort-dependent. Re-evaluates each tile's mold in the given
+sort context via `Form.Molds.get(label) |> filter(m.out == sort)`. Sibling-level
+`Relatives.remold` already ran on these tiles in this same sort (it calls
+`Siblings.remold(siblings, Ancestors.sort(ancestors))` — the ancestor sort is
+the same `sort` parameter). Tiles already have correct molds.
+**Gate sufficient: yes.** ✓
+
+**The chain of reasoning**: if the sort didn't change, then (a) no tokens need
+re-expansion → (b) no new incomplete tiles → (c) reassemble is a no-op →
+(d) no tiles need re-molding. Every operation in normalize is either
+sort-dependent (and the sort didn't change) or was already handled at the
+sibling level (because the content was part of the flat siblings when
+sibling-level processing ran).
+
+**Key assumption**: all of normalize's operations are parameterized solely by
+sort. If a future operation depended on other context (e.g., the identity of
+the parent tile, or position within the parent), the sort-change gate would
+not be sufficient for that operation. This assumption should be verified if
+normalize gains new operations.
 
 **How this fixes the case/end bug**: After rescan matches `case` with `end`,
 `reassemble_normalize` forms the tile and calls `normalize(Rul, child)` on the
