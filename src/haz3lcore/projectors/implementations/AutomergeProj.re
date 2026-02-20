@@ -25,76 +25,48 @@ let subscribe_to_doc =
     cleanup: None,
   };
   subscriptions := Id.Map.add(id, sub, subscriptions^);
-  let repo = Js.Unsafe.get(Js.Unsafe.global, "repo");
-  let promise =
-    Js.Unsafe.meth_call(
-      repo,
-      "find",
-      [|Js.Unsafe.inject(Js.string(url))|],
-    );
+
+  /* Look up the document by URL via the global automerge repo. */
+  let repo = Automerge.get_repo();
+  let promise = repo##find(Js.string(url));
+
+  /* Once the handle resolves, wire up the change listener. */
   ignore(
-    Js.Unsafe.meth_call(
-      promise,
-      "then",
-      [|
-        Js.Unsafe.inject(
-          Js.wrap_callback(handle => {
-            let callback =
-              Js.wrap_callback(_ => {
-                let doc = Js.Unsafe.meth_call(handle, "doc", [||]);
-                let json_obj = Js.Unsafe.get(Js.Unsafe.global, "JSON");
-                let json_str =
-                  Js.to_string(
-                    Js.Unsafe.meth_call(
-                      json_obj,
-                      "stringify",
-                      [|Js.Unsafe.inject(doc)|],
-                    ),
-                  );
-                let yojson = Yojson.Safe.from_string(json_str);
-                switch (HazelProtocol.JsonADT.yojson_to_exp(yojson)) {
-                | Ok(exp) =>
-                  switch (Id.Map.find_opt(id, subscriptions^)) {
-                  | Some(s) => s.on_data(exp)
-                  | None => ()
-                  }
-                | Error(err) => prerr_endline("AutomergeProj: " ++ err)
-                };
-              });
-            let cleanup_fn = () => {
-              ignore(
-                Js.Unsafe.meth_call(
-                  handle,
-                  "off",
-                  [|
-                    Js.Unsafe.inject(Js.string("change")),
-                    Js.Unsafe.inject(callback),
-                  |],
-                ),
-              );
-            };
-            switch (Id.Map.find_opt(id, subscriptions^)) {
-            | Some(s) => s.cleanup = Some(cleanup_fn)
-            | None => ()
-            };
-            ignore(
-              Js.Unsafe.meth_call(
-                handle,
-                "on",
-                [|
-                  Js.Unsafe.inject(Js.string("change")),
-                  Js.Unsafe.inject(callback),
-                |],
-              ),
-            );
-            /* Also read initial doc state */
-            Js.Unsafe.fun_call(
-              callback,
-              [|Js.Unsafe.inject(Js.undefined)|],
-            );
-          }),
-        ),
-      |],
+    promise##then_(
+      Js.wrap_callback((handle: Js.t(Automerge.handle)) => {
+        /* Called on every "change" event (and once for the initial read).
+           Converts the live JS document to a Hazel expression. */
+        let callback =
+          Js.wrap_callback(_ => {
+            switch (Automerge.doc_to_exp(handle)) {
+            | Ok(exp) =>
+              switch (Id.Map.find_opt(id, subscriptions^)) {
+              | Some(s) => s.on_data(exp)
+              | None => ()
+              }
+            | Error(err) => prerr_endline("AutomergeProj: " ++ err)
+            }
+          });
+
+        /* Store a cleanup function that unsubscribes from changes. */
+        let cleanup_fn = () => {
+          ignore(
+            handle##off_(Js.string("change"), Js.Unsafe.inject(callback)),
+          );
+        };
+        switch (Id.Map.find_opt(id, subscriptions^)) {
+        | Some(s) => s.cleanup = Some(cleanup_fn)
+        | None => ()
+        };
+
+        /* Subscribe to future changes. */
+        ignore(
+          handle##on_(Js.string("change"), Js.Unsafe.inject(callback)),
+        );
+
+        /* Fire the callback once immediately to read the initial doc state. */
+        Js.Unsafe.fun_call(callback, [|Js.Unsafe.inject(Js.undefined)|]);
+      }),
     ),
   );
 };
