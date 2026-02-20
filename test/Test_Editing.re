@@ -551,10 +551,7 @@ let insertion_tests = [
    * the standalone `->` to fun's trailing delimiter. */
   test(
     ~name="Rescan: fun typed before existing standalone ->",
-    ~acts=
-      mk({|-> x¦|})
-      @ mv_l(4)
-      @ string_to_ltr_actions("fun a "),
+    ~acts=mk({|-> x¦|}) @ mv_l(4) @ string_to_ltr_actions("fun a "),
     ~goal={|fun a ¦-> x|},
   ),
 ];
@@ -1025,8 +1022,7 @@ let rec seg_has_incomplete = (seg: Segment.t): bool =>
   List.exists(
     fun
     | Piece.Tile(t) =>
-      !Tile.is_complete(t)
-      || List.exists(seg_has_incomplete, t.children)
+      !Tile.is_complete(t) || List.exists(seg_has_incomplete, t.children)
     | _ => false,
     seg,
   );
@@ -1036,26 +1032,29 @@ let zip_has_incomplete = (z: Zipper.t): bool =>
 
 /* Test helper that checks printer output AND absence of incomplete tiles. */
 let test_complete = (~name, ~acts, ~goal): test_case(_) =>
-  test_case(name, `Quick, () => {
-    let z = acts |> perform(Zipper.init());
-    let printed = printer(z);
-    check(
-      testable(Fmt.string, String.equal),
-      "printer output",
-      goal,
-      printed,
-    );
-    if (zip_has_incomplete(z)) {
-      Alcotest.fail("Incomplete tiles remain after rescan");
-    };
-  });
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      let printed = printer(z);
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printed,
+      );
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail("Incomplete tiles remain after rescan");
+      };
+    },
+  );
 
 let rescan_tests = [
   /* PHASE 1: Basic sibling-level rescan.
    * These test out-of-order typing where the rescan retroactively
    * matches standalone monotiles with incomplete tiles' missing shards.
    * Each test fails on dev (incomplete tiles remain) but passes with rescan. */
-
   /* fun/-> : type `a -> x`, go to start, type `fun ` */
   test_complete(
     ~name="Rescan: fun before standalone ->",
@@ -1085,12 +1084,10 @@ let rescan_tests = [
     ~acts=mk({|let y = 1 in x¦|}),
     ~goal={|let y = 1 in x¦|},
   ),
-
   /* PHASE 2: Effective-label matching (cross-form re-association).
    * These test that orphaned shards from one form can be matched by
    * a different form with compatible delimiters.
    * These should FAIL until effective-label matching is implemented. */
-
   /* Delete fun from `fun a -> x`, retype as fix.
    * The orphaned ->[1] (label ["fun","->"]) should match fix's ->. */
   test_complete(
@@ -1110,6 +1107,19 @@ let rescan_tests = [
       @ [Destruct(Right), Destruct(Right), Destruct(Right)]
       @ string_to_ltr_actions("type"),
     ~goal={|type¦ y = 1 in x|},
+  ),
+  /* Recovery workflow: fun (a, b -> ), insert ) after b, delete old ).
+   * After inserting ), the new ) matches ( (backpack). Move to old ),
+   * delete it. The rescan should then match fun with ->. */
+  test_complete(
+    ~name="Recovery: fun (a, b -> a) via insert-then-delete",
+    ~acts=
+      mk({|fun (a, b -> a)¦|})
+      @ mv_l(7)  /* fun (a, b¦ -> ) */
+      @ string_to_ltr_actions(")")  /* fun (a, b)¦ -> ) */
+      @ mv_r(7)  /* fun (a, b) -> )¦ */
+      @ [Destruct(Left)], /* delete old ) */
+    ~goal={|fun (a, b) -> a¦|},
   ),
 ];
 
