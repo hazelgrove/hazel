@@ -6,6 +6,7 @@ let lessons: list(Tutorial.spec) = [
   Tu_Arithmetic.int_exercise,
   Tu_Arithmetic.float_exercise,
   Tu_LetBindings.exercise,
+  Tu_Probes.exercise,
   Tu_TypeAnnotations.exercise,
   Tu_Functions.exercise,
   Tu_Partial.exercise,
