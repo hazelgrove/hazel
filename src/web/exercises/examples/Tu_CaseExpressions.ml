@@ -61,6 +61,9 @@ let exercise : Tutorial.spec =
        ```\n\n\
        ```hazel\n\
        string_sub(\"012345\", 2, 3)\n\
+       ```\n\n\
+       ```hazel\n\
+       string_length(\"012345\")\n\
        ```";
     your_impl =
       {
