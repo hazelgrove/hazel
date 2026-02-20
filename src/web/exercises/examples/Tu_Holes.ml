@@ -15,7 +15,14 @@ let exercise : Tutorial.spec =
        Your goal is to fill the empty hole in the following program to \
        complete the arithmetic expression so that the result is **42**.";
     display_hint = "The answer is 42 - 20";
-    task_reference = "";
+    task_reference =
+      "This is the task reference bar where you can find reference materials \
+       as you go through the tasks. This will include operations we think may \
+       be helpful.\n\n\
+       ### Useful arithmetic\n\
+       ```hazel\n\
+       42 - 20\n\
+       ```";
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

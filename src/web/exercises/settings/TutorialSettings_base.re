@@ -15,4 +15,7 @@ let lessons: list(Tutorial.spec) = [
   Tu_ListMap.exercise,
   Tu_ListFold.exercise,
   Ta_StringMean.exercise,
+  Tu_LabeledTuples.exercise,
+  Tu_Projection.exercise,
+  Tu_TupleList.exercise,
 ];
