@@ -21,4 +21,5 @@ let lessons: list(Tutorial.spec) = [
   Tu_TupleList.exercise,
   Tu_TupleExtension.exercise,
   Tu_LabelOmission.exercise,
+  Tu_TableProjection.exercise,
 ];
