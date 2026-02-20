@@ -43,6 +43,7 @@ module Settings = {
     project_tables: bool,
     hide_fixpoints: bool,
     show_filters: bool,
+    show_ascriptions: bool,
     show_unknown_as_hole: bool,
     raise_if_padding: bool,
   };
@@ -52,6 +53,7 @@ module Settings = {
     parenthesization: Defensive,
     label_format: QuoteWhenNecessary,
     inline,
+    show_ascriptions: settings.evaluation.show_ascriptions,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
     project_tables: settings.evaluation.project_tables,
     fold_fn_bodies:
@@ -74,6 +76,7 @@ module Settings = {
       fold_case_clauses: false,
       project_tables: false,
       fold_fn_bodies: `NoFold,
+      show_ascriptions: true,
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
@@ -317,13 +320,17 @@ let rec parenthesize =
         (
           ~parenthesization: Settings.parenthesization,
           ~show_filters: bool,
+          ~show_ascriptions: bool,
           ~already_paren=false,
           exp: Exp.t,
         )
         : Exp.t => {
-  let parenthesize = parenthesize(~parenthesization, ~show_filters);
-  let parenthesize_pat = parenthesize_pat(~parenthesization, ~show_filters);
-  let parenthesize_typ = parenthesize_typ(~parenthesization, ~show_filters);
+  let parenthesize =
+    parenthesize(~parenthesization, ~show_filters, ~show_ascriptions);
+  let parenthesize_pat =
+    parenthesize_pat(~parenthesization, ~show_filters, ~show_ascriptions);
+  let parenthesize_typ =
+    parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
   let paren_at = paren_at(~parenthesization);
   let paren_assoc_at = paren_assoc_at(~parenthesization);
   let paren_pat_at = paren_pat_at(~parenthesization);
@@ -505,12 +512,13 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.semi),
     )
     |> rewrap
-  | Asc(e, t) =>
+  | Asc(e, t) when show_ascriptions =>
     Asc(
       parenthesize(e) |> paren_assoc_at(Precedence.asc),
       parenthesize_typ(t) |> paren_typ_at(Precedence.asc),
     )
     |> rewrap
+  | Asc(e, _) => parenthesize(e) // skip ascription if not showing
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | HintedTest(e, hint) =>
     HintedTest(parenthesize(e) |> paren_at(Precedence.min), hint) |> rewrap
@@ -571,7 +579,10 @@ let rec parenthesize =
     |> rewrap
   | MultiHole(xs) =>
     MultiHole(
-      List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
     )
     |> rewrap
   };
@@ -580,12 +591,15 @@ and parenthesize_pat =
     (
       ~parenthesization: Settings.parenthesization,
       ~show_filters: bool,
+      ~show_ascriptions: bool,
       ~already_paren=false,
       pat: Pat.t,
     )
     : Pat.t => {
-  let parenthesize_pat = parenthesize_pat(~parenthesization, ~show_filters);
-  let parenthesize_typ = parenthesize_typ(~parenthesization, ~show_filters);
+  let parenthesize_pat =
+    parenthesize_pat(~parenthesization, ~show_filters, ~show_ascriptions);
+  let parenthesize_typ =
+    parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
   let paren_pat_at = paren_pat_at(~parenthesization);
   let paren_pat_assoc_at = paren_pat_assoc_at(~parenthesization);
   let paren_typ_at = paren_typ_at(~parenthesization);
@@ -647,15 +661,19 @@ and parenthesize_pat =
     |> rewrap
   | MultiHole(xs) =>
     MultiHole(
-      List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
     )
     |> rewrap
-  | Asc(p, t) =>
+  | Asc(p, t) when show_ascriptions =>
     Asc(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.asc),
       parenthesize_typ(t) |> paren_typ_at(Precedence.max) // Hack[Matt]: always add parens to get the arrows right
     )
     |> rewrap
+  | Asc(p, _) => parenthesize_pat(p) // skip ascription if not showing
   };
 }
 
@@ -663,11 +681,13 @@ and parenthesize_typ =
     (
       ~parenthesization: Settings.parenthesization,
       ~show_filters: bool,
+      ~show_ascriptions: bool,
       ~already_paren=false,
       typ: Typ.t,
     )
     : Typ.t => {
-  let parenthesize_typ = parenthesize_typ(~parenthesization, ~show_filters);
+  let parenthesize_typ =
+    parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
   let paren_typ_at = paren_typ_at(~parenthesization);
   let paren_typ_assoc_at = paren_typ_assoc_at(~parenthesization);
   let paren_at = paren_at(~parenthesization);
@@ -755,7 +775,7 @@ and parenthesize_typ =
     |> rewrap
   | ProofOf(e) =>
     ProofOf(
-      parenthesize(~parenthesization, ~show_filters, e)
+      parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e)
       |> paren_at(Precedence.min),
     )
     |> rewrap
@@ -780,7 +800,14 @@ and parenthesize_typ =
     Unknown(
       Hole(
         MultiHole(
-          List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+          List.map(
+            parenthesize_any(
+              ~parenthesization,
+              ~show_ascriptions,
+              ~show_filters,
+            ),
+            xs,
+          ),
         ),
       ),
     )
@@ -792,6 +819,7 @@ and parenthesize_tpat =
     (
       ~parenthesization: Settings.parenthesization,
       ~show_filters: bool,
+      ~show_ascriptions: bool,
       tpat: TPat.t,
     )
     : TPat.t => {
@@ -805,7 +833,10 @@ and parenthesize_tpat =
   // Other forms
   | MultiHole(xs) =>
     MultiHole(
-      List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
     )
     |> rewrap
   };
@@ -814,6 +845,7 @@ and parenthesize_tpat =
 and parenthesize_rul =
     (
       ~parenthesization: Settings.parenthesization,
+      ~show_ascriptions: bool,
       ~show_filters: bool,
       rul: Rul.t,
     )
@@ -826,12 +858,22 @@ and parenthesize_rul =
   // Other forms
   | Rules(e, ps) =>
     Rules(
-      parenthesize(~parenthesization, ~show_filters, e),
+      parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e),
       List.map(
         ((p, e)) =>
           (
-            parenthesize_pat(~parenthesization, ~show_filters, p),
-            parenthesize(~parenthesization, ~show_filters, e),
+            parenthesize_pat(
+              ~parenthesization,
+              ~show_ascriptions,
+              ~show_filters,
+              p,
+            ),
+            parenthesize(
+              ~parenthesization,
+              ~show_ascriptions,
+              ~show_filters,
+              e,
+            ),
           ),
         ps,
       ),
@@ -839,7 +881,10 @@ and parenthesize_rul =
     |> rewrap
   | MultiHole(xs) =>
     MultiHole(
-      List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
     )
     |> rewrap
   };
@@ -850,22 +895,59 @@ and parenthesize_any =
       ~parenthesization: Settings.parenthesization,
       ~already_paren=false,
       ~show_filters: bool,
+      ~show_ascriptions: bool,
       any: Any.t,
     )
     : Any.t =>
   switch (any) {
   | Exp(e) =>
-    Exp(parenthesize(~parenthesization, ~already_paren, ~show_filters, e))
+    Exp(
+      parenthesize(
+        ~parenthesization,
+        ~already_paren,
+        ~show_ascriptions,
+        ~show_filters,
+        e,
+      ),
+    )
   | Pat(p) =>
     Pat(
-      parenthesize_pat(~parenthesization, ~already_paren, ~show_filters, p),
+      parenthesize_pat(
+        ~parenthesization,
+        ~already_paren,
+        ~show_ascriptions,
+        ~show_filters,
+        p,
+      ),
     )
   | Typ(t) =>
     Typ(
-      parenthesize_typ(~parenthesization, ~already_paren, ~show_filters, t),
+      parenthesize_typ(
+        ~parenthesization,
+        ~already_paren,
+        ~show_ascriptions,
+        ~show_filters,
+        t,
+      ),
     )
-  | TPat(tp) => TPat(parenthesize_tpat(~parenthesization, ~show_filters, tp))
-  | Rul(r) => Rul(parenthesize_rul(~parenthesization, ~show_filters, r))
+  | TPat(tp) =>
+    TPat(
+      parenthesize_tpat(
+        ~parenthesization,
+        ~show_ascriptions,
+        ~show_filters,
+        tp,
+      ),
+    )
+  | Rul(r) =>
+    Rul(
+      parenthesize_rul(
+        ~parenthesization,
+        ~show_ascriptions,
+        ~show_filters,
+        r,
+      ),
+    )
   | Any(_) => any
   };
 
@@ -1280,6 +1362,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         Pat.fresh(Asc(p, t))
         |> parenthesize_pat(
              ~parenthesization=settings.parenthesization,
+             ~show_ascriptions=settings.show_ascriptions,
              ~show_filters=settings.show_filters,
            );
       };
@@ -2140,6 +2223,7 @@ let exp_to_segment =
          ~parenthesization=settings.parenthesization,
          ~already_paren,
          ~show_filters=settings.show_filters,
+         ~show_ascriptions=settings.show_ascriptions,
        );
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
@@ -2151,6 +2235,7 @@ let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
     |> parenthesize_typ(
          ~parenthesization=settings.parenthesization,
          ~show_filters=settings.show_filters,
+         ~show_ascriptions=settings.show_ascriptions,
        );
   let p = typ_to_pretty(~settings, typ);
   p |> PrettySegment.select;
@@ -2164,6 +2249,7 @@ let any_to_segment =
          ~parenthesization=settings.parenthesization,
          ~already_paren,
          ~show_filters=settings.show_filters,
+         ~show_ascriptions=settings.show_ascriptions,
        );
   let p = any_to_pretty(~settings, any);
   p |> PrettySegment.select;

@@ -4,6 +4,11 @@ open Language.Secondary;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = Language.Secondary.t;
 
+let mk_empty = id => {
+  content: Whitespace(Token.empty),
+  id,
+};
+
 let mk_space = id => {
   content: Whitespace(Token.space),
   id,

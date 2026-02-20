@@ -130,17 +130,36 @@ module View = {
 
     taken_steps(model.taken_steps)
     @ next_steps(model.next_steps, ~inject=x =>
-        Some(List.nth(model.next_steps, x)) == selected_id
-          ? signal(TakeStep(x))
-          : inject(Select(Term(Id(List.nth(model.next_steps, x), Right))))
+        {
+          open OptUtil.Syntax;
+          let+ range =
+            TermData.extreme_measures(
+              List.nth(model.next_steps, x),
+              model.editor.editor.syntax.term_data,
+              model.editor.editor.syntax.measured,
+            );
+          Some(List.nth(model.next_steps, x)) == selected_id
+            ? signal(TakeStep(x)) : inject(Select(PointToPoint(range)));
+        }
+        |> Option.value(~default=Ui_effect.Ignore)
       )
-    @ refl_steps(model.refls, ~inject=x => {
-        Some(List.nth(model.refls, x)) == selected_id
-          ? signal(Refl(x))
-          : {
-            inject(Select(Term(Id(List.nth(model.refls, x), Right))));
-          }
-      });
+    @ refl_steps(model.refls, ~inject=x =>
+        {
+          open OptUtil.Syntax;
+          let+ range =
+            TermData.extreme_measures(
+              List.nth(model.refls, x),
+              model.editor.editor.syntax.term_data,
+              model.editor.editor.syntax.measured,
+            );
+          Some(List.nth(model.refls, x)) == selected_id
+            ? signal(Refl(x))
+            : {
+              inject(Select(PointToPoint(range)));
+            };
+        }
+        |> Option.value(~default=Ui_effect.Ignore)
+      );
   };
 
   /* Steppers don't support probe dynamics - expressions shown are
@@ -157,6 +176,7 @@ module View = {
         model: Model.t,
       ) => {
     CodeSelectable.View.view(
+      ~expand_selection=true,
       ~dynamics=Language.Dynamics.Map.empty,
       ~signal=
         fun

@@ -9,6 +9,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   project_tables: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,

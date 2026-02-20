@@ -80,6 +80,13 @@ let values_group = (~globals: Globals.t) => {
       ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses), None),
       ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints), None),
       ("☰", "Tables", s.project_tables, Evaluation(ProjectTables), None),
+      (
+        ":",
+        "Ascriptions",
+        s.show_ascriptions,
+        Evaluation(ShowAscriptions),
+        None,
+      ),
     ],
   );
 };
@@ -136,12 +143,18 @@ let stepper_group = (~globals: Globals.t) => {
   );
 };
 
-let dev_group = (~globals) => {
+let dev_group = (~globals: Globals.t) => {
   settings_group(
     ~globals,
     "Developer",
     [
-      ("✓", "Benchmarks", globals.settings.benchmark, Benchmark, None),
+      (
+        "✓",
+        "Benchmarks",
+        globals.settings.benchmark,
+        Settings.Update.Benchmark,
+        None: option(string),
+      ),
       (
         "𝑒",
         "Elaboration",
@@ -149,12 +162,34 @@ let dev_group = (~globals) => {
         Elaborate,
         None,
       ),
+    ]
+    @ (
+      ExerciseSettings.show_instructor
+        ? [
+          (
+            "📃",
+            "Log Panel",
+            globals.settings.show_log_panel,
+            ShowLogPanel,
+            None,
+          ),
+        ]
+        : []
+    ),
+  );
+};
+
+let code_display_group = (~globals: Globals.t) => {
+  settings_group(
+    ~globals,
+    "Code Display",
+    [
       (
         "↵",
         "Whitespace",
         globals.settings.secondary_icons,
-        SecondaryIcons,
-        None,
+        Settings.Update.SecondaryIcons,
+        None: option(string),
       ),
       (
         "a",
@@ -163,15 +198,44 @@ let dev_group = (~globals) => {
         FlipAnimations,
         None,
       ),
-    ],
+      (
+        "l",
+        "Line Numbers",
+        globals.settings.line_numbers,
+        ToggleLineNumbers,
+        None,
+      ),
+      (
+        "r",
+        "Relative Numbers",
+        globals.settings.relative_line_numbers,
+        ToggleRelativeLineNumbers,
+        None,
+      ),
+    ]
+    @ (
+      globals.settings.line_numbers
+        ? [
+          (
+            "r",
+            "Relative Numbers",
+            globals.settings.relative_line_numbers,
+            ToggleRelativeLineNumbers,
+            None,
+          ),
+        ]
+        : []
+    ),
   );
 };
 
+//("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers)
 let settings_menu = (~globals) => {
   [
     semantics_group(~globals),
     values_group(~globals),
     stepper_group(~globals),
     dev_group(~globals),
+    code_display_group(~globals),
   ];
 };

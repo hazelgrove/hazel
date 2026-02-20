@@ -60,7 +60,8 @@ let rec any_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~ancestors,
-        ~duplicates=[],
+        ~duplicate_bindings=[],
+        ~duplicate_labels=[],
         ~ctx,
         p,
         m,
@@ -246,8 +247,8 @@ and uexp_to_info_map =
         go(~ana, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~dynamics, ~ctx, ~ancestors, ~duplicates);
-  let go_typ = utyp_to_info_map(~dynamics, ~ctx, ~ancestors);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let label_to_info_map =
       (expected_labels, labmode, label: Exp.t, m: Map.t)
       : (option(string), Info.exp, Map.t) => {
@@ -338,7 +339,7 @@ and uexp_to_info_map =
       let (co_ctxs, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
-      let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
+      let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, ~dynamics, m);
       let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
       add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
     | Invalid(token) => atomic(BadToken(token))
@@ -717,7 +718,7 @@ and uexp_to_info_map =
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self)) : atomic(self);
+        ? atomic(DuplicateLabel(name, self)) : atomic(self);
     | Label(name) =>
       let self = Self.UnexpectedLabelSort(name);
       atomic(self);
@@ -1044,11 +1045,25 @@ and uexp_to_info_map =
       let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _) =
-        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~ana=mode_pat,
+          ~dynamics,
+          p,
+          m,
+        );
       let (e, m) = go'(~ctx=p'.ctx, ~ana=mode_body, e, m);
       /* add co_ctx to pattern */
       let (p, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=mode_pat, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=e.co_ctx,
+          ~ana=mode_pat,
+          ~dynamics,
+          p,
+          m,
+        );
       // TODO: factor out code
       let unwrapped_self: Self.exp =
         Common(Just(Arrow(p.ty, e.ty) |> Typ.temp));
@@ -1062,7 +1077,8 @@ and uexp_to_info_map =
         };
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
     | Forall(p, e) =>
-      let (p, m) = go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~dynamics, p, m);
       let (e, m) = go'(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add'(
         ~self=Common(Just(Atom(Bool) |> Typ.temp)),
@@ -1120,7 +1136,14 @@ and uexp_to_info_map =
       );
     | Let(p, def, body) =>
       let (p_syn, _) =
-        go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=true,
+          ~co_ctx=CoCtx.empty,
+          ~ana=syn,
+          ~dynamics,
+          p,
+          m,
+        );
       let (def, p_ana_ctx, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
           let (def, m) = go(~ana=p_syn.ty, def, m);
@@ -1130,6 +1153,7 @@ and uexp_to_info_map =
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,
               ~ana=ty_p_ana,
+              ~dynamics,
               p,
               m,
             );
@@ -1143,6 +1167,7 @@ and uexp_to_info_map =
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,
               ~ana=ty_p_ana,
+              ~dynamics,
               p,
               m,
             );
@@ -1171,7 +1196,14 @@ and uexp_to_info_map =
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=body.co_ctx,
+          ~ana=ty_p_ana,
+          ~dynamics,
+          p,
+          m,
+        );
       // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
       let Coverage.CheckMatrix.{exhaustiveness, _} =
@@ -1198,13 +1230,21 @@ and uexp_to_info_map =
           ~is_synswitch=false,
           ~co_ctx=CoCtx.empty,
           ~ana=Typ.fresh(ProofOf(e1)),
+          ~dynamics,
           p,
           m,
         );
       let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=e2.co_ctx,
+          ~ana=syn,
+          ~dynamics,
+          p,
+          m,
+        );
       add(
         ~self=Just(e2.ty),
         ~co_ctx=
@@ -1218,11 +1258,25 @@ and uexp_to_info_map =
     | Theorem(p, e1, e2) =>
       let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
-        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~ana=syn,
+          ~dynamics,
+          p,
+          m,
+        );
       let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=e2.co_ctx,
+          ~ana=syn,
+          ~dynamics,
+          p,
+          m,
+        );
       add'(
         ~self=BadTheorem(e2.ty),
         ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e2.co_ctx)]),
@@ -1233,10 +1287,17 @@ and uexp_to_info_map =
       add(~self=Just(Typ.temp(ProofOf(e))), ~co_ctx=CoCtx.empty, m); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, _) =>
       let (p', _) =
-        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~ana,
+          ~dynamics,
+          p,
+          m,
+        );
       let (e', m) = go'(~ctx=p'.ctx, ~ana=p'.ty, e, m);
       let (p'', m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
+        go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, ~dynamics, p, m);
       add(
         ~self=Just(p'.ty),
         ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx)]),
@@ -1258,7 +1319,12 @@ and uexp_to_info_map =
       let branch_ids = List.map(Exp.rep_id, es);
       let (ps', _) =
         map_m(
-          go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=scrut.ty),
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~ana=scrut.ty,
+            ~dynamics,
+          ),
           ps,
           m,
         );
@@ -1285,7 +1351,14 @@ and uexp_to_info_map =
             (p, co_ctx),
           ) => {
             let (info, m) =
-              go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
+              go_pat(
+                ~is_synswitch=false,
+                ~co_ctx,
+                ~ana=scrut.ty,
+                ~dynamics,
+                p,
+                m,
+              );
 
             let p_constraint = Info.pat_constraint(info);
             ([p_constraint, ...constraints], m);
@@ -1456,7 +1529,8 @@ and upat_to_info_map =
       ~ctx,
       ~co_ctx,
       ~ancestors: Info.ancestors,
-      ~duplicates: list(string),
+      ~duplicate_bindings: list(string)=[],
+      ~duplicate_labels: list(string)=[],
       ~expected_labels=?,
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
@@ -1542,7 +1616,8 @@ and upat_to_info_map =
         ~ctx,
         ~co_ctx,
         ~ancestors,
-        ~duplicates=[],
+        ~duplicate_bindings=[],
+        ~duplicate_labels=[],
         ~expected_labels=?,
         ~ana,
         ~under_ascription=false,
@@ -1558,7 +1633,8 @@ and upat_to_info_map =
       ~ctx,
       ~co_ctx,
       ~ancestors,
-      ~duplicates,
+      ~duplicate_bindings,
+      ~duplicate_labels,
       ~ana,
       ~under_ascription,
       ~override_self?,
@@ -1574,10 +1650,18 @@ and upat_to_info_map =
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
-  let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
+  let ctx_fold = (ctx: Ctx.t, m, ~duplicate_bindings=[], ~duplicate_labels=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m, info_all), e, ana) =>
-        go(~ctx, ~ana, ~duplicates, ~inferred_label?, e, m)
+        go(
+          ~ctx,
+          ~ana,
+          ~duplicate_bindings,
+          ~duplicate_labels,
+          ~inferred_label?,
+          e,
+          m,
+        )
         |> (
           ((info, m)) => (
             info.ctx,
@@ -1734,12 +1818,21 @@ and upat_to_info_map =
           typ: ctx_typ,
           custom_statics: None,
         });
-      add(
-        ~self=Just(unknown),
-        ~ctx=Ctx.extend(ctx, entry),
-        ~constraint_=Coverage.Constraint.Truth,
-        m,
-      );
+
+      List.exists(l => name == l, duplicate_bindings)
+        ? add(
+            ~self=DuplicateVar(name, Just(unknown)),
+            ~ctx=Ctx.extend(ctx, entry),
+            ~constraint_=Coverage.Constraint.Truth,
+            m,
+          )
+        : add(
+            ~self=Just(unknown),
+            ~ctx=Ctx.extend(ctx, entry),
+            ~constraint_=Coverage.Constraint.Truth,
+            m,
+          );
+
     | TupLabel({term: ExplicitNonlabel, _} as label, p) =>
       let (p, m) = go(~ana, ~ctx, p, m);
       let (_, m) = go(~label_sort=true, ~ctx, ~ana=syn, label, m);
@@ -1761,12 +1854,21 @@ and upat_to_info_map =
               ~ctx,
               ~ana=labmode,
               ~override_self=?label_self,
-              ~duplicates,
+              ~duplicate_bindings,
+              ~duplicate_labels,
               ~label_sort=true,
               label,
               m,
             );
-          let (p, m) = go(~ctx, ~ana=val_mode, ~inferred_label?, p, m);
+          let (p, m) =
+            go(
+              ~ctx,
+              ~ana=val_mode,
+              ~inferred_label?,
+              ~duplicate_bindings,
+              p,
+              m,
+            );
           (lab, p, m);
         | _ =>
           let (lab, m) =
@@ -1783,7 +1885,8 @@ and upat_to_info_map =
                 | (EmptyHole, _) => None
                 | _ => Some(BadLabel(Pat(label)))
                 },
-              ~duplicates,
+              ~duplicate_bindings,
+              ~duplicate_labels,
               label,
               m,
             );
@@ -1871,7 +1974,9 @@ and upat_to_info_map =
 
       let new_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
-      let duplicate_labels =
+      let new_duplicate_bindings =
+        Pat.get_duplicate_bindings(Pat.fresh(term));
+      let new_duplicate_labels =
         LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
       let (ctx, tys, cons, m, info_pats) =
         List.fold_left2(
@@ -1880,7 +1985,10 @@ and upat_to_info_map =
               ~ctx,
               ~ana,
               ~inferred_label?,
-              ~duplicates=duplicate_labels,
+              // Perhaps multiple copies of something in duplicates, but probably not an issue.
+              // Needed so that nested tuples can have duplicate bindings saved.
+              ~duplicate_bindings=duplicate_bindings @ new_duplicate_bindings,
+              ~duplicate_labels=new_duplicate_labels,
               ~expected_labels?,
               e,
               m,
@@ -1951,12 +2059,13 @@ and upat_to_info_map =
       );
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
-      List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
+      List.exists(l => name == l, duplicate_labels)
+        ? atomic(DuplicateLabel(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
     | Parens(p)
     | Projector(_, p) =>
-      let (p, m) = go(~ctx, ~ana, p, m);
+      let (p, m) =
+        go(~ctx, ~ana, p, ~duplicate_bindings, ~duplicate_labels, m);
       add'(~self=p.self, ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);

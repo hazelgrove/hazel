@@ -602,3 +602,21 @@ let assoc_update = (key, f, assoc) => {
 
 let remove_assoc = (key, assoc) =>
   List.filter(((k, _)) => k != key, assoc);
+
+let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    Some(
+      List.fold_left(
+        (current_max, candidate) =>
+          switch (cmp(current_max, candidate)) {
+          | Left => current_max
+          | Right => candidate
+          },
+        x,
+        xs,
+      ),
+    )
+  };
+};

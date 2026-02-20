@@ -97,6 +97,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   project_tables: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
   raise_if_padding: false,
@@ -196,6 +197,7 @@ let common_err_view =
           ? []
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
+    | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
         label_view(name),

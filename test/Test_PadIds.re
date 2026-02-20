@@ -20,6 +20,7 @@ let qcheck_pads_typ_for_exp_to_segment =
             show_filters: true,
             show_unknown_as_hole: true,
             project_tables: false,
+            show_ascriptions: true,
             raise_if_padding: true // Will raise an exception if padding
           },
           padded,

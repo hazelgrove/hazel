@@ -48,6 +48,13 @@ let timestamp = () => date_now()##valueOf;
 
 let precise_timestamp = () => Js.Unsafe.global##.performance##now()##valueOf;
 
+let print_timestamp = (ts: float): string => {
+  let date =
+    Js.Unsafe.new_obj(Js.date_fromTimeValue, [|Js.Unsafe.inject(ts)|]);
+  let date_str = date##toLocaleString(Js.undefined, Js.undefined);
+  date_str;
+};
+
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
   let blob = File.blob_from_string(~contentType=content_type, contents);
@@ -78,6 +85,13 @@ let read_file = (file, k) => {
       k(data);
       Js._true;
     });
+};
+
+let reset_file_input = (input_id: string): unit => {
+  switch (get_elem_by_id_opt(input_id)) {
+  | Some(elem) => Js.Unsafe.set(elem, "value", Js.string(""))
+  | None => ()
+  };
 };
 
 let set_localstore = (k: string, v: string): unit => {

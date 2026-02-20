@@ -139,7 +139,7 @@ module Update = {
           ...model,
           thm_map,
         };
-      | None => model |> Updated.return_quiet
+      | None => model |> Updated.raise_invalid_action
       };
     };
   };
