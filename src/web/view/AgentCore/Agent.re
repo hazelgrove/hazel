@@ -439,7 +439,8 @@ module Chat = {
       | AgentEditorView
       | StaticErrors
       | Prompt
-      | DeveloperNotes;
+      | DeveloperNotes
+      | Tools;
 
     // Chats are a tree of messages
     // The user can branch off from the current or past message and create threads
@@ -1075,6 +1076,7 @@ module Agent = {
       system_prompt: string,
       dev_notes: string,
       tools: list(API.Json.t),
+      disabled_tool_names: list(string),
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1085,6 +1087,7 @@ module Agent = {
       awaiting_response: option(Id.t),
       restore_editor_state: option(Segment.t),
       last_empty_retry_attempt: option(int),
+      tools_view_expanded: list(string),
     };
   };
 
@@ -1097,6 +1100,7 @@ module Agent = {
         ...model,
         restore_editor_state: None,
         last_empty_retry_attempt: None,
+        tools_view_expanded: [],
       };
     };
 
@@ -1106,6 +1110,70 @@ module Agent = {
         awaiting_response: None,
         restore_editor_state: None,
         last_empty_retry_attempt: None,
+        tools_view_expanded: [],
+      };
+    };
+  };
+
+  module ToolUtils = {
+    let get_name = (tool: API.Json.t): option(string) => {
+      switch (API.Json.dot("function", tool)) {
+      | Some(func) =>
+        switch (API.Json.dot("name", func)) {
+        | Some(name_json) => API.Json.str(name_json)
+        | None => None
+        }
+      | None => None
+      };
+    };
+
+    let get_description = (tool: API.Json.t): option(string) => {
+      switch (API.Json.dot("function", tool)) {
+      | Some(func) =>
+        switch (API.Json.dot("description", func)) {
+        | Some(desc_json) => API.Json.str(desc_json)
+        | None => None
+        }
+      | None => None
+      };
+    };
+
+    let category_of_tool = (name: string): string => {
+      switch (name) {
+      | n when List.mem(n, ["expand", "collapse"]) => "View"
+      | n
+          when
+            List.mem(
+              n,
+              [
+                "initialize",
+                "update_definition",
+                "update_body",
+                "update_pattern",
+                "update_binding_clause",
+                "delete_binding_clause",
+                "delete_body",
+                "insert_after",
+                "insert_before",
+              ],
+            ) => "Edit"
+      | n
+          when
+            List.mem(
+              n,
+              [
+                "create_new_task",
+                "set_active_task",
+                "unset_active_task",
+                "set_active_subtask",
+                "unset_active_subtask",
+                "mark_active_task_complete",
+                "mark_active_task_incomplete",
+                "mark_active_subtask_complete",
+                "mark_active_subtask_incomplete",
+              ],
+            ) => "Workbench"
+      | _ => "Other"
       };
     };
   };
@@ -1130,11 +1198,13 @@ module Agent = {
           system_prompt,
           dev_notes,
           tools: CompositionUtils.Public.tools,
+          disabled_tool_names: [],
         },
         active_timeline_node: None,
         awaiting_response: None,
         restore_editor_state: None,
         last_empty_retry_attempt: None,
+        tools_view_expanded: [],
       };
     };
   };
@@ -1254,12 +1324,35 @@ module Agent = {
         | LoadTimelineSegment(Segment.t, int)
         | RestoreOriginal
         | LoadSegmentIntoEditor(Segment.t)
-        | SetActiveTimelineNode(option(int));
+        | SetActiveTimelineNode(option(int))
+        | SetToolEnabled(string, bool)
+        | ToggleToolsViewExpanded(string);
     };
 
     let max_api_retries = 3;
     let is_retryable_api_error = (code: int): bool =>
       code == 429 || code == 500 || code == 502 || code == 503;
+
+    let get_tool_name = (tool: API.Json.t): option(string) => {
+      switch (API.Json.dot("function", tool)) {
+      | Some(func) =>
+        switch (API.Json.dot("name", func)) {
+        | Some(name_json) => API.Json.str(name_json)
+        | None => None
+        }
+      | None => None
+      };
+    };
+
+    let enabled_tools = (prompting: Model.prompting): list(API.Json.t) =>
+      List.filter(
+        (tool: API.Json.t) =>
+          switch (get_tool_name(tool)) {
+          | Some(name) => !List.mem(name, prompting.disabled_tool_names)
+          | None => true
+          },
+        prompting.tools,
+      );
     // We Use expoenential backoff
     let backoff_ms = (attempt: int): float =>
       1000.0 *. 2.0 ** float(attempt);
@@ -1405,7 +1498,7 @@ module Agent = {
                     ChatSystem.Utils.find_chat(chat_id, chat_system),
                   ),
                 ),
-              ~tools=model.prompting.tools,
+              ~tools=enabled_tools(model.prompting),
             ),
           ~schedule_action,
           ~chat_id,
@@ -1891,7 +1984,7 @@ module Agent = {
                       ChatSystem.Utils.find_chat(chat_id, chat_system),
                     ),
                   ),
-                ~tools=model.prompting.tools,
+                ~tools=enabled_tools(model.prompting),
               ),
             ~schedule_action,
             ~chat_id,
@@ -1960,7 +2053,7 @@ module Agent = {
                       ChatSystem.Utils.find_chat(chat_id, model.chat_system),
                     ),
                   ),
-                ~tools=model.prompting.tools,
+                ~tools=enabled_tools(model.prompting),
               ),
             ~schedule_action,
             ~chat_id,
@@ -2059,6 +2152,43 @@ module Agent = {
           },
           editor |> Updated.return,
         )
+      | SetToolEnabled(name, enabled) =>
+        let disabled_tool_names =
+          if (enabled) {
+            List.filter(
+              (n: string) => n != name,
+              model.prompting.disabled_tool_names,
+            );
+          } else {
+            List.mem(name, model.prompting.disabled_tool_names)
+              ? model.prompting.disabled_tool_names
+              : [name, ...model.prompting.disabled_tool_names];
+          };
+        (
+          {
+            ...model,
+            prompting: {
+              ...model.prompting,
+              disabled_tool_names,
+            },
+          },
+          editor |> Updated.return,
+        );
+      | ToggleToolsViewExpanded(name) =>
+        let tools_view_expanded =
+          List.mem(name, model.tools_view_expanded)
+            ? List.filter(
+                (n: string) => n != name,
+                model.tools_view_expanded,
+              )
+            : [name, ...model.tools_view_expanded];
+        (
+          {
+            ...model,
+            tools_view_expanded,
+          },
+          editor |> Updated.return,
+        );
       };
     };
   };

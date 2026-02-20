@@ -122,6 +122,7 @@ let view =
                   | Agent.Chat.Model.Messages
                   | Agent.Chat.Model.Prompt
                   | Agent.Chat.Model.DeveloperNotes
+                  | Agent.Chat.Model.Tools
                   | Agent.Chat.Model.AgentEditorView
                   | Agent.Chat.Model.StaticErrors => true
                   | Agent.Chat.Model.Workbench => false
@@ -228,6 +229,7 @@ let view =
             WorkbenchView.view(~globals, ~agent_model, ~agent_inject, ~signal)
           | Agent.Chat.Model.Prompt
           | Agent.Chat.Model.DeveloperNotes
+          | Agent.Chat.Model.Tools
           | Agent.Chat.Model.AgentEditorView
           | Agent.Chat.Model.StaticErrors =>
             // These views are handled within ChatMessagesView
@@ -245,6 +247,7 @@ let view =
           | Agent.Chat.Model.Workbench => true
           | Agent.Chat.Model.Prompt
           | Agent.Chat.Model.DeveloperNotes
+          | Agent.Chat.Model.Tools
           | Agent.Chat.Model.AgentEditorView
           | Agent.Chat.Model.StaticErrors => false
           };

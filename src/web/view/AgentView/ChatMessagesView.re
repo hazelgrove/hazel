@@ -146,6 +146,169 @@ module ViewComponents = {
     );
   };
 
+  let tools_view =
+      (
+        ~agent_model: Agent.Agent.Model.t,
+        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~chat_id: Id.t,
+      )
+      : Node.t => {
+    let tools = agent_model.prompting.tools;
+    let disabled = agent_model.prompting.disabled_tool_names;
+    let expanded = agent_model.tools_view_expanded;
+
+    let tool_items =
+      tools
+      |> List.filter_map((tool: API.Json.t) => {
+           switch (Agent.Agent.ToolUtils.get_name(tool)) {
+           | Some(name) =>
+             let category = Agent.Agent.ToolUtils.category_of_tool(name);
+             let description =
+               Agent.Agent.ToolUtils.get_description(tool)
+               |> Option.value(~default="No description.");
+             let is_enabled = !List.mem(name, disabled);
+             let is_expanded = List.mem(name, expanded);
+             Some((name, category, description, is_enabled, is_expanded));
+           | None => None
+           }
+         });
+
+    let grouped =
+      tool_items
+      |> List.sort((a, b) => {
+           let (_, cat_a, _, _, _) = a;
+           let (_, cat_b, _, _, _) = b;
+           String.compare(cat_a, cat_b);
+         })
+      |> List.fold_left(
+           (acc, (name, cat, desc, enabled, exp)) => {
+             switch (List.assoc_opt(cat, acc)) {
+             | Some(items) =>
+               List.remove_assoc(cat, acc)
+               @ [(cat, [(name, desc, enabled, exp), ...items])]
+             | None => [(cat, [(name, desc, enabled, exp)])] @ acc
+             }
+           },
+           [],
+         )
+      |> List.rev
+      |> List.map(((cat, items)) => (cat, List.rev(items)));
+
+    let render_tool =
+        (name: string, desc: string, is_enabled: bool, is_expanded: bool) => {
+      let toggle_tool = _ =>
+        Effect.Many([
+          agent_inject(
+            Agent.Agent.Update.Action.SetToolEnabled(name, !is_enabled),
+          ),
+          Effect.Stop_propagation,
+        ]);
+      let toggle_expand = _ =>
+        Effect.Many([
+          agent_inject(
+            Agent.Agent.Update.Action.ToggleToolsViewExpanded(name),
+          ),
+          Effect.Stop_propagation,
+        ]);
+      div(
+        ~attrs=[clss(["tools-view-item"])],
+        [
+          div(
+            ~attrs=[
+              clss(["tools-view-item-header"]),
+              Attr.on_click(toggle_expand),
+            ],
+            [
+              div(
+                ~attrs=[clss(["tools-view-item-expand-icon"])],
+                [text(is_expanded ? "▾" : "▸")],
+              ),
+              div(
+                ~attrs=[
+                  clss(["tools-view-item-toggle"]),
+                  Attr.on_click(toggle_tool),
+                ],
+                [
+                  is_enabled
+                    ? Icons.circle_with_check : Icons.circle_with_no_check,
+                ],
+              ),
+              div(~attrs=[clss(["tools-view-item-name"])], [text(name)]),
+            ],
+          ),
+          if (is_expanded) {
+            div(
+              ~attrs=[clss(["tools-view-item-detail"])],
+              [
+                div(~attrs=[clss(["tools-view-item-desc"])], [text(desc)]),
+              ],
+            );
+          } else {
+            div(~attrs=[], []);
+          },
+        ],
+      );
+    };
+
+    let render_category =
+        (category: string, items: list((string, string, bool, bool))) => {
+      div(
+        ~attrs=[clss(["tools-view-category"])],
+        [
+          div(
+            ~attrs=[clss(["tools-view-category-title"])],
+            [text(category)],
+          ),
+          div(
+            ~attrs=[clss(["tools-view-category-items"])],
+            List.map(
+              ((name, desc, enabled, exp)) =>
+                render_tool(name, desc, enabled, exp),
+              List.rev(items),
+            ),
+          ),
+        ],
+      );
+    };
+
+    div(
+      ~attrs=[clss(["full-screen-view", "tools-view"])],
+      [
+        div(
+          ~attrs=[clss(["view-header"])],
+          [
+            div(~attrs=[clss(["view-title"])], [text("Agent Tools")]),
+            div(
+              ~attrs=[
+                clss(["view-close-button", "icon"]),
+                Attr.on_click(_ =>
+                  Effect.Many([
+                    agent_inject(
+                      Agent.Agent.Update.Action.ChatSystemAction(
+                        Agent.ChatSystem.Update.Action.ChatAction(
+                          Agent.Chat.Update.Action.SwitchView(
+                            Agent.Chat.Model.Messages,
+                          ),
+                          chat_id,
+                        ),
+                      ),
+                    ),
+                    Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [Icons.cancel],
+            ),
+          ],
+        ),
+        div(
+          ~attrs=[clss(["view-content", "tools-view-content"])],
+          List.map(((cat, items)) => render_category(cat, items), grouped),
+        ),
+      ],
+    );
+  };
+
   let workbench_view =
       (
         ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
@@ -873,6 +1036,12 @@ let view =
   | Agent.Chat.Model.DeveloperNotes =>
     ViewComponents.developer_notes_view(
       ~content=chunked_chat.developer_notes,
+      ~agent_inject,
+      ~chat_id=current_chat_id,
+    )
+  | Agent.Chat.Model.Tools =>
+    ViewComponents.tools_view(
+      ~agent_model,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )

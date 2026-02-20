@@ -1423,3 +1423,95 @@
   }
 }
 
+/* Tools View */
+.tools-view-content {
+  overflow-y: auto;
+  padding: 0.75em;
+}
+
+.tools-view-category {
+  margin-bottom: 1em;
+}
+
+.tools-view-category-title {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--STONE);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.5em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--BR2);
+}
+
+.tools-view-category-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+
+.tools-view-item {
+  border: 1px solid var(--BR2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tools-view-item-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em 0.75em;
+  cursor: pointer;
+  background-color: var(--T1);
+  transition: background-color 0.15s ease;
+}
+
+.tools-view-item-header:hover {
+  background-color: var(--T2);
+}
+
+.tools-view-item-expand-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  font-size: 0.9em;
+  color: var(--STONE);
+  line-height: 1;
+}
+
+.tools-view-item-toggle {
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.tools-view-item-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tools-view-item-toggle:hover {
+  opacity: 0.8;
+}
+
+.tools-view-item-name {
+  font-size: 0.9em;
+  font-family: ui-monospace, monospace;
+  color: var(--BR4);
+}
+
+.tools-view-item-detail {
+  padding: 0.5em 0.75em 0.75em 2.5em;
+  background-color: var(--T2);
+  border-top: 1px solid var(--BR2);
+}
+
+.tools-view-item-desc {
+  font-size: 0.82em;
+  color: var(--STONE);
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+

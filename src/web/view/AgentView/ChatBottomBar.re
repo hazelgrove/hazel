@@ -94,14 +94,12 @@ let view =
     ]);
   };
 
-  let switch_to_dev_notes = _ => {
+  let switch_to_tools = _ => {
     Effect.Many([
       agent_inject(
         Agent.Agent.Update.Action.ChatSystemAction(
           Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(
-              Agent.Chat.Model.DeveloperNotes,
-            ),
+            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Tools),
             current_chat_id,
           ),
         ),
@@ -231,19 +229,15 @@ let view =
               } else {
                 div(~attrs=[], []);
               },
-              // Dev Notes button
-              if (chunked_chat.developer_notes != "") {
-                div(
-                  ~attrs=[
-                    clss(["chat-action-button", "icon"]),
-                    Attr.on_click(switch_to_dev_notes),
-                    Attr.title("View Developer Notes"),
-                  ],
-                  [Icons.wrench],
-                );
-              } else {
-                div(~attrs=[], []);
-              },
+              // Tools button - configure which tools the agent can use
+              div(
+                ~attrs=[
+                  clss(["chat-action-button", "icon"]),
+                  Attr.on_click(switch_to_tools),
+                  Attr.title("Configure Agent Tools"),
+                ],
+                [Icons.wrench],
+              ),
               // Context View button (shows agent editor view, static errors, and workbench)
               if (chunked_chat.context != "") {
                 div(
