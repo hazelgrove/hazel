@@ -6,24 +6,21 @@ module Model = {
     | Scratch
     | Documentation
     | Tutorial
-    | Exercises
-    | Projects;
+    | Exercises;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Scratch(ScratchMode.Model.t)
     | Documentation(ScratchMode.Model.t)
     | Tutorial(TutorialsMode.Model.t)
-    | Exercises(ExercisesMode.Model.t)
-    | Projects(ProjectMode.Model.t);
+    | Exercises(ExercisesMode.Model.t);
 
   let mode_string: t => string =
     fun
     | Scratch(_) => "Scratch"
     | Documentation(_) => "Documentation"
     | Tutorial(_) => "Tutorial"
-    | Exercises(_) => "Exercises"
-    | Projects(_) => "Projects";
+    | Exercises(_) => "Exercises";
 };
 
 module StoreMode =
@@ -73,12 +70,6 @@ module Store = {
           ExercisesMode.Store.load(~settings, ~instructor_mode)
           |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
         )
-      | Projects =>
-        Model.Projects(
-          ProjectMode.Store.load()
-          |> ProjectMode.Store.integrate_share
-          |> ProjectMode.Persistent.unpersist(~settings),
-        )
       };
     };
   };
@@ -97,9 +88,6 @@ module Store = {
     | Model.Exercises(m) =>
       StoreMode.save(Exercises);
       ExercisesMode.Store.save(~instructor_mode, m);
-    | Model.Projects(m) =>
-      StoreMode.save(Projects);
-      ProjectMode.Store.save(ProjectMode.Persistent.persist(m));
     };
   };
 
@@ -123,9 +111,7 @@ module Update = {
     | Scratch(ScratchMode.Update.t)
     | Tutorial(TutorialsMode.Update.t)
     // Exercises
-    | Exercises(ExercisesMode.Update.t)
-    // Projects
-    | Projects(ProjectMode.Update.t);
+    | Exercises(ExercisesMode.Update.t);
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -133,7 +119,6 @@ module Update = {
     | Scratch(action) => ScratchMode.Update.can_undo(action)
     | Tutorial(action) => TutorialsMode.Update.can_undo(action)
     | Exercises(action) => ExercisesMode.Update.can_undo(action)
-    | Projects(action) => ProjectMode.Update.can_undo(action)
     };
   };
 
@@ -183,31 +168,13 @@ module Update = {
           m,
         );
       Model.Exercises(m');
-    | (Projects(action), Projects(m)) =>
-      let schedule_action = (a: ProjectMode.Update.t) =>
-        schedule_action(Projects(a));
-      let* m' =
-        ProjectMode.Update.update(
-          globals.settings,
-          action,
-          m,
-          schedule_action,
-        );
-      Model.Projects(m');
-    | (Projects(_), Scratch(_))
-    | (Projects(_), Tutorial(_))
-    | (Projects(_), Exercises(_))
-    | (Projects(_), Documentation(_))
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))
-    | (Tutorial(_), Projects(_))
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
-    | (Scratch(_), Projects(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Tutorial(_))
-    | (Exercises(_), Projects(_))
     | (Exercises(_), Documentation(_)) => model |> raise_invalid_action
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
@@ -247,12 +214,6 @@ module Update = {
              ~settings=globals.settings,
              ~instructor_mode=globals.settings.instructor_mode,
            ),
-      )
-      |> return
-    | (SwitchMode(Projects), _) =>
-      Model.Projects(
-        ProjectMode.Store.load()
-        |> ProjectMode.Persistent.unpersist(~settings=globals.settings.core),
       )
       |> return
     };
@@ -296,15 +257,6 @@ module Update = {
           m,
         ),
       )
-    | Model.Projects(m) =>
-      Model.Projects(
-        ProjectMode.Update.calculate(
-          ~schedule_action=a => schedule_action(Projects(a)),
-          ~settings,
-          ~is_edited,
-          m,
-        ),
-      )
     };
   };
 };
@@ -316,7 +268,8 @@ module Selection = {
     | Scratch(ScratchMode.Selection.t)
     | Exercises(ExercisesMode.Selection.t)
     | Tutorial(TutorialMode.Selection.t)
-    | Projects(ProjectMode.Selection.t);
+    | Assistant;
+  /* Assistant = user has focus in the sidebar (e.g. agent panel text box) */
 
   let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
     switch (selection, editors) {
@@ -326,9 +279,7 @@ module Selection = {
     | (Scratch(selection), Documentation(m)) =>
       let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
       Update.Scratch(ci);
-    | (Projects(selection), Projects(m)) =>
-      let+ ci = ProjectMode.Selection.get_cursor_info(~selection, m);
-      Update.Projects(ci);
+    | (Assistant, _) => empty
     | (Tutorial(selection), Tutorial(m)) =>
       let+ ci = TutorialsMode.Selection.get_cursor_info(~selection, m);
       Update.Tutorial(ci);
@@ -338,18 +289,11 @@ module Selection = {
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Tutorial(_))
     | (Scratch(_), Exercises(_))
-    | (Scratch(_), Projects(_))
     | (Exercises(_), Scratch(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Documentation(_))
-    | (Tutorial(_), Projects(_))
-    | (Exercises(_), Projects(_))
-    | (Exercises(_), Documentation(_))
-    | (Projects(_), Scratch(_))
-    | (Projects(_), Exercises(_))
-    | (Projects(_), Documentation(_))
-    | (Projects(_), Tutorial(_)) => empty
+    | (Exercises(_), Documentation(_)) => empty
     };
   };
 
@@ -368,9 +312,7 @@ module Selection = {
     | (Some(Exercises(selection)), Exercises(m)) =>
       ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Exercises(x))
-    | (Some(Projects(selection)), Projects(m)) =>
-      ProjectMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Projects(x))
+    | (Some(Assistant), _)
     | _ => None
     };
   };
@@ -390,9 +332,6 @@ module Selection = {
     | Exercises(m) =>
       ExercisesMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
-    | Projects(m) =>
-      ProjectMode.Selection.jump_to_tile(tile, m)
-      |> Option.map(((x, y)) => (Update.Projects(x), Projects(y)))
     };
 
   let default_selection =
@@ -401,8 +340,7 @@ module Selection = {
     | Model.Documentation(_) => Scratch(Cell(MainEditor))
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
-      Exercises(Implementation(Cell(Exercise.Prelude, MainEditor)))
-    | Model.Projects(_) => Projects(Cell(MainEditor));
+      Exercises(Implementation(Cell(Exercise.Prelude, MainEditor)));
 };
 
 module View = {
@@ -482,21 +420,6 @@ module View = {
         ~inject_explainthis: ExplainThisUpdate.update => 'b,
         m,
       )
-    | Projects(m) =>
-      ProjectModeView.view(
-        ~signal=
-          fun
-          | ProjectModeView.MakeActive(s: ProjectMode.Selection.t) =>
-            signal(MakeActive(Projects(s))),
-        ~globals,
-        ~selected=
-          switch (selection) {
-          | Some(Projects(s)) => Some(s)
-          | _ => None
-          },
-        ~inject=a => Update.Projects(a) |> inject,
-        m,
-      )
     };
 
   let file_menu = (~globals, ~inject, editors: Model.t) =>
@@ -520,12 +443,6 @@ module View = {
         ~inject=x => inject(Update.Exercises(x)),
         e,
       )
-    | Projects(p) =>
-      ProjectModeView.file_menu(
-        ~globals,
-        ~inject=x => inject(Update.Projects(x)),
-        p,
-      )
     };
 
   let top_bar =
@@ -542,7 +459,6 @@ module View = {
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
                 | "Tutorial" => inject(Update.SwitchMode(Tutorial))
                 | "Exercises" => inject(Update.SwitchMode(Exercises))
-                | "Projects" => inject(Update.SwitchMode(Projects))
                 | _ => failwith("Invalid mode")
               ),
             ],
@@ -555,19 +471,12 @@ module View = {
                     | Documentation(_) => "Documentation"
                     | Tutorial(_) => "Tutorial"
                     | Exercises(_) => "Exercises"
-                    | Projects(_) => "Projects"
                     }
                   )
                   == s,
                   s,
                 ),
-              [
-                "Scratch",
-                "Documentation",
-                "Tutorial",
-                "Exercises",
-                "Projects",
-              ],
+              ["Scratch", "Documentation", "Tutorial", "Exercises"],
             ),
           ),
         ],
@@ -597,12 +506,6 @@ module View = {
         ExercisesMode.View.top_bar(
           ~globals,
           ~inject=a => Update.Exercises(a) |> inject,
-          m,
-        )
-      | Projects(m) =>
-        ProjectModeView.top_bar(
-          ~globals,
-          ~inject=a => Update.Projects(a) |> inject,
           m,
         )
       };

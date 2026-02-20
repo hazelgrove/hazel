@@ -307,11 +307,7 @@ let view =
                 );
                 Effect.Many([
                   signal(
-                    Editors.View.MakeActive(
-                      Editors.Selection.Projects(
-                        ProjectMode.Selection.TextBox,
-                      ),
-                    ),
+                    Editors.View.MakeActive(Editors.Selection.Assistant),
                   ),
                   Effect.Stop_propagation,
                 ]);

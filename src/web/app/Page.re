@@ -71,7 +71,6 @@ module Update = {
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
-    | Projects(m) => ProjectMode.Utils.get_editor(m).editor
     };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -224,8 +223,6 @@ module Update = {
             ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
           let content = "not supported";
           (filename, content);
-        | Projects(_) =>
-          failwith("ExportForInit not supported for Projects yet")
         };
       JsUtil.download_string_file(
         ~filename,
@@ -751,8 +748,7 @@ module View = {
         | Scratch(_)
         | Documentation(_)
         | Tutorial(_)
-        | Exercises(_)
-        | Projects(_) => false
+        | Exercises(_) => false
         };
       if (!culling_enabled) {
         Effect.Ignore;

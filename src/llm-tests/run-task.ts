@@ -185,11 +185,7 @@ async function runCore(
   await page.goto(url, { waitUntil: 'domcontentloaded' });
 
   await page.locator(S.modeSelect).waitFor({ state: 'visible' });
-  await page.locator(S.modeSelect).selectOption({ label: 'Projects' });
-
-  await page.getByTitle('Folder actions').hover();
-  await page.getByTitle('Add file').click();
-  await page.waitForTimeout(500);
+  await page.locator(S.modeSelect).selectOption({ label: 'Scratch' });
 
   await page.locator('.code-container > .code').first().click({ force: true });
 

@@ -39,7 +39,6 @@ let (suite, _) =
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests
     @ Test_AgentTools.tests
-    @ Test_FileSystem.tests
     @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests,
