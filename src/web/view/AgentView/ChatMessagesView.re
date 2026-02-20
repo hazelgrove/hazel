@@ -791,7 +791,35 @@ let view =
         // Chunks display area
         div(
           ~attrs=[clss(["chat-messages-container"])],
-          List.mapi(render_chunk, chunked_chat.log),
+          List.mapi(render_chunk, chunked_chat.log)
+          @ (
+            switch (agent_model.awaiting_response) {
+            | Some(awaiting_id) when awaiting_id == current_chat_id => [
+                div(
+                  ~attrs=[
+                    clss(["message-container", "agent-message-container"]),
+                  ],
+                  [
+                    div(
+                      ~attrs=[
+                        clss(["message-identifier", "llm-identifier"]),
+                      ],
+                      [text("Agent")],
+                    ),
+                    div(
+                      ~attrs=[clss(["agent-message-loading-dots"])],
+                      [
+                        span(~attrs=[clss(["dot", "dot1"])], []),
+                        span(~attrs=[clss(["dot", "dot2"])], []),
+                        span(~attrs=[clss(["dot"])], []),
+                      ],
+                    ),
+                  ],
+                ),
+              ]
+            | _ => []
+            }
+          ),
         ),
       ],
     )

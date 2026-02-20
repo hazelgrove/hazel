@@ -3,58 +3,93 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
+module Scratchpad = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    name: string,
+    editor: CellEditor.Model.t,
+    agent: Agent.Agent.Model.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {
+    name: string,
+    editor: option(CellEditor.Model.persistent),
+    agent: Agent.Agent.Persistent.t,
+  };
+
+  let persist = (s: t): persistent => {
+    let current_segment = Zipper.zip(s.editor.editor.editor.state.zipper);
+    let original = Init.find_documentation_slide(s.name);
+    let original_segment =
+      original
+      |> Option.map((pce: CellEditor.Model.persistent) =>
+           PersistentZipper.unpersist(pce.editor)
+         )
+      |> Option.map(Zipper.zip);
+    let editor =
+      if (Option.equal(
+            Base.equal_segment,
+            original_segment,
+            Some(current_segment),
+          )) {
+        None;
+      } else {
+        Some(CellEditor.Model.persist(s.editor));
+      };
+    {
+      name: s.name,
+      editor,
+      agent: Agent.Agent.Persistent.persist(s.agent),
+    };
+  };
+
+  let unpersist = (~settings, p: persistent): t => {
+    name: p.name,
+    editor:
+      OptUtil.get(
+        () => Init.default_documentation_slide_name(p.name),
+        p.editor,
+      )
+      |> CellEditor.Model.unpersist(~settings),
+    agent: Agent.Agent.Persistent.unpersist(p.agent),
+  };
+
+  let mk = (~name, ~editor, ()): t => {
+    name,
+    editor,
+    agent: Agent.Agent.Utils.init(),
+  };
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     current: int,
-    scratchpads: list((string, CellEditor.Model.t)),
+    scratchpads: list(Scratchpad.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (
-    int,
-    list((string, option(CellEditor.Model.persistent))),
-  );
+  type persistent = (int, list(Scratchpad.persistent));
 
   let persist = (model: t): persistent => (
     model.current,
-    List.map(
-      ((s: string, m: CellEditor.Model.t)) => {
-        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
-        let original = Init.find_documentation_slide(s);
-        let original_segment =
-          original
-          |> Option.map((pce: CellEditor.Model.persistent) =>
-               PersistentZipper.unpersist(pce.editor)
-             )
-          |> Option.map(Zipper.zip);
-        if (Option.equal(
-              Base.equal_segment,
-              original_segment,
-              Some(current_segment),
-            )) {
-          (s, None);
-        } else {
-          (s, Some(CellEditor.Model.persist(m)));
-        };
-      },
-      model.scratchpads,
-    ),
+    List.map(Scratchpad.persist, model.scratchpads),
   );
 
-  let unpersist = (~settings, (current, slides): persistent): t => {
+  let unpersist = (~settings, (current, scratchpads): persistent): t => {
     current,
     scratchpads:
-      List.map(
-        ((s: string, m: option(CellEditor.Model.persistent))) =>
-          (
-            s,
-            OptUtil.get(() => Init.default_documentation_slide_name(s), m)
-            |> CellEditor.Model.unpersist(~settings),
-          ),
-        slides,
-      ),
+      List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
   };
+};
+
+let scratchpad_persistent_of_init =
+    (name: string, editor: option(CellEditor.Model.persistent))
+    : Scratchpad.persistent => {
+  name,
+  editor,
+  agent: Agent.Agent.Utils.init() |> Agent.Agent.Persistent.persist,
 };
 
 module StoreDocumentation =
@@ -64,7 +99,12 @@ module StoreDocumentation =
     let key = Store.Documentation;
     let default = (): t =>
       Init.startup.documentation
-      |> PairUtil.map_snd(List.map(PairUtil.map_snd(_ => None)));
+      |> PairUtil.map_snd(list =>
+           List.map(
+             ((name, _)) => scratchpad_persistent_of_init(name, None),
+             list,
+           )
+         );
   });
 
 module Store = {
@@ -72,12 +112,14 @@ module Store = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Scratch;
-    let default = () =>
+    let default = (): t =>
       Init.startup.scratch
-      |> PairUtil.map_snd(
+      |> PairUtil.map_snd(list =>
            List.map(
-             PairUtil.map_snd((x: CellEditor.Model.persistent) => Some(x)),
-           ),
+             ((name, editor)) =>
+               scratchpad_persistent_of_init(name, Some(editor)),
+             list,
+           )
          );
   });
 
@@ -99,11 +141,10 @@ module Store = {
         editor: shared,
         result: EvalResult.Model.init |> EvalResult.Model.persist,
       };
+      let new_scratchpad =
+        scratchpad_persistent_of_init(share_name, Some(shared));
 
-      (
-        List.length(scratchpads),
-        scratchpads @ [(share_name, Some(shared))],
-      );
+      (List.length(scratchpads), scratchpads @ [new_scratchpad]);
     };
   };
 };
@@ -113,6 +154,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | CellAction(CellEditor.Update.t)
+    | AgentAction(Agent.Agent.Update.Action.t)
     | SwitchSlide(int)
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -126,6 +168,7 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | CellAction(action) => CellEditor.Update.can_undo(action)
+    | AgentAction(_) => true
     | SwitchSlide(_) => false
     | ResetCurrent => true
     | InitImportScratchpad(_) => true
@@ -141,7 +184,7 @@ module Update = {
   let export_scratch_slide = (model: Model.t): unit => {
     Store.save(model |> Model.persist);
     let data = Store.export();
-    let current_name = List.nth(model.scratchpads, model.current) |> fst;
+    let current_name = List.nth(model.scratchpads, model.current).name;
     let filename = current_name |> StringUtil.sanitize_filename;
     JsUtil.download_string_file(
       ~filename,
@@ -151,10 +194,10 @@ module Update = {
   };
 
   let encode_scratch_slide = (model: Model.t): unit => {
-    let (name, ed) = List.nth(model.scratchpads, model.current);
-    let c = ed |> CellEditor.Model.to_string;
+    let scratchpad = List.nth(model.scratchpads, model.current);
+    let c = scratchpad.editor |> CellEditor.Model.to_string;
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
-    JsUtil.QueryParams.set_param("name", name);
+    JsUtil.QueryParams.set_param("name", scratchpad.name);
   };
   let rec prompt_slide_name =
           (
@@ -191,14 +234,20 @@ module Update = {
       current: List.length(model.scratchpads),
       scratchpads:
         model.scratchpads
-        @ [(name, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))],
+        @ [
+          Scratchpad.mk(
+            ~name,
+            ~editor=CellEditor.Model.mk(Editor.Model.mk(Zipper.init())),
+            (),
+          ),
+        ],
     };
     switch (is_documentation) {
     | false =>
       let used_scratchpads =
         model.scratchpads
-        |> List.filter_map(scratchpad => {
-             switch (String.split_on_char(' ', fst(scratchpad))) {
+        |> List.filter_map((s: Scratchpad.t) => {
+             switch (String.split_on_char(' ', s.name)) {
              | ["Scratchpad", num] => int_of_string_opt(num)
              | _ => None
              }
@@ -215,7 +264,9 @@ module Update = {
       let new_name =
         prompt_slide_name(
           ~existing_scratchpads=
-            model.scratchpads |> List.to_seq |> Seq.map(fst),
+            model.scratchpads
+            |> List.to_seq
+            |> Seq.map((s: Scratchpad.t) => s.name),
           "New Slide Name",
         );
       switch (new_name) {
@@ -234,11 +285,45 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
-    | CellAction(a) =>
-      let (key, ed) = List.nth(model.scratchpads, model.current);
-      let* new_ed = CellEditor.Update.update(~settings, a, ed);
+    | AgentAction(a) =>
+      let scratchpad = List.nth(model.scratchpads, model.current);
+      let schedule_agent = (a: Agent.Agent.Update.Action.t) =>
+        schedule_action(AgentAction(a));
+      let (new_agent, updated_editor) =
+        Agent.Agent.Update.update(
+          a,
+          scratchpad.agent,
+          scratchpad.editor,
+          settings,
+          schedule_agent,
+        );
+      let* new_ed = updated_editor;
       let new_sp =
-        ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
+        ListUtil.put_nth(
+          model.current,
+          {
+            ...scratchpad,
+            editor: new_ed,
+            agent: new_agent,
+          },
+          model.scratchpads,
+        );
+      {
+        ...model,
+        scratchpads: new_sp,
+      };
+    | CellAction(a) =>
+      let scratchpad = List.nth(model.scratchpads, model.current);
+      let* new_ed = CellEditor.Update.update(~settings, a, scratchpad.editor);
+      let new_sp =
+        ListUtil.put_nth(
+          model.current,
+          {
+            ...scratchpad,
+            editor: new_ed,
+          },
+          model.scratchpads,
+        );
       let new_model = {
         ...model,
         scratchpads: new_sp,
@@ -258,11 +343,11 @@ module Update = {
           ~existing_scratchpads=
             model.scratchpads
             |> List.to_seq
-            |> Seq.map(fst)
             |> Seq.zip(Seq.ints(0))
             |> Seq.filter(((idx, _)) => idx != model.current)
-            |> Seq.map(snd),
-          fst(current),
+            |> Seq.map(snd)
+            |> Seq.map((s: Scratchpad.t) => s.name),
+          current.name,
         );
 
       switch (new_name) {
@@ -271,7 +356,10 @@ module Update = {
         let new_sp =
           ListUtil.put_nth(
             model.current,
-            (new_name, snd(current)),
+            {
+              ...current,
+              name: new_name,
+            },
             model.scratchpads,
           );
         Updated.return({
@@ -308,13 +396,13 @@ module Update = {
       };
 
     | ResetCurrent =>
-      let (key, _) = List.nth(model.scratchpads, model.current);
+      let scratchpad = List.nth(model.scratchpads, model.current);
       let source =
         switch (is_documentation) {
         | false =>
           CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
           |> CellEditor.Model.persist
-        | true => Init.default_documentation_slide_name(key)
+        | true => Init.default_documentation_slide_name(scratchpad.name)
         };
       let* data =
         source
@@ -323,7 +411,14 @@ module Update = {
       {
         ...model,
         scratchpads:
-          ListUtil.put_nth(model.current, (key, data), model.scratchpads),
+          ListUtil.put_nth(
+            model.current,
+            {
+              ...scratchpad,
+              editor: data,
+            },
+            model.scratchpads,
+          ),
       };
     | InitImportScratchpad(file) =>
       JsUtil.read_file(file, data =>
@@ -332,7 +427,7 @@ module Update = {
       model |> return_quiet;
     | FinishImportScratchpad(None) => model |> return_quiet
     | FinishImportScratchpad(Some(data)) =>
-      let key = List.nth(model.scratchpads, model.current) |> fst;
+      let scratchpad = List.nth(model.scratchpads, model.current);
       let new_data =
         data
         |> Sexplib.Sexp.of_string
@@ -340,7 +435,14 @@ module Update = {
         |> CellEditor.Model.unpersist(~settings=settings.core);
 
       let scratchpads =
-        ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);
+        ListUtil.put_nth(
+          model.current,
+          {
+            ...scratchpad,
+            editor: new_data,
+          },
+          model.scratchpads,
+        );
       {
         ...model,
         scratchpads,
@@ -357,7 +459,7 @@ module Update = {
 
   let calculate =
       (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
-    let (key, ed) = List.nth(model.scratchpads, model.current);
+    let scratchpad = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
       Some(
@@ -371,7 +473,7 @@ module Update = {
         ~is_edited,
         ~queue_worker,
         ~stitch=x => x,
-        ed,
+        scratchpad.editor,
       );
     switch (worker_request^) {
     | [] => ()
@@ -405,7 +507,14 @@ module Update = {
       )
     };
     let new_sp =
-      ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
+      ListUtil.put_nth(
+        model.current,
+        {
+          ...scratchpad,
+          editor: new_ed,
+        },
+        model.scratchpads,
+      );
     {
       ...model,
       scratchpads: new_sp,
@@ -427,7 +536,7 @@ module Selection = {
       let+ a =
         CellEditor.Selection.get_cursor_info(
           ~selection,
-          List.nth(model.scratchpads, model.current) |> snd,
+          List.nth(model.scratchpads, model.current).editor,
         );
       Update.CellAction(a);
     | TextBox => empty
@@ -443,7 +552,7 @@ module Selection = {
         CellEditor.Selection.handle_key_event(
           ~selection,
           ~event,
-          List.nth(model.scratchpads, model.current) |> snd,
+          List.nth(model.scratchpads, model.current).editor,
         )
         |> Option.map(x => Update.CellAction(x))
       }
@@ -453,7 +562,7 @@ module Selection = {
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>
     CellEditor.Selection.jump_to_tile(
       tile,
-      List.nth(model.scratchpads, model.current) |> snd,
+      List.nth(model.scratchpads, model.current).editor,
     )
     |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
 };
@@ -472,7 +581,7 @@ module View = {
       ) => {
     (
       SlideContent.get_content(
-        List.nth(model.scratchpads, model.current) |> fst,
+        List.nth(model.scratchpads, model.current).name,
       )
       |> Option.to_list
     )
@@ -490,7 +599,7 @@ module View = {
           },
         ~locked=false,
         ~lines=true,
-        List.nth(model.scratchpads, model.current) |> snd,
+        List.nth(model.scratchpads, model.current).editor,
       ),
     ];
   };
@@ -614,7 +723,7 @@ module View = {
         EditorModeView.indicator_select(
           ~signal=i => inject(SwitchSlide(i)),
           model.current,
-          List.map(((s, _)) => s, model.scratchpads),
+          List.map((s: Scratchpad.t) => s.name, model.scratchpads),
         ),
     );
   };

@@ -1037,6 +1037,7 @@ module Agent = {
       chat_system: ChatSystem.Model.t,
       prompting,
       active_timeline_node: option(int),
+      awaiting_response: option(Id.t),
     };
   };
 
@@ -1049,7 +1050,10 @@ module Agent = {
     };
 
     let unpersist = (p: t): Model.t => {
-      p;
+      {
+        ...p,
+        awaiting_response: None,
+      };
     };
   };
 
@@ -1075,6 +1079,7 @@ module Agent = {
           tools: CompositionUtils.Public.tools,
         },
         active_timeline_node: None,
+        awaiting_response: None,
       };
     };
   };
@@ -1187,6 +1192,7 @@ module Agent = {
         | ChatSystemAction(ChatSystem.Update.Action.t)
         | SendMessage(Message.Model.t, Id.t)
         | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t)
+        | ApiErrorResponse(Id.t, Message.Model.t)
         | LoadSegmentIntoEditor(Segment.t)
         | SetActiveTimelineNode(option(int));
     };
@@ -1220,12 +1226,7 @@ module Agent = {
           let api_error_message =
             Message.Utils.mk_api_failure_message(api_error_content);
           schedule_action(
-            Action.ChatSystemAction(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(api_error_message),
-                chat_id,
-              ),
-            ),
+            Action.ApiErrorResponse(chat_id, api_error_message),
           );
         | None => print_endline("Response failed to be parsed")
         };
@@ -1342,6 +1343,7 @@ module Agent = {
         Ok({
           ...model,
           chat_system,
+          awaiting_response: Some(chat_id),
         });
       };
     };
@@ -1635,7 +1637,13 @@ module Agent = {
           ~schedule_action,
           ~chat_id,
         )
-      | None => (model, cell_editor |> Updated.return_quiet)
+      | None => (
+          {
+            ...model,
+            awaiting_response: None,
+          },
+          cell_editor |> Updated.return_quiet,
+        )
       };
     };
 
@@ -1696,6 +1704,24 @@ module Agent = {
           settings,
           schedule_action,
         )
+      | ApiErrorResponse(chat_id, api_error_message) =>
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AppendMessage(api_error_message),
+              chat_id,
+            ),
+            model.chat_system,
+          )
+          |> ChatSystem.Update.get;
+        (
+          {
+            ...model,
+            chat_system,
+            awaiting_response: None,
+          },
+          editor |> Updated.return,
+        );
       | LoadSegmentIntoEditor(segment) =>
         // Replace editor with segment by converting to zipper
         let new_zipper = Zipper.unzip(~direction=Right, segment);

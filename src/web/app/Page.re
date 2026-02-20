@@ -67,8 +67,8 @@ module Update = {
 
   let get_editor = (model: Model.t): CodeEditable.Model.t =>
     switch (model.editors) {
-    | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
-    | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Scratch(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Documentation(m) => List.nth(m.scratchpads, m.current).editor.editor
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
@@ -199,15 +199,13 @@ module Update = {
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let filename =
-            (current |> fst |> StringUtil.sanitize_filename) ++ ".ml";
+            (current.name |> StringUtil.sanitize_filename) ++ ".ml";
 
           let content =
             Haz3lcore.(
               [%derive.show: (string, PersistentSegment.t)]((
-                current |> fst,
-                current
-                |> snd
-                |> (e => e.editor.editor.state.zipper)
+                current.name,
+                current.editor.editor.editor.state.zipper
                 |> PersistentSegment.persist,
               ))
             );
