@@ -4,7 +4,7 @@ let exercise : Tutorial.spec =
       Option.get (Haz3lcore.Id.of_string "a89174ca-034d-43d7-b478-330388a2d712");
     title = "Labeled tuple projection";
     version = 1;
-    module_name = "Blank";
+    module_name = "Tu_Projection";
     prompt =
       "Hazel's labeled tuples support record-style projection:\n\n\
        ```hazel\n\

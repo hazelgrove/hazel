@@ -4,7 +4,7 @@ let exercise : Tutorial.spec =
       Option.get (Haz3lcore.Id.of_string "fd42ef8a-11ce-4e7b-9993-e50f2bb096e7");
     title = "Labeled tuple extension";
     version = 1;
-    module_name = "Blank";
+    module_name = "Tu_TupleExtension";
     prompt =
       "# Hazel Tuple Extension\n\n\
        To easily update and extend labeled tuples, Hazel provides an extension \

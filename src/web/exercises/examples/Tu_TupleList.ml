@@ -4,7 +4,7 @@ let exercise : Tutorial.spec =
       Option.get (Haz3lcore.Id.of_string "e6334292-295b-4d50-bbaf-f762cc6fd351");
     title = "Labeled Tuple List Conversions ";
     version = 1;
-    module_name = "Blank";
+    module_name = "Tu_TupleList";
     prompt =
       "To aid in the dynamic processing and generation of labeled tuples, \
        Hazel provides 2 operations that allow for the conversion between \

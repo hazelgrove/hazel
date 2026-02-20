@@ -4,7 +4,7 @@ let exercise : Tutorial.spec =
       Option.get (Haz3lcore.Id.of_string "73bc65c8-0e53-478d-a74d-a0b0653674a9");
     title = "Labeled Tuple Omission";
     version = 1;
-    module_name = "Blank";
+    module_name = "Tu_LabelOmission";
     prompt =
       "Entries can be dropped from a labeled tuple with `omit_labels`\n\n\n\
        ```hazel\n\
