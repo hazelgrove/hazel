@@ -250,22 +250,46 @@ module Update = {
       // Redirect to editors
       let editor =
         Tutorial.main_editor_of_state(~selection=pos, model.editors);
-      let (statics, dynamics) =
+      let (statics, dynamics, context_menu) =
         switch (Tutorial.get_stitched(pos, model.cells)) {
         | cell_editor => (
             cell_editor.editor.statics,
             cell_editor.editor.dynamics,
+            cell_editor.editor.context_menu,
           )
         | exception (Failure(_)) => (
             CachedStatics.empty,
             Language.Dynamics.empty,
+            None,
           )
         };
       let* new_editor =
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
         editor
         |> CodeEditable.Model.mk(~statics, ~dynamics)
+        |> (
+          model => {
+            ...model,
+            context_menu,
+          }
+        )
         |> CodeEditable.Update.update(~settings, action);
+      let new_cells =
+        switch (Tutorial.get_stitched(pos, model.cells)) {
+        | cell_editor =>
+          Tutorial.put_stitched(
+            pos,
+            model.cells,
+            {
+              ...cell_editor,
+              editor: {
+                ...cell_editor.editor,
+                context_menu: new_editor.context_menu,
+              },
+            },
+          )
+        | exception (Failure(_)) => model.cells
+        };
       {
         ...model,
         editors:
@@ -274,6 +298,7 @@ module Update = {
             model.editors,
             new_editor.editor,
           ),
+        cells: new_cells,
       };
     | Editor(pos, MainEditor(action)) =>
       switch (CodeSelectable.Update.convert_action(action)) {
@@ -370,7 +395,7 @@ module Update = {
               statics: cell.editor.statics,
               dynamics:
                 EvalResult.Model.dynamics_full(cell.result) |> Calc.get_value,
-              context_menu: None,
+              context_menu: cell.editor.context_menu,
               dynamic_statics: cell.editor.dynamic_statics,
               sample_cursor: cell.editor.sample_cursor,
             },
