@@ -137,31 +137,57 @@ This handles:
   matches `fix[0]`'s right-missing `->` frame entry
 - `let`/`type` interchangeability: orphaned `=[1]` and `in[2]` match `type[0]`
 
-### The Aspirational Property
+### The Guiding Property (work in progress)
 
-The guiding goal, not yet fully achieved or formally stated:
+The soft goal: **the structural editor should feel like a text editor.** There
+should be a limit — ideally zero — to how wrong a user can go by treating it
+as a text editor. This means each single-character insertion or deletion should
+behave the way it would in a text editor with an incremental parser behind it.
 
-**History independence**: The structure of a segment should be determined by
-its text content, not by the editing history that produced it. Two different
-editing sequences that result in the same text should produce the same
-structure. Equivalently: after any edit, the structure should be what a fresh
-left-to-right parse of the current text would produce.
+We've considered several formalizations, in decreasing order of strength:
 
-A related framing — **text-edit equivalence**: if a user is in a syntactically
-correct state and performs edits that, interpreted as plain text operations,
-would produce another syntactically correct state, then the structural editor
-should also arrive at the correct structure for that text.
+**Property H (History Independence)**: The structure is a pure function of the
+text content. `text(s1) = text(s2)` implies `s1 = s2`. After every edit, the
+structure is what a fresh left-to-right parse of the current text would produce.
+This is clean and would enable property-based testing (random edits; check
+`structure == freshParse(text)`). But it may require parent-breaking (see below)
+and may be stronger than necessary.
 
-These properties would enable:
-- Property-based testing (random edits; check structure == fresh parse of text)
-- Construing the editor as an incremental parser
-- Confident reasoning about what state the user is in
+**Property T (Text-Edit Faithfulness)**: For any state S, a single-character
+structural edit producing state S' should satisfy:
+1. `print(S')` is what applying the same character edit to `print(S)` as plain
+   text would produce (the text change is predictable)
+2. S' is **bisimilar** to `freshParse(print(S'))` — they produce the same
+   observable behavior under all future single-character edits
 
-**Current status**: The rescan gets us much closer. Many cases that were
-history-dependent now converge (out-of-order typing, cross-form re-association,
-delete-and-retype recovery). But full history independence is not yet proven,
-and there may be gaps — particularly around delimiters trapped inside children
-(see parent-breaking below).
+This is weaker than H: it allows S' and `freshParse(print(S'))` to have
+different internal structure, as long as they behave identically. Internal
+differences are "distinctions without a difference" if the user can never
+observe them through any sequence of edits.
+
+**Property R (Reachability)**: For any complete state A and target text B, if
+B is reachable from `text(A)` via text edits, then some complete state with
+text B is reachable from A via structural edits. This is the weakest — it says
+you can "eventually get there" but doesn't constrain intermediate states.
+
+**What we think we want**: T, not necessarily H. The user should be able to
+treat the editor as a text editor, with each edit step producing the expected
+result. But if the internal structure sometimes differs from a fresh parse in
+unobservable ways, that's acceptable. H is sufficient for T but may not be
+necessary. R is probably too weak — it doesn't guarantee that each individual
+edit step is faithful, only that recovery is eventually possible.
+
+**Current status**: The rescan gets us much closer to T. Many cases that
+previously diverged now behave correctly (out-of-order typing, cross-form
+re-association). But T is not proven to hold in general, and may not hold for
+cases involving delimiters trapped inside children (see parent-breaking below).
+The `fun (a, b -> )` recovery test shows R holds for that case, and observed
+behavior suggests T may also hold (inserting `)` after `b` correctly matched
+the parens via backpack), but this hasn't been systematically verified.
+
+**Open question**: Whether T can be achieved without parent-breaking, or
+whether parent-breaking is needed for some cases. Also: precisely defining
+"bisimilar" in this context (what counts as observable behavior?).
 
 ### Open Design Questions
 
@@ -176,27 +202,23 @@ care around the ambiguity gate.
 
 **B. Parent-breaking — status unclear**: When a delimiter is trapped inside a
 bidelimited child (e.g., `->` inside parens in `fun (a, b -> )`), the rescan
-can't reach it. A delete-then-retype workflow already provides a clean recovery
-path:
+can't reach it. Recovery is possible via delete-then-retype:
 
-> Starting from `fun (a, b -> )`: delete the misplaced `)`. This flattens
-> everything to siblings: `fun ( a, b -> `. The rescan fires and matches
-> `->` with `fun`. Then re-type `)` after `b` — it matches `(` via the
-> backpack. Result: `fun (a, b) -> `. Two keystrokes (delete + retype) and
-> the structure is correct.
->
-> Alternatively: insert a new `)` after `b` first (it's orphaned), then
-> delete the old `)`. The delete flattens things, the rescan matches both
-> `(` with the new `)` and `fun` with `->`. Same result. (Tested.)
+> Starting from `fun (a, b -> a)`: insert `)` after `b` (backpack matches
+> it with `(`), move to end, delete old `)`. The rescan matches `fun` with
+> `->`. Result: `fun (a, b) -> a`. Two edits, correct structure. (Tested.)
 
-Parent-breaking would make this automatic (just inserting `)` would displace
-the old match), achieving history independence for this case. Without it, the
-user needs two edits (insert + delete) instead of one. The UX tradeoff is
-debatable — automatically breaking an existing association has a locality cost.
-The implementation is also complex. But it may be important for the aspirational
-property: without parent-breaking, the structure after inserting `)` is
-history-dependent (different from what a fresh left-to-right parse would
-produce). It takes the second edit (deleting the old `)`) to converge.
+Parent-breaking would give H (history independence) for this case — inserting
+`)` would automatically displace the old match. Without it, the intermediate
+state after just the insert may differ from a fresh parse. The question for T
+(text-edit faithfulness) is: does this intermediate difference matter? Is the
+state after inserting `)` bisimilar to a fresh parse of the same text? Our
+one observation suggests it might be (the backpack matched the new `)` with
+`(` immediately), but this needs more investigation.
+
+UX tension: matched parens represent user intent. Inserting `)` inside them
+could mean "create nested parens" rather than "break the existing match." The
+left-to-right parse would re-match, but the user's intent is ambiguous.
 
 **Ambiguity gate note**: The gate (only checking the backpack head for tokens
 like `->` that are both standalone forms and multi-token delimiters) is
