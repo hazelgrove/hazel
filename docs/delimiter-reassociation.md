@@ -137,6 +137,32 @@ This handles:
   matches `fix[0]`'s right-missing `->` frame entry
 - `let`/`type` interchangeability: orphaned `=[1]` and `in[2]` match `type[0]`
 
+### The Aspirational Property
+
+The guiding goal, not yet fully achieved or formally stated:
+
+**History independence**: The structure of a segment should be determined by
+its text content, not by the editing history that produced it. Two different
+editing sequences that result in the same text should produce the same
+structure. Equivalently: after any edit, the structure should be what a fresh
+left-to-right parse of the current text would produce.
+
+A related framing — **text-edit equivalence**: if a user is in a syntactically
+correct state and performs edits that, interpreted as plain text operations,
+would produce another syntactically correct state, then the structural editor
+should also arrive at the correct structure for that text.
+
+These properties would enable:
+- Property-based testing (random edits; check structure == fresh parse of text)
+- Construing the editor as an incremental parser
+- Confident reasoning about what state the user is in
+
+**Current status**: The rescan gets us much closer. Many cases that were
+history-dependent now converge (out-of-order typing, cross-form re-association,
+delete-and-retype recovery). But full history independence is not yet proven,
+and there may be gaps — particularly around delimiters trapped inside children
+(see parent-breaking below).
+
 ### Open Design Questions
 
 **A. Backpack/rescan unification**: The backpack handles forward matching
@@ -148,11 +174,10 @@ with rescan. Could the sibling portion of `backpack_find` be replaced by "always
 create standalone + let rescan convert"? This might simplify the logic but needs
 care around the ambiguity gate.
 
-**B. Parent-breaking — probably not needed**: When a delimiter is trapped inside
-a bidelimited child (e.g., `->` inside parens in `fun (a, b -> )`), the rescan
-can't reach it. We considered a mechanism to break the parent tile and extract
-the delimiter. However, **delete-then-retype already provides a clean recovery
-path** via the rescan:
+**B. Parent-breaking — status unclear**: When a delimiter is trapped inside a
+bidelimited child (e.g., `->` inside parens in `fun (a, b -> )`), the rescan
+can't reach it. A delete-then-retype workflow already provides a clean recovery
+path:
 
 > Starting from `fun (a, b -> )`: delete the misplaced `)`. This flattens
 > everything to siblings: `fun ( a, b -> `. The rescan fires and matches
@@ -162,22 +187,24 @@ path** via the rescan:
 >
 > Alternatively: insert a new `)` after `b` first (it's orphaned), then
 > delete the old `)`. The delete flattens things, the rescan matches both
-> `(` with the new `)` and `fun` with `->`. Same result.
+> `(` with the new `)` and `fun` with `->`. Same result. (Tested.)
 
-Parent-breaking would save one step (just inserting `)` would automatically
-displace the old match), but the UX is debatable — it means typing a delimiter
-can break an existing association, which violates locality. The implementation
-is also complex (detecting match opportunities across parent boundaries,
-deciding when to break). For now, the delete-retype workflow seems adequate.
+Parent-breaking would make this automatic (just inserting `)` would displace
+the old match), achieving history independence for this case. Without it, the
+user needs two edits (insert + delete) instead of one. The UX tradeoff is
+debatable — automatically breaking an existing association has a locality cost.
+The implementation is also complex. But it may be important for the aspirational
+property: without parent-breaking, the structure after inserting `)` is
+history-dependent (different from what a fresh left-to-right parse would
+produce). It takes the second edit (deleting the old `)`) to converge.
 
-**Note on the ambiguity gate**: The gate (only checking the backpack head for
-tokens like `->` that are both standalone forms and multi-token delimiters) is
+**Ambiguity gate note**: The gate (only checking the backpack head for tokens
+like `->` that are both standalone forms and multi-token delimiters) is
 load-bearing. Example: `fun f : (Int -> Bool) -> x`. After typing `fun f : (`,
 the backpack is [`(`'s `)`, `fun`'s `->`]. When `->` is typed (for the type
 arrow), the gate checks only the head (`)`) — no match — so it correctly stays
 standalone. Without the gate, it would incorrectly match `fun`'s `->`. This
 means the gate can't simply be relaxed to solve the `fun (a, b -> )` problem.
-But as argued above, the delete-retype workflow handles it anyway.
 
 **C. Child remolding after parent formation**: Editing `casex | a => 0 end`
 then adding a space between `case` and `x` causes `case` and `end` to combine
