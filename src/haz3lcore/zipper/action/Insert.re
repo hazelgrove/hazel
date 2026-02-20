@@ -273,5 +273,6 @@ let go = (char: string, z: t): option(t) => {
  * operations. See Triggers.re for more details */
 let go = (~ci: option(Language.Info.t)=None, char: string, z: t): option(t) => {
   let+ z = go(char, z);
-  Triggers.insert(~ci, z);
+  let z = Triggers.insert(~ci, z);
+  Zipper.rescan_reassemble(Left, z);
 };

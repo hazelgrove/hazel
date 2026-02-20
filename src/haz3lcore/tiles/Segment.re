@@ -580,6 +580,139 @@ let rec reassemble = (seg: t): t =>
     }
   };
 
+/* Label-based rescan: walk a segment left-to-right, and for each
+ * standalone monotile whose token matches a missing shard of an
+ * earlier incomplete tile, convert it into a committed shard of
+ * that incomplete tile (giving it the incomplete tile's ID and label).
+ *
+ * This handles cases where delimiter association diverges from what
+ * a full text reparse would produce — e.g., a standalone `->` that
+ * should be associated with an earlier `fun` but wasn't during
+ * initial left-to-right insertion.
+ *
+ * Call reassemble after to combine the newly-matched shards. */
+
+/* Split multi-shard orphan tiles into individual singleton shards,
+ * extracting children as flat segments between them. This allows
+ * the main rescan to handle each shard independently for matching.
+ * E.g. T([let,=,in],[1,2]) with child [1] becomes:
+ *   T([let,=,in],[1]) ++ [1] ++ T([let,=,in],[2]) */
+let presplit_orphans = (seg: t): t =>
+  seg
+  |> List.concat_map(
+       fun
+       | Piece.Tile(t) when !Tile.is_complete(t) && List.length(t.shards) > 1 => {
+           let rec interleave = (shards, children) =>
+             switch (shards) {
+             | [] => []
+             | [s] => [
+                 Piece.Tile({
+                   ...t,
+                   shards: [s],
+                   children: [],
+                 }),
+               ]
+             | [s, ...rest_s] =>
+               let singleton =
+                 Piece.Tile({
+                   ...t,
+                   shards: [s],
+                   children: [],
+                 });
+               switch (children) {
+               | [c, ...rest_c] =>
+                 [singleton, ...c] @ interleave(rest_s, rest_c)
+               | [] => [singleton, ...interleave(rest_s, [])]
+               };
+             };
+           interleave(t.shards, t.children);
+         }
+       | p => [p],
+     );
+
+let rescan = (seg: t): t => {
+  let has_incomplete =
+    List.exists(
+      p =>
+        switch (p) {
+        | Piece.Tile(t) => !Tile.is_complete(t)
+        | _ => false
+        },
+      seg,
+    );
+  if (!has_incomplete) {
+    seg;
+  } else {
+    /* Walk left-to-right with a STACK of backpack frames.
+     * Each incomplete tile pushes a new frame with its missing shards.
+     * Only the TOP frame is checked for matching.
+     * When a match exhausts the top frame, pop to the previous one. */
+    let missing_entries = (t: Tile.t): list((Token.t, Tile.t)) =>
+      Tile.right_missing_shards(t)
+      |> List.filter_map((shard: Tile.t) =>
+           switch (Tile.effective_label(shard)) {
+           | [tok] => Some((tok, shard))
+           | _ => None
+           }
+         );
+    let rec go =
+            (
+              ~frame: list((Token.t, Tile.t))=[],
+              ~stack: list(list((Token.t, Tile.t)))=[],
+              seg: t,
+            )
+            : t =>
+      switch (seg) {
+      | [] => []
+      | [hd, ...tl] =>
+        switch (hd) {
+        | Secondary(_)
+        | Grout(_)
+        | Projector(_) => [hd, ...go(~frame, ~stack, tl)]
+        | Tile(t) =>
+          if (List.length(t.shards) == 1) {
+            /* Singleton tile (standalone monotile or orphaned shard):
+             * try matching against the TOP frame first.
+             * This handles both fresh standalone tokens (label length 1)
+             * and orphaned shards from deleted forms (label length > 1),
+             * enabling cross-form re-association (e.g. fix reusing fun's ->). */
+            let tok = List.hd(Tile.effective_label(t));
+            switch (List.assoc_opt(tok, frame)) {
+            | Some(target_shard) =>
+              let converted = Piece.Tile(target_shard);
+              let frame = List.filter(((k, _)) => k != tok, frame);
+              /* If this frame is exhausted, pop to previous frame */
+              let (frame, stack) =
+                switch (frame, stack) {
+                | ([], [prev, ...rest]) => (prev, rest)
+                | _ => (frame, stack)
+                };
+              [converted, ...go(~frame, ~stack, tl)];
+            | None =>
+              if (!Tile.is_complete(t)) {
+                /* Unmatched singleton incomplete tile: push its
+                 * right-missing shards as a new frame */
+                let new_frame = missing_entries(t);
+                [hd, ...go(~frame=new_frame, ~stack=[frame, ...stack], tl)];
+              } else {
+                [hd, ...go(~frame, ~stack, tl)];
+              }
+            };
+          } else if (!Tile.is_complete(t)) {
+            /* Multi-shard incomplete tile: push new frame */
+            let new_frame = missing_entries(t);
+            [hd, ...go(~frame=new_frame, ~stack=[frame, ...stack], tl)];
+          } else {
+            [hd, ...go(~frame, ~stack, tl)];
+          }
+        }
+      };
+    go(seg);
+  };
+};
+
+let rescan_and_reassemble = (seg: t): t => seg |> rescan |> reassemble;
+
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {
     switch (d) {

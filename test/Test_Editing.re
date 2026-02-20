@@ -532,6 +532,31 @@ let insertion_tests = [
       @ [Destruct(Left), Destruct(Left), Insert("1"), Put_down],
     ~goal={|let(a=1)¦= 1 in 1|},
   ),
+  /* DELIMITER REASSOCIATION */
+  /* Test that the rescan doesn't incorrectly convert standalone operators
+   * that are shadowed by a closer incomplete tile's scope */
+  test(
+    ~name="Labeled tuple = inside parens not stolen by let",
+    ~acts=mk({|let x : (l=String) = ("a") in x¦|}),
+    ~goal={|let x : (l=String) = ("a") in x¦|},
+  ),
+  /* Test fun with parens and arrow */
+  test(
+    ~name="Fun with parenthesized pattern",
+    ~acts=mk({|fun (a, b) -> x¦|}),
+    ~goal={|fun (a, b) -> x¦|},
+  ),
+  /* Test that typing `fun` before a standalone `->` reassociates them.
+   * Type `-> x`, move to start, type `fun a `. The rescan should convert
+   * the standalone `->` to fun's trailing delimiter. */
+  test(
+    ~name="Rescan: fun typed before existing standalone ->",
+    ~acts=
+      mk({|-> x¦|})
+      @ mv_l(4)
+      @ string_to_ltr_actions("fun a "),
+    ~goal={|fun a ¦-> x|},
+  ),
 ];
 
 let destruct_tests = [
@@ -995,10 +1020,104 @@ let selection_tests = [
   ),
 ];
 
+/* Check that no incomplete tiles exist anywhere in a segment (recursive). */
+let rec seg_has_incomplete = (seg: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) =>
+      !Tile.is_complete(t)
+      || List.exists(seg_has_incomplete, t.children)
+    | _ => false,
+    seg,
+  );
+
+let zip_has_incomplete = (z: Zipper.t): bool =>
+  seg_has_incomplete(Zipper.zip(z));
+
+/* Test helper that checks printer output AND absence of incomplete tiles. */
+let test_complete = (~name, ~acts, ~goal): test_case(_) =>
+  test_case(name, `Quick, () => {
+    let z = acts |> perform(Zipper.init());
+    let printed = printer(z);
+    check(
+      testable(Fmt.string, String.equal),
+      "printer output",
+      goal,
+      printed,
+    );
+    if (zip_has_incomplete(z)) {
+      Alcotest.fail("Incomplete tiles remain after rescan");
+    };
+  });
+
+let rescan_tests = [
+  /* PHASE 1: Basic sibling-level rescan.
+   * These test out-of-order typing where the rescan retroactively
+   * matches standalone monotiles with incomplete tiles' missing shards.
+   * Each test fails on dev (incomplete tiles remain) but passes with rescan. */
+
+  /* fun/-> : type `a -> x`, go to start, type `fun ` */
+  test_complete(
+    ~name="Rescan: fun before standalone ->",
+    ~acts=mk({|¦a -> x|}) @ string_to_ltr_actions("fun "),
+    ~goal={|fun ¦a -> x|},
+  ),
+  /* let/=/in : type `= 1 in x`, go to start, type `let y ` */
+  test_complete(
+    ~name="Rescan: let before standalone = and in",
+    ~acts=mk({|¦= 1 in x|}) @ string_to_ltr_actions("let y "),
+    ~goal={|let y ¦= 1 in x|},
+  ),
+  /* if/then/else : type `a then b else c`, go to start, type `if ` */
+  test_complete(
+    ~name="Rescan: if before standalone then and else",
+    ~acts=mk({|¦a then b else c|}) @ string_to_ltr_actions("if "),
+    ~goal={|if ¦a then b else c|},
+  ),
+  /* Baseline: left-to-right typing should also have no incomplete tiles */
+  test_complete(
+    ~name="Baseline: fun a -> x (left-to-right)",
+    ~acts=mk({|fun a -> x¦|}),
+    ~goal={|fun a -> x¦|},
+  ),
+  test_complete(
+    ~name="Baseline: let y = 1 in x (left-to-right)",
+    ~acts=mk({|let y = 1 in x¦|}),
+    ~goal={|let y = 1 in x¦|},
+  ),
+
+  /* PHASE 2: Effective-label matching (cross-form re-association).
+   * These test that orphaned shards from one form can be matched by
+   * a different form with compatible delimiters.
+   * These should FAIL until effective-label matching is implemented. */
+
+  /* Delete fun from `fun a -> x`, retype as fix.
+   * The orphaned ->[1] (label ["fun","->"]) should match fix's ->. */
+  test_complete(
+    ~name="Effective label: fix reuses orphaned fun arrow",
+    ~acts=
+      mk({|¦fun a -> x|})
+      @ [Destruct(Right), Destruct(Right), Destruct(Right)]
+      @ string_to_ltr_actions("fix"),
+    ~goal={|fix¦ a -> x|},
+  ),
+  /* Delete let from `let y = 1 in x`, retype as type.
+   * The orphaned =[1] and in[2] should match type's = and in. */
+  test_complete(
+    ~name="Effective label: type reuses orphaned let = and in",
+    ~acts=
+      mk({|¦let y = 1 in x|})
+      @ [Destruct(Right), Destruct(Right), Destruct(Right)]
+      @ string_to_ltr_actions("type"),
+    ~goal={|type¦ y = 1 in x|},
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),
   ("Editing.Move", move_tests),
   ("Editing.Selection", selection_tests),
+  ("Editing.Rescan", rescan_tests),
 ];

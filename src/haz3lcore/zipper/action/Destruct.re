@@ -87,5 +87,7 @@ let go = (d: Direction.t, z: t): option(t) =>
   | None =>
     let+ z = destruct(d, z);
     /* If grout disappears we may have a second merge opportunity */
-    z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+    let z =
+      z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+    Zipper.rescan_reassemble(d, z);
   };
