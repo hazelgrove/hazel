@@ -273,10 +273,8 @@ the same for matched and unmatched delimiters.
 - **type/let**: Start with `let y = 1 in x`, delete `let` (3 destructs), type
   `type` → `type y = 1 in x` with orphaned `=[1]` and `in[2]` re-associated
 
-## Plan
+### Recovery workflow test
 
-### Next: Phase 3 — Design decisions
-
-- Evaluate backpack/rescan unification
-- Design parent-breaking mechanism
-- Consider the full `fun (a, b -> )` scenario
+- **fun (a, b -> a)**: Insert `)` after `b` (backpack matches with `(`), move
+  to end, delete old `)`. Rescan matches `fun` with `->`.
+  Result: `fun (a, b) -> a` with no incomplete tiles.
