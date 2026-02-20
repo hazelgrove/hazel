@@ -561,4 +561,5 @@ let exercise : Tutorial.spec =
       };
     wrapper = true;
     show_report = true;
+    rich_probes = Some (false);
   }

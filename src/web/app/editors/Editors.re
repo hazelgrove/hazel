@@ -126,6 +126,7 @@ module Update = {
       (
         ~globals: Globals.t,
         ~schedule_action: t => unit,
+        ~schedule_setting: Settings.Update.t => unit,
         ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
         action: t,
         model: Model.t,
@@ -158,6 +159,7 @@ module Update = {
         TutorialsMode.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Tutorial(a)),
+          ~schedule_setting,
           action,
           m,
         );

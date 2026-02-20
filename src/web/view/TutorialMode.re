@@ -450,6 +450,7 @@ module Update = {
         },
         wrapper: model.editors.wrapper,
         show_report: model.editors.show_report,
+        rich_probes: model.editors.rich_probes,
         // syntax_tests: model.editors.syntax_tests,
       };
     };

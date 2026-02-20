@@ -1646,4 +1646,5 @@ let exercise : Tutorial.spec =
       };
     wrapper = false;
     show_report = true;
+    rich_probes = Some (false);
   }

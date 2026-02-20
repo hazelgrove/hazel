@@ -57,6 +57,7 @@ type p('code) = {
   hidden_tests: hidden_tests('code),
   wrapper: bool,
   show_report: bool,
+  rich_probes: option(bool),
 };
 
 let id_of = p => {
@@ -94,6 +95,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     },
     wrapper: p.wrapper,
     show_report: p.show_report,
+    rich_probes: p.rich_probes,
   };
 };
 
@@ -175,6 +177,7 @@ let eds_of_spec =
         hidden_tests,
         wrapper,
         show_report,
+        rich_probes,
       },
       ~settings as _: Language.CoreSettings.t,
     ) => {
@@ -200,6 +203,7 @@ let eds_of_spec =
     hidden_tests,
     wrapper,
     show_report,
+    rich_probes,
   };
 };
 
@@ -475,6 +479,7 @@ let blank_spec = (~title) => {
     },
     wrapper,
     show_report,
+    rich_probes: None,
   };
 };
 
@@ -552,6 +557,7 @@ let unpersist = (~instructor_mode, persistent, spec: spec): spec => {
       instructor_mode ? persistent.task_reference : spec.task_reference,
     wrapper: spec.wrapper,
     show_report: spec.show_report,
+    rich_probes: spec.rich_probes,
     your_impl,
     hidden_tests: {
       tests: hidden_tests_tests,

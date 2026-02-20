@@ -151,6 +151,7 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_setting=a => schedule_action(Globals(Set(a))),
             ~send_assistant_insertion_info=
               assistant_callback(~schedule_action, model),
             action,
@@ -248,6 +249,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_setting=a => schedule_action(Globals(Set(a))),
             ~send_assistant_insertion_info=
               assistant_callback(~schedule_action, model),
             action,
@@ -290,6 +292,7 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
+          ~schedule_setting=a => schedule_action(Globals(Set(a))),
           ~send_assistant_insertion_info=
             assistant_callback(~schedule_action, model),
           action,

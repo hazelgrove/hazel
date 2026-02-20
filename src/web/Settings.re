@@ -109,6 +109,7 @@ module Update = {
     | ShowFixpoints
     | ProjectTables
     | RichProbes
+    | SetRichProbes(bool)
     | ShowLookups
     | ShowFilters
     | ShowSettings
@@ -250,6 +251,10 @@ module Update = {
           | RichProbes => {
               ...evaluation,
               rich_probes: !evaluation.rich_probes,
+            }
+          | SetRichProbes(v) => {
+              ...evaluation,
+              rich_probes: v,
             }
           | ShowLookups => {
               ...evaluation,

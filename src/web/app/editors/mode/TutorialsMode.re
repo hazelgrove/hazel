@@ -278,26 +278,42 @@ module Update = {
   };
 
   let update =
-      (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
+      (
+        ~globals: Globals.t,
+        ~schedule_action,
+        ~schedule_setting: Settings.Update.t => unit,
+        action: t,
+        model: Model.t,
+      ) => {
     switch (action) {
     | Tutorial(TutorialMode.Update.MoveToNextExercise) =>
+      let next =
+        (model.current + 1 + List.length(model.exercises))
+        mod List.length(model.exercises);
+      switch (List.nth(model.exercises, next).editors.rich_probes) {
+      | Some(v) => schedule_setting(Evaluation(SetRichProbes(v)))
+      | None => ()
+      };
       Model.{
-        current:
-          (model.current + 1 + List.length(model.exercises))
-          mod List.length(model.exercises),
+        current: next,
         exercises: model.exercises,
         custom_specs: model.custom_specs,
       }
-      |> return
+      |> return;
     | Tutorial(TutorialMode.Update.MoveToPrevExercise) =>
+      let prev =
+        (model.current - 1 + List.length(model.exercises))
+        mod List.length(model.exercises);
+      switch (List.nth(model.exercises, prev).editors.rich_probes) {
+      | Some(v) => schedule_setting(Evaluation(SetRichProbes(v)))
+      | None => ()
+      };
       Model.{
-        current:
-          (model.current - 1 + List.length(model.exercises))
-          mod List.length(model.exercises),
+        current: prev,
         exercises: model.exercises,
         custom_specs: model.custom_specs,
       }
-      |> return
+      |> return;
 
     | Tutorial(action) =>
       let current = List.nth(model.exercises, model.current);
@@ -316,12 +332,16 @@ module Update = {
         custom_specs: model.custom_specs,
       };
     | SwitchExercise(n) =>
+      switch (List.nth(model.exercises, n).editors.rich_probes) {
+      | Some(v) => schedule_setting(Evaluation(SetRichProbes(v)))
+      | None => ()
+      };
       Model.{
         current: n,
         exercises: model.exercises,
         custom_specs: model.custom_specs,
       }
-      |> return
+      |> return;
     | ExportModule =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);
