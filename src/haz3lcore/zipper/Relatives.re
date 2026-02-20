@@ -89,6 +89,16 @@ let remold = ({siblings, ancestors}: t): t => {
   };
 };
 
+let reforge_siblings =
+    (sort: Sort.t, {siblings: (pre, suf), ancestors}: t): t => {
+  let pre = Segment.reforge(sort, pre);
+  let suf = Segment.reforge(sort, suf);
+  {
+    siblings: (pre, suf),
+    ancestors,
+  };
+};
+
 let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
   /* Direction is side of grout caret will end up on */
 

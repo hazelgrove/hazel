@@ -65,23 +65,36 @@ let remold = (z: t): t => {
 let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
 /* Rescan siblings for label-based shard conversion, then
- * reassemble + remold + regrout. This handles the case where
- * a standalone monotile should retroactively become a shard
+ * reassemble + reforge + remold + regrout. This handles the case
+ * where a standalone monotile should retroactively become a shard
  * of an incomplete tile (e.g. standalone `->` matching `fun`).
+ * After reassembly, reforge handles sort-aware re-expansion of
+ * tokens that end up in a new sort context (e.g. standalone `|`
+ * and `=>` becoming Rule tiles inside a case body).
  * Should be called after edits, not during cursor movement. */
 let rescan_reassemble = (d: Direction.t, z: t): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   if (siblings == z.relatives.siblings) {
     z;
   } else {
+    let old_sort = Ancestors.sort(z.relatives.ancestors);
     let relatives =
       {
         ...z.relatives,
         siblings,
       }
-      |> Relatives.reassemble
-      |> Relatives.remold
-      |> Relatives.regrout(d);
+      |> Relatives.reassemble;
+    /* If reassembly created a new ancestor (changing the sort context),
+     * reforge the siblings in the new sort to handle tokens that need
+     * re-expansion (e.g., | and => inside a case body). */
+    let new_sort = Ancestors.sort(relatives.ancestors);
+    let relatives =
+      if (new_sort != old_sort) {
+        Relatives.reforge_siblings(new_sort, relatives);
+      } else {
+        relatives;
+      };
+    let relatives = relatives |> Relatives.remold |> Relatives.regrout(d);
     {
       ...z,
       relatives,
