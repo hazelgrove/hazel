@@ -162,6 +162,14 @@ typing), the lack of retroactive reassociation (once `->` is standalone), AND
 parent-breaking (once `)` traps `->` inside parens). The arrow disambiguation
 adds an extra wrinkle on top of the parent-breaking problem.
 
+**D. Child remolding after parent formation** (possibly related): Pasting or
+editing `casex | a => 0 end` then adding a space between `case` and `x` causes
+`case` and `end` to combine (via rescan), trapping `| a => 0` as a child. But
+`|` and `=>` were molded as Exp-sort standalone tokens and remain inert — they
+don't become proper rule delimiters in the case's child sort. This may require
+interplay between rescan (to form the parent tile) and remold (to re-mold
+child content in the correct sort context). Needs investigation.
+
 ## Current Tests (Editing.Rescan section)
 
 All rescan tests use `test_complete`, which checks:
