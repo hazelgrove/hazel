@@ -1646,5 +1646,5 @@ let exercise : Tutorial.spec =
       };
     wrapper = false;
     show_report = true;
-    rich_probes = Some false;
+    setting_overrides = Tutorial.default_setting_overrides;
   }

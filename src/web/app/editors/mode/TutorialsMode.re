@@ -226,6 +226,20 @@ module Store = {
     );
   };
 };
+let apply_setting_overrides =
+    (overrides: Tutorial.setting_overrides, schedule_setting) => {
+  switch (overrides.rich_probes) {
+  | Some(v) =>
+    schedule_setting(Settings.Update.Evaluation(SetRichProbes(v)))
+  | None => ()
+  };
+  switch (overrides.display_tables) {
+  | Some(v) =>
+    schedule_setting(Settings.Update.Evaluation(SetProjectTables(v)))
+  | None => ()
+  };
+};
+
 module Update = {
   open Updated;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -290,10 +304,10 @@ module Update = {
       let next =
         (model.current + 1 + List.length(model.exercises))
         mod List.length(model.exercises);
-      switch (List.nth(model.exercises, next).editors.rich_probes) {
-      | Some(v) => schedule_setting(Evaluation(SetRichProbes(v)))
-      | None => ()
-      };
+      apply_setting_overrides(
+        List.nth(model.exercises, next).editors.setting_overrides,
+        schedule_setting,
+      );
       Model.{
         current: next,
         exercises: model.exercises,
@@ -304,10 +318,10 @@ module Update = {
       let prev =
         (model.current - 1 + List.length(model.exercises))
         mod List.length(model.exercises);
-      switch (List.nth(model.exercises, prev).editors.rich_probes) {
-      | Some(v) => schedule_setting(Evaluation(SetRichProbes(v)))
-      | None => ()
-      };
+      apply_setting_overrides(
+        List.nth(model.exercises, prev).editors.setting_overrides,
+        schedule_setting,
+      );
       Model.{
         current: prev,
         exercises: model.exercises,
@@ -332,10 +346,10 @@ module Update = {
         custom_specs: model.custom_specs,
       };
     | SwitchExercise(n) =>
-      switch (List.nth(model.exercises, n).editors.rich_probes) {
-      | Some(v) => schedule_setting(Evaluation(SetRichProbes(v)))
-      | None => ()
-      };
+      apply_setting_overrides(
+        List.nth(model.exercises, n).editors.setting_overrides,
+        schedule_setting,
+      );
       Model.{
         current: n,
         exercises: model.exercises,

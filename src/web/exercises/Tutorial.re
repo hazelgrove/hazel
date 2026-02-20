@@ -45,6 +45,21 @@ let validate_point_distribution =
     ? () : failwith("Invalid point distribution in exercise.");
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type setting_overrides = {
+  rich_probes: option(bool),
+  display_tables: option(bool),
+};
+
+let no_setting_overrides = {
+  rich_probes: None,
+  display_tables: None,
+};
+let default_setting_overrides = {
+  rich_probes: Some(false),
+  display_tables: None,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   id: Id.t,
   title: string,
@@ -57,7 +72,7 @@ type p('code) = {
   hidden_tests: hidden_tests('code),
   wrapper: bool,
   show_report: bool,
-  rich_probes: option(bool),
+  setting_overrides,
 };
 
 let id_of = p => {
@@ -95,7 +110,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     },
     wrapper: p.wrapper,
     show_report: p.show_report,
-    rich_probes: p.rich_probes,
+    setting_overrides: p.setting_overrides,
   };
 };
 
@@ -177,7 +192,7 @@ let eds_of_spec =
         hidden_tests,
         wrapper,
         show_report,
-        rich_probes,
+        setting_overrides,
       },
       ~settings as _: Language.CoreSettings.t,
     ) => {
@@ -203,7 +218,7 @@ let eds_of_spec =
     hidden_tests,
     wrapper,
     show_report,
-    rich_probes,
+    setting_overrides,
   };
 };
 
@@ -479,7 +494,7 @@ let blank_spec = (~title) => {
     },
     wrapper,
     show_report,
-    rich_probes: None,
+    setting_overrides: no_setting_overrides,
   };
 };
 
@@ -557,7 +572,7 @@ let unpersist = (~instructor_mode, persistent, spec: spec): spec => {
       instructor_mode ? persistent.task_reference : spec.task_reference,
     wrapper: spec.wrapper,
     show_report: spec.show_report,
-    rich_probes: spec.rich_probes,
+    setting_overrides: spec.setting_overrides,
     your_impl,
     hidden_tests: {
       tests: hidden_tests_tests,

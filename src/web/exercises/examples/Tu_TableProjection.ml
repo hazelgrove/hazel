@@ -2508,5 +2508,6 @@ let exercise : Tutorial.spec =
       };
     wrapper = false;
     show_report = false;
-    rich_probes = Some false;
+    setting_overrides =
+      { Tutorial.default_setting_overrides with display_tables = Some true };
   }

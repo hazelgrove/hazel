@@ -594,5 +594,5 @@ They must also must include at least one digit before the decimal point (e.g. `.
       };
     wrapper = true;
     show_report = false;
-    rich_probes = Some false;
+    setting_overrides = Tutorial.default_setting_overrides;
   }

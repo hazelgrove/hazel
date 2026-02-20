@@ -1849,5 +1849,5 @@ let exercise : Tutorial.spec =
       };
     wrapper = false;
     show_report = true;
-    rich_probes = None;
+    setting_overrides = Tutorial.no_setting_overrides;
   }
