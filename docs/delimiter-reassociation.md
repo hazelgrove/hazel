@@ -44,7 +44,17 @@ sort-blind — it can't redo expansion decisions when sort context changes.
 
 The soft goal: **the structural editor should feel like a text editor.** There
 should be a limit — ideally zero — to how wrong a user can go by treating it
-as a text editor.
+as a text editor. This means each single-character insertion or deletion should
+behave the way it would in a text editor with an incremental parser behind it.
+
+We've considered several formalizations, in decreasing order of strength:
+
+**Property H (History Independence)**: The structure is a pure function of the
+text content. `text(s1) = text(s2)` implies `s1 = s2`. After every edit, the
+structure is what a fresh left-to-right parse of the current text would produce.
+This is clean and would enable property-based testing (random edits; check
+`structure == freshParse(text)`). But it may require parent-breaking (see below)
+and may be stronger than necessary.
 
 **Property T (Text-Edit Faithfulness)**: For any state S, a single-character
 structural edit producing state S' should satisfy:
@@ -53,16 +63,47 @@ structural edit producing state S' should satisfy:
 2. S' is **edit-equivalent** to `freshParse(print(S'))` — their difference
    never prevents the user from reaching a complete state via further edits
 
-**What counts as observable**: NOT decorations, highlighting, or semantic
-feedback. Those are best-effort for incomplete states. What matters is
-**edit-level observability**: whether a structural difference affects the outcome
-of future edits. A difference matters only if it prevents a sequence of
-text-like edits from reaching a complete state that the same edits would reach
-from a fresh parse.
+This is weaker than H: it allows S' and `freshParse(print(S'))` to have
+different internal structure, as long as the difference doesn't affect editing
+dynamics. Internal differences are "distinctions without a difference" if they
+never block or redirect the user's path to completeness.
 
-See also Property H (history independence — stronger, same text → same
-structure) and Property R (reachability — weaker, can eventually get there).
-We target T.
+**What counts as observable**: NOT decorations, highlighting, or semantic
+feedback. Those are best-effort for incomplete states and may differ between
+structurally different representations of the same text — that's fine. What
+matters is **edit-level observability**: whether a structural difference affects
+the outcome of future edits. Specifically, a difference matters if it prevents
+a sequence of text-like edits from reaching a complete state that the same
+edits would reach from a fresh parse. The system's interpretation of incomplete
+states (for display purposes) is informational, not authoritative — the user
+knows what they're typing toward. The property is about not getting in their
+way.
+
+**Property R (Reachability)**: For any complete state A and target text B, if
+B is reachable from `text(A)` via text edits, then some complete state with
+text B is reachable from A via structural edits. This is the weakest — it says
+you can "eventually get there" but doesn't constrain intermediate states.
+
+**What we think we want**: T, not necessarily H. The user should be able to
+treat the editor as a text editor, with each edit step producing the expected
+result. But if the internal structure sometimes differs from a fresh parse in
+unobservable ways, that's acceptable. H is sufficient for T but may not be
+necessary. R is probably too weak — it doesn't guarantee that each individual
+edit step is faithful, only that recovery is eventually possible.
+
+**Current status**: The rescan gets us much closer to T. Many cases that
+previously diverged now behave correctly (out-of-order typing, cross-form
+re-association). But T is not proven to hold in general, and may not hold for
+cases involving delimiters trapped inside children (see parent-breaking below).
+The `fun (a, b -> )` recovery test shows R holds for that case, and observed
+behavior suggests T may also hold (inserting `)` after `b` correctly matched
+the parens via backpack), but this hasn't been systematically verified.
+
+**Open question**: Whether T can be achieved without parent-breaking, or
+whether parent-breaking is needed for some cases. Also: whether there exist
+cases where two states with the same text but different structure actually
+diverge in editing dynamics (i.e., a text-edit sequence reaches completeness
+from one but not the other).
 
 ## Motivating Scenarios
 
@@ -121,22 +162,45 @@ A new `Segment.normalize(sort, seg)` function that composes:
    `Form.Expansion.get(token)` yields a multi-token label with a mold whose
    `out == sort`. If so, promote the token to shard 0 of that form (making it
    incomplete). Then the existing frame-matching logic handles the rest.
-2. **Reassemble**: existing `Segment.reassemble`, unchanged.
-3. **Normalize children**: for each complete tile in the result, recursively
-   call `normalize(child_sort, child)` using `mold.in_` for child sorts.
-4. **Remold**: existing `Segment.remold(seg, sort)`.
+2. **Reassemble-and-normalize**: a variant of `Segment.reassemble` that, when
+   it forms a complete tile from shards, recursively calls `normalize` on each
+   child with its expected sort from `mold.in_`. This is NOT the same as the
+   existing `reassemble` — it only recurses into children of tiles it actually
+   assembles this call. If `incomplete_tiles(seg)` is empty, returns immediately.
+3. **Remold**: existing `Segment.remold(seg, sort)`.
 
-`normalize` and `normalize_children` are mutually recursive. For already-correct
-tiles, each step hits a fast path (no incomplete tiles → return unchanged), so
-the cost of processing all children (not just newly-assembled ones) is minimal.
+`normalize` and `reassemble_normalize` are mutually recursive:
 
-**How this fixes the case/end bug**: After rescan matches `case` with `end` and
-reassemble forms the tile, `normalize_children` runs `normalize(Rul, child)` on
-the child segment. Sort-aware rescan promotes `|` to `["|","=>"][0]` (because
-Rule form has `out=Rul`), pushes a frame with `=>`. Standalone `=>` matches the
-frame. Reassemble groups them into a Rule tile. `normalize_children` recurses
-into Rule's child (`a`), remolding it from Exp to Pat sort. Remold fixes outer
-molds in Rul context.
+```
+normalize(sort, seg) =
+  seg |> presplit_orphans |> rescan(~sort)
+      |> reassemble_normalize(sort) |> remold(_, sort)
+
+reassemble_normalize(sort, seg) =
+  switch (incomplete_tiles(seg))
+  | [] => seg    /* fast path: nothing to assemble */
+  | [t, ...] =>
+    ...find and group shards of t...
+    children = if complete(t):
+      map2(normalize, t.mold.in_, t.children)   /* recurse */
+    else:
+      map(reassemble_normalize(sort), t.children)
+    ...continue with remainder...
+```
+
+**Performance**: `reassemble_normalize` only recurses into children of tiles it
+ACTUALLY ASSEMBLES — typically 1-2 per edit. It does NOT walk all children of
+all complete tiles in the program. If there are no incomplete tiles in a segment,
+`incomplete_tiles(seg)` is empty and it returns immediately. Cost is proportional
+to the number of newly-assembled tiles' children, not total program size.
+
+**How this fixes the case/end bug**: After rescan matches `case` with `end`,
+`reassemble_normalize` forms the tile and calls `normalize(Rul, child)` on the
+child segment. Sort-aware rescan promotes `|` to `["|","=>"][0]` (because Rule
+form has `out=Rul`), pushes a frame with `=>`. Standalone `=>` matches the
+frame. `reassemble_normalize` groups them into a Rule tile and recurses into
+Rule's child (`a`), remolding it from Exp to Pat sort. Remold fixes outer molds
+in Rul context.
 
 **Why sort-aware expansion replaces the `|` gate**: The Insert.re gate prevents
 `|` from expanding to Rule outside a case context (otherwise typing `|` for
@@ -144,18 +208,19 @@ molds in Rul context.
 same effect principally: it only promotes `|` to Rule when `sort == Rul`, which
 only happens inside a case tile's child. No ad-hoc zipper checks needed.
 
-**New code** (~30 lines in Segment.re, ~5 lines plumbing in Siblings.re/Zipper.re):
+**New code** (~45 lines in Segment.re, ~5 lines plumbing in Siblings.re/Zipper.re):
 - `try_sort_expand(sort, tile)`: ~12 lines. Calls existing `Form.Expansion.get`
   and `Form.Molds.get`. Returns promoted tile or None.
 - Integration in `rescan(~sort=Any, seg)`: ~4 lines. Apply `try_sort_expand`
   before existing matching logic. Promoted tiles flow through naturally (they're
   incomplete singletons → push frame).
-- `normalize(sort, seg)` + `normalize_children(seg)`: ~15 lines. Mutually
-  recursive. Composes existing functions.
+- `reassemble_normalize(sort, seg)`: ~15 lines. Mirrors `reassemble`'s switch
+  structure but calls `normalize` on children of complete tiles instead of just
+  `reassemble`. This is ~15 lines of structural duplication with `reassemble`,
+  justified by keeping the performance-critical `reassemble` (used during cursor
+  movement) lean.
+- `normalize(sort, seg)`: ~5 lines. Composes presplit + rescan + reassemble_normalize + remold.
 - `Siblings.rescan(~sort)`, `Zipper.rescan_reassemble`: pass sort through.
-
-**Zero duplication**: `try_sort_expand` is new logic (not duplicated from
-Insert.re). `normalize` composes existing functions. `reassemble` is unchanged.
 
 ### Phase 4: Consolidate Post-Edit Processing
 
