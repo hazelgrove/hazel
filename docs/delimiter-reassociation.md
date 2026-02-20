@@ -137,9 +137,7 @@ This handles:
   matches `fix[0]`'s right-missing `->` frame entry
 - `let`/`type` interchangeability: orphaned `=[1]` and `in[2]` match `type[0]`
 
-### Phase 3: Open Design Questions
-
-Three related but potentially independent problems:
+### Open Design Questions
 
 **A. Backpack/rescan unification**: The backpack handles forward matching
 (typing a new token that matches an ancestor's missing shard). The rescan
@@ -150,25 +148,44 @@ with rescan. Could the sibling portion of `backpack_find` be replaced by "always
 create standalone + let rescan convert"? This might simplify the logic but needs
 care around the ambiguity gate.
 
-**B. Parent-breaking**: When a delimiter is trapped inside a bidelimited child
-(e.g., `->` inside parens), the rescan can't reach it. Fixing this requires
-breaking the parent tile to extract the delimiter. This involves the parent
-(like ancestor matching in the backpack) but is structurally different — it's
-breaking a complete ancestor, not filling in a missing shard.
+**B. Parent-breaking — probably not needed**: When a delimiter is trapped inside
+a bidelimited child (e.g., `->` inside parens in `fun (a, b -> )`), the rescan
+can't reach it. We considered a mechanism to break the parent tile and extract
+the delimiter. However, **delete-then-retype already provides a clean recovery
+path** via the rescan:
 
-**C. The full `fun (a, b -> )` scenario**: This combines all three sub-problems:
-the ambiguity gate (preventing `->` from matching `fun` during left-to-right
-typing), the lack of retroactive reassociation (once `->` is standalone), AND
-parent-breaking (once `)` traps `->` inside parens). The arrow disambiguation
-adds an extra wrinkle on top of the parent-breaking problem.
+> Starting from `fun (a, b -> )`: delete the misplaced `)`. This flattens
+> everything to siblings: `fun ( a, b -> `. The rescan fires and matches
+> `->` with `fun`. Then re-type `)` after `b` — it matches `(` via the
+> backpack. Result: `fun (a, b) -> `. Two keystrokes (delete + retype) and
+> the structure is correct.
+>
+> Alternatively: insert a new `)` after `b` first (it's orphaned), then
+> delete the old `)`. The delete flattens things, the rescan matches both
+> `(` with the new `)` and `fun` with `->`. Same result.
 
-**D. Child remolding after parent formation** (possibly related): Pasting or
-editing `casex | a => 0 end` then adding a space between `case` and `x` causes
-`case` and `end` to combine (via rescan), trapping `| a => 0` as a child. But
-`|` and `=>` were molded as Exp-sort standalone tokens and remain inert — they
-don't become proper rule delimiters in the case's child sort. This may require
-interplay between rescan (to form the parent tile) and remold (to re-mold
-child content in the correct sort context). Needs investigation.
+Parent-breaking would save one step (just inserting `)` would automatically
+displace the old match), but the UX is debatable — it means typing a delimiter
+can break an existing association, which violates locality. The implementation
+is also complex (detecting match opportunities across parent boundaries,
+deciding when to break). For now, the delete-retype workflow seems adequate.
+
+**Note on the ambiguity gate**: The gate (only checking the backpack head for
+tokens like `->` that are both standalone forms and multi-token delimiters) is
+load-bearing. Example: `fun f : (Int -> Bool) -> x`. After typing `fun f : (`,
+the backpack is [`(`'s `)`, `fun`'s `->`]. When `->` is typed (for the type
+arrow), the gate checks only the head (`)`) — no match — so it correctly stays
+standalone. Without the gate, it would incorrectly match `fun`'s `->`. This
+means the gate can't simply be relaxed to solve the `fun (a, b -> )` problem.
+But as argued above, the delete-retype workflow handles it anyway.
+
+**C. Child remolding after parent formation**: Editing `casex | a => 0 end`
+then adding a space between `case` and `x` causes `case` and `end` to combine
+(via rescan), trapping `| a => 0` as a child. But `|` and `=>` were molded as
+Exp-sort standalone tokens and remain inert — they don't become proper rule
+delimiters in the case's child sort. This may require interplay between rescan
+(to form the parent tile) and remold (to re-mold child content in the correct
+sort context). Needs investigation.
 
 ## Current Tests (Editing.Rescan section)
 
