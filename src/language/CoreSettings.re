@@ -12,6 +12,7 @@ module Evaluation = {
     show_lookup_steps: bool,
     show_stepper_filters: bool,
     project_tables: bool,
+    rich_probes: bool, // Maybe move this to an editing category
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
     stepper_history: bool,
     show_settings: bool,
@@ -29,6 +30,7 @@ module Evaluation = {
     show_lookup_steps: false,
     show_stepper_filters: false,
     project_tables: false,
+    rich_probes: true,
     stepper_history: false,
     show_settings: false,
     show_hidden_steps: false,

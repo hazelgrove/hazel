@@ -164,6 +164,7 @@ let legend_sample_view =
       ...ProbeProj.Settings.s^,
       window: mode,
     },
+    ~rich_probes=false,
     ~num_total=1,
     ~sort=Sort.Exp,
     di,

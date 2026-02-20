@@ -141,6 +141,8 @@ module View = {
     view_seg: seg,
     /* Parent editor context on the projector */
     status,
+    /* Core settings for projector-level feature gating */
+    core_settings: CoreSettings.t,
   };
 
   let mk = (~overlay=None, ~offside=None, inline) => {
@@ -222,6 +224,7 @@ module Cook = (C: Projector) : Cooked => {
       parent: args.parent,
       view_seg: args.view_seg,
       status: args.status,
+      core_settings: args.core_settings,
     });
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;

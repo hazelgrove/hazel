@@ -39,6 +39,7 @@ module Model = {
         show_lookup_steps: false,
         show_stepper_filters: false,
         project_tables: false,
+        rich_probes: true,
         stepper_history: false,
         show_settings: false,
         show_hidden_steps: false,
@@ -107,6 +108,7 @@ module Update = {
     | ShowCaseSteps
     | ShowFixpoints
     | ProjectTables
+    | RichProbes
     | ShowLookups
     | ShowFilters
     | ShowSettings
@@ -244,6 +246,10 @@ module Update = {
           | ProjectTables => {
               ...evaluation,
               project_tables: !evaluation.project_tables,
+            }
+          | RichProbes => {
+              ...evaluation,
+              rich_probes: !evaluation.rich_probes,
             }
           | ShowLookups => {
               ...evaluation,

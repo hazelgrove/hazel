@@ -535,6 +535,7 @@ let value_view =
     (
       ~ap_id: option(Id.t),
       ~settings: settings,
+      ~rich_probes: bool,
       ~sort: Sort.t,
       ~num_total: int,
       di: Dynamics.Info.t,
@@ -589,30 +590,34 @@ let value_view =
 
   /* Get badges for all compatible renderers for this specific value */
   let compatible_badges =
-    renderers
-    |> List.filter(r => r.can_handle(sort, sample.value))
-    |> List.map(r =>
-         span(
-           ~attrs=[
-             Attr.on_click(_ => {
-               let exp = sample.value;
-               let oactive =
-                 switch (r.parse_packed(sort, exp)) {
-                 | Some(value_state) =>
-                   let model_state = r.init_packed(value_state);
-                   Some({
-                     renderer_id: r.id,
-                     model_state,
-                   });
-                 | None => None
-                 };
-               local(ToggleModal(oactive));
-             }),
-             Attr.classes(["renderer-badge"]),
-           ],
-           [r.badge],
-         )
-       );
+    if (!rich_probes) {
+      [];
+    } else {
+      renderers
+      |> List.filter(r => r.can_handle(sort, sample.value))
+      |> List.map(r =>
+           span(
+             ~attrs=[
+               Attr.on_click(_ => {
+                 let exp = sample.value;
+                 let oactive =
+                   switch (r.parse_packed(sort, exp)) {
+                   | Some(value_state) =>
+                     let model_state = r.init_packed(value_state);
+                     Some({
+                       renderer_id: r.id,
+                       model_state,
+                     });
+                   | None => None
+                   };
+                 local(ToggleModal(oactive));
+               }),
+               Attr.classes(["renderer-badge"]),
+             ],
+             [r.badge],
+           )
+         );
+    };
 
   div(
     ~attrs=[Attr.style(Css_gen.create(~field="display", ~value="flex"))],
@@ -798,6 +803,7 @@ let sample_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~rich_probes: bool,
       ~num_total: int,
       ~sort: Sort.t,
       di: Dynamics.Info.t,
@@ -820,6 +826,7 @@ let sample_view =
       value_view(
         ~ap_id,
         ~settings,
+        ~rich_probes,
         ~num_total,
         ~sort,
         di,
@@ -855,6 +862,7 @@ let sample_group_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~rich_probes: bool,
       ~num_total: int,
       ~sort,
       di: Dynamics.Info.t,
@@ -874,6 +882,7 @@ let sample_group_view =
               ~ap_id,
               ~hide_env,
               ~settings,
+              ~rich_probes,
               ~num_total,
               ~sort,
               di,
@@ -1216,6 +1225,7 @@ let offside_view =
       local,
       parent,
       ~settings: settings,
+      ~rich_probes: bool,
       ~sort: Sort.t,
       view_seg:
         (~background: bool=?, ~text_only: bool=?, Sort.t, list(syntax)) =>
@@ -1284,6 +1294,7 @@ let offside_view =
             ~ap_id,
             ~hide_env,
             ~settings,
+            ~rich_probes,
             ~num_total,
             ~sort,
             di,
@@ -1329,15 +1340,19 @@ let get_current = (~settings, info: info) => {
   };
 };
 
-let overlay_view = (~settings, ~sort, _model: probe_model, info: info): Node.t =>
+let overlay_view =
+    (~settings, ~rich_probes, ~sort, _model: probe_model, info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
     let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     let has_renderer =
-      switch (get_current(~settings, info)) {
-      | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
-      | None => false
-      };
+      rich_probes
+      && (
+        switch (get_current(~settings, info)) {
+        | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
+        | None => false
+        }
+      );
     div(
       ~attrs=[
         Attr.classes(
@@ -1465,23 +1480,26 @@ module M: Projector = {
   };
   let view =
       (
-        {info, local, parent, view_seg, model, status, _}:
+        {info, local, parent, view_seg, model, status, core_settings, _}:
           View.args(model, action),
       ) => {
     let settings = Settings.s^;
     let sort = status.sort;
+    let rich_probes = core_settings.evaluation.rich_probes;
     /* Wrap view_seg to fix single_line=true for all probe displays */
     let view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
       view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
     View.{
       inline: Node.div([]),
-      overlay: Some(overlay_view(~settings, ~sort, model, info)),
+      overlay:
+        Some(overlay_view(~settings, ~rich_probes, ~sort, model, info)),
       offside:
         Some(
           div(
             [
               offside_view(
                 ~settings,
+                ~rich_probes,
                 ~sort,
                 info,
                 local,
@@ -1490,15 +1508,19 @@ module M: Projector = {
                 info.utility,
               ),
             ]
-            @ modal_overlay(
-                ~settings,
-                model,
-                info,
-                ~local,
-                ~parent,
-                ~view_seg=view_seg_single_line,
-                ~sort,
-              ),
+            @ (
+              rich_probes
+                ? modal_overlay(
+                    ~settings,
+                    model,
+                    info,
+                    ~local,
+                    ~parent,
+                    ~view_seg=view_seg_single_line,
+                    ~sort,
+                  )
+                : []
+            ),
           ),
         ),
     };

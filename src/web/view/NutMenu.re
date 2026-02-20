@@ -80,6 +80,7 @@ let values_group = (~globals: Globals.t) => {
       ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses), None),
       ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints), None),
       ("☰", "Tables", s.project_tables, Evaluation(ProjectTables), None),
+      ("⬡", "Rich Probes", s.rich_probes, Evaluation(RichProbes), None),
       (
         ":",
         "Ascriptions",
