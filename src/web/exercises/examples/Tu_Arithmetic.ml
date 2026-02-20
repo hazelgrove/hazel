@@ -15,7 +15,7 @@ let int_exercise : Tutorial.spec =
 The editor below contains `2 +` with a hole after the `+`. Complete the expression by typing `2` to make `2 + 2`. It should evaluate to `4`.|md};
     wrapper = true;
     show_report = false;
-    rich_probes = Some (false);
+    rich_probes = Some false;
     version = 3;
     your_impl = Option.get (Haz3lcore.Parser.to_zipper "2 + ");
     hidden_tests =
@@ -152,7 +152,7 @@ Float literals must include a decimal point, e.g. `3.14` or `1.0`. This distinct
 The editor below contains `3.0 * 2.0`, which uses the *integer* multiplication operator `*` on float values, causing a type error. Fix it by changing `*` to `*.` (the float multiplication operator). The result should evaluate to `6.0`.|md};
     wrapper = true;
     show_report = false;
-    rich_probes = Some (false);
+    rich_probes = Some false;
     version = 4;
     your_impl = Option.get (Haz3lcore.Parser.to_zipper "3.0 * 2.0");
     hidden_tests =

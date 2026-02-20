@@ -529,5 +529,5 @@ let exercise : Tutorial.spec =
       };
     wrapper = true;
     show_report = false;
-    rich_probes = Some (false);
+    rich_probes = Some false;
   }
