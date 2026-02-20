@@ -36,7 +36,27 @@ let exercise : Tutorial.spec =
        - The second row should have level `ocean` and difficulty 2\n\n\
        After you are done. Right click the list and select `Add Table`";
     display_hint = "";
-    task_reference = "";
+    task_reference =
+      " # Table Projector\n\
+      \      Tables are lists of labeled tuples\n\
+      \       ```hazel\n\
+       [\n\
+       (level=\"forest\", player=\"Aria\", score=1200),\n\
+       (level=\"desert\", player=\"Ben\", score=900),\n\
+       (level=\"forest\", player=\"Cleo\", score=1500)\n\
+       ]\n\
+      \       ```\n\n\
+       is equivalent to \n\
+       ```hazel\n\
+       ^^table([\n\
+       (level=\"forest\", player=\"Aria\", score=1200),\n\
+       (level=\"desert\", player=\"Ben\", score=900),\n\
+       (level=\"forest\", player=\"Cleo\", score=1500)\n\
+       ])\n\
+      \       ```\n\n\
+      \       Right-click a list of labeled tuples and select `Add Table` to \
+       convert it into a table. \n\n\
+       **Note:** This table interface is currently read-only\n\n";
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
