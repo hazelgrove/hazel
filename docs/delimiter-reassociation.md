@@ -157,13 +157,24 @@ and may be stronger than necessary.
 structural edit producing state S' should satisfy:
 1. `print(S')` is what applying the same character edit to `print(S)` as plain
    text would produce (the text change is predictable)
-2. S' is **bisimilar** to `freshParse(print(S'))` — they produce the same
-   observable behavior under all future single-character edits
+2. S' is **edit-equivalent** to `freshParse(print(S'))` — their difference
+   never prevents the user from reaching a complete state via further edits
 
 This is weaker than H: it allows S' and `freshParse(print(S'))` to have
-different internal structure, as long as they behave identically. Internal
-differences are "distinctions without a difference" if the user can never
-observe them through any sequence of edits.
+different internal structure, as long as the difference doesn't affect editing
+dynamics. Internal differences are "distinctions without a difference" if they
+never block or redirect the user's path to completeness.
+
+**What counts as observable**: NOT decorations, highlighting, or semantic
+feedback. Those are best-effort for incomplete states and may differ between
+structurally different representations of the same text — that's fine. What
+matters is **edit-level observability**: whether a structural difference affects
+the outcome of future edits. Specifically, a difference matters if it prevents
+a sequence of text-like edits from reaching a complete state that the same
+edits would reach from a fresh parse. The system's interpretation of incomplete
+states (for display purposes) is informational, not authoritative — the user
+knows what they're typing toward. The property is about not getting in their
+way.
 
 **Property R (Reachability)**: For any complete state A and target text B, if
 B is reachable from `text(A)` via text edits, then some complete state with
@@ -186,8 +197,10 @@ behavior suggests T may also hold (inserting `)` after `b` correctly matched
 the parens via backpack), but this hasn't been systematically verified.
 
 **Open question**: Whether T can be achieved without parent-breaking, or
-whether parent-breaking is needed for some cases. Also: precisely defining
-"bisimilar" in this context (what counts as observable behavior?).
+whether parent-breaking is needed for some cases. Also: whether there exist
+cases where two states with the same text but different structure actually
+diverge in editing dynamics (i.e., a text-edit sequence reaches completeness
+from one but not the other).
 
 ### Open Design Questions
 
