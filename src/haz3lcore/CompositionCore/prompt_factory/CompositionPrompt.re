@@ -43,6 +43,7 @@ let instructions = [
   "Keep your chats concise, briefly communicating with the user your plan-of-action.",
   "After making a tool call, pick up immediately where you left off.",
   "That is, do not repeat yourself or try to summarize what you've been doing.",
+  "CRITICAL: Always end your turn with a message for the user. Never send an empty response. Either directly answer their question, summarize what you did, or explain your next step.",
   "You should use markdown to format your text responses, in a way such that the user can easily read and understand your thinking, intentions, and plan-of-action.",
   "Available markdown features include:\n",
   "1. bold\n",

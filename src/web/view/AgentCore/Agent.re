@@ -54,7 +54,8 @@ module Message = {
       | ApiFailure
       | DeveloperNotes // Only one should exist
       | Prompt // Only one should exist
-      | Context;
+      | Context
+      | RetryNote; // Research transparency: empty/API retries
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     // Separating like such, as agent messages appear on left
@@ -108,6 +109,23 @@ module Message = {
         current_child: None,
       };
     };
+    let mk_retry_note_message =
+        (~content: string, ~sent_to_api: bool): Model.t => {
+      let sanitized_content = String.trim(content);
+      {
+        id: Id.mk(),
+        content: sanitized_content,
+        timestamp: JsUtil.timestamp(),
+        role: System(RetryNote),
+        api_message:
+          sent_to_api
+            ? Some(OpenRouter.Message.Utils.mk_developer_msg(sanitized_content))
+            : None,
+        children: [],
+        current_child: None,
+      };
+    };
+
     let mk_developer_notes_message = (content: string): Model.t => {
       let sanitized_content = String.trim(content);
       {
@@ -299,6 +317,7 @@ module Message = {
             | DeveloperNotes => `String("developer_notes")
             | Prompt => `String("prompt")
             | Context => `String("context")
+            | RetryNote => `String("retry_note")
             }
           | ToolResult(tool_result) =>
             `Assoc([
@@ -863,6 +882,26 @@ module ChunkedUIChat = {
               log: acc_model.log @ [chunk],
             };
             convert_helper(rest, updated_model);
+          | System(RetryNote) =>
+            switch (curr_last_chunk(acc_model)) {
+            | AgentResponseChunk(agent_response_chunk) =>
+              let agent_response_chunk = {
+                ...agent_response_chunk,
+                content: agent_response_chunk.content @ [message],
+              };
+              let log =
+                (acc_model.log |> List.rev |> List.tl |> List.rev)
+                @ [Model.AgentResponseChunk(agent_response_chunk)];
+              let updated_model = {...acc_model, log};
+              convert_helper(rest, updated_model);
+            | UserMessage(_) | ErrorMessage(_) =>
+              let chunk = mk_agent_response_chunk(message);
+              let updated_model = {
+                ...acc_model,
+                log: acc_model.log @ [chunk],
+              };
+              convert_helper(rest, updated_model);
+            }
           }
         };
       };
@@ -1038,6 +1077,8 @@ module Agent = {
       prompting,
       active_timeline_node: option(int),
       awaiting_response: option(Id.t),
+      restore_editor_state: option(Segment.t),
+      last_empty_retry_attempt: option(int),
     };
   };
 
@@ -1046,13 +1087,19 @@ module Agent = {
     type t = Model.t;
 
     let persist = (model: Model.t): t => {
-      model;
+      {
+        ...model,
+        restore_editor_state: None,
+        last_empty_retry_attempt: None,
+      };
     };
 
     let unpersist = (p: t): Model.t => {
       {
         ...p,
         awaiting_response: None,
+        restore_editor_state: None,
+        last_empty_retry_attempt: None,
       };
     };
   };
@@ -1080,6 +1127,8 @@ module Agent = {
         },
         active_timeline_node: None,
         awaiting_response: None,
+        restore_editor_state: None,
+        last_empty_retry_attempt: None,
       };
     };
   };
@@ -1193,9 +1242,21 @@ module Agent = {
         | SendMessage(Message.Model.t, Id.t)
         | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t)
         | ApiErrorResponse(Id.t, Message.Model.t)
+        | RetryApiError(Id.t, int)
+        | DoRetryApiSend(Id.t, int)
+        | RetryEmptyResponse(Id.t, int)
+        | LoadTimelineSegment(Segment.t, int)
+        | RestoreOriginal
         | LoadSegmentIntoEditor(Segment.t)
         | SetActiveTimelineNode(option(int));
     };
+
+    let max_api_retries = 3;
+    let is_retryable_api_error = (code: int): bool =>
+      code == 429 || code == 500 || code == 502 || code == 503;
+    // We Use expoenential backoff
+    let backoff_ms = (attempt: int): float =>
+      1000.0 *. 2.0 ** float(attempt);
 
     let send_llm_request =
         (
@@ -1203,10 +1264,9 @@ module Agent = {
           ~payload: OpenRouter.Payload.Model.t,
           ~schedule_action: Action.t => unit,
           ~chat_id: Id.t,
+          ~retry_attempt: int,
         )
         : unit => {
-      // This function schedules async actions
-      // These actions must be async, as we await an llm api response
       print_endline("Defining handler");
       let handler = (response: option(API.Json.t)): unit => {
         switch (response) {
@@ -1221,13 +1281,17 @@ module Agent = {
         | Some(OpenRouter.Model.Reply(reply)) =>
           schedule_action(Action.HandleLLMResponse(reply, chat_id))
         | Some(OpenRouter.Model.Error({message, code})) =>
-          let api_error_content =
-            "Code: " ++ string_of_int(code) ++ "\\Error: " ++ message;
-          let api_error_message =
-            Message.Utils.mk_api_failure_message(api_error_content);
-          schedule_action(
-            Action.ApiErrorResponse(chat_id, api_error_message),
-          );
+          if (is_retryable_api_error(code) && retry_attempt < max_api_retries) {
+            schedule_action(Action.RetryApiError(chat_id, retry_attempt));
+          } else {
+            let api_error_content =
+              "Code: " ++ string_of_int(code) ++ "\\Error: " ++ message;
+            let api_error_message =
+              Message.Utils.mk_api_failure_message(api_error_content);
+            schedule_action(
+              Action.ApiErrorResponse(chat_id, api_error_message),
+            );
+          }
         | None => print_endline("Response failed to be parsed")
         };
       };
@@ -1339,6 +1403,7 @@ module Agent = {
             ),
           ~schedule_action,
           ~chat_id,
+          ~retry_attempt=0,
         );
         Ok({
           ...model,
@@ -1612,38 +1677,83 @@ module Agent = {
         "Handling LLM response: " ++ OpenRouter.Reply.Model.show(reply),
       );
       let tool_call = ListUtil.hd_opt(reply.tool_calls);
-      let new_message =
-        Message.Utils.mk_agent_message(reply.content, reply.usage);
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.AppendMessage(new_message),
-            chat_id,
-          ),
-          model.chat_system,
-        )
-        |> ChatSystem.Update.get;
-      let model = {
-        ...model,
-        chat_system,
-      };
-      switch (tool_call) {
-      | Some(tool_call) =>
-        handle_tool_call(
-          ~tool_call,
-          ~model,
-          ~cell_editor,
-          ~settings,
-          ~schedule_action,
-          ~chat_id,
-        )
-      | None => (
-          {
-            ...model,
-            awaiting_response: None,
-          },
-          cell_editor |> Updated.return_quiet,
-        )
+      let is_empty = String.trim(reply.content) == "";
+      let max_empty_retries = 2;
+
+      // Empty response with no tool calls: retry with failure context (up to max_empty_retries)
+      if (tool_call == None && is_empty) {
+        let current_retry =
+          Option.value(~default=-1, model.last_empty_retry_attempt);
+        let next_retry = current_retry + 1;
+        if (next_retry < max_empty_retries) {
+          schedule_action(Action.RetryEmptyResponse(chat_id, next_retry));
+          (
+            {
+              ...model,
+              last_empty_retry_attempt: Some(next_retry),
+            },
+            cell_editor |> Updated.return_quiet,
+          );
+        } else {
+          // Exhausted retries: show fallback message
+          let fallback_content = "(The assistant returned an empty response after retries. You can try rephrasing your message.)";
+          let new_message =
+            Message.Utils.mk_agent_message(fallback_content, reply.usage);
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AppendMessage(new_message),
+                chat_id,
+              ),
+              model.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          (
+            {
+              ...model,
+              chat_system,
+              awaiting_response: None,
+              last_empty_retry_attempt: None,
+            },
+            cell_editor |> Updated.return_quiet,
+          );
+        };
+      } else {
+        let content = reply.content;
+        let new_message =
+          Message.Utils.mk_agent_message(content, reply.usage);
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AppendMessage(new_message),
+              chat_id,
+            ),
+            model.chat_system,
+          )
+          |> ChatSystem.Update.get;
+        let model = {
+          ...model,
+          chat_system,
+          last_empty_retry_attempt: None,
+        };
+        switch (tool_call) {
+        | Some(tool_call) =>
+          handle_tool_call(
+            ~tool_call,
+            ~model,
+            ~cell_editor,
+            ~settings,
+            ~schedule_action,
+            ~chat_id,
+          )
+        | None => (
+            {
+              ...model,
+              awaiting_response: None,
+            },
+            cell_editor |> Updated.return_quiet,
+          )
+        };
       };
     };
 
@@ -1722,6 +1832,200 @@ module Agent = {
           },
           editor |> Updated.return,
         );
+      | RetryApiError(chat_id, attempt) =>
+        let delay_s = int_of_float(backoff_ms(attempt) /. 1000.0);
+        let retry_note =
+          Message.Utils.mk_retry_note_message(
+            ~content=
+              "[API retry "
+              ++ string_of_int(attempt + 2)
+              ++ "/"
+              ++ string_of_int(max_api_retries + 1)
+              ++ "] Server/rate limit error. Retrying in "
+              ++ string_of_int(delay_s)
+              ++ "s...",
+            ~sent_to_api=false,
+          );
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AppendMessage(retry_note),
+              chat_id,
+            ),
+            model.chat_system,
+          )
+          |> ChatSystem.Update.get;
+        let delay_ms = backoff_ms(attempt);
+        JsUtil.delay(delay_ms, () =>
+          schedule_action(Action.DoRetryApiSend(chat_id, attempt))
+        );
+        ({...model, chat_system}, editor |> Updated.return);
+      | DoRetryApiSend(chat_id, attempt) =>
+        let model = update_context(model, editor.editor, chat_id);
+        let chat_system = model.chat_system;
+        switch (
+          settings.agent_globals.api_key,
+          AgentGlobals.get_active_llm_id(settings.agent_globals),
+        ) {
+        | (Some(api_key), Some(llm_id)) =>
+          send_llm_request(
+            ~api_key,
+            ~payload=
+              OpenRouter.Payload.Utils.mk_default(
+                ~model_id=llm_id,
+                ~messages=
+                  Chat.Utils.api_messages_of_messages(
+                    Chat.Utils.get(
+                      ChatSystem.Utils.find_chat(chat_id, chat_system),
+                    ),
+                  ),
+                ~tools=model.prompting.tools,
+              ),
+            ~schedule_action,
+            ~chat_id,
+            ~retry_attempt=attempt + 1,
+          );
+          (model, editor |> Updated.return);
+        | _ =>
+          let api_failure_message =
+            Message.Utils.mk_api_failure_message(
+              "API key or LLM not configured. Cannot retry.",
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AppendMessage(api_failure_message),
+                chat_id,
+              ),
+              model.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          (
+            {
+              ...model,
+              chat_system,
+              awaiting_response: None,
+            },
+            editor |> Updated.return,
+          );
+        };
+      | RetryEmptyResponse(chat_id, attempt) =>
+        let retry_msg =
+          "[Retry "
+          ++ string_of_int(attempt + 1)
+          ++ "/2] Your previous response was empty or invalid. Please respond with a message for the user—either directly answering their question or summarizing what you did.";
+        let retry_message =
+          Message.Utils.mk_retry_note_message(
+            ~content=retry_msg,
+            ~sent_to_api=true,
+          );
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AppendMessage(retry_message),
+              chat_id,
+            ),
+            model.chat_system,
+          )
+          |> ChatSystem.Update.get;
+        let model = {
+          ...model,
+          chat_system,
+        };
+        switch (
+          settings.agent_globals.api_key,
+          AgentGlobals.get_active_llm_id(settings.agent_globals),
+        ) {
+        | (Some(api_key), Some(llm_id)) =>
+          send_llm_request(
+            ~api_key,
+            ~payload=
+              OpenRouter.Payload.Utils.mk_default(
+                ~model_id=llm_id,
+                ~messages=
+                  Chat.Utils.api_messages_of_messages(
+                    Chat.Utils.get(
+                      ChatSystem.Utils.find_chat(chat_id, model.chat_system),
+                    ),
+                  ),
+                ~tools=model.prompting.tools,
+              ),
+            ~schedule_action,
+            ~chat_id,
+            ~retry_attempt=0,
+          );
+          (model, editor |> Updated.return);
+        | _ =>
+          let api_failure_message =
+            Message.Utils.mk_api_failure_message(
+              "API key or LLM not configured. Cannot retry.",
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AppendMessage(api_failure_message),
+                chat_id,
+              ),
+              model.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          (
+            {
+              ...model,
+              chat_system,
+              awaiting_response: None,
+              last_empty_retry_attempt: None,
+            },
+            editor |> Updated.return,
+          );
+        };
+      | LoadTimelineSegment(segment, node_index) =>
+        // On first click into history: save current editor state for Restore Original
+        let restore_editor_state =
+          switch (model.restore_editor_state) {
+          | None =>
+            Some(
+              Select.all(editor.editor.editor.state.zipper).selection.content,
+            )
+          | Some(_) => model.restore_editor_state
+          };
+        let new_zipper = Zipper.unzip(~direction=Right, segment);
+        let new_editor_model = Editor.Model.mk(new_zipper);
+        let new_code_with_statics =
+          CodeWithStatics.Model.mk(new_editor_model);
+        (
+          {
+            ...model,
+            restore_editor_state,
+            active_timeline_node: Some(node_index),
+          },
+          {
+            ...editor,
+            editor: new_code_with_statics,
+          }
+          |> Updated.return,
+        );
+      | RestoreOriginal =>
+        switch (model.restore_editor_state) {
+        | Some(saved_segment) =>
+          let new_zipper = Zipper.unzip(~direction=Right, saved_segment);
+          let new_editor_model = Editor.Model.mk(new_zipper);
+          let new_code_with_statics =
+            CodeWithStatics.Model.mk(new_editor_model);
+          (
+            {
+              ...model,
+              restore_editor_state: None,
+              active_timeline_node: None,
+            },
+            {
+              ...editor,
+              editor: new_code_with_statics,
+            }
+            |> Updated.return,
+          );
+        | None => (model, editor |> Updated.return)
+        }
       | LoadSegmentIntoEditor(segment) =>
         // Replace editor with segment by converting to zipper
         let new_zipper = Zipper.unzip(~direction=Right, segment);

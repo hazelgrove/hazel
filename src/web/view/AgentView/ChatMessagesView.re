@@ -529,6 +529,15 @@ let view =
                } else {
                  None; // Don't display empty agent messages
                }
+             | Agent.Message.Model.System(Agent.Message.Model.RetryNote) =>
+               Some(
+                 div(
+                   ~attrs=[
+                     clss(["agent-system-message", "agent-retry-note"]),
+                   ],
+                   [text(msg.content)],
+                 ),
+               )
              | ToolResult(tool_result) =>
                // Tool call message - display inline with expand/collapse
                let toggle_expanded = _ => {
@@ -631,11 +640,9 @@ let view =
               | Some(segment) =>
                 Effect.Many([
                   agent_inject(
-                    Agent.Agent.Update.Action.LoadSegmentIntoEditor(segment),
-                  ),
-                  agent_inject(
-                    Agent.Agent.Update.Action.SetActiveTimelineNode(
-                      Some(node.index),
+                    Agent.Agent.Update.Action.LoadTimelineSegment(
+                      segment,
+                      node.index,
                     ),
                   ),
                   Effect.Stop_propagation,
@@ -645,6 +652,7 @@ let view =
               ~attrs=[
                 clss([
                   "timeline-node",
+                  "timeline-step",
                   is_disabled ? "disabled" : "",
                   is_active ? "active" : "",
                 ]),
@@ -654,7 +662,12 @@ let view =
                     ? node.label ++ " (no segment data)" : node.label,
                 ),
               ],
-              [],
+              [
+                span(
+                  ~attrs=[clss(["timeline-node-label"])],
+                  [text(node.label)],
+                ),
+              ],
             );
           };
 
@@ -736,12 +749,40 @@ let view =
             initial @ rest_elements;
           };
 
+          // Restore Original button - only when user has clicked into history
+          let restore_button =
+            switch (agent_model.restore_editor_state) {
+            | Some(_) =>
+              div(
+                ~attrs=[
+                  clss(["agent-restore-original-button"]),
+                  Attr.on_click(_ =>
+                    Effect.Many([
+                      agent_inject(Agent.Agent.Update.Action.RestoreOriginal),
+                      Effect.Stop_propagation,
+                    ])
+                  ),
+                  Attr.title(
+                    "Restore your code to the state before viewing history",
+                  ),
+                ],
+                [Icons.undo, text("Restore Original")],
+              )
+            | None => div(~attrs=[], [])
+            };
+
           div(
             ~attrs=[clss(["agent-tool-summary"])],
             [
               div(
                 ~attrs=[clss(["agent-tool-summary-header"])],
-                [text("Edits Performed")],
+                [
+                  div(
+                    ~attrs=[clss(["agent-tool-summary-title"])],
+                    [text("Edits Performed")],
+                  ),
+                  restore_button,
+                ],
               ),
               div(
                 ~attrs=[clss(["agent-tool-summary-content"])],
