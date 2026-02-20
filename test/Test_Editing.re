@@ -1115,9 +1115,9 @@ let rescan_tests = [
     ~name="Recovery: fun (a, b -> a) via insert-then-delete",
     ~acts=
       mk({|fun (a, b -> a)¦|})
-      @ mv_l(7)  /* fun (a, b¦ -> ) */
+      @ mv_l(6)  /* fun (a, b¦ -> ) */
       @ string_to_ltr_actions(")")  /* fun (a, b)¦ -> ) */
-      @ mv_r(7)  /* fun (a, b) -> )¦ */
+      @ mv_r(6)  /* fun (a, b) -> )¦ */
       @ [Destruct(Left)], /* delete old ) */
     ~goal={|fun (a, b) -> a¦|},
   ),
