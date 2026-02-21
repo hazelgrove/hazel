@@ -3,7 +3,7 @@ let exercise : Tutorial.spec =
     id =
       Option.get (Haz3lcore.Id.of_string "a0000002-0002-0002-0002-000000000002");
     title = "The Tylr Parser and Backpack";
-    version = 2;
+    version = 3;
     module_name = "Tu_TylrParser";
     prompt =
       "Hazel uses a tile-based parser called Tylr. When you type a multi-token \
@@ -317,7 +317,7 @@ let exercise : Tutorial.spec =
             "Type `let x = 1 in x + 1` using Tab to drop backpack obligations.";
           ];
       };
-    wrapper = true;
+    wrapper = false;
     show_report = false;
     setting_overrides = Tutorial.default_setting_overrides;
   }

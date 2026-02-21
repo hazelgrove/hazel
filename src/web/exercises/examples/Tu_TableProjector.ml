@@ -4,7 +4,7 @@ let exercise : Tutorial.spec =
       Option.get (Haz3lcore.Id.of_string "3bfa855a-424e-439d-a523-89313b72c9dd");
     title = "Table Projector";
     version = 1;
-    module_name = "Tu_Projector";
+    module_name = "Tu_TableProjector";
     prompt =
       "To assist with tabular programming Hazel provides a table \"projector\" \
        to allow users to see literal tables in syntax as tables rather than \
@@ -37,25 +37,17 @@ let exercise : Tutorial.spec =
        After you are done. Right click the list and select `Add Table`";
     display_hint = "";
     task_reference =
-      " # Table Projector\n\
-      \      Tables are lists of labeled tuples\n\
-      \       ```hazel\n\
+      " # Tables\n\
+       Tables are lists of labeled tuples\n\
+       ```hazel\n\
        [\n\
        (level=\"forest\", player=\"Aria\", score=1200),\n\
        (level=\"desert\", player=\"Ben\", score=900),\n\
        (level=\"forest\", player=\"Cleo\", score=1500)\n\
        ]\n\
-      \       ```\n\n\
-       is equivalent to \n\
-       ```hazel\n\
-       ^^table([\n\
-       (level=\"forest\", player=\"Aria\", score=1200),\n\
-       (level=\"desert\", player=\"Ben\", score=900),\n\
-       (level=\"forest\", player=\"Cleo\", score=1500)\n\
-       ])\n\
-      \       ```\n\n\
-      \       Right-click a list of labeled tuples and select `Add Table` to \
-       convert it into a table. \n\n\
+       ```\n\n\
+       Right-click a literal list of labeled tuples and select `Add Table` to \
+       view it as a table in the editor. \n\n\
        **Note:** This table interface is currently read-only\n\n";
     your_impl =
       {
@@ -79,7 +71,7 @@ let exercise : Tutorial.spec =
                       id =
                         Option.get
                           (Haz3lcore.Id.of_string
-                             "f733358f-4cc1-4cf3-8976-324ca7f98624");
+                             "79690153-35c4-46f7-ac53-f85857388d7c");
                       shape = Convex;
                     };
                   Secondary
@@ -1486,6 +1478,5 @@ let exercise : Tutorial.spec =
       };
     wrapper = false;
     show_report = true;
-    setting_overrides =
-      { Tutorial.no_setting_overrides with display_tables = Some true };
+    setting_overrides = { rich_probes = None; display_tables = Some true };
   }

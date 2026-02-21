@@ -9,6 +9,7 @@ let lessons: list(Tutorial.spec) = [
   Tu_Probes.exercise,
   Tu_TypeAnnotations.exercise,
   Tu_Functions.exercise,
+  Tu_FunctionMultiArg.exercise,
   Tu_Partial.exercise,
   Tu_Pipelines.exercise,
   Tu_CaseExpressions.exercise,
@@ -23,4 +24,6 @@ let lessons: list(Tutorial.spec) = [
   Tu_LabelOmission.exercise,
   Tu_TableProjection.exercise,
   Tu_TableProjector.exercise,
+  Ta_GradebookMean.exercise,
+  Ta_GradebookOverallGrade.exercise,
 ];

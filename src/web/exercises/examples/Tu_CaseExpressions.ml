@@ -3,7 +3,7 @@ let exercise : Tutorial.spec =
     id =
       Option.get (Haz3lcore.Id.of_string "a0000011-0011-0011-0011-000000000011");
     title = "Case Expressions";
-    version = 11;
+    version = 12;
     module_name = "Tu_CaseExpressions";
     prompt =
       "Case expressions let you pattern match on a value. \n\
@@ -77,7 +77,7 @@ let exercise : Tutorial.spec =
                       id =
                         Option.get
                           (Haz3lcore.Id.of_string
-                             "10597b31-afda-47bc-9159-f5c1523c44d1");
+                             "9f7858c8-30a4-4a6d-8b3f-961dfc928d09");
                       content = Whitespace " ";
                     };
                   Tile
@@ -85,147 +85,137 @@ let exercise : Tutorial.spec =
                       id =
                         Option.get
                           (Haz3lcore.Id.of_string
-                             "44eac0a8-81cd-4048-b1a0-87161370ef4c");
-                      label = [ "fun"; "->" ];
+                             "57f3235e-f969-40cd-9f09-d06f4f2e1618");
+                      label = [ "p" ];
                       mold =
                         {
                           out = Exp;
-                          in_ = [ Pat ];
-                          nibs =
-                            ( { shape = Convex; sort = Exp },
-                              { shape = Concave 37; sort = Exp } );
-                        };
-                      shards = [ 0; 1 ];
-                      children =
-                        [
-                          [
-                            Secondary
-                              {
-                                id =
-                                  Option.get
-                                    (Haz3lcore.Id.of_string
-                                       "d90c2207-60db-4a04-a5af-3beb220378c9");
-                                content = Whitespace " ";
-                              };
-                            Tile
-                              {
-                                id =
-                                  Option.get
-                                    (Haz3lcore.Id.of_string
-                                       "678c7e0e-d3c6-4fc5-ab5f-93083156cc9f");
-                                label = [ "p" ];
-                                mold =
-                                  {
-                                    out = Pat;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Pat },
-                                        { shape = Convex; sort = Pat } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary
-                              {
-                                id =
-                                  Option.get
-                                    (Haz3lcore.Id.of_string
-                                       "cf6698d8-9d60-41c4-90de-81a508f466bf");
-                                content = Whitespace " ";
-                              };
-                          ];
-                        ];
-                    };
-                  Secondary
-                    {
-                      id =
-                        Option.get
-                          (Haz3lcore.Id.of_string
-                             "063bbfc7-8e51-408b-b6c3-39865325eca7");
-                      content = Whitespace "\n";
-                    };
-                ],
-                [
-                  Tile
-                    {
-                      id =
-                        Option.get
-                          (Haz3lcore.Id.of_string
-                             "69da4e09-acf1-4898-b794-854be00ce2f5");
-                      label = [ "case"; "end" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [ Rul ];
+                          in_ = [];
                           nibs =
                             ( { shape = Convex; sort = Exp },
                               { shape = Convex; sort = Exp } );
                         };
-                      shards = [ 0; 1 ];
-                      children =
-                        [
-                          [
-                            Secondary
-                              {
-                                id =
-                                  Option.get
-                                    (Haz3lcore.Id.of_string
-                                       "c169c4a8-2e4a-4ad7-a08c-763be7392e6d");
-                                content = Whitespace " ";
-                              };
-                            Tile
-                              {
-                                id =
-                                  Option.get
-                                    (Haz3lcore.Id.of_string
-                                       "028122ff-2ef2-4af5-8e9f-c123b1107237");
-                                label = [ "p" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary
-                              {
-                                id =
-                                  Option.get
-                                    (Haz3lcore.Id.of_string
-                                       "64ac575e-23cb-4e44-a8a4-5473ff39a714");
-                                content = Whitespace "\n";
-                              };
-                          ];
-                        ];
+                      shards = [ 0 ];
+                      children = [];
                     };
                   Secondary
                     {
                       id =
                         Option.get
                           (Haz3lcore.Id.of_string
-                             "0a9e832c-077d-4e4f-bd57-e1a59ff31115");
+                             "0dcc7760-51c2-45d6-8a92-b68947d8bc25");
                       content = Whitespace "\n";
                     };
-                  Secondary
-                    {
-                      id =
-                        Option.get
-                          (Haz3lcore.Id.of_string
-                             "25298b61-7b53-4aad-a7ea-70a801ea38fb");
-                      content = Whitespace " ";
-                    };
-                ] );
+                ],
+                [] );
             ancestors =
               [
                 ( {
                     id =
                       Option.get
                         (Haz3lcore.Id.of_string
-                           "314c5843-3870-4174-ad62-b40662824e2f");
+                           "30acc715-2d15-44e3-8882-940011d23326");
+                    label = [ "case"; "end" ];
+                    mold =
+                      {
+                        out = Exp;
+                        in_ = [ Rul ];
+                        nibs =
+                          ( { shape = Convex; sort = Exp },
+                            { shape = Convex; sort = Exp } );
+                      };
+                    shards = ([ 0 ], [ 1 ]);
+                    children = ([], []);
+                  },
+                  ( [
+                      Secondary
+                        {
+                          id =
+                            Option.get
+                              (Haz3lcore.Id.of_string
+                                 "53e7e212-8402-4b41-abee-11c57abe9129");
+                          content = Whitespace " ";
+                        };
+                      Tile
+                        {
+                          id =
+                            Option.get
+                              (Haz3lcore.Id.of_string
+                                 "4bbec19d-f564-4fea-9314-497f22e0470e");
+                          label = [ "fun"; "->" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Pat ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Concave 37; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  {
+                                    id =
+                                      Option.get
+                                        (Haz3lcore.Id.of_string
+                                           "339b20be-b9e0-42ed-8367-6223adb132fb");
+                                    content = Whitespace " ";
+                                  };
+                                Tile
+                                  {
+                                    id =
+                                      Option.get
+                                        (Haz3lcore.Id.of_string
+                                           "5f977718-4402-4809-b1ce-d4ea735ad815");
+                                    label = [ "p" ];
+                                    mold =
+                                      {
+                                        out = Pat;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Pat },
+                                            { shape = Convex; sort = Pat } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  {
+                                    id =
+                                      Option.get
+                                        (Haz3lcore.Id.of_string
+                                           "525a1885-baef-4679-a953-f7a16ff45312");
+                                    content = Whitespace " ";
+                                  };
+                              ];
+                            ];
+                        };
+                      Secondary
+                        {
+                          id =
+                            Option.get
+                              (Haz3lcore.Id.of_string
+                                 "8b70121a-d6c8-45ce-8bf4-d4a45ad23a0f");
+                          content = Whitespace "\n";
+                        };
+                    ],
+                    [
+                      Secondary
+                        {
+                          id =
+                            Option.get
+                              (Haz3lcore.Id.of_string
+                                 "abb622da-6039-4885-9160-a6c0f5f5d4a2");
+                          content = Whitespace "\n";
+                        };
+                    ] ) );
+                ( {
+                    id =
+                      Option.get
+                        (Haz3lcore.Id.of_string
+                           "3c2e29d3-2479-4bdc-8e06-e3cdcc9122d1");
                     label = [ "let"; "="; "in" ];
                     mold =
                       {
@@ -244,7 +234,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "6f461df3-5e34-4eb2-ad08-874700bc17ae");
+                                       "5f882ff8-9a16-40e3-be75-e2f31e156041");
                                 content = Whitespace " ";
                               };
                             Tile
@@ -252,7 +242,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "9b793574-2fac-4e57-8450-a4b998e2f09c");
+                                       "4e7ae6e9-94c5-47ec-9383-32c6132e4ce1");
                                 label = [ "process_string_pair" ];
                                 mold =
                                   {
@@ -270,7 +260,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "f058a2a6-a097-4cda-a5ce-8a391f91d8ec");
+                                       "aaef212d-2a1d-4ad1-a29d-8d79dcec4c32");
                                 content = Whitespace " ";
                               };
                             Tile
@@ -278,7 +268,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "c722595b-cf38-4033-8012-651d78df832a");
+                                       "ee5867c4-e95c-4501-8741-54ae5d514ab7");
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -296,7 +286,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "8a4e2fd0-bc66-472d-a492-94df1d294dd4");
+                                       "e0449f05-6251-4e6a-89ec-e6a1ba4a092a");
                                 content = Whitespace " ";
                               };
                             Tile
@@ -304,7 +294,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "7bf78109-cbb3-44ca-9637-4fee0e590b3e");
+                                       "f67c1344-8a81-466b-a453-245a95a8d2c6");
                                 label = [ "("; ")" ];
                                 mold =
                                   {
@@ -323,7 +313,7 @@ let exercise : Tutorial.spec =
                                           id =
                                             Option.get
                                               (Haz3lcore.Id.of_string
-                                                 "2e242545-9042-4c4f-9434-43b3c90a3b68");
+                                                 "33f17f3e-5d7e-4b97-8f06-151207b372fc");
                                           label = [ "String" ];
                                           mold =
                                             {
@@ -342,7 +332,7 @@ let exercise : Tutorial.spec =
                                           id =
                                             Option.get
                                               (Haz3lcore.Id.of_string
-                                                 "be5b5284-d93a-42a3-a97b-58daee6422d1");
+                                                 "64ec4ebb-e598-4e65-85d7-2e6ec21649b1");
                                           label = [ "," ];
                                           mold =
                                             {
@@ -366,7 +356,7 @@ let exercise : Tutorial.spec =
                                           id =
                                             Option.get
                                               (Haz3lcore.Id.of_string
-                                                 "a11ffc4d-055b-465b-a6e3-e884853825e7");
+                                                 "61e4bc97-e95e-4991-93c3-0635a66fb0f4");
                                           content = Whitespace " ";
                                         };
                                       Tile
@@ -374,7 +364,7 @@ let exercise : Tutorial.spec =
                                           id =
                                             Option.get
                                               (Haz3lcore.Id.of_string
-                                                 "80947faa-1d37-4a14-b326-8c0ec646c537");
+                                                 "2d9d96e0-bc4a-4112-821d-a8845bd90c98");
                                           label = [ "String" ];
                                           mold =
                                             {
@@ -396,7 +386,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "54cc8d4c-3f36-42ae-8bf5-6486d2dde0e8");
+                                       "f3bcf606-7918-431a-8674-0cf6652e1500");
                                 content = Whitespace " ";
                               };
                             Tile
@@ -404,7 +394,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "9d78324c-34b0-44fb-9835-53f7ce11fadb");
+                                       "f3113bb7-b984-47d5-a153-a492e3ba1493");
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -422,7 +412,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "363ccb58-18ae-404c-8373-d89ca98656b6");
+                                       "7a4cf315-7add-4d0a-82e6-4f108083ed68");
                                 content = Whitespace " ";
                               };
                             Tile
@@ -430,7 +420,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "c9750de4-7afd-42b8-919e-612dd97136b5");
+                                       "23b48f1b-a97e-4591-8fcc-ceed8886153e");
                                 label = [ "String" ];
                                 mold =
                                   {
@@ -448,7 +438,7 @@ let exercise : Tutorial.spec =
                                 id =
                                   Option.get
                                     (Haz3lcore.Id.of_string
-                                       "75a21544-1239-4603-a551-24bf3ff9bc9e");
+                                       "2281ea46-762f-4c69-bfb3-e80b1d4c68e4");
                                 content = Whitespace " ";
                               };
                           ];
@@ -462,7 +452,7 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "a267dcb4-c50a-4304-a13e-56e5ad894ab2");
+                                 "b3e632c5-7aee-4a5e-b06a-abf745f05805");
                           content = Whitespace "\n";
                         };
                       Tile
@@ -470,7 +460,7 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "f57a61b2-76eb-4bc8-8aed-8d06516a37d0");
+                                 "58ad0ae3-88c9-4d45-bf2b-c789031a270a");
                           label = [ "process_string_pair" ];
                           mold =
                             {
@@ -483,10 +473,95 @@ let exercise : Tutorial.spec =
                           shards = [ 0 ];
                           children = [];
                         };
+                      Tile
+                        {
+                          id =
+                            Option.get
+                              (Haz3lcore.Id.of_string
+                                 "e08219bc-134d-41ab-9290-7a98f7f3b643");
+                          label = [ "("; ")" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Concave 23; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Tile
+                                  {
+                                    id =
+                                      Option.get
+                                        (Haz3lcore.Id.of_string
+                                           "2f22a836-8fa2-4d30-8f3f-0840ad9eab3d");
+                                    label = [ "\"pre\"" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id =
+                                      Option.get
+                                        (Haz3lcore.Id.of_string
+                                           "da70b5ab-d974-431b-9e32-78a4e5de8c3e");
+                                    label = [ "," ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 44; sort = Exp },
+                                            { shape = Concave 44; sort = Exp }
+                                          );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  {
+                                    id =
+                                      Option.get
+                                        (Haz3lcore.Id.of_string
+                                           "4524724e-c1fd-4fae-8678-72cf125d7b4f");
+                                    content = Whitespace " ";
+                                  };
+                                Tile
+                                  {
+                                    id =
+                                      Option.get
+                                        (Haz3lcore.Id.of_string
+                                           "bbff1910-d7f5-4403-bbff-b160b612feef");
+                                    label = [ "\"hazel\"" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                              ];
+                            ];
+                        };
                     ] ) );
               ];
           };
-        caret = Inner 1;
+        caret = Outer;
         refractors =
           {
             manuals = [];
@@ -522,7 +597,7 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "cddbbc50-9634-4993-9c9e-f47698e0a5f6");
+                                 "c7568e40-9927-42fc-9461-34a53120736a");
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -541,7 +616,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "f4f5b86e-8686-4950-a0a5-3f63dcbee68f");
+                                           "0f7f3daa-4392-4a60-9a2c-972fbec28054");
                                     content = Whitespace " ";
                                   };
                                 Tile
@@ -549,8 +624,8 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "75d6b201-fa3d-4386-9934-83a9c45e6212");
-                                    label = [ "answer" ];
+                                           "f8d61448-01f2-48bc-9d0d-b0be71fc197b");
+                                    label = [ "process_string_pair" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -567,7 +642,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "687c5b09-348d-4f42-96f8-0383a6118346");
+                                           "173e48c6-d676-4888-9190-cece881cce8a");
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -586,7 +661,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "f7ffa623-991d-488d-8185-7cd4604a471e");
+                                                     "413a454e-641c-4cdc-a11e-6b4a46cdf9db");
                                               label = [ "\"pre\"" ];
                                               mold =
                                                 {
@@ -610,7 +685,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "09be84b7-74cc-4be5-a93a-84525bc29f4a");
+                                                     "1dbd4b44-eb93-483e-9486-2ab1bce95cfa");
                                               label = [ "," ];
                                               mold =
                                                 {
@@ -634,7 +709,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "5de0edbb-52ef-4bf6-a8f9-fed5fe13fa99");
+                                                     "2dd6bbe0-01b5-4000-af74-b2fb35507f20");
                                               content = Whitespace " ";
                                             };
                                           Tile
@@ -642,7 +717,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "0c7d6e27-764b-4a22-b14c-1cdf9000778d");
+                                                     "6aebfc7e-3aed-4eed-9877-9a9484e41536");
                                               label = [ "\"hazel\"" ];
                                               mold =
                                                 {
@@ -669,7 +744,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "71daed21-eb88-4e7a-b94b-d8e393902648");
+                                           "e4616f59-2715-48d8-8864-770b4452898e");
                                     content = Whitespace " ";
                                   };
                                 Tile
@@ -677,8 +752,8 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "81f09916-39c7-4867-8893-fa8d81baaee7");
-                                    label = [ "==" ];
+                                           "8d2a7fc2-5fd2-4380-91d7-75e52f30ca6c");
+                                    label = [ "$==" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -691,12 +766,20 @@ let exercise : Tutorial.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
+                                Secondary
+                                  {
+                                    id =
+                                      Option.get
+                                        (Haz3lcore.Id.of_string
+                                           "53777ef2-8a50-4529-b4d3-4d6d050a53a1");
+                                    content = Whitespace " ";
+                                  };
                                 Tile
                                   {
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "2a648c49-a5dc-4ff1-bb19-9e85e7c4ff58");
+                                           "c436c53f-b02f-4d1f-933a-6e4d1fb56b6b");
                                     label = [ "\"haz\"" ];
                                     mold =
                                       {
@@ -714,7 +797,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "0f3b0cd5-da07-41d6-b0d6-8990d92f0117");
+                                           "81134586-127c-49aa-86a7-e903ac3c16a9");
                                     content = Whitespace " ";
                                   };
                               ];
@@ -725,7 +808,7 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "5725676e-c3e3-4953-9a71-723931e55322");
+                                 "4fd5df8e-f9d2-4b50-a0bc-8eacb27cbcc7");
                           label = [ ";" ];
                           mold =
                             {
@@ -743,7 +826,7 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "e4b5ab76-0d0a-4a4a-9d9f-29826bd816f6");
+                                 "13ceb9fe-2037-4a3a-b510-37a8ce33d0ed");
                           content = Whitespace "\n";
                         };
                       Tile
@@ -751,7 +834,7 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "40365d67-fc59-45b5-8ca3-08434952c580");
+                                 "91a223ee-3480-4962-b6ff-88a9d9ba2334");
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -770,7 +853,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "51d33773-3115-4dd2-9693-22ca7f688de1");
+                                           "b9101da1-4d53-4858-9b6c-39e8b8cfaa99");
                                     content = Whitespace " ";
                                   };
                                 Tile
@@ -778,8 +861,8 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "a1a9860b-b7d9-428c-bcab-230ad078aebd");
-                                    label = [ "answer" ];
+                                           "0d89c3dc-18cc-4ebd-9a49-f315f400b499");
+                                    label = [ "process_string_pair" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -796,7 +879,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "7bf8ce7c-dd31-4a65-8293-699339482e3d");
+                                           "9c4c324f-7fa2-4fc6-86b3-dad66f8b28b7");
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -815,7 +898,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "9f6605ef-32aa-49be-a7e6-c4800815f727");
+                                                     "8cf31b5e-c2d8-447e-ae91-cceda027f913");
                                               label = [ "\"post\"" ];
                                               mold =
                                                 {
@@ -839,7 +922,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "2c18073d-2ac6-45da-929e-30a40702d1f8");
+                                                     "3011fada-a809-4ad7-a47c-1dd7fd8164f2");
                                               label = [ "," ];
                                               mold =
                                                 {
@@ -863,7 +946,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "4c16aaff-e5dd-4ff2-8409-53aac8964093");
+                                                     "3527ee68-6ee6-4600-9a5a-e5beb34e97e5");
                                               content = Whitespace " ";
                                             };
                                           Tile
@@ -871,7 +954,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "25f3dd2e-f117-42e0-9620-5043fed166b5");
+                                                     "b644f13f-e777-4e7b-9a0e-5fefb3f58902");
                                               label = [ "\"hazel\"" ];
                                               mold =
                                                 {
@@ -898,7 +981,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "48d1ed48-3efa-4258-b495-c43d3e2c3f84");
+                                           "52d6c97c-959f-46ef-9cab-e4c203bd6bf8");
                                     content = Whitespace " ";
                                   };
                                 Tile
@@ -906,8 +989,8 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "b2ed3c72-59b3-48d6-b45c-e7b3b3436d66");
-                                    label = [ "==" ];
+                                           "6172898e-db00-4ee2-b539-a7164323f250");
+                                    label = [ "$==" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -925,7 +1008,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "752ac346-d7ed-40ca-a766-4a77cbb8649f");
+                                           "bdc610a0-43f0-4c8e-b6eb-1a3d4bb345a5");
                                     content = Whitespace " ";
                                   };
                                 Tile
@@ -933,7 +1016,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "88dbbca1-ffd3-4e27-8058-5f136e26cfa5");
+                                           "07d9be3d-18b7-4218-8932-4d6625265e91");
                                     label = [ "\"el\"" ];
                                     mold =
                                       {
@@ -951,7 +1034,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "d658c130-c392-4fd8-90b9-8e2a5774cc7f");
+                                           "7a8f1873-ca29-40f2-8813-cee36284e05a");
                                     content = Whitespace " ";
                                   };
                               ];
@@ -962,7 +1045,7 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "272baf90-b11b-4e71-9347-38c71c4403bc");
+                                 "81429e9c-11b1-4b43-8e97-ca119ef60ae0");
                           label = [ ";" ];
                           mold =
                             {
@@ -980,17 +1063,15 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "7b4b6c51-414e-4310-bcc8-cf743b8b722c");
+                                 "dc47eaf5-69a0-4cfe-bebe-37436056d013");
                           content = Whitespace "\n";
                         };
-                    ],
-                    [
                       Tile
                         {
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "20b29b2e-eced-42a3-acc6-040f17e8c610");
+                                 "2e8b434b-eebd-40cf-9cc0-919dd6950d5a");
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -1009,7 +1090,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "6b9245d1-57ea-4015-9bc8-2bac8977d49d");
+                                           "fa4a8348-abef-4ca0-b03e-eb1d7a964b4e");
                                     content = Whitespace " ";
                                   };
                                 Tile
@@ -1017,8 +1098,8 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "3e582cc0-bd21-467b-8d18-ea2700e433b3");
-                                    label = [ "answer" ];
+                                           "b33395dc-741a-4adc-8cc0-a5e39b34abae");
+                                    label = [ "process_string_pair" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -1035,7 +1116,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "9b4cbdfe-564a-4707-a22b-8d8ff5302af7");
+                                           "8ba23f1e-5d90-432a-a0c1-4bcf5e42b7ad");
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -1054,8 +1135,8 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "4988ede0-934b-4771-9f2b-e3b37767d6da");
-                                              label = [ "\"\"" ];
+                                                     "eaefaf43-aedc-40cf-9eda-28e0d844493a");
+                                              label = [ "\"other\"" ];
                                               mold =
                                                 {
                                                   out = Exp;
@@ -1078,7 +1159,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "2143f8a4-eaa8-4762-8a78-0c8e678cffae");
+                                                     "e7dde8c9-f0dd-4ecd-b5b3-a2f41ee518d9");
                                               label = [ "," ];
                                               mold =
                                                 {
@@ -1102,7 +1183,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "954ebd00-1ee0-4824-b11e-e1913693ec90");
+                                                     "7e02be33-6e2d-4324-979c-1eb8e9a74397");
                                               content = Whitespace " ";
                                             };
                                           Tile
@@ -1110,7 +1191,7 @@ let exercise : Tutorial.spec =
                                               id =
                                                 Option.get
                                                   (Haz3lcore.Id.of_string
-                                                     "aea60fd4-c8bd-4649-83cf-f52185f76fd0");
+                                                     "9494ef57-0e26-4cf1-80fb-9500b375c4b4");
                                               label = [ "\"hazel\"" ];
                                               mold =
                                                 {
@@ -1137,7 +1218,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "c57f7c8c-b78c-4a6a-8eb1-a6a9ae4d80a0");
+                                           "98684536-ff0c-4fc8-92cd-2abbf6294447");
                                     content = Whitespace " ";
                                   };
                                 Tile
@@ -1145,8 +1226,8 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "d726173b-faf1-4e72-983d-845608edcadd");
-                                    label = [ "==" ];
+                                           "2ac6def5-13a5-4b2c-a0ca-7a71a89515a4");
+                                    label = [ "$==" ];
                                     mold =
                                       {
                                         out = Exp;
@@ -1164,7 +1245,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "241f29b4-7b00-4ae9-8e24-4327ffb9d468");
+                                           "c1796ee9-87b0-4bf6-9ff0-40ec48c06231");
                                     content = Whitespace " ";
                                   };
                                 Tile
@@ -1172,7 +1253,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "e63a241d-b764-476b-a286-2f90593608aa");
+                                           "18d08dcf-735b-460a-84a9-19037cc6eea1");
                                     label = [ "\"hazel\"" ];
                                     mold =
                                       {
@@ -1190,13 +1271,14 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "9138e330-8b88-46a0-832b-d489e157f859");
+                                           "3e259094-a336-4502-b816-aaff7bc08fba");
                                     content = Whitespace " ";
                                   };
                               ];
                             ];
                         };
-                    ] );
+                    ],
+                    [] );
                 ancestors = [];
               };
             caret = Outer;
@@ -1221,9 +1303,14 @@ let exercise : Tutorial.spec =
                   };
               };
           };
-        hints = [ "Pre"; "Post"; "Default" ];
+        hints =
+          [
+            "process_string_pair(\"pre\", \"hazel\") should be \"haz\"";
+            "process_string_pair(\"post\", \"hazel\") should be \"el\"";
+            "process_string_pair(\"other\", \"hazel\") should be \"hazel\"";
+          ];
       };
-    wrapper = true;
+    wrapper = false;
     show_report = true;
-    setting_overrides = Tutorial.default_setting_overrides;
+    setting_overrides = { rich_probes = Some false; display_tables = None };
   }
