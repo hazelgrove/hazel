@@ -51,14 +51,11 @@ let table_of =
   | _ => None
   };
 
-let get = (info: info): (list(LabeledTuple.label), list(list(Exp.t))) =>
+let get =
+    (info: info): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (info.syntax |> info.utility.seg_to_term) {
-  | Some(s) =>
-    switch (table_of(s)) {
-    | Some(s) => s
-    | None => failwith("Table: get: Not a table")
-    }
-  | None => failwith("Table: get: Not a table")
+  | Some(s) => table_of(s)
+  | None => None
   };
 
 let len_seg = (utility: utility, seg: Segment.t): int =>
@@ -148,34 +145,47 @@ module M: Projector = {
       keyboard: None,
     };
   let dynamics = false;
-  let placeholder = (_, info) => {
-    let (header, rows): (list(string), list(list(TermBase.exp_t))) =
-      info |> get;
-    let max_header_length =
-      header |> List.map(String.length) |> List.fold_left((+), 0);
-    let max_row_length =
-      rows
-      |> List.map(row =>
-           row
-           |> List.map(e =>
-                Abbreviate.abbreviate_exp(~available=max_column_length, e)
-                |> snd
-              )
-           |> List.fold_left((+), 0, _)
-         )
-      |> List.fold_left(max, 0, _);
-    let max_length = max(max_header_length, max_row_length);
+  let placeholder = (_, info) =>
+    switch (get(info)) {
+    | None =>
+      ProjectorCore.Shape.{
+        vertical: Inline,
+        horizontal: 3,
+      }
+    | Some((header, rows)) =>
+      let max_header_length =
+        header |> List.map(String.length) |> List.fold_left((+), 0);
+      let max_row_length =
+        rows
+        |> List.map(row =>
+             row
+             |> List.map(e =>
+                  Abbreviate.abbreviate_exp(~available=max_column_length, e)
+                  |> snd
+                )
+             |> List.fold_left((+), 0, _)
+           )
+        |> List.fold_left(max, 0, _);
+      let max_length = max(max_header_length, max_row_length);
 
-    let num_rows = List.length(rows);
-    let num_cols = List.length(header);
-    ProjectorCore.Shape.{
-      vertical: Block(min(num_rows, 10)), // +1 for header row
-      /* +2 for left and right padding */
-      horizontal: 4 + max_length * 1 + num_cols * 2 // +2 for left and right padding
+      let num_rows = List.length(rows);
+      let num_cols = List.length(header);
+      ProjectorCore.Shape.{
+        vertical: Block(min(num_rows, 10)),
+        horizontal: 4 + max_length * 1 + num_cols * 2,
+      };
     };
-  };
   let update = (model, _, _) => model;
 
   let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
-    View.mk(table(info, ~view_seg, ~parent, info |> get));
+    switch (get(info)) {
+    | None =>
+      View.mk(
+        Node.div(
+          ~attrs=[Attr.classes(["table", "error"])],
+          [Node.text("\xe2\x9a\xa0")],
+        ),
+      )
+    | Some(data) => View.mk(table(info, ~view_seg, ~parent, data))
+    };
 };
