@@ -5,9 +5,34 @@ let exercise : Tutorial.spec =
     title = "Bug identification 1";
     version = 1;
     module_name = "Blank";
-    prompt = "";
+    prompt =
+      "Let the facilitator know when you are ready so they can start the \
+       timer. You have **10 minutes** to complete this task.\n\n\
+       The program below is **read-only**. You can move the cursor to inspect \
+       types but you cannot edit the code.\n\n\
+       Complete the following three steps. Give all responses **verbally** to \
+       the facilitator- do not write or edit the program.\n\n\
+       1. **Describe** what this program is intended to compute.\n\
+       2. **Identify** the bug(s) in the program.\n\
+       3. **Propose** a fix for each bug you found.\n\n\
+       *Note:* The `pearson_coefficient` function is provided for you and is \
+       correct- you do not need to check it for bugs.";
     display_hint = "";
-    task_reference = "";
+    task_reference =
+      "## Quick Reference\n\n\
+       ### Pearson Correlation Coefficient\n\
+       The Pearson correlation coefficient measures the linear relationship \
+       between two variables, producing a value between -1 and 1.\n\n\
+       ### Key Table Operations\n\
+       - `fold_left(table, f, init)`- reduce a table to a single value by \
+       applying `f` to each row\n\
+       - `map(table, f)`- apply `f` to every row, producing a new table\n\
+       - `zip(xs, ys)`- combine two lists element-wise into a list of pairs\n\
+       - `find(table, f)`- return the first row satisfying predicate `f`\n\
+       - `...` (tuple extension)- combine two labeled tuples\n\n\
+       ### Note\n\
+       The `pearson_coefficient` function is correct and should not be the \
+       focus of your analysis.";
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

@@ -27,4 +27,6 @@ let lessons: list(Tutorial.spec) = [
   Ta_GradebookMean.exercise,
   Ta_GradebookOverallGrade.exercise,
   Ta_TidyTerm.exercise,
+  Ta_BugIdentification1.exercise,
+  Ta_BugIdentification2.exercise,
 ];
