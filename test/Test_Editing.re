@@ -1165,6 +1165,58 @@ let rescan_tests = [
       };
     },
   ),
+  /* TODO: Sort demotion — the reverse of Phase 3's sort-aware expansion.
+   * When a case expression breaks, Rule tiles (|,=>) should be demoted
+   * to standalone tokens since they have no valid mold in Exp sort.
+   * Requires deciding when/how to trigger reforge after edits;
+   * see delimiter-reassociation-case branch for exploration. */
+  test_case(
+    "Reforge: breaking case demotes Rule tiles to standalone tokens",
+    `Quick,
+    () => {
+      let _ = Alcotest.skip();
+      let z =
+        mk({|¦case x | a => 0 end|})
+        @ [Destruct(Right)]
+        |> perform(Zipper.init());
+      if (seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Complete Rule tile [|, =>] still exists — "
+          ++ "should have been demoted to standalone tokens",
+        );
+      };
+    },
+  ),
+  /* TODO: Round-trip — breaking and reforming case should be reversible.
+   * Currently Insert and Destruct have asymmetric reforge behavior,
+   * so this round-trip doesn't work yet. */
+  test_case(
+    "Reforge: breaking and reforming case round-trips Rule tiles",
+    `Quick,
+    () => {
+      let _ = Alcotest.skip();
+      /* Start with complete syntax, caret before x */
+      let z = mk({|case ¦x | a => 0 end|}) |> perform(Zipper.init());
+      /* Verify Rule tile exists initially */
+      if (!seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail("Rule tile [|, =>] should exist in initial state");
+      };
+      /* Backspace: delete space, merges case+x, breaks tile */
+      let z = [Destruct(Left)] |> perform(z);
+      if (seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Rule tile [|, =>] should be demoted after breaking case",
+        );
+      };
+      /* Reinsert space: should split casex, reform case tile + rules */
+      let z = [Insert(" ")] |> perform(z);
+      if (!seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Rule tile [|, =>] should reform after reinserting space",
+        );
+      };
+    },
+  ),
 ];
 
 let tests = [
