@@ -26,4 +26,5 @@ let lessons: list(Tutorial.spec) = [
   Tu_TableProjector.exercise,
   Ta_GradebookMean.exercise,
   Ta_GradebookOverallGrade.exercise,
+  Ta_TidyTerm.exercise,
 ];
