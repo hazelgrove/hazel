@@ -32,15 +32,20 @@ let exercise : Tutorial.spec =
        of the first matching branch. You can use `_` as a wildcard pattern \
        that matches anything.\n\n\
        # Task\n\n\
-       Complete the function process_string_pair below\n\n\
-       - If `a` is `\"pre\"` it should return the first 3 characters of b\n\
-       - If `b` is `\"post\"` it should drop the first 3 characters of b\n\
-       - Otherwise, it should return b unaltered\n\n\
+       Complete the function `process_string_pair` below.\n\n\
+       - The function takes a pair of strings `(a, b)` as input:\n\
+       - `a` represents a directive.\n\
+       - `b` represents the target string to be processed.\n\n\
+       The function should behave as follows:\n\n\
+       - If `a` is `\"pre\"`, return the first 3 characters of `b`.\n\
+       - If `a` is `\"post\"`, return `b` without its first 3 characters.\n\
+       - Otherwise, return `b` unchanged.\n\n\
+       Assume `b` is always at least 3 characters long.\n\n\
+       **Example**:\n\
        ```hazelnostatics\n\
-       process_string_pair(\"pre\", \"hazel\"); # Should evaluate to \"haz\" #\n\
-       process_string_pair(\"post\", \"hazel\"); # Should evaluate to \"el\" #\n\
-       process_string_pair(\"other\", \"hazel\") # Should evaluate to \
-       \"hazel\" #\n\
+       process_string_pair((\"pre\", \"hazel\")) == \"haz\";\n\
+       process_string_pair((\"post\", \"hazel\")) == \"el\";\n\
+       process_string_pair((\"other\", \"hazel\")) == \"hazel\"\n\
        ```";
     display_hint =
       "Use the string_sub(str, start, len) function to get a substring.";
