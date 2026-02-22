@@ -28561,5 +28561,5 @@ let exercise : Tutorial.spec =
     wrapper = false;
     show_report = true;
     setting_overrides =
-      { rich_probes = None; display_tables = None; read_only = Some true };
+      { rich_probes = Some(false); display_tables = None; read_only = Some true };
   }
