@@ -11,7 +11,7 @@ type a =
   | DropColumn(string)
   | ConversionColumn(string, string)
   | RenameColumn(string, string)
-  | AddColumnAfter(string, string)
+  | AddColumn(string, string)
   | GroupByColumn(string)
   | FilterGreaterThan(string)
   | FilterLessThan(string)

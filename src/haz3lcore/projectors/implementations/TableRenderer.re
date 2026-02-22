@@ -20,7 +20,7 @@ type a =
   | DropColumn(string)
   | ConversionColumn(string, string)
   | RenameColumn(string, string)
-  | AddColumnAfter(string, string)
+  | AddColumn(string, string)
   | GroupByColumn(string)
   | FilterGreaterThan(string)
   | FilterLessThan(string)
@@ -280,8 +280,7 @@ let rename_column =
   );
 };
 
-let add_column_after =
-    (info: info, _after_column: string, new_column: string): Base.segment => {
+let add_column = (info: info, new_column: string): Base.segment => {
   IdTagged.FreshGrammar.(
     Exp.(
       apply_rowwise_transformation(
@@ -847,7 +846,7 @@ let build_column_menu =
         },
       }),
       Action({
-        text: "Add Column After",
+        text: "Add Column",
         action: () => {
           let new_column_name = JsUtil.prompt("New column name:", "");
           switch (new_column_name) {
@@ -855,7 +854,7 @@ let build_column_menu =
           | Some(new_name) =>
             Effect.Many([
               local(CloseMenu),
-              parent(SetSyntax(add_column_after(info, h, new_name))),
+              parent(SetSyntax(add_column(info, new_name))),
             ])
           };
         },
