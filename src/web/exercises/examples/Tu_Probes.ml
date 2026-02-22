@@ -14,18 +14,22 @@ let exercise : Tutorial.spec =
 1. **Right-click** any expression and select **"Add probe"**, or
 2. Place your cursor on an expression and press **Cmd+E** (Mac) / **Ctrl+E** (Windows/Linux).
 
-A small inline display will appear showing the value of that expression.
+A small inline display will appear showing the value of that expression. Learning to use probes now will help you debug the rest of the tutorial tasks.
 
 ## Probes Inside Functions
 
 When you probe an expression **inside a function**, the probe shows a value for **every call** to that function. This makes it easy to see how a function behaves across different inputs.
+
+## Truncated Values
+
+Large expressions may be abbreviated in the probe display. If a probed value appears truncated, you can **Shift+click and drag** on it to expand and inspect the full value.
 
 ## Task
 
 The code below defines a function `add_tax` that adds a 50% tax to a price. It is then applied to a list of three prices using `map`.
 
 1. **Add a probe** on `price` inside the function body to see the three input values.
-2. **Add a probe** on the full body expression `price +. price *. 0.5` to observe the computed total for each price.
+2. **Add a probe** on the full body expression `price +. price *. 0.5` — to do this, right-click or place your cursor on the `+.` operator (which is the root of the expression) and select "Add probe". Note: you cannot drag-select a block of code and then add a probe; the probe attaches to the expression at the cursor position.
 3. **Add a probe** on `totals` to see the final result list.|md};
     display_hint =
       "Right-click an expression and select \"Add probe\",\n\
