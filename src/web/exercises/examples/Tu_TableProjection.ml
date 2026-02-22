@@ -6,16 +6,7 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "Tu_TableProjection";
     prompt =
-      "In Hazel, **tables** are represented as lists of labeled tuples.\n\
-       Each element in the list is a row, and each label is a column name.\n\n\
-       ```hazel\n\
-       let fruits = [\n\
-      \  (fruit=\"Apple\", color=\"Red\", qty=5),\n\
-      \  (fruit=\"Banana\", color=\"Yellow\", qty=3)\n\
-       ] in\n\
-       fruits\n\
-       ```\n\n\
-       **Column projection** broadcasts `.label` over a list, extracting\n\
+      "**Column projection** broadcasts `.label` over a list, extracting\n\
        that column from every row:\n\n\
        ```hazel\n\
        let fruits = [\n\
@@ -27,7 +18,7 @@ let exercise : Tutorial.spec =
        # Task\n\n\
        A book collection is stored as a table:\n\n\
        ```hazelnostatics\n\
-       type Book = (title=String, author=String, year=Int)\n\
+       Book : (title=String, author=String, year=Int)\n\
        ```\n\n\
        Implement the function\n\n\
        ```hazelnostatics\n\
@@ -36,8 +27,8 @@ let exercise : Tutorial.spec =
        that extracts the list of authors from a book collection.\n\n\
        Example:\n\
        ```hazelnostatics\n\
-       get_authors([(title=\"Dune\", author=\"Herbert\", year=1965),\n\
-      \             (title=\"Neuromancer\", author=\"Gibson\", year=1984)])\n\
+       get_authors(^^table([(title=\"Dune\", author=\"Herbert\", year=1965),\n\
+      \             (title=\"Neuromancer\", author=\"Gibson\", year=1984)]))\n\
       \  == [\"Herbert\", \"Gibson\"]\n\
        ```";
     display_hint =

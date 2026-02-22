@@ -37,14 +37,33 @@ let exercise : Tutorial.spec =
        (label=\"age\", value=32)] in\n\
        from_lvs(attributes)\n\n\
        ```\n\n\n\
+       ### Unknown type for arbitrary tuples\n\n\
+       Hazel does not provide a way to give an arbitrary tuple a concrete type \
+       annotation, so the `t` parameter uses the unknown type `?` — similar to \
+       `any` in TypeScript or `Any` in Python. The update function `fn` \
+       similarly takes `?` and returns `?` for the same reason.\n\n\n\
        # Task\n\n\
-       Implement a function `update_entry(tuple, label, update_fn)` that takes \
-       a labeled tuple, label as a string and a function to update that \
-       entry.\n\n\n\
+       Implement the function:.\n\n\n\
        ```hazelnostatics\n\
-       update_entry((apple=1, pear=2, avocado=3), string_match(\"^a\", _), fun \
-       i -> i + 1) == (apple=2, pear=2, avocado=4)\n\
-       ```\n";
+       update_entry : (?, String -> Bool, (? -> ?)) -> ?\n\
+       ```\n\
+       update_entry(tuple, label_predicate, update_fn):\n\
+       - tuple — a labeled tuple (typed as ?)\n\
+       - label_predicate — a function String -> Bool that determines which \
+       labels should be updated\n\
+       - update_fn — a function ? -> ? applied to the values of all matching \
+       entries\n\n\
+       The function must:\n\
+       - Apply update_fn to every value whose label satisfies label_predicate.\n\n\
+       All entries whose labels satisfy the predicate must be updated.\n\n\
+       **Example**:\n\
+       ```hazelnostatics\n\
+       update_entry((apple=1, pear=2, avocado=3),\n\
+      \           string_match(\"^a\", _),\n\
+      \           fun i -> i + 1) == (apple=2, pear=2, avocado=4)\n\
+       ```\n\
+       where `string_match(\"^a\", _)` is a predicate that matches any string \
+       starting with `a`. \n";
     display_hint =
       "Convert the tuple into a list, map over the list and update the \
        relevant entries, turn it back into a tuple.";

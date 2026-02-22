@@ -2,11 +2,21 @@ let exercise : Tutorial.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "3bfa855a-424e-439d-a523-89313b72c9dd");
-    title = "Table Projector";
+    title = "Tables";
     version = 1;
     module_name = "Tu_TableProjector";
     prompt =
-      "To assist with tabular programming Hazel provides a table \"projector\" \
+      "In Hazel, **tables** are represented as lists of labeled tuples.\n\
+       Each element in the list is a row, and each label is a column name.\n\n\
+       ```hazel\n\
+       let fruits = [\n\
+      \  (fruit=\"Apple\", color=\"Red\", qty=5),\n\
+      \  (fruit=\"Banana\", color=\"Yellow\", qty=3)\n\
+       ] in\n\
+       fruits\n\
+       ```\n\n\
+       ### Table Projector\n\
+       To assist with tabular programming Hazel provides a table \"projector\" \
        to allow users to see literal tables in syntax as tables rather than \
        textual syntax:\n\n\
        ```hazel\n\
