@@ -50,7 +50,11 @@ The code below defines a `products` table with `name`, `price`, and `qty` column
     wrapper = false;
     show_report = true;
     setting_overrides =
-      { rich_probes = Some true; display_tables = Some true; read_only = None };
+      {
+        Tutorial.default_setting_overrides with
+        rich_probes = Some true;
+        display_tables = Some true;
+      };
     your_impl =
       Option.get
         (Haz3lcore.Parser.to_zipper

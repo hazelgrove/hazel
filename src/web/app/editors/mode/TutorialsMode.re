@@ -238,6 +238,10 @@ let apply_setting_overrides =
     schedule_setting(Settings.Update.Evaluation(SetProjectTables(v)))
   | None => ()
   };
+  switch (overrides.live_typing) {
+  | Some(v) => schedule_setting(Settings.Update.SetLiveTyping(v))
+  | None => ()
+  };
 };
 
 module Update = {

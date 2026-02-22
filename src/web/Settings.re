@@ -126,6 +126,7 @@ module Update = {
     | Assist
     | Elaborate
     | LiveTyping
+    | SetLiveTyping(bool)
     | Benchmark
     | ContextInspector
     | InstructorMode
@@ -203,6 +204,13 @@ module Update = {
           core: {
             ...settings.core,
             live_typing: !settings.core.live_typing,
+          },
+        }
+      | SetLiveTyping(v) => {
+          ...settings,
+          core: {
+            ...settings.core,
+            live_typing: v,
           },
         }
       | Evaluation(u) =>
