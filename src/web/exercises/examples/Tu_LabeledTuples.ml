@@ -10,7 +10,7 @@ let exercise : Tutorial.spec =
        with tuple elements giving an ordered version of records.\n\n\
        These labeled tuples also support projection by label.\n\n\
        ```hazel\n\
-       let pet = (name=\"Fido\", age=4, specied=\"dog\") in\n\
+       let pet = (name=\"Fido\", age=4, species=\"dog\") in\n\
        pet.name\n\
        ```\n\n\n\
        ### Task\n\
