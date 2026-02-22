@@ -44,45 +44,15 @@ let exercise : Tutorial.spec =
        overall_grade field to each entry. Remember: quiz_pct = sum of 4 quizzes\n\
        divided by 40 times 100";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Column Projection\n\
-       Access a column from a table (list of labeled tuples):\n\
-       ```hazel\n\
-       let t = [(name=\"A\", score=90), (name=\"B\", score=80)] in\n\
-       t.score\n\
-       ```\n\
-       evaluates to `[90, 80]`\n\n\
-       ### Tuple Extension\n\
-       Use `...` to update or add fields to a labeled tuple:\n\
-       ```hazel\n\
-       let pet = (name=\"Spot\", age=7) in\n\
-       pet ... (age=8, breed=\"Pug\")\n\
-       ```\n\
-       evaluates to `(name=\"Spot\", age=8, breed=\"Pug\")`\n\n\
-       ### map\n\
-       ```hazelnostatics\n\
-       map : ([T], T -> U) -> [U]\n\
-       ```\n\
-       Apply a function to each element:\n\
-       ```hazel\n\
-       map([(x=1, y=2), (x=3, y=4)], fun r -> r ... (z=r.x + r.y))\n\
-       ```\n\n\
-       ### Type Conversions\n\
-       - `int_of_string : String -> Int`\n\
-       - `float_of_string : String -> Float`\n\
-       - `float_of_int : Int -> Float`\n\n\
-       ### Float Arithmetic\n\
-       - `2.0 +. 3.0` \226\128\148 addition\n\
-       - `5.0 -. 1.0` \226\128\148 subtraction\n\
-       - `3.0 *. 2.0` \226\128\148 multiplication\n\
-       - `6.0 /. 3.0` \226\128\148 division\n\n\
-       Float literals need a decimal point: `0.`, `1.0`, `3.14`\n\n\
-       ### Partial Application\n\
-       Use `_` to defer arguments:\n\
-       ```hazelnostatics\n\
-       let double = map(_, fun x -> x * 2) in\n\
-       double([1, 2, 3])\n\
-       ```";
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.column_projection;
+          TaskRefDocs.tuple_extension;
+          TaskRefDocs.map;
+          TaskRefDocs.type_conversions_full;
+          TaskRefDocs.float_arithmetic;
+          TaskRefDocs.partial_application;
+        ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

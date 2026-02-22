@@ -16,49 +16,17 @@ let exercise : Tutorial.spec =
       "Reminder the mean is the sum of a list of numbers divided by the size \
        of the list";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Column Projection\n\
-       Access a column from a table (list of labeled tuples):\n\
-       ```hazel\n\
-       let t = [(name=\"A\", score=90), (name=\"B\", score=80)] in\n\
-       t.score\n\
-       ```\n\
-       evaluates to `[90, 80]`\n\n\
-       ### Partial Application\n\
-       Use `_` to defer arguments:\n\
-       ```hazel\n\
-       let double = map(_, fun x -> x * 2) in\n\
-       double([1, 2, 3])\n\
-       ```\n\n\
-       ### List Operations\n\
-       - `fold_left : ([T], (U, T) -> U, U) -> U` fold a list from the left\n\
-       ```hazel\n\
-       fold_left([\"a\", \"b\", \"c\"], fun (acc, s) -> acc ++ s, \"\")\n\
-       ```\n\
-       - `length : [T] -> Int` return the length of a list\n\n\
-       ```hazel\n\
-       length([1.0, 2.0, 3.0])\n\
-       ```\n\n\
-       ### Type Conversions\n\
-       - `float_of_int : Int -> Float` converts an integer to a float\n\
-       ```hazel\n\
-       float_of_int(1)\n\
-       ```\n\
-       ### Function Definition\n\
-       ```hazel\n\
-       fun n -> n + 1 # Increments n by 1 #\n\
-       ```\n\n\
-       ### Binding and Calling a Function\n\
-       ```hazel\n\
-       let inc : Int -> Int = fun n -> n + 1 in\n\
-       inc(1)\n\
-       ```\n\
-       ### Float Arithmetic\n\
-       - `2.0 +. 3.0` addition\n\
-       - `5.0 -. 1.0` subtraction\n\
-       - `3.0 *. 2.0` multiplication\n\
-       - `6.0 /. 3.0` division\n\n\n\
-       Float literals need a decimal point: `0.`, `1.0`, `3.14`";
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.column_projection;
+          TaskRefDocs.partial_application;
+          TaskRefDocs.fold_left;
+          TaskRefDocs.length;
+          TaskRefDocs.type_conversions_float_of_int;
+          TaskRefDocs.function_definition;
+          TaskRefDocs.binding_and_calling;
+          TaskRefDocs.float_arithmetic;
+        ];
     your_impl =
       {
         selection =

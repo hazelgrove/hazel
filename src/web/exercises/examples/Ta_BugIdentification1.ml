@@ -19,20 +19,31 @@ let exercise : Tutorial.spec =
        correct- you do not need to check it for bugs.";
     display_hint = "";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Pearson Correlation Coefficient\n\
-       The Pearson correlation coefficient measures the linear relationship \
-       between two variables, producing a value between -1 and 1.\n\n\
-       ### Key Table Operations\n\
-       - `fold_left(table, f, init)`- reduce a table to a single value by \
-       applying `f` to each row\n\
-       - `map(table, f)`- apply `f` to every row, producing a new table\n\
-       - `zip(xs, ys)`- combine two lists element-wise into a list of pairs\n\
-       - `find(table, f)`- return the first row satisfying predicate `f`\n\
-       - `...` (tuple extension)- combine two labeled tuples\n\n\
-       ### Note\n\
-       The `pearson_coefficient` function is correct and should not be the \
-       focus of your analysis.";
+      (let pearson =
+         "### Pearson Correlation Coefficient\n\
+          The Pearson correlation coefficient measures the linear relationship \
+          between two variables, producing a value between -1 and 1."
+       in
+       let note =
+         "### Note\n\
+          The `pearson_coefficient` function is correct and should not be the \
+          focus of your analysis."
+       in
+       TaskRefDocs.compose
+         [
+           pearson;
+           TaskRefDocs.fold_left;
+           TaskRefDocs.map;
+           TaskRefDocs.zip;
+           TaskRefDocs.find;
+           TaskRefDocs.to_lvs;
+           TaskRefDocs.from_lvs;
+           TaskRefDocs.tuple_extension;
+           TaskRefDocs.column_projection;
+           TaskRefDocs.pipelining;
+           TaskRefDocs.float_arithmetic;
+           note;
+         ]);
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

@@ -16,14 +16,7 @@ let exercise : Tutorial.spec =
        Implement a function `double_all` of type `[Int] -> [Int]` that doubles \
        every element of a list using `map`.";
     display_hint = "Use map with a function that doubles each element";
-    task_reference =
-      "## Quick Reference\n\n\
-       ### map\n\
-       ```hazel\n\
-       map([1, 2, 3], fun x -> x + 1)\n\
-       ```\n\
-       evaluates to `[2, 3, 4]`\n\n\
-       `map : ([T], T -> U) -> [U]`";
+    task_reference = TaskRefDocs.compose [ TaskRefDocs.map ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

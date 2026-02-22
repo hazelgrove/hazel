@@ -22,17 +22,12 @@ let exercise : Tutorial.spec =
        concatenates all strings in a list using `fold_left` and `++`.";
     display_hint = "Use fold_left with ++ to concatenate strings.";
     task_reference =
-      "## Quick Reference\n\n\
-       ### fold_left\n\
-       ```hazel\n\
-       fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)\n\
-       ```\n\
-       evaluates to `6`\n\n\
-       `fold_left : ([T], (U, T) -> U, U) -> U`\n\n\
-       ### String Concatenation\n\
-       ```hazel\n\
-       \"hello\" ++ \" world\"\n\
-       ```";
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.fold_left;
+          TaskRefDocs.string_concatenation;
+          TaskRefDocs.partial_application;
+        ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

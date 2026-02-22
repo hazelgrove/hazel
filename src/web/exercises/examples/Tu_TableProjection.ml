@@ -24,7 +24,6 @@ let exercise : Tutorial.spec =
        ] in\n\
        fruits.color\n\
        ```\n\n\
-       This evaluates to `[\"Red\", \"Yellow\"]`.\n\n\
        # Task\n\n\
        A book collection is stored as a table:\n\n\
        ```hazelnostatics\n\

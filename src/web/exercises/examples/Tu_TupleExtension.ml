@@ -32,30 +32,13 @@ let exercise : Tutorial.spec =
       "Use tuple extension `(...)` to update the `age` field and the `name` \
        field";
     task_reference =
-      "# Quick Reference\n\n\
-       ## Integer Operators\n\
-       - `2 + 3` \226\128\148 addition\n\
-       - `5 - 1` \226\128\148 subtraction\n\
-       - `4 * 3` \226\128\148 multiplication\n\
-       - `10 / 3` \226\128\148 integer division\n\n\
-       ## Hazel Tuple Extension\n\n\
-       To easily update and extend labeled tuples, Hazel provides an extension \
-       operator (`...`). \n\n\
-       This binary operator takes two labeled tuples and merges them: it \
-       updates the left-hand tuple using the fields from the right-hand tuple. \
-       Any existing fields are overwritten with the new values, and any \
-       entirely new fields are appended to the end of the tuple.\n\n\
-       **Example:**\n\n\
-       ```hazel\n\
-       let pet = (name=\"Spot\", age=7, species=\"Dog\") in\n\
-       pet ... (age=8, breed=\"Pug\")\n\
-       ```\n\n\
-       ## Labeled Tuple Projection\n\n\n\
-      \       ```hazel\n\
-       let t = (x=1, y=2) in\n\
-      \       t.x\n\
-      \       ```\n\
-      \       ";
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.tuple_extension;
+          TaskRefDocs.tuple_projection;
+          TaskRefDocs.string_concatenation;
+          TaskRefDocs.integer_arithmetic;
+        ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

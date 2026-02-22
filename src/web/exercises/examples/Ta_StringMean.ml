@@ -20,33 +20,28 @@ let exercise : Tutorial.spec =
       "Convert strings to floats with map, sum with fold_left, then divide by \
        length";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Syntax Recap\n\
-       ```hazel\n\
-       let x : Int = 5 in\n\
-       x + 1\n\
-       ```\n\
-       ```hazel\n\
-       fun x -> x + 1\n\
-       ```\n\
-       ```hazel\n\
-       fun (acc, x) -> acc +. x\n\
-       ```\n\
-       ### Type Conversions\n\
-       - `float_of_string : String -> Float` converts a string to a float\n\
-       - `float_of_int : Int -> Float` converts an integer to a float\n\n\n\
-       ### List Operations\n\
-       - `map : ([T], T -> U) -> [U]` \226\128\148 apply a function to each \
-       element\n\
-       - `fold_left : ([T], (U, T) -> U, U) -> U` \226\128\148 fold a list \
-       from the left\n\
-       - `length : [T] -> Int` \226\128\148 return the length of a list\n\n\
-       ### Float Arithmetic\n\
-       - `2.0 +. 3.0` \226\128\148 addition\n\
-       - `5.0 -. 1.0` \226\128\148 subtraction\n\
-       - `3.0 *. 2.0` \226\128\148 multiplication\n\
-       - `6.0 /. 3.0` \226\128\148 division\n\n\n\
-       Float literals need a decimal point: `0.`, `1.0`, `3.14`";
+      (let syntax_recap =
+         "### Syntax Recap\n\
+          ```hazel\n\
+          let x : Int = 5 in\n\
+          x + 1\n\
+          ```\n\
+          ```hazel\n\
+          fun x -> x + 1\n\
+          ```\n\
+          ```hazel\n\
+          fun (acc, x) -> acc +. x\n\
+          ```"
+       in
+       TaskRefDocs.compose
+         [
+           syntax_recap;
+           TaskRefDocs.type_conversions_string_float;
+           TaskRefDocs.map;
+           TaskRefDocs.fold_left;
+           TaskRefDocs.length;
+           TaskRefDocs.float_arithmetic;
+         ]);
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

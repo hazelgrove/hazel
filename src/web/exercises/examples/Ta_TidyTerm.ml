@@ -32,32 +32,28 @@ let exercise : Tutorial.spec =
       "Think about how to transform each row independently. What string \
        operations could help you break the `term` field into its components?";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Semester Type\n\
-       `Semester` is a sum type defined in the prelude:\n\
-       - `Fall` \226\128\148 represents fall semester (term code `\"FA\"`)\n\
-       - `Spring` \226\128\148 represents spring semester (term code `\"SP\"`)\n\n\
-       ### String Operations\n\
-       - `string_sub(s, start, len)` \226\128\148 extract substring (0-indexed)\n\
-       - `string_length(s)` \226\128\148 length of a string\n\
-       - `int_of_string(s)` \226\128\148 convert string to Int\n\n\
-       ### map\n\
-       ```hazelnostatics\n\
-       map : ([T], T -> U) -> [U]\n\
-       ```\n\
-       Apply a function to each element.\n\n\
-       ### Tuple Extension\n\
-       Use `...` to update or add fields:\n\
-       ```hazel\n\
-       let pet = (name=\"Spot\", age=7) in\n\
-       pet ... (age=8, breed=\"Pug\")\n\
-       ```\n\n\
-       ### Column Projection\n\
-       ```hazel\n\
-       let t = [(name=\"A\", score=90), (name=\"B\", score=80)] in\n\
-       t.score\n\
-       ```\n\
-       evaluates to `[90, 80]`";
+      (let semester_type =
+         "### Semester Type\n\
+          `Semester` is a sum type defined in the prelude:\n\
+          - `Fall` \226\128\148 represents fall semester (term code `\"FA\"`)\n\
+          - `Spring` \226\128\148 represents spring semester (term code \
+          `\"SP\"`)"
+       in
+       let string_operations =
+         "### String Operations\n\
+          - `string_sub(s, start, len)` \226\128\148 extract substring \
+          (0-indexed)\n\
+          - `string_length(s)` \226\128\148 length of a string\n\
+          - `int_of_string(s)` \226\128\148 convert string to Int"
+       in
+       TaskRefDocs.compose
+         [
+           semester_type;
+           string_operations;
+           TaskRefDocs.map;
+           TaskRefDocs.tuple_extension;
+           TaskRefDocs.column_projection;
+         ]);
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

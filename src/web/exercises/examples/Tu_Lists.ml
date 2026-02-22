@@ -16,13 +16,7 @@ let exercise : Tutorial.spec =
        four natural numbers: `[1, 2, 3, 4]`.";
     display_hint = "Fill in the list with the first four natural numbers";
     task_reference =
-      "## Quick Reference\n\n\
-       ### List Literal\n\
-       ```hazelnoeval\n\
-       [1, 2, 3]\n\
-       ```\n\n\
-       ### List Type\n\
-       `[Int]`, `[String]`, `[Bool]`";
+      TaskRefDocs.compose [ TaskRefDocs.list_literal; TaskRefDocs.list_type ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

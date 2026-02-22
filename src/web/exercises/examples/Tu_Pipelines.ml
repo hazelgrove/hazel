@@ -48,28 +48,14 @@ let exercise : Tutorial.spec =
        |> function\n\
        |> function";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Multi-argument functions\n\
-       ```hazel\n\
-       let sum = fun (x, y) -> x + y in\n\
-       sum(1, 2)\n\
-       ```\n\n\
-       ### Partial application\n\
-       ```hazel\n\
-       let double = map(_, fun x -> x * 2) in\n\
-       double([1,2])\n\
-       ```\n\n\
-       ### Reverse function application and pipelining\n\n\
-       ```hazel\n\
-       5\n\
-       |> (fun x -> x * 2)\n\
-       |> (fun x -> x + 1) \n\
-       ```\n\n\
-       ### Useful functions\n\
-       - filter : ([T], T -> Bool) -> [T]\n\
-      \  - filters a list given a predicate\n\
-       - float_of_int : Int -> Float\n\
-      \  - Converts an int to the corresponding floating point number";
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.multi_argument_functions;
+          TaskRefDocs.partial_application;
+          TaskRefDocs.pipelining;
+          TaskRefDocs.filter;
+          TaskRefDocs.type_conversions_float_of_int;
+        ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

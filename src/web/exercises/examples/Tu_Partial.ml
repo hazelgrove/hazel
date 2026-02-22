@@ -28,17 +28,10 @@ let exercise : Tutorial.spec =
        - Otherwise return n";
     display_hint = "The function should be the max of 0 and its other input";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Multi-argument functions\n\
-       ```hazel\n\
-       let sum = fun (x, y) -> x + y in\n\
-       sum(1, 2)\n\
-       ```\n\n\
-       ### Partial application\n\
-       ```hazel\n\
-       let double = map(_, fun x -> x * 2) in\n\
-       double([1,2,3,4])\n\
-       ```";
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.multi_argument_functions; TaskRefDocs.partial_application;
+        ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
