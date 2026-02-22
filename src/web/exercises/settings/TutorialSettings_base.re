@@ -4,7 +4,7 @@ let lessons: list(Tutorial.spec) = [
   Tu_Holes.exercise,
   Tu_TylrParser.exercise,
   Tu_Arithmetic.int_exercise,
-  Tu_Arithmetic.float_exercise,
+  Tu_FloatingPointArithmetic.exercise,
   Tu_LetBindings.exercise,
   Tu_Probes.exercise,
   Tu_TypeAnnotations.exercise,

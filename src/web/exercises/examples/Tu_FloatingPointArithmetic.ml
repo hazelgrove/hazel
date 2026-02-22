@@ -12,9 +12,11 @@ let exercise : Tutorial.spec =
        - `-.` subtraction\n\
        - `*.` multiplication\n\
        - `/.` division\n\n\
-       Float literals must include a decimal point, e.g. `3.14` or `1.0`. This \
-       distinction ensures type safety: you cannot accidentally mix integer \
-       and float operations.\n\n\
+       Float literals must include a decimal point, e.g. `3.14`, `1.0`, or \
+       `1.`. This distinction ensures type safety: you cannot accidentally mix \
+       integer and float operations.\n\
+      \ **Note** that a digit must appear before the decimal point (`0.5`, not \
+       `.5`). \n\n\
        The editor below contains `3.0 * 2.0`, which uses the *integer* \
        multiplication operator `*` on float values, causing a type error. Fix \
        it by replacing `*` with the floating point multiplication operator.";
@@ -31,7 +33,8 @@ let exercise : Tutorial.spec =
        - `5.0 -. 1.0` \226\128\148 subtraction\n\
        - `3.0 *. 2.0` \226\128\148 multiplication\n\
        - `6.0 /. 3.0` \226\128\148 division\n\n\
-       Float literals need a decimal point: `3.0`, `1.`, `0.5`";
+       Float literals need a decimal point and a leading digit: `3.0`, `1.`, \
+       `0.5` (not `.5`)";
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
