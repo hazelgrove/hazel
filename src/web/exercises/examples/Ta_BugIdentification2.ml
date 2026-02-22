@@ -5,9 +5,39 @@ let exercise : Tutorial.spec =
     title = "Bug Identification 2";
     version = 1;
     module_name = "Blank";
-    prompt = "";
+    prompt =
+      "Let the facilitator know when you are ready so they can start the \
+       timer. You have **10 minutes** to complete this task.\n\n\
+       The program below is **read-only**. You can move the cursor to inspect \
+       types and expand folded functions, but you cannot edit the code.\n\n\
+       Complete the following three steps. Give all responses **verbally** to \
+       the facilitator \226\128\148 do not write or edit the program.\n\n\
+       1. **Describe** what this program is intended to compute.\n\
+       2. **Identify** the bug(s) in the program.\n\
+       3. **Propose** a fix for each bug you found.";
     display_hint = "";
-    task_reference = "";
+    task_reference =
+      "## Quick Reference\n\n\
+       ### Key Table Operations\n\
+       - `fold_left(table, f, init)` \226\128\148 reduce a table to a single \
+       value by applying `f` to each row\n\
+       - `map(table, f)` \226\128\148 apply `f` to every row, producing a new \
+       table\n\
+       - `find(table, f)` \226\128\148 return the first row satisfying \
+       predicate `f`\n\
+       - `to_lvs(record)` \226\128\148 convert a record to a list of \
+       `(label=String, value=?)` pairs\n\
+       - `from_lvs(lvs)` \226\128\148 convert a list of label-value pairs back \
+       into a record\n\
+       - `group_on_key(table, f)` \226\128\148 group rows by the key returned \
+       by `f`\n\
+       - `pivot_table(table, row_key, col_key, agg)` \226\128\148 pivot a \
+       table by grouping on row and column keys, aggregating with `agg`\n\
+       - `...expr` (record spread) \226\128\148 merge the fields of `expr` \
+       into the surrounding record\n\n\
+       ### Type Conversions\n\
+       - `float_of_int(n)` \226\128\148 convert an `Int` to a `Float`\n\
+       - `int_of_float(x)` \226\128\148 convert a `Float` to an `Int`";
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
