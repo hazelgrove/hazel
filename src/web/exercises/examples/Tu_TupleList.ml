@@ -9,7 +9,7 @@ let exercise : Tutorial.spec =
       "To aid in the dynamic processing and generation of labeled tuples, \
        Hazel provides 2 operations that allow for the conversion between \
        labeled tuples and lists.\n\n\
-       ## to_lvs : ? -> [(label=String, value=?)]\n\
+       ### to_lvs : ? -> [(label=String, value=?)]\n\
        Turns a labeled tuple in to a list of label/value pairs.\n\n\
        ```hazel\n\
        let t = (length=3, width=5, height=7) in\n\
@@ -17,7 +17,7 @@ let exercise : Tutorial.spec =
        ```\n\n\
        If the types of the values are consistent this will give the combined \
        type of all the values and the unknown type (?) otherwise.\n\n\
-       ## from_lvs : [(label=String, value=?)] -> ?\n\
+       ### from_lvs : [(label=String, value=?)] -> ?\n\
        The inverse of from_lvs. Takes a list of label/value pairs and returns \
        a labeled tuple. \n\n\
        ```hazel\n\
@@ -68,30 +68,13 @@ let exercise : Tutorial.spec =
       "Convert the tuple into a list, map over the list and update the \
        relevant entries, turn it back into a tuple.";
     task_reference =
-      "# Helpful operations\n\n\
-       ## to_lvs\n\
-       ```hazelnoeval\n\
-       to_lvs : ? -> [(label=String, value=?)]\n\
-       ```\n\n\
-       Converts a labeled tuple into a list of (label, value) pairs.\n\
-       - If all values share consistent type the resulting list is the \
-       combined type.\n\
-       - If values differ, the value becomes `?` (unknown)\n\n\
-       ```hazel\n\
-       let t = (x=1, y=2, z=3) in\n\
-       to_lvs(t)\n\
-       ```\n\n\
-       ## from_lvs\n\
-       ```hazelnoeval\n\
-       from_lvs : [(label=String, value=?)] -> ?\n\
-       ```\n\n\
-       Constructs a labeled tuple from a list of (label, value) pairs.\n\
-       * The resulting tuples field types are determined by the values in the \
-       list.\n\n\
-       ```hazel\n\
-       from_lvs([(label=\"first\", value=\"Grace\"),\n\
-      \          (label=\"age\", value=40)])\n\
-       ```";
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.to_lvs;
+          TaskRefDocs.from_lvs;
+          TaskRefDocs.map;
+          TaskRefDocs.pipelining;
+        ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
