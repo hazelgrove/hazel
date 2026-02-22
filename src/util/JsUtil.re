@@ -7,6 +7,25 @@ let get_elem_by_id = id => {
   Js.Opt.get(doc##getElementById(Js.string(id)), () => {assert(false)});
 };
 
+/* TODO: This global ref is a temporary workaround for scrolling to top on
+   tutorial navigation. Ideally, scroll behavior should be managed through
+   Updated.t (like scroll_active) or Bonsai effects rather than global mutable
+   state. See scroll_to_caret in Main.re for the same pattern. */
+let _scroll_to_top_pending = ref(false);
+
+let request_scroll_to_top = () => _scroll_to_top_pending := true;
+
+let scroll_to_top_if_pending = () =>
+  if (_scroll_to_top_pending^) {
+    _scroll_to_top_pending := false;
+    try({
+      let main = get_elem_by_id("main");
+      main##.scrollTop := 0;
+    }) {
+    | _ => ()
+    };
+  };
+
 let get_elem_by_id_opt = id =>
   switch (get_elem_by_id(id)) {
   | exception _ => None

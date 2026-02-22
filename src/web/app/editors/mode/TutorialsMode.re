@@ -308,6 +308,8 @@ module Update = {
         List.nth(model.exercises, next).editors.setting_overrides,
         schedule_setting,
       );
+      /* TODO: Temporary side effect; see JsUtil.re for cleanup notes */
+      JsUtil.request_scroll_to_top();
       Model.{
         current: next,
         exercises: model.exercises,
@@ -322,6 +324,8 @@ module Update = {
         List.nth(model.exercises, prev).editors.setting_overrides,
         schedule_setting,
       );
+      /* TODO: Temporary side effect; see JsUtil.re for cleanup notes */
+      JsUtil.request_scroll_to_top();
       Model.{
         current: prev,
         exercises: model.exercises,
@@ -350,6 +354,8 @@ module Update = {
         List.nth(model.exercises, n).editors.setting_overrides,
         schedule_setting,
       );
+      /* TODO: Temporary side effect; see JsUtil.re for cleanup notes */
+      JsUtil.request_scroll_to_top();
       Model.{
         current: n,
         exercises: model.exercises,

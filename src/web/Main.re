@@ -193,6 +193,10 @@ let start = {
         };
         /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* TODO: Temporary global ref side effect for scroll-to-top on tutorial
+           navigation. Should be replaced with a proper Updated.t field or
+           Bonsai effect. See JsUtil.re for details. */
+        JsUtil.scroll_to_top_if_pending();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
         model.model.current.current.globals.settings.core.statics
