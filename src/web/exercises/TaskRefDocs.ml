@@ -252,15 +252,24 @@ let if_expression =
    ```"
 
 let case_expression =
-  "### Case Expression\n\
-   ```hazel\n\
-   case 1\n\
-   | 0 => \"zero\"\n\
-   | 1 => \"one\"\n\
-   | _ => \"other\"\n\
-   end\n\
-   ```\n\n\
-   `_` is a wildcard that matches anything."
+  {md|### Case Expression
+   ```hazel
+   case 1
+   | 0 => "zero"
+   | 1 => "one"
+   | _ => "other"
+   end
+   ```
+   `_` is a wildcard that matches anything.
+   
+   Pattern matching can also destructure values:
+   ```hazel
+   case (1, "hello")
+   | (0, _) => "zero and something"
+   | (n, s) => "number " ++ string_of_int(n) ++ " and string " ++ s
+   end
+   ```
+   |md}
 
 let comparison_operators =
   "### Comparison Operators\n\

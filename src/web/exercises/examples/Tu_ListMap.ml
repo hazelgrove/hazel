@@ -16,7 +16,8 @@ let exercise : Tutorial.spec =
        Implement a function `double_all` of type `[Int] -> [Int]` that doubles \
        every element of a list using `map`.";
     display_hint = "Use map with a function that doubles each element";
-    task_reference = TaskRefDocs.compose [ TaskRefDocs.map ];
+    task_reference =
+      TaskRefDocs.compose [ TaskRefDocs.map; TaskRefDocs.integer_arithmetic ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
@@ -1400,7 +1401,7 @@ let exercise : Tutorial.spec =
           ];
       };
     wrapper = false;
-    show_report = false;
+    show_report = true;
     setting_overrides =
       { rich_probes = Some false; display_tables = None; read_only = None };
   }
