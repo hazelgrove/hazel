@@ -48,15 +48,18 @@ let validate_point_distribution =
 type setting_overrides = {
   rich_probes: option(bool),
   display_tables: option(bool),
+  read_only: option(bool),
 };
 
 let no_setting_overrides = {
   rich_probes: None,
   display_tables: None,
+  read_only: None,
 };
 let default_setting_overrides = {
   rich_probes: Some(false),
   display_tables: None,
+  read_only: None,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -228,6 +231,12 @@ let visible_in = (pos, ~instructor_mode) => {
   | HiddenTests => instructor_mode
   };
 };
+
+let is_read_only = (editors: p('a)) =>
+  switch (editors.setting_overrides.read_only) {
+  | Some(true) => true
+  | _ => false
+  };
 
 // # Stitching
 

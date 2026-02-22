@@ -244,14 +244,9 @@ module View = {
         CodeEditable.View.view(
           ~globals,
           ~signal=
-            locked
-              ? _ => Ui_effect.Ignore
-              : fun
-                | MakeActive => signal(MakeActive(MainEditor)),
-          ~inject=
-            locked
-              ? _ => Ui_effect.Ignore
-              : (action => inject(MainEditor(action))),
+            fun
+            | MakeActive => signal(MakeActive(MainEditor)),
+          ~inject=action => inject(MainEditor(action)),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
           ~lines,

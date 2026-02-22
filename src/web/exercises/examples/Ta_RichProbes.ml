@@ -53,7 +53,8 @@ After completing the task, take some time to play with the rich probe interface.
          ]);
     wrapper = false;
     show_report = true;
-    setting_overrides = { rich_probes = Some true; display_tables = Some true };
+    setting_overrides =
+      { rich_probes = Some true; display_tables = Some true; read_only = None };
     your_impl =
       Option.get
         (Haz3lcore.Parser.to_zipper

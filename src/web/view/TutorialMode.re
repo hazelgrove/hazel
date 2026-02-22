@@ -246,7 +246,9 @@ module Update = {
         },
       })
     | Editor(pos, MainEditor(action))
-        when Tutorial.visible_in(pos, ~instructor_mode) =>
+        when
+          Tutorial.visible_in(pos, ~instructor_mode)
+          && !(pos == YourImpl && Tutorial.is_read_only(model.editors)) =>
       // Redirect to editors
       let editor =
         Tutorial.main_editor_of_state(~selection=pos, model.editors);
@@ -594,6 +596,7 @@ module View = {
           ~caption: string,
           ~subcaption: option(string)=?,
           ~result_kind=`NoResults,
+          ~locked=false,
           this_pos: Tutorial.pos,
           cell: CellEditor.Model.t,
         ) => {
@@ -610,6 +613,7 @@ module View = {
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
         ~caption=CellCommon.caption(caption, ~rest=?subcaption),
+        ~locked,
         ~lines=true,
         cell,
       );
@@ -792,13 +796,14 @@ module View = {
     let your_impl_view = {
       Always(
         div(
-          ~attrs=[Attr.class_("your-impl-wrapper")], // 🆕 Add this wrapper
+          ~attrs=[Attr.class_("your-impl-wrapper")],
           [
             editor_view(
               YourImpl,
               user_impl,
               ~caption="Your Implementation",
               ~result_kind=`EvalResults,
+              ~locked=Tutorial.is_read_only(eds),
             ),
           ],
         ),
