@@ -35,16 +35,14 @@ let exercise : Tutorial.spec =
       (let semester_type =
          "### Semester Type\n\
           `Semester` is a sum type defined in the prelude:\n\
-          - `Fall` \226\128\148 represents fall semester (term code `\"FA\"`)\n\
-          - `Spring` \226\128\148 represents spring semester (term code \
-          `\"SP\"`)"
+          - `Fall` — represents fall semester (term code `\"FA\"`)\n\
+          - `Spring` — represents spring semester (term code `\"SP\"`)"
        in
        let string_operations =
          "### String Operations\n\
-          - `string_sub(s, start, len)` \226\128\148 extract substring \
-          (0-indexed)\n\
-          - `string_length(s)` \226\128\148 length of a string\n\
-          - `int_of_string(s)` \226\128\148 convert string to Int"
+          - `string_sub(s, start, len)` — extract substring (0-indexed)\n\
+          - `string_length(s)` — length of a string\n\
+          - `int_of_string(s)` — convert string to Int"
        in
        TaskRefDocs.compose
          [

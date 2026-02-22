@@ -22,12 +22,10 @@ let exercise : Tutorial.spec =
           The list `mixed_types` contains `[\"a\", 1, 1., \"b\", 2, 2.]` and \
           has type `?` because it mixes `String`, `Int`, and `Float` values.\n\n\
           `filteri` selects every 3rd element by index using `int_mod`:\n\
-          - `firsts` picks indices 0, 3 \226\128\148 `\"a\"`, `\"b\"` \
-          \226\128\148 live type `[String]`\n\
-          - `seconds` picks indices 1, 4 \226\128\148 `1`, `2` \226\128\148 \
-          live type `[Int]`\n\
-          - `thirds` picks indices 2, 5 \226\128\148 `1.`, `2.` \226\128\148 \
-          live type `[Float]`"
+          - `firsts` picks indices 0, 3 — `\"a\"`, `\"b\"` — live type \
+          `[String]`\n\
+          - `seconds` picks indices 1, 4 — `1`, `2` — live type `[Int]`\n\
+          - `thirds` picks indices 2, 5 — `1.`, `2.` — live type `[Float]`"
        in
        TaskRefDocs.compose
          [

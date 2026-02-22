@@ -12,7 +12,7 @@ let exercise : Tutorial.spec =
        held in the *backpack*, shown in yellow above the cursor.\n\n\
        The editor below already contains `let x =` with a hole automatically \
        placed after the `=`. Notice that the `in` delimiter is in the backpack \
-       \226\128\148 it still needs to be *dropped* into the program.\n\n\
+       — it still needs to be *dropped* into the program.\n\n\
        Complete the expression step by step:\n\
        1. Type `1` to fill in the value for `x`\n\
        2. Press `Tab` or type `in` to drop the `in` delimiter from the backpack\n\

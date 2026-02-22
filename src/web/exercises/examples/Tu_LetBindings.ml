@@ -29,22 +29,8 @@ let exercise : Tutorial.spec =
     display_hint =
       "Use floating point multiplication and a let binding to add the tip.";
     task_reference =
-      "## Quick Reference\n\
-       ### Let Expression\n\
-       ```hazel\n\
-       let x = 5 in\n\
-       let y = x + 1 in\n\
-       y\n\
-       ```\n\n\
-       Variables bound by `let` are available in the body after `in`.\n\n\
-       ### Float Operators\n\
-       - `2.0 +. 3.0` \\226\\128\\148 addition\n\
-       - `5.0 -. 1.0` \\226\\128\\148 subtraction\n\
-       - `3.0 *. 2.0` \\226\\128\\148 multiplication\n\
-       - `6.0 /. 3.0` \\226\\128\\148 division\n\n\
-       Float literals need a decimal point: `3.0`, `1.`, `0.5`\n\
-       They must also must include at least one digit before the decimal point \
-       (e.g. `.5` is not a valid float literal, but `0.5` is).\n";
+      TaskRefDocs.compose
+        [ TaskRefDocs.let_expression; TaskRefDocs.float_arithmetic ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

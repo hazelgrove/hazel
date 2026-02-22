@@ -22,19 +22,8 @@ let exercise : Tutorial.spec =
        it by replacing `*` with the floating point multiplication operator.";
     display_hint = "Remember: float operators end with `.`";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Integer Operators\n\
-       - `2 + 3` \226\128\148 addition\n\
-       - `5 - 1` \226\128\148 subtraction\n\
-       - `4 * 3` \226\128\148 multiplication\n\
-       - `10 / 3` \226\128\148 integer division\n\n\
-       ### Float Operators\n\
-       - `2.0 +. 3.0` \226\128\148 addition\n\
-       - `5.0 -. 1.0` \226\128\148 subtraction\n\
-       - `3.0 *. 2.0` \226\128\148 multiplication\n\
-       - `6.0 /. 3.0` \226\128\148 division\n\n\
-       Float literals need a decimal point and a leading digit: `3.0`, `1.`, \
-       `0.5` (not `.5`)";
+      TaskRefDocs.compose
+        [ TaskRefDocs.integer_arithmetic; TaskRefDocs.float_arithmetic ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

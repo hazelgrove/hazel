@@ -11,7 +11,7 @@ let exercise : Tutorial.spec =
        The program below is **read-only**. You can move the cursor to inspect \
        types and expand folded functions, but you cannot edit the code.\n\n\
        Complete the following three steps. Give all responses **verbally** to \
-       the facilitator \226\128\148 do not write or edit the program.\n\n\
+       the facilitator — do not write or edit the program.\n\n\
        1. **Describe** what this program is intended to compute.\n\
        2. **Identify** the bug(s) in the program.\n\
        3. **Propose** a fix for each bug you found.";

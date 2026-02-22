@@ -47,17 +47,17 @@ let length =
 
 let integer_arithmetic =
   "### Integer Arithmetic\n\
-   - `2 + 3` \226\128\148 addition\n\
-   - `5 - 1` \226\128\148 subtraction\n\
-   - `4 * 3` \226\128\148 multiplication\n\
-   - `10 / 3` \226\128\148 integer division"
+   - `2 + 3` — addition\n\
+   - `5 - 1` — subtraction\n\
+   - `4 * 3` — multiplication\n\
+   - `10 / 3` — integer division"
 
 let float_arithmetic =
   "### Float Arithmetic\n\
-   - `2.0 +. 3.0` \226\128\148 addition\n\
-   - `5.0 -. 1.0` \226\128\148 subtraction\n\
-   - `3.0 *. 2.0` \226\128\148 multiplication\n\
-   - `6.0 /. 3.0` \226\128\148 division\n\n\
+   - `2.0 +. 3.0` — addition\n\
+   - `5.0 -. 1.0` — subtraction\n\
+   - `3.0 *. 2.0` — multiplication\n\
+   - `6.0 /. 3.0` — division\n\n\
    Float literals need a decimal point: `0.`, `1.0`, `3.14`"
 
 let type_conversions_float_of_int =
@@ -75,14 +75,13 @@ let type_conversions_full =
 
 let type_conversions_string_float =
   "### Type Conversions\n\
-   - `float_of_string : String -> Float` \226\128\148 converts a string to a \
-   float\n\
-   - `float_of_int : Int -> Float` \226\128\148 converts an integer to a float"
+   - `float_of_string : String -> Float` — converts a string to a float\n\
+   - `float_of_int : Int -> Float` — converts an integer to a float"
 
 let type_conversions_float_int =
   "### Type Conversions\n\
-   - `float_of_int(n)` \226\128\148 convert an `Int` to a `Float`\n\
-   - `int_of_float(x)` \226\128\148 convert a `Float` to an `Int`"
+   - `float_of_int(n)` — convert an `Int` to a `Float`\n\
+   - `int_of_float(x)` — convert a `Float` to an `Int`"
 
 let tuple_projection =
   "### Labeled Tuple Projection\n\
@@ -99,6 +98,15 @@ let tuple_extension =
    let pet = (name=\"Spot\", age=7) in\n\
    pet ... (age=8, breed=\"Pug\")\n\
    ```\n"
+
+let let_expression =
+  "### Let Expression\n\
+   ```hazel\n\
+   let x = 5 in\n\
+   let y = x + 1 in\n\
+   y\n\
+   ```\n\n\
+   Variables bound by `let` are available in the body after `in`."
 
 let function_definition =
   "### Function Definition\n```hazel\nfun n -> n + 1 # Increments n by 1 #\n```"
