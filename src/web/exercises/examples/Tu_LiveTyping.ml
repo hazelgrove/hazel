@@ -8,13 +8,20 @@ let exercise : Tutorial.spec =
     prompt =
       "Hazel provides a feature known as live typing that uses the dynamic \
        types of a program to aid in type inference.\n\n\
-       This program would have no type errors statically. Move your cursor \
-       around to check the types of the variables below. Green components of \
-       the type are the dynamic components of a type made available by live \
-       typing.\n\n\
-       Some errors represented in purple are only available due to live \
-       typing.\n\n\
-       Toggle live typing on or off using the menu at the top left.";
+       Move your cursor around to check the types of the variables below. \
+       Green components of a type are dynamic components made available by \
+       live typing.\n\n\
+       Statically, `x` and `y` both have type `?`, so `x + y` and `x ++ y` \
+       would have no type errors. But with live typing, Hazel knows that `x` \
+       evaluates to `1` (Int) and `y` evaluates to `\"\"` (String). This \
+       causes a live typing error (shown in purple) on `y` in `x + y` and on \
+       `x` in `x ++ y`.\n\n\
+       Errors caused by live typing are marked with a lightning bolt next to \
+       the error message at the bottom of the screen.\n\n\
+       Try toggling live typing on and off using the menu at the top left. \
+       Check the types of `firsts`, `seconds`, and `thirds` with and without \
+       live typing to see how dynamic type information refines `?` into \
+       specific types like `[String]`, `[Int]`, and `[Float]`.";
     display_hint = "";
     task_reference =
       (let live_types =

@@ -14,7 +14,10 @@ let exercise : Tutorial.spec =
        the facilitator — do not write or edit the program.\n\n\
        1. **Describe** what this program is intended to compute.\n\
        2. **Identify** the bug(s) in the program.\n\
-       3. **Propose** a fix for each bug you found.";
+       3. **Propose** a fix for each bug you found.\n\n\
+       Live typing has been turned on for this task. You can toggle it off and \
+       on using the menu at the top left to see what has been informed by live \
+       typing.";
     display_hint = "";
     task_reference =
       TaskRefDocs.compose
