@@ -28,5 +28,6 @@ let lessons: list(Tutorial.spec) = [
   Ta_GradebookOverallGrade.exercise,
   Ta_TidyTerm.exercise,
   Ta_BugIdentification1.exercise,
+  Tu_LiveTyping.exercise,
   Ta_BugIdentification2.exercise,
 ];

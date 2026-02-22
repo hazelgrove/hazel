@@ -197,4 +197,36 @@ let pivot_table =
    pivot_table(table, row_key, col_key, agg)\n\
    ```"
 
+let filteri =
+  "### filteri\n\
+   ```hazelnostatics\n\
+   filteri : ([T], (Int, T) -> Bool) -> [T]\n\
+   ```\n\
+   Keep elements where the predicate on `(index, element)` is true:\n\
+   ```hazel\n\
+   filteri([\"a\", \"b\", \"c\", \"d\"], fun (i, _) -> int_mod(i, 2) == 0)\n\
+   ```"
+
+let int_mod =
+  "### int_mod\n\
+   ```hazelnostatics\n\
+   int_mod : (Int, Int) -> Int\n\
+   ```\n\
+   Integer modulo (remainder):\n\
+   ```hazel\n\
+   int_mod(7, 3)\n\
+   ```"
+
+let dynamic_type =
+  "### The Dynamic Type `?`\n\
+   The type `?` (called the dynamic type or unknown type) allows a value to \
+   hold any type:\n\
+   ```hazelnoeval\n\
+   let x : ? = 1 in\n\
+   let y : ? = \"hello\" in\n\
+   x\n\
+   ```\n\
+   At runtime, the actual type is tracked. Hazel's **live typing** uses these \
+   runtime types to refine `?` into more specific types shown in green."
+
 let compose sections = "## Quick Reference\n\n" ^ String.concat "\n\n" sections
