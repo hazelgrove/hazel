@@ -142,11 +142,7 @@ and uexp_to_info_map =
         uexp,
         StaticsBase.Map.empty,
       );
-    if (StaticsBase.Map.has_errors(m)) {
-      None;
-    } else {
-      Some(ie.ty);
-    };
+    Some(ie.ty);
   };
   let add' =
       (
@@ -1553,11 +1549,7 @@ and upat_to_info_map =
         uexp,
         StaticsBase.Map.empty,
       );
-    if (StaticsBase.Map.has_errors(m)) {
-      None;
-    } else {
-      Some(ie.ty);
-    };
+    Some(ie.ty);
   };
   let add' =
       (
