@@ -1001,12 +1001,10 @@ module View = {
         ],
       );
     let next_button_view =
-      model.editors.version < 10
-        ? div(
-            ~attrs=[Attr.class_("next-button")],
-            [Widgets.button(Icons.next, _ => inject(MoveToNextExercise))],
-          )
-        : div(~attrs=[Attr.class_("done-message")], [text("Done! 🎉")]);
+      div(
+        ~attrs=[Attr.class_("next-button")],
+        [Widgets.button(Icons.next, _ => inject(MoveToNextExercise))],
+      );
 
     let impl_grading_view =
       if (test_count > 0) {
