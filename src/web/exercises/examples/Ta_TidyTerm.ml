@@ -48,6 +48,8 @@ let exercise : Tutorial.spec =
          [
            semester_type;
            string_operations;
+           TaskRefDocs.case_expression;
+           TaskRefDocs.if_expression;
            TaskRefDocs.map;
            TaskRefDocs.tuple_extension;
            TaskRefDocs.column_projection;

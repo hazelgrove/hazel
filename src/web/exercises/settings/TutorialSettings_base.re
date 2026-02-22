@@ -12,6 +12,7 @@ let lessons: list(Tutorial.spec) = [
   Tu_FunctionMultiArg.exercise,
   Tu_Partial.exercise,
   Tu_Pipelines.exercise,
+  Tu_IfExpressions.exercise,
   Tu_CaseExpressions.exercise,
   Tu_Lists.exercise,
   Tu_ListMap.exercise,

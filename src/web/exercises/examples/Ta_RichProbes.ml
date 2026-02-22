@@ -13,12 +13,14 @@ let exercise : Tutorial.spec =
 
 When you probe an expression that evaluates to a **list of labeled tuples** (i.e. a table), and then press the **table button** on the probe, the rich probe renders it as an interactive table instead of raw syntax. The rich probe interface provides **action buttons** to the right of each column name that let you add new columns or change a column's type — directly from the table view.
 
+When you perform a column action (such as adding a new column), the rich probe **rewrites the underlying textual syntax** — you then fill in the column's value expression directly in the source code. This lets you combine direct manipulation through the rich probe with textual editing.
+
 ## Task
 
 The code below defines a `products` table with `name`, `price`, and `qty` columns. Currently `with_totals` is just set to `products` unchanged.
 
 1. **Add a probe** on `products` in the `with_totals` binding (right-click and select **"Add probe"**, or press **Cmd+E** / **Ctrl+E**). Then press the **table button** on the probe to see the rich table interface.
-2. **Add a new column** using the rich probe interface: click the **add column button** (to the right of the column names) and set the new column equal to an expression computing the total — for example, `row.price *. float_of_int(row.qty)`.
+2. **Add a new column** using the rich probe interface: click the **add column button** (to the right of the column names). This will rewrite the source code to add a new column — fill in the column's value expression in the textual source, for example, `row.price *. float_of_int(row.qty)`.
 3. Observe how the rich probe table updates to show the new column with computed values for each row.
 
 ## Explore
@@ -26,8 +28,9 @@ The code below defines a `products` table with `name`, `price`, and `qty` column
 After completing the task, take some time to play with the rich probe interface. Try changing column types, adding other computed columns, or probing different expressions in the code to see how the table view updates.|md};
     display_hint =
       "After adding a probe and pressing the table button, look for the add \
-       column button to the right of the column names. Use it to add a new \
-       column with an expression like: row.price *. float_of_int(row.qty)";
+       column button to the right of the column names. Clicking it will \
+       rewrite the source code — fill in the column's value expression (e.g. \
+       row.price *. float_of_int(row.qty)) in the textual source";
     task_reference =
       (let adding_a_probe =
          "### Adding a Probe\n\
@@ -41,7 +44,10 @@ After completing the task, take some time to play with the rich probe interface.
           The rich probe displays **action buttons** to the right of each \
           column name. Use these to:\n\
           - **Add a new column** with a computed expression\n\
-          - **Change a column's type**"
+          - **Change a column's type**\n\n\
+          Column actions **rewrite the underlying textual syntax**. After \
+          performing an action, fill in the column's value expression directly \
+          in the source code."
        in
        TaskRefDocs.compose
          [

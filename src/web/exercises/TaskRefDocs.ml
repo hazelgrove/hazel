@@ -237,4 +237,37 @@ let dynamic_type =
    At runtime, the actual type is tracked. Hazel's **live typing** uses these \
    runtime types to refine `?` into more specific types shown in green."
 
+let if_expression =
+  "### If Expression\n\
+   ```hazel\n\
+   let x = -5 in\n\
+   if x < 0 then 0 - x else x\n\
+   ```\n\n\
+   Nested:\n\
+   ```hazel\n\
+   let x = 5 in\n\
+   if x < 0 then -1\n\
+   else if x == 0 then 0\n\
+   else 1\n\
+   ```"
+
+let case_expression =
+  "### Case Expression\n\
+   ```hazel\n\
+   case 1\n\
+   | 0 => \"zero\"\n\
+   | 1 => \"one\"\n\
+   | _ => \"other\"\n\
+   end\n\
+   ```\n\n\
+   `_` is a wildcard that matches anything."
+
+let comparison_operators =
+  "### Comparison Operators\n\
+   - `==` — equal\n\
+   - `<` — less than\n\
+   - `>` — greater than\n\
+   - `<=` — less than or equal\n\
+   - `>=` — greater than or equal"
+
 let compose sections = "## Quick Reference\n\n" ^ String.concat "\n\n" sections

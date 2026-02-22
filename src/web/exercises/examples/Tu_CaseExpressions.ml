@@ -50,26 +50,19 @@ let exercise : Tutorial.spec =
     display_hint =
       "Use the string_sub(str, start, len) function to get a substring.";
     task_reference =
-      "## Quick Reference\n\n\
-       ### Case Expression\n\
-       ```hazel\n\
-       case 1\n\
-       | 0 => \"zero\"\n\
-       | 1 => \"one\"\n\
-       | _ => \"other\"\n\
-       end\n\
-       ```\n\n\
-       `_` is a wildcard that matches anything.\n\n\n\
-       ### Useful functions\n\
-       ```hazelnostatics\n\
-       string_sub(str, start, length)\n\
-       ```\n\n\
-       ```hazel\n\
-       string_sub(\"012345\", 2, 3)\n\
-       ```\n\n\
-       ```hazel\n\
-       string_length(\"012345\")\n\
-       ```";
+      (let string_operations =
+         "### Useful functions\n\
+          ```hazelnostatics\n\
+          string_sub(str, start, length)\n\
+          ```\n\n\
+          ```hazel\n\
+          string_sub(\"012345\", 2, 3)\n\
+          ```\n\n\
+          ```hazel\n\
+          string_length(\"012345\")\n\
+          ```"
+       in
+       TaskRefDocs.compose [ TaskRefDocs.case_expression; string_operations ]);
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
