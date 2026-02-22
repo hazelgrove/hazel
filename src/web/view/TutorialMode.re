@@ -260,7 +260,7 @@ module Update = {
         | exception (Failure(_)) => (
             CachedStatics.empty,
             Language.Dynamics.empty,
-            None,
+            Option.none,
           )
         };
       let* new_editor =
