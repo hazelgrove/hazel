@@ -34,7 +34,7 @@ module Model = {
         show_fn_bodies: false,
         show_fixpoints: false,
         show_ascription_steps: false,
-        show_ascriptions: false,
+        show_ascriptions: true,
         show_case_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
