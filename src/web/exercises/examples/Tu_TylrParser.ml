@@ -317,7 +317,7 @@ let exercise : Tutorial.spec =
             "Type `let x = 1 in x + 1` using Tab to drop backpack obligations.";
           ];
       };
-    wrapper = false;
+    wrapper = true;
     show_report = false;
     setting_overrides = Tutorial.default_setting_overrides;
   }
