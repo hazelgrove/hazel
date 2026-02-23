@@ -13,7 +13,8 @@ let exercise : Tutorial.spec =
        ```\n\
        that takes a list of strings (each representing an integer) and returns \
        their mean as a float.\n\n\
-       Here are the built-in functions and operators you may find useful:\n\n\
+       There are some built-in functions and operators you may find useful in \
+       the task reference sidebar\n\n\
        **Steps:** Convert the strings to floats, sum them, and divide by the \
        length of the list.";
     display_hint =
