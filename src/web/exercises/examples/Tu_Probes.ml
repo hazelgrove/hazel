@@ -18,7 +18,7 @@ A small inline display will appear showing the value of that expression. Learnin
 
 ## Probes Inside Functions
 
-When you probe an expression **inside a function**, the probe shows a value for **every call** to that function. This makes it easy to see how a function behaves across different inputs.
+When you probe an expression **inside a function**, the probe shows a value for **every call** to that function. This makes it easy to see how a function behaves across different inputs. If the probe display shows `...`, you can **double-click** it to expand and see all the values from every call.
 
 ## Truncated Values
 
