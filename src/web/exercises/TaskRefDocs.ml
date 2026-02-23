@@ -6,6 +6,14 @@ let column_projection =
    t.score\n\
    ```\n"
 
+let table_construction =
+  "### Table Construction\n\
+   A table is a list of labeled tuples:\n\
+   ```hazel\n\
+   let t = [(name=\"A\", score=90), (name=\"B\", score=80)] in\n\
+   t\n\
+   ```\n"
+
 let partial_application =
   "### Partial Application\n\
    Use `_` to defer arguments:\n\
