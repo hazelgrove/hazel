@@ -443,6 +443,7 @@ module View = {
         | {button: Left, _}
             when
               left_button_held
+              && MouseState.is_button_down()
               && !Point.equals(current_loc, MouseState.get_down_loc()) =>
           let container = container_target(pointer.current_target);
           let pixel_loc = pointer.loc;
