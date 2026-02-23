@@ -249,17 +249,20 @@ module Update = {
     let display =
       switch (display) {
       | Evaluation(ev_display) =>
-        ev_display
-        |> {
-          let.calc settings = settings
-          and.calc result = result;
-          switch (result) {
-          | ResultOk({result: exp, _}) =>
-            Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
-          | ResultFail(_)
-          | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
+        let ev_calc =
+          ev_display
+          |> {
+            let.calc settings = settings
+            and.calc result = result;
+            switch (result) {
+            | ResultOk({result: exp, _}) =>
+              Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
+            | ResultFail(_)
+            | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
+            };
           };
-        }
+        let result_changed = Calc.is_new(ev_calc);
+        ev_calc
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
              Option.map(((exp, editor)) =>
@@ -270,14 +273,14 @@ module Update = {
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
                    ~dynamics=Calc.OldValue(Dynamics.empty),
-                   ~is_edited,
+                   ~is_edited=is_edited || result_changed,
                    editor,
                  ),
                )
              ),
            )
         |> Calc.save
-        |> (x => Model.Evaluation(x))
+        |> (x => Model.Evaluation(x));
       | Stepper(stepper) =>
         Model.Stepper(
           StepperView.Update.calculate(
