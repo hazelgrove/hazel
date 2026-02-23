@@ -233,18 +233,11 @@ let common_err_view =
 
 let common_warn_view = (warning: Warning.t) => {
   switch (warning) {
-  | WarningPat(w) =>
-    switch (w) {
-    | UnusedVar(name) => [
-        text("Warning: Variable"),
-        code(name),
-        text("is unused."),
-      ]
-    | _ => [text("Warning: " ++ Warning.show(warning))]
-    }
-  | WarningExp(_)
-  | WarningTyp(_)
-  | WarningTPat(_) => [text("Warning: " ++ Warning.show(warning))]
+  | WarningPat(UnusedVar(name)) => [
+      text("Warning: Variable"),
+      code(name),
+      text("is unused."),
+    ]
   | None => []
   };
 };
@@ -735,10 +728,7 @@ let rec pat_view =
         ok,
       );
     switch (info.warning) {
-    | WarningPat(_)
-    | WarningExp(_)
-    | WarningTyp(_)
-    | WarningTPat(_) =>
+    | WarningPat(_) =>
       if (globals.settings.core.display_warnings) {
         div_warn(common_warn_view(info.warning));
       } else {
