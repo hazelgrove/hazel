@@ -20,7 +20,21 @@ let utility: ProjectorBase.utility = {
       (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
     switch (seg |> seg_to_term) {
     | None => None
-    | Some(s) => Some(s |> fn |> term_to_seg(inline))
+    | Some(s) =>
+      let result = s |> fn |> term_to_seg(inline);
+      /* When not inline (projector syntax rewrites like table operations),
+         append a trailing newline so the expression doesn't extend to
+         the edge of the screen, leaving room for probe values */
+      if (!inline) {
+        let newline: Base.piece =
+          Secondary({
+            content: Whitespace(Token.linebreak),
+            id: Id.mk(),
+          });
+        Some(result @ [newline]);
+      } else {
+        Some(result);
+      };
     };
   };
   /* NOTE: Setting indent to anything other than "" has serious
