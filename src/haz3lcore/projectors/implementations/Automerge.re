@@ -17,7 +17,7 @@ class type handle = {
 
 // The promise returned by repo.find(), resolving to a handle.
 class type promise = {
-  pub then_: Js.callback(Js.t(handle) => unit) => Js.meth(unit);
+  pub then_: Js.callback(Js.t(handle) => unit) => Js.meth(Js.Unsafe.any);
 };
 
 // The automerge-repo Repo instance (expected at globalThis.repo).
@@ -40,9 +40,14 @@ let json_stringify = (value: Js.Unsafe.any): string => {
 
 // Read the current document from a handle, JSON-stringify it,
 // and parse into a Hazel expression via the JsonADT codec.
-let doc_to_exp = (handle: Js.t(handle)): result(Language.Exp.t, string) => {
-  let doc = handle##doc;
-  let json_str = json_stringify(doc);
-  let yojson = Yojson.Safe.from_string(json_str);
-  HazelProtocol.JsonADT.yojson_to_exp(yojson);
-};
+// Returns Error if the document is not yet available (null/undefined)
+// or if JSON parsing/conversion fails.
+let doc_to_exp = (handle: Js.t(handle)): result(Language.Exp.t, string) =>
+  try({
+    let doc = handle##doc;
+    let json_str = json_stringify(doc);
+    let yojson = Yojson.Safe.from_string(json_str);
+    HazelProtocol.JsonADT.yojson_to_exp(yojson);
+  }) {
+  | exn => Error("Document not available: " ++ Printexc.to_string(exn))
+  };

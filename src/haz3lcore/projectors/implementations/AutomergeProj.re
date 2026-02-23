@@ -12,16 +12,23 @@ open Js_of_ocaml;
 type subscription = {
   url: string,
   mutable on_data: Language.Exp.t => unit,
+  mutable on_error: string => unit,
   mutable cleanup: option(unit => unit),
 };
 
 let subscriptions: ref(Id.Map.t(subscription)) = ref(Id.Map.empty);
 
 let subscribe_to_doc =
-    (id: Id.t, url: string, on_data: Language.Exp.t => unit) => {
+    (
+      id: Id.t,
+      url: string,
+      on_data: Language.Exp.t => unit,
+      on_error: string => unit,
+    ) => {
   let sub = {
     url,
     on_data,
+    on_error,
     cleanup: None,
   };
   subscriptions := Id.Map.add(id, sub, subscriptions^);
@@ -31,7 +38,7 @@ let subscribe_to_doc =
   let promise = repo##find(Js.string(url));
 
   /* Once the handle resolves, wire up the change listener. */
-  ignore(
+  let then_result =
     promise##then_(
       Js.wrap_callback((handle: Js.t(Automerge.handle)) => {
         /* Called on every "change" event (and once for the initial read).
@@ -44,7 +51,11 @@ let subscribe_to_doc =
               | Some(s) => s.on_data(exp)
               | None => ()
               }
-            | Error(err) => prerr_endline("AutomergeProj: " ++ err)
+            | Error(err) =>
+              switch (Id.Map.find_opt(id, subscriptions^)) {
+              | Some(s) => s.on_error(err)
+              | None => ()
+              }
             }
           });
 
@@ -67,20 +78,42 @@ let subscribe_to_doc =
         /* Fire the callback once immediately to read the initial doc state. */
         Js.Unsafe.fun_call(callback, [|Js.Unsafe.inject(Js.undefined)|]);
       }),
+    );
+  ignore(
+    Js.Unsafe.meth_call(
+      then_result,
+      "catch",
+      [|
+        Js.Unsafe.inject(
+          Js.wrap_callback((_err: Js.Unsafe.any) => {
+            switch (Id.Map.find_opt(id, subscriptions^)) {
+            | Some(s) => s.on_error("Failed to find document")
+            | None => ()
+            }
+          }),
+        ),
+      |],
     ),
   );
 };
 
 let ensure_subscribed =
-    (id: Id.t, url: string, on_data: Language.Exp.t => unit) =>
+    (
+      id: Id.t,
+      url: string,
+      on_data: Language.Exp.t => unit,
+      on_error: string => unit,
+    ) =>
   if (String.length(url) > 0) {
     switch (Id.Map.find_opt(id, subscriptions^)) {
-    | Some(sub) when sub.url == url => sub.on_data = on_data
+    | Some(sub) when sub.url == url =>
+      sub.on_data = on_data;
+      sub.on_error = on_error;
     | Some(sub) =>
       Option.iter(f => f(), sub.cleanup);
       subscriptions := Id.Map.remove(id, subscriptions^);
-      subscribe_to_doc(id, url, on_data);
-    | None => subscribe_to_doc(id, url, on_data)
+      subscribe_to_doc(id, url, on_data, on_error);
+    | None => subscribe_to_doc(id, url, on_data, on_error)
     };
   };
 
@@ -304,7 +337,11 @@ module M: Projector = {
       );
     };
 
-    ensure_subscribed(info.id, model.url, on_data);
+    let on_error = (msg: string) => {
+      Bonsai.Effect.Expert.handle(local(SetStatus(Error(msg))));
+    };
+
+    ensure_subscribed(info.id, model.url, on_data, on_error);
 
     if (String.length(model.url) > 0 && model.status == Disconnected) {
       Bonsai.Effect.Expert.handle(local(SetStatus(Connecting)));
