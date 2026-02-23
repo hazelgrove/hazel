@@ -709,6 +709,40 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   ];
 };
 
+let quick_ref_row = (action: string, how: string) =>
+  Node.tr([
+    Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
+    Node.td(~attrs=[clss(["qr-how"])], [text(how)]),
+  ]);
+
+let quick_ref_view = () =>
+  div(
+    ~attrs=[clss(["quick-ref", "panel"])],
+    [
+      div(~attrs=[clss(["title"])], [text("Quick Reference")]),
+      Node.table(
+        ~attrs=[clss(["qr-table"])],
+        [
+          quick_ref_row("Add/remove probe", "Right-click on term (Ctrl+E)"),
+          quick_ref_row("See env/args", "Hover over sample"),
+          quick_ref_row("Pin call", "Click sample > Pin (P)"),
+          quick_ref_row("Step into call", "Click sample > Step Into (Enter)"),
+          quick_ref_row("Single/Many", "Double-click sample (Space)"),
+          quick_ref_row("Navigate samples", {js|← / → arrows|js}),
+          quick_ref_row("Auto-probe", "Upper-right toggle"),
+        ],
+      ),
+      div(
+        ~attrs=[clss(["qr-icons"])],
+        [
+          div([text({js|∅ = never evaluated|js})]),
+          div([text({js|⍟ = hidden by pin|js})]),
+          div([text({js|⊖ = not aligned|js})]),
+        ],
+      ),
+    ],
+  );
+
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   let zipper = editor.editor.state.zipper;
@@ -739,6 +773,7 @@ let probearium =
       ],
     ),
     legend_view(),
+    quick_ref_view(),
     sketch_view(~globals, ~explain_this_inject),
     probes_panel_view(
       ~globals,

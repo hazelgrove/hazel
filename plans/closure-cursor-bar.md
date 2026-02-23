@@ -1,12 +1,10 @@
 # Closure Cursor Bar (Dynamic Cursor Bar)
 
-## Status: Partially working
+## Status: DONE
 
-Working: name clicks for user-defined functions (e.g. `update`), separator
-clicks for direct app_ids, separator fallback (rounding down).
-
-**Not working:** Name clicks for built-in functions (e.g. `fold_left`).
-See "Known issue" section below.
+All click targets working. Built-in function name click issue was fixed
+via Option C (skip `get_binding_site` for names in `Builtins.env_init`).
+See line 34 of `ClosureCursorBar.re`.
 
 ## What was done
 

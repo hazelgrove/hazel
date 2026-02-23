@@ -117,9 +117,52 @@
   display: none;
 }
 
+#probesys .quick-ref {
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+#probesys .quick-ref .title {
+  margin-bottom: 0.4em;
+}
+
+#probesys .quick-ref .qr-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#probesys .quick-ref .qr-table td {
+  padding: 0.15em 0.3em;
+  vertical-align: top;
+}
+
+#probesys .quick-ref .qr-action {
+  font-weight: bold;
+  white-space: nowrap;
+  color: var(--BR3);
+  width: 1%;
+  padding-right: 0.8em;
+}
+
+#probesys .quick-ref .qr-how {
+  color: var(--BR2);
+}
+
+#probesys .quick-ref .qr-icons {
+  margin-top: 0.4em;
+  padding-top: 0.4em;
+  border-top: 0.5px solid var(--BR1);
+  color: var(--BR2);
+  font-size: 0.9em;
+  display: flex;
+  justify-content: center;
+  gap: 1.3em;
+}
+
 #probesys .legend .title {
   grid-column: 1 / -1; /* span full width of the grid */
   justify-self: start; /* left align */
+  font-size: 0.85em;
 }
 
 #probesys .panel.call-cursor .title {

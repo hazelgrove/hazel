@@ -1,6 +1,6 @@
 # Introduction to Probes
 
-<!-- META: This is Part 1, covering basics through dynamic cursor/sample navigation.
+<!-- META: This is Part 1, covering basics through closure cursor/sample navigation.
      Part 2 will introduce the larger program context and debugging features (auto, pin, step).
 
      The "larger program" I'm thinking ahead to: a Greenhouse Planner that:
@@ -299,7 +299,7 @@ Now only one sample shows. Use `←` / `→` to step through them one at a time.
 
 ---
 
-## Part 4: Following the Thread (Dynamic Cursor)
+## Part 4: Following the Thread (Closure Cursor)
 
 ### Multiple Probes, Same Function
 
@@ -307,10 +307,7 @@ Let's add more probes to see intermediate steps:
 
 ```hazel
 let watering_amount: (Int, MoonPhase) -> Int =
-  fun
-    ⟦base_ml⟧,
-    ⟦phase⟧
-  ->
+  fun ⟦base_ml⟧, ⟦phase⟧ ->
     let multiplier = case phase
       | New => ⟦1.2⟧
       | Full => ⟦0.88⟧
@@ -334,10 +331,7 @@ let orchid = watering_amount(180, Waning) in
 Now we have several probes, each with three samples:
 
 ```
-    fun
-      ⟦base_ml⟧,     ≡ 250  50  180
-      ⟦phase⟧     ≡ Full  New  Waning
-    ->
+    fun ⟦base_ml⟧, ⟦phase⟧ ->     ≡ 250  50  180     ≡ Full  New  Waning
         ...
         | Full => ⟦0.88⟧                 ≡ 0.88
         ...
@@ -348,7 +342,7 @@ But which `base_ml` goes with which `result`? When there are multiple probes wit
 
 ---
 
-### The Dynamic Cursor
+### The Closure Cursor
 
 **Click on a sample** and watch what happens to the *other* probes.
 
@@ -367,12 +361,12 @@ When you click on `50` (the cactus's `base_ml`):
 ```
 
 <!-- META: Using [brackets] to indicate highlighting. In the real UI this would be
-     colored (green for same function execution). We might want a different ASCII convention.
+     colored (green for same closure). We might want a different ASCII convention.
      Maybe: *50* or «50» or ⟦50⟧ -->
 
 The samples that belong to the **same function call** are highlighted together. Click on `50` and you see the whole story of the cactus calculation: base=50, phase=New, multiplier=1.2, result=60.
 
-**This is the dynamic cursor** — it tracks which execution context you're focused on, and shows you the corresponding values across all probes.
+**This is the closure cursor** — it tracks which execution context you're focused on, and shows you the corresponding values across all probes.
 
 ---
 
@@ -400,7 +394,7 @@ After pressing →:
 
 You're stepping through executions of the function, seeing how all the values relate.
 
-**Key insight:** The dynamic cursor keeps probes aligned. In single mode, arrow keys step through complete executions. In many mode, clicking a sample highlights its siblings.
+**Key insight:** The closure cursor keeps probes aligned. In single mode, arrow keys step through complete executions. In many mode, clicking a sample highlights its siblings.
 
 ---
 
@@ -445,7 +439,7 @@ Tests drive evaluation, which means they generate samples for any probes inside 
 | **Multiple samples** | One per function call, shown side-by-side in many mode |
 | **Single/Many mode** | Double-click or Space to toggle |
 | **Arrow keys** | Navigate between samples |
-| **Dynamic cursor** | Click a sample to highlight related samples from the same call |
+| **Closure cursor** | Click a sample to highlight related samples from the same call |
 
 ---
 
@@ -849,7 +843,7 @@ The abbreviation algorithm keeps the structure visible even when shortened — i
 You now have tools to:
 
 1. **See values** inline as your code runs (basic probes)
-2. **Navigate** between multiple samples from function calls (dynamic cursor)
+2. **Navigate** between multiple samples from function calls (closure cursor)
 3. **Get an overview** of an entire function (auto-probe)
 4. **Focus** on a specific execution (pin)
 5. **Trace** through the call stack (step into)
@@ -877,7 +871,7 @@ The tutorial is now complete through the main features:
 - Basic probes, environment, patterns
 - Branches, ∅ icon
 - Functions, multiple samples
-- Dynamic cursor, arrow keys, single/many mode
+- Closure cursor, arrow keys, single/many mode
 - Auto-probe
 - Pin, ⍟ icon
 - Step into

@@ -1,16 +1,16 @@
+<!-- NOTE FOR ANDREW:
+     Feature idea to consider: When hovering over an ⊖ (not aligned) icon,
+     show the first value that is hidden by it. This would help users understand
+     what they're missing without having to change the dynamic cursor. Put this
+     in a GitHub issue.
+-->
+
 # Introduction to Probes
 
-<!-- META: This is Part 1, covering basics through closure cursor/sample navigation.
-     Part 2 will introduce the larger program context and debugging features (auto, pin, step).
-
-     The "larger program" I'm thinking ahead to: a Greenhouse Planner that:
-     - Has multiple plants with care schedules
-     - Uses moon phases for watering adjustments (the celestial tinge)
-     - Has beds/zones with different conditions
-     - Has tests that exercise the calculations
-     - Will have a bug to debug (e.g., confusing daily vs weekly, or wrong phase multiplier)
-
-     The function we build here (watering_amount) will be called by that larger system.
+<!-- META: Covers basics through advanced debugging features.
+     Theme: Greenhouse Planner / plant care calculator.
+     Verified against codebase 2026-02-22: keyboard shortcuts, icon meanings,
+     pin/step-into behavior all confirmed.
 -->
 
 Welcome! This tutorial introduces **probes**, Hazel's system for seeing the values of expressions as your program runs. Probes show you what's happening inside your code without leaving the editor.
@@ -18,6 +18,34 @@ Welcome! This tutorial introduces **probes**, Hazel's system for seeing the valu
 We'll learn probes by building a small plant care calculator, then later integrate it into a larger greenhouse planner.
 
 **Reading this tutorial:** When an expression has a probe, you'll see it in the editor with a colored underline. In this text-based tutorial, we represent probed expressions with brackets: `⟦expression⟧`. The value appears after `≡`, like: `⟦1 + 2⟧ ≡ 3`.
+
+---
+
+## Quick Reference
+
+<!-- This will also appear as a terse cheat sheet in the sidebar during the study. -->
+
+| Action | How |
+|--------|-----|
+| **Add/remove probe** | Right-click → "Add probe", or `Ctrl+E` (`Cmd+E` on Mac) |
+| **See environment** | Click a sample → dropdown shows variable values |
+| **Pin this call** | Click sample → dropdown → **Pin this call** (or press `P`) |
+| **Pin enclosing call** | Same, on a non-function-call probe — pins the nearest enclosing call |
+| **Step into** | Click sample on a function call → dropdown → **Step Into** (or press `Enter`) |
+| **Single/Many mode** | Double-click a sample, or press `Space` |
+| **Navigate samples** | `←` / `→` arrow keys |
+| **Auto-probe toggle** | **A/M** button at top-right of screen |
+| **Resize sample** | `Shift + drag` horizontally on a sample |
+| **Reset probe state** | `Shift + Escape` (clears pins, resets cursor) |
+| **Clear all probes** | Button in the dynamic cursor bar (top of editor) |
+
+**Status icons:**
+
+| Icon | Meaning |
+|------|---------|
+| `∅` | Expression was never evaluated (branch not taken, function not called) |
+| `⍟` | Sample exists but is hidden by a pin — click to unpin |
+| `⊖` | Not aligned — this probe has no sample for the current dynamic cursor position |
 
 ---
 
@@ -295,11 +323,9 @@ Now only one sample shows. Use `←` / `→` to step through them one at a time.
 
 **Double-click again** (or press `Space`) to return to many mode.
 
-<!-- META: I believe Space toggles the mode. Need to verify this is the right key. -->
-
 ---
 
-## Part 4: Following the Thread (Closure Cursor)
+## Part 4: Following the Thread (Dynamic Cursor)
 
 ### Multiple Probes, Same Function
 
@@ -307,7 +333,10 @@ Let's add more probes to see intermediate steps:
 
 ```hazel
 let watering_amount: (Int, MoonPhase) -> Int =
-  fun ⟦base_ml⟧, ⟦phase⟧ ->
+  fun
+    ⟦base_ml⟧,
+    ⟦phase⟧
+  ->
     let multiplier = case phase
       | New => ⟦1.2⟧
       | Full => ⟦0.88⟧
@@ -331,7 +360,10 @@ let orchid = watering_amount(180, Waning) in
 Now we have several probes, each with three samples:
 
 ```
-    fun ⟦base_ml⟧, ⟦phase⟧ ->     ≡ 250  50  180     ≡ Full  New  Waning
+    fun
+      ⟦base_ml⟧,     ≡ 250  50  180
+      ⟦phase⟧     ≡ Full  New  Waning
+    ->
         ...
         | Full => ⟦0.88⟧                 ≡ 0.88
         ...
@@ -342,7 +374,7 @@ But which `base_ml` goes with which `result`? When there are multiple probes wit
 
 ---
 
-### The Closure Cursor
+### The Dynamic Cursor
 
 **Click on a sample** and watch what happens to the *other* probes.
 
@@ -361,12 +393,12 @@ When you click on `50` (the cactus's `base_ml`):
 ```
 
 <!-- META: Using [brackets] to indicate highlighting. In the real UI this would be
-     colored (green for same closure). We might want a different ASCII convention.
+     colored (green for same function execution). We might want a different ASCII convention.
      Maybe: *50* or «50» or ⟦50⟧ -->
 
 The samples that belong to the **same function call** are highlighted together. Click on `50` and you see the whole story of the cactus calculation: base=50, phase=New, multiplier=1.2, result=60.
 
-**This is the closure cursor** — it tracks which execution context you're focused on, and shows you the corresponding values across all probes.
+**This is the dynamic cursor** — it tracks which execution context you're focused on, and shows you the corresponding values across all probes.
 
 ---
 
@@ -394,7 +426,7 @@ After pressing →:
 
 You're stepping through executions of the function, seeing how all the values relate.
 
-**Key insight:** The closure cursor keeps probes aligned. In single mode, arrow keys step through complete executions. In many mode, clicking a sample highlights its siblings.
+**Key insight:** The dynamic cursor keeps probes aligned. In single mode, arrow keys step through complete executions. In many mode, clicking a sample highlights its siblings.
 
 ---
 
@@ -439,7 +471,9 @@ Tests drive evaluation, which means they generate samples for any probes inside 
 | **Multiple samples** | One per function call, shown side-by-side in many mode |
 | **Single/Many mode** | Double-click or Space to toggle |
 | **Arrow keys** | Navigate between samples |
-| **Closure cursor** | Click a sample to highlight related samples from the same call |
+| **Dynamic cursor** | Click a sample to highlight related samples from the same call |
+
+See the **Quick Reference** at the top for a complete summary of interactions.
 
 ---
 
@@ -578,9 +612,7 @@ Instead of adding probes one by one, you can turn on **auto-probe mode**. This a
 
 **Try this:**
 1. Put your cursor inside the `daily_water` function
-2. Toggle auto-probe mode using the button in the toolbar (or press the auto-probe shortcut)
-
-<!-- META: Need to specify the exact UI location / shortcut for auto-probe toggle -->
+2. Toggle auto-probe mode using the **A/M** button at the top-right of the screen (it switches between **A**uto and **M**anual mode)
 
 Now every line in `daily_water` has a probe:
 
@@ -695,17 +727,19 @@ Five samples now (four original tests plus your new one). Which one is the faili
 1. Find the call site you care about — in this case, the test that fails
 2. Add a probe to the function call: `⟦weekly_water(dewcup, shade_garden, Waxing)⟧`
 3. Click on that sample to select it
-4. In the dropdown that appears, click **Pin**
+4. In the **sample dropdown** that appears, click **"Pin this call"** (or press `P`)
 
 ```
 ┌──────────────────────────────────────────┐
-│  [Pin]   [Step Into]                     │
+│  [Pin this call]   [Step Into]           │
 ├──────────────────────────────────────────┤
 │  plant   ≡  (name="Dewcup Lily", ...)    │
 │  bed     ≡  (name="Shade Garden", ...)   │
 │  phase   ≡  Waxing                       │
 └──────────────────────────────────────────┘
 ```
+
+Notice the dropdown shows the argument values with their names — `plant = (name="Dewcup Lily", ...)` — so you can confirm you're looking at the right call.
 
 Now **only** samples from this specific call are shown. The other four executions are filtered out:
 
@@ -740,6 +774,26 @@ If you see `⍟` and are confused why there's no sample, **click on it** — thi
 
 ---
 
+### The Not-Aligned Icon
+
+There's one more status icon to know about: `⊖`. This appears in **single mode** when a probe has samples, but none of them match the current dynamic cursor position.
+
+For example, if you're in single mode looking at the fern call (base_ml=250), but a probe only has samples from a different call, it shows `⊖` instead of a value. This just means "I have data, but not for the execution you're currently focused on."
+
+If you see `⊖` and want to understand it: switch to **many mode** (double-click or Space) to see all available samples, or use the arrow keys to navigate to a different execution.
+
+---
+
+### Pinning from Non-Application Probes
+
+So far, we've pinned from probes on function *calls* like `weekly_water(...)`. But you can also pin from probes on regular expressions inside a function body.
+
+When you click on a sample of a non-application probe (like a `let` binding or a `case` branch), the dropdown shows **"Pin enclosing call"** instead of "Pin this call". This pins the nearest function call that contains the probed expression — filtering all probes to show only samples from that same execution.
+
+This is useful when you're already looking at values inside a function and want to lock your view to that particular call without navigating to the call site.
+
+---
+
 ### Step Into: Following the Call Stack
 
 You've pinned the failing call and you can see the values in `daily_water`. But what if the bug is deeper — inside `phase_multiplier` or `shade_multiplier`?
@@ -748,15 +802,15 @@ You've pinned the failing call and you can see the values in `daily_water`. But 
 
 1. Find a function call inside `daily_water`, like `phase_multiplier(phase)`
 2. Add a probe to it: `⟦phase_multiplier(phase)⟧`
-3. Click on the sample
-4. In the dropdown, click **Step Into**
+3. Click on the sample to open the **sample dropdown**
+4. Click **Step Into** (or press `Enter`)
 
 ```
-┌─────────────────────┐
-│  [Pin]  [Step Into] │  ← Click "Step Into"
-├─────────────────────┤
-│  phase  ≡  Waxing   │
-└─────────────────────┘
+┌──────────────────────────────────┐
+│  [Pin this call]  [Step Into]    │  ← Click "Step Into"
+├──────────────────────────────────┤
+│  phase  ≡  Waxing                │
+└──────────────────────────────────┘
 ```
 
 Your cursor jumps to `phase_multiplier`, and auto-probe shows that function's internals — still pinned to the context of your failing test.
@@ -788,7 +842,47 @@ When you're done debugging and want to see all samples again:
 
 ---
 
-## Part 9: Seeing Richer Values
+### The Dynamic Cursor Bar
+
+When you step into a function, you might wonder: where am I in the call stack? The **dynamic cursor bar** at the top of the editor shows you.
+
+It displays a breadcrumb trail of function calls leading to your current position:
+
+```
+  ○ ❯ run ❯ fold_left ❯ update
+```
+
+Each entry is a function name from the call stack. The `○` at the left represents the top-level program. As you step into deeper calls, entries appear to the right.
+
+**Clicking entries navigates the call stack:**
+- Click a **function name** to jump to that function's definition
+- Click a **❯ chevron** to jump to the call site (the application expression)
+
+This makes it easy to move up and down the call stack during debugging — click a parent function name to see where the call was made, or click back into a deeper function to continue tracing.
+
+The bar also has a **clear-all button** to remove all probes at once.
+
+---
+
+## Part 9: Print Statements
+
+Hazel also has traditional print-statement debugging. You can call `print` on any expression:
+
+```hazel
+let x = 42 in
+print(x);
+x + 1
+```
+
+`print(expr)` outputs the value of `expr` to the **print panel** in the sidebar, then returns unit (`()`). Because it returns unit, you need to sequence it with `;` before the next expression.
+
+The print panel shows each printed value with a sequence number and source line number, making it easy to match output to code.
+
+**When to use print vs. probes:** Print statements work well for quick checks and for seeing values in order of execution. Probes work well when you want to see multiple values at once, compare across function calls, or trace through the call stack without manually adding and removing output statements.
+
+---
+
+## Part 10: Seeing Richer Values
 
 ### Records and Algebraic Types
 
@@ -829,10 +923,14 @@ The abbreviation algorithm keeps the structure visible even when shortened — i
 
 | Feature | What It Does |
 |---------|--------------|
-| **Auto-probe** | Automatically probes each line of the current definition |
-| **Pin** | Filters samples to a specific call; click Pin in sample dropdown |
+| **Auto-probe** | Automatically probes each line of the current definition (A/M toggle, top-right) |
+| **Pin this call** | Filters samples to a specific function call; in sample dropdown or press `P` |
+| **Pin enclosing call** | Same, from a non-application probe — pins the nearest enclosing call |
 | **`⍟` icon** | "No sample due to pin" — click to clear pin |
-| **Step Into** | Jump into a function call while keeping pin context |
+| **`⊖` icon** | "Not aligned" — no sample for current dynamic cursor position |
+| **Step Into** | Jump into a function call while keeping pin context; in dropdown or press `Enter` |
+| **Dynamic cursor bar** | Breadcrumb trail at top of editor; click to navigate call stack |
+| **Print statements** | `print(expr);` outputs to sidebar print panel |
 | **Shift+Escape** | Reset all probe state, clear pins |
 | **Shift+drag** | Resize sample display |
 
@@ -843,38 +941,22 @@ The abbreviation algorithm keeps the structure visible even when shortened — i
 You now have tools to:
 
 1. **See values** inline as your code runs (basic probes)
-2. **Navigate** between multiple samples from function calls (closure cursor)
+2. **Navigate** between multiple samples from function calls (dynamic cursor)
 3. **Get an overview** of an entire function (auto-probe)
 4. **Focus** on a specific execution (pin)
-5. **Trace** through the call stack (step into)
+5. **Trace** through the call stack (step into, dynamic cursor bar)
+6. **Print** values to the sidebar for sequential inspection
 
 Whether you're writing new code and want live feedback, or debugging a failing test and need to trace values, probes give you visibility into your program's runtime behavior without leaving the editor.
 
-Happy gardening! 🌱
+Happy gardening!
 
 ---
 
-<!-- META: END OF PART 2
-
-Things to verify/improve:
-1. The exact UI for toggling auto-probe (toolbar button? shortcut?)
-2. The bug scenario — I left it somewhat vague. We could make it concrete with
-   an actual bug (e.g., using daily instead of weekly somewhere, typo in multiplier)
-3. The sample values throughout need to be consistent with the actual calculations
-4. Whether Shift+Escape is actually the reset shortcut
-5. Could add an appendix on:
-   - Sample coloring (caller/callee colors)
-   - The ⊖ icon (not aligned in single mode)
-   - More details on when to use single vs many mode
-
-The tutorial is now complete through the main features:
-- Basic probes, environment, patterns
-- Branches, ∅ icon
-- Functions, multiple samples
-- Closure cursor, arrow keys, single/many mode
-- Auto-probe
-- Pin, ⍟ icon
-- Step into
-- Resizing samples
-
+<!-- META: Remaining TODOs:
+1. The bug scenario in Part 8 is still somewhat vague. Should make it concrete with
+   an actual bug (e.g., wrong multiplier, off-by-one in shade level mapping).
+2. The sample values throughout should be verified against actual calculations.
+3. Consider whether Part 9 (print) should be earlier or later — currently placed
+   after debugging features since it's the baseline comparison tool.
 -->
