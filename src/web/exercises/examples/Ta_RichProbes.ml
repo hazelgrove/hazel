@@ -15,12 +15,12 @@ The code below defines a `products` table with `name`, `price`, and `qty` column
 
 1. **Add a probe** on `products` in the `with_totals` binding (right-click → **"Add probe"**, or **Cmd+E** / **Ctrl+E**), then press the **table button**.
 2. Add a new column `total`. Click the **⋮** button next to a column name and select **Add Column**. This rewrites the source code to include a new column.
-3. In the textual source code, fill in the expression: `row.price *. float_of_int(row.qty)`. The table updates live as you edit the code.|md};
+3. In the textual source code, fill in the expression: `r.price *. float_of_int(r.qty)`. The table updates live as you edit the code.|md};
     display_hint =
       "After adding a probe and pressing the table button, click the ⋮ button \
        next to a column name and select Add Column. This rewrites the source \
-       code — name the column total and use the expression row.price *. \
-       float_of_int(row.qty)";
+       code — name the column total and use the expression r.price *. \
+       float_of_int(r.qty)";
     task_reference =
       (let adding_a_probe =
          "### Adding a Probe\n\
