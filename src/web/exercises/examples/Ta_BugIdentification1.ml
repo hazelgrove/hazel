@@ -38,6 +38,7 @@ let exercise : Tutorial.spec =
            TaskRefDocs.find;
            TaskRefDocs.to_lvs;
            TaskRefDocs.from_lvs;
+           TaskRefDocs.group_on_key;
            TaskRefDocs.tuple_extension;
            TaskRefDocs.column_projection;
            TaskRefDocs.pipelining;
