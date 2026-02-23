@@ -68,6 +68,7 @@ module Update = {
              switch (action) {
              | Move(Point(_)) => false
              | Select(All) => false
+             | Select(Resize(Point(_))) => false
              | Move(_)
              | Select(_)
              | Destruct(_)
@@ -424,18 +425,44 @@ module View = {
     let toggle_button = (e: Pointer.Event.t, pointer_id: int) => {
       MouseState.pointerup(loc(e));
       PointerCapture.release(e.current_target, pointer_id);
+      EdgeScroll.stop();
       Effect.Ignore;
     };
 
     let drag_select = (pointer: Pointer.Event.t) => {
-      let current_loc = loc(pointer);
-      switch (pointer) {
-      | {button: Left, _}
-          when
-            MouseState.is_button_down()
-            && !Point.equals(current_loc, MouseState.get_down_loc()) =>
-        inject(Perform(Select(Resize(Point(current_loc)))))
-      | _ => Effect.Ignore
+      let left_button_held = pointer.buttons land 1 != 0;
+      if (!left_button_held && MouseState.is_button_down()) {
+        /* Recover from stuck state: buttons bitmask says left is up
+         * but MouseState thinks it's down (missed pointerup) */
+        MouseState.reset();
+        EdgeScroll.stop();
+        Effect.Ignore;
+      } else {
+        let current_loc = loc(pointer);
+        switch (pointer) {
+        | {button: Left, _}
+            when
+              left_button_held
+              && !Point.equals(current_loc, MouseState.get_down_loc()) =>
+          let container = container_target(pointer.current_target);
+          let pixel_loc = pointer.loc;
+          EdgeScroll.update(
+            ~client_y=float_of_int(pointer.loc.row),
+            ~on_scroll=() => {
+              let goal =
+                FontMetrics.get_goal(
+                  ~font_metrics=globals.font_metrics,
+                  container,
+                  pixel_loc,
+                );
+              Bonsai.Effect.Expert.handle(
+                inject(Perform(Select(Resize(Point(goal))))),
+              );
+            },
+          );
+          inject(Perform(Select(Resize(Point(current_loc)))));
+        | _ => Effect.Ignore
+        };
       };
     };
 
@@ -462,7 +489,6 @@ module View = {
           toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
         Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
-        Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
       display_line_numbers
         ? LineNumbers.View.view(
