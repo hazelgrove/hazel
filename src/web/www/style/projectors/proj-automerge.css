@@ -59,3 +59,15 @@
   color: var(--BLACK);
   background-color: var(--shard-selected);
 }
+
+.projector.Automerge .hot-reload-toggle {
+  flex-shrink: 0;
+  margin-left: 4px;
+  font-size: 0.7em;
+}
+
+.projector.Automerge .hot-reload-toggle.disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}

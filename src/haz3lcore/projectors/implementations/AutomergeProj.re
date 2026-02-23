@@ -157,12 +157,14 @@ module M: Projector = {
   type model = {
     url: string,
     status: connection_status,
+    hot_reload: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | SetUrl(string)
-    | SetStatus(connection_status);
+    | SetStatus(connection_status)
+    | ToggleHotReload;
 
   let init = (a: Language.Any.t): option(model) =>
     switch (a) {
@@ -170,6 +172,7 @@ module M: Projector = {
       Some({
         url: "",
         status: Disconnected,
+        hot_reload: true,
       })
     | _ => None
     };
@@ -221,9 +224,9 @@ module M: Projector = {
 
   let placeholder = (m, _info) => {
     let url_len = String.length(m.url);
-    /* 19 = placeholder text length; +3 for status indicator + padding */
+    /* 19 = placeholder text length; +3 for status indicator + padding; +5 for toggle */
     let display_len = max(19, url_len);
-    ProjectorCore.Shape.inline(display_len + 3);
+    ProjectorCore.Shape.inline(display_len + 8);
   };
 
   let update = (m: model, _info: info, action: action): model =>
@@ -235,6 +238,10 @@ module M: Projector = {
     | SetStatus(status) => {
         ...m,
         status,
+      }
+    | ToggleHotReload => {
+        ...m,
+        hot_reload: !m.hot_reload,
       }
     };
 
@@ -329,12 +336,13 @@ module M: Projector = {
 
     let on_data = (exp: Language.Exp.t) => {
       let seg = put(info, exp);
-      Bonsai.Effect.Expert.handle(
-        Effect.Many([
-          local(SetStatus(Connected)),
-          parent(SetSyntax(seg)),
-        ]),
-      );
+      let effects =
+        if (model.hot_reload) {
+          [local(SetStatus(Connected)), parent(SetSyntax(seg))];
+        } else {
+          [local(SetStatus(Connected))];
+        };
+      Bonsai.Effect.Expert.handle(Effect.Many(effects));
     };
 
     let on_error = (msg: string) => {
@@ -347,13 +355,50 @@ module M: Projector = {
       Bonsai.Effect.Expert.handle(local(SetStatus(Connecting)));
     };
 
+    let connected = model.status == Connected;
+    let hot_reload_toggle =
+      Node.div(
+        ~attrs=[
+          Attr.classes(
+            ["toggle-switch", "hot-reload-toggle"]
+            @ (model.hot_reload ? ["active"] : [])
+            @ (connected ? [] : ["disabled"]),
+          ),
+          Attr.title(
+            connected
+              ? model.hot_reload
+                  ? "Live (click to pause)" : "Paused (click to resume)"
+              : "Connect to enable",
+          ),
+          Attr.on_pointerdown(evt => {
+            // Sending up Effect.Stop_propagation doesn't work here
+            // for some reason, causing the caret to change position when
+            // the toggle is clicked. Claude figured out calling the methods
+            // on the js event directly does work.
+            Js.Unsafe.meth_call(evt, "stopPropagation", [||]) |> ignore;
+            Js.Unsafe.meth_call(evt, "preventDefault", [||]) |> ignore;
+            if (connected) {
+              local(ToggleHotReload);
+            } else {
+              Effect.Ignore;
+            };
+          }),
+        ],
+        [
+          Node.div(
+            ~attrs=[Attr.classes(["toggle-knob"])],
+            [Node.text({js|🔥|js})],
+          ),
+        ],
+      );
+
     View.mk(
       Node.div(
         ~attrs=[Attr.classes(["wrapper"])],
         [
           Node.div(
             ~attrs=[Attr.classes(["cols", "code"])],
-            [status_indicator, url_input],
+            [status_indicator, url_input, hot_reload_toggle],
           ),
         ],
       ),
