@@ -46,7 +46,7 @@ let livelit_projectors: list(t) =
 
 /* Note: Probe intentionally excluded - probes use separate action path */
 let projectors: list(t) =
-  livelit_projectors @ [Fold, Graph, ObservablePlot, Patchwork];
+  livelit_projectors @ [Fold, Graph, ObservablePlot, Patchwork, Automerge];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
