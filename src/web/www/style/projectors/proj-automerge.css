@@ -66,15 +66,6 @@
   font-size: 0.7em;
 }
 
-/* Reverse toggle direction: knob starts on the right (active/on) and slides left (inactive/off) */
-.projector.Automerge .hot-reload-toggle .toggle-knob {
-  margin: 1px 1px 1px 0.9em;
-}
-.projector.Automerge .hot-reload-toggle.active .toggle-knob {
-  margin-left: 1px;
-  margin-right: 0.9em;
-}
-
 .projector.Automerge .hot-reload-toggle.disabled {
   opacity: 0.35;
   cursor: default;
