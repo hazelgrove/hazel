@@ -151,6 +151,9 @@ let rec elaborate_pattern =
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
       Parens(p') |> rewrap;
+    | Projector(data, p) =>
+      let (p', _) = elaborate_pattern(m, p);
+      Projector(data, p') |> rewrap;
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
@@ -206,6 +209,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       Parens(e') |> rewrap;
+    | Projector(data, e) =>
+      let (e', _) = elaborate(m, e);
+      Projector(data, e') |> rewrap;
     | Deferral(_) => uexp
     | Atom(c) =>
       let c =

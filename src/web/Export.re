@@ -80,3 +80,21 @@ let import_all =
   );
   import_log(all.log);
 };
+
+let import_just_log = (data: string) => {
+  let all =
+    try(data |> Yojson.Safe.from_string |> all_of_yojson) {
+    | _ =>
+      let all_public = data |> Yojson.Safe.from_string |> all_public_of_yojson;
+      {
+        settings: all_public.settings,
+        scratch: all_public.scratch,
+        documentation: "",
+        exercise: all_public.exercise,
+        tutorial: all_public.tutorial,
+        log: all_public.log,
+        explainThisModel: "",
+      };
+    };
+  all.log;
+};

@@ -1,12 +1,7 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
-type kind =
-  | ExoSlider
-  | ExoBuilder
-  | ExoNool
-  | Petrinaut
-  | CatColLab;
+type kind = Language.ProjectorKind.exo;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type size = {

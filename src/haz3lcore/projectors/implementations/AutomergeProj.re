@@ -121,32 +121,6 @@ let ensure_subscribed =
     };
   };
 
-/* --- URL storage in syntax (mirrors TextArea pattern) --- */
-
-let get_url = (info: info): string =>
-  switch (info.syntax |> info.utility.seg_to_term) {
-  | Some(Exp({term: Atom(String(s)), _})) => s
-  | _ => ""
-  };
-
-let put_url = (info, url: string): Base.segment =>
-  switch (
-    info.utility.lift_syntax(
-      fun
-      | Exp(any) =>
-        Exp({
-          ...any,
-          term: Atom(String(url)),
-        })
-      | _ => failwith("AutomergeProj: put_url: not expression"),
-      Inline.Compound,
-      info.syntax,
-    )
-  ) {
-  | Some(s) => s
-  | None => failwith("AutomergeProj: put_url: lift failed")
-  };
-
 /* --- Projector module --- */
 
 module M: Projector = {
@@ -189,7 +163,7 @@ module M: Projector = {
             term: exp.term,
           })
         | _ => failwith("AutomergeProj: put: not expression"),
-        Inline.Compound,
+        Inline.Inline,
         info.syntax,
       )
     ) {

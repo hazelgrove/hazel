@@ -52,7 +52,7 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+      _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
       Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
@@ -85,7 +85,7 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+        _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
@@ -105,7 +105,7 @@ let qcheck_menhir_maketerm_equivalent_test =
       let segment =
         Haz3lcore.ExpToSegment.(
           exp_to_segment(
-            ~settings=Settings.editable(~inline=Single),
+            ~settings=Settings.editable(~inline=Inline),
             core_exp,
           )
         );
@@ -165,9 +165,13 @@ let qcheck_menhir_serialized_equivalent_test =
       let segment =
         Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
-            inline: Single,
+            secondary: AutoFormat,
+            parenthesization: Defensive,
+            label_format: QuoteWhenNecessary,
+            inline: Inline,
             fold_case_clauses: false,
             fold_fn_bodies: `NoFold,
+            show_ascriptions: true,
             hide_fixpoints: false,
             show_filters: true,
             show_unknown_as_hole: true,
@@ -355,9 +359,13 @@ let tests =
           Pat.asc(
             Pat.var("x"),
             Typ.sum([
-              Variant("A", [], None),
-              Variant("B", [], None),
-              Variant("C", [], Some(Typ.int())),
+              Variant("A", ConstructorMap.empty_variant_ann, None),
+              Variant("B", ConstructorMap.empty_variant_ann, None),
+              Variant(
+                "C",
+                ConstructorMap.empty_variant_ann,
+                Some(Typ.int()),
+              ),
             ]),
           ),
           ap(Forward, constructor("C", None), int(7)),

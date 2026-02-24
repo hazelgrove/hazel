@@ -39,6 +39,10 @@ jobs:
           eval $(opam env)
           export OPAMYES=1
           opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+
+      - name: Add the world's hackiest package
+        run: |
+          opam pin add ts2ocaml-jsoo-stdlib https://github.com/ocsigen/ts2ocaml.git\#jsoo-stdlib-v1.4.6
       - name: Install dependencies
         run: |
           eval $(opam env)
@@ -61,6 +65,9 @@ jobs:
           npm ci
           npm run build -- --base=./
         working-directory: ./source/external-apps/value-builder
+      - name: Setup zarith native BigInt runtime
+        run: opam exec -- make setup-zarith
+        working-directory: ./source
       - name: Build Release
         run: |
           export DUNE_CACHE=enabled

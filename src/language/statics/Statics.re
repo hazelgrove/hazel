@@ -112,7 +112,7 @@ and uexp_to_info_map =
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       ~label_sort,
-      {annotation: {ids}, term} as uexp: Exp.t,
+      {annotation: {ids, _}, term} as uexp: Exp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -370,14 +370,13 @@ and uexp_to_info_map =
         m,
       )
     | DynamicErrorHole(e, _)
-    | Parens(e) =>
+    | Parens(e)
+    | Projector(_, e) =>
       let (e, m) = go(~ana, e, m);
       add'(~self=e.self, ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
-        annotation: {
-          ids: IdTagged.ids(e),
-        },
+        annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(e)),
         term:
           switch (e.term) {
           | Var("e") =>
@@ -1866,7 +1865,8 @@ and upat_to_info_map =
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
-    | Parens(p) =>
+    | Parens(p)
+    | Projector(_, p) =>
       let (p, m) = go(~ctx, ~ana, p, m);
       add'(~self=p.self, ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
@@ -1957,7 +1957,8 @@ and utyp_to_info_map =
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
-  | Parens(t) => add(go(t, m) |> snd)
+  | Parens(t)
+  | Projector(_, t) => add(go(t, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
@@ -2153,7 +2154,7 @@ and variant_to_info_map =
   | BadEntry(uty) =>
     let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
     (m, ctrs);
-  | Variant(ctr, ids, param) =>
+  | Variant(ctr, ann, param) =>
     let m =
       go(
         ConstructorExpected(
@@ -2162,9 +2163,7 @@ and variant_to_info_map =
         ),
         {
           term: Var(ctr),
-          annotation: {
-            ids: ids,
-          },
+          annotation: IdTagged.IdTag.mk_internal(ann.ids),
         },
         m,
       )

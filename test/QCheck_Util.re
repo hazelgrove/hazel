@@ -13,7 +13,7 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
     exp
     |> ExpToSegment.exp_to_segment(
          ~settings=
-           ExpToSegment.Settings.of_core(~inline=Single, CoreSettings.off),
+           ExpToSegment.Settings.of_core(~inline=Inline, CoreSettings.off),
          _,
        )
     |> Printer.of_segment(~holes="?", _);
@@ -38,7 +38,7 @@ let arb_typ = (~minimal_idents: bool, size: int) => {
     typ
     |> ExpToSegment.typ_to_segment(
          ~settings=
-           ExpToSegment.Settings.of_core(~inline=Single, CoreSettings.off),
+           ExpToSegment.Settings.of_core(~inline=Inline, CoreSettings.off),
          _,
        )
     |> Printer.of_segment(~holes="?", _);

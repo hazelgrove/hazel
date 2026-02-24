@@ -46,9 +46,9 @@ let work = (req_value: Request.value): Response.value => {
   };
 };
 
-let on_request = (req: Request.t): unit =>
-  req
-  |> List.map(((k, v)) => (k, work(v)))
-  |> Js_of_ocaml.Worker.post_message;
+let on_request = (req: Request.t): unit => {
+  let resp: Response.t = req |> List.map(((k, v)) => (k, work(v)));
+  Js_of_ocaml.Worker.post_message(resp);
+};
 
 let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);

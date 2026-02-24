@@ -49,7 +49,7 @@ let init = (~exp: option(Exp.t)=?, ()) => {
         Editor.Model.mk(
           Zipper.unzip(
             ExpToSegment.exp_to_segment(
-              ~settings=ExpToSegment.Settings.editable(~inline=Single),
+              ~settings=ExpToSegment.Settings.editable(~inline=Inline),
               e,
             ),
           ),
@@ -137,7 +137,7 @@ module F =
             ...model,
             cases: ListUtil.put_nth(i, new_case, model.cases),
           };
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       | AddCase =>
         let new_case = InductionCase.init;
@@ -154,7 +154,7 @@ module F =
             cases: new_cases,
           }
           |> return
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       }
     );

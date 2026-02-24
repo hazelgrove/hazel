@@ -23,7 +23,7 @@ let exp_view = (~available, term: Language.Exp.t) =>
   |> ExpToSegment.exp_to_segment(
        ~settings=
          ExpToSegment.Settings.of_core(
-           ~inline=Single,
+           ~inline=Inline,
            Language.CoreSettings.off,
          ),
      );
@@ -35,7 +35,7 @@ let pat_view = (~available, term: Language.Pat.t) =>
   |> ExpToSegment.any_to_segment(
        ~settings=
          ExpToSegment.Settings.of_core(
-           ~inline=Single,
+           ~inline=Inline,
            Language.CoreSettings.off,
          ),
      );
@@ -306,10 +306,7 @@ type probe_type =
 
 let prep_refractors =
     (~refractors: Zipper.Refractor.t, ~info_map, ~syntax: CachedSyntax.t) => {
-  let manuals =
-    refractors.manuals
-    |> Id.Map.to_list
-    |> List.map(((id, _)) => (id, Manual));
+  let manuals = refractors.manuals |> List.map(((id, _)) => (id, Manual));
   let autos =
     refractors.autos.ids
     |> Id.Map.bindings

@@ -161,6 +161,17 @@ module Store = {
       exercise_export.exercise_data,
     );
   };
+
+  let reset = (~settings, ~instructor_mode) => {
+    let _ = StoreTutorialKey.reset();
+    List.iter(
+      spec => {
+        let _ = init_exercise(~settings, spec, ~instructor_mode);
+        ();
+      },
+      TutorialSettings.lessons,
+    );
+  };
 };
 module Update = {
   open Updated;

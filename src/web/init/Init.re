@@ -7,10 +7,12 @@ let empty_cell_editor_persistent: unit => CellEditor.Model.persistent =
     result: EvalResult.Model.init |> EvalResult.Model.persist,
   };
 
-let startup: PersistentData.t = {
-  scratch: (0, [("Scratchpad 1", empty_cell_editor_persistent())]),
-  documentation: (
-    0,
+/* In Patchwork mode, skip building documentation slides since they aren't
+   accessible (only Scratch mode is synced via Automerge). This saves startup time. */
+let documentation_slides =
+  if (PatchworkComm.is_in_iframe()) {
+    [];
+  } else {
     [
       Exolivelits.out,
       Nool.out,
@@ -34,8 +36,12 @@ let startup: PersistentData.t = {
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )
-       ),
-  ),
+       );
+  };
+
+let startup: PersistentData.t = {
+  scratch: (0, [("Scratchpad 1", empty_cell_editor_persistent())]),
+  documentation: (0, documentation_slides),
 };
 
 let find_documentation_slide = (name: string) => {

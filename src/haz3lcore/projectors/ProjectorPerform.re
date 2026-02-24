@@ -39,14 +39,16 @@ let seg_root_id = (seg: Base.segment): option(Id.t) =>
 
 /* Migrate a refractor from one ID to another (if present) */
 let migrate_refractor = (from_id: Id.t, to_id: Id.t, z: Zipper.t): Zipper.t =>
-  switch (Id.Map.find_opt(from_id, z.refractors.manuals)) {
-  | None => z
-  | Some(entry) =>
-    ZipperBase.update_manuals(
-      map => map |> Id.Map.remove(from_id) |> Id.Map.add(to_id, entry),
-      z,
-    )
-  };
+  ZipperBase.update_manuals(
+    List.map(((id, entry)) =>
+      if (id == from_id) {
+        (to_id, entry);
+      } else {
+        (id, entry);
+      }
+    ),
+    z,
+  );
 
 let replace_selection_and_unselect =
     (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t =>
@@ -77,8 +79,22 @@ let update =
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
 let go =
-    (term_data: TermData.t, a: Action.project, z: Zipper.t)
+    (
+      term_data: TermData.t,
+      a: Action.project,
+      z: Zipper.t,
+      projector_list: list(Id.t),
+      refractor_list: list(Id.t),
+    )
     : result(ZipperBase.t, Action.Failure.t) => {
+  let projector_idx_to_id = (idx: int): Id.t =>
+    List.nth(projector_list, idx);
+  let refractor_idx_to_id = (idx: int): Id.t =>
+    List.nth(refractor_list, idx);
+  let idx_to_id = (kind: ProjectorCore.Kind.t, idx: int): Id.t =>
+    ProjectorCore.Kind.is_refractor(kind)
+      ? refractor_idx_to_id(idx) : projector_idx_to_id(idx);
+
   let select_term =
     Select.current_term(
       term_data,
@@ -168,7 +184,7 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SetSyntax(id, seg) =>
+  | SetSyntax(idx, seg) =>
     Ok(
       update(
         p =>
@@ -176,16 +192,17 @@ let go =
             ...p,
             syntax: Segment.parenthesize(seg),
           },
-        id,
+        projector_idx_to_id(idx),
         z,
       ),
     )
-  | SetModel(id, kind, new_model) =>
+  | SetModel(idx, kind, new_model) =>
+    let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {
         Zipper.update_manuals(
           map =>
-            Id.Map.update(
+            ListUtil.assoc_update(
               id,
               fun
               | Some(entry: Refractors.entry) =>
@@ -211,8 +228,9 @@ let go =
           z,
         );
       },
-    )
-  | Focus(id, kind, d) =>
+    );
+  | Focus(idx, kind, d) =>
+    let id = idx_to_id(kind, idx);
     switch (d) {
     | None =>
       /* Focus by mouse click */
@@ -238,9 +256,9 @@ let go =
       | None => ()
       };
       Ok(z);
-    }
-  | Escape(id, d) =>
-    switch (Move.jump_to_side_of_id(d, z, id)) {
+    };
+  | Escape(idx, d) =>
+    switch (Move.jump_to_side_of_id(d, z, projector_idx_to_id(idx))) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }

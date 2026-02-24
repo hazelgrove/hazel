@@ -79,6 +79,7 @@ let all =
       font_metrics: FontMetrics.t,
       ~visible: option(Globals.VisibleRows.t)=?,
       refractor_data: list(ProjectorView.Model.projector_data),
+      refractor_list: list(Id.t),
     ) => {
   let get_row_range = (d: ProjectorView.Model.projector_data) => (
     d.measurement.origin.row,
@@ -95,6 +96,7 @@ let all =
            font_metrics,
            ~skip_inline=true,
            data,
+           refractor_list,
          )
        )
     |> List.split;

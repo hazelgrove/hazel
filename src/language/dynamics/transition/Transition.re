@@ -953,6 +953,15 @@ module Transition = (EV: EV_MODE) => {
         kind: RemoveParens,
         is_value: false,
       });
+    /* TODO: May want a distinct RemoveProjector step kind later for stepper clarity */
+    | Projector(_, d') =>
+      let. _ = otherwise(env, d);
+      Step({
+        expr: d',
+        side_effects: [],
+        kind: RemoveParens,
+        is_value: false,
+      });
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
       Step({
@@ -997,8 +1006,8 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | UnOp(_)
   | ListCons
   | ListConcat
-  | TupleExtension
-  | CaseApply
+  | TupleExtension => false
+  | CaseApply => !settings.show_case_steps
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
   | RemoveTypeAlias

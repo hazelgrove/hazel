@@ -22,20 +22,19 @@ let label_view = (label: string): Node.t =>
 
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
+  let cls_text =
+    switch (Info.projector_kind_of(ci)) {
+    | Some(kind) => "Projector (" ++ ProjectorKind.show(kind) ++ ")"
+    | None =>
+      switch (cls) {
+      | Typ(EmptyHole)
+      | Exp(EmptyHole)
+      | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
+      | cls => cls |> Cls.show
+      }
+    };
 
-  div(
-    ~attrs=[clss(["syntax-class"])],
-    [
-      text(
-        switch (cls) {
-        | Typ(EmptyHole)
-        | Exp(EmptyHole)
-        | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
-        | cls => cls |> Cls.show
-        },
-      ),
-    ],
-  );
+  div(~attrs=[clss(["syntax-class"])], [text(cls_text)]);
 };
 
 let ctx_toggle = (~globals: Globals.t): Node.t =>
@@ -77,10 +76,14 @@ let elements_noun: Cls.t => string =
     failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
-  inline: Single,
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
+  inline: Inline,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
 };

@@ -147,6 +147,15 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state);
 
+    /* Sync to Patchwork parent if running in iframe */
+    if (PatchworkComm.is_in_iframe()) {
+      SyncReplace.sync_to_parent(
+        ~action=a,
+        ~old_zipper=state.zipper,
+        ~new_zipper=zipper,
+      );
+    };
+
     Model.{
       state: {
         ...state,

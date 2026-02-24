@@ -215,6 +215,50 @@ let selection =
     ),
   );
 
+// Explands selection to make it a subtree of the exp
+let selection_expanded =
+    (
+      ~measured: Measured.t,
+      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~font_metrics: FontMetrics.t,
+      ~term_data: TermData.t,
+      z: Zipper.t,
+    ) =>
+  div_c(
+    "selects",
+    switch (
+      TermData.get_root_id_using_ranges(
+        z.selection.content,
+        term_data,
+        measured,
+      )
+    ) {
+    | None => []
+    | Some(id) =>
+      let seg = TermData.segment(id, term_data);
+      switch (seg) {
+      | None => []
+      | Some(seg) =>
+        of_segment(
+          ~measured,
+          ~shape_map,
+          ~font_metrics,
+          ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+          ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
+          seg,
+        )
+        @ of_segment(
+            ~measured,
+            ~shape_map,
+            ~font_metrics,
+            ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+            ~clss=["selected", Selection.buffer_cls(z.selection)],
+            z.selection.content,
+          )
+      };
+    },
+  );
+
 let indicated_refractor =
     (
       ~measured: Measured.t,

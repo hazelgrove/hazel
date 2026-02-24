@@ -47,6 +47,8 @@ module Update = {
     | Perform(
         Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
         Buffer(_) |
+        SyncReplace(_) |
+        UpdateRemoteCarets |
         Project(_) |
         Probe(_) |
         Dump |

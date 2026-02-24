@@ -242,7 +242,7 @@ module SyntaxTerm = {
   let put = (info, syntax): option(Base.segment) =>
     info.utility.lift_syntax(
       _ => syntax_to_any(syntax),
-      Inline.Compound,
+      Inline.Block,
       info.syntax,
     );
 

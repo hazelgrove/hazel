@@ -32,7 +32,7 @@ let exp_idx = (e1: Exp.t, e2: Exp.t) => {
         (cont, exp) =>
           if (Exp.rep_id(exp) == Exp.rep_id(e1)) {
             raise(Found(exp));
-          } else if (DHExp.fast_equal(exp, e1)) {
+          } else if (Equality.ignoring_ascriptions.exp(exp, e1)) {
             n := n^ + 1;
             exp;
           } else {
@@ -58,7 +58,7 @@ let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
     Exp.map_term(
       ~f_exp=
         (cont, exp) =>
-          if (DHExp.fast_equal(exp, e1)) {
+          if (Equality.ignoring_ascriptions.exp(exp, e1)) {
             if (count^ == n) {
               raise(Found(exp));
             } else {
@@ -134,6 +134,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Var(x) => rewrap(Var(x))
   | Tuple(xs) => rewrap(Tuple(List.map(pat_to_exp, xs)))
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))
+  | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
   | Label(l) => rewrap(Label(l))
@@ -224,7 +225,8 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Wild
     | Invalid(_)
     | MultiHole(_) => Some([])
-    | Parens(dhp) => dhpat_var_entry(dhp, ty)
+    | Parens(dhp)
+    | Projector(_, dhp) => dhpat_var_entry(dhp, ty)
     | Atom(c) =>
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
@@ -257,7 +259,8 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Var(_) => []
   | Tuple(xs) =>
     List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
-  | Parens(e) => get_inductive_hypotheses_inner(m, t, e)
+  | Parens(e)
+  | Projector(_, e) => get_inductive_hypotheses_inner(m, t, e)
   | Ap(e1, e2) =>
     get_inductive_hypotheses_inner(m, t, e1)
     @ get_inductive_hypotheses_inner(m, t, e2)
@@ -346,7 +349,7 @@ let rec replace_exp =
         switch (term) {
         /* Note[Matt]: We are not currently checking alpha-equivalence here because it's unlikely
            to come up, but we could. */
-        | _ when Exp.fast_equal(exp, replace) =>
+        | _ when Equality.ignoring_ascriptions.exp(exp, replace) =>
           with_exp |> Exp.replace_all_ids
         /* Forms with binders: check if any bound variables are in the coctx,
            if so, stop. */
@@ -479,6 +482,7 @@ let rec replace_exp =
         | Filter(_)
         | Closure(_)
         | Parens(_)
+        | Projector(_)
         | Cons(_, _)
         | ListConcat(_, _)
         | UnOp(_, _)
@@ -551,4 +555,17 @@ let goal_of_typ = (ty: Typ.t): Exp.t => {
   | ProofOf(e) => e
   | _ => Exp.fresh(Invalid("Bad_Goal"))
   };
+};
+
+let strip_theorems = (exp: Exp.t): Exp.t => {
+  Exp.map_term(
+    ~f_exp=
+      (cont, exp) => {
+        switch (exp |> Exp.term_of) {
+        | Theorem(_, _, e2) => cont(e2)
+        | _ => cont(exp)
+        }
+      },
+    exp,
+  );
 };

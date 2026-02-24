@@ -66,7 +66,8 @@ let match_pattern =
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2(recur, ps, ds) |> List.fold_left(combine_result, Matches([]));
-  | Parens(p) => recur(p, d)
+  | Parens(p)
+  | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
     recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
   };

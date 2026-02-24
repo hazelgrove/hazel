@@ -63,7 +63,7 @@ let print =
            |> ExpToSegment.exp_to_segment(
                 ~settings=
                   ExpToSegment.Settings.of_core(
-                    ~inline=Single,
+                    ~inline=Inline,
                     Language.CoreSettings.off,
                   ),
               )

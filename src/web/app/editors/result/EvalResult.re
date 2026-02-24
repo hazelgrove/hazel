@@ -132,7 +132,7 @@ module Update = {
         ...model,
         display: Stepper(stepper),
       };
-    | (StepperAction(_), _) => model |> Updated.return_quiet
+    | (StepperAction(_), _) => model |> Updated.raise_invalid_action
     | (
         EvalEditorAction(a),
         {display: Evaluation(Calculated(Some((exp, editor)))), _},
@@ -142,7 +142,7 @@ module Update = {
         ...model,
         display: Evaluation(Calculated(Some((exp, editor)))),
       };
-    | (EvalEditorAction(_), _) => model |> Updated.return_quiet
+    | (EvalEditorAction(_), _) => model |> Updated.raise_invalid_action
     | (TheoremsAction(action), _) =>
       let* theorems =
         Theorems.Update.update(~settings, action, model.theorems);
@@ -584,7 +584,7 @@ module View = {
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(
                  ~settings=
-                   Settings.of_core(~inline=Compound, globals.settings.core),
+                   Settings.of_core(~inline=Block, globals.settings.core),
                )
              )
           |> CodeViewable.view_segment(~globals)

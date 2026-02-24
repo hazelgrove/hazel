@@ -563,3 +563,45 @@ let assoc_opt_by = (eq, key, assoc) => {
     };
   find(assoc);
 };
+
+let assoc_update = (key, f, assoc) => {
+  let rec go = lst =>
+    switch (lst) {
+    | [] =>
+      switch (f(None)) {
+      | Some(v) => [(key, v)]
+      | None => []
+      }
+    | [(k, v), ...rest] =>
+      if (k == key) {
+        switch (f(Some(v))) {
+        | Some(v') => [(k, v'), ...rest]
+        | None => rest
+        };
+      } else {
+        [(k, v), ...go(rest)];
+      }
+    };
+  go(assoc);
+};
+
+let remove_assoc = (key, assoc) =>
+  List.filter(((k, _)) => k != key, assoc);
+
+let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    Some(
+      List.fold_left(
+        (current_max, candidate) =>
+          switch (cmp(current_max, candidate)) {
+          | Left => current_max
+          | Right => candidate
+          },
+        x,
+        xs,
+      ),
+    )
+  };
+};

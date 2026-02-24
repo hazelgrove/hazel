@@ -73,6 +73,15 @@ let probes_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let log_control_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=LogControl,
+    ~cls=["log-control-button"],
+    ~icon=Icons.gear,
+    ~tooltip="Switch to Log Control Panel",
+    ~globals,
+  );
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -93,7 +102,10 @@ let persistent_view = (~globals: Globals.t) =>
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
-        ],
+        ]
+        @ (
+          globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
+        ),
       ),
     ],
   );
@@ -193,6 +205,8 @@ let view =
       ~signal,
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
+      ~log_model: LogSidebar.Model.t,
+      ~log_count: int,
       ~editor,
       info: option(Language.Info.t),
     ) => {
@@ -224,6 +238,12 @@ let view =
                 ~explain_this_inject,
                 ~cursor,
                 ~editor,
+              )
+            | LogControl =>
+              LogSidebar.view(
+                ~globals,
+                ~model=log_model,
+                ~log_entries_count=log_count,
               )
             },
           ],

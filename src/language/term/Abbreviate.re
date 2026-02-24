@@ -925,6 +925,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         MultiHole(List.map(abbreviate_any, things));
       }
     | Filter(_) => indet_term //TODO
+    | Projector(data, e) => Projector(data, abbreviate_exp(e))
     };
   rewrap(term);
 }
@@ -1082,6 +1083,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         available := available^ - 3; // "()"
         Parens(abbreviate_pat(p));
       }
+    | Projector(data, p) => Projector(data, abbreviate_pat(p))
     };
   rewrap(term);
 }
@@ -1275,6 +1277,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         ~make_term=e' => ProofOf(e'),
         e,
       )
+    | Projector(data, t) => Projector(data, abbreviate_typ(t))
     };
   rewrap(term);
 }

@@ -32,7 +32,7 @@ let update_manuals = (f, z: t): t => {
 };
 
 let add_manual = (id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
-  update_manuals(Id.Map.add(id, Refractors.mk_entry(kind)), z);
+  update_manuals(x => [(id, Refractors.mk_entry(kind)), ...x], z);
 
 let update_ephemerals = (f, z: t): t => {
   ...z,

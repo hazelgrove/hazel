@@ -815,7 +815,11 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
     | NoType(FreeConstructor(c)) =>
       typ_or_ana(
         Sum([
-          ConstructorMap.Variant(c, [Id.invalid], None),
+          ConstructorMap.Variant(
+            c,
+            ConstructorMap.mk_variant_ann(~ids=[Id.invalid], ()),
+            None,
+          ),
           ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
         ])
         |> Typ.temp,
@@ -1083,4 +1087,13 @@ let is_label = (info: t): bool =>
   | InfoPat({label_sort: true, _})
   | InfoExp({label_sort: true, _}) => true
   | _ => false
+  };
+
+/* Extract the projector kind from an info, if it represents a projector term */
+let projector_kind_of = (info: t): option(ProjectorKind.t) =>
+  switch (info) {
+  | InfoExp({term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
+  | InfoPat({term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
+  | InfoTyp({term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
+  | _ => None
   };

@@ -83,14 +83,28 @@ module Update = {
              | Dump => true
              | Project(_)
              | Unselect(_)
+             | SyncReplace(_)
+             | UpdateRemoteCarets => false
              | Probe(_) => false
              };
            },
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
-        ? Animation.request([Animation.Actions.move("caret")]) : ();
+      if (settings.core.flip_animations) {
+        switch (action) {
+        | UpdateRemoteCarets =>
+          let remote_transitions =
+            PatchworkComm.get_remote_carets()
+            |> List.map(((user_id, _)) =>
+                 Animation.Actions.move("remote-caret-" ++ user_id)
+               );
+          Animation.request(remote_transitions);
+        | _ when Action.should_animate(action) =>
+          Animation.request([Animation.Actions.move("caret")])
+        | _ => ()
+        };
+      };
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
@@ -177,7 +191,13 @@ module Selection = {
       Some(Update.Perform(action))
     | ContextMenu.WithContext.Unhandled =>
       /* Fall through to projector key handoff, then base handler */
-      switch (ProjectorView.key_handoff(model.editor, key)) {
+      switch (
+        ProjectorView.key_handoff(
+          model.editor,
+          key,
+          model.editor.syntax.projector_list,
+        )
+      ) {
       | Some(action) => Some(Update.Perform(Project(action)))
       | None => handle_key_event(~selection, model, key)
       }
@@ -221,31 +241,48 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
-  let deco = (~syntax: CachedSyntax.t, ~z: Zipper.t, ~globals: Globals.t) => [
-    CaretDec.view(
-      ~measured=syntax.measured,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
-    Highlight.selection(
-      ~measured=syntax.measured,
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Backpack.view(
-      ~font_metrics=globals.font_metrics,
-      ~measured=syntax.measured,
-      ~cached_backpack=syntax.cached_backpack,
-      z,
-    ),
-    Highlight.colors(
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      globals.color_highlights,
-    ),
-  ];
+  let deco =
+      (
+        ~expand_selection=false,
+        ~syntax: CachedSyntax.t,
+        ~globals: Globals.t,
+        z: Zipper.t,
+      ) =>
+    [
+      CaretDec.view(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+    ]
+    @ RemoteCaretDec.view_all(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+      )
+    @ [
+      Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
+      (
+        expand_selection
+          ? Highlight.selection_expanded(~term_data=syntax.term_data)
+          : Highlight.selection
+      )(
+        ~measured=syntax.measured,
+        ~shape_map=syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Backpack.view(
+        ~font_metrics=globals.font_metrics,
+        ~measured=syntax.measured,
+        ~cached_backpack=syntax.cached_backpack,
+        z,
+      ),
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        globals.color_highlights,
+      ),
+    ];
 
   let view =
       (
@@ -254,7 +291,9 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
+        ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
+        ~expand_selection=?,
         model: Model.t,
       ) => {
     /* Sync document-level click listener for closing context menu */
@@ -265,9 +304,10 @@ module View = {
     let edit_decos =
       selected
         ? deco(
-            ~z=model.editor.state.zipper,
+            ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~globals,
+            model.editor.state.zipper,
           )
           @ [
             Arms.Refractors.all(
@@ -310,7 +350,7 @@ module View = {
         ~refractors=
           Id.Map.union(
             (_, _, b) => Some(b),
-            zipper.refractors.manuals,
+            zipper.refractors.manuals |> Id.Map.of_list,
             zipper.refractors.autos.ephemerals,
           ),
         ~syntax=model.editor.syntax,
@@ -328,6 +368,8 @@ module View = {
         globals.font_metrics,
         ~visible?,
         refractor_data,
+        List.map(fst, zipper.refractors.manuals)
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.autos.ephemerals)),
       );
     let projectors =
       ProjectorView.all(
@@ -343,6 +385,7 @@ module View = {
           ~sample_cursor=zipper.refractors.sample_cursor,
           ~editor_active=selected,
         ),
+        model.editor.syntax.projector_list,
       );
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
@@ -417,10 +460,14 @@ module View = {
       };
     };
 
+    let display_line_numbers: bool = lines && globals.settings.line_numbers;
+
     Node.div(
       ~attrs=[
         Attr.classes(
-          ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
+          ["cell-item", "code-editor"]
+          @ (selected ? ["selected"] : [])
+          @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
@@ -438,7 +485,14 @@ module View = {
         Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
         Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
-      [code_view],
+      display_line_numbers
+        ? LineNumbers.View.view(
+            model,
+            globals.settings.relative_line_numbers,
+            selected,
+          )
+          @ [code_view]
+        : [code_view],
     );
   };
 };

@@ -31,7 +31,7 @@ let dot_exp: form = {
     syntactic_form:
       ExpToSegment.(
         exp_to_segment(
-          ~settings=Settings.of_core(~inline=Single, CoreSettings.on),
+          ~settings=Settings.of_core(~inline=Inline, CoreSettings.on),
           syntactic_form,
         )
       ),

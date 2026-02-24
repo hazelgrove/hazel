@@ -2,7 +2,7 @@
 
 (library
  (name haz3lcore)
- (libraries language)
+ (libraries language ts2ocaml-jsoo-stdlib)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))
@@ -14,6 +14,7 @@
    ppx_sexp_conv
    ppx_enumerate
    ppx_deriving.show
+   ppx_deriving.ord
    ppx_deriving.eq)))
 
 (env

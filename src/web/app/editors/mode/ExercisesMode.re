@@ -271,6 +271,17 @@ module Store = {
       exercise_export.exercise_data,
     );
   };
+
+  let reset = (~settings, ~instructor_mode) => {
+    let _ = StoreExerciseKey.reset();
+    List.iter(
+      spec => {
+        let _ = init_exercise(~settings, spec, ~instructor_mode);
+        ();
+      },
+      ExerciseSettings.exercises,
+    );
+  };
 };
 
 module Update = {
@@ -347,7 +358,7 @@ module Update = {
         current: model.current,
         exercises: new_exercises,
       };
-    | (_, Exercise(_)) => model |> return_quiet
+    | (_, Exercise(_)) => model |> raise_invalid_action
     | (Theorem(ex), TheoremExercise(action)) =>
       let* new_current =
         TheoremExerciseMode.Update.update(
@@ -365,7 +376,7 @@ module Update = {
         current: model.current,
         exercises: new_exercises,
       };
-    | (_, TheoremExercise(_)) => model |> return_quiet
+    | (_, TheoremExercise(_)) => model |> raise_invalid_action
     | (_, SwitchExercise(n)) =>
       Model.{
         current: n,
@@ -568,6 +579,18 @@ module View = {
         },
         ~tooltip="Import Submission",
       );
+    let import_logs =
+      Widgets.file_select_button_named(
+        "import-logs",
+        Icons.import,
+        file => {
+          switch (file) {
+          | None => Virtual_dom.Vdom.Effect.Ignore
+          | Some(file) => globals.inject_global(Log(InitImport(file)))
+          }
+        },
+        ~tooltip="Import Logs",
+      );
 
     let reset_hazel =
       button_named(
@@ -597,7 +620,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "File",
-        [export_submission, import_submission],
+        [export_submission, import_submission, import_logs],
       );
 
     let reset_group_exercises = () =>
