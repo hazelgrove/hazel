@@ -1,5 +1,7 @@
 open Util;
 
+let max_undo_stack_size = 50;
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = Page.Model.t;
@@ -97,13 +99,17 @@ module Update = {
           ...current,
           model: {
             current: current.model,
-            undo_stack: [
-              {
-                ...current,
-                model: model.current,
-              },
-              ...model.undo_stack,
-            ],
+            undo_stack:
+              List.filteri(
+                (i, _) => i < max_undo_stack_size,
+                [
+                  {
+                    ...current,
+                    model: model.current,
+                  },
+                  ...model.undo_stack,
+                ],
+              ),
             redo_stack: [],
           },
         };
