@@ -146,6 +146,123 @@ let get_definition_target =
 let stack_icon = () =>
   span(~attrs=[Attr.class_("stack-icon")], [text({js|≡|js})]);
 
+/* Windowed breadcrumb display: when the call stack has more entries than
+ * fit in the available space, we show entry 0 (outermost call), a sliding
+ * window around the focused entry, and ellipsis markers for collapsed ranges.
+ *
+ * The window slides as the user navigates with arrow keys or clicks. */
+type visible_item =
+  | Entry(int)
+  | Ellipsis;
+
+/* Resolve the display name for a call stack frame */
+let resolve_display_name =
+    (~info_map: Statics.Map.t, frame: Sample.stack_frame): string =>
+  switch (frame.name) {
+  | Some(name) => name
+  | None =>
+    let (name_opt, _) = get_fn_info(~info_map, frame.id);
+    switch (name_opt) {
+    | Some(name) => name
+    | None => {js|λ|js}
+    };
+  };
+
+/* Character cost of a separator (❯ + surrounding gaps) */
+let separator_chars = 3;
+
+/* Total character cost of a visible item set */
+let visible_char_cost =
+    (items: list(visible_item), names: array(string)): int =>
+  List.fold_left(
+    (acc, item) =>
+      acc
+      + (
+        switch (item) {
+        | Entry(i) => separator_chars + Unicode.length(names[i])
+        | Ellipsis => separator_chars + 1 /* ❯ + ⋯ */
+        }
+      ),
+    0,
+    items,
+  );
+
+/* Fixed character overhead for non-entry elements in the bar:
+ * top-level icon (2) + body icon (3) + clear-all button (~12) + padding (3) */
+let bar_overhead_chars = 20;
+
+let compute_visible = (~n: int, ~focus: int, ~cap: int): list(visible_item) =>
+  if (n == 0) {
+    [];
+  } else if (n <= cap) {
+    List.init(n, i => Entry(i));
+  } else if (cap <= 0) {
+    [];
+  } else if (cap == 1) {
+    [Entry(0)];
+  } else if (cap == 2) {
+    [Entry(0), Ellipsis];
+  } else {
+    /* cap >= 3, n > cap */
+    let effective_focus = max(focus, 0);
+    if (effective_focus <= cap - 2) {
+      /* Case A: Focus near start — right ellipsis only */
+      List.init(cap - 1, i => Entry(i)) @ [Ellipsis];
+    } else if (effective_focus >= n - (cap - 2)) {
+      /* Case B: Focus near end — entry 0, left ellipsis, tail */
+      let window_start = n - (cap - 2);
+      [Entry(0), Ellipsis]
+      @ List.init(cap - 2, i => Entry(window_start + i));
+    } else if (cap == 3) {
+      [
+        /* Case C special: cap=3 middle — can only show entry 0 + focus */
+        Entry(0),
+        Ellipsis,
+        Entry(effective_focus),
+      ];
+    } else {
+      /* Case C general: both ellipses, window centered on focus */
+      let window_size = cap - 3;
+      let half_left = (window_size - 1) / 2;
+      let window_start = effective_focus - half_left;
+      let window_end = window_start + window_size - 1;
+      /* Safety clamps */
+      let (window_start, window_end) =
+        if (window_start <= 1) {
+          (2, 1 + window_size);
+        } else if (window_end >= n - 1) {
+          (n - 1 - window_size, n - 2);
+        } else {
+          (window_start, window_end);
+        };
+      [Entry(0), Ellipsis]
+      @ List.init(window_end - window_start + 1, i =>
+          Entry(window_start + i)
+        )
+      @ [Ellipsis];
+    };
+  };
+
+/* Find the largest cap where the selected entries fit within the budget.
+ * Searches from n down to 3 — since higher cap always means more characters,
+ * the first cap that fits is optimal. */
+let compute_dynamic_cap =
+    (~names: array(string), ~focus: int, ~budget: int): int => {
+  let n = Array.length(names);
+  let rec find = (cap: int): int =>
+    if (cap <= 2) {
+      max(1, min(3, n));
+    } else {
+      let items = compute_visible(~n, ~focus, ~cap);
+      if (visible_char_cost(items, names) <= budget) {
+        cap;
+      } else {
+        find(cap - 1);
+      };
+    };
+  find(n);
+};
+
 /* Keyboard handler for navigation */
 let key_handler =
     (
@@ -223,127 +340,142 @@ let view =
         [text({js|○|js})],
       );
 
-    /* Build breadcrumb entries with separators */
+    /* Pre-compute display names for width calculation and rendering */
+    let names =
+      Array.of_list(List.map(resolve_display_name(~info_map), call_stack));
+
+    /* Compute dynamic capacity based on actual bar width and entry names */
+    let bar_width_px =
+      try(
+        Js_of_ocaml.Dom_html.getElementById("closure-cursor-bar")##.clientWidth
+      ) {
+      | _ => 600
+      };
+    let available_chars =
+      int_of_float(
+        float_of_int(bar_width_px) /. globals.font_metrics.col_width,
+      );
+    let budget = available_chars - bar_overhead_chars;
+
+    /* Build a single breadcrumb entry (separator + entry node) for stack index i */
+    let build_single_entry = (i: int): list(Node.t) => {
+      let frame: Sample.stack_frame = List.nth(call_stack, i);
+      let app_id = frame.id;
+      let display_text = names[i];
+      let is_unknown =
+        switch (frame.name) {
+        | Some(_) => false
+        | None =>
+          let (name_opt, _) = get_fn_info(~info_map, app_id);
+          Option.is_none(name_opt);
+        };
+      let is_focused = i == index;
+      let is_ghost = i > index;
+      let position_class = i < index ? "above" : i > index ? "below" : "";
+
+      let call_site_target =
+        is_in_user_code(~info_map, app_id)
+          ? Some(app_id)
+          : find_nearest_user_app(~info_map, ~call_stack, ~from_index=i - 1);
+
+      let entry_classes =
+        ["breadcrumb-entry"]
+        @ (is_focused ? ["focused"] : [])
+        @ (is_ghost ? ["ghost"] : [])
+        @ (is_unknown ? ["unknown"] : [])
+        @ (position_class != "" ? [position_class] : []);
+
+      let on_entry_click = evt =>
+        switch (call_site_target) {
+        | Some(target_id) =>
+          Effect.Many([
+            set_cursor_index(~globals, i, evt),
+            jump_to(~globals, target_id, evt),
+          ])
+        | None => set_cursor_index(~globals, i, evt)
+        };
+
+      let is_pinned = Some(app_id) == pinned_head_id;
+      let pin_icon =
+        switch (is_pinned, pinned_stack) {
+        | (true, Some(ps)) => [
+            span(
+              ~attrs=[
+                Attr.class_("pin-icon"),
+                Attr.title("Click to unpin"),
+                Attr.on_pointerdown(evt =>
+                  Effect.Many([
+                    Effect.Stop_propagation,
+                    unpin(~globals, ps, evt),
+                  ])
+                ),
+              ],
+              [],
+            ),
+          ]
+        | _ => []
+        };
+
+      let entry_tooltip =
+        if (is_in_user_code(~info_map, app_id)) {
+          "Jump to call site";
+        } else {
+          switch (call_site_target) {
+          | Some(_) => {js|Internal call — jump to enclosing call site|js}
+          | None => "Internal call"
+          };
+        };
+
+      let entry =
+        div(
+          ~attrs=[
+            Attr.classes(entry_classes),
+            Attr.title(entry_tooltip),
+            Attr.on_pointerdown(on_entry_click),
+          ],
+          pin_icon @ [text(display_text)],
+        );
+
+      let sep_classes =
+        ["breadcrumb-separator"]
+        @ (is_ghost ? ["ghost"] : [])
+        @ (position_class != "" ? [position_class] : []);
+      let sep =
+        span(~attrs=[Attr.classes(sep_classes)], [text({js|❯|js})]);
+
+      [sep, entry];
+    };
+
+    /* Ellipsis node for collapsed breadcrumb ranges */
+    let ellipsis_node = [
+      span(
+        ~attrs=[Attr.classes(["breadcrumb-separator"])],
+        [text({js|❯|js})],
+      ),
+      span(
+        ~attrs=[Attr.classes(["breadcrumb-ellipsis"])],
+        [text({js|⋯|js})],
+      ),
+    ];
+
+    /* Build breadcrumb entries, windowed if the stack is too long */
     let entries =
       if (List.is_empty(call_stack)) {
         [top_level_entry];
       } else {
-        /* Build entries with index */
-        let rec build_entries = (i, remaining) =>
-          switch (remaining) {
-          | [] => []
-          | [{Sample.id: app_id, name: stack_name, fn_def_id: _}, ...rest] =>
-            let is_focused = i == index;
-            let is_ghost = i > index;
-            /* Position class for color coding */
-            let position_class =
-              i < index ? "above" : i > index ? "below" : "";
-
-            /* Call-site target: jump to where this function was called.
-             * If app_id is in user code, use it directly. Otherwise
-             * fall back to nearest user-visible call site. */
-            let call_site_target =
-              is_in_user_code(~info_map, app_id)
-                ? Some(app_id)
-                : find_nearest_user_app(
-                    ~info_map,
-                    ~call_stack,
-                    ~from_index=i - 1,
-                  );
-            let display_name =
-              switch (stack_name) {
-              | Some(name) => Some(name)
-              | None =>
-                let (name_opt, _) = get_fn_info(~info_map, app_id);
-                name_opt;
-              };
-            let is_unknown = Option.is_none(display_name);
-            let display_text =
-              is_unknown ? {js|λ|js} : Option.get(display_name);
-
-            /* Check if this entry is indicated (syntax cursor on the app) */
-            //let is_indicated = Some(app_id) == indicated_id;
-
-            /* Entry classes */
-            let entry_classes =
-              ["breadcrumb-entry"]
-              @ (is_focused ? ["focused"] : [])
-              @ (is_ghost ? ["ghost"] : [])
-              @ (is_unknown ? ["unknown"] : [])
-              //@ (is_indicated ? ["indicated"] : [])
-              @ (position_class != "" ? [position_class] : []);
-
-            /* Entry click handler.
-             * Always set cursor index to i. Jump to call site if available. */
-            let on_entry_click = evt =>
-              switch (call_site_target) {
-              | Some(target_id) =>
-                Effect.Many([
-                  set_cursor_index(~globals, i, evt),
-                  jump_to(~globals, target_id, evt),
-                ])
-              | None => set_cursor_index(~globals, i, evt)
-              };
-
-            /* Check if this entry is pinned */
-            let is_pinned = Some(app_id) == pinned_head_id;
-
-            /* Pin icon (shown if this entry is pinned, clicking removes pin) */
-            let pin_icon =
-              switch (is_pinned, pinned_stack) {
-              | (true, Some(ps)) => [
-                  span(
-                    ~attrs=[
-                      Attr.class_("pin-icon"),
-                      Attr.title("Click to unpin"),
-                      Attr.on_pointerdown(evt =>
-                        Effect.Many([
-                          Effect.Stop_propagation,
-                          unpin(~globals, ps, evt),
-                        ])
-                      ),
-                    ],
-                    [],
-                  ),
-                ]
-              | _ => []
-              };
-
-            let entry_tooltip =
-              if (is_in_user_code(~info_map, app_id)) {
-                "Jump to call site";
-              } else {
-                switch (call_site_target) {
-                | Some(_) => {js|Internal call — jump to enclosing call site|js}
-                | None => "Internal call"
-                };
-              };
-
-            let entry =
-              div(
-                ~attrs=[
-                  Attr.classes(entry_classes),
-                  Attr.title(entry_tooltip),
-                  Attr.on_pointerdown(on_entry_click),
-                ],
-                pin_icon @ [text(display_text)],
-              );
-
-            /* Separator (decorative) */
-            let sep_classes =
-              ["breadcrumb-separator"]
-              @ (is_ghost ? ["ghost"] : [])
-              @ (position_class != "" ? [position_class] : []);
-            let sep =
-              span(
-                ~attrs=[Attr.classes(sep_classes)],
-                [text({js|❯|js})],
-              );
-
-            [sep, entry, ...build_entries(i + 1, rest)];
-          };
-
-        [top_level_entry, ...build_entries(0, call_stack)];
+        let n = List.length(call_stack);
+        let cap = compute_dynamic_cap(~names, ~focus=index, ~budget);
+        let visible = compute_visible(~n, ~focus=index, ~cap);
+        let entry_nodes =
+          List.concat_map(
+            item =>
+              switch (item) {
+              | Entry(i) => build_single_entry(i)
+              | Ellipsis => ellipsis_node
+              },
+            visible,
+          );
+        [top_level_entry, ...entry_nodes];
       };
 
     let max_index = List.length(call_stack) - 1;

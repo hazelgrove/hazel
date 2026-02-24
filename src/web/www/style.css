@@ -163,6 +163,8 @@ select {
   display: flex;
   align-items: center;
   gap: 0.25em;
+  overflow: hidden;
+  min-width: 0;
 }
 
 #closure-cursor-bar .breadcrumb-entry {
@@ -306,8 +308,16 @@ select {
   background-color: white;
 }
 
+#closure-cursor-bar .breadcrumb-ellipsis {
+  color: var(--BR2);
+  font-size: 0.85em;
+  cursor: default;
+  padding: 0 0.2em;
+}
+
 #closure-cursor-bar .clear-all {
   margin-left: auto;
+  flex-shrink: 0;
   color: var(--BR4);
   font-family: var(--ui-font);
   font-size: 0.75em;
