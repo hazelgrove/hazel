@@ -339,6 +339,9 @@ let tests = (
         ),
       )
     }),
+    test_case("Cons followed by negation", `Quick, () =>
+      equivalent_to_make_term({|"":: - a|})
+    ),
     test_case("Function call", `Quick, () => {
       equivalent_to_make_term("a(1, 2)")
     }),
