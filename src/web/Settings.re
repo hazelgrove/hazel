@@ -28,7 +28,7 @@ module Model = {
       dynamics: true,
       probe_all: false,
       flip_animations: true,
-      display_warnings: false,
+      display_warnings: true,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
