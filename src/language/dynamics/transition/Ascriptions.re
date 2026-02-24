@@ -218,13 +218,33 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         |> DHExp.fresh,
       )
     | (Let(p, e1, e2), _) =>
-      Some(Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
     | (Seq(e1, e2), _) =>
-      Some(Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
-    | (Parens(e), _) =>
-      Some(Parens(Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
-    | (Projector(data, e), _) =>
-      Some(Projector(data, Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
+    | (Parens(pe), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Parens(Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
+    | (Projector(data, pe), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Projector(data, Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
     // We _could_ do this, but it would be a bit weird
     | (Use(_), _) // I'm scaredto do Use because the type-directed literals might make this look weird in the stepper
     | (BuiltinFun(_), _)

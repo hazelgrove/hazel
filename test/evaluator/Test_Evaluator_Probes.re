@@ -799,6 +799,22 @@ in f(1)|},
     {|^^probe(1; 2) : Int|},
     [(0, ["2"])],
   ),
+  /* Ascription distribution through typed function must preserve probe
+   * Projector ID. Without fast_copy, the Projector case in
+   * Ascriptions.transition gives the probe wrapper a fresh ID,
+   * losing the probe target and producing zero samples. */
+  probe_line_test(
+    "Probe on let in typed function body",
+    {|let f: ? -> Bool = fun _ -> ^^probe(let _ = 1 in true)
+in f(4)|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe on seq in typed function body",
+    {|let f: ? -> Int = fun _ -> ^^probe(1; 2)
+in f(4)|},
+    [(0, ["2"])],
+  ),
 ];
 
 /* Tests that probe samples are not duplicated when values flow through
