@@ -46,8 +46,9 @@ test make_label(daisy, 7) == "🌼 Daisy: 1120ml/7d" end;
 # 2. Click inside `make_label` above to see all its samples #
 # 3. There are 10 calls, so each expression has 10 values. #
 #    Try Many mode (double-click a sample) to see the chaos! #
-# 4. Now add a probe to the failing test below and click #
-#    its sample. Select "Pin this call" (or press P). #
+# 4. Now add a probe to relevant call within the failing test #
+#    (put your caret on the `(` after `make_label` and right-click) #
+#    and then click its sample and select "Pin this call". #
 # 5. Go back to `make_label`. Only the pinned call's #
 #    values remain. Can you spot the 🐛? #
 

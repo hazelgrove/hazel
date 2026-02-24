@@ -296,6 +296,19 @@
   scale: 0.6;
 }
 
+.live-offside .pin-enclosing {
+  pointer-events: auto;
+  position: absolute;
+  left: -0.43em;
+  top: -0.15em;
+  height: 0.7em;
+  width: 0.7em;
+  border-radius: 1em;
+  background: var(--R1);
+  transform-origin: top right;
+  scale: 0.6;
+}
+
 /* OFFSIDE VIEW */
 
 .projector.probe div:has(.live-offside) {
@@ -486,7 +499,7 @@
   border-top: 1px solid var(--pat-shadow);
   border-radius: 0.05em 0.2em 0.05em 0.2em;
   border: none;
-  overflow: hidden;
+  /* overflow: hidden; */
 }
 .live-offside.Many
   .sample:has(.value.cursor-unrelated:not(.above):not(.below)) {
