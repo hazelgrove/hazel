@@ -724,6 +724,17 @@ let go =
     | Some(z) => z
     | None => z
     }
+  | Pin(call_stack, ap_id) =>
+    /* Promote auto probe to manual so it persists across cursor movement,
+       then toggle the pin on this call stack */
+    let z =
+      switch (probe_status(ap_id, info_map, z.refractors)) {
+      | Manual(_)
+      | Statics(_) => z
+      | Auto
+      | Non => Zipper.add_manual(ap_id, Probe, z)
+      };
+    SampleCursorPerform.toggle_pin_call(z, call_stack);
   | RemoveAll =>
     z
     |> Zipper.update_manuals(_ => [])

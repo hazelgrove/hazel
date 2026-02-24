@@ -339,18 +339,15 @@ module Debug = {
 let pin_call = (ctx: probe_ctx) =>
   switch (ctx.ap_id, Dynamics.Info.is_in(ctx.dynamics)) {
   | (Some(ap_id), Some(sample)) =>
-    ctx.parent(
-      SampleCursor(
-        TogglePin([
-          {
-            id: ap_id,
-            name: None,
-            fn_def_id: None,
-          },
-          ...sample.call_stack,
-        ]),
-      ),
-    )
+    let call_stack = [
+      {
+        Sample.id: ap_id,
+        name: None,
+        fn_def_id: None,
+      },
+      ...sample.call_stack,
+    ];
+    ctx.parent(Probe(Pin(call_stack, ap_id)));
   | _ => Effect.Ignore
   };
 

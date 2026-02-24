@@ -90,6 +90,7 @@ type probe =
   | ToggleAuto
   | ToggleStatics
   | StepInto(Language.Sample.call_stack, Id.t)
+  | Pin(Language.Sample.call_stack, Id.t)
   | RemoveAll;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
