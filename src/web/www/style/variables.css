@@ -234,5 +234,5 @@
   --df-bg: var(--SAND);
   --table-header-bg: var(--shard-caret-exp);
   --df-zebra-bg: var(--T2);
-  --df-hover-bg: oklch(90% 0.1 250); /* gentle blue highlight */
+  --df-hover-bg: hsl(120, 40%, 85%);
 }
