@@ -151,23 +151,21 @@ let put_url = (info, url: string): Base.segment =>
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type connection_status =
-    | Disconnected
-    | Connecting
-    | Connected
-    | Error(string);
+  type last_load =
+    | Succeeded
+    | Failed;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = {
     url: string,
-    status: connection_status,
+    last_load: option(last_load),
     hot_reload: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | SetUrl(string)
-    | SetStatus(connection_status)
+    | SetLastLoad(last_load)
     | ToggleHotReload;
 
   let init = (a: Language.Any.t): option(model) =>
@@ -175,7 +173,7 @@ module M: Projector = {
     | Exp({term: Constructor("Null", _), _}) =>
       Some({
         url: "",
-        status: Disconnected,
+        last_load: None,
         hot_reload: true,
       })
     | _ => None
@@ -244,10 +242,11 @@ module M: Projector = {
     | SetUrl(url) => {
         ...m,
         url,
+        last_load: String.length(url) == 0 ? None : m.last_load,
       }
-    | SetStatus(status) => {
+    | SetLastLoad(ll) => {
         ...m,
-        status,
+        last_load: Some(ll),
       }
     | ToggleHotReload => {
         ...m,
@@ -259,11 +258,10 @@ module M: Projector = {
       ({model, info, local, parent, _}: View.args(model, action)): View.t => {
     let status_indicator = {
       let (color, title) =
-        switch (model.status) {
-        | Disconnected => ("#999", "Disconnected")
-        | Connecting => ("#fa0", "Connecting...")
-        | Connected => ("#0c0", "Connected")
-        | Error(msg) => ("#f00", "Error: " ++ msg)
+        switch (model.last_load) {
+        | None => ("#999", "No data loaded")
+        | Some(Succeeded) => ("#0c0", "Last load succeeded")
+        | Some(Failed) => ("#f00", "Last load failed")
         };
       Node.span(
         ~attrs=[
@@ -348,24 +346,20 @@ module M: Projector = {
       let seg = put(info, exp);
       let effects =
         if (model.hot_reload) {
-          [local(SetStatus(Connected)), parent(SetSyntax(seg))];
+          [local(SetLastLoad(Succeeded)), parent(SetSyntax(seg))];
         } else {
-          [local(SetStatus(Connected))];
+          [local(SetLastLoad(Succeeded))];
         };
       Bonsai.Effect.Expert.handle(Effect.Many(effects));
     };
 
-    let on_error = (msg: string) => {
-      Bonsai.Effect.Expert.handle(local(SetStatus(Error(msg))));
+    let on_error = (_msg: string) => {
+      Bonsai.Effect.Expert.handle(local(SetLastLoad(Failed)));
     };
 
     ensure_subscribed(info.id, model.url, on_data, on_error);
 
-    if (String.length(model.url) > 0 && model.status == Disconnected) {
-      Bonsai.Effect.Expert.handle(local(SetStatus(Connecting)));
-    };
-
-    let connected = model.status == Connected;
+    let connected = model.last_load == Some(Succeeded);
     let hot_reload_toggle =
       Node.div(
         ~attrs=[
@@ -403,7 +397,7 @@ module M: Projector = {
       );
 
     let reload_btn =
-      if (!model.hot_reload && model.status == Connected) {
+      if (!model.hot_reload && model.last_load == Some(Succeeded)) {
         Node.div(
           ~attrs=[
             Attr.class_("manual-reload-btn"),
