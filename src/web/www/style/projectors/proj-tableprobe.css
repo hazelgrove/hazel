@@ -101,6 +101,24 @@
 
 
 
+/* Modal backdrop for rich probe table */
+.modal-backdrop.live-offside {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--modal-z);
+  margin-top: 5px;
+}
+
+.modal-backdrop.live-offside .modal {
+  background-color: var(--df-bg);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  overflow: visible;
+  pointer-events: auto;
+}
+
 .modal .table th {
     padding-left: 15px;
     padding-right: 15px;
@@ -108,4 +126,23 @@
 
 .modal .table {
     width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    border-radius: 8px;
+}
+
+.modal .table th:first-child {
+    border-top-left-radius: 8px;
+}
+
+.modal .table th:last-child {
+    border-top-right-radius: 8px;
+}
+
+.modal .table tr:last-child td:first-child {
+    border-bottom-left-radius: 8px;
+}
+
+.modal .table tr:last-child td:last-child {
+    border-bottom-right-radius: 8px;
 }
