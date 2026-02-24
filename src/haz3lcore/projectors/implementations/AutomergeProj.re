@@ -226,15 +226,10 @@ module M: Projector = {
 
   let placeholder = (m, _info) => {
     let url_len = String.length(m.url);
-    /* 19 = placeholder text length; +3 for status indicator + padding; +5 for toggle */
+    /* 19 = placeholder text length; +1 focus dot; +2 status indicator;
+       +2 reload btn; +5 toggle + margins */
     let display_len = max(19, url_len);
-    let extra =
-      if (!m.hot_reload) {
-        2;
-      } else {
-        0;
-      };
-    ProjectorCore.Shape.inline(display_len + 8 + extra);
+    ProjectorCore.Shape.inline(display_len + 10);
   };
 
   let update = (m: model, _info: info, action: action): model =>
@@ -396,36 +391,38 @@ module M: Projector = {
         ],
       );
 
+    let disabled = model.hot_reload || !connected;
     let reload_btn =
       Node.div(
         ~attrs=[
-          Attr.class_("manual-reload-btn"),
-          Attr.title("Reload document"),
+          Attr.classes(
+            ["manual-reload-btn"] @ (disabled ? ["disabled"] : []),
+          ),
+          Attr.title(
+            disabled ? "Disable hot reload to use" : "Reload document",
+          ),
           Attr.on_pointerdown(evt => {
             Js.Unsafe.meth_call(evt, "stopPropagation", [||]) |> ignore;
             Js.Unsafe.meth_call(evt, "preventDefault", [||]) |> ignore;
-            switch (Id.Map.find_opt(info.id, subscriptions^)) {
-            | Some({handle: Some(h), _}) =>
-              switch (Automerge.doc_to_exp(h)) {
-              | Ok(exp) =>
-                let seg = put(info, exp);
-                Bonsai.Effect.Expert.handle(parent(SetSyntax(seg)));
-                Effect.Ignore;
-              | Error(_) => Effect.Ignore
-              }
-            | _ => Effect.Ignore
+            if (!disabled) {
+              switch (Id.Map.find_opt(info.id, subscriptions^)) {
+              | Some({handle: Some(h), _}) =>
+                switch (Automerge.doc_to_exp(h)) {
+                | Ok(exp) =>
+                  let seg = put(info, exp);
+                  Bonsai.Effect.Expert.handle(parent(SetSyntax(seg)));
+                  Effect.Ignore;
+                | Error(_) => Effect.Ignore
+                }
+              | _ => Effect.Ignore
+              };
+            } else {
+              Effect.Ignore;
             };
           }),
         ],
         [Node.text({js|↻|js})],
       );
-
-    let right_indicator =
-      if (!model.hot_reload && connected) {
-        reload_btn;
-      } else {
-        status_indicator;
-      };
 
     View.mk(
       Node.div(
@@ -436,8 +433,9 @@ module M: Projector = {
             [
               Node.text({js|·|js}),
               url_input,
+              status_indicator,
+              reload_btn,
               hot_reload_toggle,
-              right_indicator,
             ],
           ),
         ],

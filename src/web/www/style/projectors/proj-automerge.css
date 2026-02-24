@@ -82,6 +82,12 @@
   color: var(--GB1);
 }
 
+.projector.Automerge .manual-reload-btn.disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
 .projector.Automerge .manual-reload-btn:hover {
   animation: wobble 0.6s ease 0s 1 normal forwards;
   filter: brightness(1.2);
