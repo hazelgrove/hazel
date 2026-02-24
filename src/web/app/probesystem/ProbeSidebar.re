@@ -321,26 +321,27 @@ let toggle =
     },
   );
 
-let settings = (~globals: Globals.t, ~explain_this_inject) => {
+let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
   div(
     ~attrs=[clss(["settings"])],
     [
-      Widgets.toggle_named(
-        ~tooltip="Auto-probe mode (Cmd/Ctrl+Shift+P)",
-        globals.settings.auto_probe_mode ? "A" : "M",
-        globals.settings.auto_probe_mode,
-        _ =>
-        globals.inject_global(Set(AutoProbeMode))
-      ),
-      toggle(
-        ~tooltip="One or Many Samples",
-        ~explain_this_inject,
-        ~label1="1",
-        ~label2="∞",
-        ~active=ProbeProj.Settings.s^.window == Single,
-        ~action=ToggleWindow,
-      ),
       {
+        // Widgets.toggle_named(
+        //   ~tooltip="Auto-probe mode (Cmd/Ctrl+Shift+P)",
+        //   globals.settings.auto_probe_mode ? "A" : "M",
+        //   globals.settings.auto_probe_mode,
+        //   _ =>
+        //   globals.inject_global(Set(AutoProbeMode))
+        // ),
+        // toggle(
+        //   ~tooltip="One or Many Samples",
+        //   ~explain_this_inject,
+        //   ~label1="1",
+        //   ~label2="∞",
+        //   ~active=ProbeProj.Settings.s^.window == Single,
+        //   ~action=ToggleWindow,
+        // ),
+
         /* 2-way toggle for sample coloring mode */
         let (icon, tooltip) =
           switch (ProbeProj.Settings.s^.sample_base) {

@@ -310,8 +310,10 @@ let view =
       ~indicated_id as _: option(Id.t),
     )
     : Node.t =>
-  /* Only show when probes exist */
-  if (!has_probes(refractors)) {
+  /* Hide when no probes exist, unless auto-probe mode is on
+   * (in auto-probe mode the bar stays visible to avoid flickering
+   * as the cursor enters/exits function definitions) */
+  if (!has_probes(refractors) && !globals.settings.auto_probe_mode) {
     div(~attrs=[Attr.id("closure-cursor-bar"), Attr.class_("hidden")], []);
   } else {
     let sample_cursor = refractors.sample_cursor;
