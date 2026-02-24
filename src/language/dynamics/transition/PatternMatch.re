@@ -70,7 +70,18 @@ let match_pattern =
     recur(x, x');
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-    List.map2(recur, ps, ds) |> List.fold_left(combine_result, Matches([]));
+    let label_mismatch =
+      List.exists2(
+        (p, d) => Pat.get_label(p) == None && Exp.get_label(d) != None,
+        ps,
+        ds,
+      );
+    if (label_mismatch) {
+      DoesNotMatch;
+    } else {
+      List.map2(recur, ps, ds)
+      |> List.fold_left(combine_result, Matches([]));
+    };
   | Parens(p)
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
