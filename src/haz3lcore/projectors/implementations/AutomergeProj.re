@@ -14,6 +14,7 @@ type subscription = {
   mutable on_data: Language.Exp.t => unit,
   mutable on_error: string => unit,
   mutable cleanup: option(unit => unit),
+  mutable handle: option(Js.t(Automerge.handle)),
 };
 
 let subscriptions: ref(Id.Map.t(subscription)) = ref(Id.Map.empty);
@@ -30,6 +31,7 @@ let subscribe_to_doc =
     on_data,
     on_error,
     cleanup: None,
+    handle: None,
   };
   subscriptions := Id.Map.add(id, sub, subscriptions^);
 
@@ -66,7 +68,9 @@ let subscribe_to_doc =
           );
         };
         switch (Id.Map.find_opt(id, subscriptions^)) {
-        | Some(s) => s.cleanup = Some(cleanup_fn)
+        | Some(s) =>
+          s.cleanup = Some(cleanup_fn);
+          s.handle = Some(handle);
         | None => ()
         };
 
@@ -226,7 +230,13 @@ module M: Projector = {
     let url_len = String.length(m.url);
     /* 19 = placeholder text length; +3 for status indicator + padding; +5 for toggle */
     let display_len = max(19, url_len);
-    ProjectorCore.Shape.inline(display_len + 8);
+    let extra =
+      if (!m.hot_reload) {
+        2;
+      } else {
+        0;
+      };
+    ProjectorCore.Shape.inline(display_len + 8 + extra);
   };
 
   let update = (m: model, _info: info, action: action): model =>
@@ -392,13 +402,41 @@ module M: Projector = {
         ],
       );
 
+    let reload_btn =
+      if (!model.hot_reload && model.status == Connected) {
+        Node.div(
+          ~attrs=[
+            Attr.class_("manual-reload-btn"),
+            Attr.title("Reload document"),
+            Attr.on_pointerdown(evt => {
+              Js.Unsafe.meth_call(evt, "stopPropagation", [||]) |> ignore;
+              Js.Unsafe.meth_call(evt, "preventDefault", [||]) |> ignore;
+              switch (Id.Map.find_opt(info.id, subscriptions^)) {
+              | Some({handle: Some(h), _}) =>
+                switch (Automerge.doc_to_exp(h)) {
+                | Ok(exp) =>
+                  let seg = put(info, exp);
+                  Bonsai.Effect.Expert.handle(parent(SetSyntax(seg)));
+                  Effect.Ignore;
+                | Error(_) => Effect.Ignore
+                }
+              | _ => Effect.Ignore
+              };
+            }),
+          ],
+          [Node.text({js|↻|js})],
+        );
+      } else {
+        Node.none;
+      };
+
     View.mk(
       Node.div(
         ~attrs=[Attr.classes(["wrapper"])],
         [
           Node.div(
             ~attrs=[Attr.classes(["cols", "code"])],
-            [status_indicator, url_input, hot_reload_toggle],
+            [status_indicator, url_input, hot_reload_toggle, reload_btn],
           ),
         ],
       ),

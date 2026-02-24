@@ -66,8 +66,31 @@
   font-size: 0.7em;
 }
 
+/* Reverse toggle direction: knob starts on the right (active/on) and slides left (inactive/off) */
+.projector.Automerge .hot-reload-toggle .toggle-knob {
+  margin: 1px 1px 1px 0.9em;
+}
+.projector.Automerge .hot-reload-toggle.active .toggle-knob {
+  margin-left: 1px;
+  margin-right: 0.9em;
+}
+
 .projector.Automerge .hot-reload-toggle.disabled {
   opacity: 0.35;
   cursor: default;
   pointer-events: none;
+}
+
+.projector.Automerge .manual-reload-btn {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 1.4em;
+  margin-left: 4px;
+  user-select: none;
+  color: var(--GB1);
+}
+
+.projector.Automerge .manual-reload-btn:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  filter: brightness(1.2);
 }
