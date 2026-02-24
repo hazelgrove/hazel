@@ -298,14 +298,12 @@ module M: Projector = {
           Attr.class_("automerge-url-input"),
           Attr.placeholder(url_placeholder),
           Attr.string_property("value", model.url),
-          Attr.on_input((_evt, value) =>
-            Effect.(
-              Many([
-                local(SetUrl(value)),
-                parent(SetSyntax(value |> put_url(info))),
-              ])
-            )
-          ),
+          Attr.on_input((_evt, value) => {
+            let null_exp =
+              Language.IdTagged.FreshGrammar.Exp.constructor("Null", None);
+            let seg = put(info, null_exp);
+            Effect.(Many([local(SetUrl(value)), parent(SetSyntax(seg))]));
+          }),
           Attr.on_keydown(key_handler),
           Attr.on_copy(_ => Effect.Stop_propagation),
           Attr.on_cut(_ => Effect.Stop_propagation),

@@ -57,6 +57,10 @@
   overflow: hidden;
 }
 
+.projector.Automerge input::placeholder {
+  opacity: 0.5;
+}
+
 .projector.Automerge input::selection {
   color: var(--BLACK);
   background-color: var(--shard-selected);
