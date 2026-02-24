@@ -475,6 +475,46 @@ let toggle_auto =
     }
   };
 
+/* Check if the indicated term is a definition form (Let or Test/HintedTest).
+   When true, the unified probe action adds an auto probe instead of manual.
+   This is because definition bodies benefit from auto-probe's per-line
+   expansion, while specific expressions are better served by manual probes. */
+let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
+  switch (Statics.Map.lookup(id, info_map)) {
+  | Some(InfoExp({term: {term: Let(_, _, _), _}, _})) => true
+  | Some(InfoExp({term: {term: Test(_) | HintedTest(_, _), _}, _})) => true
+  | _ => false
+  };
+
+/* Unified probe toggle: on definition forms (Let, Test), adds/removes auto
+   probes; on other terms, adds/removes manual probes. This merges the
+   previously separate ToggleManual/ToggleAuto actions into a single
+   context-sensitive action behind one keyboard shortcut (Cmd+E). */
+let toggle_probe =
+    (~syntax: CachedSyntax.t, id: Id.t, ~info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t =>
+  if (is_definition_form(id, info_map)) {
+    /* Definition form: use auto probe */
+    switch (probe_status(id, info_map, z.refractors)) {
+    | Auto => rm_auto(~syntax, ~info_map, id, z)
+    | Manual(ids) => rm_manual(ids, z)
+    | Statics(ids) => rm_manual(ids, z) |> add_auto(id, ~syntax, ~info_map)
+    | Non =>
+      switch (target_subterm_ids(id, info_map)) {
+      | [] => z
+      | _ => add_auto(id, ~syntax, ~info_map, z)
+      }
+    };
+  } else {
+    /* Non-definition: use manual probe */
+    switch (probe_status(id, info_map, z.refractors)) {
+    | Manual(ids) => rm_manual(ids, z)
+    | Auto => rm_auto(~syntax, ~info_map, id, z)
+    | Statics(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
+    | Non => add_manual(~syntax, id, info_map, z)
+    };
+  };
+
 let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   let* ci = Indicated.ci_of(z, info_map);
   let* ci =
@@ -705,7 +745,7 @@ let go =
     | [] =>
       switch (Indicated.index(z)) {
       | None => z
-      | Some(id) => toggle_manual(~syntax, id, ~info_map, z)
+      | Some(id) => toggle_probe(~syntax, id, ~info_map, z)
       }
     | _ => rm_probes_in_selection(~syntax, ~info_map, z)
     }

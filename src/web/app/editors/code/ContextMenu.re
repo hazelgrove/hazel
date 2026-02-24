@@ -209,7 +209,6 @@ let menu_item_view =
 /* Keyboard shortcuts - platform-dependent */
 module Shortcuts = {
   let manual_probe = () => Os.is_mac^ ? "⌘E" : "Ctrl+E";
-  let auto_probe = () => Os.is_mac^ ? "⇧⌘E" : "Ctrl+Shift+E";
   let goto_definition = "F12";
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
@@ -218,55 +217,42 @@ module Shortcuts = {
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
 };
 
-/* Data-returning versions for keyboard navigation */
-let manual_probe_data =
+/* Unified probe entry: on definition forms (Let, Test), shows auto probe
+   options; on other terms, shows manual probe options. Both use Cmd+E. */
+let probe_data =
     (
       ~can_probe: bool,
-      probe_status: ProbePerform.probe_status,
-      ci: option(Language.Info.t),
-    )
-    : list(menu_item_data) =>
-  switch (ci) {
-  | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
-      {
-        name:
-          switch (probe_status) {
-          | Manual(_) => "Remove probe"
-          | Statics(_)
-          | Auto => "Switch to manual"
-          | Non => "Add probe"
-          },
-        shortcut: Some(Shortcuts.manual_probe()),
-        action: Probe(ToggleManual),
-      },
-    ]
-  | _ => []
-  };
-
-let auto_probe_data =
-    (
-      ~can_probe: bool,
+      ~is_def: bool,
       ~auto_probe_mode: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
     : list(menu_item_data) =>
-  /* Hide auto-probe option when auto-probe mode is on */
-  if (auto_probe_mode) {
+  /* Hide when auto-probe mode is on and this would be an auto probe */
+  if (auto_probe_mode && is_def) {
     [];
   } else {
     switch (ci) {
-    | Some(InfoExp(_)) when can_probe => [
+    | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
         {
           name:
-            switch (probe_status) {
-            | Manual(_)
-            | Statics(_) => "Switch to auto"
-            | Auto => "Remove auto probe"
-            | Non => "Add auto probe"
+            if (is_def) {
+              switch (probe_status) {
+              | Auto => "Remove auto probe"
+              | Manual(_) => "Remove probe"
+              | Statics(_) => "Switch to auto probe"
+              | Non => "Add auto probe"
+              };
+            } else {
+              switch (probe_status) {
+              | Manual(_) => "Remove probe"
+              | Auto => "Remove probe"
+              | Statics(_) => "Switch to probe"
+              | Non => "Add probe"
+              };
             },
-          shortcut: Some(Shortcuts.auto_probe()),
-          action: Probe(ToggleAuto),
+          shortcut: Some(Shortcuts.manual_probe()),
+          action: Probe(ToggleManual),
         },
       ]
     | _ => []
@@ -480,8 +466,8 @@ let refractor_actions_data =
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
-  manual_probe_data(~can_probe, probe_status, ci)
-  @ auto_probe_data(~can_probe, ~auto_probe_mode, probe_status, ci)
+  let is_def = ProbePerform.is_definition_form(id, info_map);
+  probe_data(~can_probe, ~is_def, ~auto_probe_mode, probe_status, ci)
   @ type_annotation_data(~can_type=can_statics, probe_status, ci);
 };
 

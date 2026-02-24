@@ -54,7 +54,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Line(Right))))
     | "ArrowUp" => now(Select(Resize(Start)))
     | "ArrowDown" => now(Select(Resize(End)))
-    | "e" => now(Probe(ToggleAuto))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
@@ -65,7 +64,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Vertical(Down))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
-    | "e" => now(Probe(ToggleAuto))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
