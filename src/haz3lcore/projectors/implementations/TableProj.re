@@ -182,10 +182,21 @@ module M: Projector = {
     | None =>
       View.mk(
         Node.div(
-          ~attrs=[Attr.classes(["table", "error"])],
-          [Node.text("\xe2\x9a\xa0")],
+          ~attrs=[Attr.classes(["table-inner"])],
+          [
+            Node.div(
+              ~attrs=[Attr.classes(["table", "error"])],
+              [Node.text("\xe2\x9a\xa0")],
+            ),
+          ],
         ),
       )
-    | Some(data) => View.mk(table(info, ~view_seg, ~parent, data))
+    | Some(data) =>
+      View.mk(
+        Node.div(
+          ~attrs=[Attr.classes(["table-inner"])],
+          [table(info, ~view_seg, ~parent, data)],
+        ),
+      )
     };
 };
