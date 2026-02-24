@@ -126,8 +126,32 @@ let add_test = (state: t, instance_report: TestMap.instance_report) => {
     ),
 };
 let add_sample = (state: t, sample: Sample.t) => {
-  ...state,
-  probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
+  /* Deduplicate: skip recording if a sample at the top level (empty
+   * call_stack) already exists for this syntax_id. This prevents
+   * duplicate samples caused by ascription distribution: when a value
+   * with a probe target ID flows through a typed function, the Asc
+   * transition distributes type annotations into compound values
+   * (tuples, lists), creating Asc wrappers that force re-evaluation
+   * of the inner values with a deeper call_stack. The top-level
+   * sample (from the original definition-site evaluation) is always
+   * the authoritative one. */
+  let dominated =
+    sample.call_stack != []
+    && (
+      switch (Id.Map.find_opt(sample.syntax_id, state.probes)) {
+      | Some(existing) =>
+        List.exists((s: Sample.t) => s.call_stack == [], existing)
+      | None => false
+      }
+    );
+  if (dominated) {
+    state;
+  } else {
+    {
+      ...state,
+      probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
+    };
+  };
 };
 
 let add_theorem = ({theorems, _} as es, id, name, env, goal) => {

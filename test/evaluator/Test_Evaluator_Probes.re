@@ -801,6 +801,75 @@ in f(1)|},
   ),
 ];
 
+/* Tests that probe samples are not duplicated when values flow through
+ * typed functions or are projected with dot access. Two independent
+ * mechanisms caused duplicates:
+ * 1. Dot projection with is_value:false re-evaluated already-final values
+ * 2. Ascription distribution through typed functions re-evaluated inner
+ *    compound elements at a deeper call_stack */
+let duplicate_prevention_tests = [
+  /* Dot projection: extracting from a probed tuple must not duplicate.
+   * Without is_value:true on the Dot transition, the projected value
+   * gets re-evaluated, recording a second sample at the same call_stack. */
+  probe_line_test(
+    "Dot on probed labeled tuple field",
+    {|let x = (a = ^^probe(1),
+b = ^^probe(2)) in x.a|},
+    [(0, ["1"]), (1, ["2"])],
+  ),
+  /* Typed identity function with labeled tuple.
+   * Without Asc distribution dedup, each field gets a duplicate sample
+   * at the function's call_stack when the ascription distributes. */
+  probe_line_test(
+    "Probed labeled tuple through typed identity",
+    {|let x = (a = ^^probe(1),
+b = ^^probe(2)) in
+let f: (a = Int, b = Int) -> (a = Int, b = Int) =
+  fun t -> t
+in
+f(x)|},
+    [(0, ["1"]), (1, ["2"])],
+  ),
+  /* User-suggested: unlabeled tuple through typed identity with ? types */
+  probe_line_test(
+    "Probed unlabeled tuple through typed identity with holes",
+    {|let f: ? -> (?, ?) = fun t -> t in
+f((?, ^^probe(1)))|},
+    [(1, ["1"])],
+  ),
+  /* User-suggested: labeled tuple through typed identity with ? types */
+  probe_line_test(
+    "Probed labeled tuple through typed identity with holes",
+    {|let f: ? -> (a = ?, b = ?) = fun t -> t in
+f((a = ?, b = ^^probe(1)))|},
+    [(1, ["1"])],
+  ),
+  /* User-suggested: list through typed identity with ? types */
+  probe_line_test(
+    "Probed list through typed identity with holes",
+    {|let f: ? -> [?] = fun t -> t in
+f([?, ^^probe(1)])|},
+    [(1, ["1"])],
+  ),
+  /* Chained typed functions: value passes through two Asc distributions */
+  probe_line_test(
+    "Probed tuple through two chained typed functions",
+    {|let x = (^^probe(1),
+^^probe(2)) in
+let f: (Int, Int) -> (Int, Int) = fun t -> t in
+let g: (Int, Int) -> (Int, Int) = fun t -> t in
+g(f(x))|},
+    [(0, ["1"]), (1, ["2"])],
+  ),
+  /* Multi-call: legitimate multiple samples must still work */
+  probe_line_test(
+    "Multi-call function probe still produces multiple samples",
+    {|let f: Int -> Int = fun x -> ^^probe(x) in
+[f(1), f(2), f(3)]|},
+    [(0, ["1", "2", "3"])],
+  ),
+];
+
 let tests = [
   ("Evaluator.Probes.Basic", basic_tests),
   ("Evaluator.Probes.Operators", operator_tests),
@@ -809,4 +878,5 @@ let tests = [
   ("Evaluator.Probes.Nested", nested_probe_tests),
   ("Evaluator.Probes.Recursion", recursion_tests),
   ("Evaluator.Probes.Ascription", ascription_tests),
+  ("Evaluator.Probes.DuplicatePrevention", duplicate_prevention_tests),
 ];

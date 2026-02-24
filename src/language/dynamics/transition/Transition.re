@@ -775,7 +775,11 @@ module Transition = (EV: EV_MODE) => {
                 expr: exp,
                 side_effects: [],
                 kind: Dot,
-                is_value: false,
+                /* d1 is req_final so all tuple elements are already values.
+                   Must be true to avoid re-entering evaluate on the projected
+                   value, which would trigger duplicate probe samples when the
+                   value carries a probe target ID. */
+                is_value: true,
               })
             | _ => Indet
             };
@@ -788,7 +792,7 @@ module Transition = (EV: EV_MODE) => {
                   expr: d,
                   side_effects: [],
                   kind: Dot,
-                  is_value: false,
+                  is_value: true,
                 })
               : Indet
           | ListLit(ds) =>
