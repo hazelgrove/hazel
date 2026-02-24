@@ -1007,7 +1007,6 @@ let update_auto_def_probe =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let current_def = current_toplevel_def(info_map, z);
   let prev_def = z.refractors.auto_def;
-
   /* If same definition, no change needed */
   if (Option.equal(Id.equal, current_def, prev_def)) {
     z;
@@ -1019,6 +1018,13 @@ let update_auto_def_probe =
       | Some(old_id) => rm_auto(~drill=false, ~syntax, ~info_map, old_id, z)
       | None => z
       };
+
+    /* Regenerate ephemerals from autos.ids after removal.
+       rm_auto(~drill=false) only removes the auto ID itself, not the
+       expanded ephemeral IDs created by add_ids_from_auto_term. When
+       transitioning to None (no definition), add_auto won't run, so
+       stale ephemerals would persist for one frame without this. */
+    let z = add_ids_from_auto_term(~syntax, ~info_map, z);
 
     /* Add new auto-probe if inside a definition.
        Use ~drill=false to stay on top-level def, not drill into nested lets.
