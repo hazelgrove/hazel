@@ -224,12 +224,13 @@ module M: Projector = {
     };
   let dynamics = false;
 
+  let url_placeholder = "automerge:<doc-url>";
+
   let placeholder = (m, _info) => {
     let url_len = String.length(m.url);
-    /* 19 = placeholder text length; +1 focus dot; +2 status indicator;
-       +2 reload btn; +5 toggle + margins */
-    let display_len = max(19, url_len);
-    ProjectorCore.Shape.inline(display_len + 10);
+    /* +1 focus dot; +2 reload btn; +3 toggle + margins */
+    let display_len = max(String.length(url_placeholder), url_len);
+    ProjectorCore.Shape.inline(display_len + 7);
   };
 
   let update = (m: model, _info: info, action: action): model =>
@@ -251,30 +252,13 @@ module M: Projector = {
 
   let view =
       ({model, info, local, parent, _}: View.args(model, action)): View.t => {
-    let status_indicator = {
-      let (color, title) =
-        switch (model.last_load) {
-        | None => ("#999", "No data loaded")
-        | Some(Succeeded) => ("#0c0", "Last load succeeded")
-        | Some(Failed) => ("#f00", "Last load failed")
-        };
-      Node.span(
-        ~attrs=[
-          Attr.style(
-            Css_gen.concat([
-              Css_gen.create(~field="display", ~value="inline-block"),
-              Css_gen.create(~field="width", ~value="8px"),
-              Css_gen.create(~field="height", ~value="8px"),
-              Css_gen.create(~field="border-radius", ~value="50%"),
-              Css_gen.create(~field="background-color", ~value=color),
-              Css_gen.create(~field="margin-left", ~value="4px"),
-            ]),
-          ),
-          Attr.title(title),
-        ],
-        [],
-      );
-    };
+    let load_status_cls =
+      switch (model.last_load) {
+      | None when String.length(model.url) > 0 => "load-none"
+      | None => ""
+      | Some(Succeeded) => "load-succeeded"
+      | Some(Failed) => "load-failed"
+      };
 
     let input_at_start = () => {
       let el = JsUtil.get_elem_by_id(input_id(info.id));
@@ -312,7 +296,7 @@ module M: Projector = {
           Attr.id(input_id(info.id)),
           Attr.type_("text"),
           Attr.class_("automerge-url-input"),
-          Attr.placeholder("automerge:<doc-url>"),
+          Attr.placeholder(url_placeholder),
           Attr.string_property("value", model.url),
           Attr.on_input((_evt, value) =>
             Effect.(
@@ -426,14 +410,13 @@ module M: Projector = {
 
     View.mk(
       Node.div(
-        ~attrs=[Attr.classes(["wrapper"])],
+        ~attrs=[Attr.classes(["wrapper", load_status_cls])],
         [
           Node.div(
             ~attrs=[Attr.classes(["cols", "code"])],
             [
               Node.text({js|·|js}),
               url_input,
-              status_indicator,
               reload_btn,
               hot_reload_toggle,
             ],

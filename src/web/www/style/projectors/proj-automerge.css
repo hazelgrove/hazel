@@ -15,6 +15,7 @@
 }
 
 .projector.Automerge .wrapper {
+  position: relative;
   height: 100%;
   width: 100%;
   border-radius: 0.1em;
@@ -91,4 +92,28 @@
 .projector.Automerge .manual-reload-btn:hover {
   animation: wobble 0.6s ease 0s 1 normal forwards;
   filter: brightness(1.2);
+}
+
+/* Last-load status superscript (mirrors inline test result styling) */
+.projector.Automerge .wrapper::after {
+  position: absolute;
+  top: -0.15em;
+  right: -1em;
+  font-size: 64%;
+  z-index: var(--projector-overlay-z);
+}
+
+.projector.Automerge .wrapper.load-succeeded::after {
+  content: "\2714";
+  color: var(--test-pass);
+}
+
+.projector.Automerge .wrapper.load-failed::after {
+  content: "\2718";
+  color: var(--test-fail);
+}
+
+.projector.Automerge .wrapper.load-none::after {
+  content: "?";
+  color: var(--test-indet);
 }
