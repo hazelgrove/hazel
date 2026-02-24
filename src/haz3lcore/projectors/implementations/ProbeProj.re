@@ -203,7 +203,7 @@ let select_samples =
 };
 
 let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> Unicode.length;
+  seg |> utility.seg_to_string |> Unicode.Width.columns_of_string;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
   let seg = utility.term_to_seg(Exp(exp));
@@ -1088,6 +1088,7 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       ])
     | _ => Many([Stop_propagation, Prevent_default])
     }
+  | D("z" | "Z") when Key.ctrl_held(evt) || Key.meta_held(evt) => Ignore // Defer to parent editor undo for now
   | _ => Many([Stop_propagation])
   };
 };

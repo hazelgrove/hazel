@@ -386,7 +386,7 @@ let is_comment_token = (s: string): bool => {
 };
 
 let take_grapheme_prefix =
-    (count: int, clusters: list(string)): list(string) => {
+    (budget: int, clusters: list(string)): list(string) => {
   let rec loop =
           (remaining: int, rest: list(string), acc: list(string))
           : list(string) =>
@@ -395,31 +395,39 @@ let take_grapheme_prefix =
     } else {
       switch (rest) {
       | [] => List.rev(acc)
-      | [hd, ...tl] => loop(remaining - 1, tl, [hd, ...acc])
+      | [hd, ...tl] =>
+        let w = Unicode.Width.columns_of_cluster(hd);
+        if (w > remaining) {
+          List.rev(acc);
+        } else {
+          loop(remaining - w, tl, [hd, ...acc]);
+        };
       };
     };
-  loop(count, clusters, []);
+  loop(budget, clusters, []);
 };
 
 let abbreviate_string_token = (~min_len: int, s: string): string => {
-  let grapheme_len: int = Unicode.length(s);
-  if (grapheme_len < 2 || grapheme_len <= min_len) {
-    available := available^ - grapheme_len;
+  let col_len: int = Unicode.Width.columns_of_string(s);
+  if (col_len < 2 || col_len <= min_len) {
+    available := available^ - col_len;
     s;
   } else {
-    let prefix_count = max(0, min_len - 1);
-    let truncated_display_len = prefix_count + ellipsis_cost;
+    let prefix_budget = max(0, min_len - 1);
+    let truncated_display_len = prefix_budget + ellipsis_cost;
     /* If truncation+ellipsis would be >= full string, just use full string */
-    if (truncated_display_len >= grapheme_len) {
-      available := available^ - grapheme_len;
+    if (truncated_display_len >= col_len) {
+      available := available^ - col_len;
       s;
     } else {
       let clusters: list(string) = Unicode.to_list(s);
       let prefix_clusters: list(string) =
-        take_grapheme_prefix(prefix_count, clusters);
+        take_grapheme_prefix(prefix_budget, clusters);
       let prefix: string = String.concat("", prefix_clusters);
       let truncated: string = prefix ++ flat_ellipses;
-      available := available^ - truncated_display_len;
+      let actual_len =
+        Unicode.Width.columns_of_string(prefix) + ellipsis_cost;
+      available := available^ - actual_len;
       truncated;
     };
   };
