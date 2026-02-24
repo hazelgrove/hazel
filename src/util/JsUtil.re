@@ -247,6 +247,20 @@ module Fragment = {
   };
 };
 
+let add_cls = (el: Js.Unsafe.any, cls: string): unit =>
+  Js.Unsafe.meth_call(
+    Js.Unsafe.get(el, "classList"),
+    "add",
+    [|Js.Unsafe.inject(Js.string(cls))|],
+  );
+
+let rm_cls = (el: Js.Unsafe.any, cls: string): unit =>
+  Js.Unsafe.meth_call(
+    Js.Unsafe.get(el, "classList"),
+    "remove",
+    [|Js.Unsafe.inject(Js.string(cls))|],
+  );
+
 let setPointerCapture = (e: Js.t(Dom_html.element), pointerId: int): unit =>
   Js.Unsafe.meth_call(
     e,

@@ -389,6 +389,11 @@ module M: Projector = {
             Js.Unsafe.meth_call(evt, "stopPropagation", [||]) |> ignore;
             Js.Unsafe.meth_call(evt, "preventDefault", [||]) |> ignore;
             if (!disabled) {
+              /* Spin animation feedback (remove+reflow+add to restart) */
+              let target = Js.Unsafe.get(evt, "currentTarget");
+              JsUtil.rm_cls(target, "spinning");
+              ignore(Js.Unsafe.get(target, "offsetWidth"));
+              JsUtil.add_cls(target, "spinning");
               switch (Id.Map.find_opt(info.id, subscriptions^)) {
               | Some({handle: Some(h), _}) =>
                 switch (Automerge.doc_to_exp(h)) {
@@ -404,8 +409,12 @@ module M: Projector = {
               Effect.Ignore;
             };
           }),
+          Attr.on_mouseleave(evt => {
+            JsUtil.rm_cls(Js.Unsafe.get(evt, "currentTarget"), "spinning");
+            Effect.Ignore;
+          }),
         ],
-        [Node.text({js|↻|js})],
+        [Node.text({js|🔄|js})],
       );
 
     View.mk(

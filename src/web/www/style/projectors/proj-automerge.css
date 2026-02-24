@@ -77,10 +77,13 @@
 .projector.Automerge .manual-reload-btn {
   flex-shrink: 0;
   cursor: pointer;
-  font-size: 1.4em;
+  font-size: 0.8em;
   margin-left: 4px;
   user-select: none;
   color: var(--GB1);
+  /* align vertically with hot-reload toggle */
+  position: relative;
+  top: 1px;
 }
 
 .projector.Automerge .manual-reload-btn.disabled {
@@ -92,6 +95,15 @@
 .projector.Automerge .manual-reload-btn:hover {
   animation: wobble 0.6s ease 0s 1 normal forwards;
   filter: brightness(1.2);
+}
+
+@keyframes spin360 {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+.projector.Automerge .manual-reload-btn.spinning {
+  animation: spin360 0.4s ease-in-out;
 }
 
 /* Last-load status superscript (mirrors inline test result styling) */
