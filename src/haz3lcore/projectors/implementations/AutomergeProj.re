@@ -163,7 +163,7 @@ module M: Projector = {
             term: exp.term,
           })
         | _ => failwith("AutomergeProj: put: not expression"),
-        Inline.Inline,
+        Inline.Block,
         info.syntax,
       )
     ) {
