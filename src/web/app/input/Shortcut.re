@@ -264,7 +264,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Editors(Exercises(ExportSubmission)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
     ),
     mk_shortcut(
-      // ctrl+k conflicts with the command palette
+      ~hotkey="alt+r",
       ~section="Diagnostics",
       ~mdIcon="refresh",
       "Reparse Current Editor",
