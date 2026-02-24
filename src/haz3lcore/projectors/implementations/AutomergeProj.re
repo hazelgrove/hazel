@@ -272,7 +272,7 @@ module M: Projector = {
               Css_gen.create(~field="height", ~value="8px"),
               Css_gen.create(~field="border-radius", ~value="50%"),
               Css_gen.create(~field="background-color", ~value=color),
-              Css_gen.create(~field="margin-right", ~value="4px"),
+              Css_gen.create(~field="margin-left", ~value="4px"),
             ]),
           ),
           Attr.title(title),
@@ -397,31 +397,34 @@ module M: Projector = {
       );
 
     let reload_btn =
-      if (!model.hot_reload && model.last_load == Some(Succeeded)) {
-        Node.div(
-          ~attrs=[
-            Attr.class_("manual-reload-btn"),
-            Attr.title("Reload document"),
-            Attr.on_pointerdown(evt => {
-              Js.Unsafe.meth_call(evt, "stopPropagation", [||]) |> ignore;
-              Js.Unsafe.meth_call(evt, "preventDefault", [||]) |> ignore;
-              switch (Id.Map.find_opt(info.id, subscriptions^)) {
-              | Some({handle: Some(h), _}) =>
-                switch (Automerge.doc_to_exp(h)) {
-                | Ok(exp) =>
-                  let seg = put(info, exp);
-                  Bonsai.Effect.Expert.handle(parent(SetSyntax(seg)));
-                  Effect.Ignore;
-                | Error(_) => Effect.Ignore
-                }
-              | _ => Effect.Ignore
-              };
-            }),
-          ],
-          [Node.text({js|↻|js})],
-        );
+      Node.div(
+        ~attrs=[
+          Attr.class_("manual-reload-btn"),
+          Attr.title("Reload document"),
+          Attr.on_pointerdown(evt => {
+            Js.Unsafe.meth_call(evt, "stopPropagation", [||]) |> ignore;
+            Js.Unsafe.meth_call(evt, "preventDefault", [||]) |> ignore;
+            switch (Id.Map.find_opt(info.id, subscriptions^)) {
+            | Some({handle: Some(h), _}) =>
+              switch (Automerge.doc_to_exp(h)) {
+              | Ok(exp) =>
+                let seg = put(info, exp);
+                Bonsai.Effect.Expert.handle(parent(SetSyntax(seg)));
+                Effect.Ignore;
+              | Error(_) => Effect.Ignore
+              }
+            | _ => Effect.Ignore
+            };
+          }),
+        ],
+        [Node.text({js|↻|js})],
+      );
+
+    let right_indicator =
+      if (!model.hot_reload && connected) {
+        reload_btn;
       } else {
-        Node.none;
+        status_indicator;
       };
 
     View.mk(
@@ -430,7 +433,12 @@ module M: Projector = {
         [
           Node.div(
             ~attrs=[Attr.classes(["cols", "code"])],
-            [status_indicator, url_input, hot_reload_toggle, reload_btn],
+            [
+              Node.text({js|·|js}),
+              url_input,
+              hot_reload_toggle,
+              right_indicator,
+            ],
           ),
         ],
       ),

@@ -26,6 +26,7 @@
   margin-right: 2px;
   display: flex;
   align-items: center;
+  color: var(--SAND);
 }
 
 .projector.Automerge.indicated .cols,
