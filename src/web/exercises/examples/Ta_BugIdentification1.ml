@@ -7772,720 +7772,6 @@ let exercise : Tutorial.spec =
                           id =
                             Option.get
                               (Haz3lcore.Id.of_string
-                                 "e05bc997-0725-45c7-b062-fafb99d0e791");
-                          label = [ "let"; "="; "in" ];
-                          mold =
-                            {
-                              out = Exp;
-                              in_ = [ Pat; Exp ];
-                              nibs =
-                                ( { shape = Convex; sort = Exp },
-                                  { shape = Concave 45; sort = Exp } );
-                            };
-                          shards = [ 0; 1; 2 ];
-                          children =
-                            [
-                              [
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "9476daff-ce38-4f48-8749-1960694c6f53");
-                                    content = Whitespace " ";
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "7b0ee00f-3242-4205-b324-7412129487d9");
-                                    label = [ "sum" ];
-                                    mold =
-                                      {
-                                        out = Pat;
-                                        in_ = [];
-                                        nibs =
-                                          ( { shape = Convex; sort = Pat },
-                                            { shape = Convex; sort = Pat } );
-                                      };
-                                    shards = [ 0 ];
-                                    children = [];
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "338381dc-916f-406c-81ad-b20312de685c");
-                                    content = Whitespace " ";
-                                  };
-                              ];
-                              [
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "20225ead-8a79-45c0-91be-d0fd351c516b");
-                                    content = Whitespace " ";
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "cd4645ba-888c-4af0-a607-61885a4f4cff");
-                                    label = [ "fun"; "->" ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [ Pat ];
-                                        nibs =
-                                          ( { shape = Convex; sort = Exp },
-                                            { shape = Concave 37; sort = Exp }
-                                          );
-                                      };
-                                    shards = [ 0; 1 ];
-                                    children =
-                                      [
-                                        [
-                                          Secondary
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "0795246b-af2d-422c-abb5-47bbd474192a");
-                                              content = Whitespace " ";
-                                            };
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "e427ca82-c3c0-46c9-9cb5-7a6a5ad62433");
-                                              label = [ "ns" ];
-                                              mold =
-                                                {
-                                                  out = Pat;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Convex;
-                                                        sort = Pat;
-                                                      },
-                                                      {
-                                                        shape = Convex;
-                                                        sort = Pat;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                          Secondary
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "55e2fc75-e23c-4bd8-90eb-1654af658409");
-                                              content = Whitespace " ";
-                                            };
-                                        ];
-                                      ];
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "50e7500c-4fd0-4ea7-a8fa-01da7ddb4acb");
-                                    content = Whitespace " ";
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "de7699a8-e94e-4b30-812a-d20381e91d85");
-                                    label = [ "fold_left" ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [];
-                                        nibs =
-                                          ( { shape = Convex; sort = Exp },
-                                            { shape = Convex; sort = Exp } );
-                                      };
-                                    shards = [ 0 ];
-                                    children = [];
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "d7df1c7c-7906-446a-a130-60bc249c8669");
-                                    label = [ "("; ")" ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [ Exp ];
-                                        nibs =
-                                          ( { shape = Concave 23; sort = Exp },
-                                            { shape = Convex; sort = Exp } );
-                                      };
-                                    shards = [ 0; 1 ];
-                                    children =
-                                      [
-                                        [
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "9626f559-cb62-45bf-9eab-e09edc1c6415");
-                                              label = [ "ns" ];
-                                              mold =
-                                                {
-                                                  out = Exp;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      },
-                                                      {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "8f4dfc37-99a0-47a5-8ea3-3ceb40f7de05");
-                                              label = [ "," ];
-                                              mold =
-                                                {
-                                                  out = Exp;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Concave 44;
-                                                        sort = Exp;
-                                                      },
-                                                      {
-                                                        shape = Concave 44;
-                                                        sort = Exp;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                          Secondary
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "42f6782f-8819-43ac-a43c-e695893a2106");
-                                              content = Whitespace " ";
-                                            };
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "b767f786-e09c-48ba-b905-05f0e54d1953");
-                                              label = [ "float_plus" ];
-                                              mold =
-                                                {
-                                                  out = Exp;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      },
-                                                      {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "7e1d5f0a-b25b-4a80-96ee-be2e4098324e");
-                                              label = [ "," ];
-                                              mold =
-                                                {
-                                                  out = Exp;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Concave 44;
-                                                        sort = Exp;
-                                                      },
-                                                      {
-                                                        shape = Concave 44;
-                                                        sort = Exp;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                          Secondary
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "68dc1308-82c0-4abc-a9f7-20a01227c785");
-                                              content = Whitespace " ";
-                                            };
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "b5e70dc4-f8a2-4d59-a4c6-527789daeb98");
-                                              label = [ "0." ];
-                                              mold =
-                                                {
-                                                  out = Exp;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      },
-                                                      {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                        ];
-                                      ];
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "6bacc447-99a0-48f5-88cd-8ef1bf9df3e3");
-                                    content = Whitespace " ";
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "4eadeed5-5d56-42d4-8567-b35440ae8b31");
-                                    content = Whitespace " ";
-                                  };
-                              ];
-                            ];
-                        };
-                      Secondary
-                        {
-                          id =
-                            Option.get
-                              (Haz3lcore.Id.of_string
-                                 "56482b3c-5a6a-4e89-a7de-34272a7b4fac");
-                          content = Whitespace "\n";
-                        };
-                      Tile
-                        {
-                          id =
-                            Option.get
-                              (Haz3lcore.Id.of_string
-                                 "949b73a9-eba0-41c1-9bd8-8a5849488b8e");
-                          label = [ "let"; "="; "in" ];
-                          mold =
-                            {
-                              out = Exp;
-                              in_ = [ Pat; Exp ];
-                              nibs =
-                                ( { shape = Convex; sort = Exp },
-                                  { shape = Concave 45; sort = Exp } );
-                            };
-                          shards = [ 0; 1; 2 ];
-                          children =
-                            [
-                              [
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "b27dd03f-a696-4ad1-a63b-224c98a8aaa9");
-                                    content = Whitespace " ";
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "5af8b08e-f4e0-4ee1-8426-87e175d96b52");
-                                    label = [ "mean" ];
-                                    mold =
-                                      {
-                                        out = Pat;
-                                        in_ = [];
-                                        nibs =
-                                          ( { shape = Convex; sort = Pat },
-                                            { shape = Convex; sort = Pat } );
-                                      };
-                                    shards = [ 0 ];
-                                    children = [];
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "bb2e9b8f-077a-4798-9bf8-1705b2f62508");
-                                    content = Whitespace " ";
-                                  };
-                              ];
-                              [
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "dea66a79-8e0e-48c0-abce-6334683dc19e");
-                                    content = Whitespace " ";
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "c4ee744a-8297-4400-8d7f-77c6b4d65849");
-                                    label = [ "fun"; "->" ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [ Pat ];
-                                        nibs =
-                                          ( { shape = Convex; sort = Exp },
-                                            { shape = Concave 37; sort = Exp }
-                                          );
-                                      };
-                                    shards = [ 0; 1 ];
-                                    children =
-                                      [
-                                        [
-                                          Secondary
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "d0497926-477f-44a5-a9a8-ffd91f711f3d");
-                                              content = Whitespace " ";
-                                            };
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "f6fc5541-8530-4983-bbe9-b9c2cb62fef9");
-                                              label = [ "ns" ];
-                                              mold =
-                                                {
-                                                  out = Pat;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Convex;
-                                                        sort = Pat;
-                                                      },
-                                                      {
-                                                        shape = Convex;
-                                                        sort = Pat;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                          Secondary
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "d737ddd5-285c-4b3f-8a43-c6d9919f3116");
-                                              content = Whitespace " ";
-                                            };
-                                        ];
-                                      ];
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "f0f10213-62de-4697-b12a-1b49b58d04a2");
-                                    content = Whitespace " ";
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "cf007c8f-70af-4909-8c22-0afcb5276a87");
-                                    label = [ "sum" ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [];
-                                        nibs =
-                                          ( { shape = Convex; sort = Exp },
-                                            { shape = Convex; sort = Exp } );
-                                      };
-                                    shards = [ 0 ];
-                                    children = [];
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "4267c6b3-ba5e-4149-9383-2beeac6f0f98");
-                                    label = [ "("; ")" ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [ Exp ];
-                                        nibs =
-                                          ( { shape = Concave 23; sort = Exp },
-                                            { shape = Convex; sort = Exp } );
-                                      };
-                                    shards = [ 0; 1 ];
-                                    children =
-                                      [
-                                        [
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "3bda8dea-8411-484f-bad1-4dc136459699");
-                                              label = [ "ns" ];
-                                              mold =
-                                                {
-                                                  out = Exp;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      },
-                                                      {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                        ];
-                                      ];
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "ab7f089a-8917-48f4-8eef-6dc467a2c513");
-                                    content = Whitespace " ";
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "592133de-6a8d-4f96-8cd4-a84f8b4f8870");
-                                    label = [ "/." ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [];
-                                        nibs =
-                                          ( { shape = Concave 27; sort = Exp },
-                                            { shape = Concave 27; sort = Exp }
-                                          );
-                                      };
-                                    shards = [ 0 ];
-                                    children = [];
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "3e267aae-4ee7-48d4-b526-67eeb7f6aba8");
-                                    content = Whitespace " ";
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "dc4ec562-a854-405c-b20c-34aed2387d3a");
-                                    label = [ "float_of_int" ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [];
-                                        nibs =
-                                          ( { shape = Convex; sort = Exp },
-                                            { shape = Convex; sort = Exp } );
-                                      };
-                                    shards = [ 0 ];
-                                    children = [];
-                                  };
-                                Tile
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "02eb23e3-088b-422d-8983-bfabf2afb852");
-                                    label = [ "("; ")" ];
-                                    mold =
-                                      {
-                                        out = Exp;
-                                        in_ = [ Exp ];
-                                        nibs =
-                                          ( { shape = Concave 23; sort = Exp },
-                                            { shape = Convex; sort = Exp } );
-                                      };
-                                    shards = [ 0; 1 ];
-                                    children =
-                                      [
-                                        [
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "911dc5c4-4d26-43fa-a816-a47bff3140a7");
-                                              label = [ "length" ];
-                                              mold =
-                                                {
-                                                  out = Exp;
-                                                  in_ = [];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      },
-                                                      {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      } );
-                                                };
-                                              shards = [ 0 ];
-                                              children = [];
-                                            };
-                                          Tile
-                                            {
-                                              id =
-                                                Option.get
-                                                  (Haz3lcore.Id.of_string
-                                                     "46ba4368-2a0f-4e2c-a5ce-951438edac38");
-                                              label = [ "("; ")" ];
-                                              mold =
-                                                {
-                                                  out = Exp;
-                                                  in_ = [ Exp ];
-                                                  nibs =
-                                                    ( {
-                                                        shape = Concave 23;
-                                                        sort = Exp;
-                                                      },
-                                                      {
-                                                        shape = Convex;
-                                                        sort = Exp;
-                                                      } );
-                                                };
-                                              shards = [ 0; 1 ];
-                                              children =
-                                                [
-                                                  [
-                                                    Tile
-                                                      {
-                                                        id =
-                                                          Option.get
-                                                            (Haz3lcore.Id
-                                                             .of_string
-                                                               "63403c18-6f0e-45ab-95dd-1ef6870a5cdf");
-                                                        label = [ "ns" ];
-                                                        mold =
-                                                          {
-                                                            out = Exp;
-                                                            in_ = [];
-                                                            nibs =
-                                                              ( {
-                                                                  shape = Convex;
-                                                                  sort = Exp;
-                                                                },
-                                                                {
-                                                                  shape = Convex;
-                                                                  sort = Exp;
-                                                                } );
-                                                          };
-                                                        shards = [ 0 ];
-                                                        children = [];
-                                                      };
-                                                  ];
-                                                ];
-                                            };
-                                        ];
-                                      ];
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "db7263f1-dbef-48bc-bce8-7d8e472b2fd5");
-                                    content = Whitespace " ";
-                                  };
-                                Secondary
-                                  {
-                                    id =
-                                      Option.get
-                                        (Haz3lcore.Id.of_string
-                                           "1967dde1-6441-44d4-b6fe-3b63d8ceb4de");
-                                    content = Whitespace " ";
-                                  };
-                              ];
-                            ];
-                        };
-                      Secondary
-                        {
-                          id =
-                            Option.get
-                              (Haz3lcore.Id.of_string
-                                 "4ed62e21-e926-4ebf-b317-047ace852d2c");
-                          content = Whitespace "\n";
-                        };
-                      Tile
-                        {
-                          id =
-                            Option.get
-                              (Haz3lcore.Id.of_string
                                  "a5269d13-99b4-4e47-bd34-3017bbaeaabb");
                           label = [ "let"; "="; "in" ];
                           mold =
@@ -8877,7 +8163,7 @@ let exercise : Tutorial.spec =
                                     id =
                                       Option.get
                                         (Haz3lcore.Id.of_string
-                                           "60a63048-ffd7-4f7f-9174-6878b5301f1d");
+                                           "d09684e0-dcdd-4ef0-b941-951ebe582935");
                                     kind = Fold;
                                     syntax =
                                       Tile
@@ -8885,7 +8171,7 @@ let exercise : Tutorial.spec =
                                           id =
                                             Option.get
                                               (Haz3lcore.Id.of_string
-                                                 "25c33224-3f0a-4aaf-8fc1-1c48295cf976");
+                                                 "5a5992c0-38df-4680-9580-60ba6beb828e");
                                           label = [ "("; ")" ];
                                           mold =
                                             {
@@ -9513,6 +8799,1562 @@ let exercise : Tutorial.spec =
                                                         (Haz3lcore.Id.of_string
                                                            "f846cb99-5c87-4aff-9ffc-ff6e68af22bc");
                                                     content = Whitespace " ";
+                                                  };
+                                                Secondary
+                                                  {
+                                                    id =
+                                                      Option.get
+                                                        (Haz3lcore.Id.of_string
+                                                           "3dd3f8bb-fbb4-4146-bd32-5e9e63adb84d");
+                                                    content = Whitespace "\n";
+                                                  };
+                                                Tile
+                                                  {
+                                                    id =
+                                                      Option.get
+                                                        (Haz3lcore.Id.of_string
+                                                           "88a21d2e-a9e4-41f0-93b5-744a2d136d32");
+                                                    label = [ "let"; "="; "in" ];
+                                                    mold =
+                                                      {
+                                                        out = Exp;
+                                                        in_ = [ Pat; Exp ];
+                                                        nibs =
+                                                          ( {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            },
+                                                            {
+                                                              shape = Concave 45;
+                                                              sort = Exp;
+                                                            } );
+                                                      };
+                                                    shards = [ 0; 1; 2 ];
+                                                    children =
+                                                      [
+                                                        [
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "ae09aab3-1a0c-42db-b159-f2782a49d7bd");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "51a4fc92-2ce8-4a01-a5e8-ec9330c4242c");
+                                                              label = [ "sum" ];
+                                                              mold =
+                                                                {
+                                                                  out = Pat;
+                                                                  in_ = [];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Pat;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Pat;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0 ];
+                                                              children = [];
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "7834a3f4-1e65-49c8-80a7-3d4e4a78e4d8");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                        ];
+                                                        [
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "e64caab4-1468-4793-ae05-ef1a281067d3");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "bbb98749-21bd-4032-ae49-38b80ac94afb");
+                                                              label =
+                                                                [ "fun"; "->" ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [ Pat ];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Concave
+                                                                            37;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0; 1 ];
+                                                              children =
+                                                                [
+                                                                  [
+                                                                    Secondary
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "35b358af-8436-4263-8f7c-638dcbf66deb");
+                                                                        content =
+                                                                          Whitespace
+                                                                            " ";
+                                                                      };
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "a97b3d8c-34de-4cca-8f73-70e6beb7dd6c");
+                                                                        label =
+                                                                          [
+                                                                            "(";
+                                                                            ")";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Pat;
+                                                                            in_ =
+                                                                              [
+                                                                                Pat;
+                                                                              ];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Pat;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Pat;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [
+                                                                            0; 1;
+                                                                          ];
+                                                                        children =
+                                                                          [
+                                                                            [
+                                                                              Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "7beb75be-9244-47f0-9b1d-5b448058edee");
+                                                                                label =
+                                                                                [
+                                                                                "ns";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Pat;
+                                                                                in_ =
+                                                                                [];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Pat;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Pat;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                ];
+                                                                                children =
+                                                                                [];
+                                                                                };
+                                                                              Secondary
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "51288e22-622b-443f-8e53-f6d8f2617f77");
+                                                                                content =
+                                                                                Whitespace
+                                                                                " ";
+                                                                                };
+                                                                              Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "527eb997-a387-4f1b-91f8-805e4114c627");
+                                                                                label =
+                                                                                [
+                                                                                ":";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Pat;
+                                                                                in_ =
+                                                                                [];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Concave
+                                                                                24;
+                                                                                sort =
+                                                                                Pat;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Concave
+                                                                                24;
+                                                                                sort =
+                                                                                Typ;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                ];
+                                                                                children =
+                                                                                [];
+                                                                                };
+                                                                              Secondary
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "bca98ac2-1630-487e-81ff-0a74af140eb4");
+                                                                                content =
+                                                                                Whitespace
+                                                                                " ";
+                                                                                };
+                                                                              Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "9c274988-e7a8-4ccf-86c6-5a259662ee77");
+                                                                                label =
+                                                                                [
+                                                                                "[";
+                                                                                "]";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Typ;
+                                                                                in_ =
+                                                                                [
+                                                                                Typ;
+                                                                                ];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Typ;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Typ;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                1;
+                                                                                ];
+                                                                                children =
+                                                                                [
+                                                                                [
+                                                                                Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "7d936d61-e764-4aad-b93a-aeb511bec4e4");
+                                                                                label =
+                                                                                [
+                                                                                "Float";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Typ;
+                                                                                in_ =
+                                                                                [];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Typ;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Typ;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                ];
+                                                                                children =
+                                                                                [];
+                                                                                };
+                                                                                ];
+                                                                                ];
+                                                                                };
+                                                                            ];
+                                                                          ];
+                                                                      };
+                                                                    Secondary
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "17c02fc8-20dd-4ef9-82cd-96198604bed6");
+                                                                        content =
+                                                                          Whitespace
+                                                                            " ";
+                                                                      };
+                                                                  ];
+                                                                ];
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "e12c9d05-26e6-47e8-b1dd-24fb7d6aafed");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "90c25c17-5356-4157-8684-1b28558e6084");
+                                                              label =
+                                                                [ "fold_left" ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0 ];
+                                                              children = [];
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "abb9842e-c1fc-407b-9ef9-f14482d09dae");
+                                                              label =
+                                                                [ "("; ")" ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [ Exp ];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Concave
+                                                                            23;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0; 1 ];
+                                                              children =
+                                                                [
+                                                                  [
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "13a56706-1b93-40ea-bca3-620c29a00112");
+                                                                        label =
+                                                                          [
+                                                                            "ns";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Exp;
+                                                                            in_ =
+                                                                              [];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [ 0 ];
+                                                                        children =
+                                                                          [];
+                                                                      };
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "9184893f-d214-4d91-9af3-d5c89c166bdf");
+                                                                        label =
+                                                                          [
+                                                                            ",";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Exp;
+                                                                            in_ =
+                                                                              [];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Concave
+                                                                                44;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Concave
+                                                                                44;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [ 0 ];
+                                                                        children =
+                                                                          [];
+                                                                      };
+                                                                    Secondary
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "eab8c0f7-f7b0-467d-b157-0cfb42a5815d");
+                                                                        content =
+                                                                          Whitespace
+                                                                            " ";
+                                                                      };
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "939da5c1-28ce-4743-ac95-684537b33ec0");
+                                                                        label =
+                                                                          [
+                                                                            "float_plus";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Exp;
+                                                                            in_ =
+                                                                              [];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [ 0 ];
+                                                                        children =
+                                                                          [];
+                                                                      };
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "7d9df328-ab95-4cf8-bee5-ec3a6f3079c8");
+                                                                        label =
+                                                                          [
+                                                                            ",";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Exp;
+                                                                            in_ =
+                                                                              [];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Concave
+                                                                                44;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Concave
+                                                                                44;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [ 0 ];
+                                                                        children =
+                                                                          [];
+                                                                      };
+                                                                    Secondary
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "5e3257e2-11fc-45a7-a6d8-027c38955f7c");
+                                                                        content =
+                                                                          Whitespace
+                                                                            " ";
+                                                                      };
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "d80a00b6-0f76-469b-aaeb-e63affd123e0");
+                                                                        label =
+                                                                          [
+                                                                            "0.";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Exp;
+                                                                            in_ =
+                                                                              [];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [ 0 ];
+                                                                        children =
+                                                                          [];
+                                                                      };
+                                                                  ];
+                                                                ];
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "ff81c985-6dbd-451a-8d3e-77c56d8fe901");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "93d67025-f0b0-4356-8053-c26d22219035");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                        ];
+                                                      ];
+                                                  };
+                                                Secondary
+                                                  {
+                                                    id =
+                                                      Option.get
+                                                        (Haz3lcore.Id.of_string
+                                                           "a0ac6653-6cad-469b-81e1-3acafa826a72");
+                                                    content = Whitespace "\n";
+                                                  };
+                                                Tile
+                                                  {
+                                                    id =
+                                                      Option.get
+                                                        (Haz3lcore.Id.of_string
+                                                           "5af69105-bac6-4308-898e-628b2894b814");
+                                                    label = [ "let"; "="; "in" ];
+                                                    mold =
+                                                      {
+                                                        out = Exp;
+                                                        in_ = [ Pat; Exp ];
+                                                        nibs =
+                                                          ( {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            },
+                                                            {
+                                                              shape = Concave 45;
+                                                              sort = Exp;
+                                                            } );
+                                                      };
+                                                    shards = [ 0; 1; 2 ];
+                                                    children =
+                                                      [
+                                                        [
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "bb76aaa2-679a-49c7-a711-f1fefa4007ed");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "258d9fd4-a9ae-4b34-9c2f-2b2e1a1c448c");
+                                                              label = [ "mean" ];
+                                                              mold =
+                                                                {
+                                                                  out = Pat;
+                                                                  in_ = [];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Pat;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Pat;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0 ];
+                                                              children = [];
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "ab9d52fc-fe9e-4031-b7a4-89290b4d28af");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                        ];
+                                                        [
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "a767b823-075c-42e5-9eb2-99b9d214bd08");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "9c44e03c-c955-4afe-9457-48e7719a3da5");
+                                                              label =
+                                                                [ "fun"; "->" ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [ Pat ];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Concave
+                                                                            37;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0; 1 ];
+                                                              children =
+                                                                [
+                                                                  [
+                                                                    Secondary
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "fe5bebb4-eb08-4a65-bd8b-b623abf5142f");
+                                                                        content =
+                                                                          Whitespace
+                                                                            " ";
+                                                                      };
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "62cbbffe-ef1c-48a0-9534-8f1b5894aeda");
+                                                                        label =
+                                                                          [
+                                                                            "(";
+                                                                            ")";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Pat;
+                                                                            in_ =
+                                                                              [
+                                                                                Pat;
+                                                                              ];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Pat;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Pat;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [
+                                                                            0; 1;
+                                                                          ];
+                                                                        children =
+                                                                          [
+                                                                            [
+                                                                              Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "45eee49d-8248-4b36-a08c-f2a19e518ec2");
+                                                                                label =
+                                                                                [
+                                                                                "ns";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Pat;
+                                                                                in_ =
+                                                                                [];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Pat;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Pat;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                ];
+                                                                                children =
+                                                                                [];
+                                                                                };
+                                                                              Secondary
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "771ea833-d49c-4b89-b23c-f29b6bfd37d8");
+                                                                                content =
+                                                                                Whitespace
+                                                                                " ";
+                                                                                };
+                                                                              Secondary
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "69316559-7091-431f-97dc-8e11df61bdfc");
+                                                                                content =
+                                                                                Whitespace
+                                                                                " ";
+                                                                                };
+                                                                              Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "364a7b2a-9795-4dc2-9486-c15b0a42a853");
+                                                                                label =
+                                                                                [
+                                                                                ":";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Pat;
+                                                                                in_ =
+                                                                                [];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Concave
+                                                                                24;
+                                                                                sort =
+                                                                                Pat;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Concave
+                                                                                24;
+                                                                                sort =
+                                                                                Typ;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                ];
+                                                                                children =
+                                                                                [];
+                                                                                };
+                                                                              Secondary
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "b05f81a1-d24d-451b-9922-bd6c7997a0c8");
+                                                                                content =
+                                                                                Whitespace
+                                                                                " ";
+                                                                                };
+                                                                              Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "3f172a3e-4b5f-43bf-a66b-ac58fc414b82");
+                                                                                label =
+                                                                                [
+                                                                                "[";
+                                                                                "]";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Typ;
+                                                                                in_ =
+                                                                                [
+                                                                                Typ;
+                                                                                ];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Typ;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Typ;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                1;
+                                                                                ];
+                                                                                children =
+                                                                                [
+                                                                                [
+                                                                                Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "545de967-d96d-4343-a894-ad0ebb4dd179");
+                                                                                label =
+                                                                                [
+                                                                                "Float";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Typ;
+                                                                                in_ =
+                                                                                [];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Typ;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Typ;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                ];
+                                                                                children =
+                                                                                [];
+                                                                                };
+                                                                                ];
+                                                                                ];
+                                                                                };
+                                                                            ];
+                                                                          ];
+                                                                      };
+                                                                    Secondary
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "b8ba482a-43b2-4e6c-8935-ba7392243074");
+                                                                        content =
+                                                                          Whitespace
+                                                                            " ";
+                                                                      };
+                                                                    Secondary
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "6b876166-50ec-4cfb-8a95-f8a9f61a96ed");
+                                                                        content =
+                                                                          Whitespace
+                                                                            " ";
+                                                                      };
+                                                                  ];
+                                                                ];
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "08093563-ee16-4715-9417-c63f5b0c1789");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "ce201ae5-3c7e-4d60-92b5-ec9e5d65940a");
+                                                              label = [ "sum" ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0 ];
+                                                              children = [];
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "b270c843-44c0-46f4-adb8-50fcb0742667");
+                                                              label =
+                                                                [ "("; ")" ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [ Exp ];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Concave
+                                                                            23;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0; 1 ];
+                                                              children =
+                                                                [
+                                                                  [
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "19fbb60c-dd72-4eb9-b110-77ba7bbff968");
+                                                                        label =
+                                                                          [
+                                                                            "ns";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Exp;
+                                                                            in_ =
+                                                                              [];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [ 0 ];
+                                                                        children =
+                                                                          [];
+                                                                      };
+                                                                  ];
+                                                                ];
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "9c1d6c59-797d-43b6-92cd-dcedc6ad9834");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "5f93d559-79ae-4f48-8d2e-10e91529ccb8");
+                                                              label = [ "/." ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Concave
+                                                                            27;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Concave
+                                                                            27;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0 ];
+                                                              children = [];
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "5d21e14e-07a8-4785-bb55-ac1e8c6f82c1");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "30a82bc1-6fa3-432d-9936-5885cdc656fe");
+                                                              label =
+                                                                [
+                                                                  "float_of_int";
+                                                                ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0 ];
+                                                              children = [];
+                                                            };
+                                                          Tile
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "376a7cbf-a813-4abd-b7a6-b2d811e225c9");
+                                                              label =
+                                                                [ "("; ")" ];
+                                                              mold =
+                                                                {
+                                                                  out = Exp;
+                                                                  in_ = [ Exp ];
+                                                                  nibs =
+                                                                    ( {
+                                                                        shape =
+                                                                          Concave
+                                                                            23;
+                                                                        sort =
+                                                                          Exp;
+                                                                      },
+                                                                      {
+                                                                        shape =
+                                                                          Convex;
+                                                                        sort =
+                                                                          Exp;
+                                                                      } );
+                                                                };
+                                                              shards = [ 0; 1 ];
+                                                              children =
+                                                                [
+                                                                  [
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "6cfb237e-553d-4a6d-8b40-55089d8098c3");
+                                                                        label =
+                                                                          [
+                                                                            "length";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Exp;
+                                                                            in_ =
+                                                                              [];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [ 0 ];
+                                                                        children =
+                                                                          [];
+                                                                      };
+                                                                    Tile
+                                                                      {
+                                                                        id =
+                                                                          Option
+                                                                          .get
+                                                                            (Haz3lcore
+                                                                             .Id
+                                                                             .of_string
+                                                                               "e020410b-f363-4c18-9174-09fd6289024b");
+                                                                        label =
+                                                                          [
+                                                                            "(";
+                                                                            ")";
+                                                                          ];
+                                                                        mold =
+                                                                          {
+                                                                            out =
+                                                                              Exp;
+                                                                            in_ =
+                                                                              [
+                                                                                Exp;
+                                                                              ];
+                                                                            nibs =
+                                                                              ( {
+                                                                                shape =
+                                                                                Concave
+                                                                                23;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                              );
+                                                                          };
+                                                                        shards =
+                                                                          [
+                                                                            0; 1;
+                                                                          ];
+                                                                        children =
+                                                                          [
+                                                                            [
+                                                                              Tile
+                                                                                {
+                                                                                id =
+                                                                                Option
+                                                                                .get
+                                                                                (
+                                                                                Haz3lcore
+                                                                                .Id
+                                                                                .of_string
+                                                                                "0d898c48-208c-426d-b905-0dff74b4b313");
+                                                                                label =
+                                                                                [
+                                                                                "ns";
+                                                                                ];
+                                                                                mold =
+                                                                                {
+                                                                                out =
+                                                                                Exp;
+                                                                                in_ =
+                                                                                [];
+                                                                                nibs =
+                                                                                ( 
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                },
+                                                                                {
+                                                                                shape =
+                                                                                Convex;
+                                                                                sort =
+                                                                                Exp;
+                                                                                }
+                                                                                );
+                                                                                };
+                                                                                shards =
+                                                                                [
+                                                                                0;
+                                                                                ];
+                                                                                children =
+                                                                                [];
+                                                                                };
+                                                                            ];
+                                                                          ];
+                                                                      };
+                                                                  ];
+                                                                ];
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "dcde31ec-759f-4fa7-ba49-6419543e8bda");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                          Secondary
+                                                            {
+                                                              id =
+                                                                Option.get
+                                                                  (Haz3lcore.Id
+                                                                   .of_string
+                                                                     "ca62f075-7368-498c-98fb-e327f1890b5f");
+                                                              content =
+                                                                Whitespace " ";
+                                                            };
+                                                        ];
+                                                      ];
                                                   };
                                                 Secondary
                                                   {

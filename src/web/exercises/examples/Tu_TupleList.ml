@@ -10,7 +10,7 @@ let exercise : Tutorial.spec =
        Hazel provides 2 operations that allow for the conversion between \
        labeled tuples and lists.\n\n\
        ### to_lvs : ? -> [(label=String, value=?)]\n\
-       Turns a labeled tuple in to a list of label/value pairs.\n\n\
+       Turns a labeled tuple into a list of label/value pairs.\n\n\
        ```hazel\n\
        let t = (length=3, width=5, height=7) in\n\
        to_lvs(t)\n\
@@ -60,7 +60,8 @@ let exercise : Tutorial.spec =
        ```hazelnostatics\n\
        update_entry((apple=1, pear=2, avocado=3),\n\
       \           string_match(\"^a\", _),\n\
-      \           fun i -> i + 1) == (apple=2, pear=2, avocado=4)\n\
+      \           fun i -> i + 1)\n\
+       == (apple=2, pear=2, avocado=4)\n\
        ```\n\
        where `string_match(\"^a\", _)` is a predicate that matches any string \
        starting with `a`. \n";
