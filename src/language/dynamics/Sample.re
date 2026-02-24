@@ -92,7 +92,8 @@ module Env = {
     switch ((d |> DHExp.strip_ascriptions).term) {
     | Fun(_)
     | FixF(_)
-    | Closure(_) => Opaque
+    | Closure(_)
+    | BuiltinFun(_) => Opaque
     | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
     };
 
