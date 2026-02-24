@@ -256,7 +256,11 @@ module Update = {
             and.calc result = result;
             switch (result) {
             | ResultOk({result: exp, _}) =>
-              Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
+              Some((
+                exp,
+                exp
+                |> CodeSelectable.Model.mk_from_exp(~settings, ~pretty=true),
+              ))
             | ResultFail(_)
             | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
             };

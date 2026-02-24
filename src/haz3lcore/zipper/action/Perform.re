@@ -52,6 +52,14 @@ let go =
       Printer.of_zipper(~holes="", ~indent="", z),
     )
     |> return(CantReparse)
+  | PrettyPrint =>
+    let seg = Zipper.unselect_and_zip(z);
+    let pretty = PrettySegment.prettify(seg);
+    let z = {
+      ...Zipper.unzip(pretty),
+      refractors: z.refractors,
+    };
+    Some(z) |> return(CantReparse);
   | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
   | Project(a) =>
     let refractor_list =

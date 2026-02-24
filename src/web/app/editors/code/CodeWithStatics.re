@@ -38,14 +38,15 @@ module Model = {
     };
   };
 
-  let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
-    ExpToSegment.exp_to_segment(
-      term,
-      ~settings=ExpToSegment.Settings.of_core(~inline, settings),
-    )
-    |> Zipper.unzip
-    |> Editor.Model.mk
-    |> mk;
+  let mk_from_exp =
+      (~settings: CoreSettings.t, ~inline=false, ~pretty=false, term: Exp.t) => {
+    let seg =
+      ExpToSegment.exp_to_segment(
+        term,
+        ~settings=ExpToSegment.Settings.of_core(~inline, settings),
+      );
+    let seg = pretty ? PrettySegment.prettify(~width=60, seg) : seg;
+    seg |> Zipper.unzip |> Editor.Model.mk |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
