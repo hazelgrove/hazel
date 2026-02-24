@@ -490,16 +490,21 @@ let show_pin = (ctx: probe_ctx, sample: Sample.t) => {
 };
 
 let show_focus = (ctx: probe_ctx, sample: Sample.t) =>
-  switch (ctx.ap_id, ctx.dynamics.sample_cursor.pinned_stack) {
-  | (None, Some(pinned_stack)) =>
+  switch (ctx.dynamics.sample_cursor.pinned_stack) {
+  | Some(pinned_stack) =>
     Sample.ids_of_stack(pinned_stack)
     == Sample.ids_of_stack(sample.call_stack)
   | _ => false
   };
 
 let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
-  show_pin(ctx, sample) || show_focus(ctx, sample)
-    ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
+  if (show_pin(ctx, sample)) {
+    [div(~attrs=[Attr.classes(["pin"])], [])];
+  } else if (show_focus(ctx, sample)) {
+    [div(~attrs=[Attr.classes(["pin-enclosing"])], [])];
+  } else {
+    [];
+  };
 
 /* Generate unique dropdown ID for a sample */
 let dropdown_id = (sample_id: int): string =>
