@@ -15,7 +15,7 @@ type t = {
   probes: Sample.Map.t,
   app_args: app_args_t, /* Argument values for function applications */
   step_count: int,
-  pending_probe_starts: Id.Map.t(int), /* Transient state only needed during evaluation */
+  pending_probe_starts: Id.Map.t(list(int)), /* Stack per probe_id; nested recursive calls push/pop */
   targets: Sample.targets /* IDs of expressions/patterns to sample */
 };
 
@@ -42,17 +42,37 @@ let init: t = mk(~targets=Sample.no_targets);
 let get_step_count = ({step_count, _}: t): int => step_count;
 
 let record_probe_start = (state: t, probe_id: Id.t): t => {
-  ...state,
-  pending_probe_starts:
-    Id.Map.add(probe_id, state.step_count, state.pending_probe_starts),
+  let stack =
+    Id.Map.find_opt(probe_id, state.pending_probe_starts)
+    |> Option.value(~default=[]);
+  {
+    ...state,
+    pending_probe_starts:
+      Id.Map.add(
+        probe_id,
+        [state.step_count, ...stack],
+        state.pending_probe_starts,
+      ),
+  };
 };
 
 let get_probe_start = (state: t, probe_id: Id.t): option(int) =>
-  Id.Map.find_opt(probe_id, state.pending_probe_starts);
+  switch (Id.Map.find_opt(probe_id, state.pending_probe_starts)) {
+  | Some([head, ..._]) => Some(head)
+  | _ => None
+  };
 
 let clear_probe_start = (state: t, probe_id: Id.t): t => {
-  ...state,
-  pending_probe_starts: Id.Map.remove(probe_id, state.pending_probe_starts),
+  let pending =
+    switch (Id.Map.find_opt(probe_id, state.pending_probe_starts)) {
+    | Some([_, ...rest]) when rest != [] =>
+      Id.Map.add(probe_id, rest, state.pending_probe_starts)
+    | _ => Id.Map.remove(probe_id, state.pending_probe_starts)
+    };
+  {
+    ...state,
+    pending_probe_starts: pending,
+  };
 };
 
 let get_tests = ({tests, _}) => tests;
