@@ -30,6 +30,43 @@
 
 include StaticsBase;
 
+/* Collect module variable references from type annotations.
+   For M.T (= ProdProjection(Var("M"), Label("T"))), free_vars returns ["M"].
+   We filter to names that are expression variables (not type aliases). */
+let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => {
+  Typ.free_vars(typ)
+  |> List.filter_map(name =>
+       switch (Ctx.lookup_var(ctx, name)) {
+       | Some(_) =>
+         Some(CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp))
+       | None => None
+       }
+     )
+  |> CoCtx.union;
+};
+
+/* Walk a Pat.t AST and collect module refs from any Asc(_, ann) sub-patterns. */
+let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
+  switch (pat.term) {
+  | Asc(p, ann) =>
+    CoCtx.union([
+      collect_module_refs_in_typ(ctx, Typ.rep_id(ann), ann),
+      collect_pat_type_refs(ctx, p),
+    ])
+  | Tuple(ps)
+  | ListLit(ps) => CoCtx.union(List.map(collect_pat_type_refs(ctx), ps))
+  | Cons(p1, p2)
+  | TupLabel(p1, p2)
+  | Ap(p1, p2) =>
+    CoCtx.union([
+      collect_pat_type_refs(ctx, p1),
+      collect_pat_type_refs(ctx, p2),
+    ])
+  | Parens(p)
+  | Projector(_, p) => collect_pat_type_refs(ctx, p)
+  | _ => CoCtx.empty
+  };
+
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
@@ -152,7 +189,22 @@ let rec any_to_info_map =
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
       (CoCtx.union(co_ctxs), add_sig_info(m));
     | SigLet(p) =>
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, Pat(p), m);
+      let hole_co_ctx =
+        CoCtx.singleton(
+          "$hole",
+          IdTagged.rep_id(s_term),
+          Unknown(Internal) |> Typ.temp,
+        );
+      let m =
+        upat_to_info_map(
+          ~is_synswitch=false,
+          ~co_ctx=hole_co_ctx,
+          ~ancestors,
+          ~ctx,
+          p,
+          m,
+        )
+        |> snd;
       (CoCtx.empty, add_sig_info(m));
     | SigType(tp, t) =>
       let (_, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
@@ -427,7 +479,8 @@ and uexp_to_info_map =
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.term);
       let (e, m) = go'(~ana=t_ty, ~ctx=t.ctx, e, m);
-      add(~self=Just(t_ty), ~co_ctx=e.co_ctx, m);
+      let typ_refs = collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
+      add(~self=Just(t_ty), ~co_ctx=CoCtx.union([e.co_ctx, typ_refs]), m);
     | Invalid(token) => atomic(BadToken(token))
     | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
     | Deferral(position) =>
@@ -832,6 +885,7 @@ and uexp_to_info_map =
           e2,
           m,
         );
+      let dot_co_ctx = CoCtx.union([info_e1.co_ctx, info_e2.co_ctx]);
 
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
@@ -862,21 +916,17 @@ and uexp_to_info_map =
             LabeledTuple.find_label(Typ.match_tup_label, ts, name);
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
-          | Some(typ) => add(~self=Just(typ), ~co_ctx=info_e2.co_ctx, m)
+          | Some(typ) => add(~self=Just(typ), ~co_ctx=dot_co_ctx, m)
           | None =>
-            add'(
-              ~self=LabelNotFound(name, labels),
-              ~co_ctx=info_e2.co_ctx,
-              m,
-            )
+            add'(~self=LabelNotFound(name, labels), ~co_ctx=dot_co_ctx, m)
           };
         | EmptyHole =>
           add(
             ~self=Just(Unknown(Internal) |> Typ.temp),
-            ~co_ctx=info_e2.co_ctx,
+            ~co_ctx=dot_co_ctx,
             m,
           )
-        | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
+        | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=dot_co_ctx, m)
         };
       | List({term: Prod(ts), _}) =>
         let labels =
@@ -889,33 +939,25 @@ and uexp_to_info_map =
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) =>
-            add(
-              ~self=Just(List(typ) |> Typ.fresh),
-              ~co_ctx=info_e2.co_ctx,
-              m,
-            )
+            add(~self=Just(List(typ) |> Typ.fresh), ~co_ctx=dot_co_ctx, m)
           | None =>
-            add'(
-              ~self=LabelNotFound(name, labels),
-              ~co_ctx=info_e2.co_ctx,
-              m,
-            )
+            add'(~self=LabelNotFound(name, labels), ~co_ctx=dot_co_ctx, m)
           };
         | EmptyHole =>
           add(
             ~self=Just(Unknown(Internal) |> Typ.temp),
-            ~co_ctx=info_e2.co_ctx,
+            ~co_ctx=dot_co_ctx,
             m,
           )
-        | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
+        | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=dot_co_ctx, m)
         };
       | List({term: Unknown(_), _}) =>
         add(
           ~self=Just(List(Unknown(Internal) |> Typ.temp) |> Typ.temp),
-          ~co_ctx=info_e2.co_ctx,
+          ~co_ctx=dot_co_ctx,
           m,
         )
-      | _ => add'(~self=DotOperatorRequiresTuple, ~co_ctx=info_e2.co_ctx, m)
+      | _ => add'(~self=DotOperatorRequiresTuple, ~co_ctx=dot_co_ctx, m)
       };
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
@@ -956,7 +998,8 @@ and uexp_to_info_map =
            parsed as Constructor but is actually a variable binding. */
         switch (Ctx.lookup_var(ctx, name)) {
         | Some({typ, _}) =>
-          let (info, m) = atomic(Just(typ));
+          let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
+          let (info, m) = add(~self=Just(typ), ~co_ctx, m);
           let m =
             add_info(
               ids,
@@ -1160,6 +1203,7 @@ and uexp_to_info_map =
         };
       };
     | Fun(p, e, typ, _) =>
+      let pat_typ_refs = collect_pat_type_refs(ctx, p);
       let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _) =
@@ -1179,7 +1223,11 @@ and uexp_to_info_map =
         | Inexhaustive(unseen_pattern) =>
           InexhaustiveMatch(unwrapped_self, unseen_pattern)
         };
-      add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
+      add'(
+        ~self,
+        ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p.ctx, e.co_ctx), pat_typ_refs]),
+        m,
+      );
     | Forall(p, e) =>
       let (p, m) = go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
       let (e, m) = go'(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
@@ -1326,13 +1374,19 @@ and uexp_to_info_map =
         | Inexhaustive(unseen_pattern) =>
           InexhaustiveMatch(unwrapped_self, unseen_pattern)
         };
+      let pat_typ_refs = collect_pat_type_refs(ctx, p);
       add'(
         ~self,
         ~co_ctx=
-          CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+          CoCtx.union([
+            def.co_ctx,
+            CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
+            pat_typ_refs,
+          ]),
         m,
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
+      let pat_typ_refs = collect_pat_type_refs(ctx, p);
       let (e1', m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
         go_pat(
@@ -1353,10 +1407,12 @@ and uexp_to_info_map =
             p'.co_ctx,
             e1'.co_ctx,
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
+            pat_typ_refs,
           ]),
         m,
       );
     | Theorem(p, e1, e2) =>
+      let pat_typ_refs = collect_pat_type_refs(ctx, p);
       let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
@@ -1366,7 +1422,12 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add'(
         ~self=BadTheorem(e2.ty),
-        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e2.co_ctx)]),
+        ~co_ctx=
+          CoCtx.union([
+            p'.co_ctx,
+            CoCtx.mk(ctx, p.ctx, e2.co_ctx),
+            pat_typ_refs,
+          ]),
         m,
       );
     | ProofObject(e) =>
@@ -1378,9 +1439,11 @@ and uexp_to_info_map =
       let (e', m) = go'(~ctx=p'.ctx, ~ana=p'.ty, e, m);
       let (p'', m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
+      let pat_typ_refs = collect_pat_type_refs(ctx, p);
       add(
         ~self=Just(p'.ty),
-        ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx)]),
+        ~co_ctx=
+          CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx), pat_typ_refs]),
         m,
       );
     | If(e0, e1, e2) =>
@@ -1531,7 +1594,13 @@ and uexp_to_info_map =
         /* Make sure types don't escape their scope */
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
-        add(~self=Just(ty_escape), ~co_ctx, m);
+        let typ_refs =
+          collect_module_refs_in_typ(ctx, Typ.rep_id(utyp), utyp);
+        add(
+          ~self=Just(ty_escape),
+          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+          m,
+        );
       | Var(_)
       | Invalid(_)
       | EmptyHole
@@ -1539,7 +1608,13 @@ and uexp_to_info_map =
         let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
           go'(~ctx, ~ana, body, m);
         let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
-        add(~self=Just(ty_body), ~co_ctx, m);
+        let typ_refs =
+          collect_module_refs_in_typ(ctx, Typ.rep_id(utyp), utyp);
+        add(
+          ~self=Just(ty_body),
+          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+          m,
+        );
       };
     | Use(typ, body) =>
       let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
