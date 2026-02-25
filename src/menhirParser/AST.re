@@ -713,7 +713,11 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
             switch (shrunk) {
             | [] => Iter.return(TupleExp([]))
-            | [x] => Iter.return(x)
+            | [x] =>
+              switch (x) {
+              | TupLabel(_, _) => Iter.return(TupleExp(shrunk))
+              | _ => Iter.return(x)
+              }
             | _ => return(TupleExp(shrunk))
             };
           }
