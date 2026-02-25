@@ -325,36 +325,33 @@ unExp:
     | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
     | L_NOT; e = exp {UnOp(Bool(Not), e)}
 
-tupExpEntry:
-    | e = exp {e}
-    | l = label; SINGLE_EQUAL; e = exp {TupLabel(Label(l), e)}
-    | WILD; SINGLE_EQUAL; e = exp {TupLabel(ExplicitNonlabel, e)}
-
-exp:
+// Non-label expressions for use inside tuples to avoid conflict
+// Sub-expressions still use 'exp' to allow labels in nested contexts
+non_label_exp:
     | b = binExp { b }
     | i = INT { Atom (Int (Bigint.of_int i)) }
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
-    | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
+    | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) }
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | e = exp; COLON; t = typ { Asc(e, t) }
     | PROJECTOR_INVOKE; OPEN_PAREN; e = exp; CLOSE_PAREN; { e }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
-    | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
+    | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
     | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(l), e)]) }
     | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
-    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } 
-    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) } 
+    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
+    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
-    | FALSE { Atom (Bool false) }    
+    | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
@@ -372,4 +369,13 @@ exp:
     | u = unExp { u }
     | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) } %prec PLUS
     | e1 = exp; DOT; e2 = exp { Dot(e1, e2) }
+
+tupExpEntry:
+    | e = non_label_exp {e}
+    | l = label; SINGLE_EQUAL; e = exp {TupLabel(Label(l), e)}
+    | WILD; SINGLE_EQUAL; e = exp {TupLabel(ExplicitNonlabel, e)}
+
+exp:
+    | e = non_label_exp { e }
+    | l = label; SINGLE_EQUAL; e = exp { TupleExp([TupLabel(Label(l), e)]) } %prec LET_EXP
 

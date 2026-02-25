@@ -124,12 +124,18 @@ module Update = {
         ~schedule_action: t => unit,
         ~is_edited: bool,
         ~dynamics,
+        ~use_worker=true,
         model: Model.t,
       )
       : Model.t => {
     current:
       model.current
-      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
+      |> Page.Update.calculate(
+           ~schedule_action,
+           ~is_edited,
+           ~dynamics,
+           ~use_worker,
+         ),
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
   };
@@ -147,7 +153,19 @@ module Selection = {
 
 module View = {
   let view =
-      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    Page.View.view(~get_log_and, ~inject, model.current);
+      (
+        ~log_model,
+        ~log_initial_state,
+        ~get_log_and,
+        ~inject: Update.t => Ui_effect.t(unit),
+        model: Model.t,
+      ) => {
+    Page.View.view(
+      ~log_model,
+      ~log_initial_state,
+      ~get_log_and,
+      ~inject,
+      model.current,
+    );
   };
 };

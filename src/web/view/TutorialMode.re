@@ -224,13 +224,26 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~is_edited,
+        ~schedule_action,
+        ~use_worker=true,
+        model: Model.t,
+      )
+      : Model.t => {
     let stitched_elabs = Tutorial.stitch_term(model.editors);
-    let worker_request = ref([]);
-    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
-      worker_request :=
-        worker_request^ @ [(pos |> Tutorial.key_for_statics, req_value)];
-    };
+    let queue_worker_opt =
+      if (use_worker) {
+        let worker_request = ref([]);
+        let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
+          worker_request :=
+            worker_request^ @ [(pos |> Tutorial.key_for_statics, req_value)];
+        };
+        Some((queue_worker, worker_request));
+      } else {
+        None;
+      };
     let cells =
       Tutorial.map2_stitched(
         (pos, {term, editor}: Tutorial.TermItem.t, cell: CellEditor.Model.t) =>
@@ -246,46 +259,55 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
-               ~queue_worker=Some(queue_worker(pos)),
+               ~queue_worker=
+                 switch (queue_worker_opt) {
+                 | Some((queue_worker, _)) => Some(queue_worker(pos))
+                 | None => None
+                 },
                ~stitch=_ =>
                term
              ),
         stitched_elabs,
         model.cells,
       );
-    WorkerClient.request(
-      worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = Tutorial.pos_of_key(pos);
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          Tutorial.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+    switch (queue_worker_opt) {
+    | Some((_, worker_request)) =>
+      WorkerClient.request(
+        worker_request^,
+        ~handler=
+          List.iter(((pos, result)) => {
+            let pos' = Tutorial.pos_of_key(pos);
+            let result':
+              Language.ProgramResult.t(Language.ProgramResult.inner) =
+              switch (result) {
+              | Ok((r, s)) =>
+                ResultOk({
+                  result: r,
+                  state: s,
+                })
+              | Error(e) => ResultFail(e)
+              };
+            schedule_action(
+              Editor(pos', ResultAction(UpdateResult(result'))),
+            );
+          }),
+        ~timeout=_ => {
+          let _ =
+            Tutorial.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
-    );
+              model.cells,
+            );
+          ();
+        },
+      )
+    | None => ()
+    };
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
        one of the editors is shown in two cells, so we arbitrarily choose which

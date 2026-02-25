@@ -11,6 +11,7 @@ module Model = {
     past_log: list((float, History.Update.t)),
     replay_messages: list(string),
     replay_toggle: bool,
+    initial_state: option(Export.all),
   };
 
   let equal = (===);
@@ -21,6 +22,7 @@ module Model = {
     past_log: [],
     replay_messages: [],
     replay_toggle: false,
+    initial_state: None,
   };
 };
 
@@ -121,6 +123,7 @@ module Update = {
                 past_log: [(t, next), ...model.past_log],
                 replay_messages: model.replay_messages,
                 replay_toggle: model.replay_toggle,
+                initial_state: model.initial_state,
               },
             };
           }) {
@@ -167,13 +170,23 @@ module Update = {
         }
         |> return_quiet
       | ClearLog =>
+        /* Force-save current state to localStorage so Export.mk_all reads latest */
+        Page.Store.save(model.current.current);
+        let initial_state =
+          Export.mk_all(
+            ~core_settings=model.current.current.globals.settings.core,
+            ~instructor_mode=
+              model.current.current.globals.settings.instructor_mode,
+            ~log="",
+          );
         Log.DB.clear_and(() => ());
         {
           ...model,
+          initial_state: Some(initial_state),
           future_log: [],
           past_log: [],
           replay_messages: [
-            "Cleared all log entries",
+            "Cleared log, saved initial state snapshot",
             ...model.replay_messages,
           ],
         }
@@ -197,6 +210,7 @@ module Update = {
           past_log: model.past_log,
           replay_toggle: model.replay_toggle,
           replay_messages: model.replay_messages,
+          initial_state: model.initial_state,
         },
       };
     };
@@ -206,16 +220,23 @@ module Update = {
         ~schedule_action: t => unit,
         ~is_edited: bool,
         ~dynamics,
+        ~use_worker=true,
         model: Model.t,
       )
       : Model.t => {
     current:
       model.current
-      |> History.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
+      |> History.Update.calculate(
+           ~schedule_action,
+           ~is_edited,
+           ~dynamics,
+           ~use_worker,
+         ),
     future_log: model.future_log,
     past_log: model.past_log,
     replay_messages: model.replay_messages,
     replay_toggle: model.replay_toggle,
+    initial_state: model.initial_state,
   };
 };
 
@@ -242,6 +263,7 @@ module View = {
             List.length(model.past_log) + List.length(model.future_log),
           show_details: true,
         },
+      ~log_initial_state=model.initial_state,
       ~get_log_and,
       ~inject,
       model.current,

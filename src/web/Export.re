@@ -9,6 +9,7 @@ type all = {
   exercise: string,
   documentation: string,
   log: string,
+  editors_mode: string,
 };
 
 // fallback for saved state prior to release of lang doc in 490F22
@@ -30,6 +31,7 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
     TutorialsMode.Store.export(~settings=core_settings, ~instructor_mode);
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
+  let editors_mode = Editors.StoreMode.export();
   {
     settings,
     explainThisModel,
@@ -38,6 +40,7 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
     exercise,
     tutorial,
     log,
+    editors_mode,
   };
 };
 
@@ -59,6 +62,7 @@ let import_all =
         tutorial: all_public.tutorial,
         log: all_public.log,
         explainThisModel: "",
+        editors_mode: "Tutorial",
       };
     };
   Settings.Store.import(all.settings);
@@ -66,6 +70,7 @@ let import_all =
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);
+  Editors.StoreMode.import(all.editors_mode);
   ExercisesMode.Store.import(
     ~settings,
     all.exercise,
@@ -94,6 +99,7 @@ let import_just_log = (data: string) => {
         tutorial: all_public.tutorial,
         log: all_public.log,
         explainThisModel: "",
+        editors_mode: "Tutorial",
       };
     };
   all.log;

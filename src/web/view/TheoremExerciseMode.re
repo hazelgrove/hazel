@@ -206,7 +206,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~is_edited,
+        ~schedule_action,
+        ~use_worker=true,
+        model: Model.t,
+      )
+      : Model.t => {
     // Work out the terms
     let just_prelude_term =
       MakeTerm.from_zip_for_sem(
@@ -235,13 +242,24 @@ module Update = {
       |> Exercise.append_exp(_, just_theorem_term);
 
     // Worker Setup
-    let worker_request: ref(list((string, WorkerServer.Request.value))) =
-      ref([]);
-    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
-      worker_request := worker_request^ @ [(pos, req_value)];
-    };
+    let queue_worker_opt =
+      if (use_worker) {
+        let worker_request: ref(list((string, WorkerServer.Request.value))) =
+          ref([]);
+        let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
+          worker_request := worker_request^ @ [(pos, req_value)];
+        };
+        Some((queue_worker, worker_request));
+      } else {
+        None;
+      };
 
     // Calculate each cell
+    let mk_queue_worker = pos =>
+      switch (queue_worker_opt) {
+      | Some((queue_worker, _)) => Some(queue_worker(pos))
+      | None => None
+      };
     let cells: Model.cells =
       Model.{
         prelude:
@@ -249,7 +267,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
-               ~queue_worker=Some(queue_worker("prelude")),
+               ~queue_worker=mk_queue_worker("prelude"),
                ~stitch=_ =>
                just_prelude_term
              ),
@@ -258,7 +276,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
-               ~queue_worker=Some(queue_worker("lemmas")),
+               ~queue_worker=mk_queue_worker("lemmas"),
                ~stitch=_ =>
                stitched_scratch
              ),
@@ -267,55 +285,61 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
-               ~queue_worker=Some(queue_worker("theorem")),
+               ~queue_worker=mk_queue_worker("theorem"),
                ~stitch=_ =>
                stitched_theorem
              ),
       };
 
     // Send to worker
-
-    WorkerClient.request(
-      worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
+    switch (queue_worker_opt) {
+    | Some((_, worker_request)) =>
+      WorkerClient.request(
+        worker_request^,
+        ~handler=
+          List.iter(((pos, result)) => {
+            let result':
+              Language.ProgramResult.t(Language.ProgramResult.inner) =
+              switch (result) {
+              | Ok((r, s)) =>
+                ResultOk({
+                  result: r,
+                  state: s,
+                })
+              | Error(e) => ResultFail(e)
+              };
+            switch (pos) {
+            | "lemmas" =>
+              schedule_action(
+                Prelude(ResultAction(UpdateResult(result'))),
+              );
+              schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
+            | "theorem" =>
+              schedule_action(Theorem(ResultAction(UpdateResult(result'))))
+            | _ => ()
             };
-          switch (pos) {
-          | "lemmas" =>
-            schedule_action(Prelude(ResultAction(UpdateResult(result'))));
-            schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
+          }),
+        ~timeout=_ => {
+        List.iter(
+          fun
+          | "lemmas" => {
+              schedule_action(
+                Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
+              );
+              schedule_action(
+                Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
+              );
+            }
           | "theorem" =>
-            schedule_action(Theorem(ResultAction(UpdateResult(result'))))
-          | _ => ()
-          };
-        }),
-      ~timeout=_ => {
-      List.iter(
-        fun
-        | "lemmas" => {
             schedule_action(
-              Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-            schedule_action(
-              Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-          }
-        | "theorem" =>
-          schedule_action(
-            Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
-          )
-        | _ => (),
-        List.map(((pos, _)) => pos, worker_request^),
-      )
-    });
+              Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
+            )
+          | _ => (),
+          List.map(((pos, _)) => pos, worker_request^),
+        )
+      })
+    | None => ()
+    };
 
     {
       ...model,

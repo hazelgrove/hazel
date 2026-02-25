@@ -206,6 +206,7 @@ let view =
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
       ~log_model: LogSidebar.Model.t,
+      ~log_initial_state: option(Export.all),
       ~log_count: int,
       ~editor,
       info: option(Language.Info.t),
@@ -242,6 +243,7 @@ let view =
             | LogControl =>
               LogSidebar.view(
                 ~globals,
+                ~initial_state=log_initial_state,
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )

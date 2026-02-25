@@ -359,59 +359,86 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
-    let (key, ed) = List.nth(model.scratchpads, model.current);
-    let worker_request = ref([]);
-    let queue_worker =
-      Some(
-        (req_value: WorkerServer.Request.value) => {
-          worker_request := worker_request^ @ [("", req_value)]
-        },
-      );
-    let new_ed =
-      CellEditor.Update.calculate(
+      (
         ~settings,
+        ~schedule_action,
         ~is_edited,
-        ~queue_worker,
-        ~stitch=x => x,
-        ed,
-      );
-    switch (worker_request^) {
-    | [] => ()
-    | _ =>
-      WorkerClient.request(
-        worker_request^,
-        ~handler=
-          r => {
-            schedule_action(
-              CellAction(
-                ResultAction(
-                  UpdateResult(
-                    switch (r |> List.hd |> snd) {
-                    | Ok((r, s)) =>
-                      Language.ProgramResult.ResultOk({
-                        result: r,
-                        state: s,
-                      })
-                    | Error(e) => Language.ProgramResult.ResultFail(e)
-                    },
+        ~use_worker=true,
+        model: Model.t,
+      )
+      : Model.t => {
+    let (key, ed) = List.nth(model.scratchpads, model.current);
+    if (use_worker) {
+      let worker_request = ref([]);
+      let queue_worker =
+        Some(
+          (req_value: WorkerServer.Request.value) => {
+            worker_request := worker_request^ @ [("", req_value)]
+          },
+        );
+      let new_ed =
+        CellEditor.Update.calculate(
+          ~settings,
+          ~is_edited,
+          ~queue_worker,
+          ~stitch=x => x,
+          ed,
+        );
+      switch (worker_request^) {
+      | [] => ()
+      | _ =>
+        WorkerClient.request(
+          worker_request^,
+          ~handler=
+            r => {
+              schedule_action(
+                CellAction(
+                  ResultAction(
+                    UpdateResult(
+                      switch (r |> List.hd |> snd) {
+                      | Ok((r, s)) =>
+                        Language.ProgramResult.ResultOk({
+                          result: r,
+                          state: s,
+                        })
+                      | Error(e) => Language.ProgramResult.ResultFail(e)
+                      },
+                    ),
                   ),
                 ),
+              )
+            },
+          ~timeout=
+            _ =>
+              schedule_action(
+                CellAction(
+                  ResultAction(UpdateResult(ResultFail(Timeout))),
+                ),
               ),
-            )
-          },
-        ~timeout=
-          _ =>
-            schedule_action(
-              CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            ),
-      )
-    };
-    let new_sp =
-      ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-    {
-      ...model,
-      scratchpads: new_sp,
+        )
+      };
+      let new_sp =
+        ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
+      {
+        ...model,
+        scratchpads: new_sp,
+      };
+    } else {
+      /* Synchronous evaluation: no worker */
+      let new_ed =
+        CellEditor.Update.calculate(
+          ~settings,
+          ~is_edited,
+          ~queue_worker=None,
+          ~stitch=x => x,
+          ed,
+        );
+      let new_sp =
+        ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
+      {
+        ...model,
+        scratchpads: new_sp,
+      };
     };
   };
 };

@@ -78,7 +78,12 @@ let message_item = (message: string) => {
   );
 };
 
-let controls_section = (~globals: Globals.t, ~model: Model.t) => {
+let controls_section =
+    (
+      ~globals: Globals.t,
+      ~initial_state: option(Export.all),
+      ~model: Model.t,
+    ) => {
   let play_pause_icon = model.is_playing ? "⏸️" : "▶️";
   let play_pause_tooltip =
     model.is_playing ? "Pause log replay" : "Start log replay";
@@ -115,6 +120,47 @@ let controls_section = (~globals: Globals.t, ~model: Model.t) => {
                 Ui_effect.Ignore;
               },
             [text("Export Submission")],
+          ),
+          button(
+            ~tooltip="Export replay log (initial state + actions)",
+            ~onclick=
+              _ => {
+                globals.get_log_and(log_data => {
+                  /* Construct ReplayLog sexp manually to avoid dependency cycle.
+                   * Format matches ReplayLog.t with [@deriving sexp]:
+                   * ((initial_state <option>) (actions <list>)) */
+                  let initial_state_sexp =
+                    switch (initial_state) {
+                    | None => Sexplib.Sexp.List([])
+                    | Some(all) =>
+                      Sexplib.Sexp.List([Export.sexp_of_all(all)])
+                    };
+                  let actions_sexp =
+                    if (String.length(String.trim(log_data)) == 0) {
+                      Sexplib.Sexp.List([]);
+                    } else {
+                      Sexplib.Sexp.of_string(log_data);
+                    };
+                  let replay_sexp =
+                    Sexplib.Sexp.List([
+                      Sexplib.Sexp.List([
+                        Sexplib.Sexp.Atom("initial_state"),
+                        initial_state_sexp,
+                      ]),
+                      Sexplib.Sexp.List([
+                        Sexplib.Sexp.Atom("actions"),
+                        actions_sexp,
+                      ]),
+                    ]);
+                  JsUtil.download_string_file(
+                    ~filename="hazel.hzlog.sexp",
+                    ~content_type="text/plain",
+                    ~contents=Sexplib.Sexp.to_string(replay_sexp),
+                  );
+                });
+                Ui_effect.Ignore;
+              },
+            [text("Export Replay Log")],
           ),
           file_input(
             ~onchange=
@@ -219,12 +265,18 @@ let debug_section = (~globals: Globals.t, ~log_entries_count: int) => {
   );
 };
 
-let view = (~globals: Globals.t, ~model: Model.t, ~log_entries_count: int) => {
+let view =
+    (
+      ~globals: Globals.t,
+      ~initial_state: option(Export.all),
+      ~model: Model.t,
+      ~log_entries_count: int,
+    ) => {
   div(
     ~attrs=[Attr.class_("log-sidebar")],
     [
       div(~attrs=[Attr.class_("log-header")], [text("Log Control Panel")]),
-      controls_section(~globals, ~model),
+      controls_section(~globals, ~initial_state, ~model),
       messages_section(~model),
       debug_section(~globals, ~log_entries_count),
     ],

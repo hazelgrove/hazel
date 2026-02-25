@@ -399,7 +399,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~is_edited,
+        ~schedule_action,
+        ~use_worker=true,
+        model: Model.t,
+      )
+      : Model.t => {
     let current_exercise = Model.get_current(model);
     let current_exercise =
       switch (current_exercise) {
@@ -409,6 +416,7 @@ module Update = {
             ~settings,
             ~is_edited,
             ~schedule_action=a => schedule_action(Exercise(a)),
+            ~use_worker,
             ex,
           ),
         )
@@ -418,6 +426,7 @@ module Update = {
             ~settings,
             ~is_edited,
             ~schedule_action=a => schedule_action(TheoremExercise(a)),
+            ~use_worker,
             ex,
           ),
         )

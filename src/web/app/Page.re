@@ -367,7 +367,13 @@ module Update = {
   };
 
   let calculate =
-      (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
+      (
+        ~schedule_action,
+        ~is_edited,
+        ~dynamics: bool,
+        ~use_worker=true,
+        model: Model.t,
+      ) => {
     let editors =
       Editors.Update.calculate(
         ~settings=
@@ -379,6 +385,7 @@ module Update = {
             },
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
+        ~use_worker,
         model.editors,
       );
     let cursor_info =
@@ -680,6 +687,7 @@ module View = {
       (
         ~get_log_and: (string => unit) => unit,
         ~log_model,
+        ~log_initial_state,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
         {
@@ -712,6 +720,7 @@ module View = {
         ~explainThisModel,
         ~assistantModel,
         ~log_model,
+        ~log_initial_state,
         ~log_count,
         ~editor=Update.get_editor(model),
         cursor.info,
@@ -782,6 +791,7 @@ module View = {
   let view =
       (
         ~log_model,
+        ~log_initial_state,
         ~get_log_and,
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
@@ -790,7 +800,14 @@ module View = {
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
+      @ main_view(
+          ~log_model,
+          ~log_initial_state,
+          ~get_log_and,
+          ~cursor,
+          ~inject,
+          model,
+        ),
     );
   };
 };
