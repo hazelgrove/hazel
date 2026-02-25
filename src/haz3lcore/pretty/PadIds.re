@@ -118,11 +118,12 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
 /* Compute the is_dynamic predicate for a type, given static and dynamic types.
    Handles fresh ID assignment, padding, and diffing in one place. */
 let compute_dynamic_ids =
-    (~static_typ: Typ.t, ~dynamic_typ: Typ.t): (Id.t => bool, Typ.t) => {
+    (~ctx: option(Ctx.t)=?, ~static_typ: Typ.t, ~dynamic_typ: Typ.t, ())
+    : (Id.t => bool, Typ.t) => {
   let dynamic_typ =
     dynamic_typ
     |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh())
     |> pad_typ_ids;
-  let dynamic_ids: list(Id.t) = Typ.diff(static_typ, dynamic_typ);
+  let dynamic_ids: list(Id.t) = Typ.diff(~ctx?, static_typ, dynamic_typ);
   (id => List.mem(id, dynamic_ids), dynamic_typ);
 };

@@ -118,7 +118,8 @@ let view_type = (~globals, ~dynamic_info: option(Info.t), typ: Typ.t) => {
   let (is_dynamic, display_typ) =
     switch (dyn_type) {
     | Some(dynamic_typ) =>
-      PadIds.compute_dynamic_ids(~static_typ=typ, ~dynamic_typ)
+      let ctx = Option.map(Info.ctx_of, dynamic_info);
+      PadIds.compute_dynamic_ids(~ctx?, ~static_typ=typ, ~dynamic_typ, ());
     | None => ((_ => false), typ)
     };
 

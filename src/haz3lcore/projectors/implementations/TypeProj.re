@@ -119,7 +119,8 @@ module M: Projector = {
             ~default=Typ.fresh(Unknown(Internal)),
             self_ty(info.statics),
           );
-        PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ);
+        let ctx = Option.map(Info.ctx_of, info.statics);
+        PadIds.compute_dynamic_ids(~ctx?, ~static_typ, ~dynamic_typ, ());
       | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
           (_ => false),
           self_ty(info.statics) |> totalize_ty,

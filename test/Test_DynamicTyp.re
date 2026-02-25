@@ -74,7 +74,7 @@ let group_regions =
 let classify_regions =
     (static_typ: Typ.t, dynamic_typ: Typ.t): list((string, bool)) => {
   let (is_dynamic, padded_dyn) =
-    PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ);
+    PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ, ());
   let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
   segment_fragments(is_dynamic, segment) |> group_regions;
 };
@@ -218,6 +218,82 @@ let arrow_diff_codomain_test =
     },
   );
 
+/* Given static and dynamic types and a ctx, return grouped regions */
+let classify_regions_ctx =
+    (~ctx: Ctx.t, static_typ: Typ.t, dynamic_typ: Typ.t)
+    : list((string, bool)) => {
+  let (is_dynamic, padded_dyn) =
+    PadIds.compute_dynamic_ids(~ctx, ~static_typ, ~dynamic_typ, ());
+  let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
+  segment_fragments(is_dynamic, segment) |> group_regions;
+};
+
+let alias_exact_match_test =
+  test_case(
+    "Type alias — Var(MyList) vs [Int] with alias MyList = [Int]",
+    `Quick,
+    () => {
+      let ctx =
+        Ctx.extend_tvar(
+          Ctx.empty,
+          {
+            name: "MyList",
+            id: Id.mk(),
+            kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+          },
+        );
+      let result =
+        classify_regions_ctx(
+          ~ctx,
+          Typ.fresh(Var("MyList")),
+          Typ.fresh(List(Typ.fresh(Atom(Atom.Int)))),
+        );
+      check(list(region), "all static", [s("[Int]")], result);
+    },
+  );
+
+let alias_partial_diff_test =
+  test_case(
+    "Type alias — Var(Pair) expands to (Int, ?) vs (Int, String)",
+    `Quick,
+    () => {
+      let ctx =
+        Ctx.extend_tvar(
+          Ctx.empty,
+          {
+            name: "Pair",
+            id: Id.mk(),
+            kind:
+              Singleton(
+                Typ.fresh(
+                  Prod([
+                    Typ.fresh(Atom(Atom.Int)),
+                    Typ.fresh(Unknown(Internal)),
+                  ]),
+                ),
+              ),
+          },
+        );
+      let result =
+        classify_regions_ctx(
+          ~ctx,
+          Typ.fresh(Var("Pair")),
+          Typ.fresh(
+            Prod([
+              Typ.fresh(Atom(Atom.Int)),
+              Typ.fresh(Atom(Atom.String)),
+            ]),
+          ),
+        );
+      check(
+        list(region),
+        "Int static, String dynamic",
+        [s("(Int,"), d("String"), s(")")],
+        result,
+      );
+    },
+  );
+
 let qcheck_all_piece_ids_classified =
   QCheck_alcotest.to_alcotest(
     QCheck.Test.make(
@@ -229,7 +305,7 @@ let qcheck_all_piece_ids_classified =
       ),
       ((static_typ, dynamic_typ)) => {
         let (is_dynamic, padded_dyn) =
-          PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ);
+          PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ, ());
         let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
         let fragments = segment_fragments(is_dynamic, segment);
         /* Every fragment should be classified as either dynamic or not */
@@ -247,6 +323,8 @@ let tests = [
       sum_same_test,
       prod_partial_diff_test,
       arrow_diff_codomain_test,
+      alias_exact_match_test,
+      alias_partial_diff_test,
       qcheck_all_piece_ids_classified,
     ],
   ),

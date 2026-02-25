@@ -1332,14 +1332,14 @@ let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
   };
 
 /* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids. */
-let rec diff = (ty: t, ty': t): list(Id.t) => {
+let rec diff = (~ctx: option(Ctx.t)=?, ty: t, ty': t): list(Id.t) => {
   let get_ids = () => all_ids(ty');
   switch (term_of(ty), term_of(ty')) {
-  | (Parens(t1), Parens(t2)) => diff(t1, t2)
-  | (Parens(t1), _) => diff(t1, ty')
-  | (_, Projector(_, t2)) => diff(ty, t2)
-  | (Projector(_, t1), _) => diff(t1, ty')
-  | (_, Parens(t2)) => diff(ty, t2)
+  | (Parens(t1), Parens(t2)) => diff(~ctx?, t1, t2)
+  | (Parens(t1), _) => diff(~ctx?, t1, ty')
+  | (_, Projector(_, t2)) => diff(~ctx?, ty, t2)
+  | (Projector(_, t1), _) => diff(~ctx?, t1, ty')
+  | (_, Parens(t2)) => diff(~ctx?, ty, t2)
   | (Unknown(_), Unknown(_)) => []
   | (Unknown(_), _) => get_ids()
   | (Atom(c1), Atom(c2)) when c1 == c2 => []
@@ -1349,30 +1349,36 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (ExplicitNonlabel, ExplicitNonlabel) => []
   | (ExplicitNonlabel, _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
-  | (Var(_), _) => get_ids()
+  | (Var(name), _) =>
+    switch (ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join) {
+    | Some(expanded) => diff(~ctx?, expanded, ty')
+    | None => get_ids()
+    }
   | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
-    diff(t1, t2)
+    diff(~ctx?, t1, t2)
   | (Rec(_), _) => get_ids()
   | (Poly(tp1, t1), Poly(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
-    diff(t1, t2)
+    diff(~ctx?, t1, t2)
   | (Poly(_), _) => get_ids()
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.syntactic.exp(e1, e2) ? [] : get_ids()
   | (ProofOf(_), _) => get_ids()
-  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
+  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) =>
+    diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
   | (Arrow(_), _) => get_ids()
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    List.map2(diff, tys1, tys2) |> List.concat
+    List.map2(diff(~ctx?), tys1, tys2) |> List.concat
   | (Prod(_), _) => get_ids()
-  | (TupLabel(l1, t1), TupLabel(l2, t2)) => diff(l1, l2) @ diff(t1, t2)
+  | (TupLabel(l1, t1), TupLabel(l2, t2)) =>
+    diff(~ctx?, l1, l2) @ diff(~ctx?, t1, t2)
   | (TupLabel(_, _), _) => get_ids()
-  | (List(t1), List(t2)) => diff(t1, t2)
+  | (List(t1), List(t2)) => diff(~ctx?, t1, t2)
   | (List(_), _) => get_ids()
   | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
-    diff(t1, t1') @ diff(t2, t2')
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
   | (ProdProjection(_, _), _) => get_ids()
   | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
-    diff(t1, t1') @ diff(t2, t2')
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
   | (ProdExtension(_, _), _) => get_ids()
   | (Sum(sm1), Sum(sm2)) =>
     let (inter, _left, right) =
@@ -1390,14 +1396,14 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
               ConstructorMap.Variant(_, _, Some(t1)),
               ConstructorMap.Variant(_, _, Some(t2)),
             ) =>
-            diff(t1, t2)
+            diff(~ctx?, t1, t2)
           | (
               ConstructorMap.Variant(_, _, None),
               ConstructorMap.Variant(_, _, None),
             ) =>
             []
           | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
-            diff(t1, t2)
+            diff(~ctx?, t1, t2)
           | (_, v2) => variant_all_ids(v2)
           },
         inter,
