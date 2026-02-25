@@ -29,7 +29,7 @@ let subtree_of =
                 ~co_ctx=pat_info.co_ctx,
                 ~ana=pat_info.ana,
                 ~ancestors=pat_info.ancestors,
-                ~duplicates=[],
+                ~duplicate_bindings=[],
                 pat,
                 Statics.Map.empty,
               )

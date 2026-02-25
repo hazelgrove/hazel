@@ -182,9 +182,13 @@ module Update = {
   };
 
   let export_scratch_slide = (model: Model.t): unit => {
-    Store.save(model |> Model.persist);
-    let data = Store.export();
-    let current_name = List.nth(model.scratchpads, model.current).name;
+    let scratchpad = List.nth(model.scratchpads, model.current);
+    let persistent = CellEditor.Model.persist(scratchpad.editor);
+    let data =
+      persistent
+      |> CellEditor.Model.sexp_of_persistent
+      |> Sexplib.Sexp.to_string;
+    let current_name = scratchpad.name;
     let filename = current_name |> StringUtil.sanitize_filename;
     JsUtil.download_string_file(
       ~filename,
@@ -425,29 +429,34 @@ module Update = {
         schedule_action(FinishImportScratchpad(data))
       );
       model |> return_quiet;
-    | FinishImportScratchpad(None) => model |> return_quiet
-    | FinishImportScratchpad(Some(data)) =>
-      let scratchpad = List.nth(model.scratchpads, model.current);
-      let new_data =
-        data
-        |> Sexplib.Sexp.of_string
-        |> CellEditor.Model.persistent_of_sexp
-        |> CellEditor.Model.unpersist(~settings=settings.core);
+    | FinishImportScratchpad(data) =>
+      // reset file input so same file can be re-imported if desired
+      JsUtil.reset_file_input("import-scratchpad");
+      switch (data) {
+      | None => model |> return_quiet
+      | Some(data) =>
+        let scratchpad = List.nth(model.scratchpads, model.current);
+        let new_data =
+          data
+          |> Sexplib.Sexp.of_string
+          |> CellEditor.Model.persistent_of_sexp
+          |> CellEditor.Model.unpersist(~settings=settings.core);
 
-      let scratchpads =
-        ListUtil.put_nth(
-          model.current,
-          {
-            ...scratchpad,
-            editor: new_data,
-          },
-          model.scratchpads,
-        );
-      {
-        ...model,
-        scratchpads,
-      }
-      |> Updated.return;
+        let scratchpads =
+          ListUtil.put_nth(
+            model.current,
+            {
+              ...scratchpad,
+              editor: new_data,
+            },
+            model.scratchpads,
+          );
+        {
+          ...model,
+          scratchpads,
+        }
+        |> Updated.return;
+      };
     | Export =>
       export_scratch_slide(model);
       model |> Updated.return_quiet;
@@ -636,6 +645,7 @@ module View = {
           | Some(file) => inject(InitImportScratchpad(file))
           }
         },
+        ~accept=[],
         ~tooltip="Import Scratchpad",
       );
 
