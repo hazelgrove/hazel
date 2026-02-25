@@ -684,18 +684,6 @@ let step_into_call_stack =
   Move.jump_to_id_indicated(z, jump_target);
 };
 
-let rm_probes_in_selection =
-    (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
-  let selection_ids = Selection.selection_ids(z.selection);
-  z
-  |> rm_manual(selection_ids)
-  |> List.fold_left(
-       (z, id) => rm_auto(~syntax, ~info_map, id, z),
-       _,
-       selection_ids,
-     );
-};
-
 /* Check if type annotation is allowed for the given id. */
 let can_statics = (id: Id.t, info_map: Statics.Map.t): bool =>
   Info.is_typable_term(Statics.Map.lookup(id, info_map));
@@ -747,7 +735,19 @@ let go =
       | None => z
       | Some(id) => toggle_probe(~syntax, id, ~info_map, z)
       }
-    | _ => rm_probes_in_selection(~syntax, ~info_map, z)
+    | _ =>
+      switch (
+        TermData.get_root_id_using_ranges(
+          z.selection.content,
+          syntax.term_data,
+          syntax.measured,
+        )
+      ) {
+      | Some(id) =>
+        let z = Zipper.unselect(z);
+        toggle_probe(~syntax, id, ~info_map, z);
+      | None => z
+      }
     }
   | ToggleAuto =>
     switch (Indicated.index(z)) {
