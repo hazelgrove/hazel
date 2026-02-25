@@ -324,9 +324,14 @@ open Util.WebUtil;
 
 module Errors = {
   let of_id =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, id: Id.t) =>
+      (
+        ~is_warning=false,
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        id: Id.t,
+      ) =>
     div_c(
-      "errors-piece",
+      is_warning ? "warnings-piece" : "errors-piece",
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
@@ -338,7 +343,7 @@ module Errors = {
                 tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
                 measurement,
               },
-              ["error"],
+              [is_warning ? "warning" : "error"],
             ),
           ]
         | None =>
@@ -357,8 +362,16 @@ module Errors = {
     );
 
   let of_ids =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, error_ids) =>
-    div_c("errors", List.map(of_id(~font_metrics, ~syntax), error_ids));
+      (
+        ~is_warning=false,
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        error_ids,
+      ) =>
+    div_c(
+      is_warning ? "warnings" : "errors",
+      List.map(of_id(~is_warning, ~font_metrics, ~syntax), error_ids),
+    );
 };
 
 module Indicated = {
