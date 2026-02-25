@@ -227,20 +227,13 @@ module JsonCodec = {
         }
       };
 
-    let rec convert_unlabeled_elements = (acc, remaining, index) =>
-      switch (remaining) {
-      | [] => Ok(List.rev(acc))
-      | [hd, ...tl] =>
-        switch (exp_to_yojson(hd)) {
-        | Ok(json_elem) =>
-          convert_unlabeled_elements(
-            [(string_of_int(index), json_elem), ...acc],
-            tl,
-            index + 1,
-          )
-        | Error(msg) => Error(msg)
-        }
-      };
+    let convert_unlabeled_elements = elements =>
+      elements
+      |> List.mapi((index, elem) =>
+           exp_to_yojson(elem)
+           |> Result.map(~f=json_elem => (string_of_int(index), json_elem))
+         )
+      |> Result.all;
     switch (exp.term) {
     | Atom(Int(i)) =>
       switch (Bigint.to_int(i)) {
@@ -251,20 +244,10 @@ module JsonCodec = {
     | Atom(String(s)) => Ok(`String(s))
     | Atom(Bool(b)) => Ok(`Bool(b))
     | ListLit(elements) =>
-      /* Convert each element to JSON and collect results */
-      let rec convert_elements = (acc, remaining) =>
-        switch (remaining) {
-        | [] => Ok(List.rev(acc))
-        | [hd, ...tl] =>
-          switch (exp_to_yojson(hd)) {
-          | Ok(json_elem) => convert_elements([json_elem, ...acc], tl)
-          | Error(msg) => Error(msg)
-          }
-        };
-      switch (convert_elements([], elements)) {
-      | Ok(json_elements) => Ok(`List(json_elements))
-      | Error(msg) => Error(msg)
-      };
+      elements
+      |> List.map(exp_to_yojson)
+      |> Result.all
+      |> Result.map(~f=json_elements => `List(json_elements))
 
     | Tuple(elements) =>
       /* Check if tuple is all-labeled or all-unlabeled */
@@ -279,10 +262,8 @@ module JsonCodec = {
         }
       | Ok(Some(false)) =>
         /* All unlabeled */
-        switch (convert_unlabeled_elements([], elements, 0)) {
-        | Ok(pairs) => Ok(`Assoc(pairs))
-        | Error(msg) => Error(msg)
-        }
+        convert_unlabeled_elements(elements)
+        |> Result.map(~f=pairs => `Assoc(pairs))
       | Ok(None) =>
         /* Empty tuple case should not reach here */
         Ok(`Assoc([]))
@@ -304,10 +285,8 @@ module JsonCodec = {
           }
         | Ok(Some(false)) =>
           /* All unlabeled */
-          switch (convert_unlabeled_elements([], elements, 0)) {
-          | Ok(pairs) => Ok(`Assoc(pairs))
-          | Error(msg) => Error(msg)
-          }
+          convert_unlabeled_elements(elements)
+          |> Result.map(~f=pairs => `Assoc(pairs))
         | Ok(None) => Error("Empty tuple handling error")
         }
       | _ =>
@@ -374,21 +353,10 @@ module JsonCodec = {
     | `String(s) => Ok(Language.IdTagged.FreshGrammar.Exp.string(s))
     | `Bool(b) => Ok(Language.IdTagged.FreshGrammar.Exp.bool(b))
     | `List(json_elements) =>
-      /* Convert each JSON element to a Hazel expression */
-      let rec convert_elements = (acc, remaining) =>
-        switch (remaining) {
-        | [] => Ok(List.rev(acc))
-        | [hd, ...tl] =>
-          switch (yojson_to_exp(hd)) {
-          | Ok(exp_elem) => convert_elements([exp_elem, ...acc], tl)
-          | Error(msg) => Error(msg)
-          }
-        };
-      switch (convert_elements([], json_elements)) {
-      | Ok(exp_elements) =>
-        Ok(Language.IdTagged.FreshGrammar.Exp.list_lit(exp_elements))
-      | Error(msg) => Error(msg)
-      };
+      json_elements
+      |> List.map(yojson_to_exp)
+      |> Result.all
+      |> Result.map(~f=Language.IdTagged.FreshGrammar.Exp.list_lit)
     | `Assoc(pairs) =>
       /* JSON object: could be ADT constructor or tuple */
       /* First check if it's an ADT constructor */
@@ -480,25 +448,14 @@ module JsonCodec = {
                 },
                 pairs,
               );
-            let rec convert_plain_elements = (acc, remaining) =>
-              switch (remaining) {
-              | [] => Ok(List.rev(acc))
-              | [(_key, value), ...tl] =>
-                switch (yojson_to_exp(value)) {
-                | Ok(exp_elem) =>
-                  convert_plain_elements([exp_elem, ...acc], tl)
-                | Error(msg) => Error(msg)
-                }
-              };
-            switch (convert_plain_elements([], sorted_pairs)) {
-            | Ok(elements) =>
-              Ok(
-                Language.IdTagged.FreshGrammar.Exp.parens(
-                  Language.IdTagged.FreshGrammar.Exp.tuple(elements),
-                ),
-              )
-            | Error(msg) => Error(msg)
-            };
+            sorted_pairs
+            |> List.map(((_key, value)) => yojson_to_exp(value))
+            |> Result.all
+            |> Result.map(~f=elements =>
+                 Language.IdTagged.FreshGrammar.Exp.parens(
+                   Language.IdTagged.FreshGrammar.Exp.tuple(elements),
+                 )
+               );
           } else {
             /* Labeled tuple: create tuple with TupLabel elements */
             let rec convert_labeled_elements =
@@ -598,35 +555,22 @@ module JsonADT = {
       Ok(ap_ctr("Float", exp));
     | `String(s) => Ok(ap_ctr("String", Fresh.Exp.string(s)))
     | `List(elements) =>
-      let rec convert = (acc, remaining) =>
-        switch (remaining) {
-        | [] => Ok(List.rev(acc))
-        | [hd, ...tl] =>
-          switch (yojson_to_exp(hd)) {
-          | Ok(exp) => convert([exp, ...acc], tl)
-          | Error(_) as e => e
-          }
-        };
-      switch (convert([], elements)) {
-      | Ok(exps) => Ok(ap_ctr("List", Fresh.Exp.list_lit(exps)))
-      | Error(msg) => Error(msg)
-      };
+      elements
+      |> List.map(yojson_to_exp)
+      |> Result.all
+      |> Result.map(~f=exps => ap_ctr("List", Fresh.Exp.list_lit(exps)))
     | `Assoc(pairs) =>
-      let rec convert = (acc, remaining) =>
-        switch (remaining) {
-        | [] => Ok(List.rev(acc))
-        | [(key, value), ...tl] =>
-          switch (yojson_to_exp(value)) {
-          | Ok(v_exp) =>
-            let pair = Fresh.Exp.tuple([Fresh.Exp.string(key), v_exp]);
-            convert([pair, ...acc], tl);
-          | Error(_) as e => e
-          }
-        };
-      switch (convert([], pairs)) {
-      | Ok(pair_exps) => Ok(ap_ctr("Assoc", Fresh.Exp.list_lit(pair_exps)))
-      | Error(msg) => Error(msg)
-      };
+      pairs
+      |> List.map(((key, value)) =>
+           yojson_to_exp(value)
+           |> Result.map(~f=v_exp =>
+                Fresh.Exp.tuple([Fresh.Exp.string(key), v_exp])
+              )
+         )
+      |> Result.all
+      |> Result.map(~f=pair_exps =>
+           ap_ctr("Assoc", Fresh.Exp.list_lit(pair_exps))
+         )
     | `Intlit(_) => Error("Intlit not supported in JsonADT")
     | `Tuple(_) => Error("Tuple not supported in JsonADT")
     | `Variant(_) => Error("Variant not supported in JsonADT")
@@ -692,38 +636,19 @@ module JsonADT = {
       | Constructor("List", _) =>
         switch (Exp.term_of(arg)) {
         | ListLit(elements) =>
-          let rec convert = (acc, remaining) =>
-            switch (remaining) {
-            | [] => Ok(List.rev(acc))
-            | [hd, ...tl] =>
-              switch (exp_to_yojson(hd)) {
-              | Ok(j) => convert([j, ...acc], tl)
-              | Error(_) as e => e
-              }
-            };
-          switch (convert([], elements)) {
-          | Ok(json_elems) => Ok(`List(json_elems))
-          | Error(msg) => Error(msg)
-          };
+          elements
+          |> List.map(exp_to_yojson)
+          |> Result.all
+          |> Result.map(~f=json_elems => `List(json_elems))
         | _ => Error("JsonADT: List expects a list literal")
         }
       | Constructor("Assoc", _) =>
         switch (Exp.term_of(arg)) {
         | ListLit(elements) =>
-          let rec convert = (acc, remaining) =>
-            switch (remaining) {
-            | [] => Ok(List.rev(acc))
-            | [hd, ...tl] =>
-              let pair = convert_assoc_pair(hd);
-              switch (pair) {
-              | Ok(p) => convert([p, ...acc], tl)
-              | Error(_) as e => e
-              };
-            };
-          switch (convert([], elements)) {
-          | Ok(pairs) => Ok(`Assoc(pairs))
-          | Error(msg) => Error(msg)
-          };
+          elements
+          |> List.map(convert_assoc_pair)
+          |> Result.all
+          |> Result.map(~f=pairs => `Assoc(pairs))
         | _ => Error("JsonADT: Assoc expects a list literal")
         }
       | _ => Error("JsonADT: unrecognized JSON constructor")
