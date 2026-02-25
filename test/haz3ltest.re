@@ -25,6 +25,7 @@ let (suite, _) =
       Test_StringUtil.tests,
       Test_PatternMatch.tests,
       Test_HazelProtocol_JsonCodec.tests,
+      Test_HazelProtocol_JsonADT.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
