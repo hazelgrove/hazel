@@ -6,7 +6,9 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "Blank";
     prompt =
-      "Let the facilitator know when you are ready so they can start the \
+      "**Before you begin**, turn on live typing using the settings menu at \
+       the top left.\n\n\
+       Let the facilitator know when you are ready so they can start the \
        timer. You have **10 minutes** to complete this task.\n\n\
        The program below is **read-only**. You can move the cursor to inspect \
        types and expand folded functions, but you cannot edit the code.\n\n\
@@ -14,10 +16,7 @@ let exercise : Tutorial.spec =
        the facilitator — do not write or edit the program.\n\n\
        1. **Describe** what this program is intended to compute.\n\
        2. **Identify** the bug(s) in the program.\n\
-       3. **Propose** a fix for each bug you found.\n\n\
-       Live typing has been turned on for this task. You can toggle it off and \
-       on using the menu at the top left to see what has been informed by live \
-       typing.";
+       3. **Propose** a fix for each bug you found.";
     display_hint = "";
     task_reference =
       TaskRefDocs.compose
@@ -15540,7 +15539,6 @@ let exercise : Tutorial.spec =
       {
         Tutorial.default_setting_overrides with
         read_only = Some true;
-        live_typing = Some true;
         display_tables = Some false;
       };
   }

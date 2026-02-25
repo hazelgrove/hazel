@@ -49,20 +49,17 @@ type setting_overrides = {
   rich_probes: option(bool),
   display_tables: option(bool),
   read_only: option(bool),
-  live_typing: option(bool),
 };
 
 let no_setting_overrides = {
   rich_probes: None,
   display_tables: None,
   read_only: None,
-  live_typing: None,
 };
 let default_setting_overrides = {
   rich_probes: Some(false),
   display_tables: Some(true),
   read_only: None,
-  live_typing: Some(false),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
