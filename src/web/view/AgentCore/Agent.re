@@ -268,28 +268,6 @@ module Message = {
       };
     };
 
-    // let mk_backend_failure_message = (content: string): Model.t => {
-    //   let sanitized_content = String.trim(content);
-    //   let failure_instructions =
-    //     {|
-    //         Sorry our backend failed to process your request.
-    //         This indicates a fatal bug in our backend code/server and should be reported to developers immediately.
-    //         Please halt the current chat and report the issue to the user.
-    //         Error:
-    //         |}
-    //     ++ sanitized_content;
-    //   {
-    //     id: Id.mk(),
-    //     content,
-    //     timestamp: JsUtil.timestamp(),
-    //     role: System(Error(BackendFailure)),
-    //     api_message:
-    //       Some(OpenRouter.Message.Utils.mk_user_msg(failure_instructions)),
-    //     children: [],
-    //     current_child: None,
-    //   };
-    // };
-
     let api_message_of_message =
         (message: Model.t): option(OpenRouter.Message.Model.t) => {
       switch (message.api_message) {
@@ -1367,27 +1345,16 @@ module Agent = {
     let is_retryable_api_error = (code: int): bool =>
       code == 429 || code == 500 || code == 502 || code == 503;
 
-    let get_tool_name = (tool: API.Json.t): option(string) => {
-      switch (API.Json.dot("function", tool)) {
-      | Some(func) =>
-        switch (API.Json.dot("name", func)) {
-        | Some(name_json) => API.Json.str(name_json)
-        | None => None
-        }
-      | None => None
-      };
-    };
-
     let enabled_tools = (prompting: Model.prompting): list(API.Json.t) =>
       List.filter(
         (tool: API.Json.t) =>
-          switch (get_tool_name(tool)) {
+          switch (ToolUtils.get_name(tool)) {
           | Some(name) => !List.mem(name, prompting.disabled_tool_names)
           | None => true
           },
         prompting.tools,
       );
-    // We Use expoenential backoff
+    // Exponential backoff
     let backoff_ms = (attempt: int): float =>
       1000.0 *. 2.0 ** float(attempt);
 
@@ -1416,7 +1383,7 @@ module Agent = {
               Action.ApiErrorResponse(chat_id, api_error_message),
             );
           }
-        | None => print_endline("Response failed to be parsed")
+        | None => ()
         };
       };
       OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
@@ -1442,23 +1409,6 @@ module Agent = {
           chat_system,
         )
         |> ChatSystem.Update.get;
-      // NOTE: deprecating streaming for now.
-      // Has too many downstream implications and case-handling.
-      // let empty_agent_response = Message.Utils.mk_agent_message("");
-      // let chat_system =
-      //   ChatSystem.Update.update(
-      //     ChatSystem.Update.Action.ChatAction(
-      //       Chat.Update.Action.AppendMessage(empty_agent_response),
-      //       chat_id,
-      //     ),
-      //     chat_system,
-      //   )
-      //   |> ChatSystem.Update.get;
-      // let agent_msg_id =
-      //   Chat.Utils.current_tail(
-      //     ChatSystem.Utils.find_chat(chat_id, chat_system),
-      //   ).
-      //     id;
       switch (api_key, llm_id) {
       | (None, _) =>
         let api_failure_message =

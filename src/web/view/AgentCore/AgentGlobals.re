@@ -54,11 +54,9 @@ module Update = {
           ) {
           | Some(available_llms) =>
             schedule_action(SetAvailableLLMs(available_llms))
-          | None =>
-            print_endline("Assistant: failed to parse models response")
+          | None => ()
           }
-        | None =>
-          print_endline("Assistant: no response received from OpenRouter API")
+        | None => ()
         }
       });
       {

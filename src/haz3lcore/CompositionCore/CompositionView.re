@@ -94,21 +94,6 @@ module Local = {
       };
     };
 
-    let expand_terms = (~z: Zipper.t, ~ids: list(Id.t)) => {
-      // Retain only the ids which are already folded
-      let ids =
-        List.filter_map(
-          id =>
-            if (is_term_folded(CachedSyntax.init(z).term_data, id, z)) {
-              Some(id);
-            } else {
-              None;
-            },
-          ids,
-        );
-      fold_terms(z, ids);
-    };
-
     let collapse_terms = (~z: Zipper.t, ~ids: list(Id.t)) => {
       // Retain only the ids which are not folded
       let ids =
@@ -122,23 +107,6 @@ module Local = {
           ids,
         );
       fold_terms(z, ids);
-    };
-
-    let expand_definitions =
-        (~z: Zipper.t, ~ids: list(Id.t), ~info_map: Id.Map.t(Info.t)) => {
-      let infos =
-        List.map((id: Id.t) => Id.Map.find_opt(id, info_map), ids);
-      let def_ids =
-        List.filter_map(
-          (info: option(Info.t)) =>
-            switch (info) {
-            | Some(info) => Some(Utils.get_def_id_of_let(info))
-            | None => None
-            },
-          infos,
-        )
-        |> List.filter((id: Id.t) => id != Id.invalid);
-      expand_terms(~z, ~ids=def_ids);
     };
 
     let collapse_definitions =
@@ -158,39 +126,6 @@ module Local = {
       collapse_terms(~z, ~ids=def_ids);
     };
 
-    let fold_body = (z: Zipper.t, term: Info.t) => {
-      let id =
-        switch (term) {
-        | InfoExp({term, _}) =>
-          switch (Exp.term_of(term)) {
-          | Let(_, _, body) => Exp.rep_id(body)
-          | TyAlias(_, _, body) => Exp.rep_id(body)
-          | _ => Id.invalid
-          }
-        | _ => Id.invalid
-        };
-      switch (
-        Select.term(
-          ~defs_exclude_bodies=false,
-          ~case_rules=false,
-          CachedSyntax.init(z).term_data,
-          id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        let z'' =
-          ProjectorPerform.go(
-            CachedSyntax.init(z').term_data,
-            SetIndicated(Specific(Fold)),
-            z',
-            [],
-            [],
-          );
-        z'';
-      | _ => Ok(z)
-      };
-    };
   };
 
   module ContextUtils = {

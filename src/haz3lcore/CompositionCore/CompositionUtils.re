@@ -243,7 +243,6 @@ module Local = {
 };
 
 module Public = {
-  [@der]
   let tools = Local.tools;
   let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     Local.action_of(~tool_name, ~args);

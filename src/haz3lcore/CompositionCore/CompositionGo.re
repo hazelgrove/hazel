@@ -571,25 +571,6 @@ module Local = {
     };
   };
 
-  let get_initial_cursor_position = (z: Zipper.t, info_map: Id.Map.t(Info.t)) => {
-    switch (Indicated.ci_of(z, info_map)) {
-    | Some(ci) => Info.id_of(ci)
-    | None =>
-      raise(
-        Failure(
-          "No indicated piece found when getting initial cursor position.",
-        ),
-      )
-    };
-  };
-
-  let reposition_cursor = (z: Zipper.t, target_id: Id.t) => {
-    switch (Move.jump_to_id_indicated(z, target_id)) {
-    | Some(z) => Ok(z)
-    | None => Error(Action.Failure.Cant_move)
-    };
-  };
-
   let go =
       (
         ~mk_statics: Zipper.t => StaticsBase.Map.t,

@@ -1,31 +1,3 @@
-// todo: this broke when moving from web to core
-// let get_documentation_as_text = () => {
-//   let (_, slides) = ScratchMode.StoreDocumentation.load();
-//   let documentation =
-//     slides
-//     |> List.map(((name, persistent)) => {
-//          switch (persistent) {
-//          | Some(persistent) =>
-//            let cell_model =
-//              CellEditor.Model.unpersist(
-//                ~settings=Language.CoreSettings.off,
-//                persistent,
-//              );
-//            let text =
-//              Printer.of_zipper(cell_model.editor.editor.state.zipper);
-//            "<slide_name>"
-//            ++ name
-//            ++ "</slide_name>\n"
-//            ++ "<slide_text>"
-//            ++ text
-//            ++ "</slide_text>";
-//          | None => ""
-//          }
-//        })
-//     |> String.concat("\n\n");
-//   ["<hazelDocumentation>" ++ documentation ++ "</hazelDocumentation>"];
-// };
-
 let summarized_docs = [
   "<summarizedHazelDocs>",
   "- Hazel is a live functional programming environment that supports incomplete programs via typed holes.",
