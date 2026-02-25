@@ -171,6 +171,19 @@ let is_comma = (p: Piece.t): bool =>
   | _ => false
   };
 
+let is_tuplabel_eq = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label: ["="], mold, _}) =>
+    Mold.is_infix_op(mold)
+    && (
+      switch (mold.nibs) {
+      | ({shape: Concave(prec), _}, _) => prec == Precedence.lab
+      | _ => false
+      }
+    )
+  | _ => false
+  };
+
 let is_infix = (p: Piece.t): bool =>
   switch (p) {
   | Tile({mold, label: [_], _}) =>
@@ -307,6 +320,16 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
     | [] => rule_doc
     | _ => Cat(rule_doc, Cat(HardBreak, segment_to_doc(remaining)))
     };
+
+  /* TupLabel (label = value): keep label and = together */
+  | [p, op, ...rest] when is_tuplabel_eq(op) =>
+    Cat(
+      Cat(piece_doc(p), Cat(Space, piece_doc(op))),
+      switch (rest) {
+      | [] => Empty
+      | _ => Cat(Space, segment_to_doc(rest))
+      },
+    )
 
   /* Infix operator: break before operator, space between op and operand.
      All-or-nothing: no Group wrapper on rest. */

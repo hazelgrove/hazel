@@ -306,6 +306,34 @@ p|},
   ),
 ];
 
+/* === Labeled tuples === */
+
+let labeled_tuple_tests = [
+  test_format(
+    ~name="Labeled tuple flat",
+    ~input="(a = 1, b = 2)",
+    ~expected="(a = 1, b = 2)",
+    (),
+  ),
+  test_format(
+    ~name="Labeled tuple breaks vertically",
+    ~width=15,
+    ~input="(firsts = [1, 2], seconds = [3, 4])",
+    ~expected=
+      {|(
+    firsts = [1, 2],
+    seconds = [3, 4]
+)|},
+    (),
+  ),
+  test_format(
+    ~name="Labeled tuple single entry",
+    ~input="(a = 1)",
+    ~expected="(a = 1)",
+    (),
+  ),
+];
+
 let tests = [
   ("PrettyPrint.Flat", flat_tests),
   ("PrettyPrint.Breaking", breaking_tests),
@@ -313,4 +341,5 @@ let tests = [
   ("PrettyPrint.Case", case_tests),
   ("PrettyPrint.Complex", complex_tests),
   ("PrettyPrint.CommaCompound", comma_compound_tests),
+  ("PrettyPrint.LabeledTuple", labeled_tuple_tests),
 ];
