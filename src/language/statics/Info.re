@@ -468,6 +468,9 @@ let warning_of: t => Warning.t =
   | InfoPat({warning, _})
   | InfoTyp({warning, _})
   | InfoTPat({warning, _}) => warning
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
   | Secondary(_) => None;
 
 /* A term is "typable" if it can meaningfully be assigned a type and will
