@@ -324,7 +324,7 @@ let rec segment_to_doc = (pieces: list(Piece.t)): doc =>
   /* TupLabel (label = value): keep label and = together */
   | [p, op, ...rest] when is_tuplabel_eq(op) =>
     Cat(
-      Cat(piece_doc(p), Cat(Space, piece_doc(op))),
+      Cat(piece_doc(p), piece_doc(op)),
       switch (rest) {
       | [] => Empty
       | _ => Cat(Space, segment_to_doc(rest))
