@@ -164,6 +164,7 @@ let common_err_view =
           ? []
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
+    | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
         label_view(name),
