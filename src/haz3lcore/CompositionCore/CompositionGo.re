@@ -78,24 +78,18 @@ module Local = {
       (
         old_zipper: Zipper.t,
         new_zipper: Zipper.t,
-        action: Action.edit_action,
+        action: Action.Structural.t,
         mk_statics: Zipper.t => StaticsBase.Map.t,
         syntax: CachedSyntax.t,
       )
       : option((Segment.t, option(Segment.t))) => {
     switch (action) {
-    | InsertBefore(_)
-    | InsertAfter(_)
-    | Initialize(_) =>
+    | Insert(_, _, _) =>
       let* old_segment = segment_of_term(old_zipper, None, syntax);
       let new_segment = segment_of_term(new_zipper, None, syntax);
       Some((old_segment, new_segment));
-    | UpdateDefinition(path, _)
-    | UpdateBody(path, _)
-    | UpdatePattern(path, _)
-    | UpdateBindingClause(path, _)
-    | DeleteBindingClause(path)
-    | DeleteBody(path) =>
+    | Update(_, path, _)
+    | Delete(_, path) =>
       let* old_node_map =
         HighLevelNodeMap.build(old_zipper, mk_statics(old_zipper));
       let* new_node_map =
@@ -112,29 +106,23 @@ module Local = {
 
   module PerformUtils = {
     let edit_action_to_static_error_scrutiny =
-        (~edit_action: Action.edit_action): (bool, bool, bool) => {
+        (~edit_action: Action.Structural.t): (bool, bool, bool) => {
       // Returns (of_pat, of_def, of_body), i.e. which parts of the program to check for static errors.
       switch (edit_action) {
-      | Initialize(_) =>
-        raise(
-          Failure(
-            "Initialize action handles static error checking on its own.",
-          ),
-        )
-      | UpdateDefinition(_) => (true, true, false)
-      | UpdateBody(_) => (true, true, true)
-      | UpdatePattern(_) => (true, false, false)
-      | UpdateBindingClause(_) => (false, true, false)
-      | InsertBefore(_) => (false, false, false)
-      | InsertAfter(_) => (false, false, false)
-      | DeleteBindingClause(_) => (false, true, false)
-      | DeleteBody(_) => (false, false, true)
+      | Update(Definition, _, _) => (true, true, false)
+      | Update(Body, _, _) => (true, true, true)
+      | Update(Pattern, _, _) => (true, false, false)
+      | Update(BindingClause, _, _) => (false, true, false)
+      | Insert(_, _, _) => (false, false, false)
+      | Delete(BindingClause, _) => (false, true, false)
+      | Delete(Body, _) => (false, false, true)
+      | Delete(Definition | Pattern, _) => (false, false, false)
       };
     };
 
     let static_error_check =
         (
-          ~edit_action: Action.edit_action,
+          ~edit_action: Action.Structural.t,
           ~initial_node: option(node),
           ~initial_info_map: Id.Map.t(Info.t),
           ~new_node: node,
@@ -302,37 +290,9 @@ module Local = {
     };
   };
 
-  let initialize_dispatch =
-      (
-        z: Zipper.t,
-        mk_statics: Zipper.t => StaticsBase.Map.t,
-        return:
-          (Action.Failure.t, option(Zipper.t)) =>
-          result(Zipper.t, Action.Failure.t),
-        code: string,
-      ) => {
-    switch (PerformUtils.introduce(Select.all(z), code, return)) {
-    | Ok(new_z) =>
-      let new_statics = mk_statics(new_z);
-      // For initialization, check the entire program for errors
-      let new_errors = ErrorPrint.all(new_statics);
-      if (List.length(new_errors) > 0) {
-        Error(
-          Action.Failure.Composition_action_failure(
-            "Not applying the action you requested as it would have the following static error(s): "
-            ++ String.concat(", ", new_errors),
-          ),
-        );
-      } else {
-        Ok(new_z);
-      };
-    | Error(e) => Error(e)
-    };
-  };
-
   let edit_dispatch =
       (
-        ~e: Action.edit_action,
+        ~e: Action.Structural.t,
         ~initial_z: Zipper.t,
         ~initial_node_map: node_map,
         ~initial_info_map: Id.Map.t(Info.t),
@@ -343,7 +303,7 @@ module Local = {
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
       ) => {
     switch (e) {
-    | UpdateDefinition(path, code) =>
+    | Update(Definition, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Def, initial_node);
       switch (
@@ -376,7 +336,7 @@ module Local = {
           }
         };
       };
-    | UpdateBody(path, code) =>
+    | Update(Body, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, initial_node);
       switch (
@@ -409,7 +369,7 @@ module Local = {
           }
         };
       };
-    | UpdatePattern(path, code) =>
+    | Update(Pattern, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Pat, initial_node);
       let old_pat =
@@ -466,7 +426,7 @@ module Local = {
           }
         };
       };
-    | UpdateBindingClause(path, code) =>
+    | Update(BindingClause, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
       switch (
@@ -499,7 +459,7 @@ module Local = {
           }
         };
       };
-    | InsertBefore(path, code) =>
+    | Insert(Before, path, code) =>
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
       switch (
@@ -530,7 +490,7 @@ module Local = {
           Ok(new_z);
         };
       };
-    | InsertAfter(path, code) =>
+    | Insert(After, path, code) =>
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
       switch (
@@ -559,7 +519,7 @@ module Local = {
           Ok(new_z);
         };
       };
-    | DeleteBindingClause(path) =>
+    | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
       PerformUtils.destruct(
         ~defs_exclude_bodies=true,
@@ -567,7 +527,7 @@ module Local = {
         target_id,
         syntax,
       );
-    | DeleteBody(path) =>
+    | Delete(Body, path) =>
       let node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, node);
       PerformUtils.destruct(
@@ -576,19 +536,18 @@ module Local = {
         target_id,
         syntax,
       );
-    | Initialize(_) =>
+    | Delete(Definition | Pattern, _) =>
       Error(
         Action.Failure.Composition_action_failure(
-          "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
+          "Deleting a definition or pattern is not yet implemented.",
         ),
       )
     };
   };
 
-  // Tempory wrapper that helps me localize myself while implementing (remove)
   let composition_dispatch =
       (
-        a: Action.agent_editor_action,
+        a: Action.Structural.t,
         syntax: CachedSyntax.t,
         z: Zipper.t,
         mk_statics: Zipper.t => StaticsBase.Map.t,
@@ -598,27 +557,17 @@ module Local = {
       ) => {
     let initial_info_map = mk_statics(z);
     switch (build(z, initial_info_map)) {
-    | None =>
-      switch (a) {
-      | Edit(Initialize(code)) =>
-        initialize_dispatch(z, mk_statics, return, code)
-      | _ => Error(Action.Failure.Cant_derive_local_AST_information)
-      }
+    | None => Error(Action.Failure.Cant_derive_local_AST_information)
     | Some(initial_node_map) =>
-      switch (a) {
-      | Read(ShowUseSites(_path))
-      | Read(ShowReferences(_path)) => Ok(z) // TODO: Implement
-      | Edit(e) =>
-        edit_dispatch(
-          ~e,
-          ~initial_z=z,
-          ~initial_node_map,
-          ~initial_info_map,
-          ~syntax,
-          ~return,
-          ~mk_statics,
-        )
-      }
+      edit_dispatch(
+        ~e=a,
+        ~initial_z=z,
+        ~initial_node_map,
+        ~initial_info_map,
+        ~syntax,
+        ~return,
+        ~mk_statics,
+      )
     };
   };
 
@@ -643,10 +592,10 @@ module Local = {
 
   let go =
       (
+        ~mk_statics: Zipper.t => StaticsBase.Map.t,
         ~syntax: CachedSyntax.t,
         ~z: Zipper.t,
-        ~a: Action.agent_editor_action,
-        ~mk_statics: Zipper.t => StaticsBase.Map.t,
+        ~a: Action.Structural.t,
         ~return:
            (Action.Failure.t, option(Zipper.t)) =>
            result(Zipper.t, Action.Failure.t),
@@ -667,5 +616,13 @@ module Local = {
 };
 
 module Public = {
-  let go = Local.go;
+  let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
+    Language.(
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        MakeTerm.from_zip_for_sem(z).term,
+      )
+    );
+  let go = Local.go(~mk_statics);
 };

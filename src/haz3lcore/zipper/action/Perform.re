@@ -6,15 +6,6 @@ type state = {
   col_target: option(int),
 };
 
-let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
-  Language.(
-    Statics.mk(
-      CoreSettings.on,
-      Builtins.ctx_init(Some(Operators.default_mode)),
-      MakeTerm.from_zip_for_sem(z).term,
-    )
-  );
-
 let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
   Result.of_option(~error, z);
 
@@ -150,7 +141,5 @@ let go =
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
-  | AgentEditorAction(a) =>
-    /* Agent editor actions are handled elsewhere; no-op here */
-    CompositionGo.Public.go(~syntax, ~z, ~a, ~mk_statics, ~return)
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };

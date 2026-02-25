@@ -83,7 +83,7 @@ module Update = {
              | Dump => true
              | Project(_)
              | Unselect(_)
-             | AgentEditorAction(_)
+             | Structural(_)
              | Probe(_) => false
              };
            },

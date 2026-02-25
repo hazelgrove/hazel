@@ -1,5 +1,16 @@
+open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv;
+
+/* Semantic queries — extract information without modifying the editor */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type language_server =
+  | ShowUseSites(string)
+  | ShowReferences(string);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
-  | EditorAction(Action.agent_editor_action)
+  | EditorAction(Action.Structural.t)
+  | LanguageServerAction(language_server)
+  | Initialize(string) /* replace entire program content (select-all + paste) */
   | WorkbenchAction(AgentWorkbench.Update.Action.BackendAction.action)
   | AgentContextAction(AgentContext.Update.action);

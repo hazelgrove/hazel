@@ -21,17 +21,56 @@ let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
 let render_zipper = (z: Zipper.t): string =>
   Printer.of_zipper(~holes="?", ~indent=" ", z);
 
-let run_agent_action = (code: string, a: agent_editor_action) => {
+let run_agent_action = (code: string, a: Action.Structural.t) => {
   let z = mk_zipper(code);
   Perform.go(
     ~statics=CachedStatics.empty,
     ~syntax=CachedSyntax.init(z),
-    AgentEditorAction(a),
+    Structural(a),
     {
       zipper: z,
       col_target: None,
     },
   );
+};
+
+/* Initialize bypasses Perform.go since it's no longer a Structural action.
+   Test it directly using the same logic as Agent.re's Initialize handler. */
+let run_initialize = (code: string, new_code: string) => {
+  let z = mk_zipper(code);
+  let info_map = mk_statics(z);
+  switch (HighLevelNodeMap.build(z, info_map)) {
+  | Some(_) =>
+    Error(
+      Action.Failure.Composition_action_failure(
+        "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
+      ),
+    )
+  | None =>
+    let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
+      Result.of_option(~error, z);
+    switch (
+      CompositionGo.Local.PerformUtils.introduce(
+        Select.all(z),
+        new_code,
+        return,
+      )
+    ) {
+    | Error(e) => Error(e)
+    | Ok(new_z) =>
+      let new_statics = mk_statics(new_z);
+      let new_errors = ErrorPrint.all(new_statics);
+      if (List.length(new_errors) > 0) {
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Static errors: " ++ String.concat(", ", new_errors),
+          ),
+        );
+      } else {
+        Ok(Dump.to_zipper(new_z));
+      };
+    };
+  };
 };
 
 let check_rendered = (name: string, expected: string, actual: string) => {
@@ -50,7 +89,7 @@ let check_rendered = (name: string, expected: string, actual: string) => {
   );
 };
 
-let apply_and_render = (code: string, a: agent_editor_action): string => {
+let apply_and_render = (code: string, a: Action.Structural.t): string => {
   switch (run_agent_action(code, a)) {
   | Ok(z) => render_zipper(z)
   | Error(err) =>
@@ -64,7 +103,7 @@ let apply_and_render = (code: string, a: agent_editor_action): string => {
 };
 
 let expect_composition_failure =
-    (code: string, a: agent_editor_action, name: string) => {
+    (code: string, a: Action.Structural.t, name: string) => {
   switch (run_agent_action(code, a)) {
   | Ok(_) => Alcotest.fail("Expected failure: " ++ name)
   | Error(Action.Failure.Composition_action_failure(_)) => ()
@@ -81,31 +120,30 @@ let expect_composition_failure =
 let edit_action_tests = (
   "AgentTools.EditActions",
   [
-    test_case(
-      "initialize replaces program",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render("?", Edit(Initialize("let a = 3 in a")));
-        check_rendered("initialize", "let a = 3 in a", result);
-      },
-    ),
+    test_case("initialize replaces program", `Quick, () => {
+      switch (run_initialize("?", "let a = 3 in a")) {
+      | Ok(z) =>
+        check_rendered("initialize", "let a = 3 in a", render_zipper(z))
+      | Error(err) =>
+        Alcotest.fail("Initialize failed: " ++ Action.Failure.show(err))
+      }
+    }),
     test_case("initialize rejected on let program", `Quick, () => {
-      expect_composition_failure(
-        "let a = 1 in a",
-        Edit(Initialize("let b = 2 in b")),
-        "initialize on let",
-      )
+      switch (run_initialize("let a = 1 in a", "let b = 2 in b")) {
+      | Ok(_) => Alcotest.fail("Expected failure: initialize on let")
+      | Error(Action.Failure.Composition_action_failure(_)) => ()
+      | Error(err) =>
+        Alcotest.fail(
+          "Unexpected failure kind: " ++ Action.Failure.show(err),
+        )
+      }
     }),
     test_case(
       "update_definition replaces def",
       `Quick,
       () => {
         let result =
-          apply_and_render(
-            "let a = 1 in a",
-            Edit(UpdateDefinition("a", "2")),
-          );
+          apply_and_render("let a = 1 in a", Update(Definition, "a", "2"));
         check_rendered("update_definition", "let a = 2 in a", result);
       },
     ),
@@ -116,7 +154,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Edit(UpdateBody("b", "b + 1")),
+            Update(Body, "b", "b + 1"),
           );
         check_rendered(
           "update_body",
@@ -132,7 +170,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = a + 1 in b + a",
-            Edit(UpdatePattern("a", "x")),
+            Update(Pattern, "a", "x"),
           );
         check_rendered(
           "update_pattern",
@@ -148,7 +186,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let x = 3 in let y = x in y",
-            Edit(UpdatePattern("x", "z")),
+            Update(Pattern, "x", "z"),
           );
         check_rendered(
           "update_pattern_let_def",
@@ -164,7 +202,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Edit(UpdateBindingClause("b", "let b = a + 2 in")),
+            Update(BindingClause, "b", "let b = a + 2 in"),
           );
         check_rendered(
           "update_binding_clause",
@@ -180,7 +218,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Edit(InsertBefore("b", "let x = a in")),
+            Insert(Before, "b", "let x = a in"),
           );
         check_rendered(
           "insert_before",
@@ -196,7 +234,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Edit(InsertAfter("a", "let x = a in")),
+            Insert(After, "a", "let x = a in"),
           );
         check_rendered(
           "insert_after",
@@ -212,7 +250,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in a + c",
-            Edit(DeleteBindingClause("b")),
+            Delete(BindingClause, "b"),
           );
         check_rendered(
           "delete_binding_clause",
@@ -228,7 +266,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Edit(DeleteBody("b")),
+            Delete(Body, "b"),
           );
         check_rendered("delete_body", "let a = 1 in let b = 2 in ?", result);
       },

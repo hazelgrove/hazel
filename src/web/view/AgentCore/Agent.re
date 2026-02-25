@@ -1219,9 +1219,7 @@ module Agent = {
         : Result.t((Model.t, CodeWithStatics.Model.t)) => {
       switch (action) {
       | EditorAction(agent_editor_action) =>
-        // Take a segment snapshot of the local term that the action is applied to
-        let action = Action.AgentEditorAction(agent_editor_action);
-        // Apply action to the editor
+        let action = Action.Structural(agent_editor_action);
         let updated_editor =
           Editor.Update.update(
             ~settings=settings.core,
@@ -1252,6 +1250,52 @@ module Agent = {
               ),
             )
           }
+        };
+      | LanguageServerAction(_) =>
+        /* TODO: implement language server queries */
+        Ok((agent, editor))
+      | Initialize(code) =>
+        /* Replace entire program content (select-all + paste).
+           Only allowed when program has no let/type-alias bindings. */
+        let z = editor.editor.state.zipper;
+        let mk_statics = CompositionGo.Public.mk_statics;
+        let info_map = mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | Some(_) =>
+          Error(
+            Failure.Info(
+              "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
+            ),
+          )
+        | None =>
+          let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
+            Result.of_option(~error, z);
+          switch (
+            CompositionGo.Local.PerformUtils.introduce(
+              Select.all(z),
+              code,
+              return,
+            )
+          ) {
+          | Error(_) => Error(Failure.Info("Failed to initialize program"))
+          | Ok(new_z) =>
+            let new_statics = mk_statics(new_z);
+            let new_errors = ErrorPrint.all(new_statics);
+            if (List.length(new_errors) > 0) {
+              Error(
+                Failure.Info(
+                  "Not applying the action you requested as it would have the following static error(s): "
+                  ++ String.concat(", ", new_errors),
+                ),
+              );
+            } else {
+              let new_z = Dump.to_zipper(new_z);
+              let new_editor_model = Editor.Model.mk(new_z);
+              let new_code_with_statics =
+                CodeWithStatics.Model.mk(new_editor_model);
+              Ok((agent, new_code_with_statics));
+            };
+          };
         };
       | WorkbenchAction(workbench_action) =>
         let action =
@@ -1485,7 +1529,9 @@ module Agent = {
       let agent_editor_view_string =
         CompositionView.Public.print(editor.editor, curr_chat.agent_view);
       let static_errors_info_string =
-        ErrorPrint.all(Perform.mk_statics(editor.editor.state.zipper))
+        ErrorPrint.all(
+          CompositionGo.Public.mk_statics(editor.editor.state.zipper),
+        )
         |> String.concat("\n");
       let chat_system =
         ChatSystem.Update.update(
@@ -1555,21 +1601,17 @@ module Agent = {
           action: CompositionActions.action,
         )
         : option(OpenRouter.Reply.Model.diff) => {
-      let* action =
+      let* edit_action =
         switch (action) {
-        | EditorAction(editor_action) =>
-          switch (editor_action) {
-          | Edit(edit_action) => Some(edit_action)
-          | _ => None
-          }
+        | EditorAction(edit_action) => Some(edit_action)
         | _ => None
         };
       let* diff =
         CompositionGo.Local.get_diff(
           old_editor.state.zipper,
           new_editor.state.zipper,
-          action,
-          Perform.mk_statics,
+          edit_action,
+          CompositionGo.Public.mk_statics,
           old_editor.syntax,
         );
       Some(

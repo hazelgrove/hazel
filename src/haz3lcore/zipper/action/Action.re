@@ -68,13 +68,13 @@ type project =
   | Escape(int, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type agent =
+type completion_source =
   | TyDi
   | LLM(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
-  | Set(agent)
+  | Set(completion_source)
   | Clear
   | Accept;
 
@@ -83,34 +83,37 @@ type paste =
   | String(string)
   | Segment(Segment.t);
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type read_action =
-  // Lists all the use sites of the indicated variable
-  | ShowUseSites(string)
-  // Displays the typing context/scope at the current let expression in the AST
-  // | ShowContext //todo: technically this is accomplished via showing sibs/parent
-  // Displays the entire definition of the current node, with no child/sub definitions abstracted away
-  | ShowReferences(string);
+module Structural = {
+  /* A path identifies a let/type-alias binding by name, using `/` to
+     address nested bindings (e.g. "a", "a/inner"). Resolved against
+     the HighLevelNodeMap. */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type path = string;
 
-// --- Edit Actions ---
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type code = string;
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type edit_action =
-  | Initialize(string) // Code
-  | UpdateDefinition(string, string) // Path, Code
-  | UpdateBody(string, string) // Path, Code
-  | UpdatePattern(string, string) // Path, Code
-  | UpdateBindingClause(string, string) // Path, Code
-  | DeleteBindingClause(string) // Path
-  | DeleteBody(string) // Path
-  | InsertAfter(string, string) // Path, Code
-  | InsertBefore(string, string); // Path, Code
+  /* Which sub-expression of a binding to target */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type target =
+    | Definition /* RHS of `=`, before `in` */
+    | Body /* expression after `in` */
+    | Pattern /* LHS of `=`, after `let`/`type`; updates also rename use sites */
+    | BindingClause; /* entire `let ... = ... in` / `type ... = ... in` */
 
-// AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type agent_editor_action =
-  | Read(read_action) // Language server helpers
-  | Edit(edit_action); // Main source of editing the codebase
+  /* Where to insert relative to the target binding */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type insert_target =
+    | After /* insert within body (after target binding) */
+    | Before; /* insert before target binding (wrapping around it) */
+
+  /* Targeted structural edits on bindings identified by path */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t =
+    | Update(target, path, code)
+    | Delete(target, path)
+    | Insert(insert_target, path, code);
+};
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type probe =
@@ -135,8 +138,8 @@ type t =
   | Put_down
   | Introduce
   | Probe(probe)
-  | AgentEditorAction(agent_editor_action)
-  | Dump;
+  | Dump
+  | Structural(Structural.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -174,7 +177,7 @@ let is_edit: t => bool =
   | Put_down
   | Introduce
   | Buffer(Accept | Clear | Set(_))
-  | AgentEditorAction(_)
+  | Structural(_)
   | Dump => true
   | Copy
   | Move(_)
@@ -207,7 +210,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
-  | AgentEditorAction(_)
+  | Structural(_)
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -235,7 +238,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Insert(_)
   | Put_down
   | Introduce
-  | AgentEditorAction(_)
+  | Structural(_)
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -279,6 +282,6 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Project(_)
-  | AgentEditorAction(_)
+  | Structural(_)
   | Probe(_)
   | Dump => true;

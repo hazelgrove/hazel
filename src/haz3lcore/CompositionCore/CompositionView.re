@@ -318,7 +318,7 @@ module Local = {
     let print =
         (editor: Editor.t, agent_context: AgentContext.Model.t): string => {
       let z = editor.state.zipper;
-      let info_map = Perform.mk_statics(z);
+      let info_map = CompositionGo.Public.mk_statics(z);
       let node_map = HighLevelNodeMap.build(z, info_map);
       switch (node_map) {
       | None => print_zipper(z)

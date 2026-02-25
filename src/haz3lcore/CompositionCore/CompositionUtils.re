@@ -80,68 +80,59 @@ module Local = {
               AgentContextAction(Expand(get_string_list(args, "paths")))
             | "collapse" =>
               AgentContextAction(Collapse(get_string_list(args, "paths")))
-            | "initialize" =>
-              EditorAction(Edit(Initialize(get_string(args, "code"))))
+            | "initialize" => Initialize(get_string(args, "code"))
             | "update_definition" =>
               EditorAction(
-                Edit(
-                  UpdateDefinition(
-                    get_string(args, "path"),
-                    get_string(args, "code"),
-                  ),
+                Update(
+                  Definition,
+                  get_string(args, "path"),
+                  get_string(args, "code"),
                 ),
               )
             | "update_body" =>
               EditorAction(
-                Edit(
-                  UpdateBody(
-                    get_string(args, "path"),
-                    get_string(args, "code"),
-                  ),
+                Update(
+                  Body,
+                  get_string(args, "path"),
+                  get_string(args, "code"),
                 ),
               )
             | "update_pattern" =>
               EditorAction(
-                Edit(
-                  UpdatePattern(
-                    get_string(args, "path"),
-                    get_string(args, "code"),
-                  ),
+                Update(
+                  Pattern,
+                  get_string(args, "path"),
+                  get_string(args, "code"),
                 ),
               )
             | "update_binding_clause" =>
               EditorAction(
-                Edit(
-                  UpdateBindingClause(
-                    get_string(args, "path"),
-                    get_string(args, "code"),
-                  ),
+                Update(
+                  BindingClause,
+                  get_string(args, "path"),
+                  get_string(args, "code"),
                 ),
               )
             | "insert_after" =>
               EditorAction(
-                Edit(
-                  InsertAfter(
-                    get_string(args, "path"),
-                    get_string(args, "code"),
-                  ),
+                Insert(
+                  After,
+                  get_string(args, "path"),
+                  get_string(args, "code"),
                 ),
               )
             | "insert_before" =>
               EditorAction(
-                Edit(
-                  InsertBefore(
-                    get_string(args, "path"),
-                    get_string(args, "code"),
-                  ),
+                Insert(
+                  Before,
+                  get_string(args, "path"),
+                  get_string(args, "code"),
                 ),
               )
             | "delete_binding_clause" =>
-              EditorAction(
-                Edit(DeleteBindingClause(get_string(args, "path"))),
-              )
+              EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>
-              EditorAction(Edit(DeleteBody(get_string(args, "path"))))
+              EditorAction(Delete(Body, get_string(args, "path")))
             | "create_new_task" =>
               WorkbenchAction(
                 CreateNewTask(
@@ -211,27 +202,27 @@ module Local = {
       "expand(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | AgentContextAction(Collapse(paths)) =>
       "collapse(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | EditorAction(Read(ShowUseSites(path))) =>
+    | LanguageServerAction(ShowUseSites(path)) =>
       "show_use_sites(\"" ++ path ++ "\")"
-    | EditorAction(Read(ShowReferences(path))) =>
+    | LanguageServerAction(ShowReferences(path)) =>
       "show_references(\"" ++ path ++ "\")"
-    | EditorAction(Edit(Initialize(code))) =>
-      "initialize(\"" ++ code ++ "\")"
-    | EditorAction(Edit(UpdateDefinition(path, code))) =>
+    | Initialize(code) => "initialize(\"" ++ code ++ "\")"
+    | EditorAction(Update(Definition, path, code)) =>
       "update_definition(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Edit(UpdateBody(path, code))) =>
+    | EditorAction(Update(Body, path, code)) =>
       "update_body(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Edit(UpdatePattern(path, code))) =>
+    | EditorAction(Update(Pattern, path, code)) =>
       "update_pattern(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Edit(UpdateBindingClause(path, code))) =>
+    | EditorAction(Update(BindingClause, path, code)) =>
       "update_binding_clause(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Edit(DeleteBindingClause(path))) =>
+    | EditorAction(Delete(BindingClause, path)) =>
       "delete_binding_clause(\"" ++ path ++ "\")"
-    | EditorAction(Edit(DeleteBody(path))) =>
-      "delete_body(\"" ++ path ++ "\")"
-    | EditorAction(Edit(InsertAfter(path, code))) =>
+    | EditorAction(Delete(Body, path)) => "delete_body(\"" ++ path ++ "\")"
+    | EditorAction(Delete(Definition | Pattern, path)) =>
+      "delete(\"" ++ path ++ "\")"
+    | EditorAction(Insert(After, path, code)) =>
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Edit(InsertBefore(path, code))) =>
+    | EditorAction(Insert(Before, path, code)) =>
       "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | WorkbenchAction(CreateNewTask(task)) =>
       "create_new_task( "
