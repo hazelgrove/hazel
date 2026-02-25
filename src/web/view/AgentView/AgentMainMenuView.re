@@ -39,7 +39,7 @@ let view =
       );
     if (String.length(api_key_input) > 0) {
       let set_api_key_action =
-        Globals.Action.AgentGlobals(
+        Globals.Action.SetAgentGlobals(
           AgentGlobals.Update.SetApiKey(api_key_input),
         );
       Effect.Many([
@@ -72,7 +72,7 @@ let view =
   // LLM selection handler
   let set_active_llm = (llm_info: OpenRouter.AvailableLLMs.Model.llm_info) => {
     let set_active_llm_action =
-      Globals.Action.AgentGlobals(
+      Globals.Action.SetAgentGlobals(
         AgentGlobals.Update.SetActiveLlm(llm_info),
       );
     Effect.Many([
@@ -84,7 +84,7 @@ let view =
   // Switch to chat interface handler
   let switch_to_chat = _ => {
     let switch_interface_action =
-      Globals.Action.AgentGlobals(
+      Globals.Action.SetAgentGlobals(
         AgentGlobals.Update.SwitchInterface(
           AgentGlobals.Model.AgentChatInterface,
         ),

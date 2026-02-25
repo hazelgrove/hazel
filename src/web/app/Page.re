@@ -118,11 +118,11 @@ module Update = {
           settings,
         },
       };
-    | AgentGlobals(agent_globals_action) =>
+    | SetAgentGlobals(agent_globals_action) =>
       let agent_globals =
         AgentGlobals.Update.update(
           agent_globals_action, model.globals.settings.agent_globals, action =>
-          schedule_action(Globals(AgentGlobals(action)))
+          schedule_action(Globals(SetAgentGlobals(action)))
         );
       {
         ...model,

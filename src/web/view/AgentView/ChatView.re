@@ -17,7 +17,7 @@ let view =
   // Settings button - switch back to main menu
   let switch_to_settings = _ => {
     let switch_interface_action =
-      Globals.Action.AgentGlobals(
+      Globals.Action.SetAgentGlobals(
         AgentGlobals.Update.SwitchInterface(AgentGlobals.Model.MainMenu),
       );
     Effect.Many([
