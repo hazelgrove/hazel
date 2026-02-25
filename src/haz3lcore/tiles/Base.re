@@ -39,10 +39,10 @@ let rec segment_to_string =
         (
           ~holes=" ",
           ~concave_holes=" ",
-          ~projector_to_segment,
           ~refractors: list((Id.t, _))=[],
           ~refractor_seg_to_seg:
              (list((Id.t, _)), segment) => (list((Id.t, _)), segment),
+          ~projector_to_segment,
           seg: segment,
         )
         : string => {
@@ -52,22 +52,20 @@ let rec segment_to_string =
        piece_to_string(
          ~holes,
          ~concave_holes,
-         ~projector_to_segment,
          ~refractors,
          ~refractor_seg_to_seg,
+         ~projector_to_segment,
        ),
      )
   |> String.concat("");
 }
-
 and piece_to_string =
     (
       ~holes: string,
       ~concave_holes: string,
+      ~refractors: list((Id.t, _)),
+      ~refractor_seg_to_seg,
       ~projector_to_segment,
-      ~refractors: list((Id.t, _))=[],
-      ~refractor_seg_to_seg:
-         (list((Id.t, _)), segment) => (list((Id.t, _)), segment),
       p: piece,
     )
     : string =>
@@ -76,9 +74,9 @@ and piece_to_string =
     tile_to_string(
       ~holes,
       ~concave_holes,
-      ~projector_to_segment,
       ~refractors,
       ~refractor_seg_to_seg,
+      ~projector_to_segment,
       t,
     )
   | Grout({shape: Concave, _}) => concave_holes
@@ -88,9 +86,9 @@ and piece_to_string =
     segment_to_string(
       ~holes,
       ~concave_holes,
-      ~projector_to_segment,
       ~refractors,
       ~refractor_seg_to_seg,
+      ~projector_to_segment,
       projector_to_segment(p),
     )
   }
@@ -98,10 +96,9 @@ and tile_to_string =
     (
       ~holes: string,
       ~concave_holes: string,
+      ~refractors: list((Id.t, _)),
+      ~refractor_seg_to_seg,
       ~projector_to_segment,
-      ~refractors: list((Id.t, _))=[],
-      ~refractor_seg_to_seg:
-         (list((Id.t, _)), segment) => (list((Id.t, _)), segment),
       t: tile,
     )
     : string =>
@@ -111,9 +108,9 @@ and tile_to_string =
        segment_to_string(
          ~holes,
          ~concave_holes,
-         ~projector_to_segment,
          ~refractors,
          ~refractor_seg_to_seg,
+         ~projector_to_segment,
        ),
      )
   |> String.concat("");
