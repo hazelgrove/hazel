@@ -815,6 +815,31 @@ in f(4)|},
 in f(4)|},
     [(0, ["2"])],
   ),
+  /* Ascription distribution through ConstructorAp must preserve probe ID.
+   * Without fast_copy, the ConstructorAp case in Ascriptions.transition
+   * creates a fresh Ap ID, losing the probe target. */
+  probe_line_test(
+    "Probe on constructor Ap in typed function body",
+    {|type R = Ok(Int) + Err(String) in
+let f: Int -> R = fun x -> ^^probe(Ok(x))
+in f(42)|},
+    [(1, ["Ok(42)"])],
+  ),
+  probe_line_test(
+    "Probe on constructor Ap with string payload in typed function",
+    {|type R = Ok(Int) + Err(String) in
+let f: Int -> R = fun _ -> ^^probe(Err("bad"))
+in f(0)|},
+    [(1, ["Err(\"bad\")"])],
+  ),
+  /* ListConcat ascription distribution must preserve probe ID.
+   * Without fast_copy, the ListConcat case creates a fresh ID. */
+  probe_line_test(
+    "Probe on list concat in typed function body",
+    {|let f: [Int] -> [Int] = fun xs -> ^^probe(xs @ [0])
+in f([1, 2])|},
+    [(0, ["[1, 2, 0]"])],
+  ),
 ];
 
 /* Tests that probe samples are not duplicated when values flow through

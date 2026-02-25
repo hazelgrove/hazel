@@ -166,8 +166,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (entry) {
       | Some(Some(t')) =>
         Some(
-          Ap(Forward, con, recur(Asc(payload, t') |> DHExp.fresh))
-          |> DHExp.fresh,
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Ap(Forward, con, recur(Asc(payload, t') |> DHExp.fresh))
+            |> DHExp.fresh,
+          ),
         )
       | Some(None)
       | None => None
@@ -176,7 +179,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
-      Some(ProofObject(e1) |> DHExp.fresh)
+      Some(
+        IdTagged.fast_copy(DHExp.rep_id(e), ProofObject(e1) |> DHExp.fresh),
+      )
     | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
@@ -211,11 +216,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       }
     | (ListConcat(d1, d2), List(_)) =>
       Some(
-        ListConcat(
-          recur(Asc(d1, t) |> DHExp.fresh),
-          recur(Asc(d2, t) |> DHExp.fresh),
-        )
-        |> DHExp.fresh,
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          ListConcat(
+            recur(Asc(d1, t) |> DHExp.fresh),
+            recur(Asc(d2, t) |> DHExp.fresh),
+          )
+          |> DHExp.fresh,
+        ),
       )
     | (Let(p, e1, e2), _) =>
       Some(
