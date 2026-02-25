@@ -323,12 +323,6 @@ module Local = {
       switch (node_map) {
       | None => print_zipper(z)
       | Some(node_map) =>
-        // Step 1: Expand everything for agent view
-        // TODO: Skipping for now. Bottleneck.
-        // print_endline("here #1, expanding everything");
-        // let all_ids = Id.Map.bindings(info_map) |> List.map(fst);
-        // let z' = ViewUtils.expand_terms(~z, ~ids=all_ids);
-
         // Step 2: Collapse all top level definitions for agent view,
         // except for the ones that are expanded, given by the agent view's expanded list
         let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);
@@ -340,14 +334,8 @@ module Local = {
         let ids_to_collapse =
           all_top_level_ids
           |> List.filter((id: Id.t) => !List.mem(id, expanded_ids));
-        print_endline(
-          "here #2.1, ids to collapse: "
-          ++ String.concat(", ", List.map(Id.to_string, ids_to_collapse)),
-        );
         let z' =
           ViewUtils.collapse_definitions(~z, ~ids=ids_to_collapse, ~info_map);
-
-        print_endline("here #3, printing zipper");
         print_zipper(z');
       };
     };

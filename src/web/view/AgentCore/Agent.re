@@ -554,17 +554,8 @@ module Chat = {
       // Inserts a new message at the current tail of the chat
 
       // Add new message's id to the current tail message's children
-      print_endline("[Chat.Utils.append] Adding new message to the chat");
       let tail_msg = current_tail(chat);
-      print_endline(
-        "[Chat.Utils.append] Current tail message: "
-        ++ Message.Model.show(tail_msg),
-      );
       let updated_tail_msg = Message.Utils.add_child(tail_msg, new_msg.id);
-      print_endline(
-        "[Chat.Utils.append] Updated tail message: "
-        ++ Message.Model.show(updated_tail_msg),
-      );
       let updated_chat = update_message(updated_tail_msg, chat);
 
       // Add the new message to the chat
@@ -642,7 +633,6 @@ module Chat = {
     };
 
     let init = (~system_prompt: string, ~dev_notes: string): Model.t => {
-      print_endline("[Chat.Utils.init] Initializing chat");
       let system_prompt = Message.Utils.mk_prompt_message(system_prompt);
       let chat: Model.t = {
         id: Id.mk(),
@@ -1366,16 +1356,7 @@ module Agent = {
           ~retry_attempt: int,
         )
         : unit => {
-      print_endline("Defining handler");
       let handler = (response: option(API.Json.t)): unit => {
-        switch (response) {
-        | Some(response) =>
-          print_endline(
-            "Handler triggered with response: "
-            ++ API.Json.to_string(response),
-          )
-        | None => print_endline("No response received yet")
-        };
         switch (OpenRouter.Utils.handle_chat(response)) {
         | Some(OpenRouter.Model.Reply(reply)) =>
           schedule_action(Action.HandleLLMResponse(reply, chat_id))
@@ -1472,21 +1453,6 @@ module Agent = {
           chat_system,
         });
       | (Some(api_key), Some(llm_id)) =>
-        print_endline(
-          "Showing outgoing chat messages\' content: "
-          ++ String.concat(
-               "\n",
-               List.map(
-                 (msg: Message.Model.t) => msg.content,
-                 Chat.Utils.get(
-                   ChatSystem.Utils.find_chat(chat_id, chat_system),
-                 )
-                 |> List.filter((msg: Message.Model.t) =>
-                      msg.role != System(Prompt)
-                    ),
-               ),
-             ),
-        );
         send_llm_request(
           ~api_key,
           ~payload=
@@ -1772,9 +1738,6 @@ module Agent = {
           schedule_action: Action.t => unit,
         )
         : (Model.t, Updated.t(CellEditor.Model.t)) => {
-      print_endline(
-        "Handling LLM response: " ++ OpenRouter.Reply.Model.show(reply),
-      );
       let tool_call = ListUtil.hd_opt(reply.tool_calls);
       let is_empty = String.trim(reply.content) == "";
       let max_empty_retries = 2;

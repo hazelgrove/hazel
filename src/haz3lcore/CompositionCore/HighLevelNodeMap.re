@@ -696,9 +696,7 @@ let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
       Utils.top_level_term_of(~start_point=current_term, ~info_map);
     }
   ) {
-  | None =>
-    print_endline("No top level term found");
-    None;
+  | None => None
   | Some(top_level_term) =>
     let oldest_ancestor = Utils.get_oldest_ancestor(top_level_term, info_map);
     let dummy_root = Id.mk();
