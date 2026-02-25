@@ -51,7 +51,8 @@ let rec any_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~ancestors,
-        ~duplicates=[],
+        ~duplicate_bindings=[],
+        ~duplicate_labels=[],
         ~ctx,
         p,
         m,
@@ -210,7 +211,7 @@ and uexp_to_info_map =
         go(~ana, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let label_to_info_map =
       (expected_labels, labmode, label: Exp.t, m: Map.t)
@@ -681,7 +682,7 @@ and uexp_to_info_map =
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self)) : atomic(self);
+        ? atomic(DuplicateLabel(name, self)) : atomic(self);
     | Label(name) =>
       let self = Self.UnexpectedLabelSort(name);
       atomic(self);
@@ -1394,7 +1395,8 @@ and upat_to_info_map =
       ~ctx,
       ~co_ctx,
       ~ancestors: Info.ancestors,
-      ~duplicates: list(string),
+      ~duplicate_bindings: list(string)=[],
+      ~duplicate_labels: list(string)=[],
       ~expected_labels=?,
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
@@ -1460,7 +1462,8 @@ and upat_to_info_map =
         ~ctx,
         ~co_ctx,
         ~ancestors,
-        ~duplicates=[],
+        ~duplicate_bindings=[],
+        ~duplicate_labels=[],
         ~expected_labels=?,
         ~ana,
         ~under_ascription=false,
@@ -1475,7 +1478,8 @@ and upat_to_info_map =
       ~ctx,
       ~co_ctx,
       ~ancestors,
-      ~duplicates,
+      ~duplicate_bindings,
+      ~duplicate_labels,
       ~ana,
       ~under_ascription,
       ~override_self?,
@@ -1491,10 +1495,18 @@ and upat_to_info_map =
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
-  let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
+  let ctx_fold = (ctx: Ctx.t, m, ~duplicate_bindings=[], ~duplicate_labels=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m, info_all), e, ana) =>
-        go(~ctx, ~ana, ~duplicates, ~inferred_label?, e, m)
+        go(
+          ~ctx,
+          ~ana,
+          ~duplicate_bindings,
+          ~duplicate_labels,
+          ~inferred_label?,
+          e,
+          m,
+        )
         |> (
           ((info, m)) => (
             info.ctx,
@@ -1645,12 +1657,21 @@ and upat_to_info_map =
           typ: ctx_typ,
           custom_statics: None,
         });
-      add(
-        ~self=Just(unknown),
-        ~ctx=Ctx.extend(ctx, entry),
-        ~constraint_=Coverage.Constraint.Truth,
-        m,
-      );
+
+      List.exists(l => name == l, duplicate_bindings)
+        ? add(
+            ~self=DuplicateVar(name, Just(unknown)),
+            ~ctx=Ctx.extend(ctx, entry),
+            ~constraint_=Coverage.Constraint.Truth,
+            m,
+          )
+        : add(
+            ~self=Just(unknown),
+            ~ctx=Ctx.extend(ctx, entry),
+            ~constraint_=Coverage.Constraint.Truth,
+            m,
+          );
+
     | TupLabel({term: ExplicitNonlabel, _} as label, p) =>
       let (p, m) = go(~ana, ~ctx, p, m);
       let (_, m) = go(~label_sort=true, ~ctx, ~ana=syn, label, m);
@@ -1672,12 +1693,21 @@ and upat_to_info_map =
               ~ctx,
               ~ana=labmode,
               ~override_self=?label_self,
-              ~duplicates,
+              ~duplicate_bindings,
+              ~duplicate_labels,
               ~label_sort=true,
               label,
               m,
             );
-          let (p, m) = go(~ctx, ~ana=val_mode, ~inferred_label?, p, m);
+          let (p, m) =
+            go(
+              ~ctx,
+              ~ana=val_mode,
+              ~inferred_label?,
+              ~duplicate_bindings,
+              p,
+              m,
+            );
           (lab, p, m);
         | _ =>
           let (lab, m) =
@@ -1694,7 +1724,8 @@ and upat_to_info_map =
                 | (EmptyHole, _) => None
                 | _ => Some(BadLabel(Pat(label)))
                 },
-              ~duplicates,
+              ~duplicate_bindings,
+              ~duplicate_labels,
               label,
               m,
             );
@@ -1782,7 +1813,9 @@ and upat_to_info_map =
 
       let new_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
-      let duplicate_labels =
+      let new_duplicate_bindings =
+        Pat.get_duplicate_bindings(Pat.fresh(term));
+      let new_duplicate_labels =
         LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
       let (ctx, tys, cons, m, info_pats) =
         List.fold_left2(
@@ -1791,7 +1824,10 @@ and upat_to_info_map =
               ~ctx,
               ~ana,
               ~inferred_label?,
-              ~duplicates=duplicate_labels,
+              // Perhaps multiple copies of something in duplicates, but probably not an issue.
+              // Needed so that nested tuples can have duplicate bindings saved.
+              ~duplicate_bindings=duplicate_bindings @ new_duplicate_bindings,
+              ~duplicate_labels=new_duplicate_labels,
               ~expected_labels?,
               e,
               m,
@@ -1862,12 +1898,13 @@ and upat_to_info_map =
       );
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
-      List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
+      List.exists(l => name == l, duplicate_labels)
+        ? atomic(DuplicateLabel(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
     | Parens(p)
     | Projector(_, p) =>
-      let (p, m) = go(~ctx, ~ana, p, m);
+      let (p, m) =
+        go(~ctx, ~ana, p, ~duplicate_bindings, ~duplicate_labels, m);
       add'(~self=p.self, ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);
