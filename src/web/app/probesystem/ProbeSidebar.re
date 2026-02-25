@@ -193,6 +193,7 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
 
 let legend_view = () => {
   let mode = ProbeProj.Settings.s^.window;
+  let color_scheme = ProbeProj.Settings.s^.sample_base;
   let focus = Some((10, 20));
   let f: Sample.stack_frame = {
     id: Id.invalid,
@@ -200,6 +201,12 @@ let legend_view = () => {
     fn_def_id: None,
   };
   let legend_sample = legend_sample(~mode);
+  /* Labels vary by color scheme */
+  let (before_label, after_label, contains_label, inside_label) =
+    switch (color_scheme) {
+    | Calls => ("Above", "Below", "Caller", "Callee")
+    | StepRange => ("Before", "After", "Contains", "Inside")
+    };
   div(
     ~attrs=[clss(["legend", "panel"])],
     [
@@ -209,7 +216,10 @@ let legend_view = () => {
       ),
       legend_item(
         ~tooltip=
-          "This sample was collected before/above the cursor position in the call stack.",
+          switch (color_scheme) {
+          | Calls => "This sample is from a shallower call stack depth than the cursor."
+          | StepRange => "This sample's step range finishes before the cursor's starts."
+          },
         legend_sample(
           ~indicated=false,
           ~ap_id=None,
@@ -218,7 +228,7 @@ let legend_view = () => {
           ~sample_stack=[f],
           ~step_range=(0, 5),
           ~focus_step_range=focus,
-          ~caption="Before",
+          ~caption=before_label,
         ),
       ),
       legend_item(
@@ -231,13 +241,16 @@ let legend_view = () => {
           ~cursor_stack=[f],
           ~sample_stack=[f],
           ~step_range=(10, 20),
-          ~focus_step_range=None,
+          ~focus_step_range=Some((10, 20)),
           ~caption="At Cursor",
         ),
       ),
       legend_item(
         ~tooltip=
-          "This sample was collected after/below the cursor position in the call stack.",
+          switch (color_scheme) {
+          | Calls => "This sample is from a deeper call stack depth than the cursor."
+          | StepRange => "This sample's step range starts after the cursor's finishes."
+          },
         legend_sample(
           ~indicated=false,
           ~ap_id=None,
@@ -246,12 +259,15 @@ let legend_view = () => {
           ~sample_stack=[f, f],
           ~step_range=(25, 30),
           ~focus_step_range=focus,
-          ~caption="After",
+          ~caption=after_label,
         ),
       ),
       legend_item(
         ~tooltip=
-          "This sample is from a function call site which is above the cursor position in the call stack.",
+          switch (color_scheme) {
+          | Calls => "This sample is from a call site on the cursor's call chain (a direct caller)."
+          | StepRange => "This sample's step range strictly contains the cursor's."
+          },
         legend_sample(
           ~indicated=false,
           ~indicated_call=None,
@@ -260,7 +276,7 @@ let legend_view = () => {
           ~sample_stack=[f],
           ~step_range=(5, 25),
           ~focus_step_range=focus,
-          ~caption="Contains",
+          ~caption=contains_label,
         ),
       ),
       switch (mode) {
@@ -293,7 +309,10 @@ let legend_view = () => {
       },
       legend_item(
         ~tooltip=
-          "This sample was collected inside the function call at the cursor position, or in a call made from that call.",
+          switch (color_scheme) {
+          | Calls => "This sample is from a function called from the cursor's position (a direct callee)."
+          | StepRange => "This sample's step range is strictly inside the cursor's."
+          },
         legend_sample(
           ~indicated=false,
           ~indicated_call=Some(Id.invalid),
@@ -302,7 +321,7 @@ let legend_view = () => {
           ~sample_stack=[f, f],
           ~step_range=(12, 18),
           ~focus_step_range=focus,
-          ~caption="Inside",
+          ~caption=inside_label,
         ),
       ),
     ],
