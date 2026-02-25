@@ -110,23 +110,23 @@ let view_any = (~globals, any: Any.t) =>
 
 let view_type = (~globals, ~dynamic_info: option(Info.t), typ: Typ.t) => {
   let dyn_type =
-    (
-      switch (dynamic_info) {
-      | Some(InfoExp({self, _})) => self |> Self.typ_of_exp
-      | Some(InfoPat({self, _})) => self |> Self.typ_of_pat
-      | _ => None
-      }
-    )
-    |> Option.map(Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), _));
-  let dynamic_ids: list(Id.t) =
-    Option.map(Typ.diff(typ), dyn_type) |> Option.value(~default=[]);
+    switch (dynamic_info) {
+    | Some(InfoExp({self, _})) => self |> Self.typ_of_exp
+    | Some(InfoPat({self, _})) => self |> Self.typ_of_pat
+    | _ => None
+    };
+  let (is_dynamic, display_typ) =
+    switch (dyn_type) {
+    | Some(dynamic_typ) =>
+      PadIds.compute_dynamic_ids(~static_typ=typ, ~dynamic_typ)
+    | None => ((_ => false), typ)
+    };
 
-  dyn_type
-  |> Option.value(~default=typ)
+  display_typ
   |> CodeViewable.view_typ(
        ~globals,
        ~settings=code_view_settings,
-       ~is_dynamic=List.mem(_, dynamic_ids),
+       ~is_dynamic,
      )
   |> code_box_container;
 };
