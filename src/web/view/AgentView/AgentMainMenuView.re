@@ -4,8 +4,6 @@ open Node;
 open Util.WebUtil;
 open Js_of_ocaml;
 open Widgets;
-open Haz3lcore;
-// open Icons;
 
 let view =
     (~globals: Globals.t, ~signal: Editors.View.signal => Effect.t(unit))
