@@ -79,6 +79,9 @@ module Model = {
     error:
       Option.map(Language.Info.is_error, info.statics)
       |> Option.value(~default=false),
+    warning:
+      Option.map(Language.Info.is_warning, info.statics)
+      |> Option.value(~default=false),
     kind: p.kind,
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
@@ -137,10 +140,11 @@ let backing_deco =
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
 let projector_clss =
-    ({kind, sort, indication, selected, error}: Model.status) =>
+    ({kind, sort, indication, selected, error, warning}: Model.status) =>
   ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
   @ (selected ? ["selected"] : [])
   @ (error ? ["error"] : [])
+  @ (warning ? ["warning"] : [])
   @ (
     switch (indication) {
     | Some(d) => ["indicated", Direction.show(d)]
