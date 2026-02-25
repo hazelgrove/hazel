@@ -125,7 +125,6 @@ module Local = {
         |> List.filter((id: Id.t) => id != Id.invalid);
       collapse_terms(~z, ~ids=def_ids);
     };
-
   };
 
   module ContextUtils = {
