@@ -769,7 +769,7 @@ module View = {
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
-      ClosureCursorBar.view(
+      SampleCursorBar.view(
         ~globals,
         ~refractors=current_editor.editor.state.zipper.refractors,
         ~info_map=current_editor.statics.info_map,
