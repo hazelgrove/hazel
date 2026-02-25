@@ -244,7 +244,35 @@ let length_cls = (length: int): string =>
     "s0";
   };
 
-let cursor_clss =
+/* Depth classes from call stack relation (structural effects: displacement, stacking) */
+let depth_clss =
+    (~settings, ~ap_id, dynamics: Dynamics.Info.t, sample: Sample.t)
+    : list(string) => {
+  let relation =
+    Sample.Cursor.relation(
+      ~trimmed=true,
+      ~ap_id,
+      dynamics.sample_cursor,
+      sample,
+    );
+  switch (relation.relative_level_to_cursor) {
+  | Same => ["depth-same"]
+  | Below(n)
+      when settings.before_cutoff == None || Some(n) <= settings.before_cutoff => [
+      "depth-below",
+      "depth-" ++ string_of_int(n),
+    ]
+  | Above(n)
+      when settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+      "depth-above",
+      "depth-" ++ string_of_int(n),
+    ]
+  | _ => []
+  };
+};
+
+/* Color classes from active scheme (background, text color) */
+let color_clss =
     (~settings, ~ap_id, dynamics: Dynamics.Info.t, sample: Sample.t)
     : list(string) => {
   switch (settings.sample_base) {
@@ -256,44 +284,38 @@ let cursor_clss =
         dynamics.sample_cursor,
         sample,
       );
-    let cursor_class =
-      switch (
-        relation.is_call_cursor,
-        relation.is_call_above_call_cursor,
-        relation.is_below_indicated_call,
-      ) {
-      | (true, _, _) => ["cursor"]
-      | (_, Some(0), _) => ["cursor-caller", "direct"]
-      | (_, Some(_), _) when settings.caller_cutoff == None => [
-          "cursor-caller",
-          "indirect",
-        ]
-      | (_, _, Some(0)) => ["cursor-callee", "direct"]
-      | (_, _, Some(_)) when settings.callee_cutoff == None => [
-          "cursor-callee",
-          "indirect",
-        ]
-      | (_, _, _) => ["cursor-unrelated"]
-      };
-    let level_class =
+    switch (
+      relation.is_call_cursor,
+      relation.is_call_above_call_cursor,
+      relation.is_below_indicated_call,
+    ) {
+    | (true, _, _) => ["focus"]
+    | (_, Some(0), _) => ["related-before"]
+    | (_, Some(_), _) when settings.caller_cutoff == None => [
+        "related-before",
+      ]
+    | (_, _, Some(0)) => ["related-after"]
+    | (_, _, Some(_)) when settings.callee_cutoff == None => [
+        "related-after",
+      ]
+    | (_, _, _) =>
+      /* Unrelated samples with a depth direction get faded directional coloring,
+         respecting cutoffs (matching old behavior where level_class provided above/below) */
       switch (relation.relative_level_to_cursor) {
-      | Same => ["level0"]
+      | Above(n)
+          when
+            settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+          "tangent-before",
+        ]
       | Below(n)
           when
             settings.before_cutoff == None
             || Some(n) <= settings.before_cutoff => [
-          "below",
-          "L" ++ string_of_int(n),
+          "tangent-after",
         ]
-      | Above(n)
-          when
-            settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
-          "above",
-          "L" ++ string_of_int(n),
-        ]
-      | _ => []
-      };
-    cursor_class @ level_class;
+      | _ => ["unrelated"]
+      }
+    };
   | StepRange =>
     switch (
       Sample.Cursor.step_containment(
@@ -301,14 +323,21 @@ let cursor_clss =
         sample,
       )
     ) {
-    | StepEqual => ["cursor", "level0"]
-    | StepContainedWithin => ["cursor-caller", "direct", "above", "L1"]
-    | StepContains => ["cursor-callee", "direct", "below", "L1"]
-    | StepDisjointBefore => ["cursor-unrelated", "above", "L1"]
-    | StepDisjointAfter => ["cursor-unrelated", "below", "L1"]
-    | StepNoFocus => ["cursor-unrelated"]
+    | StepEqual => ["focus"]
+    | StepContainedWithin => ["related-before"]
+    | StepContains => ["related-after"]
+    | StepDisjointBefore => ["unrelated"]
+    | StepDisjointAfter => ["unrelated"]
+    | StepNoFocus => ["unrelated"]
     }
   };
+};
+
+let cursor_clss =
+    (~settings, ~ap_id, dynamics: Dynamics.Info.t, sample: Sample.t)
+    : list(string) => {
+  color_clss(~settings, ~ap_id, dynamics, sample)
+  @ depth_clss(~settings, ~ap_id, dynamics, sample);
 };
 
 module Debug = {
