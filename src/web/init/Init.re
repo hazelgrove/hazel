@@ -35,8 +35,6 @@ let startup: PersistentData.t = {
   ),
 };
 
-let startup_project = Maps.StringMap.empty;
-
 let find_documentation_slide = (name: string) => {
   startup.documentation
   |> snd

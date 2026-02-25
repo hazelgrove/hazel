@@ -734,8 +734,7 @@ let view =
 
       let linear_display = linear_messages_display;
 
-      let is_edit_tool_call =
-          (tool_result: OpenRouter.Reply.Model.tool_result): bool => {
+      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool => {
         switch (tool_result.tool_call.name) {
         | "initialize"
         | "update_definition"
@@ -835,16 +834,10 @@ let view =
           };
 
           // Helper to render a tool result
-          let render_tool_result =
-              (tool_result: OpenRouter.Reply.Model.tool_result) => {
+          let render_tool_result = (tool_result: AgentToolResult.tool_result) => {
             switch (
               List.find_opt(
-                (
-                  (_, msg_tool_result): (
-                    Id.t,
-                    OpenRouter.Reply.Model.tool_result,
-                  ),
-                ) =>
+                ((_, msg_tool_result): (Id.t, AgentToolResult.tool_result)) =>
                   msg_tool_result.tool_call.id == tool_result.tool_call.id,
                 tool_result_messages,
               )
@@ -890,7 +883,7 @@ let view =
             let initial = [render_node(initial_node)];
             let rest_elements =
               List.mapi(
-                (i, tool_result: OpenRouter.Reply.Model.tool_result) => {
+                (i, tool_result: AgentToolResult.tool_result) => {
                   let tool_result_view = render_tool_result(tool_result);
                   let next_node: timeline_node = {
                     segment: tool_result.after_segment,

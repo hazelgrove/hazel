@@ -192,31 +192,6 @@ let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
   };
 };
 
-let nearest_levenshtein_match =
-    (target: list(string), candidates: list(list(string)))
-    : option(list(string)) =>
-  if (candidates == []) {
-    None;
-  } else {
-    let distances =
-      List.map(
-        candidate =>
-          (candidate, levenshtein_list_distance(target, candidate)),
-        candidates,
-      );
-    let (best_candidate, _best_distance) =
-      List.fold_left(
-        ((best_cand, best_dist), (cand, dist)) =>
-          if (dist < best_dist) {
-            (cand, dist);
-          } else {
-            (best_cand, best_dist);
-          },
-        List.hd(distances),
-        List.tl(distances),
-      );
-    Some(best_candidate);
-  };
 // Removes double quotes from string and escapes newlines
 // Update once https://github.com/hazelgrove/hazel/issues/786 is done
 let sanitize_for_string_expression = (s: string): string => {

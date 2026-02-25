@@ -18,7 +18,7 @@ let render_segment = (~globals: Globals.t, segment: Segment.t): Node.t => {
 let view =
     (
       ~globals: Globals.t,
-      ~tool_result: OpenRouter.Reply.Model.tool_result,
+      ~tool_result: AgentToolResult.tool_result,
       ~toggle_expanded: 'a => Effect.t(unit),
     )
     : Node.t => {

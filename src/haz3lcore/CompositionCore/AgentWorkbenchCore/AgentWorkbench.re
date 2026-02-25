@@ -47,7 +47,7 @@ module Model = {
   type subtask = {
     title: string, // Will also serve as a unique identifier for the subtask item
     description: string, // Description of the subtask item
-    tools_used: list(OpenRouter.Reply.Model.tool_result), // TODO: List of tools used for this subtask item
+    tools_used: list(AgentToolResult.tool_result), // TODO: List of tools used for this subtask item
     completion_info: option(completion_info),
     subtask_ui: UI.subtask_ui,
     metadata,
@@ -493,7 +493,7 @@ module Update = {
         | SetDisplayTask(string)
         | ExpandSubtask(string)
         | SetToolResultExpanded(string, int, bool) // subtask_title, tool_result_index, expanded
-        | AddToolResultToActiveSubtask(OpenRouter.Reply.Model.tool_result);
+        | AddToolResultToActiveSubtask(AgentToolResult.tool_result);
     };
 
     module BackendAction = {
@@ -625,7 +625,7 @@ module Update = {
           | Some(subtask) =>
             let tools_used =
               List.mapi(
-                (index: int, tool_result: OpenRouter.Reply.Model.tool_result) =>
+                (index: int, tool_result: AgentToolResult.tool_result) =>
                   index == tool_result_index
                     ? {
                       ...tool_result,

@@ -63,7 +63,7 @@ module Message = {
     // System messages auxillary
     type role =
       | Agent(option(OpenRouter.Reply.Model.usage))
-      | ToolResult(OpenRouter.Reply.Model.tool_result)
+      | ToolResult(AgentToolResult.tool_result)
       | User
       | System(system_kind);
 
@@ -158,7 +158,7 @@ module Message = {
     };
 
     let mk_tool_result_message =
-        (tool_result: OpenRouter.Reply.Model.tool_result): Model.t => {
+        (tool_result: AgentToolResult.tool_result): Model.t => {
       let sanitized_content = String.trim(tool_result.content);
 
       let msg =
@@ -734,7 +734,7 @@ module ChunkedUIChat = {
     type agent_response_chunk = {
       content: list(Message.Model.t),
       agent_reasoning: list(string),
-      tool_results: list(OpenRouter.Reply.Model.tool_result),
+      tool_results: list(AgentToolResult.tool_result),
       // add workbench info
     };
 
@@ -1560,7 +1560,7 @@ module Agent = {
 
     let add_tool_result_to_active_subtask =
         (
-          ~tool_result: OpenRouter.Reply.Model.tool_result,
+          ~tool_result: AgentToolResult.tool_result,
           ~action: CompositionActions.action,
           ~model: Model.t,
           ~chat_id: Id.t,
@@ -1600,7 +1600,7 @@ module Agent = {
           ~new_editor: Editor.t,
           action: CompositionActions.action,
         )
-        : option(OpenRouter.Reply.Model.diff) => {
+        : option(AgentToolResult.diff) => {
       let* edit_action =
         switch (action) {
         | EditorAction(edit_action) => Some(edit_action)
@@ -1615,7 +1615,7 @@ module Agent = {
           old_editor.syntax,
         );
       Some(
-        OpenRouter.Reply.Model.{
+        AgentToolResult.{
           old_segment: diff |> fst,
           new_segment: diff |> snd,
         },
@@ -1677,7 +1677,7 @@ module Agent = {
               ~new_editor=editor.editor,
               action,
             );
-          let tool_result: OpenRouter.Reply.Model.tool_result = {
+          let tool_result: AgentToolResult.tool_result = {
             tool_call,
             success: true,
             expanded: false,
@@ -1724,7 +1724,7 @@ module Agent = {
                 )
               | _ => None
               };
-            let tool_result: OpenRouter.Reply.Model.tool_result = {
+            let tool_result: AgentToolResult.tool_result = {
               tool_call,
               success: false,
               expanded: false,
@@ -1750,7 +1750,7 @@ module Agent = {
           }
         }
       | Failure(msg) =>
-        let tool_result: OpenRouter.Reply.Model.tool_result = {
+        let tool_result: AgentToolResult.tool_result = {
           tool_call,
           success: false,
           expanded: false,

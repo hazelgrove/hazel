@@ -96,7 +96,7 @@ let view =
       (
         ~subtask_title: string,
         ~tool_result_index: int,
-        ~tool_result: OpenRouter.Reply.Model.tool_result,
+        ~tool_result: AgentToolResult.tool_result,
       )
       : Node.t => {
     let toggle_expanded = _ => {
@@ -218,7 +218,7 @@ let view =
                           List.mapi(
                             (
                               index: int,
-                              tool_result: OpenRouter.Reply.Model.tool_result,
+                              tool_result: AgentToolResult.tool_result,
                             ) =>
                               render_tool_result(
                                 ~subtask_title=subtask.title,

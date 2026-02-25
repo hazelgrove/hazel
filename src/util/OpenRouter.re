@@ -1,5 +1,4 @@
-open Util;
-open Util.API;
+open API;
 open OptUtil.Syntax;
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
@@ -18,23 +17,6 @@ module Reply = {
       id: string,
       name: string,
       args: Json.t,
-    };
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type diff = {
-      old_segment: Segment.t,
-      new_segment: option(Segment.t),
-    };
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type tool_result = {
-      tool_call,
-      success: bool,
-      expanded: bool,
-      diff: option(diff),
-      before_segment: option(Segment.t),
-      after_segment: option(Segment.t),
-      content: string,
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -202,20 +184,6 @@ module Utils = {
   let chat =
       (~key: string, ~body: Json.t, ~handler: option(Json.t) => unit): unit => {
     print_endline("API: POSTing OpenRouter request");
-    // request_stream(
-    //   ~debug=false,
-    //   ~with_credentials=false,
-    //   ~method=POST,
-    //   ~url="https://openrouter.ai/api/v1/chat/completions",
-    //   ~headers=[
-    //     ("Content-Type", "application/json"),
-    //     ("Authorization", "Bearer " ++ key),
-    //   ],
-    //   ~body,
-    //   ~on_chunk=handler,
-    //   ~on_complete=() =>
-    //   ()
-    // );
     request(
       ~debug=false,
       ~with_credentials=false,

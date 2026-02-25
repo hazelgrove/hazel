@@ -305,14 +305,7 @@ let rec zip_defaults =
     ]
   };
 
-let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
-  switch (xs, ys) {
-  | ([], [_, ..._])
-  | ([_, ..._], []) => None
-  | ([], []) => Some([])
-  | ([x, ...xs], [y, ...ys]) =>
-    opt_zip(xs, ys) |> Option.map(xys => [(x, y), ...xys])
-  };
+let opt_zip = combine_opt;
 
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
@@ -510,9 +503,6 @@ let rec fold_left_opt =
     }
   };
 };
-
-let intersection = (xs, ys) =>
-  List.filter((x: 'a) => List.exists((y: 'a) => x == y, ys), xs);
 
 let intersection_f = (f: 'a => 'b, xs, ys) =>
   List.filter((x: 'a) => List.exists((y: 'a) => f(x) == f(y), ys), xs);
