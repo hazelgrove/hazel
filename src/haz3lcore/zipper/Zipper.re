@@ -64,6 +64,31 @@ let remold = (z: t): t => {
 
 let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
+/* Rescan siblings for label-based shard conversion, then
+ * reassemble + remold + regrout. This handles the case where
+ * a standalone monotile should retroactively become a shard
+ * of an incomplete tile (e.g. standalone `->` matching `fun`).
+ * Should be called after edits, not during cursor movement. */
+let rescan_reassemble = (d: Direction.t, z: t): t => {
+  let siblings = Siblings.rescan(z.relatives.siblings);
+  if (siblings == z.relatives.siblings) {
+    z;
+  } else {
+    let relatives =
+      {
+        ...z.relatives,
+        siblings,
+      }
+      |> Relatives.reassemble
+      |> Relatives.remold
+      |> Relatives.regrout(d);
+    {
+      ...z,
+      relatives,
+    };
+  };
+};
+
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {

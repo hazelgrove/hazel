@@ -196,6 +196,15 @@ let reassemble_siblings = (rs: t) => {
   siblings: Siblings.reassemble(rs.siblings),
 };
 
+/* Rescan across combined siblings: converts standalone monotiles
+ * that match missing shards of incomplete tiles on the other side.
+ * This must run before the cross-sibling `go` function so that
+ * converted tiles have the correct IDs for reassembly. */
+let rescan_siblings = (rs: t) => {
+  ...rs,
+  siblings: Siblings.rescan(rs.siblings),
+};
+
 let reassemble = (rs: t): t => {
   let rec go = (rs: t): t =>
     switch (Segment.incomplete_tiles(snd(rs.siblings))) {
