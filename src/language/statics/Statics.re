@@ -390,10 +390,28 @@ and uexp_to_info_map =
 
     (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
-  let atomic = self => {
-    add(~self, ~co_ctx=CoCtx.empty, m);
-  };
 
+  let atomic = self => {
+    // HACK: we use the co-context to check for unused variables in surrounding
+    // pattern bindings, but we don't want unused variable warnings to appear
+    // when there are holes present in the binding scopes. so if we detect a
+    // a hole in this expression, we add a "$hole" entry to the co-context
+    // that gets bubbled up to the relevant bindings and is checked for in the
+    // warning logic.
+    let hole_co_ctx =
+      switch (term) {
+      | MultiHole(_)
+      | EmptyHole
+      | Invalid(_) =>
+        CoCtx.singleton(
+          "$hole",
+          Exp.rep_id(uexp),
+          Unknown(Internal) |> Typ.temp,
+        )
+      | _ => CoCtx.empty
+      };
+    add(~self, ~co_ctx=hole_co_ctx, m);
+  };
   // This is the case where we aren't a singleton labeled tuple
   let default_case = () => {
     switch (term) {
@@ -469,11 +487,8 @@ and uexp_to_info_map =
         m,
       );
     | Var(name) =>
-      add'(
-        ~self=Self.of_exp_var(ctx, name),
-        ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
-        m,
-      )
+      let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
+      add'(~self=Self.of_exp_var(ctx, name), ~co_ctx, m);
     | DynamicErrorHole(e, _)
     | Parens(e)
     | Projector(_, e) =>
@@ -1400,8 +1415,7 @@ and uexp_to_info_map =
         );
 
       let e_tys = List.map(Info.exp_ty, es);
-      let e_co_ctxs =
-        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+      let e_co_ctxs = List.map(Info.exp_co_ctx, es);
       let unwrapped_self: Self.exp =
         Common(Self.match(ctx, e_tys, branch_ids));
       let (constraints, m) =
@@ -1461,7 +1475,12 @@ and uexp_to_info_map =
         );
       };
       let m = add_redundancy(ps, redundant_rows, m);
-      add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
+      let co_ctx =
+        CoCtx.union([
+          scrut.co_ctx,
+          ...List.map2(CoCtx.mk(ctx), p_ctxs, e_co_ctxs),
+        ]);
+      add'(~self, ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
       switch (typat.term) {
@@ -1653,6 +1672,7 @@ and upat_to_info_map =
     (
       ~is_synswitch,
       ~ctx,
+      // the co-ctx of the pattern's scope
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicate_bindings: list(string)=[],
@@ -2327,6 +2347,7 @@ and utyp_to_info_map =
       status: InHole(BadToken("_")),
       expects,
       term: utyp,
+      warning: None,
     };
     (info, add_info(ids, InfoTyp(info), m));
   | TupLabel({term: ExplicitNonlabel, _} as label, t) =>
@@ -2339,6 +2360,7 @@ and utyp_to_info_map =
       status: NotInHole(EmptyLabel),
       expects,
       term: utyp,
+      warning: None,
     };
 
     let m = add_info(label.annotation.ids, InfoTyp(label_info), m);
