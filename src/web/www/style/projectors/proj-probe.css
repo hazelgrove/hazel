@@ -32,6 +32,8 @@
   ); /* blue for below/after cursor */
   --sample-above-bg: oklch(0.93 0.06 -0.01);
   --sample-below-bg: oklch(0.93 0.03 195);
+  --sample-above-shadow: oklch(0.85 0.08 355); /* pinkish/magenta */
+  --sample-below-shadow: oklch(0.8 0.09 230); /* blue */
 }
 
 /* Turn off caret when text projector is focused */
@@ -389,7 +391,7 @@
   position: relative;
   --bottom-border-clr: none;
   --bkg: var(--exp-base);
-  --below-shadow: oklch(0.8 0.09 230);
+  --depth-shadow: oklch(0.75 0 0);
   --num-levels: 7;
   --base: 0;
   padding: 0 0.1em;
@@ -409,9 +411,8 @@
   --bottom-border-clr: var(--R2);
   --inner-shadow: #f59393 !important; */
   background-color: var(--T2) !important;
-  --below-shadow: oklch(0.46 0 0);
+  --depth-shadow: oklch(0.46 0 0);
   --bottom-border-clr: oklch(0.4 0 0);
-  --inner-shadow: #a2a2a2 !important;
 }
 .live-offside .sample:has(.value.indet.focus) {
   background-color: var(--T3) !important;
@@ -429,42 +430,47 @@
   --bottom-border-clr: #73e1a3;
 }
 
-/* Color layer: background colors from scheme */
+/* Color layer: background colors + coordinated depth shadow from scheme */
 .live-offside .sample:has(.value.related-after),
 .live-offside .sample:has(.value.tangent-after) {
   background-color: var(--sample-below-bg);
+  --depth-shadow: var(--sample-below-shadow);
+  --bottom-border-clr: var(--sample-below-shadow);
 }
 .live-offside .sample:has(.value.related-before),
 .live-offside .sample:has(.value.tangent-before) {
   background-color: var(--sample-above-bg);
+  --depth-shadow: var(--sample-above-shadow);
+  --bottom-border-clr: var(--sample-above-shadow);
 }
-/* Structural layer: depth effects from call stack */
+.live-offside .sample:has(.value.focus) {
+  --depth-shadow: var(--exp-shadow);
+  --bottom-border-clr: var(--exp-shadow);
+}
+/* Structural layer: depth effects from call stack (colors from --depth-shadow) */
 .live-offside.Many .sample:has(.value.depth-above) {
   position: relative;
   top: -3.5px;
-  --bottom-border-clr: #bd92cf;
-  --below-shadow: oklch(0.89 0.05 355);
-  box-shadow: 0 3.5px 0 var(--below-shadow);
+  box-shadow: 0 3.5px 0 var(--depth-shadow);
   border-bottom-width: 1px;
   border-bottom-style: solid;
 }
 .live-offside.Many .sample:has(.value.depth-below) {
   translate: 0 3px;
   box-shadow:
-    0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow),
-    0px -2.25px 0 var(--below-shadow),
-    0px -3px 0 var(--below-shadow);
+    0px -0.75px 0 var(--depth-shadow),
+    0px -1.5px 0 var(--depth-shadow),
+    0px -2.25px 0 var(--depth-shadow),
+    0px -3px 0 var(--depth-shadow);
   height: calc(1.45em - 4.25px);
 }
 
 .live-offside.Many .sample:has(.value.depth-above.depth-1) {
   top: -1.5px;
-  box-shadow: 0 1.5px 0 #c8c8c8bb;
+  box-shadow: 0 1.5px 0 var(--depth-shadow);
 }
 .sample:has(.value.depth-below) {
   position: relative;
-  border-top: 1px solid var(--pat-shadow);
   border-radius: 0.05em 0.2em 0.05em 0.2em;
   border: none;
   /* overflow: hidden; */
@@ -476,12 +482,12 @@
 
 .live-offside.Many .sample:has(.value.depth-above.depth-2) {
   top: -2.5px;
-  box-shadow: 0 2.5px 0 #d0cab7bb;
+  box-shadow: 0 2.5px 0 var(--depth-shadow);
 }
 .live-offside.Many .sample:has(.value.depth-below.depth-1) {
   border: none;
   translate: 0 0.75px;
-  box-shadow: 0px -0.75px 0 var(--below-shadow);
+  box-shadow: 0px -0.75px 0 var(--depth-shadow);
   border: none;
   height: calc(1.45em - 2px);
 }
@@ -490,8 +496,8 @@
   border: none;
   translate: 0 1.5px;
   box-shadow:
-    0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow);
+    0px -0.75px 0 var(--depth-shadow),
+    0px -1.5px 0 var(--depth-shadow);
   height: calc(1.45em - 2.75px);
 }
 
@@ -499,9 +505,9 @@
   border: none;
   translate: 0 2.25px;
   box-shadow:
-    0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow),
-    0px -2.25px 0 var(--below-shadow);
+    0px -0.75px 0 var(--depth-shadow),
+    0px -1.5px 0 var(--depth-shadow),
+    0px -2.25px 0 var(--depth-shadow);
   height: calc(1.45em - 3.5px);
 }
 
@@ -509,10 +515,10 @@
   border: none;
   translate: 0 3px;
   box-shadow:
-    0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow),
-    0px -2.25px 0 var(--below-shadow),
-    0px -3px 0 var(--below-shadow);
+    0px -0.75px 0 var(--depth-shadow),
+    0px -1.5px 0 var(--depth-shadow),
+    0px -2.25px 0 var(--depth-shadow),
+    0px -3px 0 var(--depth-shadow);
   height: calc(1.45em - 4.25px);
 }
 
@@ -858,7 +864,6 @@
 .projector.probe .nav-arrow:not(.disabled):hover {
   filter: brightness(1.05) saturate(1.05);
 }
-
 
 /* Indicator explaining why no samples are shown */
 .empty-status {

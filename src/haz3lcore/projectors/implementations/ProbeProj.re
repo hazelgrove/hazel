@@ -324,10 +324,10 @@ let color_clss =
       )
     ) {
     | StepEqual => ["focus"]
-    | StepContainedWithin => ["related-before"]
-    | StepContains => ["related-after"]
-    | StepDisjointBefore => ["unrelated"]
-    | StepDisjointAfter => ["unrelated"]
+    | StepContains => ["related-before"]
+    | StepContainedWithin => ["related-after"]
+    | StepDisjointBefore => ["tangent-before"]
+    | StepDisjointAfter => ["tangent-after"]
     | StepNoFocus => ["unrelated"]
     }
   };
