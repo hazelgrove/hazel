@@ -1276,20 +1276,64 @@ and paren_pretty_print = typ =>
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
 
+/* Collect all IDs from a type, including variant_ann.ids from Sum constructors */
+let all_ids = (ty: t): list(Id.t) => {
+  let ids = ref([]);
+  let _ =
+    Grammar.map_typ_annotation(
+      (t: IdTagged.IdTag.t) => {
+        ids := t.ids @ ids^;
+        t;
+      },
+      ty: t,
+    );
+  let rec collect_ann_ids = (ty: t) => {
+    switch (term_of(ty)) {
+    | Sum(variants) =>
+      List.iter(
+        fun
+        | ConstructorMap.Variant(_, ann, opt) => {
+            ids := ann.ids @ ids^;
+            Option.iter(collect_ann_ids, opt);
+          }
+        | BadEntry(t) => collect_ann_ids(t),
+        variants,
+      )
+    | Arrow(t1, t2)
+    | TupLabel(t1, t2)
+    | ProdExtension(t1, t2)
+    | ProdProjection(t1, t2) =>
+      collect_ann_ids(t1);
+      collect_ann_ids(t2);
+    | List(t)
+    | Parens(t)
+    | Projector(_, t)
+    | Rec(_, t)
+    | Poly(_, t) => collect_ann_ids(t)
+    | Prod(ts) => List.iter(collect_ann_ids, ts)
+    | Unknown(_)
+    | Atom(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Var(_)
+    | ProofOf(_) => ()
+    };
+  };
+  collect_ann_ids(ty);
+  ids^;
+};
+
+/* IDs for a single constructor variant in ty' */
+let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
+  switch (v) {
+  | Variant(_, ann, Some(t)) => ann.ids @ all_ids(t)
+  | Variant(_, ann, None) => ann.ids
+  | BadEntry(t) => all_ids(t)
+  };
+
 /* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids. */
 let rec diff = (ty: t, ty': t): list(Id.t) => {
-  let get_ids = () => {
-    let ids = ref([]);
-    let _ =
-      Grammar.map_typ_annotation(
-        (t: IdTagged.IdTag.t) => {
-          ids := t.ids @ ids^;
-          t;
-        },
-        ty': t,
-      );
-    ids^;
-  };
+  let get_ids = () => all_ids(ty');
   switch (term_of(ty), term_of(ty')) {
   | (Parens(t1), Parens(t2)) => diff(t1, t2)
   | (Parens(t1), _) => diff(t1, ty')
@@ -1330,8 +1374,37 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
     diff(t1, t1') @ diff(t2, t2')
   | (ProdExtension(_, _), _) => get_ids()
-  | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
-    []
+  | (Sum(sm1), Sum(sm2)) =>
+    let (inter, _left, right) =
+      ConstructorMap.venn_regions(
+        ConstructorMap.same_constructor(fast_equal),
+        sm1,
+        sm2,
+      );
+    /* Matched constructors: diff recursively on inner types only */
+    let matched_ids =
+      List.concat_map(
+        ((v1, v2)) =>
+          switch (v1, v2) {
+          | (
+              ConstructorMap.Variant(_, _, Some(t1)),
+              ConstructorMap.Variant(_, _, Some(t2)),
+            ) =>
+            diff(t1, t2)
+          | (
+              ConstructorMap.Variant(_, _, None),
+              ConstructorMap.Variant(_, _, None),
+            ) =>
+            []
+          | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
+            diff(t1, t2)
+          | (_, v2) => variant_all_ids(v2)
+          },
+        inter,
+      );
+    /* Unmatched constructors in ty': include all their IDs */
+    let right_ids = List.concat_map(variant_all_ids, right);
+    matched_ids @ right_ids;
   | (Sum(_), _) => get_ids()
   };
 };
