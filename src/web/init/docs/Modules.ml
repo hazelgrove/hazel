@@ -2668,10 +2668,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          9381a27d-bbde-4644-ac93-28c5130982fe)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          5e58422a-1f3e-4f48-947d-b7c99718f9d1)(content(Whitespace\" \
-         \"))))(Tile((id \
-         81bacf1a-427a-434e-8686-6d8d684ed882)(label(m))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Secondary((id \
+         \"))))(Grout((id 81bacf1a-427a-434e-8686-6d8d684ed882)(shape \
+         Convex)))(Secondary((id \
          7878c1ab-d157-435b-82dc-6a39b83e640a)(content(Whitespace\"\\n\")))))";
       backup_text =
         "# MODULES #\n\n\
@@ -2818,6 +2816,6 @@ let out : string * Haz3lcore.PersistentSegment.t =
          } in\n\n\
          # 24. Limitation: mismatched labels not caught in some cases #\n\
          let m : {let x : ?} = {let y = 1} in\n\
-         let m : (x=?) = (y=1) in m\n";
+         let m : (x=?) = (y=1) in \n";
       refractors = "()";
     } )
