@@ -21,6 +21,7 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sample_base =
     | Calls
+    | Hybrid
     | StepRange;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -35,7 +36,7 @@ module Settings = {
 
   type set_action =
     | ToggleWindow
-    | ToggleSampleBase
+    | SetSampleBase(sample_base)
     | ToggleBeforeCutoff
     | ToggleAfterCutoff
     | ToggleCallerCutoff
@@ -56,13 +57,9 @@ module Settings = {
         ...settings,
         window: settings.window == Sample.Window.Single ? Many : Single,
       }
-    | ToggleSampleBase => {
+    | SetSampleBase(base) => {
         ...settings,
-        sample_base:
-          switch (settings.sample_base) {
-          | Calls => StepRange
-          | StepRange => Calls
-          },
+        sample_base: base,
       }
     | ToggleBeforeCutoff => {
         ...settings,
@@ -275,6 +272,20 @@ let depth_clss =
 let color_clss =
     (~settings, ~ap_id, dynamics: Dynamics.Info.t, sample: Sample.t)
     : list(string) => {
+  let step_range_clss = () =>
+    switch (
+      Sample.Cursor.step_containment(
+        ~focus_range=dynamics.sample_cursor.step_range,
+        sample,
+      )
+    ) {
+    | StepEqual => ["focus"]
+    | StepContains => ["related-before"]
+    | StepContainedWithin => ["related-after"]
+    | StepDisjointBefore => ["tangent-before"]
+    | StepDisjointAfter => ["tangent-after"]
+    | StepNoFocus => ["unrelated"]
+    };
   switch (settings.sample_base) {
   | Calls =>
     let relation =
@@ -316,19 +327,26 @@ let color_clss =
       | _ => ["unrelated"]
       }
     };
-  | StepRange =>
-    switch (
-      Sample.Cursor.step_containment(
-        ~focus_range=dynamics.sample_cursor.step_range,
-        sample,
-      )
-    ) {
-    | StepEqual => ["focus"]
-    | StepContains => ["related-before"]
-    | StepContainedWithin => ["related-after"]
-    | StepDisjointBefore => ["tangent-before"]
-    | StepDisjointAfter => ["tangent-after"]
-    | StepNoFocus => ["unrelated"]
+  | StepRange => step_range_clss()
+  | Hybrid =>
+    /* Top-level samples (empty call stack): use step range only */
+    if (sample.call_stack == []) {
+      step_range_clss();
+    } else {
+      let relation =
+        Sample.Cursor.relation(
+          ~trimmed=true,
+          ~ap_id,
+          dynamics.sample_cursor,
+          sample,
+        );
+      if (relation.is_call_cursor) {
+        [
+          "focus" /* Green — same call stack as cursor */
+        ];
+      } else {
+        step_range_clss(); /* Everything else: step range coloring */
+      };
     }
   };
 };

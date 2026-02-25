@@ -241,7 +241,7 @@ let probe_data =
               | Auto => "Remove auto probe"
               | Manual(_) => "Remove probe"
               | Statics(_) => "Switch to auto probe"
-              | Non => "Add auto probe"
+              | Non => "Add multi probe"
               };
             } else {
               switch (probe_status) {

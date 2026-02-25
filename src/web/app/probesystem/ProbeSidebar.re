@@ -191,7 +191,7 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
     ],
   );
 
-let legend_view = () => {
+let legend_view = (~explain_this_inject) => {
   let mode = ProbeProj.Settings.s^.window;
   let color_scheme = ProbeProj.Settings.s^.sample_base;
   let focus = Some((10, 20));
@@ -205,19 +205,18 @@ let legend_view = () => {
   let (before_label, after_label, contains_label, inside_label) =
     switch (color_scheme) {
     | Calls => ("Above", "Below", "Caller", "Callee")
+    | Hybrid
     | StepRange => ("Before", "After", "Contains", "Inside")
     };
   div(
     ~attrs=[clss(["legend", "panel"])],
     [
-      div(
-        ~attrs=[clss(["title"])],
-        [text("Dynamic Cursor Sample Legend")],
-      ),
+      div(~attrs=[clss(["title"])], [text("Dynamic Focus Sample Legend")]),
       legend_item(
         ~tooltip=
           switch (color_scheme) {
           | Calls => "This sample is from a shallower call stack depth than the cursor."
+          | Hybrid
           | StepRange => "This sample's step range finishes before the cursor's starts."
           },
         legend_sample(
@@ -249,6 +248,7 @@ let legend_view = () => {
         ~tooltip=
           switch (color_scheme) {
           | Calls => "This sample is from a deeper call stack depth than the cursor."
+          | Hybrid
           | StepRange => "This sample's step range starts after the cursor's finishes."
           },
         legend_sample(
@@ -266,6 +266,7 @@ let legend_view = () => {
         ~tooltip=
           switch (color_scheme) {
           | Calls => "This sample is from a call site on the cursor's call chain (a direct caller)."
+          | Hybrid
           | StepRange => "This sample's step range strictly contains the cursor's."
           },
         legend_sample(
@@ -311,6 +312,7 @@ let legend_view = () => {
         ~tooltip=
           switch (color_scheme) {
           | Calls => "This sample is from a function called from the cursor's position (a direct callee)."
+          | Hybrid
           | StepRange => "This sample's step range is strictly inside the cursor's."
           },
         legend_sample(
@@ -324,6 +326,44 @@ let legend_view = () => {
           ~caption=inside_label,
         ),
       ),
+      div(~attrs=[clss(["legend-divider"])], []),
+      div(~attrs=[clss(["title"])], [text("Sample Color Scheme")]),
+      {
+        let segment = (label, tooltip, mode) =>
+          div(
+            ~attrs=[
+              clss(["segment"] @ (color_scheme == mode ? ["active"] : [])),
+              Attr.on_pointerdown(_ => {
+                ProbeProj.Settings.go(SetSampleBase(mode));
+                explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+              }),
+            ],
+            [
+              text(label),
+              div(~attrs=[clss(["legend-tooltip"])], [text(tooltip)]),
+            ],
+          );
+        div(
+          ~attrs=[clss(["segmented-control"])],
+          [
+            segment(
+              "Calls",
+              "Color by call stack relationship: callers, callees, and call depth.",
+              Calls,
+            ),
+            segment(
+              "Hybrid",
+              "Focus from call stack (green for matching call stack), everything else by evaluation order.",
+              Hybrid,
+            ),
+            segment(
+              "Steps",
+              "Color by evaluation order: which expressions were evaluated before, after, or around the cursor.",
+              StepRange,
+            ),
+          ],
+        );
+      },
     ],
   );
 };
@@ -360,27 +400,9 @@ let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
         //   ~active=ProbeProj.Settings.s^.window == Single,
         //   ~action=ToggleWindow,
         // ),
-
-        /* 2-way toggle for sample coloring mode */
-        let (icon, tooltip) =
-          switch (ProbeProj.Settings.s^.sample_base) {
-          | Calls => (
-              "\xF0\x9F\x93\x9E",
-              "Color by Calls (click to switch to StepRange)",
-            )
-          | StepRange => (
-              "\xE2\x8F\xB1",
-              "Color by StepRange (click to switch to Calls)",
-            )
-          };
-        Widgets.toggle(
-          ~tooltip,
-          icon,
-          false,
-          _ => {
-            ProbeProj.Settings.go(ToggleSampleBase);
-            explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-          },
+        /* Color scheme selector is now in the legend panel */
+        text(
+          "",
         );
       },
       toggle(
@@ -764,25 +786,29 @@ let quick_ref_view = () =>
   );
 
 let probearium =
-    (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
-  let zipper = editor.editor.state.zipper;
-  let refractor_data =
-    RefractorView.mk_data(
-      ~refractors=
-        Id.Map.union(
-          (_, _, b) => Some(b),
-          Id.Map.of_list(zipper.refractors.manuals),
-          zipper.refractors.autos.ephemerals,
-        ),
-      ~syntax=editor.editor.syntax,
-      ~indicated=Indicated.piece(zipper),
-      ~statics=editor.statics.info_map,
-      ~dynamics=editor.dynamics,
-      ~sample_cursor=zipper.refractors.sample_cursor,
-      ~editor_active=true,
-    );
-  let refractors = editor.editor.state.zipper.refractors;
+    (
+      ~globals: Globals.t,
+      ~explain_this_inject,
+      ~editor as _: CodeEditable.Model.t,
+    ) => {
   [
+    // let zipper = editor.editor.state.zipper;
+    // let refractor_data =
+    //   RefractorView.mk_data(
+    //     ~refractors=
+    //       Id.Map.union(
+    //         (_, _, b) => Some(b),
+    //         Id.Map.of_list(zipper.refractors.manuals),
+    //         zipper.refractors.autos.ephemerals,
+    //       ),
+    //     ~syntax=editor.editor.syntax,
+    //     ~indicated=Indicated.piece(zipper),
+    //     ~statics=editor.statics.info_map,
+    //     ~dynamics=editor.dynamics,
+    //     ~sample_cursor=zipper.refractors.sample_cursor,
+    //     ~editor_active=true,
+    //   );
+    // let refractors = editor.editor.state.zipper.refractors;
     div(
       ~attrs=[clss(["header"])],
       [
@@ -792,23 +818,23 @@ let probearium =
         ),
       ],
     ),
-    legend_view(),
+    legend_view(~explain_this_inject),
     quick_ref_view(),
     sketch_view(~globals, ~explain_this_inject),
-    probes_panel_view(
-      ~globals,
-      ~refractors,
-      ~info_map=editor.statics.info_map,
-      ~syntax=editor.editor.syntax,
-      ~fancyd=id =>
-      fancy(
-        ~refractor_data,
-        ~info_map=editor.statics.info_map,
-        ~default=None,
-        ~globals,
-        id,
-      )
-    ),
+    // probes_panel_view(
+    //   ~globals,
+    //   ~refractors,
+    //   ~info_map=editor.statics.info_map,
+    //   ~syntax=editor.editor.syntax,
+    //   ~fancyd=id =>
+    //   fancy(
+    //     ~refractor_data,
+    //     ~info_map=editor.statics.info_map,
+    //     ~default=None,
+    //     ~globals,
+    //     id,
+    //   )
+    // ),
   ];
 };
 

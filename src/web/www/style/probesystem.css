@@ -106,7 +106,9 @@
 }
 
 .sketch summary {
-  cursor: pointer;
+  /* Disabled for now */
+  pointer-events: none;
+  /* cursor: pointer; */
   list-style: none;
   display: inline-flex;
   align-items: center;
@@ -298,6 +300,69 @@
 #probesys .settings .named-menu-item {
   display: flex;
   gap: 0.5em;
+}
+
+#probesys .legend .legend-divider {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--BR1);
+}
+
+#probesys .legend .segmented-control {
+  display: flex;
+  grid-column: 1 / -1;
+  border: 1px solid var(--BR1);
+  border-radius: 4px;
+  overflow: visible;
+  pointer-events: auto;
+  position: relative;
+}
+
+#probesys .legend .segmented-control .segment {
+  flex: 1;
+  text-align: center;
+  padding: 0.2em 0.4em;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-family: var(--ui-font);
+  background-color: transparent;
+  border-right: 1px solid var(--BR1);
+  user-select: none;
+  position: relative;
+}
+
+#probesys .legend .segmented-control .segment:last-child {
+  border-right: none;
+}
+
+#probesys .legend .segmented-control .segment.active {
+  background-color: var(--BR2);
+  color: white;
+  font-weight: 500;
+}
+
+#probesys .legend .segmented-control .segment:hover:not(.active) {
+  background-color: var(--BR0);
+}
+
+#probesys .legend .segmented-control .segment .legend-tooltip {
+  display: none;
+  position: absolute;
+  top: 101%;
+  left: 0;
+  right: 0;
+  padding: 0.5em 0.75em;
+  background-color: var(--BR1);
+  color: var(--BR4);
+  border-radius: 0.5em;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: normal;
+  z-index: 10;
+  text-align: left;
+}
+
+#probesys .legend .segmented-control .segment:hover .legend-tooltip {
+  display: block;
 }
 
 #probesys .panel.prints .body {
