@@ -341,8 +341,12 @@
 }
 
 #probesys .legend .segmented-control .segment:hover:not(.active) {
-  background-color: var(--BR0);
+  background-color: var(--Y1);
 }
+
+/* #probesys .legend .segmented-control .segment:hover:not(.active) {
+  background-color: var(--BR0);
+} */
 
 #probesys .legend .segmented-control .segment .legend-tooltip {
   display: none;
@@ -363,6 +367,70 @@
 
 #probesys .legend .segmented-control .segment:hover .legend-tooltip {
   display: block;
+}
+
+/* Toggle controls row (auto probe + samples) */
+#probesys .legend .toggle-controls {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.75rem;
+}
+
+#probesys .legend .toggle-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  position: relative;
+}
+
+#probesys .legend .toggle-label {
+  font-size: 0.85em;
+  color: var(--BR2);
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+#probesys .legend .toggle-group:hover > .legend-tooltip {
+  display: block;
+}
+
+/* Keyboard shortcut badge */
+#probesys .kbd-badge {
+  display: inline-block;
+  font-size: 0.78em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--BR1);
+  color: var(--BR3);
+  font-family: inherit;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+/* Click-then-key pill: pointer icon (outline) joined to kbd badge (filled) */
+#probesys .click-kbd-pill {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  font-size: 0.78em;
+  line-height: 1.4;
+}
+
+#probesys .click-kbd-pill .click-part {
+  padding: 1px 3px;
+  outline: 1px solid var(--BR1);
+  border-radius: 3px 0 0 3px;
+  color: var(--BR2);
+  font-size: 0.85em;
+}
+
+#probesys .click-kbd-pill .kbd-part {
+  padding: 1px 4px;
+  background: var(--BR1);
+  color: var(--BR3);
+  border-radius: 0 3px 3px 0;
 }
 
 #probesys .panel.prints .body {

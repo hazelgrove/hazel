@@ -292,11 +292,7 @@ module Update = {
        statics to take */
     let editors: Tutorial.p('a) = {
       let calculate =
-        Editor.Update.calculate(
-          ~settings,
-          ~autoprobe_mode=false,
-          ~is_edited,
-        );
+        Editor.Update.calculate(~settings, ~autoprobe_mode=false, ~is_edited);
       {
         id: model.editors.id,
         title: model.editors.title,

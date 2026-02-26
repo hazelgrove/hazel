@@ -44,7 +44,7 @@ module Settings = {
 
   let init: settings = {
     window: Single,
-    sample_base: Calls,
+    sample_base: Hybrid,
     before_cutoff: None,
     after_cutoff: None,
     caller_cutoff: None,

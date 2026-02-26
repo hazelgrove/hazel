@@ -45,7 +45,6 @@ let semantics_group = (~globals) => {
       ("τ", "Types", globals.settings.core.statics, Statics),
       ("⇲", "Completion", globals.settings.core.assist, Assist),
       ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics),
-      ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll),
       ("?", "Docs", globals.settings.sidebar.show, Sidebar(ToggleShow)),
       // (
       //   "👍",
@@ -124,6 +123,7 @@ let dev_group = (~globals: Globals.t) => {
         Settings.Update.Benchmark,
       ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
+      ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll),
     ]
     @ (
       ExerciseSettings.show_instructor

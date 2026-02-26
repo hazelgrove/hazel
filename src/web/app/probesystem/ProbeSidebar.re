@@ -191,7 +191,21 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
     ],
   );
 
-let legend_view = (~explain_this_inject) => {
+let kbd = (shortcut: string) =>
+  span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
+
+/* A joined pill: pointer icon (outline) + kbd badge (filled).
+ * Reads as "click, then press key". */
+let click_kbd = (shortcut: string) =>
+  span(
+    ~attrs=[clss(["click-kbd-pill"])],
+    [
+      span(~attrs=[clss(["click-part"])], [text({js|➤|js})]),
+      span(~attrs=[clss(["kbd-part"])], [text(shortcut)]),
+    ],
+  );
+
+let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
   let mode = ProbeProj.Settings.s^.window;
   let color_scheme = ProbeProj.Settings.s^.sample_base;
   let focus = Some((10, 20));
@@ -364,6 +378,101 @@ let legend_view = (~explain_this_inject) => {
           ],
         );
       },
+      /* Toggle controls: Auto Probe and Samples */
+      div(~attrs=[clss(["legend-divider"])], []),
+      div(
+        ~attrs=[clss(["toggle-controls"])],
+        [
+          {
+            /* Auto Probe toggle */
+
+            let is_on = globals.settings.autoprobe_mode;
+            let segment = (label, active) =>
+              div(
+                ~attrs=
+                  [clss(["segment"] @ (active ? ["active"] : []))]
+                  @ (
+                    active
+                      ? []
+                      : [
+                        Attr.on_pointerdown(_ =>
+                          globals.inject_global(Set(AutoprobeMode))
+                        ),
+                      ]
+                  ),
+                [text(label)],
+              );
+            div(
+              ~attrs=[clss(["toggle-group"])],
+              [
+                div(
+                  ~attrs=[clss(["toggle-label"])],
+                  [
+                    text("Auto Probe"),
+                    kbd(Util.Os.is_mac^ ? {js|⌘⇧P|js} : "Ctrl+Shift+P"),
+                  ],
+                ),
+                div(
+                  ~attrs=[clss(["segmented-control"])],
+                  [segment("Off", !is_on), segment("On", is_on)],
+                ),
+                div(
+                  ~attrs=[clss(["legend-tooltip"])],
+                  [
+                    text(
+                      "Automatically probe the definition at the cursor. Probes follow as you navigate.",
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+          {
+            /* Samples toggle */
+
+            let is_single = mode == Single;
+            let segment = (label, active) =>
+              div(
+                ~attrs=
+                  [clss(["segment"] @ (active ? ["active"] : []))]
+                  @ (
+                    active
+                      ? []
+                      : [
+                        Attr.on_pointerdown(_ => {
+                          ProbeProj.Settings.go(ToggleWindow);
+                          explain_this_inject(
+                            ExplainThisUpdate.SpecificityOpen(true),
+                          );
+                        }),
+                      ]
+                  ),
+                [text(label)],
+              );
+            div(
+              ~attrs=[clss(["toggle-group"])],
+              [
+                div(
+                  ~attrs=[clss(["toggle-label"])],
+                  [text("Samples Shown"), click_kbd({js|␣|js})],
+                ),
+                div(
+                  ~attrs=[clss(["segmented-control"])],
+                  [segment("One", is_single), segment("Many", !is_single)],
+                ),
+                div(
+                  ~attrs=[clss(["legend-tooltip"])],
+                  [
+                    text(
+                      "Show one sample at the cursor, or show all samples at once.",
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ],
+      ),
     ],
   );
 };
@@ -751,13 +860,35 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   ];
 };
 
-let quick_ref_row = (action: string, how: string) =>
+let quick_ref_row =
+    (
+      ~shortcut=?,
+      ~click_shortcut=?,
+      ~click_shortcut2=?,
+      action: string,
+      how: string,
+    ) => {
+  let badge_nodes =
+    switch (shortcut, click_shortcut) {
+    | (Some(s), _) => [text(" "), kbd(s)]
+    | (_, Some(s)) =>
+      [text(" "), click_kbd(s)]
+      @ (
+        switch (click_shortcut2) {
+        | Some(s2) => [text(" "), click_kbd(s2)]
+        | None => []
+        }
+      )
+    | _ => []
+    };
   Node.tr([
     Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
-    Node.td(~attrs=[clss(["qr-how"])], [text(how)]),
+    Node.td(~attrs=[clss(["qr-how"])], [text(how)] @ badge_nodes),
   ]);
+};
 
-let quick_ref_view = () =>
+let quick_ref_view = () => {
+  let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
   div(
     ~attrs=[clss(["quick-ref", "panel"])],
     [
@@ -765,13 +896,28 @@ let quick_ref_view = () =>
       Node.table(
         ~attrs=[clss(["qr-table"])],
         [
-          quick_ref_row("Add/remove probe", "Right-click on term (Ctrl+E)"),
+          quick_ref_row(
+            ~shortcut=meta ++ "E",
+            "Add/remove probe",
+            "Right-click on term",
+          ),
           quick_ref_row("See env/args", "Hover over sample"),
-          quick_ref_row("Pin call", "Click sample > Pin (P)"),
-          quick_ref_row("Step into call", "Click sample > Step Into (Enter)"),
-          quick_ref_row("Single/Many", "Double-click sample (Space)"),
-          quick_ref_row("Navigate samples", {js|← / → arrows|js}),
-          quick_ref_row("Auto-probe", "Upper-right toggle"),
+          quick_ref_row(
+            ~click_shortcut="P",
+            "Pin call",
+            "Click Sample > Pin",
+          ),
+          quick_ref_row(
+            ~click_shortcut={js|↩|js},
+            "Step into call",
+            "Click Sample > Step",
+          ),
+          quick_ref_row(
+            ~click_shortcut={js|←|js},
+            ~click_shortcut2={js|→|js},
+            "Navigate samples",
+            "◀ ▶ Sample",
+          ),
         ],
       ),
       div(
@@ -784,6 +930,7 @@ let quick_ref_view = () =>
       ),
     ],
   );
+};
 
 let probearium =
     (
@@ -818,7 +965,7 @@ let probearium =
         ),
       ],
     ),
-    legend_view(~explain_this_inject),
+    legend_view(~globals, ~explain_this_inject),
     quick_ref_view(),
     sketch_view(~globals, ~explain_this_inject),
     // probes_panel_view(
