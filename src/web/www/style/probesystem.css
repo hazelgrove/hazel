@@ -148,6 +148,8 @@
 
 #probesys .quick-ref .qr-how {
   color: var(--BR2);
+  display: flex;
+  gap: 0.5em;
 }
 
 #probesys .quick-ref .qr-icons {
@@ -335,13 +337,13 @@
 }
 
 #probesys .legend .segmented-control .segment.active {
-  background-color: var(--BR2);
-  color: white;
+  background-color: var(--Y1);
+  color: var(--BR4);
   font-weight: 500;
 }
 
 #probesys .legend .segmented-control .segment:hover:not(.active) {
-  background-color: var(--Y1);
+  background-color: var(--Y0);
 }
 
 /* #probesys .legend .segmented-control .segment:hover:not(.active) {
@@ -407,6 +409,7 @@
   font-family: inherit;
   vertical-align: middle;
   line-height: 1.4;
+  height: 1.4em;
 }
 
 /* Click-then-key pill: pointer icon (outline) joined to kbd badge (filled) */

@@ -916,7 +916,7 @@ let quick_ref_view = () => {
             ~click_shortcut={js|←|js},
             ~click_shortcut2={js|→|js},
             "Navigate samples",
-            "◀ ▶ Sample",
+            "◀▶ Sample",
           ),
         ],
       ),
