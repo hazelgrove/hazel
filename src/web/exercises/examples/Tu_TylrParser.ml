@@ -15,7 +15,8 @@ let exercise : Tutorial.spec =
        — it still needs to be *dropped* into the program.\n\n\
        Complete the expression step by step:\n\
        1. Type `1` to fill in the value for `x`\n\
-       2. Press `Tab` or type `in` to drop the `in` delimiter from the backpack\n\
+       2. Add a space, then press `Tab` or type `in` to drop the `in` \
+       delimiter from the backpack, then add a space\n\
        3. Type `x + 1` as the body of the let expression\n\n\
        The result should evaluate to **2**.";
     display_hint = "Type a let expression and use Tab to complete obligations";
