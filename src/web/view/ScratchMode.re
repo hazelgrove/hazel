@@ -3,6 +3,21 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
+/* Dirty tracking for autosave: only re-persist slides that changed since
+   last save. Eliminates expensive Zipper.zip + Base.equal_segment checks. */
+let dirty_slides: ref(Sets.StringSet.t) = ref(Sets.StringSet.empty);
+let persist_cache:
+  ref(Maps.StringMap.t(option(CellEditor.Model.persistent))) =
+  ref(Maps.StringMap.empty);
+
+let mark_dirty = (name: string): unit =>
+  dirty_slides := Sets.StringSet.add(name, dirty_slides^);
+
+let reset_persist_state = (): unit => {
+  dirty_slides := Sets.StringSet.empty;
+  persist_cache := Maps.StringMap.empty;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -16,46 +31,48 @@ module Model = {
     list((string, option(CellEditor.Model.persistent))),
   );
 
-  /* Persist model, storing None for slides unchanged from their original.
-     This saves localStorage space since unchanged slides can be loaded from Init.
-
-     Note: This comparison-based approach requires checking every slide on
-     every save. A cleaner design might track dirty state per-slide, or use
-     per-slide localStorage keys, eliminating the need for comparison entirely.
-     The cached segment lookup (Init.get_original_doc_segment) mitigates the
-     cost but doesn't eliminate the fundamental complexity. */
-  let persist = (model: t): persistent => (
-    model.current,
-    List.map(
-      ((s: string, m: CellEditor.Model.t)) => {
-        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
-        let original_segment = Init.get_original_doc_segment(s);
-        if (Option.equal(
-              Base.equal_segment,
-              original_segment,
-              Some(current_segment),
-            )) {
-          (s, None);
-        } else {
-          (s, Some(CellEditor.Model.persist(m)));
-        };
-      },
-      model.scratchpads,
-    ),
-  );
+  let persist = (model: t): persistent => {
+    let persisted_slides =
+      List.map(
+        ((s: string, m: CellEditor.Model.t)) => {
+          let is_dirty = Sets.StringSet.mem(s, dirty_slides^);
+          let has_cache = Maps.StringMap.mem(s, persist_cache^);
+          if (is_dirty || !has_cache) {
+            let persisted = Some(CellEditor.Model.persist(m));
+            persist_cache := Maps.StringMap.add(s, persisted, persist_cache^);
+            (s, persisted);
+          } else {
+            (s, Maps.StringMap.find(s, persist_cache^));
+          };
+        },
+        model.scratchpads,
+      );
+    dirty_slides := Sets.StringSet.empty;
+    (model.current, persisted_slides);
+  };
 
   let unpersist = (~settings, (current, slides): persistent): t => {
-    current,
-    scratchpads:
-      List.map(
-        ((s: string, m: option(CellEditor.Model.persistent))) =>
-          (
-            s,
-            OptUtil.get(() => Init.default_documentation_slide_name(s), m)
-            |> CellEditor.Model.unpersist(~settings),
-          ),
-        slides,
-      ),
+    /* Seed persist cache with loaded values so unchanged slides
+       (stored as None) aren't needlessly re-persisted on first save */
+    reset_persist_state();
+    List.iter(
+      ((s: string, m: option(CellEditor.Model.persistent))) =>
+        persist_cache := Maps.StringMap.add(s, m, persist_cache^),
+      slides,
+    );
+    {
+      current,
+      scratchpads:
+        List.map(
+          ((s: string, m: option(CellEditor.Model.persistent))) =>
+            (
+              s,
+              OptUtil.get(() => Init.default_documentation_slide_name(s), m)
+              |> CellEditor.Model.unpersist(~settings),
+            ),
+          slides,
+        ),
+    };
   };
 };
 
@@ -239,6 +256,7 @@ module Update = {
     switch (action) {
     | CellAction(a) =>
       let (key, ed) = List.nth(model.scratchpads, model.current);
+      mark_dirty(key);
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
       let new_sp =
         ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
@@ -277,6 +295,10 @@ module Update = {
       switch (new_name) {
       | None => model |> return_quiet
       | Some(new_name) =>
+        let old_name = fst(current);
+        persist_cache := Maps.StringMap.remove(old_name, persist_cache^);
+        dirty_slides := Sets.StringSet.remove(old_name, dirty_slides^);
+        mark_dirty(new_name);
         let new_sp =
           ListUtil.put_nth(
             model.current,
@@ -294,6 +316,9 @@ module Update = {
           "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
+        let deleted_name = List.nth(model.scratchpads, model.current) |> fst;
+        persist_cache := Maps.StringMap.remove(deleted_name, persist_cache^);
+        dirty_slides := Sets.StringSet.remove(deleted_name, dirty_slides^);
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
@@ -318,6 +343,8 @@ module Update = {
 
     | ResetCurrent =>
       let (key, _) = List.nth(model.scratchpads, model.current);
+      mark_dirty(key);
+      persist_cache := Maps.StringMap.remove(key, persist_cache^);
       let source =
         switch (is_documentation) {
         | false =>
@@ -346,6 +373,8 @@ module Update = {
       | None => model |> return_quiet
       | Some(data) =>
         let key = List.nth(model.scratchpads, model.current) |> fst;
+        mark_dirty(key);
+        persist_cache := Maps.StringMap.remove(key, persist_cache^);
         let new_data =
           data
           |> Sexplib.Sexp.of_string

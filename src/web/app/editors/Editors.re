@@ -183,17 +183,19 @@ module Update = {
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
+      ScratchMode.reset_persist_state();
       Model.Scratch(
         ScratchMode.Store.load()
         |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
-      |> return
+      |> return;
     | (SwitchMode(Documentation), _) =>
+      ScratchMode.reset_persist_state();
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
         |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
-      |> return
+      |> return;
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(
