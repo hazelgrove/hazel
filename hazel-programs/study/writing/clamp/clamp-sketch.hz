@@ -16,11 +16,11 @@
 #   if cond then expr1 else expr2              #
 #   Comparisons: <, >, <=, >=, ==              #
 #                                              #
-# Tip: Turn on auto-probe (microscope toggle)  #
-# to see which branch is taken for each test.  #
 
 let clamp = fun (x, lo, hi) ->
-  ?
+  ?  
+
+
 in
 
 test
