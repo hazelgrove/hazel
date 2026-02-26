@@ -462,7 +462,7 @@ let value_view =
     switch (ValueState.mousedown^) {
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
-      let target_width = max(0, goal.col);
+      let target_width = max(1, goal.col);
       let width_at = (b: int): int =>
         abbreviated_seg_of(utility, b, sample.value) |> snd;
       let budget = find_best_budget(width_at, target_width);
@@ -1066,7 +1066,7 @@ let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
       SampleLength.get(ctx.settings.window, sample),
       sample.value,
     );
-  let goal = cur - 1;
+  let goal = max(1, cur - 1);
   let rec find_target = (target: int): int => {
     let attempt_len =
       abbreviated_seg_of(ctx.utility, target, sample.value) |> snd;

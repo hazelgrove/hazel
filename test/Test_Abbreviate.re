@@ -486,11 +486,96 @@ let count_annotation_tests = [
   ),
 ];
 
+/* ===== Unit-cost atom tests: 1-char values should not be replaced by ellipsis ===== */
+
+let unit_cost_atom_tests = [
+  test_case(
+    "EmptyHole at budget 0 stays as EmptyHole",
+    `Quick,
+    () => {
+      open IdTagged.FreshGrammar;
+      open Exp;
+      let hole = empty_hole();
+      let result = run_abbreviation(~available=0, hole);
+      check(
+        Alcotest.bool,
+        "term is still EmptyHole, not ellipsis",
+        true,
+        switch (result.term) {
+        | EmptyHole => true
+        | _ => false
+        },
+      );
+    },
+  ),
+  test_case(
+    "EmptyHole at budget 1 stays as EmptyHole",
+    `Quick,
+    () => {
+      open IdTagged.FreshGrammar;
+      open Exp;
+      let hole = empty_hole();
+      let result = run_abbreviation(~available=1, hole);
+      check(
+        Alcotest.bool,
+        "term is still EmptyHole",
+        true,
+        switch (result.term) {
+        | EmptyHole => true
+        | _ => false
+        },
+      );
+    },
+  ),
+  test_case(
+    "single digit at budget 1 stays as digit",
+    `Quick,
+    () => {
+      let rendered = abbreviate_and_render(~available=1, "0");
+      check(Alcotest.string, "renders as 0", "0", rendered);
+    },
+  ),
+  test_case(
+    "two-digit number at budget 0 renders as ellipsis",
+    `Quick,
+    () => {
+      let rendered = abbreviate_and_render(~available=0, "42");
+      check(Alcotest.string, "budget 0", ellipsis, rendered);
+    },
+  ),
+  test_case(
+    "single char var at budget 1 stays as var",
+    `Quick,
+    () => {
+      let rendered = abbreviate_and_render(~available=1, "x");
+      check(Alcotest.string, "renders as x", "x", rendered);
+    },
+  ),
+  test_case(
+    "Deferral at budget 0 stays as Deferral",
+    `Quick,
+    () => {
+      let d: Exp.t = IdTagged.fresh(Deferral(InAp): Exp.term);
+      let result = run_abbreviation(~available=0, d);
+      check(
+        Alcotest.bool,
+        "term is still Deferral, not ellipsis",
+        true,
+        switch (result.term) {
+        | Deferral(_) => true
+        | _ => false
+        },
+      );
+    },
+  ),
+];
+
 let tests = (
   "Abbreviate",
   structural_tests
   @ monotonicity_tests
   @ budget_tests
   @ hard_cap_tests
-  @ count_annotation_tests,
+  @ count_annotation_tests
+  @ unit_cost_atom_tests,
 );

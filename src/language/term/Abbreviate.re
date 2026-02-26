@@ -473,8 +473,16 @@ let indet_term_tpat: TPat.term = Invalid("?");
 let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
   let initial = available^;
   if (initial <= 0) {
-    available := available^ - ellipsis_cost;
-    flat_ellipses_term();
+    /* Unit-cost atoms: don't replace with ellipsis (same cost, less informative) */
+    switch (exp.term) {
+    | EmptyHole
+    | Deferral(_) =>
+      available := available^ - 1;
+      exp;
+    | _ =>
+      available := available^ - ellipsis_cost;
+      flat_ellipses_term();
+    };
   } else {
     let rewrap = (term: Exp.term): Exp.t => {
       {
@@ -1237,8 +1245,14 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 and abbreviate_pat = (pat: Pat.t): Pat.t => {
   let initial = available^;
   if (initial <= 0) {
-    available := available^ - ellipsis_cost;
-    flat_ellipses_term_pat();
+    switch (pat.term) {
+    | EmptyHole =>
+      available := available^ - 1;
+      pat;
+    | _ =>
+      available := available^ - ellipsis_cost;
+      flat_ellipses_term_pat();
+    };
   } else {
     let rewrap = (term: Pat.term): Pat.t => {
       {
@@ -1394,7 +1408,9 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
             ? abbreviate_string_token(~min_len=available^, str)
             : abbreviate_str(available^, str);
         Invalid(abbreviated);
-      | EmptyHole => EmptyHole
+      | EmptyHole =>
+        available := available^ - 1;
+        EmptyHole;
       | Constructor(name, typ) =>
         if (available^ <= 1) {
           available := available^ - ellipsis_cost;
