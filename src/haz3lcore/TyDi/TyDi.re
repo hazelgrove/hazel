@@ -138,6 +138,16 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     |> List.filter(({content, _}: TyDiSuggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        );
+  /* If any suggestion is an exact match for the current token, suppress
+   * all suggestions. This check must scan the full list, not just the
+   * top suggestion, because exact-match variables and keyword suggestions
+   * come from different pipelines and may be ordered differently. */
+  let has_exact_match =
+    List.exists(
+      ({content, _}: TyDiSuggestion.t) => content == tok_to_left,
+      suggestions,
+    );
+  let* _ = has_exact_match ? None : Some();
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
   let content = mk_unparsed_buffer(suggestion_suffix);
