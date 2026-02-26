@@ -116,19 +116,19 @@ module M: Projector = {
 
   let placeholder = (model, _info) => {
     let tool_config = find_tool(model.tool);
-    let (tool_width, tool_height) =
+    let tool_height =
       switch (tool_config) {
-      | Some(t) => (t.width, t.height)
-      | None => (400, 200)
+      | Some(t) => t.height
+      | None => 200
       };
     let m = font_metrics^;
     let px_to_grid = (value: int, multiple: float): int =>
       int_of_float(ceil(float_of_int(value) /. multiple));
-    let cols = px_to_grid(tool_width, m.col_width) + 1;
+    /* horizontal only covers the tab bar (inline portion);
+       the tool pane below overflows via CSS */
     let url_len = String.length(model.url);
     let display_len = max(String.length(url_placeholder), url_len);
-    let tab_bar_cols = display_len + 12;
-    let horizontal = max(cols, tab_bar_cols);
+    let horizontal = display_len + 12;
     let rows =
       if (String.length(model.tool) > 0) {
         px_to_grid(tool_height, m.row_height);
@@ -372,13 +372,20 @@ module M: Projector = {
       );
 
     /* --- Tool pane --- */
+    let tool_config = find_tool(model.tool);
     let tool_pane =
       if (String.length(model.tool) > 0 && String.length(model.url) > 0) {
+        let tool_width =
+          switch (tool_config) {
+          | Some(t) => t.width
+          | None => 400
+          };
         Node.create(
           "patchwork-view",
           ~attrs=[
             Attr.create("doc-url", model.url),
             Attr.create("tool-id", model.tool),
+            Attr.create("style", Printf.sprintf("width: %dpx;", tool_width)),
           ],
           [],
         );

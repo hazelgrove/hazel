@@ -7,6 +7,7 @@
 
 .projector.PatchworkTool {
   cursor: default;
+  overflow: visible;
 }
 
 .projector.PatchworkTool > svg {
@@ -19,6 +20,7 @@
   height: 100%;
   width: 100%;
   border-radius: 0.1em;
+  overflow: visible;
 }
 
 .projector.PatchworkTool .patchwork-tool-tab-bar {
@@ -122,10 +124,9 @@
   animation: spin360 0.4s ease-in-out;
 }
 
-/* Tool pane */
+/* Tool pane — overflows the tab bar width to show the full tool UI */
 .projector.PatchworkTool patchwork-view {
   display: block;
-  width: 100%;
   height: calc(100% - var(--line-height));
 }
 
