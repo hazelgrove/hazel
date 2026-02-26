@@ -702,12 +702,6 @@ module View = {
             ),
           ],
         ),
-        /* Spacer to push auto-probe indicator to the right */
-        div(~attrs=[Attr.class_("top-bar-spacer")], []),
-        div(
-          ~attrs=[Attr.class_("wrap auto-probe-indicator")],
-          autoprobe_indicator(~globals, ~inject),
-        ),
       ],
     );
 

@@ -225,13 +225,13 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
   div(
     ~attrs=[clss(["legend", "panel"])],
     [
-      div(~attrs=[clss(["title"])], [text("Dynamic Focus Sample Legend")]),
+      div(~attrs=[clss(["title"])], [text("Probe Focus Sample Legend")]),
       legend_item(
         ~tooltip=
           switch (color_scheme) {
-          | Calls => "This sample is from a shallower call stack depth than the cursor."
+          | Calls => "This sample is from a shallower call stack depth than the focus."
           | Hybrid
-          | StepRange => "This sample's step range finishes before the cursor's starts."
+          | StepRange => "This sample's step range ends before the focus starts."
           },
         legend_sample(
           ~indicated=false,
@@ -246,7 +246,7 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
       ),
       legend_item(
         ~tooltip=
-          "This sample is at the current cursor position in the call stack.",
+          "This sample is at the current focal position in the call stack.",
         legend_sample(
           ~indicated=true,
           ~ap_id=None,
@@ -261,9 +261,9 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
       legend_item(
         ~tooltip=
           switch (color_scheme) {
-          | Calls => "This sample is from a deeper call stack depth than the cursor."
+          | Calls => "This sample is from a deeper call stack depth than the focus."
           | Hybrid
-          | StepRange => "This sample's step range starts after the cursor's finishes."
+          | StepRange => "This sample's step range starts after the focus ends."
           },
         legend_sample(
           ~indicated=false,
@@ -279,9 +279,9 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
       legend_item(
         ~tooltip=
           switch (color_scheme) {
-          | Calls => "This sample is from a call site on the cursor's call chain (a direct caller)."
+          | Calls => "This sample is from a call site on the focus's call chain (a direct caller)."
           | Hybrid
-          | StepRange => "This sample's step range strictly contains the cursor's."
+          | StepRange => "This sample's step range strictly contains the focal range."
           },
         legend_sample(
           ~indicated=false,
@@ -298,13 +298,13 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
       | Single =>
         legend_item(
           ~tooltip=
-            "Samples not shown as they are not aligned with dynamic cursor; click to align the cursor and show them.",
+            "Samples not shown as they are not within the probe focus; click to realign the focus and show them.",
           div(~attrs=[clss(["legend-not-aligned"])], [text({js|⊖|js})]),
         )
       | Many =>
         legend_item(
           ~tooltip=
-            "This sample is from a different branch of the call stack than the cursor.",
+            "This sample is from a different branch of the call stack than the focus.",
           legend_sample(
             ~indicated=false,
             ~ap_id=None,
@@ -325,9 +325,9 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
       legend_item(
         ~tooltip=
           switch (color_scheme) {
-          | Calls => "This sample is from a function called from the cursor's position (a direct callee)."
+          | Calls => "This sample is from a function called from the focal sample (a direct callee)."
           | Hybrid
-          | StepRange => "This sample's step range is strictly inside the cursor's."
+          | StepRange => "This sample's step range is strictly inside the focus."
           },
         legend_sample(
           ~indicated=false,
@@ -362,7 +362,7 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
           [
             segment(
               "Calls",
-              "Color by call stack relationship: callers, callees, and call depth.",
+              "Color by call stack relations: relative call depth, callers, callees.",
               Calls,
             ),
             segment(
@@ -372,7 +372,7 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
             ),
             segment(
               "Steps",
-              "Color by evaluation order: which expressions were evaluated before, after, or around the cursor.",
+              "Color by evaluation order: which expressions were evaluated before, after, or around the focus.",
               StepRange,
             ),
           ],
@@ -420,7 +420,7 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
                   ~attrs=[clss(["legend-tooltip"])],
                   [
                     text(
-                      "Automatically probe the definition at the cursor. Probes follow as you navigate.",
+                      "Automatically probe the definition at the cursor, following as you navigate.",
                     ),
                   ],
                 ),
@@ -463,9 +463,7 @@ let legend_view = (~globals: Globals.t, ~explain_this_inject) => {
                 div(
                   ~attrs=[clss(["legend-tooltip"])],
                   [
-                    text(
-                      "Show one sample at the cursor, or show all samples at once.",
-                    ),
+                    text("Show at most one sample per probe, or all at once."),
                   ],
                 ),
               ],
@@ -818,10 +816,8 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     div(
       ~attrs=[clss(["header"])],
       [
-        div(
-          ~attrs=[clss(["main-title"])],
-          [text("Console Log"), mode_toggle(~explain_this_inject)],
-        ),
+        div(~attrs=[clss(["main-title"])], [text("Console Log")]),
+        mode_toggle(~explain_this_inject),
       ],
     ),
     div(
@@ -925,7 +921,7 @@ let quick_ref_view = () => {
         [
           div([text({js|∅ = never evaluated|js})]),
           div([text({js|⍟ = hidden by pin|js})]),
-          div([text({js|⊖ = not aligned|js})]),
+          div([text({js|⊖ = outside focus|js})]),
         ],
       ),
     ],
@@ -959,10 +955,8 @@ let probearium =
     div(
       ~attrs=[clss(["header"])],
       [
-        div(
-          ~attrs=[clss(["main-title"])],
-          [text("Probearium"), mode_toggle(~explain_this_inject)],
-        ),
+        div(~attrs=[clss(["main-title"])], [text("Probearium")]),
+        mode_toggle(~explain_this_inject),
       ],
     ),
     legend_view(~globals, ~explain_this_inject),

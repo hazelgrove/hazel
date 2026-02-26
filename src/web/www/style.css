@@ -142,12 +142,22 @@ select {
   z-index: calc(var(--top-bar-z) - 1);
   display: flex;
   align-items: center;
+  gap: 0.5em;
   background-color: var(--ui-bkg);
   border-bottom: 0.6px solid var(--BR2);
   padding: 0.25em 0.75em;
   min-height: 0;
   font-family: var(--code-font);
   /* font-size: 0.85em; */
+}
+
+#closure-cursor-bar .title {
+  font-size: 0.85em;
+  font-family: var(--ui-font);
+  color: rgb(255, 255, 255);
+  background-color: var(--G0);
+  border-radius: 0.2em;
+  padding: 0 4px;
 }
 
 #closure-cursor-bar:empty,

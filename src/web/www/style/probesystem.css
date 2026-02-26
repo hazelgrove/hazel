@@ -31,6 +31,10 @@
   font-weight: bold;
 }
 
+#probesys .main-title .mode-toggle {
+  margin-left: auto;
+}
+
 #probesys .quick-select-deco svg {
   fill: oklch(0.93 0.06 90.1);
 }

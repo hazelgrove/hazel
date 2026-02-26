@@ -544,6 +544,7 @@ let view =
         ),
       ],
       [
+        div(~attrs=[Attr.class_("title")], [text("probe focus")]),
         div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
         clear_all_button,
       ],
