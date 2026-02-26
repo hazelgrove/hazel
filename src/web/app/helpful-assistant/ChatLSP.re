@@ -172,6 +172,7 @@ module Composition = {
       (init_ctx: Ctx.t, sketch: Segment.t): (Info.exp, Statics.Map.t) =>
     Statics.uexp_to_info_map(
       ~dynamics=DynamicStatics.Map.empty,
+      ~disambiguate_numerics=true,
       ~ctx=init_ctx,
       ~ancestors=[],
       MakeTerm.go(sketch).term,
@@ -410,6 +411,7 @@ module ErrorRound = {
       (init_ctx: Ctx.t, z: Zipper.t): (Info.exp, Statics.Map.t) =>
     Statics.uexp_to_info_map(
       ~dynamics=DynamicStatics.Map.empty,
+      ~disambiguate_numerics=true,
       ~ctx=init_ctx,
       ~ancestors=[],
       MakeTerm.from_zip_for_sem(z).term,

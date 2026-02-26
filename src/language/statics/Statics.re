@@ -33,6 +33,7 @@ include StaticsBase;
 let rec any_to_info_map =
         (
           ~dynamics: DynamicStatics.Map.t,
+          ~disambiguate_numerics: bool,
           ~ctx: Ctx.t,
           ~ancestors,
           any: Any.t,
@@ -44,6 +45,7 @@ let rec any_to_info_map =
     let ({co_ctx, _}: Info.exp, m) =
       uexp_to_info_map(
         ~dynamics,
+        ~disambiguate_numerics,
         ~ctx,
         ~ancestors,
         ~duplicates=[],
@@ -57,6 +59,7 @@ let rec any_to_info_map =
     let m =
       upat_to_info_map(
         ~dynamics,
+        ~disambiguate_numerics,
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~ancestors,
@@ -88,6 +91,7 @@ let rec any_to_info_map =
         |> List.concat;
       any_to_info_map(
         ~dynamics,
+        ~disambiguate_numerics,
         ~ctx,
         ~ancestors,
         Exp({
@@ -97,18 +101,34 @@ let rec any_to_info_map =
         m,
       );
     | MultiHole(tms) =>
-      let (co_ctxs, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
+      let (co_ctxs, m) =
+        multi(~dynamics, ~disambiguate_numerics, ~ctx, ~ancestors, m, tms);
       (CoCtx.union(co_ctxs), m);
     | Invalid(_) => (CoCtx.empty, m)
     }
   | Any () => (CoCtx.empty, m)
   }
 and multi =
-    (~dynamics: DynamicStatics.Map.t, ~ctx, ~ancestors, m, tms)
+    (
+      ~dynamics: DynamicStatics.Map.t,
+      ~disambiguate_numerics,
+      ~ctx,
+      ~ancestors,
+      m,
+      tms,
+    )
     : (list(CoCtx.t), Map.t) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
-      let (co_ctx, m) = any_to_info_map(~dynamics, ~ctx, ~ancestors, any, m);
+      let (co_ctx, m) =
+        any_to_info_map(
+          ~dynamics,
+          ~disambiguate_numerics,
+          ~ctx,
+          ~ancestors,
+          any,
+          m,
+        );
       (co_ctxs @ [co_ctx], m);
     },
     ([], m),
@@ -117,6 +137,7 @@ and multi =
 and uexp_to_info_map =
     (
       ~dynamics: DynamicStatics.Map.t,
+      ~disambiguate_numerics: bool,
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
@@ -134,6 +155,7 @@ and uexp_to_info_map =
     let (ie, _m) =
       uexp_to_info_map(
         ~dynamics=DynamicStatics.Map.empty,
+        ~disambiguate_numerics,
         ~ctx,
         ~label_sort=false,
         ~ancestors,
@@ -189,6 +211,7 @@ and uexp_to_info_map =
       ) => {
     uexp_to_info_map(
       ~dynamics,
+      ~disambiguate_numerics,
       ~ctx,
       ~ana,
       ~is_in_filter,
@@ -243,7 +266,7 @@ and uexp_to_info_map =
         go(~ana, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  let go_pat = upat_to_info_map(~disambiguate_numerics, ~ctx, ~ancestors);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let label_to_info_map =
       (expected_labels, labmode, label: Exp.t, m: Map.t)
@@ -332,7 +355,8 @@ and uexp_to_info_map =
       let (e, m) = go(~ana, e, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | MultiHole(tms) =>
-      let (co_ctxs, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
+      let (co_ctxs, m) =
+        multi(~dynamics, ~disambiguate_numerics, ~ctx, ~ancestors, m, tms);
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, ~dynamics, m);
@@ -345,7 +369,11 @@ and uexp_to_info_map =
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
     | Atom(c) =>
       let c =
-        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
+        Operators.replace_literal(
+          c,
+          disambiguate_numerics ? Typ.is_ana_atom(ana) : None,
+          ctx.use_mode,
+        ); // Replace literal if necessary due to `use`
       switch (c) {
       | L(c) =>
         let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
@@ -1521,6 +1549,7 @@ and uexp_to_info_map =
 and upat_to_info_map =
     (
       ~dynamics: DynamicStatics.Map.t,
+      ~disambiguate_numerics: bool,
       ~is_synswitch,
       ~ctx,
       ~co_ctx,
@@ -1541,6 +1570,7 @@ and upat_to_info_map =
     let (ie, _m) =
       uexp_to_info_map(
         ~dynamics,
+        ~disambiguate_numerics,
         ~ancestors,
         ~duplicates=[],
         ~ctx,
@@ -1621,6 +1651,7 @@ and upat_to_info_map =
       ) => {
     upat_to_info_map(
       ~dynamics,
+      ~disambiguate_numerics,
       ~is_synswitch,
       ~ctx,
       ~co_ctx,
@@ -1717,7 +1748,8 @@ and upat_to_info_map =
   let default_case = () =>
     switch (term) {
     | MultiHole(tms) =>
-      let (_, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
+      let (_, m) =
+        multi(~dynamics, ~disambiguate_numerics, ~ctx, ~ancestors, m, tms);
       add(
         ~self=IsMulti,
         ~ctx,
@@ -1728,7 +1760,11 @@ and upat_to_info_map =
     | EmptyHole => hole(Just(unknown))
     | Atom(c) =>
       let c =
-        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
+        Operators.replace_literal(
+          c,
+          disambiguate_numerics ? Typ.is_ana_atom(ana) : None,
+          ctx.use_mode,
+        ); // Replace literal if necessary due to `use`
       switch (c) {
       | L(Nat(nat)) =>
         atomic(
@@ -2142,7 +2178,8 @@ and utyp_to_info_map =
   let go = go'(~expects=TypeExpected);
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
-    let (_, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
+    let (_, m) =
+      multi(~dynamics, ~disambiguate_numerics=true, ~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
   | Atom(_) => add(m)
@@ -2288,6 +2325,7 @@ and utyp_to_info_map =
         ~expected_labels=None,
         ~label_sort=false,
         ~dynamics,
+        ~disambiguate_numerics=true,
         e,
         m,
       );
@@ -2345,7 +2383,8 @@ and utpat_to_info_map =
   let ancestors = [TPat.rep_id(utpat)] @ ancestors;
   switch (term) {
   | MultiHole(tms) =>
-    let (_, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
+    let (_, m) =
+      multi(~dynamics, ~disambiguate_numerics=true, ~ctx, ~ancestors, m, tms);
     add(m);
   | Invalid(_)
   | EmptyHole
@@ -2391,9 +2430,11 @@ and variant_to_info_map =
 
 let mk =
   Core.Memo.general(
-    ~cache_size_bound=1000, (dynamics: DynamicStatics.Map.t, ana, ctx, e) => {
+    ~cache_size_bound=1000,
+    ((dynamics: DynamicStatics.Map.t, ana, disambiguate_numerics, ctx, e)) => {
     uexp_to_info_map(
       ~dynamics,
+      ~disambiguate_numerics,
       ~ana,
       ~ctx,
       ~ancestors=[],
@@ -2410,8 +2451,10 @@ let mk =
     (
       ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
       ~ana=Typ.temp(Unknown(SynSwitch)),
+      ~disambiguate_numerics=true,
       core: CoreSettings.t,
       ctx,
       exp,
     ) =>
-  core.statics ? mk(dynamics, ana, ctx, exp) : Id.Map.empty;
+  core.statics
+    ? mk((dynamics, ana, disambiguate_numerics, ctx, exp)) : Id.Map.empty;

@@ -134,7 +134,14 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let info_map = Statics.mk(~ana?, settings, ctx_init, term);
+  let info_map =
+    Statics.mk(
+      ~ana?,
+      ~disambiguate_numerics=!is_dynamic_term,
+      settings,
+      ctx_init,
+      term,
+    );
   let error_ids = Statics.Map.error_ids(info_map);
   let elaborated =
     switch () {
