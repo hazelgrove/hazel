@@ -245,6 +245,25 @@ module Update = {
         };
       };
 
+    // [HACK] Recovery: if result is stuck as OldValue(ResultPending) due to a
+    // cancelled worker request, force re-queue when no worker is in flight.
+    let result =
+      switch (result, queue_worker) {
+      | (OldValue(ResultPending), Some(qw))
+          when
+            Calc.get_value(settings).dynamics
+            && !WorkerClient.has_pending_request() =>
+        print_endline(
+          "EvalResult.calculate: RECOVERY - re-queuing stuck ResultPending",
+        );
+        qw({
+          expr: Calc.get_value(elab),
+          targets: Calc.get_value(targets),
+        });
+        Calc.NewValue(ProgramResult.ResultPending);
+      | _ => result
+      };
+
     // Calculate the display
     let display =
       switch (display) {

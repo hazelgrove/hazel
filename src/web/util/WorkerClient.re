@@ -7,14 +7,28 @@ let timeoutDuration = 20000; // Worker timeout in ms
 let initWorker: unit => Js.t(Worker.worker(Request.t, Response.t)) =
   () => Worker.create(name);
 
-let workerRef: ref(Js.t(Worker.worker(Request.t, Response.t))) =
-  ref(initWorker());
+let workerRef: ref(option(Js.t(Worker.worker(Request.t, Response.t)))) =
+  ref(None);
 
 let timeoutId = ref(None);
 
+let getWorker = (): Js.t(Worker.worker(Request.t, Response.t)) => {
+  switch (workerRef.contents) {
+  | Some(w) => w
+  | None =>
+    let w = initWorker();
+    workerRef.contents = Some(w);
+    w;
+  };
+};
+
 let restart_worker = (): unit => {
-  workerRef.contents##terminate;
-  workerRef.contents = initWorker();
+  switch (workerRef.contents) {
+  | Some(w) => w##terminate
+  | None => ()
+  };
+  let w = initWorker();
+  workerRef.contents = Some(w);
 };
 
 let request =
@@ -45,13 +59,13 @@ let request =
   | None => ()
   };
 
-  setupWorkerMessageHandler(workerRef.contents);
+  setupWorkerMessageHandler(getWorker());
 
-  workerRef.contents##postMessage(req);
+  getWorker()##postMessage(req);
 
   let onTimeout = (): unit => {
     restart_worker();
-    setupWorkerMessageHandler(workerRef.contents);
+    setupWorkerMessageHandler(getWorker());
     timeout(req);
   };
 
@@ -63,6 +77,8 @@ let request =
       ),
     );
 };
+
+let has_pending_request = () => timeoutId.contents != None;
 
 let request = (req, ~handler, ~timeout) =>
   switch (req) {
