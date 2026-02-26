@@ -29,6 +29,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Patchwork => (module Cook(PatchworkProj.M))
   | ObservablePlot => (module Cook(ObservablePlotProj.M))
   | Automerge => (module Cook(AutomergeProj.M))
+  | PatchworkTool => (module Cook(PatchworkToolProj.M))
   };
 
 let init =
