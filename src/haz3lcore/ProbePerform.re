@@ -889,11 +889,82 @@ let resolve_pending_probe_cursor =
     };
   };
 
+/* After an edit, if the new-ID diff in add_ids_from_multi_term didn't set
+ * pending_probe_cursor (e.g., because grout ID preservation kept the same ID
+ * despite structural changes), align the sample cursor to an ephemeral probe
+ * at or near the caret. This handles cases like completing `then` where the
+ * hole moves from top-level sibling to then-branch without changing ID.
+ *
+ * Note: Indicated.index returns a piece ID, but ephemerals are keyed by term
+ * IDs from MultiProbe. These usually match for simple cases (grout holes) but
+ * may differ when the caret is on a delimiter or shard of a multi-piece term.
+ * We try a direct match first, then fall back to spatial proximity. */
+let align_to_indicated_probe =
+    (~is_edited: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
+  if (!is_edited || z.refractors.pending_probe_cursor != None) {
+    z;
+  } else {
+    /* Strategy 1: Direct match — indicated piece is an ephemeral probe */
+    let direct_match =
+      switch (Indicated.index(z)) {
+      | None => None
+      | Some(piece_id) =>
+        if (Id.Map.mem(piece_id, z.refractors.multis.ephemerals)) {
+          Some(piece_id);
+        } else {
+          None;
+        }
+      };
+    /* Strategy 2: Spatial proximity — find ephemeral probe on same row
+     * whose measured range contains the caret position */
+    let spatial_match = () => {
+      let caret_pt = Zipper.Caret.point(syntax.measured, z);
+      let ephemerals = Id.Map.bindings(z.refractors.multis.ephemerals);
+      List.find_map(
+        ((id, _)) =>
+          switch (
+            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          ) {
+          | Some((start_pt, end_pt))
+              when
+                start_pt.row == caret_pt.row
+                && caret_pt.col >= start_pt.col
+                && caret_pt.col <= end_pt.col
+                + 1 =>
+            Some(id)
+          | _ => None
+          },
+        ephemerals,
+      );
+    };
+    switch (direct_match) {
+    | Some(id) =>
+      Zipper.update_refractors(z, r =>
+        {
+          ...r,
+          pending_probe_cursor: Some([id]),
+        }
+      )
+    | None =>
+      switch (spatial_match()) {
+      | Some(id) =>
+        Zipper.update_refractors(z, r =>
+          {
+            ...r,
+            pending_probe_cursor: Some([id]),
+          }
+        )
+      | None => z
+      }
+    };
+  };
+
 /* Post-calculation probe effects: cleanup, multi-probe regeneration,
  * step-into focus resolution, pending probe cursor resolution, and cursor reset.
  * Called from Editor.calculate after syntax and statics are updated. */
 let editor_effects =
     (
+      ~is_edited: bool,
       ~syntax: CachedSyntax.t,
       ~info_map: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
@@ -903,6 +974,7 @@ let editor_effects =
   z
   |> remove_colliding_probes(~syntax)
   |> add_ids_from_multi_term(~syntax, ~info_map)
+  |> align_to_indicated_probe(~is_edited, ~syntax)
   |> resolve_pending_focus(~dynamics)
   |> resolve_pending_probe_cursor(~dynamics)
   |> maybe_reset_cursor;
