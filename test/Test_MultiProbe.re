@@ -409,6 +409,18 @@ then ?   # ? #|},
   ),
 ];
 
+/* DELIMITER PREFIX SPECIAL CASES - never probe partial keywords like
+ * `th` (prefix of `then`). These get InfixDelimiterPrefix molds when
+ * in infix position between two operands. */
+let delimiter_prefix_tests = [
+  test_probe_placement(
+    ~name=
+      "Delimiter prefix after if condition - probe hole not partial keyword",
+    ~code={|if cond  # cond #
+th ?     # ? #|},
+  ),
+];
+
 let tests = [
   ("MultiProbe.Basic", basic_tests),
   ("MultiProbe.DefaultSelection", nested_multiline_tests),
@@ -420,4 +432,5 @@ let tests = [
   ("MultiProbe.FunctionTypes", function_type_tests),
   ("MultiProbe.CaseExpressions", case_expression_tests),
   ("MultiProbe.IncompleteBindingForms", incomplete_binding_tests),
+  ("MultiProbe.DelimiterPrefixes", delimiter_prefix_tests),
 ];

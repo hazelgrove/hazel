@@ -384,12 +384,24 @@ let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
   | _ => false
   };
 
+/* Check if a candidate is an InfixDelimiterPrefix tile -- a partial
+ * keyword like `th` (prefix of `then`). These are transient artifacts
+ * of typing and should never be probed or count as alternatives. */
+let is_delimiter_prefix = (candidate_id: Id.t, data: TermData.t): bool =>
+  switch (TermData.root_tile(candidate_id, data)) {
+  | Some({label: [t], mold, _}) =>
+    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | _ => false
+  };
+
 /* Check if an id represents a "meaningful" alternative (not a hole,
- * or an incomplete tile that isn't a binding form). */
+ * not a delimiter prefix, or an incomplete tile that isn't a binding form). */
 let is_meaningful_alternative =
     (id: Id.t, terms: TermMap.t, data: TermData.t): bool =>
-  /* Incomplete non-binding tiles are meaningful alternatives */
-  if (is_incomplete_tile(id, data) && !is_incomplete_binding_form(id, data)) {
+  if (is_delimiter_prefix(id, data)) {
+    false;
+  } else if (is_incomplete_tile(id, data)
+             && !is_incomplete_binding_form(id, data)) {
     true;
   } else {
     switch (get_term(id, terms)) {
@@ -510,6 +522,12 @@ let candidate_allowed_by_term_sort =
     Language.Statics.Map.lookup(candidate_id, env.info_map),
   );
 
+/* Never probe InfixDelimiterPrefix tiles (partial keywords like `th`
+ * for `then`). These are transient typing artifacts. */
+let candidate_allowed_by_delimiter_prefix =
+    (candidate_id: Id.t, env: selection_env): bool =>
+  !is_delimiter_prefix(candidate_id, env.data);
+
 let candidate_is_allowed =
     (
       candidate_id: Id.t,
@@ -519,6 +537,7 @@ let candidate_is_allowed =
     )
     : bool =>
   candidate_allowed_by_term_sort(candidate_id, env)
+  && candidate_allowed_by_delimiter_prefix(candidate_id, env)
   && candidate_allowed_by_holes(candidate_id, row, env)
   && candidate_allowed_by_function_types(candidate_id, row, env)
   && candidate_allowed_by_container(candidate_id, env)
