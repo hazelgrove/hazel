@@ -20,7 +20,9 @@ let get_documentation_as_text = () => {
              persistent,
            );
          let text =
-           Haz3lcore.Printer.of_zipper(cell_model.editor.editor.state.zipper);
+           Haz3lcore.Printer.of_zipper(
+             CellEditor.Model.get_zipper(cell_model),
+           );
          "<slide_name>"
          ++ name
          ++ "</slide_name>\n"

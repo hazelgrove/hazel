@@ -488,7 +488,7 @@ let probes_panel_view =
 
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
-  let refractors = editor.editor.state.zipper.refractors;
+  let refractors = CodeEditable.Model.get_zipper(editor).refractors;
   [
     div(
       ~attrs=[clss(["header"])],
@@ -509,16 +509,26 @@ let probearium =
       ],
     ),
     call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
-      fancy(~info_map=editor.statics.info_map, ~default=None, ~globals, id)
+      fancy(
+        ~info_map=CodeEditable.Model.get_statics(editor).info_map,
+        ~default=None,
+        ~globals,
+        id,
+      )
       |> Option.value(~default=div([]))
     ),
     probes_panel_view(
       ~globals,
       ~refractors,
-      ~info_map=editor.statics.info_map,
-      ~syntax=editor.editor.syntax,
+      ~info_map=CodeEditable.Model.get_statics(editor).info_map,
+      ~syntax=CodeEditable.Model.get_editor(editor).syntax,
       ~fancyd=id =>
-      fancy(~info_map=editor.statics.info_map, ~default=None, ~globals, id)
+      fancy(
+        ~info_map=CodeEditable.Model.get_statics(editor).info_map,
+        ~default=None,
+        ~globals,
+        id,
+      )
     ),
   ];
 };

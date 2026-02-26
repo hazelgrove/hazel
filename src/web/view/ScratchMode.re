@@ -20,7 +20,7 @@ module Model = {
     model.current,
     List.map(
       ((s: string, m: CellEditor.Model.t)) => {
-        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
+        let current_segment = Zipper.zip(CellEditor.Model.get_zipper(m));
         let original = Init.find_documentation_slide(s);
         let original_segment =
           original
@@ -371,8 +371,7 @@ module Update = {
     };
   };
 
-  let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+  let calculate = (~settings, ~schedule_action, model: Model.t): Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
@@ -384,7 +383,6 @@ module Update = {
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
-        ~is_edited,
         ~queue_worker,
         ~stitch=x => x,
         ed,

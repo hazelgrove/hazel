@@ -692,8 +692,7 @@ let code_block =
             |> Editor.Model.mk
             |> CellEditor.Model.mk
             |> CellEditor.Update.calculate(
-                 ~settings=globals.settings.core,
-                 ~is_edited=true,
+                 ~settings=Util.Calc.NewValue(globals.settings.core),
                  ~stitch=x => x,
                  ~queue_worker=None,
                );

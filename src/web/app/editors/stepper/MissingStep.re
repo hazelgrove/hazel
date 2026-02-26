@@ -165,12 +165,13 @@ module Update = {
         try(
           {
             open OptUtil.Syntax;
-            let zipper = editor.editor.state.zipper;
+            let editor = editor |> CodeEditable.Model.get_editor;
+            let zipper = editor.state.zipper;
             let* id =
               TermData.get_root_id_using_ranges(
                 zipper.selection.content,
-                editor.editor.syntax.term_data,
-                editor.editor.syntax.measured,
+                editor.syntax.term_data,
+                editor.syntax.measured,
               );
             Some(id);
           }
@@ -241,7 +242,6 @@ module Update = {
         let editor =
           CodeEditable.Update.calculate(
             ~settings,
-            ~is_edited=true,
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
@@ -391,10 +391,11 @@ module View = {
         model: Model.t,
       ) =>
     {
+      let editor = editor |> CodeEditable.Model.get_editor;
       let+ (left, right, top, bottom) =
         get_segment_bounds(
-          ~measured=editor.editor.syntax.measured,
-          editor.editor.state.zipper.selection.content,
+          ~measured=editor.syntax.measured,
+          editor.state.zipper.selection.content,
         );
 
       let proof_button = (~callback: Ui_effect.t(unit), label: string) => {

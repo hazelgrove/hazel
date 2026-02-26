@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 
 /* A "Cell" with user-editable text at the top, and evaluation results at the bottom. */
 // This file follows conventions in [docs/ui-architecture.md]
@@ -14,8 +15,9 @@ module Model = {
 
   let mk = editor => {
     editor: {
-      editor,
-      statics: CachedStatics.empty,
+      editor: Calc.NewValue(editor),
+      statics: Calc.Pending,
+      is_edited: true,
       dynamics: Language.Dynamics.Map.empty,
       context_menu: None,
     },
@@ -34,8 +36,12 @@ module Model = {
 
   let unpersist = (~settings as _, {editor, result}: persistent): t => {
     editor: {
-      editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
-      statics: CachedStatics.empty,
+      editor:
+        Calc.NewValue(
+          editor |> PersistentZipper.unpersist |> Editor.Model.mk,
+        ),
+      statics: Calc.Pending,
+      is_edited: true,
       dynamics: Language.Dynamics.Map.empty,
       context_menu: None,
     },
@@ -43,6 +49,12 @@ module Model = {
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
+
+  let get_editor = (model: t): Editor.t =>
+    model.editor |> CodeEditable.Model.get_editor;
+
+  let get_zipper = (model: t) =>
+    model.editor |> CodeEditable.Model.get_zipper;
 };
 
 module Update = {
@@ -90,19 +102,11 @@ module Update = {
   };
 
   let calculate =
-      (
-        ~settings,
-        ~is_edited,
-        ~queue_worker,
-        ~stitch,
-        {editor, result}: Model.t,
-      )
-      : Model.t => {
+      (~settings, ~queue_worker, ~stitch, {editor, result}: Model.t): Model.t => {
     /* First pass: calculate editor with current dynamics (may be stale) */
     let editor =
       CodeEditable.Update.calculate(
         ~settings,
-        ~is_edited,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
         ~is_dynamic_term=false,
@@ -112,11 +116,10 @@ module Update = {
     let result =
       EvalResult.Update.calculate(
         ~settings={
-          ...settings,
+          ...Calc.get_value(settings),
           assist: false,
         },
         ~queue_worker,
-        ~is_edited,
         editor |> CodeEditable.Model.get_statics,
         result,
       );
@@ -124,17 +127,17 @@ module Update = {
        recalculate editor with the (possibly new) dynamics */
     let editor =
       switch (
-        editor.editor.state.zipper.refractors.sample_cursor.pending_focus
+        (editor |> CodeEditable.Model.get_zipper).refractors.sample_cursor.
+          pending_focus
       ) {
       | None => editor
       | Some(_) =>
         CodeEditable.Update.calculate(
-          ~settings,
-          ~is_edited=false, /* Not an edit, just resolving pending focus */
+          ~settings, /* Not an edit, just resolving pending focus */
           ~stitch,
           ~dynamics=EvalResult.Model.dynamics(result),
           ~is_dynamic_term=false,
-          editor,
+          editor |> CodeEditable.Model.stale_editor,
         )
       };
     {
@@ -249,7 +252,7 @@ module View = {
               ? _ => Ui_effect.Ignore
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
-          ~overlays=overlays(model.editor.editor),
+          ~overlays=overlays(model.editor |> CodeEditable.Model.get_editor),
           ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,

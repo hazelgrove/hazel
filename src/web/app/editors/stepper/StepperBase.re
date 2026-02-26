@@ -279,7 +279,7 @@ module rec StepKind: {
         Some((
           MissingStep(
             MissingStep.Update.calculate(
-              ~settings=settings |> Calc.get_value,
+              ~settings,
               exp,
               info_map,
               ctx,
@@ -779,7 +779,8 @@ and Stepper: {
       info_map
       |> {
         let.calc editor: CodeSelectable.Model.t = editor;
-        editor.statics.info_map;
+        let statics = CodeWithStatics.Model.get_statics(editor);
+        statics.info_map;
       };
     let (step_kind, hidden, next_expr, inner_validity) =
       StepKind.calculate(
@@ -831,8 +832,7 @@ and Stepper: {
     let editor =
       CodeSelectable.Update.calculate(
         ~is_dynamic_term=true,
-        ~settings=Calc.get_value(settings),
-        ~is_edited=true,
+        ~settings,
         ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
         ~dynamics=Dynamics.Map.empty,
         ~ana=Calc.get_value(ana),

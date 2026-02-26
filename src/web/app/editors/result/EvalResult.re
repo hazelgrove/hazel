@@ -162,7 +162,6 @@ module Update = {
       (
         ~settings: CoreSettings.t,
         ~queue_worker: option(WorkerServer.Request.value => unit),
-        ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
         {
           cached_settings,
@@ -268,11 +267,10 @@ module Update = {
                (
                  exp,
                  CodeSelectable.Update.calculate(
-                   ~settings=settings |> Calc.get_value,
+                   ~settings,
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
                    ~dynamics=Dynamics.Map.empty,
-                   ~is_edited=is_edited || result_changed,
                    editor,
                  ),
                )

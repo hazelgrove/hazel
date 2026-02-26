@@ -69,9 +69,9 @@ module Model = {
       id: model.id,
       title: model.title,
       prompt: model.prompt,
-      prelude: model.cells.prelude.editor.editor.state.zipper,
-      lemmas: model.cells.lemmas.editor.editor.state.zipper,
-      theorem: model.cells.theorem.editor.editor.state.zipper,
+      prelude: model.cells.prelude |> CellEditor.Model.get_zipper,
+      lemmas: model.cells.lemmas |> CellEditor.Model.get_zipper,
+      theorem: model.cells.theorem |> CellEditor.Model.get_zipper,
     };
   };
 
@@ -205,20 +205,21 @@ module Update = {
     };
   };
 
-  let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+  let calculate = (~settings, ~schedule_action, model: Model.t): Model.t => {
     // Work out the terms
     let just_prelude_term =
       MakeTerm.from_zip_for_sem(
-        model.cells.prelude.editor.editor.state.zipper,
+        model.cells.prelude |> CellEditor.Model.get_zipper,
       ).
         term;
     let just_lemmas_term =
-      MakeTerm.from_zip_for_sem(model.cells.lemmas.editor.editor.state.zipper).
+      MakeTerm.from_zip_for_sem(
+        model.cells.lemmas |> CellEditor.Model.get_zipper,
+      ).
         term;
     let just_theorem_term =
       MakeTerm.from_zip_for_sem(
-        model.cells.theorem.editor.editor.state.zipper,
+        model.cells.theorem |> CellEditor.Model.get_zipper,
       ).
         term;
 
@@ -248,7 +249,6 @@ module Update = {
           model.cells.prelude
           |> CellEditor.Update.calculate(
                ~settings,
-               ~is_edited,
                ~queue_worker=Some(queue_worker("prelude")),
                ~stitch=_ =>
                just_prelude_term
@@ -257,7 +257,6 @@ module Update = {
           model.cells.lemmas
           |> CellEditor.Update.calculate(
                ~settings,
-               ~is_edited,
                ~queue_worker=Some(queue_worker("lemmas")),
                ~stitch=_ =>
                stitched_scratch
@@ -266,7 +265,6 @@ module Update = {
           model.cells.theorem
           |> CellEditor.Update.calculate(
                ~settings,
-               ~is_edited,
                ~queue_worker=Some(queue_worker("theorem")),
                ~stitch=_ =>
                stitched_theorem
@@ -401,7 +399,8 @@ module Selection = {
       let* _ =
         TermData.root_tile(
           tile,
-          model.cells.prelude.editor.editor.syntax.term_data,
+          (model.cells.prelude |> CellEditor.Model.get_editor).syntax.
+            term_data,
         );
       Some((
         Update.Prelude(MainEditor(Perform(Move(Goal(TileId(tile)))))),
@@ -412,7 +411,7 @@ module Selection = {
       let* _ =
         TermData.root_tile(
           tile,
-          model.cells.lemmas.editor.editor.syntax.term_data,
+          (model.cells.lemmas |> CellEditor.Model.get_editor).syntax.term_data,
         );
       Some((
         Update.Lemmas(MainEditor(Perform(Move(Goal(TileId(tile)))))),
@@ -423,7 +422,7 @@ module Selection = {
     let* _ =
       TermData.root_tile(
         tile,
-        model.cells.theorem.editor.editor.syntax.term_data,
+        (model.cells.theorem |> CellEditor.Model.get_editor).syntax.term_data,
       );
     Some((
       Update.Theorem(MainEditor(Perform(Move(Goal(TileId(tile)))))),

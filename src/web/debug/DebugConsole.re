@@ -1,13 +1,15 @@
 open Haz3lcore;
+open Util;
 
 /* This is a place to add ad-hoc debugging print actions.
    It was originally directly in Keyboard, but that added a handler
    dependency on the model, which is technically against architecture */
 
 let print =
-    (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
-    : unit => {
-  let {editor: {state: {zipper, _}, _}, statics, _}: CodeWithStatics.Model.t = editor;
+    (~settings: Settings.t, model: CodeWithStatics.Model.t, key: string): unit => {
+  let editor = model |> CodeWithStatics.Model.get_editor;
+  let statics = model |> CodeWithStatics.Model.get_statics;
+  let {state: {zipper, _}, _}: Editor.t = editor;
   let term = statics.term;
   let map = statics.info_map;
   let print = print_endline;

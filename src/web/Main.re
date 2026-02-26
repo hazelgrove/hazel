@@ -43,7 +43,6 @@ let apply =
   let model' =
     CrashHandling.Update.calculate(
       ~schedule_action,
-      ~is_edited=updated.is_edit,
       ~dynamics=true,
       model,
       updated.model,
@@ -88,7 +87,6 @@ let start = {
       ~default_model=
         CrashHandling.Update.calculate(
           ~schedule_action=_ => (),
-          ~is_edited=true,
           ~dynamics=false,
           CrashHandling.Model.load(),
           CrashHandling.Model.load(),

@@ -34,15 +34,16 @@ module Update = {
       Editor.Update.update(
         ~settings=settings.core,
         action,
-        model.statics,
+        model |> Model.get_statics,
         model.dynamics,
-        model.editor,
+        model |> Model.get_editor,
       )
       |> (
         fun
         | Ok(editor) =>
           Model.{
-            editor,
+            editor: Calc.NewValue(editor),
+            is_edited: Action.is_edit(action),
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: None,
@@ -99,8 +100,8 @@ module Update = {
     | ContextMenu(action) =>
       let new_state =
         ContextMenu.WithContext.update(
-          ~info_map=model.statics.info_map,
-          ~zipper=model.editor.state.zipper,
+          ~info_map=(model |> Model.get_statics).info_map,
+          ~zipper=model |> Model.get_zipper,
           action,
           model.context_menu,
         );
@@ -116,7 +117,7 @@ module Update = {
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
-      let z = model.editor.state.zipper;
+      let z = model |> Model.get_zipper;
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
@@ -163,11 +164,13 @@ module Selection = {
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
   let handle_key_event = (~selection, model: Model.t, key: Key.t) => {
+    let editor = model |> Model.get_editor;
+    let statics = model |> Model.get_statics;
     /* Delegate to context menu key handler when menu is open */
     let context_menu_result =
       ContextMenu.WithContext.handle_key(
-        ~info_map=model.statics.info_map,
-        ~zipper=model.editor.state.zipper,
+        ~info_map=statics.info_map,
+        ~zipper=editor.state.zipper,
         key.key,
         model.context_menu,
       );
@@ -179,11 +182,7 @@ module Selection = {
     | ContextMenu.WithContext.Unhandled =>
       /* Fall through to projector key handoff, then base handler */
       switch (
-        ProjectorView.key_handoff(
-          model.editor,
-          key,
-          model.editor.syntax.projector_list,
-        )
+        ProjectorView.key_handoff(editor, key, editor.syntax.projector_list)
       ) {
       | Some(action) => Some(Update.Perform(Project(action)))
       | None => handle_key_event(~selection, model, key)
@@ -192,7 +191,8 @@ module Selection = {
   };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
-    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
+    let editor = model.editor |> Calc.get_value;
+    switch (TermData.root_tile(id, editor.syntax.term_data)) {
     | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };
@@ -281,20 +281,22 @@ module View = {
       selected && Model.context_menu_is_open(model),
       inject(ContextMenu(ContextMenu.Model.Close)),
     );
+    let editor = model |> Model.get_editor;
+    let statics = model |> Model.get_statics;
     let edit_decos =
       selected
         ? deco(
             ~expand_selection?,
-            ~syntax=model.editor.syntax,
+            ~syntax=editor.syntax,
             ~globals,
-            model.editor.state.zipper,
+            editor.state.zipper,
           )
           @ [
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
-              ~syntax=model.editor.syntax,
+              ~syntax=editor.syntax,
               ~dynamics,
-              model.editor.state.zipper,
+              editor.state.zipper,
             ),
           ]
           @ (
@@ -313,18 +315,18 @@ module View = {
                 ),
                 ContextMenu.view(
                   ~inject=a => inject(Perform(a)),
-                  ~syntax=model.editor.syntax,
-                  ~info_map=model.statics.info_map,
+                  ~syntax=editor.syntax,
+                  ~info_map=statics.info_map,
                   ~font_metrics=globals.font_metrics,
                   ~selected_index,
-                  model.editor.state.zipper,
+                  editor.state.zipper,
                 ),
               ]
             | None => []
             }
           )
         : [];
-    let zipper = model.editor.state.zipper;
+    let zipper = editor.state.zipper;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -333,9 +335,9 @@ module View = {
             zipper.refractors.manuals |> Id.Map.of_list,
             zipper.refractors.autos.ephemerals,
           ),
-        ~syntax=model.editor.syntax,
+        ~syntax=editor.syntax,
         ~indicated=Indicated.piece(zipper),
-        ~statics=model.statics.info_map,
+        ~statics=statics.info_map,
         ~dynamics,
         ~sample_cursor=zipper.refractors.sample_cursor,
         ~editor_active=selected,
@@ -358,14 +360,14 @@ module View = {
         globals.font_metrics,
         ~visible?,
         ProjectorView.Model.mk(
-          ~syntax=model.editor.syntax,
+          ~syntax=editor.syntax,
           ~indicated=Indicated.piece(zipper),
-          ~statics=model.statics.info_map,
+          ~statics=statics.info_map,
           ~dynamics,
           ~sample_cursor=zipper.refractors.sample_cursor,
           ~editor_active=selected,
         ),
-        model.editor.syntax.projector_list,
+        editor.syntax.projector_list,
       );
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]

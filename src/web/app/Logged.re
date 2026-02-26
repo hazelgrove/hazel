@@ -202,16 +202,9 @@ module Update = {
     };
 
   let calculate =
-      (
-        ~schedule_action: t => unit,
-        ~is_edited: bool,
-        ~dynamics,
-        model: Model.t,
-      )
-      : Model.t => {
+      (~schedule_action: t => unit, ~dynamics, model: Model.t): Model.t => {
     current:
-      model.current
-      |> History.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
+      model.current |> History.Update.calculate(~schedule_action, ~dynamics),
     future_log: model.future_log,
     past_log: model.past_log,
     replay_messages: model.replay_messages,

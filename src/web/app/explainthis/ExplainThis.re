@@ -375,8 +375,7 @@ let example_view =
                     |> Editor.Model.mk
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
-                         ~settings=globals.settings.core,
-                         ~is_edited=true,
+                         ~settings=Util.Calc.NewValue(globals.settings.core),
                          ~stitch=x => x,
                          ~queue_worker=None,
                        );
@@ -502,12 +501,7 @@ let get_doc =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
-          {
-            editor,
-            statics: CachedStatics.empty,
-            dynamics: Dynamics.Map.empty,
-            context_menu: None,
-          },
+          CodeWithStatics.Model.mk(editor),
         );
       let example_view =
         example_view(

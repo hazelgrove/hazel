@@ -97,7 +97,6 @@ module Update = {
   let calculate =
       (
         ~schedule_action: t => unit,
-        ~is_edited: bool,
         ~dynamics,
         previous_model: Model.t,
         model: Model.t,
@@ -105,8 +104,7 @@ module Update = {
       : Model.t =>
     try({
       model:
-        model.model
-        |> Logged.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
+        model.model |> Logged.Update.calculate(~schedule_action, ~dynamics),
     }) {
     | exn =>
       set_last_exception(exn);

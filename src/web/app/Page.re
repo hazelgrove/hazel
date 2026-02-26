@@ -211,7 +211,7 @@ module Update = {
                 current |> fst,
                 current
                 |> snd
-                |> (e => e.editor.editor.state.zipper)
+                |> (e => CellEditor.Model.get_zipper(e))
                 |> PersistentSegment.persist,
               ))
             );
@@ -366,19 +366,19 @@ module Update = {
     };
   };
 
-  let calculate =
-      (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
+  let calculate = (~schedule_action, ~dynamics: bool, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
         ~settings=
-          dynamics
-            ? model.globals.settings.core
-            : {
-              ...model.globals.settings.core,
-              dynamics: false,
-            },
+          Calc.NewValue(
+            dynamics
+              ? model.globals.settings.core
+              : {
+                ...model.globals.settings.core,
+                dynamics: false,
+              },
+          ),
         ~schedule_action=a => schedule_action(Editors(a)),
-        ~is_edited,
         model.editors,
       );
     let cursor_info =

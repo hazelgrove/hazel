@@ -283,7 +283,7 @@ module Update = {
             cell_editor.editor.dynamics,
           )
         | exception (Failure(_)) => (
-            CachedStatics.empty,
+            Calc.Pending,
             Language.Dynamics.Map.empty,
           )
         };
@@ -298,7 +298,7 @@ module Update = {
           Exercise.put_main_editor(
             ~selection=pos,
             model.editors,
-            new_editor.editor,
+            CodeEditable.Model.get_editor(new_editor),
           ),
       };
     | Editor(pos, MainEditor(action)) =>
@@ -317,7 +317,7 @@ module Update = {
             Exercise.put_main_editor(
               ~selection=pos,
               model.editors,
-              new_editor.editor,
+              CodeEditable.Model.get_editor(new_editor),
             ),
         };
       | None => Updated.return_quiet(model)
@@ -359,8 +359,7 @@ module Update = {
     };
   };
 
-  let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+  let calculate = (~settings, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
@@ -372,18 +371,16 @@ module Update = {
         (pos, {term, editor}: Exercise.TermItem.t, cell: CellEditor.Model.t) =>
           {
             editor: {
-              editor,
+              editor: Calc.NewValue(editor),
               statics: cell.editor.statics,
+              is_edited: cell.editor.is_edited,
               dynamics: EvalResult.Model.dynamics(cell.result),
               context_menu: None,
             },
             result: cell.result,
           }
           |> CellEditor.Update.calculate(
-               ~settings,
-               ~is_edited,
-               ~queue_worker=Some(queue_worker(pos)),
-               ~stitch=_ =>
+               ~settings, ~queue_worker=Some(queue_worker(pos)), ~stitch=_ =>
                term
              ),
         stitched_elabs,
@@ -424,13 +421,24 @@ module Update = {
       },
     );
 
+    let is_edited =
+      Exercise.exists_stitched(model.cells, (cell: CellEditor.Model.t) =>
+        cell.editor.is_edited
+      );
+
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Exercise.p('a) = {
       let calculate = (statics, dynamics, ed) =>
-        Editor.Update.calculate(~settings, statics, dynamics, ~is_edited, ed);
+        Editor.Update.calculate(
+          ~settings=Calc.get_value(settings),
+          statics,
+          dynamics,
+          ~is_edited,
+          ed,
+        );
 
       {
         id: model.editors.id,
@@ -440,20 +448,20 @@ module Update = {
         point_distribution: model.editors.point_distribution,
         prelude:
           calculate(
-            cells.prelude.editor.statics,
+            CodeEditable.Model.get_statics(cells.prelude.editor),
             cells.prelude.editor.dynamics,
             model.editors.prelude,
           ),
         correct_impl:
           calculate(
-            cells.test_validation.editor.statics,
+            CodeEditable.Model.get_statics(cells.test_validation.editor),
             cells.test_validation.editor.dynamics,
             model.editors.correct_impl,
           ),
         your_tests: {
           tests:
             calculate(
-              cells.user_tests.editor.statics,
+              CodeEditable.Model.get_statics(cells.user_tests.editor),
               cells.user_tests.editor.dynamics,
               model.editors.your_tests.tests,
             ),
@@ -462,7 +470,7 @@ module Update = {
         },
         your_impl:
           calculate(
-            cells.user_impl.editor.statics,
+            CodeEditable.Model.get_statics(cells.user_impl.editor),
             cells.user_impl.editor.dynamics,
             model.editors.your_impl,
           ),
@@ -473,7 +481,7 @@ module Update = {
               {
                 impl:
                   calculate(
-                    cell.editor.statics,
+                    CodeEditable.Model.get_statics(cell.editor),
                     cell.editor.dynamics,
                     editor.impl,
                   ),
@@ -485,7 +493,7 @@ module Update = {
         hidden_tests: {
           tests:
             calculate(
-              cells.hidden_tests.editor.statics,
+              CodeEditable.Model.get_statics(cells.hidden_tests.editor),
               cells.hidden_tests.editor.dynamics,
               model.editors.hidden_tests.tests,
             ),
@@ -921,12 +929,12 @@ module View = {
             let correct_impl_trailing_hole_ctx =
               Haz3lcore.Editor.Model.trailing_hole_ctx(
                 eds.correct_impl,
-                instructor.editor.statics.info_map,
+                CodeEditable.Model.get_statics(instructor.editor).info_map,
               );
             let prelude_trailing_hole_ctx =
               Haz3lcore.Editor.Model.trailing_hole_ctx(
                 eds.prelude,
-                prelude.editor.statics.info_map,
+                CodeEditable.Model.get_statics(prelude.editor).info_map,
               );
             switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
             | (None, _) => Node.div([text("No context available (1)")])
@@ -963,6 +971,7 @@ module View = {
       editor: {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
+        is_edited: editor.editor.is_edited,
         dynamics: Language.Dynamics.Map.empty,
         context_menu: None,
       },

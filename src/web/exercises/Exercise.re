@@ -592,6 +592,15 @@ let map_stitched = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) => {
   hidden_tests: f(HiddenTests, s.hidden_tests),
 };
 
+let exists_stitched = (s: stitched('a), f: 'a => bool): bool =>
+  f(s.test_validation)
+  || f(s.user_impl)
+  || f(s.user_tests)
+  || f(s.prelude)
+  || f(s.instructor)
+  || List.exists(f, s.hidden_bugs)
+  || f(s.hidden_tests);
+
 let get_stitched = (pos, s: stitched('a)): 'a =>
   switch (pos) {
   | YourTestsValidation => s.test_validation

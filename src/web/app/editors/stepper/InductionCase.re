@@ -110,9 +110,8 @@ module F = (Stepper: STEPPER) => {
       ) => {
     let pattern =
       CodeEditable.Update.calculate(
-        ~settings=Calc.get_value(settings),
-        ~dynamics=Dynamics.Map.empty,
-        ~is_edited=true, // This editor technically edits Exps, but we want a Pat, so we put it in a function to emulate that.
+        ~settings,
+        ~dynamics=Dynamics.Map.empty, // This editor technically edits Exps, but we want a Pat, so we put it in a function to emulate that.
         ~stitch=
           x =>
             x

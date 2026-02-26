@@ -4,8 +4,9 @@ open Language;
 
 let get_sketch_and_error_ctx =
     (editor: CodeWithStatics.Model.t): list(string) => {
-  let sketch_seg = Dump.to_segment(editor.editor.state.zipper);
-  let errors = ErrorPrint.all(editor.statics.info_map);
+  let sketch_seg = Dump.to_segment(CodeWithStatics.Model.get_zipper(editor));
+  let errors =
+    ErrorPrint.all(CodeWithStatics.Model.get_statics(editor).info_map);
   let static_error_arr =
     switch (errors) {
     | [] => ["No static errors found"]
@@ -195,7 +196,7 @@ module Composition = {
             String.length(
               ErrorPrint.Print.seg(
                 ~holes="?",
-                editor.editor.state.zipper.selection.content,
+                CodeWithStatics.Model.get_zipper(editor).selection.content,
               ),
             )
             == 0
@@ -203,7 +204,8 @@ module Composition = {
               : "```"
                 ++ ErrorPrint.Print.seg(
                      ~holes="?",
-                     editor.editor.state.zipper.selection.content,
+                     CodeWithStatics.Model.get_zipper(editor).selection.
+                       content,
                    )
                 ++ "```"
           ),

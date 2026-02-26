@@ -230,6 +230,9 @@ let map_stitched = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) => {
   hidden_tests: f(HiddenTests, s.hidden_tests),
 };
 
+let exists_stitched = (s: stitched('a), f: 'a => bool): bool =>
+  f(s.user_impl) || f(s.hidden_tests);
+
 let get_stitched = (pos, s: stitched('a)): 'a =>
   switch (pos) {
   | YourImpl => s.user_impl

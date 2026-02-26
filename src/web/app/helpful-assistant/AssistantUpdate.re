@@ -340,7 +340,7 @@ let check_req =
       ~chat_id: Id.t,
     )
     : unit => {
-  let z = editor.editor.state.zipper;
+  let z = CodeEditable.Model.get_zipper(editor);
   let caret = z.caret;
   let send_message = (tile_id, advanced_reasoning) => {
     schedule_setting(AssistantSettings.SwitchMode(CodeSuggestion));
@@ -614,12 +614,17 @@ let update =
             {
               let* sketch_z_with_tag =
                 Parser.to_zipper(
-                  ~zipper_init=editor.editor.state.zipper,
+                  ~zipper_init=CodeEditable.Model.get_zipper(editor),
                   tag,
                 );
               let sketch_seg = Dump.to_segment(sketch_z_with_tag);
-              let* index = Indicated.index(editor.editor.state.zipper);
-              let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
+              let* index =
+                Indicated.index(CodeEditable.Model.get_zipper(editor));
+              let+ ci =
+                Id.Map.find_opt(
+                  index,
+                  CodeEditable.Model.get_statics(editor).info_map,
+                );
               ChatLSP.Completion.mk_ctx_prompt(
                 ChatLSP.Options.init,
                 ci,
@@ -853,7 +858,7 @@ let update =
              let curr_selection =
                ErrorPrint.Print.seg(
                  ~holes=Some("?"),
-                 editor.editor.state.zipper.selection.content,
+                 (CodeEditable.Model.get_zipper(editor)).selection.content,
                );
              if (curr_selection == "") {
                mk_message_display(
@@ -1036,9 +1041,16 @@ let update =
         Str.regexp(
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
         );
-      let index = Option.get(Indicated.index(editor.editor.state.zipper));
-      let ci = Option.get(Id.Map.find_opt(index, editor.statics.info_map));
-      let sketch_z = editor.editor.state.zipper;
+      let index =
+        Option.get(Indicated.index(CodeEditable.Model.get_zipper(editor)));
+      let ci =
+        Option.get(
+          Id.Map.find_opt(
+            index,
+            CodeEditable.Model.get_statics(editor).info_map,
+          ),
+        );
+      let sketch_z = CodeEditable.Model.get_zipper(editor);
 
       let (_, completion) =
         if (Str.string_match(code_pattern, content, 0)) {

@@ -193,10 +193,9 @@ module F =
     }: model = model;
     let scrut =
       CodeEditable.Update.calculate(
-        ~settings=Calc.get_value(settings),
+        ~settings,
         ~ctx=Calc.get_value(ctx).ctx,
         ~dynamics=Dynamics.Map.empty,
-        ~is_edited=true,
         ~stitch=x => x,
         ~is_dynamic_term=true,
         scrut,

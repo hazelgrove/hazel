@@ -16,21 +16,19 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Updated:
-    editor: Editor.t,
+    editor: Calc.t(Editor.t),
+    is_edited: bool,
     context_menu: context_menu_state,
-    statics: CachedStatics.t,
+    statics: Calc.saved(CachedStatics.t),
     dynamics: Language.Dynamics.Map.t,
   };
 
   let context_menu_is_open = (model: t): bool => model.context_menu != None;
 
   let mk =
-      (
-        ~dynamics=Language.Dynamics.Map.empty,
-        ~statics=CachedStatics.empty,
-        editor,
-      ) => {
-    editor,
+      (~dynamics=Language.Dynamics.Map.empty, ~statics=Calc.Pending, editor) => {
+    editor: Calc.NewValue(editor),
+    is_edited: true, // so that it recalcualtes fully
     statics,
     dynamics,
     context_menu: None,
@@ -51,38 +49,51 @@ module Model = {
     |> mk;
   };
 
-  let get_statics = (model: t) => model.statics;
+  let get_editor = (model: t): Editor.t => model.editor |> Calc.get_value;
+
+  let stale_editor = (model: t): t => {
+    ...model,
+    editor: model.editor |> Calc.make_new,
+  };
+
+  let get_zipper = (model: t) => (model |> get_editor).state.zipper;
+
+  let get_statics = (model: t) =>
+    model.statics |> Calc.get_saved(CachedStatics.empty);
 
   let get_dynamics = (model: t) => model.dynamics;
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
-    info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
-    indicated_piece:
-      Indicated.piece''(model.editor.state.zipper)
-      |> Option.map(((p, _, _)) => p),
-    selected_text:
-      Some(
-        () =>
-          Printer.of_segment(
-            ~refractors=model.editor.state.zipper.refractors.manuals,
-            model.editor.state.zipper.selection.content,
-          ),
-      ),
-    selection: Some(model.editor.state.zipper.selection.content),
-    editor: Some(model.editor),
-    editor_read_only: true,
-    editor_action: x => Some(x),
-    undo_action: None,
-    redo_action: None,
-    error_ids: model.statics.error_ids,
+    let editor = model |> get_editor;
+    let statics = model.statics |> Calc.get_saved(CachedStatics.empty);
+    {
+      info: Indicated.ci_of(editor.state.zipper, statics.info_map),
+      indicated_piece:
+        Indicated.piece''(editor.state.zipper)
+        |> Option.map(((p, _, _)) => p),
+      selected_text:
+        Some(
+          () =>
+            Printer.of_segment(
+              ~refractors=editor.state.zipper.refractors.manuals,
+              editor.state.zipper.selection.content,
+            ),
+        ),
+      selection: Some(editor.state.zipper.selection.content),
+      editor: Some(editor),
+      editor_read_only: true,
+      editor_action: x => Some(x),
+      undo_action: None,
+      redo_action: None,
+      error_ids: statics.error_ids,
+    };
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;
-  let persist = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.persist;
+  let persist = (model: t) => model |> get_zipper |> PersistentZipper.persist;
   let to_string = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.to_string;
+    model |> get_zipper |> PersistentZipper.to_string;
   let unpersist = p =>
     p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
@@ -95,37 +106,52 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~is_edited,
         ~ctx=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, dynamics: _}: Model.t,
+        {editor, statics, is_edited, context_menu, dynamics: _}: Model.t,
       )
       : Model.t => {
     let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
-      );
+      editor
+      |> {
+        open Calc.Syntax;
+        let.calc_t editor = editor
+        and.calc settings = settings;
+        Editor.Update.calculate(
+          ~settings,
+          ~is_edited,
+          statics |> Calc.get_saved(CachedStatics.empty),
+          dynamics,
+          editor,
+        );
+      };
+
     let statics =
-      is_edited
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            editor.state.zipper,
-          )
-        : statics;
+      statics
+      |> {
+        open Calc.Syntax;
+        let.calc editor = editor
+        and.calc settings = settings;
+        CachedStatics.init(
+          ~settings,
+          ~stitch,
+          ~ctx?,
+          ~ana?,
+          ~is_dynamic_term,
+          editor.state.zipper,
+        );
+      };
+
+    let editor = Calc.make_old(editor);
+    let statics = Calc.save(statics);
+
     {
       editor,
       statics,
+      is_edited: false,
       dynamics,
       context_menu,
     };
@@ -137,15 +163,15 @@ module View = {
   type event;
 
   let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+    let editor: Editor.t = model.editor |> Calc.get_value;
+    let statics: CachedStatics.t =
+      model.statics |> Calc.get_saved(CachedStatics.empty);
     let {
-      editor:
-        {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
-          state: {zipper: z, _},
-          _,
-        },
+      syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+      state: {zipper: z, _},
       _,
-    }: Model.t = model;
+    }: Editor.t =
+      model.editor |> Calc.get_value;
     let code_text_view =
       CodeViewable.view(
         ~globals,
@@ -159,16 +185,16 @@ module View = {
     let error_decos =
       Arms.Errors.of_ids(
         ~font_metrics=globals.font_metrics,
-        ~syntax=model.editor.syntax,
-        model.statics.error_ids,
+        ~syntax=editor.syntax,
+        statics.error_ids,
       );
     let warning_ids =
-      globals.settings.core.display_warnings ? model.statics.warning_ids : [];
+      globals.settings.core.display_warnings ? statics.warning_ids : [];
     let warning_decos =
       Arms.Errors.of_ids(
         ~is_warning=true,
         ~font_metrics=globals.font_metrics,
-        ~syntax=model.editor.syntax,
+        ~syntax=editor.syntax,
         warning_ids,
       );
     let container_classes =

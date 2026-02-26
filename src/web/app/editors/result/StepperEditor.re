@@ -37,7 +37,6 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~is_edited,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~ana,
@@ -47,7 +46,6 @@ module Update = {
     let editor =
       CodeSelectable.Update.calculate(
         ~settings,
-        ~is_edited,
         ~stitch,
         ~dynamics,
         ~is_dynamic_term=true,
@@ -132,11 +130,12 @@ module View = {
     @ next_steps(model.next_steps, ~inject=x =>
         {
           open OptUtil.Syntax;
+          let editor = model.editor |> CodeEditable.Model.get_editor;
           let+ range =
             TermData.extreme_measures(
               List.nth(model.next_steps, x),
-              model.editor.editor.syntax.term_data,
-              model.editor.editor.syntax.measured,
+              editor.syntax.term_data,
+              editor.syntax.measured,
             );
           Some(List.nth(model.next_steps, x)) == selected_id
             ? signal(TakeStep(x)) : inject(Select(PointToPoint(range)));
@@ -146,11 +145,12 @@ module View = {
     @ refl_steps(model.refls, ~inject=x =>
         {
           open OptUtil.Syntax;
+          let editor = model.editor |> CodeEditable.Model.get_editor;
           let+ range =
             TermData.extreme_measures(
               List.nth(model.refls, x),
-              model.editor.editor.syntax.term_data,
-              model.editor.editor.syntax.measured,
+              editor.syntax.term_data,
+              editor.syntax.measured,
             );
           Some(List.nth(model.refls, x)) == selected_id
             ? signal(Refl(x))
@@ -187,7 +187,7 @@ module View = {
       ~overlays=
         overlays
         @ deco(
-            ~syntax=model.editor.editor.syntax,
+            ~syntax=(model.editor |> CodeEditable.Model.get_editor).syntax,
             ~font_metrics=globals.font_metrics,
             ~inject,
             ~selected_id,
