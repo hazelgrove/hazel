@@ -146,24 +146,32 @@ let add_test = (state: t, instance_report: TestMap.instance_report) => {
     ),
 };
 let add_sample = (state: t, sample: Sample.t) => {
-  /* Deduplicate: skip recording if a sample at the top level (empty
-   * call_stack) already exists for this syntax_id. This prevents
-   * duplicate samples caused by ascription distribution: when a value
-   * with a probe target ID flows through a typed function, the Asc
-   * transition distributes type annotations into compound values
-   * (tuples, lists), creating Asc wrappers that force re-evaluation
-   * of the inner values with a deeper call_stack. The top-level
-   * sample (from the original definition-site evaluation) is always
-   * the authoritative one. */
+  /* Deduplicate: skip recording if an existing sample for this
+   * syntax_id makes the new one redundant. Two rules:
+   *
+   * 1. Ascription dominance: a non-empty call_stack sample is
+   *    dominated by an existing empty call_stack sample. This
+   *    prevents duplicates from Asc distribution through typed
+   *    functions, where inner values get re-evaluated at deeper
+   *    call stacks.
+   *
+   * 2. Same-context duplicate: a sample with the same call_stack
+   *    as an existing sample is redundant. This prevents duplicates
+   *    from wrap_closure_when_done, where expressions that are
+   *    immediately "done" (values, indeterminate, constructors) get
+   *    wrapped in a Closure and re-evaluated with the same target ID. */
   let dominated =
-    sample.call_stack != []
-    && (
-      switch (Id.Map.find_opt(sample.syntax_id, state.probes)) {
-      | Some(existing) =>
-        List.exists((s: Sample.t) => s.call_stack == [], existing)
-      | None => false
-      }
-    );
+    switch (Id.Map.find_opt(sample.syntax_id, state.probes)) {
+    | Some(existing) =>
+      List.exists(
+        (s: Sample.t) =>
+          s.call_stack == sample.call_stack
+          || sample.call_stack != []
+          && s.call_stack == [],
+        existing,
+      )
+    | None => false
+    };
   if (dominated) {
     state;
   } else {

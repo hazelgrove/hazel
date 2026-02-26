@@ -909,6 +909,26 @@ g(f(x))|},
 [f(1), f(2), f(3)]|},
     [(0, ["1", "2", "3"])],
   ),
+  /* Unbound variable: should produce exactly one sample, not two */
+  probe_line_test(
+    "Probe on unbound variable produces single sample",
+    {|^^probe(x)|},
+    [(0, ["x"])],
+  ),
+  /* Function value at top level: wrap_closure_when_done wraps Fun in
+   * Closure, causing re-evaluation of inner expression with same target ID */
+  probe_line_test(
+    "Probe on function value produces single sample",
+    {|^^probe(fun x -> x)|},
+    [(0, ["^^fold(fun x -> x)"])],
+  ),
+  /* Indet case with no rules: wrap_closure_when_done wraps the indet
+   * Match in Closure, causing re-evaluation with same target ID */
+  probe_line_test(
+    "Probe on case with no rules produces single sample",
+    {|^^probe(case 1 end)|},
+    [(0, ["case 1 end"])],
+  ),
 ];
 
 let tests = [

@@ -225,11 +225,7 @@ let rec evaluate =
           probe,
         );
       state := EvaluatorState.clear_probe_start(state^, expr_id);
-      state :=
-        {
-          ...state^,
-          probes: Sample.Map.extend(expr_id, sample, state^.probes),
-        };
+      state := EvaluatorState.add_sample(state^, sample);
       Trampoline.return((EvaluatorEVMode.Final, [], final_value));
     | None => Trampoline.Next(() => evaluate(~call_stack, state, env, next))
     }
