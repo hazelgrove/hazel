@@ -347,6 +347,15 @@ let if_expression_tests = [
   else val3 in          # val3 #
 1 + 1                   # 1 + 1 #|},
   ),
+  test_probe_placement(
+    ~name="Multi-line if with hole else - probe hole for branch frequency",
+    ~code=
+      {|let result =  # result #
+  if condition then   # condition #
+  branch1             # branch1 #
+  else ? in           # ? #
+1 + 1                 # 1 + 1 #|},
+  ),
 ];
 
 /* FUNCTION TYPE FILTERING - soft reject function values (probe if nothing better) */
@@ -386,6 +395,20 @@ end           # case x | 0 => a | _ => b end #|},
   ),
 ];
 
+/* INCOMPLETE BINDING FORM SPECIAL CASES - prefer trailing sibling over
+ * the incomplete form, same rationale as complete if adjustment */
+let incomplete_binding_tests = [
+  test_probe_placement(
+    ~name="Incomplete if (just if keyword) - probe hole not incomplete tile",
+    ~code={|if ? # ? #|},
+  ),
+  test_probe_placement(
+    ~name="Incomplete if-then (missing else) - probe hole not incomplete tile",
+    ~code={|if cond  # cond #
+then ?   # ? #|},
+  ),
+];
+
 let tests = [
   ("MultiProbe.Basic", basic_tests),
   ("MultiProbe.DefaultSelection", nested_multiline_tests),
@@ -396,4 +419,5 @@ let tests = [
   ("MultiProbe.IfExpressions", if_expression_tests),
   ("MultiProbe.FunctionTypes", function_type_tests),
   ("MultiProbe.CaseExpressions", case_expression_tests),
+  ("MultiProbe.IncompleteBindingForms", incomplete_binding_tests),
 ];

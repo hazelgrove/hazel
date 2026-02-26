@@ -556,6 +556,18 @@ let rec extract_candidate_with_end =
     };
   };
 
+/* When the first candidate on a row is an if expression, promote its
+ * else branch (which ends at the same position) to be tried first,
+ * and drop the if from the candidates entirely. The branch is always
+ * more specific than the enclosing if -- and critically, this prevents
+ * hole avoidance from rejecting a hole else branch in favor of the
+ * whole if expression. For branching forms, even a hole branch is
+ * worth probing: the sample count shows branch frequency.
+ *
+ * NOTE: case expressions with `end` on the same line as the last
+ * branch have an analogous issue -- a hole branch would be rejected
+ * in favor of the whole case. A similar adjust_candidates_for_case
+ * could handle this if it comes up in practice. */
 let adjust_candidates_for_if =
     (row: row_context, env: selection_env): list(Id.t) =>
   switch (row.ids) {
@@ -574,12 +586,39 @@ let adjust_candidates_for_if =
         let (maybe_else, remaining) =
           extract_candidate_with_end(rest, env, target_row, target_col, []);
         switch (maybe_else) {
-        | Some(else_id) => [else_id, first_id, ...remaining]
+        | Some(else_id) => [else_id, ...remaining]
         | None => row.ids
         };
       | None => row.ids
       };
     };
+  };
+
+/* When the first candidate is an incomplete binding form (missing a
+ * body-introducing keyword like `else`, `in`, or `end`), promote its
+ * trailing sibling and drop the incomplete form. Same rationale as
+ * adjust_candidates_for_if: the trailing expression/hole is more
+ * specific, and for incomplete branching forms (e.g. `if cond then ?`
+ * missing `else`), the hole's sample count shows branch frequency. */
+let adjust_candidates_for_incomplete_binding =
+    (ids: list(Id.t), env: selection_env): list(Id.t) =>
+  switch (ids) {
+  | [] => []
+  | [first_id, ...rest] =>
+    if (!is_incomplete_binding_form(first_id, env.data)) {
+      ids;
+    } else {
+      switch (term_end_position(first_id, env)) {
+      | Some((target_row, target_col)) =>
+        let (maybe_trailing, remaining) =
+          extract_candidate_with_end(rest, env, target_row, target_col, []);
+        switch (maybe_trailing) {
+        | Some(trailing_id) => [trailing_id, ...remaining]
+        | None => ids
+        };
+      | None => ids
+      };
+    }
   };
 
 let rec collect_pattern_binding_ids =
@@ -624,7 +663,16 @@ let select_in_row =
     (row: row_context, env: selection_env, state: selection_state)
     : (option(Id.t), selection_state) => {
   let adjusted_ids = adjust_candidates_for_if(row, env);
-  choose_candidate(adjusted_ids, row, env, state);
+  let adjusted_ids =
+    adjust_candidates_for_incomplete_binding(adjusted_ids, env);
+  /* Recompute hole_only after adjustments -- dropping forms from the
+   * candidates may leave only holes, allowing them through. */
+  let adjusted_row = {
+    ...row,
+    ids: adjusted_ids,
+    hole_only: row_is_hole_only(adjusted_ids, env.terms),
+  };
+  choose_candidate(adjusted_ids, adjusted_row, env, state);
 };
 
 let rec select_rows =
