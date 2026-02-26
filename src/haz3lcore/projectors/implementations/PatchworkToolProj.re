@@ -380,12 +380,24 @@ module M: Projector = {
           | Some(t) => t.width
           | None => 400
           };
+        let tool_height =
+          switch (tool_config) {
+          | Some(t) => t.height
+          | None => 200
+          };
         Node.create(
           "patchwork-view",
           ~attrs=[
             Attr.create("doc-url", model.url),
             Attr.create("tool-id", model.tool),
-            Attr.create("style", Printf.sprintf("width: %dpx;", tool_width)),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "width: %dpx; height: %dpx;",
+                tool_width,
+                tool_height,
+              ),
+            ),
           ],
           [],
         );
