@@ -367,13 +367,6 @@ let split_views =
   (line_view, overlay_view);
 };
 
-/* Is the piece with id indicated? If so, where is it wrt the caret? */
-let indication = (z, id) =>
-  switch (Indicated.piece(z)) {
-  | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
-  | _ => None
-  };
-
 let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
 
