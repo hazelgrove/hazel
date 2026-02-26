@@ -13,9 +13,10 @@ let exercise : Tutorial.spec =
 
 The code below defines a `products` table with `name`, `price`, and `qty` columns. Add a computed `total` column:
 
-1. **Add a probe** on `products` in the `with_totals` binding (right-click → **"Add probe"**, or **Cmd+E** / **Ctrl+E**), then press the **table button**.
-2. Add a new column `total`. Click the **⋮** button next to a column name and select **Add Column**. This rewrites the source code to include a new column.
-3. In the textual source code, fill in the expression: `r.price *. float_of_int(r.qty)`. The table updates live as you edit the code.|md};
+1. **Add a probe** on `products` in the `with_totals` binding (right-click → **"Add probe"**, or **Cmd+E** / **Ctrl+E**).
+2. Press the **table button** to switch to the rich table view.
+3. Add a new column `total`. Click the **⋮** button next to a column name and select **Add Column**. This rewrites the source code to include a new column.
+4. In the textual source code, fill in the hole in the new column's expression with: `r.price *. float_of_int(r.qty)`. The table updates live as you edit the code.|md};
     display_hint =
       "After adding a probe and pressing the table button, click the ⋮ button \
        next to a column name and select Add Column. This rewrites the source \

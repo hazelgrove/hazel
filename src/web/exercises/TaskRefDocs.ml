@@ -2,7 +2,10 @@ let column_projection =
   "### Column Projection\n\
    Access a column from a table (list of labeled tuples):\n\
    ```hazel\n\
-   let t = [(name=\"A\", score=90), (name=\"B\", score=80)] in\n\
+   let t = [\n\
+   (name=\"A\", score=90),\n\
+   (name=\"B\", score=80)\n\
+   ] in\n\
    t.score\n\
    ```\n"
 
@@ -10,7 +13,10 @@ let table_construction =
   "### Table Construction\n\
    A table is a list of labeled tuples:\n\
    ```hazel\n\
-   let t = [(name=\"A\", score=90), (name=\"B\", score=80)] in\n\
+   let t = [\n\
+   (name=\"A\", score=90),\n\
+   (name=\"B\", score=80)\n\
+   ] in\n\
    t\n\
    ```\n"
 
