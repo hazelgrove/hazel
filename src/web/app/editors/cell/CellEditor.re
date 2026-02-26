@@ -101,7 +101,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~auto_probe_mode=false,
+        ~autoprobe_mode=false,
         ~is_edited,
         ~queue_worker,
         ~stitch,
@@ -112,7 +112,7 @@ module Update = {
     let editor =
       CodeEditable.Update.calculate(
         ~settings,
-        ~auto_probe_mode,
+        ~autoprobe_mode,
         ~is_edited,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
@@ -138,10 +138,10 @@ module Update = {
       || editor.editor.state.zipper.refractors.pending_probe_cursor != None;
     let editor =
       if (needs_second_pass) {
-        /* Pass auto_probe_mode to second pass to avoid clear_auto_def removing the probe */
+        /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
         CodeEditable.Update.calculate(
           ~settings,
-          ~auto_probe_mode,
+          ~autoprobe_mode,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
           ~dynamics=EvalResult.Model.dynamics(result),

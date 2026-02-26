@@ -387,10 +387,10 @@ let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
       {
         // Widgets.toggle_named(
         //   ~tooltip="Auto-probe mode (Cmd/Ctrl+Shift+P)",
-        //   globals.settings.auto_probe_mode ? "A" : "M",
-        //   globals.settings.auto_probe_mode,
+        //   globals.settings.autoprobe_mode ? "A" : "M",
+        //   globals.settings.autoprobe_mode,
         //   _ =>
-        //   globals.inject_global(Set(AutoProbeMode))
+        //   globals.inject_global(Set(AutoprobeMode))
         // ),
         // toggle(
         //   ~tooltip="One or Many Samples",
@@ -799,7 +799,7 @@ let probearium =
     //       Id.Map.union(
     //         (_, _, b) => Some(b),
     //         Id.Map.of_list(zipper.refractors.manuals),
-    //         zipper.refractors.autos.ephemerals,
+    //         zipper.refractors.multis.ephemerals,
     //       ),
     //     ~syntax=editor.editor.syntax,
     //     ~indicated=Indicated.piece(zipper),

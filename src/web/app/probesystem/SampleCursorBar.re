@@ -75,7 +75,7 @@ let unpin = (~globals: Globals.t, pinned_stack: Sample.call_stack, _) =>
 /* Check if any probes exist */
 let has_probes = (refractors: Zipper.Refractor.t): bool =>
   !List.is_empty(refractors.manuals)
-  || !Id.Map.is_empty(refractors.autos.ids);
+  || !Id.Map.is_empty(refractors.multis.ids);
 
 /* Walk up the call stack from a given index to find the nearest frame
  * whose app_id is in user code. Used as a fallback for separator clicks
@@ -313,7 +313,7 @@ let view =
   /* Hide when no probes exist, unless auto-probe mode is on
    * (in auto-probe mode the bar stays visible to avoid flickering
    * as the cursor enters/exits function definitions) */
-  if (!has_probes(refractors) && !globals.settings.auto_probe_mode) {
+  if (!has_probes(refractors) && !globals.settings.autoprobe_mode) {
     div(~attrs=[Attr.id("closure-cursor-bar"), Attr.class_("hidden")], []);
   } else {
     let sample_cursor = refractors.sample_cursor;

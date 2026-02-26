@@ -223,14 +223,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~auto_probe_mode, ~is_edited, ~schedule_action, model) => {
+      (~settings, ~autoprobe_mode, ~is_edited, ~schedule_action, model) => {
     switch (model) {
     | Model.Scratch(m) =>
       Model.Scratch(
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
-          ~auto_probe_mode,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),
@@ -240,7 +240,7 @@ module Update = {
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
-          ~auto_probe_mode,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),

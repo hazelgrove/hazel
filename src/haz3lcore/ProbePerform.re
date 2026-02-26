@@ -111,7 +111,7 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
 type probe_status =
   | Manual(list(Id.t)) /* manual probe; ids are target IDs (for fun literals: pat and body) */
   | Statics(list(Id.t)) /* statics annotation; ids are target IDs */
-  | Auto
+  | Multi
   | Non;
 
 let probe_status =
@@ -136,9 +136,9 @@ let probe_status =
       );
     all_statics ? Statics(target_ids) : Manual(target_ids);
   } else if
-    /* For Auto: check if ANY target ID is an auto probe anchor */
-    (List.exists(id => Id.Map.mem(id, refractors.autos.ids), target_ids)) {
-    Auto;
+    /* For Multi: check if ANY target ID is a multi probe anchor */
+    (List.exists(id => Id.Map.mem(id, refractors.multis.ids), target_ids)) {
+    Multi;
   } else {
     Non;
   };
@@ -146,7 +146,7 @@ let probe_status =
 
 let ids_from_term =
     (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) =>
-  AutoProbe.ids_to_autoprobe(
+  MultiProbe.ids_to_multiprobe(
     id,
     syntax.term_data,
     syntax.terms,
@@ -187,7 +187,7 @@ let sort_ids_lexically =
 /* Check if id has either manual or ephemeral probe on it */
 let has_probe = (id: Id.t, z: Zipper.t): bool =>
   List.assoc_opt(id, z.refractors.manuals) != None
-  || Id.Map.mem(id, z.refractors.autos.ephemerals);
+  || Id.Map.mem(id, z.refractors.multis.ephemerals);
 
 let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
   z =>
@@ -203,7 +203,7 @@ let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
 /* Check if there are no probes (manual or auto) remaining */
 let has_no_probes = (z: Zipper.t): bool =>
   List.is_empty(z.refractors.manuals)
-  && Id.Map.is_empty(z.refractors.autos.ids);
+  && Id.Map.is_empty(z.refractors.multis.ids);
 
 /* Reset the sample cursor if no probes remain.
  * This prevents stale dynamic cursor state from showing in the sidebar
@@ -211,7 +211,7 @@ let has_no_probes = (z: Zipper.t): bool =>
 let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
   has_no_probes(z) ? SampleCursorPerform.reset(z) : z;
 
-let rm_auto =
+let rm_multi =
     (
       ~drill: bool=true,
       ~syntax: CachedSyntax.t,
@@ -220,22 +220,22 @@ let rm_auto =
       z: Zipper.t,
     )
     : Zipper.t => {
-  /* Remove all target IDs from autos, like rm_manual does for manuals.
+  /* Remove all target IDs from multis, like rm_manual does for manuals.
      When drill=false, remove just the ID directly (must match how it was added). */
   let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      autos: {
+      multis: {
         ids:
           Id.Map.filter(
             (id, _) => !List.mem(id, target_ids),
-            z.refractors.autos.ids,
+            z.refractors.multis.ids,
           ),
         ephemerals:
           Id.Map.filter(
             (id', _) => !List.mem(id', target_ids),
-            z.refractors.autos.ephemerals,
+            z.refractors.multis.ephemerals,
           ),
       },
     }
@@ -367,8 +367,8 @@ let toggle_manual =
     (~syntax: CachedSyntax.t, id: Id.t, ~info_map: Statics.Map.t, z: Zipper.t)
     : Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
-  | Auto =>
-    rm_auto(~syntax, ~info_map, id, z) |> add_manual(~syntax, id, info_map)
+  | Multi =>
+    rm_multi(~syntax, ~info_map, id, z) |> add_manual(~syntax, id, info_map)
   | Statics(ids) =>
     /* Switch from statics to manual probe */
     rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
@@ -378,11 +378,11 @@ let toggle_manual =
   | Non => add_manual(~syntax, id, info_map, z)
   };
 
-let add_ids_from_auto_term =
+let add_ids_from_multi_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
-  let auto_ids = Id.Map.bindings(z.refractors.autos.ids) |> List.map(fst);
+  let auto_ids = Id.Map.bindings(z.refractors.multis.ids) |> List.map(fst);
   let ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
-  let old_ephemerals = z.refractors.autos.ephemerals;
+  let old_ephemerals = z.refractors.multis.ephemerals;
   let new_ephemeral_map =
     List.fold_left(
       (map, id) => Id.Map.add(id, Refractors.mk_entry(Probe), map),
@@ -406,11 +406,11 @@ let add_ids_from_auto_term =
   };
 };
 
-/* Whether to update sample cursor when auto-def mode moves probes.
- * Set to false to disable cursor following for auto-def mode. */
-let auto_def_updates_cursor = true;
+/* Whether to update sample cursor when auto probe moves probes.
+ * Set to false to disable cursor following for auto probe. */
+let autoprobe_updates_cursor = true;
 
-let add_auto =
+let add_multi =
     (
       id: Id.t,
       ~drill: bool=true,
@@ -420,31 +420,31 @@ let add_auto =
       z: Zipper.t,
     )
     : Zipper.t => {
-  /* Add all target IDs to autos, like add_manual does for manuals.
+  /* Add all target IDs to multis, like add_manual does for manuals.
      When drill=false, probe the ID directly without drilling into subterms
-     (used for auto-def mode to stay on top-level definition). */
+     (used for auto probe to stay on top-level definition). */
   let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
   let z =
     Zipper.update_refractors(z, refractors =>
       {
         ...refractors,
-        autos: {
-          ...refractors.autos,
+        multis: {
+          ...refractors.multis,
           ids:
             List.fold_left(
               (map, id) => Id.Map.add(id, (), map),
-              z.refractors.autos.ids,
+              z.refractors.multis.ids,
               target_ids,
             ),
         },
       }
     )
-    |> add_ids_from_auto_term(~syntax, ~info_map);
+    |> add_ids_from_multi_term(~syntax, ~info_map);
 
   /* Set pending_probe_cursor so sample cursor updates when eval returns */
   if (set_pending_cursor) {
-    /* Use the same target_ids that go into autos.ids, so the ephemeral IDs
-       match what add_ids_from_auto_term computes for sample lookup. */
+    /* Use the same target_ids that go into multis.ids, so the ephemeral IDs
+       match what add_ids_from_multi_term computes for sample lookup. */
     let ephemeral_ids =
       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids);
     let sorted_ids = sort_ids_lexically(~syntax, ephemeral_ids);
@@ -459,25 +459,25 @@ let add_auto =
   };
 };
 
-let toggle_auto =
+let toggle_multi =
     (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
     : Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
-  | Auto => rm_auto(~syntax, ~info_map, id, z)
+  | Multi => rm_multi(~syntax, ~info_map, id, z)
   | Manual(ids)
-  | Statics(ids) => rm_manual(ids, z) |> add_auto(id, ~syntax, ~info_map)
+  | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
   | Non =>
     /* Use same gating as manual probes: if target_subterm_ids returns [],
        the term is not probeable. */
     switch (target_subterm_ids(id, info_map)) {
     | [] => z /* Can't probe this (type, type pattern, label, etc.) */
-    | _ => add_auto(id, ~syntax, ~info_map, z)
+    | _ => add_multi(id, ~syntax, ~info_map, z)
     }
   };
 
 /* Check if the indicated term is a definition form (Let or Test/HintedTest).
-   When true, the unified probe action adds an auto probe instead of manual.
-   This is because definition bodies benefit from auto-probe's per-line
+   When true, the unified probe action adds a multi probe instead of manual.
+   This is because definition bodies benefit from multi probe's per-line
    expansion, while specific expressions are better served by manual probes. */
 let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
   switch (Statics.Map.lookup(id, info_map)) {
@@ -486,30 +486,30 @@ let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
   | _ => false
   };
 
-/* Unified probe toggle: on definition forms (Let, Test), adds/removes auto
+/* Unified probe toggle: on definition forms (Let, Test), adds/removes multi
    probes; on other terms, adds/removes manual probes. This merges the
-   previously separate ToggleManual/ToggleAuto actions into a single
+   previously separate ToggleManual/ToggleMulti actions into a single
    context-sensitive action behind one keyboard shortcut (Cmd+E). */
 let toggle_probe =
     (~syntax: CachedSyntax.t, id: Id.t, ~info_map: Statics.Map.t, z: Zipper.t)
     : Zipper.t =>
   if (is_definition_form(id, info_map)) {
-    /* Definition form: use auto probe */
+    /* Definition form: use multi probe */
     switch (probe_status(id, info_map, z.refractors)) {
-    | Auto => rm_auto(~syntax, ~info_map, id, z)
+    | Multi => rm_multi(~syntax, ~info_map, id, z)
     | Manual(ids) => rm_manual(ids, z)
-    | Statics(ids) => rm_manual(ids, z) |> add_auto(id, ~syntax, ~info_map)
+    | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
     | Non =>
       switch (target_subterm_ids(id, info_map)) {
       | [] => z
-      | _ => add_auto(id, ~syntax, ~info_map, z)
+      | _ => add_multi(id, ~syntax, ~info_map, z)
       }
     };
   } else {
     /* Non-definition: use manual probe */
     switch (probe_status(id, info_map, z.refractors)) {
     | Manual(ids) => rm_manual(ids, z)
-    | Auto => rm_auto(~syntax, ~info_map, id, z)
+    | Multi => rm_multi(~syntax, ~info_map, id, z)
     | Statics(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
     | Non => add_manual(~syntax, id, info_map, z)
     };
@@ -617,22 +617,22 @@ let step_into_call_stack =
   let* ci_body = Statics.Map.lookup(body_id, info_map);
 
   /* Ensure a manual probe on the source expression (ap_id) before jumping.
-     If there's only an auto probe, promote it to manual so it persists. */
+     If there's only a multi probe, promote it to manual so it persists. */
   let z =
     switch (probe_status(ap_id, info_map, z.refractors)) {
     | Manual(_)
     | Statics(_) => z
-    | Auto
+    | Multi
     | Non => Zipper.add_manual(ap_id, Probe, z)
     };
 
-  /* Add auto probe on function body if not already probed */
+  /* Add multi probe on function body if not already probed */
   let z =
     switch (probe_status(body_id, info_map, z.refractors)) {
-    | Auto
+    | Multi
     | Manual(_)
     | Statics(_) => z
-    | Non => add_auto(body_id, ~syntax, ~info_map, z)
+    | Non => add_multi(body_id, ~syntax, ~info_map, z)
     };
 
   /* Set pin and dyn cursor using the call_stack */
@@ -710,9 +710,9 @@ let toggle_statics =
     | Manual(ids) =>
       /* Switch from manual probe to statics */
       rm_manual(ids, z) |> add_statics
-    | Auto =>
-      /* Switch from auto probe to statics */
-      rm_auto(~syntax, ~info_map, id, z) |> add_statics
+    | Multi =>
+      /* Switch from multi probe to statics */
+      rm_multi(~syntax, ~info_map, id, z) |> add_statics
     | Non =>
       /* Add statics */
       add_statics(z)
@@ -751,7 +751,7 @@ let go =
     }
   | ToggleAuto =>
     switch (Indicated.index(z)) {
-    | Some(id) => toggle_auto(~syntax, id, info_map, z)
+    | Some(id) => toggle_multi(~syntax, id, info_map, z)
     | None => z
     }
   | ToggleStatics =>
@@ -765,13 +765,13 @@ let go =
     | None => z
     }
   | Pin(call_stack, ap_id) =>
-    /* Promote auto probe to manual so it persists across cursor movement,
+    /* Promote multi probe to manual so it persists across cursor movement,
        then toggle the pin on this call stack */
     let z =
       switch (probe_status(ap_id, info_map, z.refractors)) {
       | Manual(_)
       | Statics(_) => z
-      | Auto
+      | Multi
       | Non => Zipper.add_manual(ap_id, Probe, z)
       };
     SampleCursorPerform.toggle_pin_call(z, call_stack);
@@ -781,8 +781,8 @@ let go =
     |> Zipper.update_refractors(_, r =>
          {
            ...r,
-           autos: {
-             ...r.autos,
+           multis: {
+             ...r.multis,
              ids: Id.Map.empty,
            },
          }
@@ -797,7 +797,7 @@ let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
   switch (List.assoc_opt(id, z.refractors.manuals)) {
   | Some(entry: Refractors.entry) => Some(entry.kind)
   | None =>
-    switch (Id.Map.find_opt(id, z.refractors.autos.ephemerals)) {
+    switch (Id.Map.find_opt(id, z.refractors.multis.ephemerals)) {
     | Some(entry: Refractors.entry) => Some(entry.kind)
     | None => None
     }
@@ -889,7 +889,7 @@ let resolve_pending_probe_cursor =
     };
   };
 
-/* Post-calculation probe effects: cleanup, auto-probe regeneration,
+/* Post-calculation probe effects: cleanup, multi-probe regeneration,
  * step-into focus resolution, pending probe cursor resolution, and cursor reset.
  * Called from Editor.calculate after syntax and statics are updated. */
 let editor_effects =
@@ -902,16 +902,16 @@ let editor_effects =
     : Zipper.t =>
   z
   |> remove_colliding_probes(~syntax)
-  |> add_ids_from_auto_term(~syntax, ~info_map)
+  |> add_ids_from_multi_term(~syntax, ~info_map)
   |> resolve_pending_focus(~dynamics)
   |> resolve_pending_probe_cursor(~dynamics)
   |> maybe_reset_cursor;
 
-/* AUTO-DEF MODE: automatically place an auto-probe on the top-level
+/* AUTO PROBE: automatically place a multi probe on the top-level
  * definition body that the cursor is currently inside. When the cursor
  * moves to a different definition, the probe follows. */
 
-/* Determines what expression to auto-probe based on cursor position.
+/* Determines what expression to probe based on cursor position (for auto probe).
  *
  * Walk ancestors from outermost to innermost. For each:
  * - Test: return test body (done)
@@ -1000,17 +1000,17 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
   };
 };
 
-/* Remove the auto_def probe if present */
-let clear_auto_def =
+/* Remove the auto probe's multi probe if present */
+let clear_autoprobe =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
-  switch (z.refractors.auto_def) {
+  switch (z.refractors.autoprobe_target) {
   | None => z
   | Some(old_id) =>
-    rm_auto(~drill=false, ~syntax, ~info_map, old_id, z)
+    rm_multi(~drill=false, ~syntax, ~info_map, old_id, z)
     |> Zipper.update_refractors(_, r =>
          {
            ...r,
-           auto_def: None,
+           autoprobe_target: None,
          }
        )
   };
@@ -1040,42 +1040,42 @@ let current_toplevel_def =
   };
 };
 
-/* Update the auto_def probe based on current cursor position.
+/* Update the auto probe based on current cursor position.
  * Only reconstitutes the probe when the cursor moves to a different
  * top-level definition. */
-let update_auto_def_probe =
+let update_autoprobe =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let current_def = current_toplevel_def(info_map, z);
-  let prev_def = z.refractors.auto_def;
+  let prev_def = z.refractors.autoprobe_target;
   /* If same definition, no change needed */
   if (Option.equal(Id.equal, current_def, prev_def)) {
     z;
   } else {
-    /* Remove old auto-probe if exists.
+    /* Remove old multi probe if exists.
        Use ~drill=false to match how it was added. */
     let z =
       switch (prev_def) {
-      | Some(old_id) => rm_auto(~drill=false, ~syntax, ~info_map, old_id, z)
+      | Some(old_id) => rm_multi(~drill=false, ~syntax, ~info_map, old_id, z)
       | None => z
       };
 
-    /* Regenerate ephemerals from autos.ids after removal.
-       rm_auto(~drill=false) only removes the auto ID itself, not the
-       expanded ephemeral IDs created by add_ids_from_auto_term. When
-       transitioning to None (no definition), add_auto won't run, so
+    /* Regenerate ephemerals from multis.ids after removal.
+       rm_multi(~drill=false) only removes the auto ID itself, not the
+       expanded ephemeral IDs created by add_ids_from_multi_term. When
+       transitioning to None (no definition), add_multi won't run, so
        stale ephemerals would persist for one frame without this. */
-    let z = add_ids_from_auto_term(~syntax, ~info_map, z);
+    let z = add_ids_from_multi_term(~syntax, ~info_map, z);
 
-    /* Add new auto-probe if inside a definition.
+    /* Add new multi probe if inside a definition.
        Use ~drill=false to stay on top-level def, not drill into nested lets.
-       Use auto_def_updates_cursor to control whether cursor follows. */
+       Use autoprobe_updates_cursor to control whether cursor follows. */
     let z =
       switch (current_def) {
       | Some(new_id) =>
-        add_auto(
+        add_multi(
           new_id,
           ~drill=false,
-          ~set_pending_cursor=auto_def_updates_cursor,
+          ~set_pending_cursor=autoprobe_updates_cursor,
           ~syntax,
           ~info_map,
           z,
@@ -1083,11 +1083,11 @@ let update_auto_def_probe =
       | None => z
       };
 
-    /* Update auto_def tracking */
+    /* Update auto probe tracking */
     Zipper.update_refractors(z, r =>
       {
         ...r,
-        auto_def: current_def,
+        autoprobe_target: current_def,
       }
     );
   };

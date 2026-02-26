@@ -95,7 +95,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~auto_probe_mode=false,
+        ~autoprobe_mode=false,
         ~is_edited,
         ~ctx=?,
         ~stitch,
@@ -105,29 +105,29 @@ module Update = {
         {editor, statics, context_menu, dynamics: _}: Model.t,
       )
       : Model.t => {
-    /* Capture ephemerals before editor calculation to detect auto_def changes */
-    let old_ephemerals = editor.state.zipper.refractors.autos.ephemerals;
+    /* Capture ephemerals before editor calculation to detect auto probe changes */
+    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
 
     let editor =
       Editor.Update.calculate(
         ~settings,
-        ~auto_probe_mode,
+        ~autoprobe_mode,
         ~is_edited,
         statics,
         dynamics,
         editor,
       );
 
-    /* In auto_probe_mode, probes can change without an edit (cursor movement).
+    /* In autoprobe_mode, probes can change without an edit (cursor movement).
      * When ephemerals change, we must recalculate statics to update targets
      * so the evaluator collects samples for the new probes. */
     let probes_changed =
-      auto_probe_mode
+      autoprobe_mode
       && !
            Id.Map.equal(
              Refractors.equal_entry,
              old_ephemerals,
-             editor.state.zipper.refractors.autos.ephemerals,
+             editor.state.zipper.refractors.multis.ephemerals,
            );
 
     let statics =

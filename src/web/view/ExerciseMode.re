@@ -432,7 +432,7 @@ module Update = {
       let calculate = (statics, dynamics, ed) =>
         Editor.Update.calculate(
           ~settings,
-          ~auto_probe_mode=false,
+          ~autoprobe_mode=false,
           statics,
           dynamics,
           ~is_edited,

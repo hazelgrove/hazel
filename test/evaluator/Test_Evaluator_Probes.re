@@ -64,7 +64,7 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
       Id.Map.union(
         (_, _, _) => Some(),
         Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-        Id.Map.map(_ => (), z.refractors.autos.ephemerals),
+        Id.Map.map(_ => (), z.refractors.multis.ephemerals),
       );
     let info_map =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);

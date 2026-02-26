@@ -374,7 +374,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
     /* If --auto, compute auto-probe IDs */
     let auto_ids =
       if (auto) {
-        /* Build syntax cache for AutoProbe */
+        /* Build syntax cache for MultiProbe */
         let syntax =
           Haz3lcore.CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
         let root_id =
@@ -384,7 +384,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
           );
 
         switch (
-          Haz3lcore.AutoProbe.ids_to_autoprobe(
+          Haz3lcore.MultiProbe.ids_to_multiprobe(
             root_id,
             syntax.term_data,
             syntax.terms,

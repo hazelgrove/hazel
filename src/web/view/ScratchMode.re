@@ -376,7 +376,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~auto_probe_mode,
+        ~autoprobe_mode,
         ~schedule_action,
         ~is_edited,
         model: Model.t,
@@ -393,7 +393,7 @@ module Update = {
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
-        ~auto_probe_mode,
+        ~autoprobe_mode,
         ~is_edited,
         ~queue_worker,
         ~stitch=x => x,

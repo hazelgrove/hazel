@@ -7,9 +7,9 @@ open Util;
  * | State            | Location                       | Scope      | Persisted? |
  * |------------------|--------------------------------|------------|------------|
  * | Manual probes    | Refractors.manuals             | Per-editor | Yes        |
- * | Auto probe IDs   | Refractors.autos.ids           | Per-editor | No         |
- * | Auto ephemerals  | Refractors.autos.ephemerals    | Per-editor | No         |
- * | Auto-def target  | Refractors.auto_def            | Per-editor | No         |
+ * | Multi probe IDs  | Refractors.multis.ids           | Per-editor | No         |
+ * | Multi ephemerals | Refractors.multis.ephemerals    | Per-editor | No         |
+ * | Auto probe target| Refractors.autoprobe_target    | Per-editor | No         |
  * | Sample cursor    | Refractors.sample_cursor       | Per-editor | No         |
  * | Display settings | ProbeProj.Settings.s           | Global     | No         |
  * | Window offsets   | ProbeProj.Settings.offset      | Per-probe  | No         |
@@ -18,7 +18,7 @@ open Util;
  * Per-editor state is stored in the zipper and flows through model updates.
  * Global/per-probe state in ProbeProj.re uses mutable refs for simplicity.
  *
- * Only `manuals` is persisted (serialized to localStorage/files). Auto probes
+ * Only `manuals` is persisted (serialized to localStorage/files). Multi probes
  * are recomputed on each edit, and display state is transient. */
 
 /* Simplified entry type for refractors.
@@ -45,16 +45,16 @@ module RefractorList = {
   let empty = [];
 };
 
-/* Groups auto-probe related state together.
- * - ids: Set-like map (Id.Map.t(unit)) of auto-generated probe IDs
- * - ephemerals: Projector instances for rendering auto probes */
+/* Groups multi-probe related state together.
+ * - ids: Set-like map (Id.Map.t(unit)) of multi-probe IDs
+ * - ephemerals: Projector instances for rendering multi probes */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type auto_state = {
+type multi_state = {
   ids: Id.Map.t(unit),
   ephemerals: Map.t,
 };
 
-let empty_auto_state = {
+let empty_multi_state = {
   ids: Id.Map.empty,
   ephemerals: Id.Map.empty,
 };
@@ -62,12 +62,12 @@ let empty_auto_state = {
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   manuals: RefractorList.t,
-  autos: auto_state,
+  multis: multi_state,
   sample_cursor: Language.Sample.Cursor.t,
-  /* For auto-probe mode: the body ID of the top-level definition
-     currently being auto-probed (if any). When the cursor moves to
-     a different top-level def, an auto-probe is placed on its body. */
-  auto_def: option(Id.t),
+  /* For auto probe: the body ID of the top-level definition currently
+     being probed (if any). When the cursor moves to a different top-level
+     def, a multi probe is placed on its body. */
+  autoprobe_target: option(Id.t),
   /* When a probe is added, this stores the target IDs (in lexical order)
      so that when evaluation results return, we can set the sample cursor
      to the first sample of the first probe that has samples. */
@@ -76,9 +76,9 @@ type t = {
 
 let init = {
   manuals: [],
-  autos: empty_auto_state,
+  multis: empty_multi_state,
   sample_cursor: Language.Sample.Cursor.init,
-  auto_def: None,
+  autoprobe_target: None,
   pending_probe_cursor: None,
 };
 

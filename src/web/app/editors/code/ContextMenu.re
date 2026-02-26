@@ -217,19 +217,19 @@ module Shortcuts = {
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
 };
 
-/* Unified probe entry: on definition forms (Let, Test), shows auto probe
+/* Unified probe entry: on definition forms (Let, Test), shows multi probe
    options; on other terms, shows manual probe options. Both use Cmd+E. */
 let probe_data =
     (
       ~can_probe: bool,
       ~is_def: bool,
-      ~auto_probe_mode: bool,
+      ~autoprobe_mode: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
     : list(menu_item_data) =>
-  /* Hide when auto-probe mode is on and this would be an auto probe */
-  if (auto_probe_mode && is_def) {
+  /* Hide when auto probe is on and this would be a multi probe */
+  if (autoprobe_mode && is_def) {
     [];
   } else {
     switch (ci) {
@@ -238,15 +238,15 @@ let probe_data =
           name:
             if (is_def) {
               switch (probe_status) {
-              | Auto => "Remove auto probe"
+              | Multi => "Remove multi probe"
               | Manual(_) => "Remove probe"
-              | Statics(_) => "Switch to auto probe"
+              | Statics(_) => "Switch to multi probe"
               | Non => "Add multi probe"
               };
             } else {
               switch (probe_status) {
               | Manual(_) => "Remove probe"
-              | Auto => "Remove probe"
+              | Multi => "Remove probe"
               | Statics(_) => "Switch to probe"
               | Non => "Add probe"
               };
@@ -273,7 +273,7 @@ let type_annotation_data =
           switch (probe_status) {
           | Statics(_) => "Remove statics"
           | Manual(_)
-          | Auto => "Switch to statics"
+          | Multi => "Switch to statics"
           | Non => "Add statics"
           },
         shortcut: Some(Shortcuts.type_annotation()),
@@ -457,7 +457,7 @@ module Projectors = {
 let refractor_actions_data =
     (
       ~ci: option(Language.Info.t),
-      ~auto_probe_mode: bool,
+      ~autoprobe_mode: bool,
       info_map: Language.Statics.Map.t,
       z: Zipper.t,
     )
@@ -467,7 +467,7 @@ let refractor_actions_data =
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
   let is_def = ProbePerform.is_definition_form(id, info_map);
-  probe_data(~can_probe, ~is_def, ~auto_probe_mode, probe_status, ci)
+  probe_data(~can_probe, ~is_def, ~autoprobe_mode, probe_status, ci)
   @ type_annotation_data(~can_type=can_statics, probe_status, ci);
 };
 
@@ -485,7 +485,7 @@ let refractor_actions_data =
 /* Get menu sections - each section is separated by a divider.
    This is the single source of truth for menu structure. */
 let get_sections =
-    (~info_map: Language.Statics.Map.t, ~auto_probe_mode: bool, z: Zipper.t)
+    (~info_map: Language.Statics.Map.t, ~autoprobe_mode: bool, z: Zipper.t)
     : list(list(menu_item_data)) => {
   let ci = Indicated.ci_of(z, info_map);
 
@@ -495,7 +495,7 @@ let get_sections =
     /* Section 2: Refactoring */
     introduce_data(ci),
     /* Section 3: Probes/Statics (refractors) */
-    refractor_actions_data(~ci, ~auto_probe_mode, info_map, z),
+    refractor_actions_data(~ci, ~autoprobe_mode, info_map, z),
     /* Section 4: Projectors (fold, livelits) */
     Projectors.actions_data(z, info_map),
   ]
@@ -504,20 +504,20 @@ let get_sections =
 
 /* Get all menu items as a flat list */
 let get_all_items =
-    (~info_map: Language.Statics.Map.t, ~auto_probe_mode: bool, z: Zipper.t)
+    (~info_map: Language.Statics.Map.t, ~autoprobe_mode: bool, z: Zipper.t)
     : list(menu_item_data) =>
-  List.concat(get_sections(~info_map, ~auto_probe_mode, z));
+  List.concat(get_sections(~info_map, ~autoprobe_mode, z));
 
 /* Get action at index (for Enter key activation) */
 let get_action_at_index =
     (
       ~info_map: Language.Statics.Map.t,
-      ~auto_probe_mode: bool,
+      ~autoprobe_mode: bool,
       z: Zipper.t,
       index: int,
     )
     : option(Action.t) => {
-  let items = get_all_items(~info_map, ~auto_probe_mode, z);
+  let items = get_all_items(~info_map, ~autoprobe_mode, z);
   List.nth_opt(items, index) |> Option.map(item => item.action);
 };
 
@@ -535,7 +535,7 @@ module WithContext = {
   let update =
       (
         ~info_map: Language.Statics.Map.t,
-        ~auto_probe_mode: bool=false,
+        ~autoprobe_mode: bool=false,
         ~zipper: Zipper.t,
         action,
         state,
@@ -545,7 +545,7 @@ module WithContext = {
     switch (new_state) {
     | Some(n) =>
       let item_count =
-        List.length(get_all_items(~info_map, ~auto_probe_mode, zipper));
+        List.length(get_all_items(~info_map, ~autoprobe_mode, zipper));
       Some(max(0, min(n, item_count - 1)));
     | None => None
     };
@@ -555,7 +555,7 @@ module WithContext = {
   let handle_key =
       (
         ~info_map: Language.Statics.Map.t,
-        ~auto_probe_mode: bool=false,
+        ~autoprobe_mode: bool=false,
         ~zipper: Zipper.t,
         key: Key.key,
         state: Model.t,
@@ -572,7 +572,7 @@ module WithContext = {
         switch (
           get_action_at_index(
             ~info_map,
-            ~auto_probe_mode,
+            ~autoprobe_mode,
             zipper,
             selected_index,
           )
@@ -620,13 +620,13 @@ let view =
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
       ~font_metrics: FontMetrics.t,
-      ~auto_probe_mode: bool,
+      ~autoprobe_mode: bool,
       ~selected_index: int,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let sections = get_sections(~info_map, ~auto_probe_mode, z);
+  let sections = get_sections(~info_map, ~autoprobe_mode, z);
 
   /* Clamp selected_index to valid range */
   let item_count =

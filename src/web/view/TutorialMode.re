@@ -294,7 +294,7 @@ module Update = {
       let calculate =
         Editor.Update.calculate(
           ~settings,
-          ~auto_probe_mode=false,
+          ~autoprobe_mode=false,
           ~is_edited,
         );
       {

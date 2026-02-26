@@ -1,6 +1,6 @@
 open Util.OptUtil.Syntax;
-/* AUTOMATIC PROBE PLACEMENT FOR REPL MODE
- * This module determines which term on each line should receive an automatic probe.
+/* MULTI PROBE PLACEMENT
+ * This module determines which term on each line should receive a multi probe.
  *
  * The core strategy is to analyze each line's candidate terms (ordered by priority:
  * find the most rightwards last position of a term ending on that line, then find the
@@ -122,7 +122,7 @@ open Util.OptUtil.Syntax;
   *     get_pair(1) in     // probe on 'get_pair(1)' (default)
   *   let x = 1 + a in    // probe on 'x', NOT on 'a' (already seen via pattern probe)
   *
- * Behavior is aligned with the scenarios documented in `test/Test_AutoProbe.re`.
+ * Behavior is aligned with the scenarios documented in `test/Test_MultiProbe.re`.
  * The implementation follows a simple pipeline:
  *   1. Derive ordered candidate IDs per source row from `TermData`.
  *   2. Compute lightweight row metadata (e.g. whether only holes appear).
@@ -648,7 +648,7 @@ let normalize_to_rep_id = (id: Id.t, terms: TermMap.t): Id.t =>
   | None => id
   };
 
-let ids_to_autoprobe =
+let ids_to_multiprobe =
     (
       id: Id.t,
       data: TermData.t,

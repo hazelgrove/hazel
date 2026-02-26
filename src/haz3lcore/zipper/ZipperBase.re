@@ -38,9 +38,9 @@ let update_ephemerals = (f, z: t): t => {
   ...z,
   refractors: {
     ...z.refractors,
-    autos: {
-      ...z.refractors.autos,
-      ephemerals: f(z.refractors.autos.ephemerals),
+    multis: {
+      ...z.refractors.multis,
+      ephemerals: f(z.refractors.multis.ephemerals),
     },
   },
 };

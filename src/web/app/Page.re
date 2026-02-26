@@ -377,7 +377,7 @@ module Update = {
               ...model.globals.settings.core,
               dynamics: false,
             },
-        ~auto_probe_mode=model.globals.settings.auto_probe_mode,
+        ~autoprobe_mode=model.globals.settings.autoprobe_mode,
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
         model.editors,
@@ -449,7 +449,7 @@ module Selection = {
         ctrl: Down,
         alt: Up,
       } =>
-      Some(Update.Globals(Set(AutoProbeMode)))
+      Some(Update.Globals(Set(AutoprobeMode)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
@@ -669,13 +669,13 @@ module View = {
     );
   };
 
-  let auto_probe_indicator = (~globals: Globals.t, ~inject) => [
+  let autoprobe_indicator = (~globals: Globals.t, ~inject) => [
     Widgets.toggle(
       ~tooltip="Auto-probe mode active (Cmd/Ctrl+Shift+P to toggle)",
       "🔬",
-      globals.settings.auto_probe_mode,
+      globals.settings.autoprobe_mode,
       _ =>
-      inject(Update.Globals(Set(AutoProbeMode)))
+      inject(Update.Globals(Set(AutoprobeMode)))
     ),
   ];
 
@@ -706,7 +706,7 @@ module View = {
         div(~attrs=[Attr.class_("top-bar-spacer")], []),
         div(
           ~attrs=[Attr.class_("wrap auto-probe-indicator")],
-          auto_probe_indicator(~globals, ~inject),
+          autoprobe_indicator(~globals, ~inject),
         ),
       ],
     );

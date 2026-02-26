@@ -1,5 +1,5 @@
 /**
- * This file contains tests to validate the AutoProbe module's probe placement logic.
+ * This file contains tests to validate the MultiProbe module's probe placement logic.
  *
  * Tests are written in concrete syntax with trailing comments indicating expected probe results:
  *
@@ -111,10 +111,10 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       /* Build the syntax cache with statics */
       let syntax = CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
 
-      /* Call AutoProbe to get probe term IDs using the sophisticated version */
+      /* Call MultiProbe to get probe term IDs using the sophisticated version */
       let probe_ids =
         switch (
-          AutoProbe.ids_to_autoprobe(
+          MultiProbe.ids_to_multiprobe(
             root_id,
             syntax.term_data,
             syntax.terms,
@@ -123,7 +123,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
           )
         ) {
         | Some(ids) => List.filter_map(Fun.id, ids)
-        | None => fail("AutoProbe returned None")
+        | None => fail("MultiProbe returned None")
         };
 
       /* Convert probe IDs to string representations */
@@ -387,13 +387,13 @@ end           # case x | 0 => a | _ => b end #|},
 ];
 
 let tests = [
-  ("AutoProbe.Basic", basic_tests),
-  ("AutoProbe.DefaultSelection", nested_multiline_tests),
-  ("AutoProbe.HoleAvoidance", hole_avoidance_tests),
-  ("AutoProbe.Containers", container_tests),
-  ("AutoProbe.TupLabels", tuplabel_tests),
-  ("AutoProbe.LetExpressions", let_expression_tests),
-  ("AutoProbe.IfExpressions", if_expression_tests),
-  ("AutoProbe.FunctionTypes", function_type_tests),
-  ("AutoProbe.CaseExpressions", case_expression_tests),
+  ("MultiProbe.Basic", basic_tests),
+  ("MultiProbe.DefaultSelection", nested_multiline_tests),
+  ("MultiProbe.HoleAvoidance", hole_avoidance_tests),
+  ("MultiProbe.Containers", container_tests),
+  ("MultiProbe.TupLabels", tuplabel_tests),
+  ("MultiProbe.LetExpressions", let_expression_tests),
+  ("MultiProbe.IfExpressions", if_expression_tests),
+  ("MultiProbe.FunctionTypes", function_type_tests),
+  ("MultiProbe.CaseExpressions", case_expression_tests),
 ];

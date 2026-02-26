@@ -56,7 +56,7 @@ let go =
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)
-      @ List.map(fst, Id.Map.to_list(z.refractors.autos.ephemerals));
+      @ List.map(fst, Id.Map.to_list(z.refractors.multis.ephemerals));
     ProjectorPerform.go(
       syntax.term_data,
       a,

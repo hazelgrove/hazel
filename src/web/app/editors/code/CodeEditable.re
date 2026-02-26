@@ -100,7 +100,7 @@ module Update = {
       let new_state =
         ContextMenu.WithContext.update(
           ~info_map=model.statics.info_map,
-          ~auto_probe_mode=settings.auto_probe_mode,
+          ~autoprobe_mode=settings.autoprobe_mode,
           ~zipper=model.editor.state.zipper,
           action,
           model.context_menu,
@@ -317,7 +317,7 @@ module View = {
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
                   ~font_metrics=globals.font_metrics,
-                  ~auto_probe_mode=globals.settings.auto_probe_mode,
+                  ~autoprobe_mode=globals.settings.autoprobe_mode,
                   ~selected_index,
                   model.editor.state.zipper,
                 ),
@@ -334,7 +334,7 @@ module View = {
           Id.Map.union(
             (_, _, b) => Some(b),
             zipper.refractors.manuals |> Id.Map.of_list,
-            zipper.refractors.autos.ephemerals,
+            zipper.refractors.multis.ephemerals,
           ),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.piece(zipper),
@@ -355,7 +355,7 @@ module View = {
         ~visible?,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.autos.ephemerals)),
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
     // let t2 = JsUtil.precise_timestamp();
     let projectors =
@@ -380,7 +380,7 @@ module View = {
     //     Id.Map.union(
     //       (_, _, b) => Some(b),
     //       model.editor.state.zipper.refractors.manuals,
-    //       model.editor.state.zipper.refractors.autos.ephemerals,
+    //       model.editor.state.zipper.refractors.multis.ephemerals,
     //     ),
     //   );
     // if (num_refractors > 0) {

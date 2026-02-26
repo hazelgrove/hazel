@@ -159,7 +159,7 @@ module Update = {
   let calculate =
       (
         ~settings: Language.CoreSettings.t,
-        ~auto_probe_mode: bool,
+        ~autoprobe_mode: bool,
         ~is_edited,
         new_statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -197,21 +197,21 @@ module Update = {
         zipper,
       );
 
-    /* 4. Handle auto-probe mode: auto-probe follows cursor to current def */
+    /* 4. Handle auto probe: probe follows cursor to current def */
     let zipper =
-      if (auto_probe_mode) {
+      if (autoprobe_mode) {
         let z =
-          ProbePerform.update_auto_def_probe(
+          ProbePerform.update_autoprobe(
             ~syntax,
             ~info_map=new_statics.info_map,
             zipper,
           );
-        /* Resolve pending_probe_cursor again since update_auto_def_probe
+        /* Resolve pending_probe_cursor again since update_autoprobe
            may have set it after editor_effects already ran */
         ProbePerform.resolve_pending_probe_cursor(~dynamics=new_dynamics, z);
       } else {
-        /* If mode is off, clear any existing auto_def probe */
-        ProbePerform.clear_auto_def(
+        /* If mode is off, clear any existing auto probe */
+        ProbePerform.clear_autoprobe(
           ~syntax,
           ~info_map=new_statics.info_map,
           zipper,

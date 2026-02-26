@@ -167,7 +167,7 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
  *   ]
  * The comma is first parsed as part of a Tuple on row 1, creating term_data
  * with a skeleton spanning only row 1. When `[`/`]` absorbs this into a
- * ListLit, the comma's term_data still has the Tuple's skeleton. AutoProbe
+ * ListLit, the comma's term_data still has the Tuple's skeleton. MultiProbe
  * uses term_data to find terms ending on each row, so it sees a "phantom
  * tuple" on row 1 and selects it for probing, but Arms can't find the
  * correct term to draw decorations for. Consolidation fixes this by giving

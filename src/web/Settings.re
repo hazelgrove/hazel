@@ -14,9 +14,9 @@ module Model = {
     explainThis: ExplainThisModel.Settings.t,
     assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
-    /* Auto-probe mode: automatically place an auto-probe on the body
-       of whichever top-level definition the cursor is currently inside */
-    auto_probe_mode: bool,
+    /* Auto probe: automatically place a multi probe on the body of
+       whichever top-level definition the cursor is currently inside */
+    autoprobe_mode: bool,
     line_numbers: bool,
     relative_line_numbers: bool,
   };
@@ -66,7 +66,7 @@ module Model = {
       panel: LanguageDocumentation,
       show: true,
     },
-    auto_probe_mode: false,
+    autoprobe_mode: false,
     line_numbers: false,
     relative_line_numbers: false,
   };
@@ -131,7 +131,7 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | Assistant(AssistantSettings.action)
     | FlipAnimations
-    | AutoProbeMode
+    | AutoprobeMode
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers;
 
@@ -357,9 +357,9 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | AutoProbeMode => {
+      | AutoprobeMode => {
           ...settings,
-          auto_probe_mode: !settings.auto_probe_mode,
+          autoprobe_mode: !settings.autoprobe_mode,
         }
       | ToggleLineNumbers => {
           ...settings,
