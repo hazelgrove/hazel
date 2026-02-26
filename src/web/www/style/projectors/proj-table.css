@@ -17,8 +17,6 @@ table.table {
 }
 
 .table th {
-    position: sticky;
-    top: 0;
     z-index: calc(var(--projector-z) + 1);
     opacity: 1;
     height: calc(var(--line-height) * 1em);
@@ -47,6 +45,11 @@ table.table {
 
 div.projector.table:has(tbody tr:nth-child(10)) > .table-inner {
     overflow-y: auto;
+}
+
+div.projector.table:has(tbody tr:nth-child(10)) .table th {
+    position: sticky;
+    top: 0;
 }
 
 
