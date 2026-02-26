@@ -601,8 +601,7 @@
 /* TOKENS */
 
 .live-offside .value.indet .code-text .token {
-  color: white;
-  filter: none !important;
+  color: var(--BR2) !important;
 }
 
 .live-offside .value.indet.focus .code-text .token {

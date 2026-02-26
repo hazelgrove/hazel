@@ -157,7 +157,7 @@ select {
   color: rgb(255, 255, 255);
   background-color: var(--G0);
   border-radius: 0.2em;
-  padding: 0 4px;
+  padding: 0px 2px 1px 2px;
 }
 
 #closure-cursor-bar:empty,
