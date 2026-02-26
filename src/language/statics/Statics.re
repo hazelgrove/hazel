@@ -1546,6 +1546,10 @@ and uexp_to_info_map =
       add'(~self, ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+      /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
+         store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
+         This ensures meet/join can unify them with module expression types. */
+      let utyp_desugared = Typ.desugar_sig(ctx, utyp);
       switch (typat.term) {
       | Var(name) when !Ctx.is_base_typ(name) =>
         /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
@@ -1555,19 +1559,25 @@ and uexp_to_info_map =
            tentatively add an abtract type to the ctx, representing the
            speculative rec parameter. */
         let (ty_def, ctx_def, ctx_body) = {
-          switch (utyp.term) {
-          | _ when List.mem(name, Typ.free_vars(utyp)) =>
+          switch (utyp_desugared.term) {
+          | _ when List.mem(name, Typ.free_vars(utyp_desugared)) =>
             /* NOTE: When debugging type system issues it may be beneficial to
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-            let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
+            let ty_rec =
+              Rec(Var(name) |> TPat.fresh, utyp_desugared) |> Typ.temp;
             let ctx_def =
               Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
             (ty_rec, ctx_def, ctx_def);
           | _ => (
-              utyp,
+              utyp_desugared,
               ctx,
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
+              Ctx.extend_alias(
+                ctx,
+                name,
+                TPat.rep_id(typat),
+                utyp_desugared,
+              ),
             )
           /* NOTE(yuchen): Below is an alternative implementation that attempts to
              add a rec whenever type alias is present. It may cause trouble to the
