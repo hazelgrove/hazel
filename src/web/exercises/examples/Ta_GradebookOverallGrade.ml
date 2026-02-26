@@ -15,12 +15,15 @@ let exercise : Tutorial.spec =
        ```hazelnostatics\n\
        ^^table([\n\
        (column=student_id, `type`=Int),\n\
+       (column=term, `type`=String),\n\
        (column=quiz1, `type`=Float),\n\
        (column=quiz2, `type`=Float),\n\
        (column=midterm, `type`=Float),\n\
        (column=final, `type`=Float)\n\
        ])\n\
        ```\n\
+       The `term` column should be left unaltered as a String. Preserve the \
+       original column order.\n\n\
        **Part 2: Add an `overall_grade` column**\n\n\
        Weighting: 1/3 quizzes, 1/3 midterm, 1/3 final.\n\
        - There are 2 quizzes, each scored out of 10 points.\n\
