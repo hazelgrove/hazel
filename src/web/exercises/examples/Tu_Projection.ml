@@ -1949,7 +1949,7 @@ let exercise : Tutorial.spec =
                   };
               };
           };
-        hints = [];
+        hints = [ "Don't forget spaces"; "Don't forget the exclamation point!" ];
       };
     wrapper = false;
     show_report = true;

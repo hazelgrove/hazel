@@ -1845,7 +1845,11 @@ let exercise : Tutorial.spec =
                   };
               };
           };
-        hints = [];
+        hints =
+          [
+            "Example input";
+            "Don't specialize on the example but use omit_labels";
+          ];
       };
     wrapper = false;
     show_report = true;
