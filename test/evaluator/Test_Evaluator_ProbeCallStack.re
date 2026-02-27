@@ -218,11 +218,97 @@ in ^^probe(f(5))|});
   ),
 ];
 
+/* Test that functions defined in modules have correct call_stack behavior */
+let module_function_tests = [
+  test_case(
+    "Function from module has app_id in call_stack",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let m = { let f = fun x -> ^^probe(x + 1) }
+in m.f(5)|},
+        );
+      switch (samples) {
+      | [s] =>
+        check(
+          bool,
+          "Probe inside module function should have non-empty call_stack",
+          true,
+          List.length(s.call_stack) > 0,
+        )
+      | _ =>
+        fail(
+          "Expected exactly 1 sample, got "
+          ++ string_of_int(List.length(samples)),
+        )
+      };
+    },
+  ),
+  test_case(
+    "Module keyword function has app_id in call_stack",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|module m = { let f = fun x -> ^^probe(x * 2) }
+in m.f(3)|},
+        );
+      switch (samples) {
+      | [s] =>
+        check(
+          bool,
+          "Probe inside module keyword function should have non-empty call_stack",
+          true,
+          List.length(s.call_stack) > 0,
+        )
+      | _ =>
+        fail(
+          "Expected exactly 1 sample, got "
+          ++ string_of_int(List.length(samples)),
+        )
+      };
+    },
+  ),
+  test_case(
+    "Multiple calls to module function have different call_stacks",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let m = { let f = fun x -> ^^probe(x) }
+in m.f(1); m.f(2)|},
+        );
+      switch (samples) {
+      | [s1, s2] =>
+        check(
+          bool,
+          "Both should have non-empty call_stacks",
+          true,
+          List.length(s1.call_stack) > 0 && List.length(s2.call_stack) > 0,
+        );
+        check(
+          bool,
+          "Different calls should have different call_stacks",
+          true,
+          s1.call_stack != s2.call_stack,
+        );
+      | _ =>
+        fail(
+          "Expected exactly 2 samples, got "
+          ++ string_of_int(List.length(samples)),
+        )
+      };
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeCallStack",
   List.concat([
     top_level_apps_tests,
     inside_function_tests,
     app_vs_body_tests,
+    module_function_tests,
   ]),
 );

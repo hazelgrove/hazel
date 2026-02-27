@@ -245,5 +245,6 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
         );
       },
     ),
+    /* Module dot projection tests are in Test_Evaluator_Modules */
   ],
 );
