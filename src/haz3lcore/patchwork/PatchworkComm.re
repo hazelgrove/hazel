@@ -69,6 +69,9 @@ module JsConvert = {
     | Typ => `L_s12_Typ
     | TPat => `L_s10_TPat
     | Rul => `L_s8_Rul
+    | Mod => `L_s14_Mod
+    | Sig => `L_s15_Sig
+    | MPat => `L_s16_MPat
     | Any => `L_s0_Any;
 
   let of_nib_shape: Nib.Shape.t => FlatDoc.NibShape.t =
@@ -200,6 +203,9 @@ module JsConvert = {
     | `L_s12_Typ => Typ
     | `L_s10_TPat => TPat
     | `L_s8_Rul => Rul
+    | `L_s14_Mod => Mod
+    | `L_s15_Sig => Sig
+    | `L_s16_MPat => MPat
     | `L_s0_Any => Any
   and to_nib_shape: FlatDoc.NibShape.t => Nib.Shape.t =
     fun
