@@ -540,7 +540,6 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       } else {
         ProdExtension(t1', t2') |> rewrap;
       };
-    | ProofOf(e) => ProofOf(e) |> rewrap
     | Sig(_) => ty
     };
   | None => ty
