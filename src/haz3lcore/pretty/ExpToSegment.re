@@ -413,7 +413,7 @@ let rec parenthesize =
       Parens(inner) |> Exp.fresh;
     };
   | TupLabel(l, e) =>
-    TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+    TupLabel(l, parenthesize(e) |> paren_at(Precedence.comma)) |> rewrap
   | Dot(e, l) =>
     Dot(
       parenthesize(e) |> paren_at(Precedence.dot),
@@ -638,7 +638,7 @@ and parenthesize_pat =
       ? inner : Parens(inner) |> Pat.fresh;
   | Label(_) => pat
   | TupLabel(l, p) =>
-    TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
+    TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.comma))
     |> rewrap
   | ListLit(ps) =>
     ListLit(
@@ -741,7 +741,7 @@ and parenthesize_typ =
   | ExplicitNonlabel => typ
   | Label(_) => typ
   | TupLabel(l, t) =>
-    TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
+    TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.type_prod))
     |> rewrap
   | ProdProjection(t1, t2) =>
     ProdProjection(
@@ -954,6 +954,7 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=",") => false
   | _ when String.starts_with(s2, ~prefix=";") => false
   | _ when String.starts_with(s2, ~prefix=":") => false
+  | _ when String.ends_with(s1, ~suffix="::") => true
   | _ when String.ends_with(s1, ~suffix=":") =>
     String.starts_with(s2, ~prefix="$")
     || String.starts_with(s2, ~prefix="!")

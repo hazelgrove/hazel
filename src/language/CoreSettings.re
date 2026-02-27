@@ -42,6 +42,7 @@ type t = {
   dynamics: bool,
   probe_all: bool,
   flip_animations: bool,
+  display_warnings: bool,
   evaluation: Evaluation.t,
 };
 
@@ -52,6 +53,7 @@ let off: t = {
   dynamics: false,
   probe_all: false,
   flip_animations: false,
+  display_warnings: false,
   evaluation: Evaluation.init,
 };
 
@@ -62,6 +64,7 @@ let on: t = {
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   flip_animations: true,
+  display_warnings: true,
   evaluation: Evaluation.init,
 };
 

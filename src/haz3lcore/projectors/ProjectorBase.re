@@ -115,6 +115,7 @@ module View = {
     selected: bool, /* Is the projector contained within a selection? */
     error: bool, /* Is there an error mark on the projector? */
     shape: ProjectorCore.Shape.t,
+    warning: bool /* Is there a warning mark on the projector? */
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

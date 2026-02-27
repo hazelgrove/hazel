@@ -12,8 +12,7 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
   let show_core_exp = exp =>
     exp
     |> ExpToSegment.exp_to_segment(
-         ~settings=
-           ExpToSegment.Settings.of_core(~inline=Inline, CoreSettings.off),
+         ~settings=ExpToSegment.Settings.editable(~inline=Inline),
          _,
        )
     |> Printer.of_segment(~holes="?", _);

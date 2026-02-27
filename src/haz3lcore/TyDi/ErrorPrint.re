@@ -51,6 +51,7 @@ let common_error: Info.error_common => string =
   | NoType(BadLabel(_)) => "Invalid label"
   | NoType(InvalidLabel(_)) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
+  | DuplicateVar(_, _) => "Duplicate variable"
   | TupleLabelError(_) => "Invalid tuple label"
   | NoType(UnexpectedLabelSort(_)) => "Unexpected label sort"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
