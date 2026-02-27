@@ -78,8 +78,11 @@ module Model = {
   let all_tests_passed = (exercise: t) => {
     let test_results =
       Tutorial.map_stitched(
-        (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
+        (_, cell_editor: CellEditor.Model.t) => {
+          let (results, _) =
+            cell_editor.result |> EvalResult.Model.test_results_or_cached;
+          results;
+        },
         exercise.cells,
       );
 
@@ -92,8 +95,11 @@ module Model = {
   let test_count = (exercise: t) => {
     let test_results =
       Tutorial.map_stitched(
-        (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
+        (_, cell_editor: CellEditor.Model.t) => {
+          let (results, _) =
+            cell_editor.result |> EvalResult.Model.test_results_or_cached;
+          results;
+        },
         exercise.cells,
       );
 
@@ -579,8 +585,13 @@ module View = {
 
     let stitched_tests =
       Tutorial.map_stitched(
-        (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
+        (_, cell_editor: CellEditor.Model.t) => {
+          let (results, is_stale) =
+            cell_editor.result |> EvalResult.Model.test_results_or_cached;
+          is_stale
+            ? Option.map(Language.TestResults.mark_all_indet, results)
+            : results;
+        },
         model.cells,
       );
     let test_count =

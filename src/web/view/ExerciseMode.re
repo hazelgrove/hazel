@@ -614,8 +614,13 @@ module View = {
 
     let stitched_tests =
       Exercise.map_stitched(
-        (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
+        (_, cell_editor: CellEditor.Model.t) => {
+          let (results, is_stale) =
+            cell_editor.result |> EvalResult.Model.test_results_or_cached;
+          is_stale
+            ? Option.map(Language.TestResults.mark_all_indet, results)
+            : results;
+        },
         model.cells,
       );
 

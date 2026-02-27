@@ -21,6 +21,7 @@ module Model = {
     elab: Calc.saved(Exp.t),
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
+    cached_test_results: option(TestResults.t),
     display,
     theorems: Theorems.Model.t,
   };
@@ -36,6 +37,7 @@ module Model = {
     elab: Calc.Pending,
     cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
+    cached_test_results: None,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -57,6 +59,7 @@ module Model = {
         elab: Calc.Pending,
         cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
+        cached_test_results: None,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -95,6 +98,15 @@ module Model = {
     model
     |> dynamics
     |> Calc.map(_, Option.map((d: Dynamics.t) => d.test_results));
+
+  /* Returns (test_results, is_stale) where is_stale=true means
+     we're showing cached results while evaluation is pending */
+  let test_results_or_cached = (model: t): (option(TestResults.t), bool) =>
+    switch (model |> test_results |> Calc.get_value) {
+    | Some(_) as result => (result, false)
+    | None => (model.cached_test_results, model.cached_test_results != None)
+    };
+
   let type_inst_map = (model: t): Calc.t(Dynamics.TypeInstMap.t) =>
     model
     |> dynamics
@@ -193,7 +205,15 @@ module Update = {
         ~queue_worker: option(WorkerServer.Request.value => unit),
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
-        {cached_settings, elab, cached_targets, result, display, theorems}: Model.t,
+        {
+          cached_settings,
+          elab,
+          cached_targets,
+          result,
+          cached_test_results,
+          display,
+          theorems,
+        }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
     let settings =
@@ -333,12 +353,20 @@ module Update = {
         ? theorems |> Theorems.Update.calculate(~settings, ~statics, ~result)
         : theorems;
 
+    let cached_test_results =
+      switch (result |> Calc.get_value) {
+      | ProgramResult.ResultOk({state, _}) =>
+        Some(state |> EvaluatorState.get_tests |> TestResults.mk_results)
+      | _ => cached_test_results
+      };
+
     (
       {
         cached_settings: settings |> Calc.save,
         elab: elab |> Calc.save,
         cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
+        cached_test_results,
         display,
         theorems,
       }: Model.t

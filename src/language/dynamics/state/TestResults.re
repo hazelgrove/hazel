@@ -23,6 +23,32 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): t => {
   unfinished: TestMap.count_status(Indet, test_map),
 };
 
+let mark_all_indet = (t: t): t => {
+  test_map:
+    List.map(
+      ((id, instances): TestMap.report) =>
+        (
+          id,
+          List.map(
+            (r: TestMap.instance_report) =>
+              TestMap.{
+                ...r,
+                status: TestStatus.Indet,
+              },
+            instances,
+          ),
+        ),
+      t.test_map,
+    ),
+  statuses: List.map(_ => TestStatus.Indet, t.statuses),
+  hints: t.hints,
+  descriptions: t.descriptions,
+  total: t.total,
+  passing: 0,
+  failing: 0,
+  unfinished: t.total,
+};
+
 let result_summary_str =
     (~n, ~p, ~q, ~n_str, ~ns_str, ~p_str, ~q_str, ~r_str): string => {
   let one_p = "one is " ++ p_str ++ " ";
