@@ -15,8 +15,9 @@ let exercise : Tutorial.spec =
        1. **Describe** what this program is intended to compute.\n\
        2. **Identify** the bug(s) in the program.\n\
        3. **Propose** a fix for each bug you found.\n\n\
-       *Note:* The `pearson_coefficient` function is provided for you and is \
-       correct- you do not need to check it for bugs.";
+       *Note:* The `pearson_coefficient` function measures the correlation \
+       between two sets of data. It is provided for you and is correct- you \
+       do not need to check it for bugs.";
     display_hint = "";
     task_reference =
       (let pearson =
