@@ -742,7 +742,7 @@ let rescan = (~sort: Sort.t=Any, seg: t): t => {
                 /* Complete singleton: try sort-aware expansion */
                 switch (try_sort_expand(sort, t)) {
                 | Some(promoted) =>
-                  let new_frame = missing_entries(promoted);
+                  let new_frame = mk_frame(promoted);
                   [
                     Piece.Tile(promoted),
                     ...go(~frame=new_frame, ~stack=[frame, ...stack], tl),
