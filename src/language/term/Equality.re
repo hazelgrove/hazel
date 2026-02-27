@@ -125,10 +125,15 @@ let equality =
       let typ' = typ(alphas_exp, alphas_typ);
       let filter' = filter(alphas_exp, alphas_typ);
       let any' = any(alphas_exp, alphas_typ);
-      switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
+      switch (
+        e1 |> Grammar.Annotated.term_of,
+        e2 |> Grammar.Annotated.term_of,
+      ) {
       // Wrappers when ignored: unwrap. These cases must come first.
-      | (DynamicErrorHole(x, _), _) when ignore_dynamic_errors => exp'(x, e2)
-      | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors => exp'(e1, x)
+      | (DynamicErrorHole(x, _), _) when ignore_dynamic_errors =>
+        exp'(x, e2)
+      | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors =>
+        exp'(e1, x)
       | (Parens(x), _) when ignore_parens => exp'(x, e2)
       | (_, Parens(x)) when ignore_parens => exp'(e1, x)
       | (Projector(_, x), _) when ignore_parens => exp'(x, e2)
@@ -143,7 +148,7 @@ let equality =
       | (_, TupLabel({term: ExplicitNonlabel, _}, e2))
           when ignore_explicit_unlabelling =>
         exp'(e1, e2)
-  
+
       // Expression Wildcards:
       | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
         let check_value = Option.get(use_expr_wildcards);
@@ -151,7 +156,7 @@ let equality =
       | (EmptyHole, _) when Option.is_some(use_expr_wildcards) => true
       | (Constructor("$e", _), _) when Option.is_some(use_expr_wildcards) =>
         true
-  
+
       /* These variable cases are quite complicated because they account for a lot of concerns.
           * 1. Alpha equivalence :  if either of the variables are bound, we need to check if they are alpha equivalent.
           * 2. Environment lookups:  if either of the variables are free but given in the environment we need to look them up.
@@ -217,7 +222,7 @@ let equality =
         | Some(v2) => exp'(e1, v2)
         | None => false
         };
-  
+
       // Wrappers otherwise: compare.
       | (DynamicErrorHole(x, err1), DynamicErrorHole(y, err2)) =>
         err1 == err2 && exp'(x, y)
@@ -230,7 +235,7 @@ let equality =
       | (Asc(_), _) => false
       | (Filter(f1, x), Filter(f2, y)) => filter'(f1, f2) && exp'(x, y)
       | (Filter(_), _) => false
-  
+
       // Forms with expression binders
       | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
         switch (pat'(p1, p2)) {
@@ -277,7 +282,7 @@ let equality =
         | None => false
         }
       | (Theorem(_, _, _), _) => false
-  
+
       // Forms with type binders
       | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
         switch (tpat(tp1, tp2)) {
@@ -301,24 +306,27 @@ let equality =
         | None => false
         }
       | (Forall(_, _), _) => false
-  
+
       // Forms with environments. (Note fix also has an environment and is handled above.)
       | (Closure(env1, e1), Closure(env2, e2)) when closures_by_id =>
         Environment.id_equal(env1, env2) && exp'(e1, e2)
       | (Closure(_, _), Closure(_, _)) =>
         failwith("full closure equality has not been implemented yet")
       | (Closure(_), _) => false
-  
+
       // Constructors: might ignore constructor types.
       | (Constructor(c1, _), Constructor(c2, _))
           when ignore_constructor_types == true =>
         c1 == c2
-      | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
+      | (
+          Constructor(c1, Some(Some(ty1))),
+          Constructor(c2, Some(Some(ty2))),
+        ) =>
         c1 == c2 && typ'(ty1, ty2)
       | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
       | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
       | (Constructor(_), _) => false
-  
+
       // Holes: equal if provenance is ignored
       | (
           EmptyHole | MultiHole(_) | Invalid(_),
@@ -334,7 +342,7 @@ let equality =
       | (MultiHole(_), _) => false
       | (Invalid(s1), Invalid(s2)) => s1 == s2
       | (Invalid(_), _) => false
-  
+
       // Other forms: compare.
       | (Undefined, Undefined) => true
       | (Undefined, _) => false
@@ -349,7 +357,8 @@ let equality =
       | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
         List.equal(exp', xs1, xs2)
       | (Tuple(_), _) => false
-      | (ListLit(xs1), ListLit(xs2)) when List.length(xs1) == List.length(xs2) =>
+      | (ListLit(xs1), ListLit(xs2))
+          when List.length(xs1) == List.length(xs2) =>
         List.equal(exp', xs1, xs2)
       | (ListLit(_), _) => false
       | (Use(t1, e1), Use(t2, e2)) => typ'(t1, t2) && exp'(e1, e2)
@@ -398,7 +407,12 @@ let equality =
           | ([(p1, e1), ...rest1], [(p2, e2), ...rest2]) =>
             switch (pat'(p1, p2)) {
             | Some(alphas_exp') =>
-              exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
+              exp(
+                Alphas.combine(alphas_exp', alphas_exp),
+                alphas_typ,
+                e1,
+                e2,
+              )
               && match_rules(rest1, rest2)
             | None => false
             }
@@ -406,7 +420,8 @@ let equality =
           };
         exp'(e1, e2) && match_rules(rs1, rs2);
       | (Match(_, _), _) => false
-      | (Cons(e11, e12), Cons(e21, e22)) => exp'(e11, e21) && exp'(e12, e22)
+      | (Cons(e11, e12), Cons(e21, e22)) =>
+        exp'(e11, e21) && exp'(e12, e22)
       | (Cons(_, _), _) => false
       | (ListConcat(e11, e12), ListConcat(e21, e22)) =>
         exp'(e11, e21) && exp'(e12, e22)
@@ -533,7 +548,10 @@ let equality =
       let exp' = exp(alphas_exp, alphas_typ);
       let typ' = typ(alphas_exp, alphas_typ);
       let tpat' = tpat;
-      switch (t1 |> Grammar.Annotated.term_of, t2 |> Grammar.Annotated.term_of) {
+      switch (
+        t1 |> Grammar.Annotated.term_of,
+        t2 |> Grammar.Annotated.term_of,
+      ) {
       // Wrappers when ignored: unwrap.
       | (Parens(x), _) when ignore_parens => typ'(x, t2)
       | (_, Parens(x)) when ignore_parens => typ'(t1, x)
@@ -545,13 +563,13 @@ let equality =
       | (_, TupLabel({term: ExplicitNonlabel, _}, t2))
           when ignore_explicit_unlabelling =>
         typ'(t1, t2)
-  
+
       // Wrappers otherwise: compare.
       | (Parens(x), Parens(y)) => typ'(x, y)
       | (Parens(_), _) => false
       | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && typ'(x, y)
       | (Projector(_), _) => false
-  
+
       // Forms with type binders
       | (Rec(tp1, t1), Rec(tp2, t2)) =>
         switch (tpat'(tp1, tp2)) {
@@ -567,7 +585,7 @@ let equality =
         | None => false
         }
       | (Poly(_, _), _) => false
-  
+
       // Type variables: special case depending on alpha equivalence.
       | (Var(x), Var(y)) =>
         switch (Alphas.are_alpha_equiv(x, y, alphas_typ)) {
@@ -576,12 +594,13 @@ let equality =
         | NotEquiv => false
         }
       | (Var(_), _) => false
-  
+
       // Holes: equal if provenance is ignored
       | (Unknown(_), Unknown(_)) when ignore_unknown_provenance => true
       | (Unknown(SynSwitch), Unknown(SynSwitch)) => true
       | (Unknown(SynSwitch), _) => false
-      | (Unknown(Hole(Invalid(s1))), Unknown(Hole(Invalid(s2)))) => s1 == s2
+      | (Unknown(Hole(Invalid(s1))), Unknown(Hole(Invalid(s2)))) =>
+        s1 == s2
       | (Unknown(Hole(Invalid(_))), _) => false
       | (Unknown(Hole(EmptyHole)), Unknown(Hole(EmptyHole))) => true
       | (Unknown(Hole(EmptyHole)), _) => false
@@ -591,7 +610,7 @@ let equality =
       | (Unknown(Hole(MultiHole(_))), _) => false
       | (Unknown(Internal), Unknown(Internal)) => true
       | (Unknown(Internal), _) => false
-  
+
       // Other forms: compare.
       | (Atom(a1), Atom(a2)) => a1 == a2
       | (Atom(_), _) => false
@@ -599,7 +618,8 @@ let equality =
       | (Label(_), _) => false
       | (List(ty1), List(ty2)) => typ'(ty1, ty2)
       | (List(_), _) => false
-      | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
+      | (Prod(tys1), Prod(tys2))
+          when List.length(tys1) == List.length(tys2) =>
         List.equal(typ', tys1, tys2)
       | (Prod(_), _) => false
       | (Arrow(t11, t12), Arrow(t21, t22)) =>
