@@ -245,6 +245,7 @@ module Make =
           label_format: QuoteWhenNecessary,
           inline: Inline,
           fold_case_clauses: false,
+          show_ascriptions: true,
           fold_fn_bodies: `NoFold,
           hide_fixpoints: false,
           show_filters: true,

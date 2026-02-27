@@ -51,7 +51,8 @@ let rec any_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~ancestors,
-        ~duplicates=[],
+        ~duplicate_bindings=[],
+        ~duplicate_labels=[],
         ~ctx,
         p,
         m,
@@ -210,7 +211,7 @@ and uexp_to_info_map =
         go(~ana, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let label_to_info_map =
       (expected_labels, labmode, label: Exp.t, m: Map.t)
@@ -287,10 +288,28 @@ and uexp_to_info_map =
 
     (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
-  let atomic = self => {
-    add(~self, ~co_ctx=CoCtx.empty, m);
-  };
 
+  let atomic = self => {
+    // HACK: we use the co-context to check for unused variables in surrounding
+    // pattern bindings, but we don't want unused variable warnings to appear
+    // when there are holes present in the binding scopes. so if we detect a
+    // a hole in this expression, we add a "$hole" entry to the co-context
+    // that gets bubbled up to the relevant bindings and is checked for in the
+    // warning logic.
+    let hole_co_ctx =
+      switch (term) {
+      | MultiHole(_)
+      | EmptyHole
+      | Invalid(_) =>
+        CoCtx.singleton(
+          "$hole",
+          Exp.rep_id(uexp),
+          Unknown(Internal) |> Typ.temp,
+        )
+      | _ => CoCtx.empty
+      };
+    add(~self, ~co_ctx=hole_co_ctx, m);
+  };
   // This is the case where we aren't a singleton labeled tuple
   let default_case = () => {
     switch (term) {
@@ -364,11 +383,8 @@ and uexp_to_info_map =
         m,
       );
     | Var(name) =>
-      add'(
-        ~self=Self.of_exp_var(ctx, name),
-        ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
-        m,
-      )
+      let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
+      add'(~self=Self.of_exp_var(ctx, name), ~co_ctx, m);
     | DynamicErrorHole(e, _)
     | Parens(e)
     | Projector(_, e) =>
@@ -681,7 +697,7 @@ and uexp_to_info_map =
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self)) : atomic(self);
+        ? atomic(DuplicateLabel(name, self)) : atomic(self);
     | Label(name) =>
       let self = Self.UnexpectedLabelSort(name);
       atomic(self);
@@ -1217,8 +1233,7 @@ and uexp_to_info_map =
         );
 
       let e_tys = List.map(Info.exp_ty, es);
-      let e_co_ctxs =
-        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+      let e_co_ctxs = List.map(Info.exp_co_ctx, es);
       let unwrapped_self: Self.exp =
         Common(Self.match(ctx, e_tys, branch_ids));
       let (constraints, m) =
@@ -1278,7 +1293,12 @@ and uexp_to_info_map =
         );
       };
       let m = add_redundancy(ps, redundant_rows, m);
-      add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
+      let co_ctx =
+        CoCtx.union([
+          scrut.co_ctx,
+          ...List.map2(CoCtx.mk(ctx), p_ctxs, e_co_ctxs),
+        ]);
+      add'(~self, ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
       switch (typat.term) {
@@ -1392,9 +1412,11 @@ and upat_to_info_map =
     (
       ~is_synswitch,
       ~ctx,
+      // the co-ctx of the pattern's scope
       ~co_ctx,
       ~ancestors: Info.ancestors,
-      ~duplicates: list(string),
+      ~duplicate_bindings: list(string)=[],
+      ~duplicate_labels: list(string)=[],
       ~expected_labels=?,
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
@@ -1460,7 +1482,8 @@ and upat_to_info_map =
         ~ctx,
         ~co_ctx,
         ~ancestors,
-        ~duplicates=[],
+        ~duplicate_bindings=[],
+        ~duplicate_labels=[],
         ~expected_labels=?,
         ~ana,
         ~under_ascription=false,
@@ -1475,7 +1498,8 @@ and upat_to_info_map =
       ~ctx,
       ~co_ctx,
       ~ancestors,
-      ~duplicates,
+      ~duplicate_bindings,
+      ~duplicate_labels,
       ~ana,
       ~under_ascription,
       ~override_self?,
@@ -1491,10 +1515,18 @@ and upat_to_info_map =
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
-  let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
+  let ctx_fold = (ctx: Ctx.t, m, ~duplicate_bindings=[], ~duplicate_labels=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m, info_all), e, ana) =>
-        go(~ctx, ~ana, ~duplicates, ~inferred_label?, e, m)
+        go(
+          ~ctx,
+          ~ana,
+          ~duplicate_bindings,
+          ~duplicate_labels,
+          ~inferred_label?,
+          e,
+          m,
+        )
         |> (
           ((info, m)) => (
             info.ctx,
@@ -1645,12 +1677,21 @@ and upat_to_info_map =
           typ: ctx_typ,
           custom_statics: None,
         });
-      add(
-        ~self=Just(unknown),
-        ~ctx=Ctx.extend(ctx, entry),
-        ~constraint_=Coverage.Constraint.Truth,
-        m,
-      );
+
+      List.exists(l => name == l, duplicate_bindings)
+        ? add(
+            ~self=DuplicateVar(name, Just(unknown)),
+            ~ctx=Ctx.extend(ctx, entry),
+            ~constraint_=Coverage.Constraint.Truth,
+            m,
+          )
+        : add(
+            ~self=Just(unknown),
+            ~ctx=Ctx.extend(ctx, entry),
+            ~constraint_=Coverage.Constraint.Truth,
+            m,
+          );
+
     | TupLabel({term: ExplicitNonlabel, _} as label, p) =>
       let (p, m) = go(~ana, ~ctx, p, m);
       let (_, m) = go(~label_sort=true, ~ctx, ~ana=syn, label, m);
@@ -1672,12 +1713,21 @@ and upat_to_info_map =
               ~ctx,
               ~ana=labmode,
               ~override_self=?label_self,
-              ~duplicates,
+              ~duplicate_bindings,
+              ~duplicate_labels,
               ~label_sort=true,
               label,
               m,
             );
-          let (p, m) = go(~ctx, ~ana=val_mode, ~inferred_label?, p, m);
+          let (p, m) =
+            go(
+              ~ctx,
+              ~ana=val_mode,
+              ~inferred_label?,
+              ~duplicate_bindings,
+              p,
+              m,
+            );
           (lab, p, m);
         | _ =>
           let (lab, m) =
@@ -1694,7 +1744,8 @@ and upat_to_info_map =
                 | (EmptyHole, _) => None
                 | _ => Some(BadLabel(Pat(label)))
                 },
-              ~duplicates,
+              ~duplicate_bindings,
+              ~duplicate_labels,
               label,
               m,
             );
@@ -1782,7 +1833,9 @@ and upat_to_info_map =
 
       let new_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
-      let duplicate_labels =
+      let new_duplicate_bindings =
+        Pat.get_duplicate_bindings(Pat.fresh(term));
+      let new_duplicate_labels =
         LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
       let (ctx, tys, cons, m, info_pats) =
         List.fold_left2(
@@ -1791,7 +1844,10 @@ and upat_to_info_map =
               ~ctx,
               ~ana,
               ~inferred_label?,
-              ~duplicates=duplicate_labels,
+              // Perhaps multiple copies of something in duplicates, but probably not an issue.
+              // Needed so that nested tuples can have duplicate bindings saved.
+              ~duplicate_bindings=duplicate_bindings @ new_duplicate_bindings,
+              ~duplicate_labels=new_duplicate_labels,
               ~expected_labels?,
               e,
               m,
@@ -1862,12 +1918,13 @@ and upat_to_info_map =
       );
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
-      List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
+      List.exists(l => name == l, duplicate_labels)
+        ? atomic(DuplicateLabel(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
     | Parens(p)
     | Projector(_, p) =>
-      let (p, m) = go(~ctx, ~ana, p, m);
+      let (p, m) =
+        go(~ctx, ~ana, p, ~duplicate_bindings, ~duplicate_labels, m);
       add'(~self=p.self, ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);
@@ -2016,6 +2073,7 @@ and utyp_to_info_map =
       status: InHole(BadToken("_")),
       expects,
       term: utyp,
+      warning: None,
     };
     (info, add_info(ids, InfoTyp(info), m));
   | TupLabel({term: ExplicitNonlabel, _} as label, t) =>
@@ -2028,6 +2086,7 @@ and utyp_to_info_map =
       status: NotInHole(EmptyLabel),
       expects,
       term: utyp,
+      warning: None,
     };
 
     let m = add_info(label.annotation.ids, InfoTyp(label_info), m);

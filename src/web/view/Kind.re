@@ -18,6 +18,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
             fold_case_clauses: false,
             fold_fn_bodies: `NoFold,
             hide_fixpoints: false,
+            show_ascriptions: true,
             show_filters: false,
             show_unknown_as_hole: true,
           },

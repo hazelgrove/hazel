@@ -12,6 +12,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
 };
@@ -336,6 +337,9 @@ let tests = (
         ),
       )
     }),
+    test_case("Cons followed by negation", `Quick, () =>
+      equivalent_to_make_term({|"":: - a|})
+    ),
     test_case("Function call", `Quick, () => {
       equivalent_to_make_term("a(1, 2)")
     }),
@@ -438,6 +442,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
 };
@@ -1016,6 +1021,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
 };

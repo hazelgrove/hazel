@@ -94,6 +94,13 @@ let go =
     |> return(Cant_select)
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
+  | Select(PointToPoint((p1, p2))) =>
+    z
+    |> Move.to_point(~measured=syntax.measured, ~goal=p1)
+    |> OptUtil.and_then(z =>
+         Select.to_point(~measured=syntax.measured, ~goal=p2, z)
+       )
+    |> return(Cant_select)
   | Select(Term(Current)) =>
     Select.current_term(
       syntax.term_data,

@@ -34,6 +34,7 @@ type rel =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type select =
   | All
+  | PointToPoint((Point.t, Point.t))
   | Resize(move)
   | Smart(int)
   | Tile(rel)
@@ -214,16 +215,13 @@ let prevent_in_read_only_editor = (a: t) =>
   | Probe(_) => false
   };
 
-/* Currently animations are disabled during drag selection
- * to paper over a weird interaction with scroll-to-caret.
- * There is assuredly a better way to handle it but the
- * approaches I tried weren't wholly successful. */
 let should_animate: t => bool =
   fun
   | Select(s) =>
     switch (s) {
-    | Resize(_) => false
     | All
+    | Resize(_)
+    | PointToPoint(_)
     | Smart(_)
     | Tile(_)
     | Term(_)

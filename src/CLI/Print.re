@@ -8,6 +8,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
 };
