@@ -32,7 +32,10 @@ let exercise : Tutorial.spec =
        omit_labels(coordinate, `x`)\n\
        ```\n\n\n\
        ```hazel\n\
-       omit_labels((a=1, b=2, c=3, d=4), `a`, `c`)\n\
+       omit_labels(\n\
+       (a=1, b=2, c=3, d=4),\n\
+       `a`,\n\
+       `c`)\n\
        ```";
     your_impl =
       {

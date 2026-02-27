@@ -29,7 +29,9 @@ let exercise : Tutorial.spec =
        ```\n\n\
        ### Binding and Calling\n\
        ```hazel\n\
-       let add : (Int, Int) -> Int = fun (x, y) -> x + y in\n\
+       let add : (Int, Int) -> Int =\n\
+       fun (x, y) -> x + y \n\
+       in\n\
        add(3, 4)\n\
        ```";
     your_impl =

@@ -26,7 +26,9 @@ let exercise : Tutorial.spec =
        ```\n\n\
        ### Binding and Calling a Function\n\
        ```hazel\n\
-       let inc : Int -> Int = fun n -> n + 1 in\n\
+       let inc : Int -> Int = \n\
+       fun n -> n + 1\n\
+       in\n\
        inc(1)\n\
        ```";
     your_impl =
