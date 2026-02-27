@@ -7,6 +7,7 @@ type t = {
   elaborated: Exp.t,
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
+  warning_ids: list(Id.t),
   targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
 };
 
@@ -21,6 +22,7 @@ let empty: t = {
   },
   info_map: Id.Map.empty,
   error_ids: [],
+  warning_ids: [],
   targets: Sample.no_targets,
 };
 
@@ -98,6 +100,7 @@ let init_from_term =
   TimeUtil.log_time("  Statics.mk", statics_start);
 
   let error_ids = Statics.Map.error_ids(info_map);
+  let warning_ids = Statics.Map.warning_ids(info_map);
 
   let elab_start = TimeUtil.now_ms();
   let elaborated =
@@ -124,6 +127,7 @@ let init_from_term =
     elaborated,
     info_map,
     error_ids,
+    warning_ids,
     targets,
   };
 };
