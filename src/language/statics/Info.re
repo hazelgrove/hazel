@@ -272,6 +272,7 @@ type exp = {
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
+  warning: Warning.t,
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
@@ -289,6 +290,7 @@ type pat = {
   self: Self.pat,
   cls: Cls.t,
   status: status_pat,
+  warning: Warning.t,
   ty: Typ.t,
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
@@ -304,6 +306,7 @@ type typ = {
   expects: typ_expects,
   cls: Cls.t,
   status: status_typ,
+  warning: Warning.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -313,6 +316,7 @@ type tpat = {
   ctx: Ctx.t,
   cls: Cls.t,
   status: status_tpat,
+  warning: Warning.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -400,6 +404,14 @@ let error_of: t => option(error) =
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | Secondary(_) => None;
+
+let warning_of: t => Warning.t =
+  fun
+  | InfoExp({warning, _})
+  | InfoPat({warning, _})
+  | InfoTyp({warning, _})
+  | InfoTPat({warning, _}) => warning
   | Secondary(_) => None;
 
 /* A term is "typable" if it can meaningfully be assigned a type and will
@@ -800,6 +812,8 @@ let is_error = (ci: t): bool => {
   };
 };
 
+let is_warning = (ci: t): bool => warning_of(ci) != None;
+
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
@@ -921,12 +935,14 @@ let derived_exp =
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
   let status = status_exp(ctx, ana, self);
   let ty = fixed_typ_exp(ctx, ana, self);
+  let warning: Warning.t = None;
   {
     cls,
     self,
     ty,
     ana,
     status,
+    warning,
     ctx,
     co_ctx,
     ancestors,
@@ -956,6 +972,11 @@ let derived_pat =
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, ana, self);
   let ty = fixed_typ_pat(ctx, ana, self);
+  let warning: Warning.t =
+    switch (upat.term) {
+    | Var(name) => Warning.var_is_unused(co_ctx, name)
+    | _ => None
+    };
 
   // replace constraints with Hole if this info has an error
   let constraint_': Coverage.Constraint.t =
@@ -972,6 +993,7 @@ let derived_pat =
     ana,
     ty,
     status,
+    warning,
     ctx,
     co_ctx,
     ancestors,
@@ -993,12 +1015,14 @@ let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
     | (_, cls) => Cls.Typ(cls)
     };
   let status = status_typ(ctx, expects, utyp);
+  let warning: Warning.t = None;
   {
     cls,
     ctx,
     ancestors,
     status,
     expects,
+    warning,
     term: utyp,
   };
 };
@@ -1007,10 +1031,12 @@ let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
 let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
+  let warning: Warning.t = None;
   {
     cls,
     ancestors,
     status,
+    warning,
     ctx,
     term: utpat,
   };
