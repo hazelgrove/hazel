@@ -56,7 +56,8 @@ moduleWatcher.loadModules([
   "automerge:L45rfzTVcMDsyXRyuhpNMPXqPwf",
   "automerge:3Fj5zE7QdhbbWVJNsAHPbf84YfX6",
   // petrinaut tool?
-  "automerge:3phkB7HzGoQ67w2ahmj9gepELErw"
+  "automerge:3phkB7HzGoQ67w2ahmj9gepELErw",
+  "automerge:Qq3G9LB5bNHwSVJ6m29Tz8zgb4E"
 ])
 
 registerPatchworkViewElement({repo, moduleWatcher})
