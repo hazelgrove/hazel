@@ -180,37 +180,6 @@ let rec get_fun_var = (pat: t) => {
   };
 };
 
-let rec get_bindings = (pat: t) =>
-  switch (get_var(pat)) {
-  | Some(x) => Some([x])
-  | None =>
-    switch (pat.term) {
-    | Parens(pat)
-    | Projector(_, pat)
-    | Asc(pat, _)
-    | TupLabel(_, pat) => get_bindings(pat)
-    | Tuple(pats) =>
-      let vars = pats |> List.map(get_var);
-      if (List.exists(Option.is_none, vars)) {
-        None;
-      } else {
-        Some(List.map(Option.get, vars));
-      };
-    | Label(_)
-    | ExplicitNonlabel
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Atom(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Constructor(_)
-    | Ap(_) => None
-    }
-  };
-
 let rec get_num_of_vars = (pat: t) =>
   switch (is_var(pat)) {
   | Some(_) => Some(1)
