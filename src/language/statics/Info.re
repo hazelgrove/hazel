@@ -276,7 +276,8 @@ type exp = {
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
-  label_sort: bool /* When in the position of a label */
+  label_sort: bool, /* When in the position of a label */
+  dot_labels: list(string) /* Available labels when in dot-access position */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -320,6 +321,36 @@ type tpat = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type mod_ = {
+  id: Id.t,
+  term: Mod.t,
+  cls: Cls.t,
+  sort: Sort.t,
+  ctx: Ctx.t,
+  ancestors,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type sig_ = {
+  id: Id.t,
+  term: Sig.t,
+  cls: Cls.t,
+  sort: Sort.t,
+  ctx: Ctx.t,
+  ancestors,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type mpat = {
+  id: Id.t,
+  term: MPat.t,
+  cls: Cls.t,
+  sort: Sort.t,
+  ctx: Ctx.t,
+  ancestors,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type secondary = {
   id: Id.t, // Id of term static info is sourced from
   cls: Cls.t, // Cls of secondary, not source term
@@ -334,6 +365,9 @@ type t =
   | InfoPat(pat)
   | InfoTyp(typ)
   | InfoTPat(tpat)
+  | InfoMod(mod_)
+  | InfoSig(sig_)
+  | InfoMPat(mpat)
   | Secondary(secondary);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -345,10 +379,14 @@ type error =
 
 let sort_of: t => Sort.t =
   fun
+  | InfoExp({cls: Mod(_), _}) => Mod
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
   | InfoTPat(_) => TPat
+  | InfoMod(_) => Mod
+  | InfoSig(_) => Sig
+  | InfoMPat(_) => MPat
   | Secondary(s) => s.sort;
 
 let cls_of: t => Cls.t =
@@ -357,6 +395,9 @@ let cls_of: t => Cls.t =
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
   | InfoTPat({cls, _})
+  | InfoMod({cls, _})
+  | InfoSig({cls, _})
+  | InfoMPat({cls, _})
   | Secondary({cls, _}) => cls;
 
 let any_of: t => option(Any.t) =
@@ -365,6 +406,9 @@ let any_of: t => option(Any.t) =
   | InfoPat({term, _}) => Some(Pat(term))
   | InfoTyp({term, _}) => Some(Typ(term))
   | InfoTPat({term, _}) => Some(TPat(term))
+  | InfoMod({term, _}) => Some(Mod(term))
+  | InfoSig({term, _}) => Some(Sig(term))
+  | InfoMPat({term, _}) => Some(MPat(term))
   | Secondary(_) => None;
 
 let ctx_of: t => Ctx.t =
@@ -373,6 +417,9 @@ let ctx_of: t => Ctx.t =
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
   | InfoTPat({ctx, _})
+  | InfoMod({ctx, _})
+  | InfoSig({ctx, _})
+  | InfoMPat({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
 let ancestors_of: t => ancestors =
@@ -380,7 +427,10 @@ let ancestors_of: t => ancestors =
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
-  | InfoTPat({ancestors, _}) => ancestors
+  | InfoTPat({ancestors, _})
+  | InfoMod({ancestors, _})
+  | InfoSig({ancestors, _})
+  | InfoMPat({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
 
 let parent_id_of: t => option(Id.t) =
@@ -392,6 +442,9 @@ let id_of: t => Id.t =
   | InfoPat(i) => Pat.rep_id(i.term)
   | InfoTyp(i) => Typ.rep_id(i.term)
   | InfoTPat(i) => TPat.rep_id(i.term)
+  | InfoMod({id, _})
+  | InfoSig({id, _})
+  | InfoMPat({id, _}) => id
   | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
@@ -404,6 +457,9 @@ let error_of: t => option(error) =
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
   | Secondary(_) => None;
 
 let warning_of: t => Warning.t =
@@ -412,6 +468,9 @@ let warning_of: t => Warning.t =
   | InfoPat({warning, _})
   | InfoTyp({warning, _})
   | InfoTPat({warning, _}) => warning
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
   | Secondary(_) => None;
 
 /* A term is "typable" if it can meaningfully be assigned a type and will
@@ -422,7 +481,11 @@ let is_typable_term: option(t) => bool =
   fun
   | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
     false
-  | Some(InfoTyp(_) | InfoTPat(_) | Secondary(_)) => false
+  | Some(
+      InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) | InfoMPat(_) |
+      Secondary(_),
+    ) =>
+    false
   | Some(InfoExp(_) | InfoPat(_)) => true
   | None => false;
 
@@ -768,18 +831,11 @@ let rec status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =
   };
 };
 
-let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
+let status_tpat = (_ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
-  | Var(name) when Ctx.shadows_typ(ctx, name) =>
-    let f = src => InHole(ShadowsType(name, src));
-    if (Ctx.is_base_typ(name)) {
-      f(BaseTyp);
-    } else if (Ctx.is_alias(ctx, name)) {
-      f(TyAlias);
-    } else {
-      f(TyVar);
-    };
+  | Var(name) when Ctx.is_base_typ(name) =>
+    InHole(ShadowsType(name, BaseTyp))
   | Var(name) => NotInHole(Var(name))
   | Invalid(_) => InHole(NotAVar(NotCapitalized))
   | MultiHole(_) => InHole(NotAVar(Other))
@@ -808,6 +864,9 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
   | Secondary(_) => false
   };
 };
@@ -929,6 +988,7 @@ let derived_exp =
       ~co_ctx,
       ~label_inference: option(label_inference(exp)),
       ~inferred_label: option(LabeledTuple.label),
+      ~dot_labels: list(string),
       ~label_sort,
     )
     : exp => {
@@ -950,6 +1010,7 @@ let derived_exp =
     label_inference,
     inferred_label,
     label_sort,
+    dot_labels,
   };
 };
 
@@ -1051,8 +1112,14 @@ let get_binding_site = (info: t): option(Id.t) => {
     entry.id == Id.invalid ? None : Some(entry.id);
   | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
   | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
-    let* entry = Ctx.lookup_ctr(ctx, name);
-    entry.id == Id.invalid ? None : Some(entry.id);
+    switch (Ctx.lookup_ctr(ctx, name)) {
+    | Some(entry) when entry.id != Id.invalid => Some(entry.id)
+    | _ =>
+      /* Fallback: capitalized names (modules) parse as Constructor
+         but bind as VarEntry via the Constructor-to-Var fallback */
+      let* entry = Ctx.lookup_var(ctx, name);
+      entry.id == Id.invalid ? None : Some(entry.id);
+    }
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
     let* id = Ctx.lookup_tvar_id(ctx, name);
     id == Id.invalid ? None : Some(id);

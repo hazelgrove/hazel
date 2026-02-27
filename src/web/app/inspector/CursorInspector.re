@@ -466,15 +466,15 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | InvalidLabel(name, expected_labels) =>
     switch (expected_labels) {
     | [] => [
-        text("Invalid label: "),
+        text("Member "),
         label_view(name),
-        text(". No labels were expected."),
+        text(" not found — no members available"),
       ]
     | _ => [
-        text("Invalid label: "),
+        text("Member "),
         label_view(name),
-        text(" is not part of the expected labels: "),
-        ...List.map(code, expected_labels),
+        text(" not found. Available: "),
+        text(String.concat(", ", expected_labels)),
       ]
     }
   | DuplicateLabels(labels, _) => [
@@ -778,6 +778,9 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
+  | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, status, _} as ie) =>
     wrapper(exp_view(~globals, cls, status, ie))
   | InfoPat({cls, status, _} as ip) =>
