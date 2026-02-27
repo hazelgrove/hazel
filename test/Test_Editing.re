@@ -1097,6 +1097,27 @@ let rescan_tests = [
     ~acts=mk({|let y = 1 in x¦|}),
     ~goal={|let y = 1 in x¦|},
   ),
+  /* Out-of-order delimiter tests: these type delimiters in non-label order.
+   * Rescan should NOT match a delimiter whose shard index is lower than
+   * an already-matched shard to its left (monotonicity constraint). */
+  /* if/then/else : type `if 1 else 2 then` (then after else) */
+  test(
+    ~name="Rescan: if with then typed after else",
+    ~acts=string_to_ltr_actions("if 1 else 2 then"),
+    ~goal={|if 1 else 2 then¦?|},
+  ),
+  /* let/=/in : type `let x in 1 = 2` (= after in) */
+  test(
+    ~name="Rescan: let with = typed after in",
+    ~acts=string_to_ltr_actions("let x in 1 = 2"),
+    ~goal={|let x in 1 = 2¦|},
+  ),
+  /* type/=/in : type `type x in y = z` (= after in) */
+  test(
+    ~name="Rescan: type with = typed after in",
+    ~acts=string_to_ltr_actions("type x in y = z"),
+    ~goal={|type x in y = z¦|},
+  ),
   /* PHASE 2: Effective-label matching (cross-form re-association).
    * These test that orphaned shards from one form can be matched by
    * a different form with compatible delimiters.

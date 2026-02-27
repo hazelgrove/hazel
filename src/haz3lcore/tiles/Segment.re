@@ -678,7 +678,13 @@ let rescan = (~sort: Sort.t=Any, seg: t): t => {
     /* Walk left-to-right with a STACK of backpack frames.
      * Each incomplete tile pushes a new frame with its missing shards.
      * Only the TOP frame is checked for matching.
-     * When a match exhausts the top frame, pop to the previous one. */
+     * When a match exhausts the top frame, pop to the previous one.
+     *
+     * Each frame tracks max_idx: the highest shard index matched so far.
+     * A candidate match is only accepted if its shard index > max_idx,
+     * enforcing that matches occur in label order (monotonicity). This
+     * prevents e.g. `then` (idx 1) matching after `else` (idx 2) in
+     * `if 1 else 2 then`. */
     let missing_entries = (t: Tile.t): list((Token.t, Tile.t)) =>
       Tile.right_missing_shards(t)
       |> List.filter_map((shard: Tile.t) =>
@@ -687,13 +693,16 @@ let rescan = (~sort: Sort.t=Any, seg: t): t => {
            | _ => None
            }
          );
-    let rec go =
-            (
-              ~frame: list((Token.t, Tile.t))=[],
-              ~stack: list(list((Token.t, Tile.t)))=[],
-              seg: t,
-            )
-            : t =>
+    let shard_idx = (shard: Tile.t): int =>
+      switch (shard.shards) {
+      | [i] => i
+      | _ => (-1)
+      };
+    /* frame = (entries, max_idx) where max_idx is the highest shard
+     * index matched so far for this incomplete tile */
+    let empty_frame = ([], (-1));
+    let mk_frame = (t: Tile.t) => (missing_entries(t), Tile.r_shard(t));
+    let rec go = (~frame=empty_frame, ~stack=[], seg: t): t =>
       switch (seg) {
       | [] => []
       | [hd, ...tl] =>
@@ -702,6 +711,7 @@ let rescan = (~sort: Sort.t=Any, seg: t): t => {
         | Grout(_)
         | Projector(_) => [hd, ...go(~frame, ~stack, tl)]
         | Tile(t) =>
+          let (entries, max_idx) = frame;
           if (List.length(t.shards) == 1) {
             /* Singleton tile (standalone monotile or orphaned shard):
              * try matching against the TOP frame first.
@@ -709,22 +719,24 @@ let rescan = (~sort: Sort.t=Any, seg: t): t => {
              * and orphaned shards from deleted forms (label length > 1),
              * enabling cross-form re-association (e.g. fix reusing fun's ->). */
             let tok = List.hd(Tile.effective_label(t));
-            switch (List.assoc_opt(tok, frame)) {
-            | Some(target_shard) =>
+            switch (List.assoc_opt(tok, entries)) {
+            | Some(target_shard) when shard_idx(target_shard) > max_idx =>
+              let idx = shard_idx(target_shard);
               let converted = Piece.Tile(target_shard);
-              let frame = List.filter(((k, _)) => k != tok, frame);
+              let entries = List.filter(((k, _)) => k != tok, entries);
               /* If this frame is exhausted, pop to previous frame */
               let (frame, stack) =
-                switch (frame, stack) {
+                switch (entries, stack) {
                 | ([], [prev, ...rest]) => (prev, rest)
-                | _ => (frame, stack)
+                | _ => ((entries, max(max_idx, idx)), stack)
                 };
               [converted, ...go(~frame, ~stack, tl)];
+            | Some(_)
             | None =>
               if (!Tile.is_complete(t)) {
                 /* Unmatched singleton incomplete tile: push its
                  * right-missing shards as a new frame */
-                let new_frame = missing_entries(t);
+                let new_frame = mk_frame(t);
                 [hd, ...go(~frame=new_frame, ~stack=[frame, ...stack], tl)];
               } else {
                 /* Complete singleton: try sort-aware expansion */
@@ -741,11 +753,11 @@ let rescan = (~sort: Sort.t=Any, seg: t): t => {
             };
           } else if (!Tile.is_complete(t)) {
             /* Multi-shard incomplete tile: push new frame */
-            let new_frame = missing_entries(t);
+            let new_frame = mk_frame(t);
             [hd, ...go(~frame=new_frame, ~stack=[frame, ...stack], tl)];
           } else {
             [hd, ...go(~frame, ~stack, tl)];
-          }
+          };
         }
       };
     go(seg);
