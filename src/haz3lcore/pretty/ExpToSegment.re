@@ -1816,7 +1816,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ def = go(def)
     and+ body = go(body);
     let body =
-      settings.inline ? body : [Secondary(mk_newline(Id.mk()))] @ body;
+      settings.inline == Inline
+        ? body : [Secondary(mk_newline(Id.mk()))] @ body;
     wrap(exp, [mk_form(ModuleExp, id, [mp_seg, def])] @ body);
   };
 }
