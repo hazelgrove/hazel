@@ -269,15 +269,24 @@ fun r -> r.dept
 let pivot_table =
   {md|### pivot_table
 ```hazelnostatics
-pivot_table : ([T], T -> R, T -> C, [T] -> V) -> [?]
+pivot_table :
+  ([T], T -> String,
+   T -> R, [T] -> V) -> [?]
 ```
-Pivot a table by grouping on row and column keys, aggregating each group with `agg`:
-```hazelnostatics
+Create a pivot table. The column key
+function must return a `String` (column
+keys become field labels):
+```hazel
 pivot_table(
-  table,
-  row_key,
-  col_key,
-  agg
+  [
+    (dept="CS", yr="1", n=10),
+    (dept="CS", yr="2", n=20),
+    (dept="Math", yr="1", n=5)
+  ],
+  fun r -> r.dept,
+  fun r -> r.yr,
+  fun g -> fold_left(
+    g.n, fun (a,x) -> a+x, 0)
 )
 ```|md}
 
