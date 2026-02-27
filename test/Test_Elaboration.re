@@ -662,6 +662,62 @@ in 1|},
         ),
       )
     ),
+    /* ===== MODULE ELABORATION TESTS =====
+       NOTE: Modules currently elaborate to labeled tuples.
+       These tests will need updating when modules get their own
+       semantics separate from labeled tuples (Phase 2). */
+    test_case("Module single binding elaborates to labeled tuple", `Quick, () =>
+      alco_check(
+        {|{ let x = 1 } => let x = 1 in (x=x)|},
+        Exp.(
+          let_(
+            Pat.var("x"),
+            int(1),
+            tuple([tup_label(label("x"), var("x"))]),
+          )
+        ),
+        dhexp_of_uexp(parse_exp({|{ let x = 1 }|})),
+      )
+    ),
+    test_case(
+      "Module multiple bindings elaborates to labeled tuple", `Quick, () =>
+      alco_check(
+        {|{ let x = 1; let y = true }|},
+        Exp.(
+          let_(
+            Pat.var("x"),
+            int(1),
+            let_(
+              Pat.var("y"),
+              bool(true),
+              tuple([
+                tup_label(label("x"), var("x")),
+                tup_label(label("y"), var("y")),
+              ]),
+            ),
+          )
+        ),
+        dhexp_of_uexp(parse_exp({|{ let x = 1; let y = true }|})),
+      )
+    ),
+    test_case("Module in let binding preserves type", `Quick, () =>
+      alco_check(
+        {|let m = { let x = 1 } in m.x|},
+        dhexp_of_uexp(parse_exp({|let m = (let x = 1 in (x=x)) in m.x|})),
+        dhexp_of_uexp(parse_exp({|let m = { let x = 1 } in m.x|})),
+      )
+    ),
+    test_case("Module with sig annotation elaborates labels", `Quick, () =>
+      alco_check(
+        {|let m : { let x : Int } = { let x = 1 } in m|},
+        dhexp_of_uexp(
+          parse_exp({|let m : (x=Int) = (let x = 1 in (x=x)) in m|}),
+        ),
+        dhexp_of_uexp(
+          parse_exp({|let m : { let x : Int } = { let x = 1 } in m|}),
+        ),
+      )
+    ),
     skip_known_bug(
       "Nontermination in typ normalization",
       {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},

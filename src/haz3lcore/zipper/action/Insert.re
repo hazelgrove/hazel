@@ -6,8 +6,8 @@ open OptUtil.Syntax;
  * that expansion should happen in. This is rightwards for leading
  * expanding delimiters, leftwards for trailing delimiters. This
  * is mostly a wrapper around Form.Expansion; the additional logic
- * hers handles one special case of sort-dependendent expansion  */
-let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
+ * here handles special cases of context-dependent expansion. */
+let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   let before_case_shard = (z: t): bool =>
     List.exists(
       (p: Piece.t) =>
@@ -26,10 +26,54 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
   | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
     /* Special case for constructing string/label literals. */
     ([t ++ t], Left)
-  | "|" when !(before_case_shard(z) || inside_case(z)) =>
-    /* Only expand case rules when inside a case */
+  | "|" when before_case_shard(z) || inside_case(z) =>
+    /* SPECIAL CASE: Case rule delimiter.
+       Inside a case, always expand | to Rule form regardless of local sort.
+
+       Why this is needed: The Rule form's left nib is Exp (it expects an
+       expression). But rule bodies can have type ascriptions like `expr : Type`,
+       which means Relatives.sort returns Typ even though semantically we have
+       an expression. Sort-specific expansion would fail to find | for Typ.
+
+       This bypasses Form.Expansion.get entirely for | inside case expressions,
+       hardcoding the Rule form label. A more principled fix might register |
+       for multiple sorts (Exp, Typ, etc.) in Form.Expansion. */
+    (["|", "=>"], Left)
+  | "|" =>
+    /* Outside case: | has no meaning, don't expand */
     ([t], Left)
-  | _ => Form.Expansion.get(t)
+  | _ => Form.Expansion.get(sort, t)
+  };
+};
+
+/* Determine the effective sort for insertion, considering both local and parent sorts.
+   Default: local-first (try local sort, fall back to parent).
+   Special cases:
+   - Semicolon with Mod parent prefers Mod (for ModSeq over CellJoin)
+   - Mod context falls back to Exp since bare expressions are valid module items */
+let effective_sort = (t: Token.t, z: t): Sort.t => {
+  let local_sort = Relatives.sort(z.relatives);
+  let parent_sort = Ancestors.sort(z.relatives.ancestors);
+
+  /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
+  if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
+    parent_sort;
+  } else {
+    /* Default: local-first with parent fallback */
+    switch (Form.Expansion.try_get(local_sort, t)) {
+    | Some(_) => local_sort
+    | None =>
+      /* In Mod context, try Exp since bare expressions are valid module items.
+         This mirrors remold_mod which also falls back to Exp. */
+      if (local_sort == Sort.Mod) {
+        switch (Form.Expansion.try_get(Exp, t)) {
+        | Some(_) => Exp
+        | None => parent_sort
+        };
+      } else {
+        parent_sort;
+      }
+    };
   };
 };
 
@@ -62,10 +106,9 @@ let insert_shard =
     let target = Zipper.backpack_find(t, z) |> Option.get;
     Zipper.put_down_target(d, target, z);
   } else {
-    let (label, delim_d) = expansion(t, z);
-    let molds = Form.Molds.get(label);
-    assert(molds != []);
-    let mold = List.hd(molds);
+    let sort = effective_sort(t, z);
+    let (label, delim_d) = expansion(sort, t, z);
+    let mold = Form.Molds.get(sort, label);
     let shard =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);

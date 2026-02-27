@@ -39,10 +39,14 @@ let of_delim' =
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
       let var_class = is_ref(token, sort) ? ["ref"] : [];
+      let keyword_class = Token.is_keyword(token) ? ["keyword"] : [];
       span(
         ~attrs=[
           Attr.classes(
-            ["token", base_cls, plurality] @ in_buffer @ var_class,
+            ["token", base_cls, plurality]
+            @ in_buffer
+            @ var_class
+            @ keyword_class,
           ),
         ],
         /* Currently only supporting emojis in strings; this is a
