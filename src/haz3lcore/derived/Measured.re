@@ -385,7 +385,12 @@ let of_segment_inner =
       let size = Point.mk(~row=num_rows, ~col=0 - acc.pos.col);
       let (measure, map) =
         calc_with_shape(row_shape, acc.pos, acc.map, size);
-      let map = add_piece_row(acc.pos.row, acc.seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], map); /* NOTE: These linebreaks don't actually occur in the surface syntax */
+      let map =
+        add_piece_row(
+          acc.pos.row,
+          acc.seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))],
+          map,
+        ); /* NOTE: These linebreaks don't actually occur in the surface syntax */
       let map =
         num_rows == 0 ? map : add_n_empty_piece_rows(num_rows - 1, map);
       {
