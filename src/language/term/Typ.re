@@ -759,7 +759,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
                switch (pat.term) {
                | Asc({term: Var(name), _}, typ) =>
                  Some(
-                   TupLabel(Label(name) |> temp, normalize(ctx, typ)) |> temp,
+                   TupLabel(Label(name) |> temp, normalize(ctx, typ))
+                   |> temp,
                  )
                | Var(name) =>
                  Some(
