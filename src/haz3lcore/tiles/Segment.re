@@ -928,11 +928,11 @@ let try_sort_expand = (sort: Sort.t, t: Tile.t): option(Tile.t) =>
     None;
   } else {
     let tok = List.hd(t.label);
-    let (label, _) = Form.Expansion.get(tok);
+    let (label, _) = Form.Expansion.get(sort, tok);
     if (List.length(label) <= 1) {
       None;
     } else {
-      let molds = Form.Molds.get(label);
+      let molds = Form.Molds.get_base(label);
       switch (List.find_opt((m: Mold.t) => m.out == sort, molds)) {
       | None => None
       | Some(mold) =>
