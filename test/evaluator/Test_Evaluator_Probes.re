@@ -801,6 +801,51 @@ in f(1)|},
   ),
 ];
 
+let module_tests = [
+  probe_line_test(
+    "Probe inside module body",
+    {|let m = { let x = ^^probe(1 + 2) } in m.x|},
+    [(0, ["3"])],
+  ),
+  /* ^^probe({ let x = 1 }) captures the module's value (x=1). The elaborator
+     places the Module's ID on the labeled tuple so the evaluator records
+     samples under the correct ID. */
+  probe_line_test(
+    "Probe on module value via variable",
+    {|let m = { let x = 5 } in ^^probe(m)|},
+    [(0, ["(x=5)"])],
+  ),
+  probe_line_test(
+    "Probe on module dot access",
+    {|let m = { let x = 5 } in ^^probe(m.x)|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Module keyword with probe in body",
+    {|module m = { let x = ^^probe(2 + 3) } in m.x|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Probe on function defined in module",
+    {|let m = { let f = fun x -> ^^probe(x + 1) }
+in m.f(5)|},
+    [(0, ["6"])],
+  ),
+  probe_line_test(
+    "Probe on module with multiple bindings",
+    {|let m = {
+  let x = ^^probe(1 + 2);
+  let y = ^^probe(3 + 4)
+} in m.x + m.y|},
+    [(1, ["3"]), (2, ["7"])],
+  ),
+  probe_line_test(
+    "Probe on module expression collects sample",
+    {|let m = ^^probe({ let x = 5 }) in m.x|},
+    [(0, ["(x=5)"])],
+  ),
+];
+
 let tests = [
   ("Evaluator.Probes.Basic", basic_tests),
   ("Evaluator.Probes.Operators", operator_tests),
@@ -809,4 +854,5 @@ let tests = [
   ("Evaluator.Probes.Nested", nested_probe_tests),
   ("Evaluator.Probes.Recursion", recursion_tests),
   ("Evaluator.Probes.Ascription", ascription_tests),
+  ("Evaluator.Probes.Modules", module_tests),
 ];
