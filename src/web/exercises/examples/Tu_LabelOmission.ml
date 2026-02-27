@@ -11,8 +11,8 @@ let exercise : Tutorial.spec =
        let coordinate = (x=1, y=2, z=3) in\n\
        omit_labels(coordinate, `x`)\n\
        ```\n\n\n\
-       The labels are delimited by backticks rather than strings to provide \
-       stronger typing.\n\n\
+       The labels are not strings and therefore delimited by backticks rather \
+       than double quotes to provide stronger typing.\n\n\
        Multiple labels can be provided as extra arguments\n\n\n\
        ```hazel\n\
        omit_labels((a=1, b=2, c=3, d=4), `a`, `c`)\n\

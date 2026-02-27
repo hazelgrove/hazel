@@ -28,15 +28,13 @@ let exercise : Tutorial.spec =
       "Define a function and use projection with string concatenation to build \
        the string";
     task_reference =
-      "### Helpful operations\n\
-       - String concatenation\n\
-       ```hazel\n\
-       \"Hello\" ++ \"World\n\
-       ```\n\n\
-       - Labeled tuple projection\n\
-       ```hazel\n\
-       (x=1, y=2).x\n\
-       ```";
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.function_definition;
+          TaskRefDocs.binding_and_calling;
+          TaskRefDocs.tuple_projection;
+          TaskRefDocs.string_concatenation;
+        ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

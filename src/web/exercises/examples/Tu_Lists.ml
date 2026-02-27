@@ -13,8 +13,8 @@ let exercise : Tutorial.spec =
        elements. So `[1, 2, 3]` has type `[Int]`, and `[\"hello\", \"world\"]` \
        has type `[String]`. All elements in a list must have the same type.\n\n\
        Complete the let binding below so that `first_four` contains the first \
-       four natural numbers: `[1, 2, 3, 4]`.";
-    display_hint = "Fill in the list with the first four natural numbers";
+       four positive integers: `[1, 2, 3, 4]`.";
+    display_hint = "Fill in the list with the first four positive integers";
     task_reference =
       TaskRefDocs.compose [ TaskRefDocs.list_literal; TaskRefDocs.list_type ];
     your_impl =

@@ -18,7 +18,7 @@ let exercise : Tutorial.spec =
        ```\n\n\n\
        # Task\n\n\
        Please define a perimeter function below that takes 2 arguments `width` \
-       and `height` and returns the perimiter of a rectangle `2 x \
+       and `height` and returns the perimeter of a rectangle `2 x \
        (width+height)`.\n";
     display_hint = "Insert a function with params (width, height) ";
     task_reference =
