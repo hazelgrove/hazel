@@ -432,7 +432,7 @@ let let_add_exp_coloring_ids =
   (Piece.id(_exp_def), def_id),
 ];
 let let_add_exp: form = {
-  let explanation = "Matches against integers by implicitly subtracting one of the sides of the addition. One side of the addition must be a constant.";
+  let explanation = "The [*definition*](%s) is matched by adding the [*left*](%s) and [*right*](%s) pattern sides. One side of the addition must be a constant.";
   let form = [
     mk_let([[space(), _pat_1, space(), plus(), space(), _pat_2, space()]]),
     linebreak(),
