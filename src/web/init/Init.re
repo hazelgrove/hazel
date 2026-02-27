@@ -18,6 +18,7 @@ let documentation_slides =
       Projectors.out,
       ADTs.out,
       Tuples.out,
+      Modules.out,
       Tables.out,
       Polymorphism.out,
       Cards.out,
