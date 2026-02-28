@@ -24,7 +24,6 @@ let startup: PersistentData.t = {
       Livelits.out,
     ]
     @ B2t2.Slides.all_slides
-    @ Study.AllStudy.all
     |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
