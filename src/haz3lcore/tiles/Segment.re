@@ -932,14 +932,13 @@ let try_sort_expand = (sort: Sort.t, t: Tile.t): option(Tile.t) =>
     if (List.length(label) <= 1) {
       None;
     } else {
-      let molds = Form.Molds.get_base(label);
-      switch (List.find_opt((m: Mold.t) => m.out == sort, molds)) {
+      switch (Form.Molds.try_get(sort, label)) {
       | None => None
-      | Some(mold) =>
+      | Some(molds) =>
         Some({
           ...t,
           label,
-          mold,
+          mold: List.hd(molds),
           shards: [0],
           children: [],
         })
