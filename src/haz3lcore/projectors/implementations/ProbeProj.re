@@ -861,7 +861,7 @@ let sample_environment =
 
 /* Formatted 2D value display for large values that are truncated inline.
  * Shows a pretty-printed multi-line view in the dropdown. */
-let formatted_value_section =
+let _formatted_value_section =
     (
       ~settings: settings,
       ~num_total: int,
@@ -1442,6 +1442,18 @@ module M: Projector = {
 
   let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
+    /* Wrap view_seg to fix single_line=true for inline probe displays */
+    let _view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
+      view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
+    /* Multi-line version for formatted value display in dropdown */
+    let _view_seg_multiline = (~text_only, sort, segment) =>
+      view_seg(
+        ~single_line=false,
+        ~background=false,
+        ~text_only,
+        sort,
+        segment,
+      );
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
