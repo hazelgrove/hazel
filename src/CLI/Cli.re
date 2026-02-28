@@ -510,9 +510,13 @@ let test_cmd = {
 };
 
 let gen_slides_cmd = {
-  let doc = "Generate ML slide files from .hz programs. See GenSlides.re for config.";
+  let doc = "Generate ML slide files from .hz programs. Optionally pass path prefixes to only rebuild matching files (e.g., ./hazel gen-slides tutorial debugging/grove-plotter).";
+  let filter_arg = {
+    let doc = "Path prefix filters (relative to hazel-programs/study/). Only .hz files matching these prefixes will be processed.";
+    Arg.(value & pos_all(string, []) & info([], ~doc));
+  };
   let info = Cmd.info("gen-slides", ~doc);
-  Cmd.v(info, Term.(const(GenSlides.generate) $ const()));
+  Cmd.v(info, Term.(const(GenSlides.generate) $ filter_arg));
 };
 
 let gen_slides_clean_cmd = {
