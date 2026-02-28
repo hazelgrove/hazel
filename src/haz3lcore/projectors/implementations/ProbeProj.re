@@ -847,7 +847,7 @@ let sample_environment =
 
 /* Formatted 2D value display for large values that are truncated inline.
  * Shows a pretty-printed multi-line view in the dropdown. */
-let formatted_value_section =
+let _formatted_value_section =
     (
       ~settings: settings,
       ~num_total: int,
@@ -1347,7 +1347,7 @@ module M: Projector = {
     let _view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
       view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
     /* Multi-line version for formatted value display in dropdown */
-    let view_seg_multiline = (~text_only, sort, segment) =>
+    let _view_seg_multiline = (~text_only, sort, segment) =>
       view_seg(
         ~single_line=false,
         ~background=false,
