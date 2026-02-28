@@ -179,6 +179,7 @@ module type ExpressionStatics = {
       ~inferred_label: string=?,
       ~override_self: Self.exp=?,
       ~label_sort: bool=?,
+      ~dot_labels: list(string)=?,
       Exp.t,
       Map.t
     ) =>

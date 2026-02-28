@@ -67,6 +67,10 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
     is_test_body
       ? [IdTagged.rep_id(let_term)]
       : target_subterm_ids(IdTagged.rep_id(def), info_map);
+  | Some(InfoExp({term: {term: ModuleExp(_, def, _), _}, _})) =>
+    /* If trying to probe a module expression, probe the definition.
+       Recurse so fun literals get drilled into. */
+    target_subterm_ids(IdTagged.rep_id(def), info_map)
 
   | Some(InfoExp({term: {term: Var(_), _} as v, _})) =>
     /* If we're trying to probe variable in function position for an

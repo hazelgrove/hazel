@@ -705,6 +705,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | UnOp(_)
   | BinOp(_)
   | BuiltinFun(_)
+  | Module(_)
   | Asc(_)
   | ProofObject(_)
   | Match(_) => {
@@ -750,6 +751,13 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Use(t, ebody'),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
+    };
+  | ModuleExp(mp, def, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: ModuleExp(mp, def, ebody'),
       annotation:
         Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };

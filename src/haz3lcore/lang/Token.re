@@ -161,6 +161,7 @@ let is_potential_token = t =>
   } else {
     t == "()"
     || t == "[]"
+    || t == "{}"
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
@@ -208,12 +209,14 @@ let is_var = str =>
   && !is_wild(str)
   && match(var_regexp, str);
 
-let quote_label_when_necessary = (l: string): string =>
-  is_var(l) ? l : label_quote(l);
-
 let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = match(capitalized_name_regexp);
-let base_typs = ["String", "Int", "Float", "Bool"];
+
+let quote_label_when_necessary = (l: string): string =>
+  is_var(l) || is_ctr(l) ? l : label_quote(l);
+/* Atom type names recognized by MakeTerm as Atom(...) in Typ sort.
+ * Keep in sync with Ctx.is_base_typ. */
+let base_typs = ["Bool", "Float", "Int", "Nat", "SInt", "String"];
 let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
 let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 
@@ -231,8 +234,17 @@ let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = append(tuple_start, tuple_end);
 let is_empty_tuple = equal(empty_tuple);
 
+/* Modules */
+let mod_start = "{";
+let mod_end = "}";
+let mod_lbl = [mod_start, mod_end];
+let empty_module = append(mod_start, mod_end);
+let is_empty_module = equal(empty_module);
+
 let const_mono_delims =
-  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
+  base_typs
+  @ bools
+  @ [undefined, wild, empty_list, empty_tuple, empty_module, empty_string];
 
 let bad_token_cls: string => bad_token_cls =
   t =>

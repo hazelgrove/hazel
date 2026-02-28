@@ -98,6 +98,8 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
           },
           empty_hole(),
         )
+      | Module => module_([Mod.empty_hole()])
+      | ModuleExp => module_exp(MPat.var("M"), empty_hole(), empty_hole())
       }
     )
   );
@@ -185,6 +187,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
           },
           unknown(Hole(EmptyHole)),
         )
+      | Sig => assert(false) /* Excluded: Sig is surface syntax only */
       }
     )
   );
@@ -258,7 +261,8 @@ let tests = (
         List.iter(
           (cls: Typ.cls) => {
             switch (cls) {
-            | Constructor => ()
+            | Constructor
+            | Sig => ()
             | _ =>
               check(
                 cls_testable,

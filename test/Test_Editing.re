@@ -509,14 +509,16 @@ let insertion_tests = [
     ~goal={|((1))¦|},
   ),
   test(
-    ~name="Forall regrouting edge case (debatable behavior) (#1913)",
-    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l")],
-    ~goal={|?:forall¦(?)|},
+    ~name=
+      "Poly (formerly Forall) regrouting edge case (debatable behavior) (#1913)",
+    ~acts=mk({|?:pol¦(?)|}) @ [Insert("y")],
+    ~goal={|?:poly¦(?)|},
   ),
   test(
-    ~name="Forall regrouting edge case (non-debatable) (#1913)",
-    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l"), Insert("-"), Insert(">")],
-    ~goal={|?:forall?->¦(?)|},
+    ~name=
+      "Poly (formerly Forall) regrouting edge case (non-debatable) (#1913)",
+    ~acts=mk({|?:pol¦(?)|}) @ [Insert("y"), Insert("-"), Insert(">")],
+    ~goal={|?:poly?->¦(?)|},
   ),
   /* In below test, we first cause the two `=`s to merge, then split them.
      The first `=` should not get matched to the `let` because of the parens.
@@ -1144,6 +1146,40 @@ let rescan_tests = [
   ),
 ];
 
+/* ===== MODULE EDITING TESTS =====
+   NOTE: These test basic module syntax editing behavior.
+   `{` is an instant-expanding delimiter that creates `{¦}`.
+   Inside braces is Mod sort, where `let` creates ModLet forms. */
+let module_tests = [
+  /* { is an instant expander: typing { puts } in the backpack.
+     The printer shows backpack contents as missing, so } doesn't
+     appear until Put_down. The ? inside is the empty Mod hole. */
+  test(
+    ~name="Module: Insert open brace (} in backpack)",
+    ~acts=mk({|¦|}) @ [Insert("{")],
+    ~goal={|{¦?|},
+  ),
+  test(
+    ~name="Module: Complete empty module with Put_down",
+    ~acts=mk({|¦|}) @ [Insert("{"), Put_down],
+    ~goal={|{?}¦|},
+  ),
+  test(
+    ~name="Module: Type let inside module",
+    ~acts=
+      mk({|¦|})
+      @ [Insert("{")]
+      @ string_to_ltr_actions(" let x = 1 ")
+      @ [Put_down],
+    ~goal={|{ let x = 1 }¦|},
+  ),
+  test(
+    ~name="Module: Empty module as let definition",
+    ~acts=mk({|let m = ¦|}) @ [Insert("{"), Put_down],
+    ~goal={|let m = {?}¦|},
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -1151,4 +1187,5 @@ let tests = [
   ("Editing.Move", move_tests),
   ("Editing.Selection", selection_tests),
   ("Editing.Rescan", rescan_tests),
+  ("Editing.Module", module_tests),
 ];
