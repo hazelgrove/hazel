@@ -1453,7 +1453,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           }),
         ],
         switch (settings.secondary) {
-        | AutoFormat => [Secondary(mk_space(Id.mk()))] @ e
+        | AutoFormat => {
+            let first = Segment.first_string(e);
+            if (Token.begins_with_potential_operator(first)
+                && !String.starts_with(first, ~prefix="…")) {
+              [Secondary(mk_space(Id.mk())), ...e];
+            } else {
+              e;
+            };
+          }
         | PreserveExact => e
         },
       ]),
@@ -1927,7 +1935,15 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           }),
         ],
         switch (settings.secondary) {
-        | AutoFormat => [Secondary(mk_space(Id.mk()))] @ p
+        | AutoFormat => {
+            let first = Segment.first_string(p);
+            if (Token.begins_with_potential_operator(first)
+                && !String.starts_with(first, ~prefix="…")) {
+              [Secondary(mk_space(Id.mk())), ...p];
+            } else {
+              p;
+            };
+          }
         | PreserveExact => p
         },
       ]),
@@ -2150,7 +2166,15 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           }),
         ],
         switch (settings.secondary) {
-        | AutoFormat => [Secondary(mk_space(Id.mk()))] @ t
+        | AutoFormat => {
+            let first = Segment.first_string(t);
+            if (Token.begins_with_potential_operator(first)
+                && !String.starts_with(first, ~prefix="…")) {
+              [Secondary(mk_space(Id.mk())), ...t];
+            } else {
+              t;
+            };
+          }
         | PreserveExact => t
         },
       ]),

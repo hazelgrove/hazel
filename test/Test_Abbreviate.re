@@ -245,8 +245,8 @@ let monotonicity_tests =
         "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]",
       ),
       ("list of record", "[(crop=Moonmelon, quality=Bronze, quantity=2)]"),
-      ("nested labeled tuple", "(inner= (a= 1, b= 2), outer= 3)"),
-      ("labeled tuple with list", "(items= [1, 2, 3], total= 6)"),
+      ("nested labeled tuple", "(inner=(a=1, b=2), outer=3)"),
+      ("labeled tuple with list", "(items=[1, 2, 3], total=6)"),
     ],
   );
 
@@ -441,8 +441,8 @@ let hard_cap_tests =
         "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]",
       ),
       ("list of record", "[(crop=Moonmelon, quality=Bronze, quantity=2)]"),
-      ("nested labeled tuple", "(inner= (a= 1, b= 2), outer= 3)"),
-      ("labeled tuple with list", "(items= [1, 2, 3], total= 6)"),
+      ("nested labeled tuple", "(inner=(a=1, b=2), outer=3)"),
+      ("labeled tuple with list", "(items=[1, 2, 3], total=6)"),
     ],
   );
 
@@ -621,8 +621,8 @@ let module_abbreviation_tests = [
           ),
         ]);
       /* Use budget=12 so the TupLabel structure is preserved but value
-         must elide. With the budget/retry system, budget=8 may collapse
-         TupLabel since its min cost is 7. */
+         must elide. With the budget/retry system, budget=6 may collapse
+         TupLabel since its min cost is 5. */
       let abbreviated: Exp.t = run_abbreviation(~available=12, original);
       switch (abbreviated.term) {
       | Tuple([{term: TupLabel(label_exp, value_exp), _}]) =>

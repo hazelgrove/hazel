@@ -110,7 +110,7 @@ module AbbrevSequence = {
   let min_display_cost = (item: Exp.t): int =>
     switch (item.term) {
     | Atom(String(_)) => 3 /* "…" */
-    | TupLabel(_, _) => 5 /* …= … (label 1 + " = " 3 + value 1) */
+    | TupLabel(_, _) => 3 /* …=… (label 1 + "=" 1 + value 1) */
     | Ap(Forward, {term: Constructor(_, _), _}, _) => 4 /* …(…) */
     | Parens(_) => 3 /* (…) */
     | ListLit([_, ..._]) => 3 /* […] */
@@ -283,8 +283,8 @@ module AbbrevSequence = {
           items,
         );
       /* Useful cost: same as min — items are shown when they can render
-         at least their minimum structural form. For TupLabels (min=5) that's
-         "…= …", for Parens (min=3) that's "(…)", for atomics it's the value. */
+         at least their minimum structural form. For TupLabels (min=3) that's
+         "…=…", for Parens (min=3) that's "(…)", for atomics it's the value. */
       let useful_item: int = min_item;
       /* Pre-decide how many items to show */
       let show_count: int =
@@ -633,13 +633,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           };
         }
       | TupLabel(e1, e2) =>
-        /* Min TupLabel: label (1) + " = " (3) + value (1) = 5.
+        /* Min TupLabel: label (1) + "=" (1) + value (1) = 3.
            Truncated labels use Invalid (no backtick quoting). */
-        if (available^ < 5) {
+        if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
         } else {
-          available := available^ - 3; /* " = " */
+          available := available^ - 1; /* "=" */
           let remaining: int = available^;
           /* Give label its estimated length if possible, else at least 1. */
           let label_est = AbbrevBudget.label_estimated_length(~label=e1);
@@ -1494,11 +1494,11 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         }
 
       | TupLabel(p1, p2) =>
-        if (available^ < 5) {
+        if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
         } else {
-          available := available^ - 3;
+          available := available^ - 1; /* "=" */
           TupLabel(abbreviate_pat(p1), abbreviate_pat(p2));
         }
 
@@ -1666,11 +1666,11 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           };
         }
       | TupLabel(t1, t2) =>
-        if (available^ < 5) {
+        if (available^ < 3) {
           available := available^ - 1;
           indet_term_typ;
         } else {
-          available := available^ - 3;
+          available := available^ - 1; /* "=" */
           TupLabel(abbreviate_typ(t1), abbreviate_typ(t2));
         }
       | ProdProjection(t1, t2) =>
