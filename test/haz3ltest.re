@@ -39,8 +39,7 @@ let (suite, _) =
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests
-    //TODO(andrew): this times out now
-    //@ Test_ReparseDocSlides.tests
+    @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ Test_TyDi.tests

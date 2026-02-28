@@ -45,82 +45,6 @@ let full_length = (src: string): int => {
   Util.Unicode.length(full_render(src));
 };
 
-/* Debug: show the abbreviated AST structure for a TupLabel tuple */
-let debug_labeled_tuple_ast = (~available: int, src: string): unit => {
-  switch (Parser.to_term(src)) {
-  | Some(term) =>
-    let (abbreviated, _length) = Abbreviate.abbreviate_exp(~available, term);
-    Printf.printf("  [AST budget=%d] ", available);
-    switch (abbreviated.term) {
-    | Tuple(elements) =>
-      Printf.printf("Tuple([");
-      List.iteri(
-        (i, el: Exp.t) => {
-          if (i > 0) {
-            Printf.printf("; ");
-          };
-          switch (el.term) {
-          | TupLabel(lab, value) =>
-            let lab_str =
-              switch (lab.term) {
-              | Label(s) => "Label(\"" ++ s ++ "\")"
-              | Invalid(s) => "Invalid(\"" ++ s ++ "\")"
-              | _ => "?"
-              };
-            let val_str =
-              switch (value.term) {
-              | Atom(Int(n)) => "Atom(Int(" ++ Bigint.to_string(n) ++ "))"
-              | Atom(SInt(n)) => "Atom(SInt(" ++ string_of_int(n) ++ "))"
-              | Invalid(s) => "Invalid(\"" ++ s ++ "\")"
-              | Var(s) => "Var(\"" ++ s ++ "\")"
-              | _ => "other"
-              };
-            Printf.printf("TL(%s, %s)", lab_str, val_str);
-          | Invalid(s) => Printf.printf("Invalid(\"%s\")", s)
-          | _ => Printf.printf("?")
-          };
-        },
-        elements,
-      );
-      Printf.printf("])\n");
-    | Parens({term: Tuple(elements), _}) =>
-      Printf.printf("Parens(Tuple([");
-      List.iteri(
-        (i, el: Exp.t) => {
-          if (i > 0) {
-            Printf.printf("; ");
-          };
-          switch (el.term) {
-          | TupLabel(lab, value) =>
-            let lab_str =
-              switch (lab.term) {
-              | Label(s) => "Label(\"" ++ s ++ "\")"
-              | Invalid(s) => "Invalid(\"" ++ s ++ "\")"
-              | _ => "?"
-              };
-            let val_str =
-              switch (value.term) {
-              | Atom(Int(n)) => "Atom(Int(" ++ Bigint.to_string(n) ++ "))"
-              | Atom(SInt(n)) => "Atom(SInt(" ++ string_of_int(n) ++ "))"
-              | Invalid(s) => "Invalid(\"" ++ s ++ "\")"
-              | Var(s) => "Var(\"" ++ s ++ "\")"
-              | _ => "other"
-              };
-            Printf.printf("TL(%s, %s)", lab_str, val_str);
-          | Invalid(s) => Printf.printf("Invalid(\"%s\")", s)
-          | _ => Printf.printf("?")
-          };
-        },
-        elements,
-      );
-      Printf.printf("]))\n");
-    | Invalid(s) => Printf.printf("Invalid(\"%s\")\n", s)
-    | _ => Printf.printf("other: term constructor\n")
-    };
-  | None => Printf.printf("  parse failed\n")
-  };
-};
-
 /* Check monotonicity: sweeping budget from 0 to full_len,
    rendered length should be non-decreasing */
 let check_monotonicity = (name: string, src: string): unit => {
@@ -132,18 +56,6 @@ let check_monotonicity = (name: string, src: string): unit => {
     } else {
       let rendered = abbreviate_and_render(~available=budget, src);
       let len = Util.Unicode.length(rendered);
-      let byte_len = String.length(rendered);
-      Printf.printf(
-        "[%s] budget=%d  unicode_len=%d  byte_len=%d  rendered=%s\n",
-        name,
-        budget,
-        len,
-        byte_len,
-        rendered,
-      );
-      if (name == "labeled tuple" && budget >= 27 && budget <= 31) {
-        debug_labeled_tuple_ast(~available=budget, src);
-      };
       if (len < prev_len && violation^ == None) {
         violation :=
           Some(

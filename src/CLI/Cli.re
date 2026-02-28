@@ -513,16 +513,7 @@ let test_cmd = {
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
-  Cmd.group(
-    info,
-    [
-      run_cmd,
-      format_cmd,
-      analyze_cmd,
-      probe_cmd,
-      test_cmd,
-    ],
-  );
+  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd]);
 };
 
 let () = exit(Cmd.eval(default_cmd));
