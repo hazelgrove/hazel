@@ -7,6 +7,7 @@ type t = {
   elaborated: Exp.t,
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
+  warning_ids: list(Id.t),
   targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
 };
 
@@ -21,6 +22,7 @@ let empty: t = {
   },
   info_map: Id.Map.empty,
   error_ids: [],
+  warning_ids: [],
   targets: Sample.no_targets,
 };
 
@@ -92,6 +94,7 @@ let init_from_term =
     );
   let info_map = Statics.mk(~ana?, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
+  let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
     switch () {
     | _ when !settings.statics => dh_err("Statics disabled")
@@ -109,6 +112,7 @@ let init_from_term =
     elaborated,
     info_map,
     error_ids,
+    warning_ids,
     targets,
   };
 };

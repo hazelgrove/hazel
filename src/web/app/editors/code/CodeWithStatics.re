@@ -174,17 +174,27 @@ module View = {
         ~shape_map,
         ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
       );
-    let statics_decos =
+    let error_decos =
       Arms.Errors.of_ids(
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
       );
+    let warning_ids =
+      globals.settings.core.display_warnings ? model.statics.warning_ids : [];
+    let warning_decos =
+      Arms.Errors.of_ids(
+        ~is_warning=true,
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        warning_ids,
+      );
     let container_classes =
       ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
     Node.div(
       ~attrs=[Attr.classes(container_classes)],
-      [code_text_view, statics_decos] @ overlays,
+      // errors after warnings to prioritize errors over warnings
+      [code_text_view, warning_decos, error_decos] @ overlays,
     );
   };
 };
