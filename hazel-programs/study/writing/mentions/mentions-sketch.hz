@@ -1,8 +1,8 @@
 # MENTION EXTRACTOR TASK                        #
 #                                               #
-# Extract @mentions from a message string.      #
-# Given "Hey @alice and @bob", return           #
-# ["alice", "bob"].                             #
+# Extract @mentions from a garden message.      #
+# Given "Hey @luna the moonblooms are opening", #
+# return ["luna"].                              #
 #                                               #
 # Steps:                                        #
 #   1. Split message into words                 #
@@ -26,34 +26,43 @@
 # Helper: check if a word starts with @ #
 let starts_with_at = fun word ->
   ?
+
+
+
 in
 
 # Helper: remove the @ prefix from a word #
 let strip_at = fun word ->
   ?
+
+
+
 in
 
-# Main function: extract usernames from message #
+# Main function: extract mentions from message #
 let extract_mentions = fun message ->
   ?
+
+
+
 in
 
 test
-  extract_mentions("Hey @alice")
-  == ["alice"]
+  extract_mentions("Hey @luna the moonblooms are opening")
+  == ["luna"]
 end;
 
 test
-  extract_mentions("@bob @carol hello")
-  == ["bob", "carol"]
+  extract_mentions("@thorn @moss check the greenhouse")
+  == ["thorn", "moss"]
 end;
 
 test
-  extract_mentions("no mentions here")
+  extract_mentions("the night air is still")
   == []
 end;
 
 test
-  extract_mentions("@dan")
-  == ["dan"]
+  extract_mentions("@fern")
+  == ["fern"]
 end

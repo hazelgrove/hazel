@@ -19,21 +19,21 @@ let extract_mentions = fun message ->
 in
 
 test
-  extract_mentions("Hey @alice")
-  == ["alice"]
+  extract_mentions("Hey @luna the moonblooms are opening")
+  == ["luna"]
 end;
 
 test
-  extract_mentions("@bob @carol hello")
-  == ["bob", "carol"]
+  extract_mentions("@thorn @moss check the greenhouse")
+  == ["thorn", "moss"]
 end;
 
 test
-  extract_mentions("no mentions here")
+  extract_mentions("the night air is still")
   == []
 end;
 
 test
-  extract_mentions("@dan")
-  == ["dan"]
+  extract_mentions("@fern")
+  == ["fern"]
 end
