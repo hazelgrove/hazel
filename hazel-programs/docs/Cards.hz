@@ -1,0 +1,29 @@
+# PLAYING CARD LITERALS #
+
+type Suit = (Hearts + Diamonds + Clubs + Spades) in
+type Rank = + Ace + Jack + Queen + King
++ Two + Three + Four + Five + Six + Seven + Eight + Nine + Ten in
+
+# A card is a pair of a suit and a rank!#
+type Card = (Suit, Rank) in
+
+# Use alt/option-l to display a card as a card. #
+let one_card = ^^card((Spades,Jack)) in
+# Decks (list of cards) can also be displayed as cards: #
+let deck: [Card] = ^^card([(Hearts, King), (Clubs, Queen), (Clubs, Four), (Clubs, Ace), (Diamonds, Four), (Hearts, Nine), (Clubs, Ace), (Diamonds, Ten), (Diamonds, Nine),((Hearts, King)), (Spades, Two), (Spades, Ace), (Clubs, Ace)]) in
+
+# Clicking on a card flips it over (just for fun) #
+# Shift-clicking on a card lets you pick a different card#
+
+# You can use the card display in patterns too. #
+# A wildcard pattern can be used for the rank or suit#
+let flush = fun hand ->
+case hand
+| ^^card([(Hearts, _), (Hearts, _), (Hearts, _), (Hearts, _), (Hearts, _)]) => true
+| ^^card([(Clubs,_),(Clubs,_),(Clubs,_),(Clubs,_),(Clubs,_)]) => true
+| ^^card([(Diamonds,_),(Diamonds,_),(Diamonds,_),(Diamonds,_),(Diamonds,_)]) => true
+| ^^card([(Spades,_),(Spades,_),(Spades,_),(Spades,_),(Spades,_)]) => true
+| _ => false  
+end in
+
+test flush([^^card((Hearts, King)),^^card((Hearts, Queen)),^^card((Hearts, Jack)),^^card((Hearts, Ten)),^^card((Hearts, Ace))]) end

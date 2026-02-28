@@ -1,0 +1,254 @@
+# HAUNTED TOASTER - A Tamagotchi-style Virtual Pet #
+# Your pet is a possessed kitchen appliance with feelings #
+
+type Stat = Int in  # 0-100 range #
+
+type Stats = (
+  hunger = Stat,     # 0 = starving, 100 = stuffed #
+  happiness = Stat,  # 0 = miserable, 100 = ecstatic #
+  energy = Stat,     # 0 = exhausted, 100 = hyperactive #
+  health = Stat      # 0 = broken, 100 = pristine #
+) in
+
+type Evolution =
+  + BabyToaster      # Just possessed, learning the ropes #
+  + TeenToaster      # Moody, unpredictable #
+  + AdultToaster     # Mature, stable #
+  + GoldenToaster    # Legendary, well-cared-for #
+  + RustyToaster     # Neglected, cranky #
+in
+
+type Personality =
+  + Cheerful
+  + Grumpy
+  + Anxious
+  + Balanced
+in
+
+type Memory = (
+  timesFed = Int,
+  timesPlayed = Int,
+  timesSlept = Int,
+  timesNeglected = Int
+) in
+
+type Model = (
+  stats = Stats,
+  evolution = Evolution,
+  personality = Personality,
+  memory = Memory,
+  age = Int           # Time ticks elapsed #
+) in
+
+type Action =
+  + Feed              # Reduces hunger, slight energy boost #
+  + Play              # Increases happiness, costs energy #
+  + Sleep             # Restores energy, slight health boost #
+  + Repair            # Fixes health issues #
+  + TimeTick          # Time passes, stats decay #
+in
+
+# Utility: clamp value between 0 and 100 #
+let clamp : Int -> Int =
+  fun x ->
+    if x < 0 then 0
+    else if x > 100 then 100
+    else x
+in
+
+# Initial state: a fresh baby toaster #
+let init: Model = (
+  stats = (
+    hunger = 50,
+    happiness = 50,
+    energy = 50,
+    health = 100
+  ),
+  evolution = BabyToaster,
+  personality = Balanced,
+  memory = (
+    timesFed = 0,
+    timesPlayed = 0,
+    timesSlept = 0,
+    timesNeglected = 0
+  ),
+  age = 0
+) in
+
+# Calculate stat decay based on current stats and interactions #
+let decayStats : Stats -> Stats =
+  fun s ->
+    let hungerDecay = 5 in
+    let happinessDecay =
+      if s.happiness < 30 then 8  # BUG: should be s.hunger < 30 #
+      else 3
+    in
+    let energyDecay = 2 in
+    let healthDecay =
+      if s.energy < 20 then 5   # Exhaustion hurts health #
+      else if s.hunger < 20 then 3  # Starvation hurts health #
+      else 0
+    in
+    (
+      hunger = clamp(s.hunger - hungerDecay),
+      happiness = clamp(s.happiness - happinessDecay),
+      energy = clamp(s.energy - energyDecay),
+      health = clamp(s.health - healthDecay)
+    )
+in
+
+# Determine personality based on memory #
+let calcPersonality : Memory -> Personality =
+  fun m ->
+    let careScore = m.timesFed + m.timesPlayed + m.timesSlept in
+    let neglectScore = m.timesNeglected in
+    if neglectScore > careScore then Grumpy
+    else if m.timesPlayed > m.timesFed + m.timesSlept then Cheerful
+    else if m.timesNeglected > 5 then Anxious
+    else Balanced
+in
+
+# Determine evolution based on age and care quality #
+let calcEvolution : (Int, Memory) -> Evolution =
+  fun (age, m) ->
+    let careScore = m.timesFed + m.timesPlayed + m.timesSlept in
+    let neglectScore = m.timesNeglected in
+    if age < 10 then BabyToaster
+    else if age < 25 then TeenToaster
+    else if careScore > neglectScore * 3 then GoldenToaster
+    else if neglectScore > careScore then RustyToaster
+    else AdultToaster
+in
+
+# Check if stats indicate neglect (any stat critically low) #
+let isNeglected : Stats -> Bool =
+  fun s ->
+    s.hunger < 15 || s.happiness < 15 || s.energy < 10 || s.health < 20
+in
+
+# Update memory based on action #
+let updateMemory : (Memory, Action, Stats) -> Memory =
+  fun (m, action, stats) ->
+    case action
+    | Feed => (m.timesFed + 1, m.timesPlayed, m.timesSlept, m.timesNeglected)
+    | Play => (m.timesFed, m.timesPlayed + 1, m.timesSlept, m.timesNeglected)
+    | Sleep => (m.timesFed, m.timesPlayed, m.timesSlept + 1, m.timesNeglected)
+    | Repair => m
+    | TimeTick =>
+        if isNeglected(stats)
+        then (m.timesFed, m.timesPlayed, m.timesSlept, m.timesNeglected + 1)
+        else m
+    end
+in
+
+# Apply an action to stats #
+let applyAction : (Stats, Action, Personality) -> Stats =
+  fun (s, action, personality) ->
+    # Personality affects action effectiveness #
+    let bonus = case personality
+      | Cheerful => 5
+      | Grumpy => -5
+      | Anxious => -2
+      | Balanced => 0
+      end
+    in
+    case action
+    | Feed =>
+        (
+          hunger = clamp(s.hunger + 30 + bonus),
+          happiness = clamp(s.happiness + 5),
+          energy = clamp(s.energy + 10),
+          health = s.health
+        )
+    | Play =>
+        if s.energy < 20
+        then # Too tired to play effectively #
+          (
+            hunger = s.hunger,
+            happiness = clamp(s.happiness + 5),
+            energy = clamp(s.energy - 5),
+            health = s.health
+          )
+        else
+          (
+            hunger = clamp(s.hunger - 10),
+            happiness = clamp(s.happiness + 25 + bonus),
+            energy = clamp(s.energy - 15),
+            health = s.health
+          )
+    | Sleep =>
+        (
+          hunger = clamp(s.hunger - 5),
+          happiness = s.happiness,
+          energy = clamp(s.energy + 40 + bonus),
+          health = clamp(s.health + 5)
+        )
+    | Repair =>
+        (
+          hunger = s.hunger,
+          happiness = clamp(s.happiness - 10),  # Repairs are uncomfortable #
+          energy = s.energy,
+          health = clamp(s.health + 35 + bonus)
+        )
+    | TimeTick => decayStats(s)
+    end
+in
+
+# Main update function #
+let update : (Model, Action) -> Model =
+  fun (m, action) ->
+    let newStats = applyAction(m.stats, action, m.personality) in
+    let newMemory = updateMemory(m.memory, action, m.stats) in
+    let newAge = case action
+      | TimeTick => m.age + 1
+      | _ => m.age
+      end
+    in
+    (
+      stats = newStats,
+      evolution = calcEvolution(newAge, newMemory),
+      personality = calcPersonality(newMemory),
+      memory = newMemory,
+      age = newAge
+    )
+in
+
+# Run multiple actions in sequence #
+let do : (Model, [Action]) -> Model =
+  fun (model: Model, actions: [Action]) ->
+    fold_left(actions, update, model)
+in
+
+# Generate n TimeTicks (range is inclusive, so use n-1) #
+let timePasses : Int -> [Action] =
+  fun n ->
+    if n <= 0 then []
+    else map(range(1, n), fun _ -> TimeTick)
+in
+
+# Test: hunger should affect happiness decay rate #
+# A hungry toaster should lose more happiness than a full one #
+hint "hunger affects happiness decay rate"
+test
+  let hungry = (
+    stats = (hunger = 20, happiness = 50, energy = 50, health = 80),
+    evolution = BabyToaster,
+    personality = Balanced,
+    memory = (timesFed = 0, timesPlayed = 0, timesSlept = 0, timesNeglected = 0),
+    age = 0
+  ) in
+  let full = (
+    stats = (hunger = 80, happiness = 50, energy = 50, health = 80),
+    evolution = BabyToaster,
+    personality = Balanced,
+    memory = (timesFed = 0, timesPlayed = 0, timesSlept = 0, timesNeglected = 0),
+    age = 0
+  ) in
+  let hungryAfter = update(hungry, TimeTick) in
+  let fullAfter = update(full, TimeTick) in
+  # Hungry toaster should lose more happiness #
+  hungryAfter.stats.happiness < fullAfter.stats.happiness
+end;
+
+# Demo run #
+do(init, [Feed, Play, Sleep, TimeTick, TimeTick])

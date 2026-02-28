@@ -1,0 +1,21 @@
+# BASE ROUTE - SOLUTION #
+
+let base_route = fun path ->
+  let parts = string_split("/", path) in
+  nth(parts, 1)
+in
+
+test
+  base_route("/api/v1")
+  == "api"
+end;
+
+test
+  base_route("/api/actions/rm")
+  == "api"
+end;
+
+test
+  base_route("/")
+  == ""
+end

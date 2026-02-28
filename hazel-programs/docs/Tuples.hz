@@ -1,0 +1,144 @@
+# Tuples can have labels, including ones with special characters or spaces using backticks ` #
+let labeled_tuple = (a=1, b=2.0, c=true, `the-answer`=42, `multi word`="yes") in
+
+# These labels can be projected #
+test labeled_tuple.a == 1 end;
+test labeled_tuple.b == 2.0 end;
+test labeled_tuple.`the-answer` == 42 end;
+test labeled_tuple.`multi word` == "yes" end;
+
+# These can be encoded in the types #
+let typed_lt : (a=Int, b=Float, c=Bool, `the-answer`=Int, `multi word`=String) = labeled_tuple in
+
+# Labels are optional and can be interspersed throughout a tuple #
+let mixed_labels : (Int, a=String, Float, flag=Bool) = (1, a="String Value", 2.5, flag=true) in
+
+type Person = (String, age=Int, favorite_color=String) in
+
+# These labels can be automatically applied based on the type expectation #
+let alice : Person = ("Alice", 22, "Blue") in
+test alice.age == 22 end;
+
+# Explicitly Labeled elements are automatically reordered #
+let bob : Person = (age=25, favorite_color="Red", "Bob") in
+
+# Destructuring #
+let (bobs_name, age=bobs_age, favorite_color=bobs_favorite_color) = bob in
+
+# As Labeled Function Arguments #
+let make_person = fun name=n, age=a -> (n, a, favorite_color="red") in
+let consistent_variable_arg = (name="Valid", age=1) in
+let more_people : [Person] = [
+make_person("Bob", 25),                # Labels Elided #
+make_person(name="Alice", age=22),     # Labels Present #
+make_person(age=23, "Mallory"),        # Labels Rearranging #
+make_person(consistent_variable_arg)   # Variables with labels #
+] in
+
+# Labeled args can also be inferred from the type signature #
+let make_name : (first=String, last=String) -> String = fun f, b -> f ++ " " ++ b in
+test string_compare(make_name(first="Hay", last="Zul"), "Hay Zul") == Eq end;
+
+# Args can also be used like a tuple and projected #
+let make_name : (first=String, last=String) -> String = fun args -> args.first ++ " " ++ args.last in  
+
+# Projection over Lists of Labeled Tuples #
+let people : [(name=String, age=Int)] = [
+(name="Alice", age=30),
+(name="Bob", age=25),
+(name="Charlie", age=28)
+] in
+^^probe(people.age);  
+^^probe(people.name);
+# --- Type-level operators for projection and extension --- #
+
+# Type-level projection mirrors expression-level projection #
+let name_only : Person.favorite_color = "Red" in
+let age_only : Person.age = 30 in
+
+# Type-level extension mirrors expression-level extension #
+type Base = (a=Int, b=Int, Int) in
+type Extended = Base ... (b=String, c=Int) in
+# Extended is (a=Int, b=String, Int, c=Int) #
+let e : Extended = (a=1, b="", 1, c=2) in
+
+# `to_lvs`: Convert a labeled tuple into a list of (label, value) entries #
+# Example: Character attributes as key-value pairs #
+let ^^type(attributes) = (strength=10, agility=8, intelligence=7, `magic bonus`=2) in       
+let ^^probe(lvs) =   
+^^type(to_lvs(attributes)) 
+in  
+
+# `from_lvs`: Convert a list of (label, value) pairs back into a labeled tuple #
+# This is the inverse of `to_lvs` when applied to labeled-only tuples #
+let entries : [(label=String, value=Int)] = [("strength", 10), ("agility", 8), ("intelligence", 7)] in
+let reconstructed = from_lvs(entries) in
+^^probe(reconstructed);
+# Edge case: duplicate labels in from_lvs (projection is stuck) #
+^^fold((
+let entries_with_dupes : [(label=String, value=Int)] = [("x", 1), ("x", 2)] in
+let ^^probe(duplicate_entries) = from_lvs(entries_with_dupes) in
+^^probe(duplicate_entries.x)
+));
+\                 
+# Tuple Extension using `...` #
+# This expression merges two tuples, updating existing labels and appending new ones or unlabeled values to the end #
+# Example: combining experimental measurements with sensor metadata #
+let ^^type(reading) =(1618033, temperature=22.5,humidity=0.55) in
+let ^^type(metadata) =(sensor_id="A17",humidity=0.52) in
+let ^^type(enriched_reading) = reading ... metadata in
+^^probe(enriched_reading);
+
+# Singleton unlabeled tuples #
+# Write a single unlabeled field using an underscore #
+let single = (_=1) in
+let typed_single : (_=Int) = (_=42) in
+
+# Useful for extension with just one field #
+let base = (name="Alice", age=30) in
+let ^^probe(extended) = base ... (_="Engineer") in
+
+# Label Selection and Projection #
+let tup = (a=1,b=2,3,c=4) in        
+# select_labels keeps selected labels and preserves them #   
+^^probe(select_labels(tup, `a`, `b`));
+# project_labels keeps selected labels but drops label names #
+^^probe(project_labels(tup, `a`, `b`));
+# omit_labels removes the given labels from the tuple #
+^^probe(omit_labels(tup, `a`, `b`)); 
+# Edge case: project_labels, omit_labels resulting in singleton unlabeled tuple #
+^^fold((
+let tup = (a=1, b=2, c=3, 4) in
+^^probe(project_labels(tup, `a`));
+^^probe(omit_labels(tup, `a`, `b`, `c`))
+));
+
+# omit_all_labels removes all labels from a tuple #
+let ^^type(dropped) = omit_all_labels(a=1, b="str", true, c=4) in
+^^probe(dropped); 
+
+# Edge case: dropping label of singleton labeled tuple gives a singleton unlabeled tuple #
+let ^^type(i) = 
+omit_all_labels((a=1)) in
+^^probe(i);
+
+# Static Errors #
+^^fold((
+type duplicated_label = (a=Int, a=String) in
+let incorrect_sort = (1="hello") in
+let extra_label : (a=String, b=Int, Float) = (a="hello", b=3, c=1.) in
+let bad_projection = extra_label.d in
+
+let missing_labels =
+select_labels((a=1, b=2, c=3), `a`, `z`);
+project_labels((a=1, b=2, c=3), `b`, `q`);
+omit_labels((x=1, y=2), `x`, `not there`) in
+let sort_errors =
+select_labels((a=1, b=2), 1) in
+let not_a_tuple =
+project_labels(1, `a`) in
+let arity_error = 
+select_labels((a=1, b=2));
+omit_all_labels(3)
+in  
+))

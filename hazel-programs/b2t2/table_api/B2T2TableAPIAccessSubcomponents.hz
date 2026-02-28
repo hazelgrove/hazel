@@ -1,0 +1,55 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+let get_row = 
+let requires = [(enforced=^^check(false), "n is in range(nrows(t))")] in
+let ensures = [] in
+# Tables are just lists so nth is just list nth #
+let get_row = nth_opt in
+
+test get_row([(name="Bob", age=12)], 0) == Some((name="Bob", age=12)) end
+in
+let get_value = 
+let requires = [(enforced=^^check(false), "c is in header(r)")] in
+let ensures = [(enforced=^^check(false), "v is of sort schema(r)[c]")] in
+# This is just the projection operator `.` If you use it directly you get the requires/ensures constraints #
+let get_value = fun (r,c :String) -> (to_lvs(r) |> find_opt(_,fun label=l, value=v -> l == c)) |> option_map(_, fun e -> e.value) in
+
+# Examples #
+test get_value((name="Bob", age=12), "name") == Some("Bob") end;
+test get_value((name="Bob", age=12), "age") == Some(12) end;
+
+# Using projection #
+test (name="Bob", age=12).name == "Bob" end;
+in
+
+let get_column1 = 
+let requires = [(enforced=^^check(false), "n is in range(ncols(t))")] in
+let ensures = [(enforced=^^check(false), "length(vs) is equal to nrows(t)"),
+(enforced=^^check(false), "for all v in vs, v is of sort schema(t)[header(t)[n]]")] in
+# We don't currently have positional projection on tuples as a builtin #
+let get_column1 = fun (t, n: Int) -> map(t, fun r -> to_lvs(r) |> nth(_, n)).value in
+
+# Examples #
+test get_column1(students, 0) == ["Bob", "Alice", "Eve"] end;
+test get_column1(students, 1) == [12, 17, 13] end;
+in
+
+let get_column2 =
+let requires = [(enforced=^^check(false), "c is in header(t)")] in
+let ensures = [(enforced=^^check(false), "for all v in vs, v is of sort schema(t)[c]"),
+(enforced=^^check(false), "length(vs) is equal to nrows(t)")] in
+# This is just the projection operator `.` If you use it directly you get the non-length requires/ensures constraints #
+let get_column2 = fun (t, c: String) -> map(t, fun r -> to_lvs(r) |> find(_,fun label=l, value=v -> string_eq(l,c))).value in
+
+# Examples #
+test get_column2(students, "name") == ["Bob", "Alice", "Eve"] end;
+test get_column2(students, "age") == [12, 17, 13] end;
+
+# Using projection #
+test students.name == ["Bob", "Alice", "Eve"] end;
+test students.age == [12, 17, 13] end
+in

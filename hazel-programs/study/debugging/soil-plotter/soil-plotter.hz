@@ -1,0 +1,318 @@
+# CROP PLOTTER WITH SOIL TYPES - A Night Garden Field Planner #
+# Each cell has both a crop and a soil type for richer farming simulation #
+
+type Crop = String in  # Plant emoji or "" for empty #
+type Row = Int in
+type Col = Int in
+
+type SoilType =
+  + Loamy    # Rich, balanced soil #
+  + Sandy    # Light, drains quickly #
+  + Clay     # Dense, holds water #
+  + Rich     # Nutrient-dense, dark #
+in
+
+type Cell = (
+  crop = Crop,
+  soil = SoilType
+) in
+
+type Field = [[Cell]] in
+
+type Model = (
+  field = Field,
+  currentSeed = Crop,
+  seedInventory = [Crop]
+) in
+
+type Action =
+  + PlantCrop(Row, Col)            # Plant current seed at position #
+  + HarvestCrop(Row, Col)          # Remove crop at position #
+  + TillSoil(Row, Col, SoilType)   # Change soil type at position #
+  + PlantRow(Row)                  # Plant entire row with current seed #
+  + ClearField                     # Remove all crops #
+  + SelectSeed(Int)                # Select seed from inventory #
+in
+
+# Initial field with varied soil types #
+let init: Model = (
+  field = [
+    [(crop = "", soil = Loamy), (crop = "", soil = Sandy), (crop = "", soil = Clay)],
+    [(crop = "", soil = Rich),  (crop = "", soil = Loamy), (crop = "", soil = Sandy)],
+    [(crop = "", soil = Clay),  (crop = "", soil = Rich),  (crop = "", soil = Loamy)]
+  ],
+  currentSeed = "🌱",
+  seedInventory = ["🌱", "🌻", "🥕", "🌽", "🍅"]
+) in
+
+# Set a specific cell in the field #
+let setCell: (Field, Row, Col, Cell) -> Field =
+  fun field, row, col, newCell ->
+    mapi(field, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, cell) ->
+        if j == col
+        then newCell
+        else cell)
+      else r)
+in
+
+# Plant crop at position, preserving soil type #
+let plantCrop: (Field, Row, Col, Crop) -> Field =
+  fun field, row, col, seed ->
+    mapi(field, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, cell) ->
+        if j == col
+        then (crop = seed, soil = cell.soil)
+        else cell)
+      else r)
+in
+
+# Remove crop at position, preserving soil type #
+let harvestCrop: (Field, Row, Col) -> Field =
+  fun field, row, col ->
+    mapi(field, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, cell) ->
+        if j == col
+        then (crop = "", soil = cell.soil)
+        else cell)
+      else r)
+in
+
+# Change soil type at position, preserving crop #
+let tillSoil: (Field, Row, Col, SoilType) -> Field =
+  fun field, row, col, newSoil ->
+    mapi(field, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, cell) ->
+        if j == col
+        then (crop = cell.crop, soil = newSoil)
+        else cell)
+      else r)
+in
+
+# Plant entire row with seed #
+let plantRow: (Field, Row, Crop) -> Field =
+  fun field, targetRow, seed ->
+    mapi(field, fun (i, row) ->
+      if i == targetRow
+      then map(row, fun cell -> (crop = seed, soil = cell.soil))
+      else row)
+in
+
+# Clear all crops from field #
+let clearField: Field -> Field =
+  fun field ->
+    map(field, fun row ->
+      map(row, fun cell -> (crop = "", soil = cell.soil)))
+in
+
+# Update the model based on an action #
+let update: (Model, Action) -> Model =
+  fun m, action ->
+    case action
+    | PlantCrop(row, col) =>
+        (
+          field = plantCrop(m.field, row, col, m.currentSeed),
+          currentSeed = m.currentSeed,
+          seedInventory = m.seedInventory
+        )
+    | HarvestCrop(row, col) =>
+        (
+          field = harvestCrop(m.field, row, col),
+          currentSeed = m.currentSeed,
+          seedInventory = m.seedInventory
+        )
+    | TillSoil(row, col, soil) =>
+        (
+          field = tillSoil(m.field, row, col, soil),
+          currentSeed = m.currentSeed,
+          seedInventory = m.seedInventory
+        )
+    | PlantRow(row) =>
+        (
+          field = plantRow(m.field, row, m.currentSeed),
+          currentSeed = m.currentSeed,
+          seedInventory = m.seedInventory
+        )
+    | ClearField =>
+        (
+          field = clearField(m.field),
+          currentSeed = m.currentSeed,
+          seedInventory = m.seedInventory
+        )
+    | SelectSeed(idx) =>
+        (
+          field = m.field,
+          currentSeed = nth(m.seedInventory, idx),
+          seedInventory = m.seedInventory
+        )
+    end
+in
+
+# Run multiple actions in sequence #
+let do: (Model, [Action]) -> Model =
+  fun (model: Model, actions: [Action]) ->
+    fold_left(actions, update, model)
+in
+
+# Helper to get cell at position #
+let getCell: (Field, Row, Col) -> Cell =
+  fun (field, row, col) ->
+    nth(nth(field, row), col)
+in
+
+# ===== TESTS ===== #
+
+hint "plant single crop preserves soil type"
+test
+  let m = update(init, PlantCrop(1, 1)) in
+  let cell = getCell(m.field, 1, 1) in
+  cell.crop == "🌱" && cell.soil == Loamy
+end;
+
+hint "plant at corner preserves soil"
+test
+  let m = update(init, PlantCrop(0, 0)) in
+  let cell = getCell(m.field, 0, 0) in
+  cell.crop == "🌱" && cell.soil == Loamy
+end;
+
+hint "plant at different position"
+test
+  let m = update(init, PlantCrop(2, 2)) in
+  let cell = getCell(m.field, 2, 2) in
+  cell.crop == "🌱" && cell.soil == Loamy
+end;
+
+hint "harvest removes crop but keeps soil"
+test
+  let m = do(init, [PlantCrop(1, 1), HarvestCrop(1, 1)]) in
+  let cell = getCell(m.field, 1, 1) in
+  cell.crop == "" && cell.soil == Loamy
+end;
+
+hint "till soil changes soil type but keeps crop"
+test
+  let m = do(init, [PlantCrop(0, 0), TillSoil(0, 0, Rich)]) in
+  let cell = getCell(m.field, 0, 0) in
+  cell.crop == "🌱" && cell.soil == Rich
+end;
+
+hint "plant row fills entire row"
+test
+  let m = update(init, PlantRow(1)) in
+  m.field == [
+    [(crop = "", soil = Loamy), (crop = "", soil = Sandy), (crop = "", soil = Clay)],
+    [(crop = "🌱", soil = Rich), (crop = "🌱", soil = Loamy), (crop = "🌱", soil = Sandy)],
+    [(crop = "", soil = Clay), (crop = "", soil = Rich), (crop = "", soil = Loamy)]
+  ]
+end;
+
+hint "clear field removes all crops"
+test
+  let m = do(init, [PlantRow(0), PlantRow(1), ClearField]) in
+  let emptyField = [
+    [(crop = "", soil = Loamy), (crop = "", soil = Sandy), (crop = "", soil = Clay)],
+    [(crop = "", soil = Rich), (crop = "", soil = Loamy), (crop = "", soil = Sandy)],
+    [(crop = "", soil = Clay), (crop = "", soil = Rich), (crop = "", soil = Loamy)]
+  ] in
+  m.field == emptyField
+end;
+
+hint "select seed changes current seed"
+test
+  let m = update(init, SelectSeed(2)) in
+  m.currentSeed == "🥕"
+end;
+
+hint "plant with different seed"
+test
+  let m = do(init, [SelectSeed(1), PlantCrop(0, 1)]) in
+  let cell = getCell(m.field, 0, 1) in
+  cell.crop == "🌻" && cell.soil == Sandy
+end;
+
+hint "multiple plants preserve their soils"
+test
+  let m = do(init, [
+    PlantCrop(0, 0),
+    PlantCrop(1, 0),
+    PlantCrop(2, 0)
+  ]) in
+  let c00 = getCell(m.field, 0, 0) in
+  let c10 = getCell(m.field, 1, 0) in
+  let c20 = getCell(m.field, 2, 0) in
+  c00.soil == Loamy && c10.soil == Rich && c20.soil == Clay
+end;
+
+hint "till then plant sequence"
+test
+  let m = do(init, [
+    TillSoil(1, 1, Clay),
+    PlantCrop(1, 1)
+  ]) in
+  let cell = getCell(m.field, 1, 1) in
+  cell.crop == "🌱" && cell.soil == Clay
+end;
+
+hint "plant row then harvest one"
+test
+  let m = do(init, [
+    PlantRow(0),
+    HarvestCrop(0, 1)
+  ]) in
+  m.field == [
+    [(crop = "🌱", soil = Loamy), (crop = "", soil = Sandy), (crop = "🌱", soil = Clay)],
+    [(crop = "", soil = Rich), (crop = "", soil = Loamy), (crop = "", soil = Sandy)],
+    [(crop = "", soil = Clay), (crop = "", soil = Rich), (crop = "", soil = Loamy)]
+  ]
+end;
+
+hint "complex planting pattern"
+test
+  let m = do(init, [
+    SelectSeed(3),
+    PlantCrop(0, 0),
+    SelectSeed(4),
+    PlantCrop(1, 1),
+    SelectSeed(2),
+    PlantCrop(2, 2)
+  ]) in
+  let c00 = getCell(m.field, 0, 0) in
+  let c11 = getCell(m.field, 1, 1) in
+  let c22 = getCell(m.field, 2, 2) in
+  c00.crop == "🌽" && c11.crop == "🍅" && c22.crop == "🥕"
+end;
+
+hint "till multiple cells"
+test
+  let m = do(init, [
+    TillSoil(0, 0, Sandy),
+    TillSoil(1, 1, Sandy),
+    TillSoil(2, 2, Sandy)
+  ]) in
+  let c00 = getCell(m.field, 0, 0) in
+  let c11 = getCell(m.field, 1, 1) in
+  let c22 = getCell(m.field, 2, 2) in
+  c00.soil == Sandy && c11.soil == Sandy && c22.soil == Sandy
+end;
+
+hint "plant off-diagonal"
+test
+  let m = update(init, PlantCrop(0, 2)) in
+  let cell = getCell(m.field, 0, 2) in
+  cell.crop == "🌱" && cell.soil == Clay
+end;
+
+# Demo: Create a small farm #
+do(init, [
+  SelectSeed(1),
+  PlantCrop(0, 0),
+  PlantCrop(1, 1),
+  SelectSeed(3),
+  PlantCrop(2, 2),
+  TillSoil(1, 1, Rich)
+])

@@ -1,0 +1,26 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+
+let requires=[(enforced=^^check(false), "c is in header(t1) ")] in
+let ensures=[
+(enforced=^^check(false), "v1 is of sort schema(t1)[c]"),
+(enforced=^^check(false), "header(t2) is equal to header(t1)"),
+(enforced=^^check(false), "for all c' in header(t2), if c' is equal to c then schema(t2)[c'] is equal to the sort of v2"),
+(enforced=^^check(false), "otherwise, then schema(t2)[c'] is equal to schema(t1)[c']"),
+(enforced=^^check(false), "nrows(t2) is equal to nrows(t1)")
+] in
+let transform_column = fun (t:[?], c:String, f:(? -> ?)) ->
+map(t, fun r -> map(to_lvs(r), fun e -> if e.label == c then (label=e.label, value=f(e.value)) else e) |> from_lvs) : [?] in
+
+let expected = [
+(name="Bob Smith", age=12, favorite_color="blue"),
+(name="Alice Smith", age=17, favorite_color="green"),
+(name="Eve Smith", age=13, favorite_color="red")
+] in
+test transform_column(students, "name", fun n -> n ++ " Smith") == expected end;
+# Idiomatic way to do this #
+test map(students, fun r -> r ... (name=r.name ++ " Smith")) == expected end

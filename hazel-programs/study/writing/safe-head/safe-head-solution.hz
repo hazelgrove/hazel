@@ -1,0 +1,28 @@
+# SAFE HEAD - SOLUTION #
+
+let safe_head = fun (xs, default) ->
+  case xs
+  | [] => default
+  | x::rest => x
+  end
+in
+
+test
+  safe_head([1, 2, 3], 0)
+  == 1
+end;
+
+test
+  safe_head([42], 0)
+  == 42
+end;
+
+test
+  safe_head([], 99)
+  == 99
+end;
+
+test
+  safe_head([], 0)
+  == 0
+end

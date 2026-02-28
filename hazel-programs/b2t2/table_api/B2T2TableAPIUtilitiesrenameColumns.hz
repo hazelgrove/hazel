@@ -1,0 +1,37 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+
+let requires = [
+(enforced=^^check(false), "for all (c1, _) in ccs, c1 is in header(t1)"),
+(enforced=^^check(false), "[c1 | (c1, _) in ccs] has no duplicates"),
+(enforced=^^check(false), "concat(removeAll(header(t1), [c1 | (c1, _) in ccs]), [c2 | (_, c2) in ccs]) has no duplicates")
+] in
+let ensures = [
+(enforced=^^check(false), "header(t2) is equal to header(t1) with all c1 replaced with c2 for (c1, c2) in ccs"),
+(enforced=^^check(false), "for all c in header(t2), if c == c2 for some (c1, c2) in ccs, then schema(t2)[c] == schema(t1)[c1]"),
+(enforced=^^check(false), "otherwise, schema(t2)[c] == schema(t1)[c]"),
+(enforced=^^check(false), "nrows(t2) == nrows(t1)")
+] in
+
+let rename_columns =
+fun (t1:[?], ccs:[(String, String)]) ->
+map(t1, fun r ->
+to_lvs(r)
+|> map(_, fun (label=l, value=v) ->
+case find_opt(ccs, fun (from, _) -> from == l)
+| Some((_, to)) => (label=to, value=v)
+| None => (label=l, value=v) 
+end)
+|> from_lvs) : [?] in
+let expected = ^^fold([
+(`first name`="Bob", age=12, `preferred color`="blue"),
+(`first name`="Alice", age=17, `preferred color`="green"),
+(`first name`="Eve", age=13, `preferred color`="red")
+]) in
+test rename_columns(students, [("favorite_color", "preferred color"), ("name", "first name")]) == expected end;
+# Idiomatic way to do this which gives better type feedback#
+map(students, fun r -> (`first name`=r.name, `preferred color`=r.favorite_color) ... omit_labels(r,`favorite_color`,`name`))

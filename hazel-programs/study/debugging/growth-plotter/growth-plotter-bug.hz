@@ -1,0 +1,347 @@
+# MOONLIT FIELD PLOTTER - Growth Stage Tracker #
+# Watch crops advance through their lifecycle under the gentle glow of moonlight #
+
+type GrowthStage =
+  + Seed
+  + Sprout
+  + Growing
+  + Mature
+  + ReadyToHarvest
+in
+
+type CropKind =
+  + Moonmelon
+  + Nightshade
+  + Starwheat
+  + Glowpumpkin
+in
+
+type Cell =
+  + Empty
+  + Planted(CropKind, GrowthStage)
+in
+
+type Row = Int in
+type Col = Int in
+
+type Field = [[Cell]] in
+
+type Model = (
+  field = Field,
+  currentSeed = CropKind,
+  dayCount = Int
+) in
+
+type Action =
+  + PlantCrop(Row, Col)
+  + HarvestCrop(Row, Col)
+  + WaterField
+  + PassDay
+  + SelectSeed(CropKind)
+in
+
+let advanceStage : GrowthStage -> GrowthStage =
+  fun stage ->
+    case stage
+    | Seed => Sprout
+    | Sprout => Growing
+    | Growing => Growing
+    | Mature => ReadyToHarvest
+    | ReadyToHarvest => ReadyToHarvest
+    end
+in
+
+let isPlanted : Cell -> Bool =
+  fun cell ->
+    case cell
+    | Empty => false
+    | Planted(_, _) => true
+    end
+in
+
+let isHarvestable : Cell -> Bool =
+  fun cell ->
+    case cell
+    | Empty => false
+    | Planted(_, stage) =>
+        case stage
+        | ReadyToHarvest => true
+        | _ => false
+        end
+    end
+in
+
+let getStage : Cell -> GrowthStage =
+  fun cell ->
+    case cell
+    | Empty => Seed
+    | Planted(_, stage) => stage
+    end
+in
+
+let waterCell : Cell -> Cell =
+  fun cell ->
+    case cell
+    | Empty => Empty
+    | Planted(crop, stage) => Planted(crop, advanceStage(stage))
+    end
+in
+
+let waterField : Field -> Field =
+  fun field ->
+    map(field, fun row ->
+      map(row, fun cell -> waterCell(cell))
+    )
+in
+
+let getCell : (Field, Row, Col) -> Cell =
+  fun (field, row, col) ->
+    nth(nth(field, row), col)
+in
+
+let setCell : (Field, Row, Col, Cell) -> Field =
+  fun (field, targetRow, targetCol, newCell) ->
+    mapi(field, fun (r, row) ->
+      mapi(row, fun (c, cell) ->
+        if r == targetRow && c == targetCol
+        then newCell
+        else cell
+      )
+    )
+in
+
+let makeField : (Int, Int) -> Field =
+  fun (rows, cols) ->
+    map(range(0, rows - 1), fun _ ->
+      map(range(0, cols - 1), fun _ -> Empty)
+    )
+in
+
+let initModel : Model = (
+  field = makeField(4, 4),
+  currentSeed = Moonmelon,
+  dayCount = 0
+) in
+
+let plantAt : (Model, Row, Col) -> Model =
+  fun (model, row, col) ->
+    let cell = getCell(model.field, row, col) in
+    if isPlanted(cell)
+    then model
+    else
+      let newCell = Planted(model.currentSeed, Seed) in
+      let newField = setCell(model.field, row, col, newCell) in
+      (field = newField, currentSeed = model.currentSeed, dayCount = model.dayCount)
+in
+
+let harvestAt : (Model, Row, Col) -> Model =
+  fun (model, row, col) ->
+    let cell = getCell(model.field, row, col) in
+    if isHarvestable(cell)
+    then
+      let newField = setCell(model.field, row, col, Empty) in
+      (field = newField, currentSeed = model.currentSeed, dayCount = model.dayCount)
+    else model
+in
+
+let update : (Model, Action) -> Model =
+  fun (model, action) ->
+    case action
+    | PlantCrop(row, col) => plantAt(model, row, col)
+    | HarvestCrop(row, col) => harvestAt(model, row, col)
+    | WaterField =>
+        let newField = waterField(model.field) in
+        (field = newField, currentSeed = model.currentSeed, dayCount = model.dayCount)
+    | PassDay =>
+        (field = model.field, currentSeed = model.currentSeed, dayCount = model.dayCount + 1)
+    | SelectSeed(crop) =>
+        (field = model.field, currentSeed = crop, dayCount = model.dayCount)
+    end
+in
+
+let run : (Model, [Action]) -> Model =
+  fun (model, actions) ->
+    fold_left(actions, update, model)
+in
+
+let countAtStage : (Field, GrowthStage) -> Int =
+  fun (field, targetStage) ->
+    fold_left(field, fun (acc, row) ->
+      acc + fold_left(row, fun (acc2, cell) ->
+        if isPlanted(cell) && getStage(cell) == targetStage
+        then acc2 + 1
+        else acc2
+      , 0)
+    , 0)
+in
+
+let countPlanted : Field -> Int =
+  fun field ->
+    fold_left(field, fun (acc, row) ->
+      acc + fold_left(row, fun (acc2, cell) ->
+        if isPlanted(cell) then acc2 + 1 else acc2
+      , 0)
+    , 0)
+in
+
+let countHarvestable : Field -> Int =
+  fun field -> countAtStage(field, ReadyToHarvest)
+in
+
+let getCropKind : Cell -> CropKind =
+  fun cell ->
+    case cell
+    | Empty => Moonmelon
+    | Planted(crop, _) => crop
+    end
+in
+
+# ===== TESTS ===== #
+
+hint "can plant a crop in empty cell"
+test
+  let m = update(initModel, PlantCrop(0, 0)) in
+  isPlanted(getCell(m.field, 0, 0))
+end;
+
+hint "planted crop starts at Seed stage"
+test
+  let m = update(initModel, PlantCrop(1, 1)) in
+  let cell = getCell(m.field, 1, 1) in
+  getStage(cell) == Seed
+end;
+
+hint "cannot plant on occupied cell"
+test
+  let m = run(initModel, [PlantCrop(0, 0), PlantCrop(0, 0)]) in
+  countPlanted(m.field) == 1
+end;
+
+hint "can select different seed types"
+test
+  let m = run(initModel, [
+    SelectSeed(Nightshade),
+    PlantCrop(0, 0)
+  ]) in
+  let cell = getCell(m.field, 0, 0) in
+  getCropKind(cell) == Nightshade
+end;
+
+hint "advanceStage: Seed becomes Sprout"
+test advanceStage(Seed) == Sprout end;
+
+hint "advanceStage: Sprout becomes Growing"
+test advanceStage(Sprout) == Growing end;
+
+hint "advanceStage: Growing becomes Mature"
+test advanceStage(Growing) == Mature end;
+
+hint "advanceStage: Mature becomes ReadyToHarvest"
+test advanceStage(Mature) == ReadyToHarvest end;
+
+hint "advanceStage: ReadyToHarvest stays ReadyToHarvest"
+test advanceStage(ReadyToHarvest) == ReadyToHarvest end;
+
+hint "watering advances planted crops"
+test
+  let m = run(initModel, [
+    PlantCrop(0, 0),
+    WaterField
+  ]) in
+  let cell = getCell(m.field, 0, 0) in
+  getStage(cell) == Sprout
+end;
+
+hint "watering does not affect empty cells"
+test
+  let m = run(initModel, [WaterField, WaterField, WaterField]) in
+  let cell = getCell(m.field, 2, 2) in
+  !isPlanted(cell)
+end;
+
+hint "multiple waterings progress through stages"
+test
+  let m = run(initModel, [
+    PlantCrop(0, 0),
+    WaterField, WaterField, WaterField, WaterField
+  ]) in
+  let cell = getCell(m.field, 0, 0) in
+  getStage(cell) == ReadyToHarvest
+end;
+
+hint "can harvest ReadyToHarvest crops"
+test
+  let m = run(initModel, [
+    PlantCrop(0, 0),
+    WaterField, WaterField, WaterField, WaterField,
+    HarvestCrop(0, 0)
+  ]) in
+  !isPlanted(getCell(m.field, 0, 0))
+end;
+
+hint "cannot harvest immature crops"
+test
+  let m = run(initModel, [
+    PlantCrop(0, 0),
+    WaterField,
+    HarvestCrop(0, 0)
+  ]) in
+  isPlanted(getCell(m.field, 0, 0))
+end;
+
+hint "harvesting clears the cell"
+test
+  let m = run(initModel, [
+    PlantCrop(1, 1),
+    WaterField, WaterField, WaterField, WaterField,
+    HarvestCrop(1, 1)
+  ]) in
+  let cell = getCell(m.field, 1, 1) in
+  cell == Empty
+end;
+
+hint "PassDay increments day count"
+test
+  let m = run(initModel, [PassDay, PassDay, PassDay]) in
+  m.dayCount == 3
+end;
+
+hint "can plant multiple crops"
+test
+  let m = run(initModel, [
+    PlantCrop(0, 0),
+    PlantCrop(0, 1),
+    PlantCrop(1, 0)
+  ]) in
+  countPlanted(m.field) == 3
+end;
+
+hint "watering advances all crops simultaneously"
+test
+  let m = run(initModel, [
+    PlantCrop(0, 0),
+    PlantCrop(1, 1),
+    WaterField
+  ]) in
+  let c1 = getCell(m.field, 0, 0) in
+  let c2 = getCell(m.field, 1, 1) in
+  getStage(c1) == Sprout && getStage(c2) == Sprout
+end;
+
+let gardenDemo = run(initModel, [
+  SelectSeed(Moonmelon),
+  PlantCrop(0, 0),
+  SelectSeed(Nightshade),
+  PlantCrop(0, 1),
+  SelectSeed(Starwheat),
+  PlantCrop(1, 0),
+  SelectSeed(Glowpumpkin),
+  PlantCrop(1, 1),
+  WaterField, PassDay,
+  WaterField, PassDay,
+  WaterField, PassDay,
+  WaterField, PassDay,
+  HarvestCrop(0, 0),
+  HarvestCrop(0, 1)
+]) in
+gardenDemo

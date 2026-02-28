@@ -1,0 +1,92 @@
+# Example Tables from B2T2 #
+# Tables copied from https://github.com/brownplt/B2T2/blob/main/ExampleTables.md #
+type OptInt = +None +Some(Int) in
+type OptString = +None +Some(String) in
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = [
+("Bob", 12, "blue"),
+^^probe(("Alice", 17, "green")),
+("Eve", 13, "red")
+] in
+
+type StudentMissing = (name=String, age=OptInt, favorite_color=OptString) in
+let studentsMissing : [StudentMissing] = [
+("Bob", None, Some("blue")),
+("Alice", Some(17), Some("green")),
+^^probe(("Eve", Some(13), None))
+] in
+
+type Employee = (last_name=String, department_id=OptInt) in
+let employees : [Employee] = [
+("Rafferty", Some(31)),
+("Jones", Some(33)),
+("Heisenberg", Some(33)),
+("Robinson", Some(34)),
+("Smith", Some(34)),
+("Williams", None)
+] in
+
+type Department = (department_id=Int, department_name=String) in
+let departments : [Department] = [
+(31, "Sales"),
+(33, "Engineering"),
+(34, "Clerical"),
+(35, "Marketing")
+] in
+
+type JellyAnon = (get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool) in
+let jellyAnon : [JellyAnon] = [
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+] in
+
+type JellyNamed = (name=String, get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool) in
+let jellyNamed : [JellyNamed] = [
+("Emily",    ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+("Jacob",    ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+("Emma",     ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+("Aidan",    ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+("Madison",  ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+("Ethan",    ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+("Hannah",   ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+("Matthew",  ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+("Hailey",   ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+("Nicholas", ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+
+] in
+
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = [
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+] in
+
+type GradebookEntryMissing = (name=String, age=Int, quiz1=OptInt, quiz2=OptInt, midterm=Int, quiz3=OptInt, quiz4=Int, final=Int) in
+let gradebookMissing : [GradebookEntryMissing] = [
+("Bob",   12, Some(8), Some(9), 77, Some(7), 9, 87),
+("Alice", 17, Some(6), Some(8), 88, None, 7, 85),
+("Eve",   13, None, Some(9), 84, Some(8), 8, 77)
+] in
+
+type GradebookEntrySeq = (name=String, age=Int, quizzes=[Int], midterm=Int, final=Int)in
+let gradebookSeq : [GradebookEntrySeq] = [
+("Bob",   12, [8, 9, 7, 9], 77, 87),
+("Alice", 17, [6, 8, 8, 7], 88, 85),
+("Eve",   13, [7, 9, 8, 8], 84, 77)
+] in
+
+type GradebookEntryTable = (name=String, age=Int, quizzes=[(quizNo=Int, grade=Int)], midterm=Int, final=Int) in
+let gradebookTable : [GradebookEntryTable] = [
+("Bob",   12, [(1, 8), (2, 9), (3, 7), (4, 9)], 77, 87),
+("Alice", 17, [(1, 6), (2, 8), (3, 8), (4, 7)], 88, 85),
+("Eve",   13, [(1, 7), (2, 9), (3, 8), (4, 8)], 84, 77)
+] in 

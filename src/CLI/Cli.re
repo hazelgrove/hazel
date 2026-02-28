@@ -509,6 +509,22 @@ let test_cmd = {
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
 };
 
+let gen_slides_cmd = {
+  let doc = "Generate ML slide files from .hz programs. Optionally pass path prefixes to only rebuild matching files (e.g., ./hazel gen-slides tutorial debugging/grove-plotter).";
+  let filter_arg = {
+    let doc = "Path prefix filters (relative to hazel-programs/study/). Only .hz files matching these prefixes will be processed.";
+    Arg.(value & pos_all(string, []) & info([], ~doc));
+  };
+  let info = Cmd.info("gen-slides", ~doc);
+  Cmd.v(info, Term.(const(GenSlides.generate) $ filter_arg));
+};
+
+let gen_slides_clean_cmd = {
+  let doc = "Remove generated slide files and restore stub.";
+  let info = Cmd.info("gen-slides-clean", ~doc);
+  Cmd.v(info, Term.(const(GenSlides.clean) $ const()));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
@@ -521,6 +537,8 @@ let default_cmd = {
       analyze_cmd,
       probe_cmd,
       test_cmd,
+      gen_slides_cmd,
+      gen_slides_clean_cmd,
     ],
   );
 };

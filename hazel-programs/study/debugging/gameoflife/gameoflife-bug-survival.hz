@@ -1,0 +1,116 @@
+# CONWAY'S GAME OF LIFE #
+# Cellular automaton with birth/death rules #
+
+type Cell = + Dead + Alive in
+
+type Grid = (
+  cells = [Cell],
+  width = Int,
+  height = Int
+) in
+
+let makeGrid : (Int, Int) -> Grid =
+  fun (w, h) ->
+    (
+      cells = map(range(0, w * h - 1), fun _ -> Dead),
+      width = w,
+      height = h
+    )
+in
+
+let toIndex : (Grid, Int, Int) -> Int =
+  fun (g, x, y) ->
+    y * g.width + x
+in
+
+let inBounds : (Grid, Int, Int) -> Bool =
+  fun (g, x, y) ->
+    x >= 0 && x < g.width && y >= 0 && y < g.height
+in
+
+let getCell : (Grid, Int, Int) -> Cell =
+  fun (g, x, y) ->
+    if inBounds(g, x, y)
+    then nth(g.cells, toIndex(g, x, y))
+    else Dead
+in
+
+let setCell : (Grid, Int, Int, Cell) -> Grid =
+  fun (g, x, y, cell) ->
+    let idx = toIndex(g, x, y) in
+    (
+      cells = mapi(g.cells, fun (i, c) -> if i == idx then cell else c),
+      width = g.width,
+      height = g.height
+    )
+in
+
+let countNeighbors : (Grid, Int, Int) -> Int =
+  fun (g, x, y) ->
+    let neighbors = [
+      getCell(g, x - 1, y - 1),
+      getCell(g, x,     y - 1),
+      getCell(g, x + 1, y - 1),
+      getCell(g, x - 1, y),
+      getCell(g, x + 1, y),
+      getCell(g, x - 1, y + 1),
+      getCell(g, x,     y + 1),
+      getCell(g, x + 1, y + 1)
+    ] in
+    length(filter(neighbors, fun c -> c == Alive))
+in
+
+# BUG: Survival allows 4 neighbors (should only be 2 or 3) #
+let nextCellState : (Cell, Int) -> Cell =
+  fun (current, neighbors) ->
+    case current
+    | Alive =>
+        if neighbors >= 2 && neighbors <= 4
+        then Alive
+        else Dead
+    | Dead =>
+        if neighbors == 3
+        then Alive
+        else Dead
+    end
+in
+
+let step : Grid -> Grid =
+  fun g ->
+    let newCells = mapi(g.cells, fun (idx, _) ->
+      let x = idx - (idx / g.width) * g.width in
+      let y = idx / g.width in
+      let current = getCell(g, x, y) in
+      let neighbors = countNeighbors(g, x, y) in
+      nextCellState(current, neighbors)
+    ) in
+    (cells = newCells, width = g.width, height = g.height)
+in
+
+let setAlive : (Grid, [(Int, Int)]) -> Grid =
+  fun (g, coords) ->
+    fold_left(coords, fun (grid, xy) ->
+      let (x, y) = xy in
+      setCell(grid, x, y, Alive)
+    , g)
+in
+
+let countAlive : Grid -> Int =
+  fun g ->
+    length(filter(g.cells, fun c -> c == Alive))
+in
+
+# Test: cell with 4 neighbors should die (overpopulation) #
+hint "alive cell with 4 neighbors dies (overpopulation)"
+test
+  let g = setAlive(makeGrid(3, 3), [
+    (1, 0),
+    (0, 1), (1, 1), (2, 1),
+    (1, 2)
+  ]) in
+  let g2 = step(g) in
+  getCell(g2, 1, 1) == Dead
+end;
+
+let blinker = setAlive(makeGrid(5, 5), [(1, 2), (2, 2), (3, 2)]) in
+step(blinker)

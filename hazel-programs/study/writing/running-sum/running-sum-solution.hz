@@ -1,0 +1,36 @@
+# RUNNING SUM - SOLUTION #
+
+# Uses fold_left with a tuple accumulator:         #
+# (running_total, result_list_so_far)              #
+# On each step, add current element to total,      #
+# append new total to result list.                 #
+
+let running_sum = fun nums ->
+  let (_, result) = fold_left(nums,
+    fun ((total, acc), x) ->
+      let new_total = total + x in
+      (new_total, append(acc, [new_total])),
+    (0, [])
+  ) in
+  result
+in
+
+test
+  running_sum([1, 2, 3])
+  == [1, 3, 6]
+end;
+
+test
+  running_sum([5])
+  == [5]
+end;
+
+test
+  running_sum([])
+  == []
+end;
+
+test
+  running_sum([1, 1, 1, 1])
+  == [1, 2, 3, 4]
+end
