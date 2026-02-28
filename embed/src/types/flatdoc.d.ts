@@ -27,7 +27,7 @@
 type UUID = string;
 
 /** Hazel syntactic sorts - the grammatical categories of the language */
-type Sort = "Exp" | "Pat" | "Typ" | "TPat" | "Rul" | "Any";
+type Sort = "Exp" | "Pat" | "Typ" | "TPat" | "Rul" | "Mod" | "Sig" | "MPat" | "Any";
 
 /** Shape of a grout piece (hole) */
 type Shape = "Convex" | "Concave";
