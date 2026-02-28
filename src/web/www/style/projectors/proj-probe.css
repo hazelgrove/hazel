@@ -415,7 +415,7 @@
   --bottom-border-clr: oklch(0.4 0 0);
 }
 .live-offside .sample:has(.value.indet.focus) {
-  background-color: var(--T3) !important;
+  background-color: hsl(43, 80%, 83%) !important;
 }
 /* .live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
@@ -605,7 +605,7 @@
 }
 
 .live-offside .value.indet.focus .code-text .token {
-  color: grey;
+  color: var(--BR2) !important;
 }
 
 .live-offside .value .token.explicit-hole {
