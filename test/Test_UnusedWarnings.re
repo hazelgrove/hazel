@@ -151,5 +151,57 @@ let tests = (
       "type T = A(Int) + B(Int) in let s : T = A(1) in case s | A(x) => x | B(y) => 0 end",
       ["y"],
     ),
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       MODULE: EXPRESSION DOT ACCESS
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    check_unused(
+      "module: used via expression dot access",
+      "module M = { let x = 1 } in M.x",
+      [],
+    ),
+    check_unused(
+      "module: let binding used via expression dot access",
+      "let m = { let x = 1 } in m.x",
+      [],
+    ),
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       MODULE: QUALIFIED TYPE ACCESS
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    check_unused(
+      "module: used via qualified type in pattern annotation",
+      "module M = { type T = Int } in let x : M.T = 5 in x",
+      [],
+    ),
+    check_unused(
+      "module: used via qualified type in expression ascription",
+      "module M = { type T = Int } in (5 : M.T) + 0",
+      [],
+    ),
+    check_unused(
+      "module: used via qualified type in type alias",
+      "module M = { type T = Int } in type D = M.T in 5",
+      [],
+    ),
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       MODULE: UNUSED
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    check_unused(
+      "module: unused module",
+      "module M = { let x = 1 } in 5",
+      ["M"],
+    ),
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       SIGNATURES: NO WARNINGS
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    check_unused(
+      "sig: variables in signatures never have unused warnings",
+      "let m : { let x : Int } = { let x = 1 } in m.x",
+      [],
+    ),
+    check_unused(
+      "sig: signature vars not flagged even when module is unused",
+      "let m : { let x : Int } = { let x = 1 } in 5",
+      ["m"],
+    ),
   ],
 );

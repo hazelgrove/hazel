@@ -161,6 +161,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
+  | Module(_) => Precedence.min
+  | ModuleExp(_) => Precedence.let_
   };
 };
 
@@ -221,6 +223,7 @@ let external_precedence_typ = (tp: Typ.t) =>
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
+  | Sig(_) => Precedence.min
   };
 
 /* Conditional parenthesization helpers.
@@ -579,6 +582,8 @@ let rec parenthesize =
       ),
     )
     |> rewrap
+  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
+  | ModuleExp(_) => exp
   };
 }
 and parenthesize_pat =
@@ -806,6 +811,7 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
+  | Sig(_) => term |> rewrap
   };
 }
 
@@ -942,6 +948,9 @@ and parenthesize_any =
         r,
       ),
     )
+  | Mod(_) => any /* TODO: proper module parenthesization */
+  | Sig(_) => any
+  | MPat(_) => any
   | Any(_) => any
   };
 
@@ -981,7 +990,12 @@ let should_add_space = (s1, s2) =>
   | _ when String.ends_with(s1, ~suffix="…") =>
     /* Hack case for probe projector abbreviations */
     false
-  | _ when s1 == "." && (Token.is_quoted_label(s2) || Token.is_var(s2)) =>
+  | _
+      when
+        s1 == "."
+        && (
+          Token.is_quoted_label(s2) || Token.is_var(s2) || Token.is_ctr(s2)
+        ) =>
     false
   | _
       when
@@ -989,6 +1003,7 @@ let should_add_space = (s1, s2) =>
         && (
           Token.is_quoted_label(s1)
           || Token.is_var(s1)
+          || Token.is_ctr(s1)
           || String.ends_with(s1, ~suffix=")")
         ) =>
     false
@@ -1717,7 +1732,124 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ),
       ],
     );
+  | Module([]) =>
+    /* Empty module: {} - output as atomic token like empty tuple () */
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{}"))
+  | Module(items) =>
+    /* Non-empty module: { item1; item2; ... } */
+    let id = exp |> Exp.rep_id;
+    let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+    let+ items_pretty =
+      items
+      |> List.map((item: Mod.t) =>
+           switch (item.term) {
+           | ModLet(p, e) =>
+             let+ p = pat_to_pretty(~settings, p)
+             and+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e,
+             );
+           | ModType(tp, t) =>
+             let+ tp = tpat_to_pretty(~settings, tp)
+             and+ t = typ_to_pretty(~settings, t);
+             wrap_item(
+               item,
+               [mk_form(ModType, item |> Mod.rep_id, [tp])] @ t,
+             );
+           | ModExp(e) =>
+             let+ e = go(e);
+             wrap_item(item, e);
+           | EmptyHole =>
+             let item_id = item |> Mod.rep_id;
+             p_just(
+               wrap_item(
+                 item,
+                 [
+                   Grout({
+                     id: item_id,
+                     shape: Convex,
+                   }),
+                 ],
+               ),
+             );
+           | Invalid(s) =>
+             p_just(
+               wrap_item(
+                 item,
+                 text_to_pretty(item |> Mod.rep_id, Sort.Mod, s),
+               ),
+             )
+           | ModuleMod(mp, e) =>
+             let mp_seg = mpat_to_seg(~settings, mp);
+             let+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
+             );
+           | MultiHole(es) =>
+             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
+             wrap_item(item, List.flatten(es));
+           }
+         )
+      |> all;
+    /* Join items with semicolons and wrap in braces */
+    let ids =
+      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(items) - 1);
+    let body =
+      switch (items_pretty) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (semi_id, item) => [mk_form(ModSeq, semi_id, [])] @ item,
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(exp, [mk_form(ModBody, id, [body])]);
+  | ModuleExp(mp, def, body) =>
+    let id = exp |> Exp.rep_id;
+    let mp_seg = mpat_to_seg(~settings, mp);
+    let+ def = go(def)
+    and+ body = go(body);
+    let body =
+      settings.inline == Inline
+        ? body : [Secondary(mk_newline(Id.mk()))] @ body;
+    wrap(exp, [mk_form(ModuleExp, id, [mp_seg, def])] @ body);
   };
+}
+and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let content =
+    switch (mp.term) {
+    | Var(name) => text_to_pretty(mp |> MPat.rep_id, Sort.MPat, name)
+    | Asc(inner, typ) =>
+      let inner_seg = mpat_to_seg(~settings, inner);
+      let typ_seg = typ_to_pretty(~settings, typ);
+      inner_seg
+      @ [
+        Tile({
+          id: Id.mk(),
+          label: [":"],
+          mold:
+            Mold.mk_bin(
+              ~l=Sort.MPat,
+              ~r=Sort.Typ,
+              Precedence.asc,
+              Sort.MPat,
+              [],
+            ),
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ typ_seg;
+    | _ => text_to_pretty(mp |> MPat.rep_id, Sort.MPat, "?")
+    };
+  wrap(mp, content);
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   let go = pat_to_pretty(~settings: Settings.t);
@@ -2130,6 +2262,70 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
         ),
     );
+  | Sig([]) =>
+    /* Empty sig: {} */
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))
+  | Sig(items) =>
+    /* Non-empty sig: { let x : Int; type T = Bool; ... } */
+    let id = typ |> Typ.rep_id;
+    let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+    let+ items_pretty =
+      items
+      |> List.map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(p) =>
+             let+ p = pat_to_pretty(~settings, p);
+             wrap_item(item, [mk_form(SigLet, item |> Sig.rep_id, [])] @ p);
+           | SigType(tp, t) =>
+             let+ tp = tpat_to_pretty(~settings, tp)
+             and+ t = go(t);
+             wrap_item(
+               item,
+               [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t,
+             );
+           | EmptyHole =>
+             let item_id = item |> Sig.rep_id;
+             p_just(
+               wrap_item(
+                 item,
+                 [
+                   Grout({
+                     id: item_id,
+                     shape: Convex,
+                   }),
+                 ],
+               ),
+             );
+           | Invalid(s) =>
+             p_just(
+               wrap_item(
+                 item,
+                 text_to_pretty(item |> Sig.rep_id, Sort.Sig, s),
+               ),
+             )
+           | MultiHole(es) =>
+             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
+             wrap_item(item, List.flatten(es));
+           }
+         )
+      |> all;
+    /* Join items with semicolons and wrap in braces */
+    let ids =
+      IdTagged.ids(typ) |> List.tl |> pad_ids(List.length(items) - 1);
+    let body =
+      switch (items_pretty) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (semi_id, item) => [mk_form(SigSeq, semi_id, [])] @ item,
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(typ, [mk_form(SigBody, id, [body])]);
   };
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
@@ -2179,15 +2375,93 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
   };
 }
+and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
+  let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
+  switch (item.term) {
+  | ModLet(p, e) =>
+    let+ p = pat_to_pretty(~settings, p)
+    and+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
+  | ModType(tp, t) =>
+    let+ tp = tpat_to_pretty(~settings, tp)
+    and+ t = typ_to_pretty(~settings, t);
+    wrap_item(item, [mk_form(ModType, item |> Mod.rep_id, [tp])] @ t);
+  | ModExp(e) =>
+    let+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, e);
+  | ModuleMod(mp, e) =>
+    let mp_seg = mpat_to_seg(~settings, mp);
+    let+ e = exp_to_pretty(~settings, e);
+    wrap_item(
+      item,
+      [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
+    );
+  | EmptyHole =>
+    p_just(
+      wrap_item(
+        item,
+        [
+          Grout({
+            id: item |> Mod.rep_id,
+            shape: Convex,
+          }),
+        ],
+      ),
+    )
+  | Invalid(s) =>
+    p_just(wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, s)))
+  | MultiHole(_) =>
+    p_just(
+      wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, "?")),
+    )
+  };
+}
+and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
+  let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
+  switch (item.term) {
+  | SigLet(p) =>
+    let+ p = pat_to_pretty(~settings, p);
+    wrap_item(item, [mk_form(SigLet, item |> Sig.rep_id, [])] @ p);
+  | SigType(tp, t) =>
+    let+ tp = tpat_to_pretty(~settings, tp)
+    and+ t = typ_to_pretty(~settings, t);
+    wrap_item(item, [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t);
+  | EmptyHole =>
+    p_just(
+      wrap_item(
+        item,
+        [
+          Grout({
+            id: item |> Sig.rep_id,
+            shape: Convex,
+          }),
+        ],
+      ),
+    )
+  | Invalid(s) =>
+    p_just(wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, s)))
+  | MultiHole(_) =>
+    p_just(
+      wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, "?")),
+    )
+  };
+}
+and mpat_to_pretty = (~settings: Settings.t, mp: MPat.t): pretty => {
+  p_just(mpat_to_seg(~settings, mp));
+}
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   switch (any) {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
+  | Mod(m) => mod_to_pretty(~settings, m)
+  | Sig(s) => sig_to_pretty(~settings, s)
+  | MPat(mp) => mpat_to_pretty(~settings, mp)
   | Any(_)
   | Rul(_) =>
-    //TODO: print out invalid rules properly
     let id = any |> Any.rep_id;
     p_just([
       Grout({
@@ -2235,6 +2509,9 @@ let exp_to_segment =
 };
 
 let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
+  /* Desugar Sig types to labeled tuples so they display as (x=Int, y=Bool)
+     instead of {sig}. Uses empty ctx since we're just displaying. */
+  let typ = Typ.desugar_sig(Ctx.empty, typ);
   let typ =
     typ
     |> parenthesize_typ(
