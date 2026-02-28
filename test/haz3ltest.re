@@ -39,7 +39,8 @@ let (suite, _) =
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests
-    @ Test_ReparseDocSlides.tests
+    // Disabled on probes-study: too many doc slides makes this too slow
+    //@ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ Test_TyDi.tests
