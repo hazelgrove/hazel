@@ -667,8 +667,7 @@ let module_abbreviation_tests = [
       | Module([{term: ModLet(_, _), _}]) =>
         /* Module structure preserved with single let */
         ()
-      | _ =>
-        check(Alcotest.bool, "expected Module with ModLet", true, false)
+      | _ => check(Alcotest.bool, "expected Module with ModLet", true, false)
       };
     },
   ),
@@ -774,12 +773,7 @@ let module_abbreviation_tests = [
     (): unit => {
       let budgets: list(int) =
         Abbreviate.AbbrevBudget.split_evenly(~total=10, ~parts=3);
-      check(
-        Alcotest.list(Alcotest.int),
-        "even split",
-        [4, 3, 3],
-        budgets,
-      );
+      check(Alcotest.list(Alcotest.int), "even split", [4, 3, 3], budgets);
     },
   ),
 ];
