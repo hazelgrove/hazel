@@ -507,6 +507,25 @@ let blank_spec = (~title) => {
   };
 };
 
+// Spec transformation helpers
+let with_title = (title: string, spec: spec): spec => {
+  ...spec,
+  title,
+};
+
+let with_prompt = (prompt: string, spec: spec): spec => {
+  ...spec,
+  prompt,
+};
+
+let with_rich_probes = (v: option(bool), spec: spec): spec => {
+  ...spec,
+  setting_overrides: {
+    ...spec.setting_overrides,
+    rich_probes: v,
+  },
+};
+
 // Update functions for instructor editing
 let update_title = ({eds, _}: state, new_title: string) => {
   eds: {
