@@ -214,6 +214,7 @@ module Message = {
     };
     let mk_context_message =
         (
+          ~cursor_context_content: string="",
           agent_editor_content: string,
           static_errors_content: string,
           workbench_content: string,
@@ -245,12 +246,20 @@ module Message = {
         ++ sanitized_workbench_content
         ++ workbench_content_suffix;
 
+      let cursor_context_section =
+        switch (String.trim(cursor_context_content)) {
+        | "" => ""
+        | s =>
+          "\n<cursorContext>\n" ++ s ++ "\n</cursorContext>\n"
+        };
+
       let context_prefix = "\n<context>\n";
       let context_suffix = "\n</context>\n";
       let context_content =
         context_prefix
         ++ agent_editor_content
         ++ static_errors_content
+        ++ cursor_context_section
         ++ workbench_content
         ++ context_suffix;
       let content =
@@ -586,10 +595,16 @@ module Chat = {
     };
 
     let update_context =
-        (agent_editor_view: string, static_errors_info: string, chat: Model.t)
+        (
+          ~cursor_context: string="",
+          agent_editor_view: string,
+          static_errors_info: string,
+          chat: Model.t,
+        )
         : Model.t => {
       let workbench =
         Message.Utils.mk_context_message(
+          ~cursor_context_content=cursor_context,
           agent_editor_view,
           static_errors_info,
           AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
@@ -651,7 +666,7 @@ module Chat = {
         | BranchOff(Id.t)
         | AgentContextAction(AgentContext.Update.action)
         | WorkbenchAction(AgentWorkbench.Update.Action.action)
-        | UpdateContext(string, string)
+        | UpdateContext(string, string, string)
         | AppendToMessageContent(Id.t, string)
         | OverwriteMessage(Id.t, Message.Model.t)
         | SwitchView(Model.current_view)
@@ -689,9 +704,14 @@ module Chat = {
           })
         | Failure(error) => Error(Failure.Info(error))
         };
-      | UpdateContext(agent_editor_view, static_errors_info) =>
+      | UpdateContext(agent_editor_view, static_errors_info, cursor_context) =>
         Ok(
-          Utils.update_context(agent_editor_view, static_errors_info, model),
+          Utils.update_context(
+            ~cursor_context,
+            agent_editor_view,
+            static_errors_info,
+            model,
+          ),
         )
       | AppendToMessageContent(message_id, content) =>
         Ok(Utils.append_to_message_content(message_id, content, model))
@@ -1511,23 +1531,81 @@ module Agent = {
       };
     };
 
+    let format_cursor_context =
+        (z: Zipper.t, info_map: Language.Statics.Map.t): string => {
+      switch (Indicated.ci_of(z, info_map)) {
+      | Some(InfoExp({ana, ctx, ty, _})) =>
+        let expected = ErrorPrint.Print.typ(ana);
+        let synthesized = ErrorPrint.Print.typ(ty);
+        let ctx_entries =
+          Language.Ctx.filter_shadowed(ctx).entries
+          |> List.filter_map((entry: Language.Ctx.entry) =>
+               switch (entry) {
+               | VarEntry({name, typ, _}) =>
+                 Some(name ++ " : " ++ ErrorPrint.Print.typ(typ))
+               | _ => None
+               }
+             );
+        let vars_str =
+          switch (ctx_entries) {
+          | [] => "none"
+          | entries =>
+            let shown = ListUtil.take(10, entries);
+            let suffix =
+              List.length(entries) > 10
+                ? " (+" ++ string_of_int(List.length(entries) - 10) ++ " more)"
+                : "";
+            String.concat(", ", shown) ++ suffix;
+          };
+        "Expected type: "
+        ++ expected
+        ++ "\nSynthesized type: "
+        ++ synthesized
+        ++ "\nVariables in scope: "
+        ++ vars_str;
+      | Some(InfoPat({ana, ctx, _})) =>
+        let expected = ErrorPrint.Print.typ(ana);
+        let ctx_entries =
+          Language.Ctx.filter_shadowed(ctx).entries
+          |> List.filter_map((entry: Language.Ctx.entry) =>
+               switch (entry) {
+               | ConstructorEntry({name, typ, _}) =>
+                 Some(name ++ " : " ++ ErrorPrint.Print.typ(typ))
+               | _ => None
+               }
+             );
+        let ctors_str =
+          switch (ctx_entries) {
+          | [] => "none"
+          | entries => String.concat(", ", ListUtil.take(10, entries))
+          };
+        "Pattern expected type: "
+        ++ expected
+        ++ "\nConstructors in scope: "
+        ++ ctors_str;
+      | _ => ""
+      };
+    };
+
     let update_context =
         (model: Model.t, editor: CodeWithStatics.Model.t, chat_id: Id.t)
         : Model.t => {
       let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
       let agent_editor_view_string =
         CompositionView.Public.print(editor.editor, curr_chat.agent_view);
+      let info_map =
+        CompositionGo.Public.mk_statics(editor.editor.state.zipper);
       let static_errors_info_string =
-        ErrorPrint.all(
-          CompositionGo.Public.mk_statics(editor.editor.state.zipper),
-        )
-        |> String.concat("\n");
+        ErrorPrint.all(info_map) |> String.concat("\n");
+      let cursor_context_string =
+        format_cursor_context(editor.editor.state.zipper, info_map);
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
             Chat.Update.Action.UpdateContext(
               agent_editor_view_string,
               static_errors_info_string,
+              cursor_context_string,
             ),
             chat_id,
           ),
