@@ -4,6 +4,55 @@ This document examines the selector language as a **compositional system**, work
 through a realistic program and identifying the underlying principles, gaps, and
 potential generalizations.
 
+## 0. Selectors as Partial Patterns
+
+The deepest way to understand the selector language is as **partial pattern matching**
+against Hazel's syntax tree. Like destructuring patterns in a functional language, a
+selector describes the *shape* of the syntax it targets. But unlike full patterns:
+
+- **Partial**: You only need to spell out the forward/opening spine — the keywords,
+  delimiters, and structural landmarks that distinguish the form. Trailing delimiters
+  and closing syntax are optional.
+- **Focused**: `*` marks which sub-expression to extract, like a "capture group" in a regex.
+- **Wildcarded**: `_` and `_...` skip parts you don't care about.
+- **Descendable**: `\...` lets you jump into the interior of any matched subtree.
+
+The compositionality of selectors should mirror the compositionality of pattern matching:
+just as you can nest patterns (`(x, (y, z))` matching nested tuples), you should be
+able to nest selectors (`let x = \... if _ then * else _` matching into a nested if).
+The structure of the selector follows the structure of the syntax, and you can go
+as shallow or as deep as you need.
+
+### CSS selectors analogy
+
+Like CSS selectors, these selectors navigate a tree (the AST instead of the DOM):
+- **Descendant** (`\...`) is like CSS's space combinator (any descendant)
+- **Direct nesting** (keyword spine) is like CSS's `>` child combinator
+- **Wildcards** (`_`, `_...`) are like CSS's `*` universal selector
+- **Names** are like CSS class/ID selectors
+
+But unlike CSS, our selectors are *linearized patterns*: they read left-to-right as
+the opening delimiters of the syntax form they target, rather than as a tree of
+nesting combinators.
+
+### The key insight: opening delimiters form a linear prefix
+
+Every Hazel form has a sequence of opening delimiters:
+- `let <pat> = <def> in <body>` → prefix: `let`, `=`, `in`
+- `if <cond> then <then> else <else>` → prefix: `if`, `then`, `else`
+- `case <scrut> | <pat> => <body> ... end` → prefix: `case`, `|`, `=>`, `end`
+- `fun <pat> -> <body>` → prefix: `fun`, `->`
+- `module <name> = <def> in <body>` → prefix: `module`, `=`, `in`
+
+A selector reads as a **prefix of this delimiter sequence**, with `_` and `_...`
+filling in the slots between delimiters, and `*` marking which slot to extract.
+You never need to write the closing delimiters because the opening delimiters
+already uniquely identify the form and which slot you're targeting.
+
+This is why `if _... else *` works: `if` identifies the form, `_...` skips past
+the condition and then-branch, `else` lands on the else-delimiter, and `*` selects
+the following slot.
+
 ## 1. The Uniform Resolution Model
 
 The selector language is built on two primitives:
@@ -33,6 +82,10 @@ A selector is compositional if:
 - Each piece can be understood independently
 - Combining pieces produces predictable results
 - The same sub-pattern works in any context where the syntactic form appears
+
+This is exactly the compositionality of pattern matching: `(_, x)` matches the
+second element of any pair, regardless of where that pair appears. Similarly,
+`if _... else *` matches the else branch of any if, regardless of nesting context.
 
 ## 2. Test Program
 
@@ -253,25 +306,55 @@ Currently `* let x` works for let bindings. Does `* module M` work? Does
 3. Test chained descent deduplication
 4. Test `* module M` and `* type T` patterns
 
-### 6.2 Medium-term (generalize)
+### 6.2 Medium-term: pattern-matching perspective
 
-Consider refactoring spine walkers to share more structure. Each spine is
-essentially a **sequence of (landmark, slot) pairs**. A generic spine walker
-could be parameterized by the landmarks and slots:
+The selector language is best understood as **partial pattern matching** against
+syntax. This suggests a more principled architecture than the current accretion
+of spine walkers.
+
+**What pattern matching gives us:**
+
+In a pattern like `Let(Var("x"), _, body)`, the compositionality is obvious:
+- `Let(...)` discriminates the form
+- `Var("x")` constrains the pattern slot
+- `_` wildcards the definition
+- `body` captures the body
+
+Our selectors do the same thing but with a different notation:
+- `let x` discriminates the form and constrains the name
+- `_` wildcards a slot
+- `= *` says "enter the = slot, capture it"
+
+**The principle: each keyword starts a pattern, each slot is a pattern hole.**
+
+This suggests that rather than having per-form spine walkers with hand-coded
+patterns, we could represent each form's structure as a **spine schema**:
 
 ```
-walk_generic_spine(
-  landmarks: [(string, Exp.t)],  /* (delimiter, slot_value) pairs */
-  steps: sem_selector
-)
+let_spine = [KW("let"), Slot(Pat), Delim("="), Slot(Def), KW("in"), Slot(Body)]
+if_spine  = [KW("if"), Slot(Cond), KW("then"), Slot(Then), KW("else"), Slot(Else)]
+case_spine = [KW("case"), Slot(Scrut), Repeat(KW("|"), Slot(ArmPat), Delim("=>"), Slot(ArmBody)), KW("end")]
+fun_spine = [KW("fun"), Slot(Pat), Delim("->"), Slot(Body)]
 ```
 
-This would make `_`, `_...`, and `*` work uniformly across all forms by
-construction, rather than needing to add support case-by-case.
+Then the resolver would be a **single generic function** that walks a spine schema
+against the selector tokens:
+- When it sees a `Slot` in the schema and `MatchSlot` in the selector: skip
+- When it sees a `Slot` and `MatchFocus`: capture
+- When it sees a `Slot` and `MatchName(n)`: match the slot's content against `n`
+- When it sees a `KW(k)` in the schema and `MatchKeyword(k)` in the selector: consume both
+- `MatchEllipsis`: skip forward to the next matching keyword in the schema
 
-However, this is a significant refactor and the current approach works.
-The pragmatic path is to keep the per-form walkers but ensure they all
-handle the three core operators.
+This is essentially **spine unification** between the form's structure and the selector.
+
+**Why this matters**: New forms added to Hazel would get selector support by
+defining their spine schema. `_`, `_...`, `*` would work uniformly by construction.
+The current per-form walkers work but require adding MatchSlot/MatchEllipsis/MatchFocus
+handling to each one individually, which is where compositionality breaks down.
+
+**Practical path**: Keep the current per-form walkers for now (they work, they're
+tested), but ensure each one handles all three core operators. The spine-schema
+refactor is a clean architectural goal but not blocking.
 
 ### 6.3 Long-term (the vision)
 
@@ -281,8 +364,19 @@ The user writes something that looks like the code they're targeting, with `_` f
 program.
 
 This means new syntactic forms added to Hazel (records, labeled tuples, etc.)
-should automatically get selector support by following the same spine-walker
-pattern.
+should automatically get selector support — ideally by defining a spine schema
+(or at minimum by following the same per-form walker pattern with full operator
+coverage).
+
+**Future: nested patterns.** Currently selectors are linear (a flat sequence of
+tokens). But just as patterns can nest (`(x, (y, z))`), selectors could potentially
+nest: `let (_, x) = *` to match a tuple-pattern let binding. This is not needed
+for v0 but is the natural direction given the pattern-matching analogy.
+
+**Future: pattern variables.** Pattern matching has binding — `Let(pat, def, body)`
+binds `pat`, `def`, `body`. Selectors could potentially bind too: `let $name = $def`
+where `$name` and `$def` are meta-variables returned in the match result. Again,
+not v0, but the architecture should not preclude it.
 
 ## 7. Test Matrix
 
