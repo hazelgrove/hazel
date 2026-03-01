@@ -42,7 +42,7 @@ Structural.t =
 
 target = Definition | Body | Pattern | BindingClause
 insert_target = After | Before
-path = string  (* "/" delimited name path *)
+path = string  /*"/" delimited name path */
 ```
 
 ### Current Path System (`HighLevelNodeMap.re`)
@@ -50,7 +50,7 @@ path = string  (* "/" delimited name path *)
 - **Format**: Slash-delimited names, e.g. `"a"`, `"a/inner"`
 - **Resolution**: Linear scan of all nodes comparing name paths (O(n))
 - **Naming**: Extracted from patterns via `Namer.mk_name`
-- **Fuzzy matching**: Levenshtein distance for error messages
+- **Fuzzy caseing**: Levenshtein distance for error messages
 - **Scope**: Only `Let` and `TyAlias` expressions are addressable
 
 ### Current Read/Query Actions
@@ -86,7 +86,7 @@ system (`TyDiCtx.re`) has similar infrastructure (`bound_variables`,
 
 ```
 let x = 1 in
-test 5 == x + 4 end;    (* <-- no binding name, structurally body of x *)
+test 5 == x + 4 end;    /*<-- no binding name, structurally body of x */
 let y = x + 1 in
 y
 ```
@@ -131,7 +131,7 @@ form + slot you descend through. The path mirrors what you'd read in the code.
 
 ```
 let    → pat, def, body         if     → cond, then, else
-fun    → pat, body              match  → scrut, arm[i]
+fun    → pat, body              case  → scrut, arm[i]
 typfun → tpat, body             tuple  → [i]
 tyalias→ tpat, def, body        list   → [i]
 ap     → fn, arg                cons   → hd, tl
@@ -206,7 +206,7 @@ Module items addressed by name (for named items) or index (for bare exprs).
 **Program 4**: Match expression
 ```
 let classify = fun x ->
-  match x with
+  case x with
   | 0 => "zero"
   | 1 => "one"
   | _ => "other"
@@ -218,10 +218,10 @@ classify 5
 | Target | Path |
 |--------|------|
 | classify's def | `"classify"` + `Definition` |
-| match scrutinee (x) | `"classify/fun/match/scrut"` |
-| first branch body ("zero") | `"classify/fun/match/arm[0]/body"` |
-| second branch pattern (1) | `"classify/fun/match/arm[1]/pat"` |
-| wildcard branch body | `"classify/fun/match/arm[2]/body"` |
+| case scrutinee (x) | `"classify/fun/case/scrut"` |
+| first branch body ("zero") | `"classify/fun/case/arm[0]/body"` |
+| second branch pattern (1) | `"classify/fun/case/arm[1]/pat"` |
+| wildcard branch body | `"classify/fun/case/arm[2]/body"` |
 
 **Program 5**: Nested lets with seq
 ```
@@ -249,7 +249,7 @@ number bare expressions with `#n` at each scope level.
 let app =
   let model = { count = 0 } in
   let update = fun msg -> fun model ->
-    match msg with
+    case msg with
     | Increment => { count = model.count + 1 }
     | Decrement => { count = model.count - 1 }
     end
@@ -269,17 +269,17 @@ app
 | Target | Path |
 |--------|------|
 | update function | `"app/update"` |
-| Increment handler body | `"app/update/fun/fun/match/arm[0]/body"` |
+| Increment handler body | `"app/update/fun/fun/case/arm[0]/body"` |
 | view's div children list | `"app/view/fun/body"` (the list) |
 | model's count field | `"app/model"` + `Definition` |
 
-The deep path `"app/update/fun/fun/match/arm[0]/body"` reads naturally: "in
-app's update, go through the outer fun, inner fun, into the match, first arm,
+The deep path `"app/update/fun/fun/case/arm[0]/body"` reads naturally: "in
+app's update, go through the outer fun, inner fun, into the case, first arm,
 body."
 
 ### 3.3 Path disambiguation rules
 
-When a form name could match multiple children:
+When a form name could case multiple children:
 1. **Form names are unique per expression type**: `fun` only appears once in
    a definition (if there are nested funs, the path goes through each one)
 2. **Slot names are unambiguous within a form**: each form's children have
@@ -288,7 +288,7 @@ When a form name could match multiple children:
    - `"f/fun"` without a slot → defaults to the fun's body
    - `"f/if"` without a slot → ambiguous, require slot
 4. **Names take priority over form descent**: `"f/x"` looks for a named
-   binding `x` inside f before trying to match a form `x`
+   binding `x` inside f before trying to case a form `x`
 
 ### 3.4 Multiple addressing schemes coexist
 
@@ -303,11 +303,11 @@ All coexist in a single string format. Parsing rules:
 - Bare identifier → Name
 - `#n` → Index
 - `$` → FinalExpr
-- Known form names (`fun`, `if`, `match`, `let`, `ap`, `binop`, etc.) → Form
-  descent (only when no Name binding matches)
+- Known form names (`fun`, `if`, `case`, `let`, `ap`, `binop`, etc.) → Form
+  descent (only when no Name binding casees)
 - Known slot names (`cond`, `then`, `else`, `body`, `pat`, `def`, etc.) →
   Slot selection within current form
-- `arm[n]` → indexed slot (for match arms, list/tuple items)
+- `arm[n]` → indexed slot (for case arms, list/tuple items)
 
 ### 3.5 Internal representation
 
@@ -315,7 +315,7 @@ All coexist in a single string format. Parsing rules:
 type path_segment =
   | Name(string)
   | Index(int)
-  | Form(string)          /* "fun", "if", "match", etc. */
+  | Form(string)          /* "fun", "if", "case", etc. */
   | Slot(string)          /* "cond", "then", "body", etc. */
   | IndexedSlot(string, int)  /* "arm", 0 → arm[0] */
   | FinalExpr             /* $ */
@@ -391,7 +391,7 @@ show before folding).
 - Analytic type (expected/required type from context)
 - Synthetic type (inferred type of the expression)
 - Status (consistent, inconsistent, unknown)
-- Optionally: relevant context entries matching the expected type
+- Optionally: relevant context entries caseing the expected type
 
 Options might include `{expected_type: bool, relevant_ctx: bool}` —
 similar to what ChatLSP had, using TyDiCtx infrastructure.
@@ -413,18 +413,18 @@ Compose the granular reads into richer views:
 
 **Syntax + statics**: Show the code with type annotations inline.
 ```
-let x : Int = 1 in        (* x : Int, synthesized *)
-let f : Int -> Bool =      (* f : Int -> Bool, synthesized *)
-  fun x -> x > 0           (* body : Bool, expected Bool *)
+let x : Int = 1 in        /*x : Int, synthesized */
+let f : Int -> Bool =      /*f : Int -> Bool, synthesized */
+  fun x -> x > 0           /*body : Bool, expected Bool */
 in
-f x                        (* : Bool *)
+f x                        /*: Bool */
 ```
 
 **Syntax + dynamics**: Show the code with runtime values.
 ```
-let x = 1 in               (* x = 1 *)
-let f = fun x -> x > 0 in  (* f = <fun> *)
-f x                        (* = true, via x=1 *)
+let x = 1 in               /*x = 1 */
+let f = fun x -> x > 0 in  /*f = <fun> */
+f x                        /*= true, via x=1 */
 ```
 
 These are "tabular" views — primary column is syntax, additional columns are
@@ -466,7 +466,7 @@ retry. This works at the protocol level but the error messages aren't curated.
 
 **Enhancement**: When a structural action fails due to static errors, format
 the feedback using the old ErrorRound approach:
-1. Parse error detection (unmatched delimiters via `Zipper.local_backpack`)
+1. Parse error detection (uncaseed delimiters via `Zipper.local_backpack`)
 2. Differential static error detection (new errors vs. pre-existing)
 3. Curated feedback message: "The following static errors were discovered: ...
    Please try to address them."
@@ -588,7 +588,78 @@ The dynamic cursor state already lives in the editor and is dispatched via
 
 ---
 
-## 9. Open Questions
+## 9. Design Notes from Review
+
+### 9.1 Delimiter-based child naming
+
+Instead of inventing slot names (`cond`, `then`, `else`), use the actual
+delimiters from the syntax where possible:
+- `if` has delimiters `if`, `then`, `else` → children addressed by those tokens
+- `fun` has `fun`, `->` → first child gets form name, body gets `->` (or default)
+- `let` has `let`, `=`, `in` → pattern is `let`/default, def is `=`, body is `in`
+- `case` (NOT `case` — Hazel syntax is `case`) has `case`, `|`, `=>`
+
+Rule: the prefix delimiter names the first child (or the form itself). Subsequent
+delimiters name subsequent children. A trailing child with no delimiter needs a
+special symbol.
+
+### 9.2 Definition/Pattern/etc should become path segments
+
+The current `target` type (`Definition`, `Pattern`, `Body`, `BindingClause`)
+should probably fold into the path itself:
+- `Update("f/def", code)` instead of `Update(Definition, "f", code)`
+- `Update("f/pat", code)` instead of `Update(Pattern, "f", code)`
+
+This unifies the addressing — everything is just a path, and the action is
+just `Update(path, code)` or `Delete(path)`.
+
+### 9.3 Names are pattern caseers
+
+When you write `"x"` in a path, you're really saying "find the binding whose
+pattern casees x." This generalizes: for tuple patterns `(a, b)`, the name
+is the rendered pattern. For case arms, you could address by pattern text.
+The current system already does this via `Namer.mk_name_from_pat`.
+
+### 9.4 Sibling selectors
+
+Want to address case arms by pattern, not just index. E.g., for
+`case x | 0 => "zero" | _ => "other" end`, address the wildcard arm as
+`"classify/case/_/body"` (pattern as selector among siblings).
+
+More generally: sibling selectors let you pick among children of a node by
+caseing on a property of one child (the pattern) and then accessing another
+child (the body) of the same branch.
+
+### 9.5 `in` and `;` as equivalent separators
+
+Let chains (`let x = 1 in let y = 2 in ...`) and semicolons
+(`test a end; test b end; ...`) are both sequential. The flat list view
+should treat them uniformly. Index addressing (`#0`, `#1`) works for
+both named and unnamed items in the sequence.
+
+### 9.6 GetStatics is a heuristic package
+
+`GetStatics` should not just return the typing context. It should be a
+curated static slice: expected type, synthesized type, recursively gathered
+type aliases that appear in those types, relevant bindings. This is the
+"static contextualization" concept — a heuristic bundle of useful static
+info at a given program point.
+
+### 9.7 Combined views as default
+
+When requesting a view of code at a path, static and dynamic info should
+come along by default (opt-out, not opt-in). Action sequences naturally
+produce combined views.
+
+### 9.8 Hazel syntax notes
+
+- Comments: `/* ... */` (NOT `/*... */`)
+- Case expressions, not case: `case x | 0 => ... | _ => ... end`
+- Probes already give dynamics (will improve with probes branch merge)
+
+---
+
+## 10. Open Questions
 
 1. **Path string syntax**: Is the proposed syntax (`#n`, `$`, `arm[n]`,
    form names) reasonable? Should form-slot segments use a different
@@ -599,7 +670,7 @@ The dynamic cursor state already lives in the editor and is dispatched via
    descending through function bodies.
 
 3. **Name vs form priority**: If a binding is named `fun` (unlikely but
-   legal), does `"fun"` match the name or the form? Proposal: names always
+   legal), does `"fun"` case the name or the form? Proposal: names always
    win; use explicit form syntax like `@fun` for form descent.
 
 4. **Module shadowing**: `"M/x"` targets last effective binding. `"M/#n"`
