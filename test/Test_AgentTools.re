@@ -1157,6 +1157,18 @@ let let_fun_if = "let f = fun x -> if x > 0 then x else 0 in f 5";
 let case_program = "case x | A => 1 | B => 2 end";
 let case_msg = "case msg | Increment => count + 1 | Decrement => count - 1 end";
 
+/* Realistic program for compositionality testing: module with nested
+   functions, case expressions, tests, and a top-level let chain */
+let app_program =
+  "module App = { "
+  ++ "let init = 0; "
+  ++ "let update = fun msg -> case msg | Inc => msg + 1 | Dec => msg - 1 | Reset => 0 end; "
+  ++ "let view = fun model -> let label = model + 1 in (label, model); "
+  ++ "test update(Inc, 0) == 1 end "
+  ++ "} in "
+  ++ "let result = App.update(Inc, App.init) in "
+  ++ "result";
+
 let selector_tests = (
   "AgentTools.Selectors",
   [
@@ -1519,6 +1531,86 @@ let selector_tests = (
       ~code="module M = { let x = 1 } in let y = M.x + 1 in y",
       ~sel="\\... let y = *",
       ~expected="M.x + 1",
+    ),
+    /* === Compositionality tests on realistic program === */
+    /* Binder chains into module members */
+    sel_test(
+      ~name="app: App/init = *",
+      ~code=app_program,
+      ~sel="App/init = *",
+      ~expected="0",
+    ),
+    /* Chain + descend + case scrutinee */
+    sel_test(
+      ~name="app: App/update \\... case *",
+      ~code=app_program,
+      ~sel="App/update \\... case *",
+      ~expected="msg",
+    ),
+    /* Chain + descend + named arm */
+    sel_test(
+      ~name="app: App/update \\... | Inc => *",
+      ~code=app_program,
+      ~sel="App/update \\... | Inc => *",
+      ~expected="msg + 1",
+    ),
+    /* Chain + descend + wildcard arm: returns ALL arm bodies */
+    test_case(
+      "app: App/update \\... | _ => * (all arms)",
+      `Quick,
+      () => {
+        let results = selector_query(app_program, "App/update \\... | _ => *");
+        check(int, "match count", 3, List.length(results));
+      },
+    ),
+    /* Chain + descend + nested let */
+    sel_test(
+      ~name="app: App/view \\... let label = *",
+      ~code=app_program,
+      ~sel="App/view \\... let label = *",
+      ~expected="model + 1",
+    ),
+    /* Descend finds all function bodies */
+    test_case(
+      "app: \\... fun _ -> * (all funs)",
+      `Quick,
+      () => {
+        let results = selector_query(app_program, "\\... fun _ -> *");
+        check(bool, "at least 2 fun bodies", true, List.length(results) >= 2);
+      },
+    ),
+    /* Module def — check starts with expected prefix */
+    test_case(
+      "app: module App = * (def)",
+      `Quick,
+      () => {
+        let result = selector_query_unique(app_program, "module App = *");
+        check(bool, "starts with { let init", true,
+          String.length(result) >= 10
+          && String.sub(result, 0, 10) == "{ let init");
+      },
+    ),
+    /* Module body (after in) */
+    test_case(
+      "app: App _... in * (body)",
+      `Quick,
+      () => {
+        let result = selector_query_unique(app_program, "App _... in *");
+        check(bool, "starts with let result", true,
+          String.length(result) >= 10
+          && String.sub(result, 0, 10) == "let result");
+      },
+    ),
+    /* Whole-binding focus */
+    test_case(
+      "app: \\... * let result",
+      `Quick,
+      () => {
+        let result = selector_query_unique(app_program, "\\... * let result");
+        check(bool, "starts with let result", true,
+          String.length(result) >= 10
+          && String.sub(result, 0, 10) == "let result");
+      },
     ),
   ],
 );
