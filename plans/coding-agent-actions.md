@@ -68,6 +68,43 @@
     - Labeled tuple elements named by label, unlabeled by index
     - 8 tests (TermEdit + node map + dispatch)
   - All wired through CompositionGo dispatch with is_case_arm/is_list_element/is_tuple_element detection
+- [ ] **Improve dispatch error reporting**: distinguish failure reasons in edit_dispatch
+  - Path resolution failures (path doesn't point to any node)
+  - Action inapplicability (e.g., Update(Pattern) on a list element)
+  - Code parsing failures (code string doesn't parse as valid syntax)
+  - TermEdit internal failures (target ID not found in term tree)
+  - Currently TermEdit returns `option(Zipper.t)` — consider `result(Zipper.t, string)` for failure reasons
+  - Currently misleading messages like "Failed to parse" when the real issue is wrong node kind
+  - Consider: explicit inapplicability checks before attempting the operation
+- [ ] **Evaluate `target` vs path unification**: decide whether `Definition|Body|Pattern|...` target enum should be absorbed into the path
+  - The extended path design (section 3.2/9.2) already proposes `"f/def"`, `"f/pat"`, `"f/body"` as path suffixes
+  - Could simplify `Action.Structural.t` to just `Update(path, code)` / `Delete(path)` / `Insert(Before|After, path, code)`
+  - Internal implementation question: should `Update(Definition, "f", code)` be sugar for `Update("f/def", code)`?
+  - Benefits: simpler API surface, paths are self-describing, one resolution mechanism
+  - Risks: target enum provides useful static guarantees (inapplicability checks at type level)
+  - Step 1: ensure internal dispatch converges — target-based and path-based should use the same underlying resolution
+  - Step 2: decide whether to keep targets as sugar, remove them, or keep them as the primary API
+  - Related: case arm/list/tuple elements already use path-only addressing (no target beyond Body)
+- [x] **Action Explorer UI**: developer toolbar for interactive path/action exploration
+  - Toggle via Nut Menu > Developer Settings > "Action Explorer"
+  - Bar below top bar with: action type selector, target/direction dropdowns, path input, code input, execute button
+  - Live highlights: as user types in path field, resolve against HighLevelNodeMap and/or Selector,
+    highlight matched nodes in the editor using decoration system (Highlight.re)
+  - Read actions exposed: GetSyntax, GetStatics, GetContext, Select, GetCompleteness
+  - Implementation: ActionExplorer.re (Model/Update/View), Settings.show_action_explorer flag,
+    highlight integration via Highlight.color with `action-explorer-match` CSS class,
+    Globals.action_highlights for passing IDs to CodeEditable deco
+  - [ ] **Highlight caret interaction**: highlights change shape as caret enters/exits highlighted
+    term (per-shard rendering means caret splits the shape). Expected behavior but could be
+    improved with a separate overlay layer that doesn't depend on shard splitting.
+  - [ ] **GetCompleteness with path**: currently whole-program only; could accept an optional
+    path to scope hole-counting to a subtree
+- [ ] **Selector language gaps** (from audit against spec):
+  - Missing keyword resolvers: `fun`, `test`, `end` (tokenized but no walk handler)
+  - Missing `:` (colon) delimiter resolver
+  - Missing list spine matching: `[ * , ... ]` and `[ ... , * ]` patterns
+  - Section 9 (selector-driven edits) not wired — edits use HighLevelNodeMap paths only
+  - `query_unique` exists but not integrated into edit_dispatch
 - [ ] **Strategic edit granularity audit**: survey what precise edits agents/programmers need
   - Current: whole definition/body/pattern/type-annotation/binding-clause
   - Missing: case arms, list/tuple/labeled-tuple elements, function parameters
@@ -123,9 +160,9 @@
    changes. Currently it can't.
 
 8. **No sub-expression editing yet**: TermEdit operates on whole definitions, bodies,
-   patterns, and types — not arbitrary sub-expressions. The path system would need
-   form-slot paths (e.g. `"f/fun/if/then"`) to address sub-expressions, which is
-   designed in section 3 but not implemented.
+   patterns, and types — not arbitrary sub-expressions. The selector language
+   (see `plans/Hazel-Agent-Path-Selector-Language.md`) can address sub-expressions
+   for reads but is not yet wired to edit actions.
 
 9. **Segment-level infrastructure now unused**: The segment-level helpers in
    CompositionGo (`overwrite_term`, `insert_term`, `destruct`, `introduce`) plus
@@ -135,108 +172,167 @@
 
 ---
 
-## 1. Current System Overview
+## 1. Systems Map: Addressing & Path Systems
 
-### Architecture
+We have **two addressing systems** that overlap in some areas. This section maps
+what each does, where they converge, and where they should converge further.
 
+### 1.1 HighLevelNodeMap paths (edit-oriented)
+
+**Used by**: all edit actions (`edit_dispatch`), `GetSyntax`, `GetStatics`, `GetContext`
+
+**Path format**: slash-delimited segments with multiple addressing modes:
 ```
-Action.Structural.t  ──>  Perform.go  ──>  CompositionGo.go  ──>  edit_dispatch
-                                                                        │
-                          HighLevelNodeMap.build ◄──────────────────────┘
-                                │
-                          path_to_node(path) ──> get_inner_term_id ──> Select.term ──> overwrite/destruct/insert
-```
-
-### Current Action Set (`Action.re:86-116`)
-
-```
-Structural.t =
-  | Update(target, path, code)
-  | Delete(target, path)
-  | Insert(insert_target, path, code)
-
-target = Definition | Body | Pattern | BindingClause
-insert_target = After | Before
-path = string  /*"/" delimited name path */
+path_segment = Name(string) | Index(int) | FinalExpr
 ```
 
-### Current Path System (`HighLevelNodeMap.re`)
+| Syntax | Example | Meaning |
+|--------|---------|---------|
+| bare name | `"x"`, `"x/y"` | binding named x, nested y inside x |
+| `#n` | `"#0"`, `"M/#2"` | nth item (0-indexed) at current scope |
+| `$` | `"$"`, `"x/$"` | final expression at current scope |
+| `\|pat` | `"f/\|A"`, `"f/\|Some(x)"` | case arm by pattern name |
+| `[n]` | `"xs/[0]"`, `"xs/[1]"` | list element by index |
+| `(n)` | `"p/(0)"`, `"p/(1)"` | tuple element by index |
+| label | `"p/x"`, `"p/y"` | labeled tuple element by label |
 
-- **Format**: Slash-delimited names, e.g. `"a"`, `"a/inner"`
-- **Resolution**: Linear scan of all nodes comparing name paths (O(n))
-- **Naming**: Extracted from patterns via `Namer.mk_name`
-- **Fuzzy caseing**: Levenshtein distance for error messages
-- **Scope**: Only `Let` and `TyAlias` expressions are addressable
+**Resolution**: `parse_path` → `resolve_path` walks node tree level-by-level.
+Fallback: original full-path-name comparison for backward compat.
+Error: Levenshtein "did you mean?" suggestion.
 
-### Current Read/Query Actions
+**Node map construction**: `build(zipper, info_map)` walks the term tree and
+creates nodes for Let, TyAlias, Module items, Seq/Test lines, case arms, list
+elements, and tuple elements. Each node has: info, path (ancestor IDs),
+children, siblings, sibling_idx, name.
 
-- `expand(paths)` / `collapse(paths)` — toggle definition visibility
-- `view_entire_definition` — show full def without folds
-- `view_context` — show typing context at cursor
-- `show_references` — defined in JSON schema but unimplemented
-- `ShowUseSites` / `ShowReferences` — defined in `CompositionActions.re`, marked TODO
+**Combined with `target` enum**: edit actions use `Action.Structural.t`:
+```
+Update(target, path, code)  |  Delete(target, path)  |  Insert(Before|After, path, code)
+target = Definition | Body | Pattern | BindingClause | TypeAnnotation
+```
+The `target` selects a sub-part of the node at `path` (via `get_inner_term_id`).
+For sequence elements (case arms, list/tuple), the `target` is mostly ignored —
+the path points directly to the element.
 
-### Error Feedback
+### 1.2 Selector language (query-oriented)
 
-Tool failures DO get sent back to the LLM as `ToolResult` messages (standard
-OpenRouter protocol). The LLM sees the error and can retry naturally. However,
-there's no curated error context — just the raw failure message. The old
-`ErrorRound` module on dev formatted parse errors and new static errors
-specifically, and prompted the LLM to fix them. This curated feedback is
-missing.
+**Used by**: `Select` read action only (not yet wired to edits)
 
-### Static Context
+**Format**: whitespace-separated tokens matching Hazel syntax patterns:
+```
+let x = *         → x's definition
+let x … in *      → x's body
+if … else *       → else branch
+A/B/f ⋱ if … else * → descend into nested binder chain
+| Increment => *  → case arm body
+[ … , * ]         → last list element
+```
 
-The old `ChatLSP.Completion.get_static_context` provided expected type and
-relevant values from the typing context. This used `RelevantTypes.get` and
-`RelevantValues.get` — functions that **don't exist** on this branch. The TyDi
-system (`TyDiCtx.re`) has similar infrastructure (`bound_variables`,
-`bound_constructors`, `free_variables`) but isn't wired to the agent.
+**Operators**: `_` (one slot), `_...`/`…` (zero+ slots), `⋱` (descendant search),
+`*` (focus marker — what gets returned), `A/B/C` (binder chain sugar)
+
+**Resolution**: pattern-match against `Exp.t` tree. Returns 0..N matches, each
+with focused subtree, ID, and breadcrumb string.
+
+**Disambiguation**: queries return all matches. `query_unique` requires exactly 1
+match (for potential edit use).
+
+### 1.3 Overlap and convergence
+
+| Capability | NodeMap paths | Selectors |
+|------------|--------------|-----------|
+| Named bindings | `"x"`, `"x/y"` | `let x`, `A/B/C` chain |
+| Sub-expressions | NOT YET | `⋱ if … else *` |
+| Sequence elements | `"\|A"`, `"[0]"`, `"(0)"` | `\| A => *`, `[ … , * ]` |
+| Target (def/body/pat) | `target` enum | `let x = *` vs `let x … in *` |
+| Edit actions | YES | NOT YET (designed, section 9 of selector plan) |
+| Read queries | YES (GetSyntax etc.) | YES (Select) |
+| Multiple matches | No (single or error) | Yes (0..N) |
+| Error messages | "did you mean?" | breadcrumbs |
+
+**Key insight**: the selector language subsumes HighLevelNodeMap paths for
+expressiveness. The `target` enum maps directly to selector patterns:
+- `Definition` = `let x = *`
+- `Body` = `let x … in *`
+- `Pattern` = `* let x` (with focus on pattern extraction)
+- `TypeAnnotation` = ascription focus
+
+The HighLevelNodeMap path system remains useful as a simpler, more constrained
+interface that's good for the common case. The selector language adds power for
+sub-expression access and pattern-based matching.
+
+**Convergence plan** (see to-do items above):
+1. Wire selectors to edit actions (selector plan section 9) — requires `query_unique`
+2. Consider making the `target` enum sugar over selector resolution internally
+3. Ensure both systems produce consistent results for overlapping cases
+4. Consider disambiguating annotations (e.g. `@1` for shadowed names) in both systems
+
+### 1.4 Architecture
+
+```
+Agent.re
+├── edit actions → CompositionGo.edit_dispatch
+│   └── HighLevelNodeMap.path_to_node(path) → target → TermEdit.*
+│       └── Parse code → modify term tree → ExpToSegment → new Zipper
+└── read actions → CompositionGo.read_dispatch
+    ├── Select(selector) → Selector.query(selector, term) → matches
+    ├── GetSyntax(path) → HighLevelNodeMap → segment_of_term → Printer
+    ├── GetStatics(path) → HighLevelNodeMap → Info.t → format
+    ├── GetContext(path) → HighLevelNodeMap → Ctx → format
+    └── GetCompleteness → count_holes(z)
+```
 
 ---
 
-## 2. Critique: What Can't Be Addressed
+## 2. What Can't Be Addressed (remaining gaps)
 
-### A. Bare expressions (non-binding program lines)
+### RESOLVED:
+- ~~Bare expressions~~ → Seq/Test node map support, `#n` and `$` paths
+- ~~Module items~~ → Module node map + TermEdit module operations
+- ~~Case arms~~ → case arm node map + TermEdit case operations
+- ~~Type annotations~~ → TypeAnnotation target
 
-```
-let x = 1 in
-test 5 == x + 4 end;    /*<-- no binding name, structurally body of x */
-let y = x + 1 in
-y
-```
-No way to target just the test expression. Would need `Update(Body, "x", ...)`
-and include everything after. The trailing `y` is similarly unreachable.
-
-### B. Sub-expressions inside definitions
-
-In `let f = fun x -> if x > 0 then x else 0 in ...`, can't address the `if`
-condition, branches, etc. Can only replace the entire definition of `f`.
-
-### C. Module items
-
-`Module([ModLet(...), ModType(...), ModExp(...)])` items aren't in the node map.
-
-### D. Match arms, function parameters, type annotations
-
-Can't address individual case branches, individual fun parameters, or just the
-type annotation part of a pattern like `x : Int`.
+### Remaining:
+- **Sub-expressions inside definitions**: `"f/fun/if/then"` style paths.
+  The selector language CAN address these for reads (`let f = ⋱ if … else *`).
+  Not yet wired to edits. TermEdit would need per-form splice operations.
+- **Function parameters**: can't address individual parameters of `fun x y z -> ...`.
+  Could be a sequence element type (like case arms/list elements).
+- **Shadowed names**: `let a = 1 in let a = 2 in a` — both bindings are named `a`.
+  HighLevelNodeMap handles this by matching the first `a` found at each level.
+  May need disambiguation syntax (e.g. `a@1` for second definition of `a`)
+  both in path addresses and potentially in displayed output syntax.
 
 ---
 
 ## 3. Path System: Design Exploration
 
-### 3.1 Current system: name-based paths
+> **NOTE (March 2026):** The form-slot path design in sections 3.2-3.5 below has been
+> **largely superseded** by the selector language (see `plans/Hazel-Agent-Path-Selector-Language.md`
+> and `Selector.re`). The selector language provides the same sub-expression addressing
+> capability with a more expressive pattern-matching approach. The worked examples below
+> remain useful as motivation for what the selector language solves, and some ideas
+> (like index notation `arm[n]`, disambiguation syntax `a@1`) may still be adopted
+> into the selector language or the HighLevelNodeMap path system.
 
-Works well for the common case of named bindings:
+### 3.1 Current system: name-based paths (IMPLEMENTED)
+
+Works well for the common case of named bindings, plus extensions:
 ```
 "x"         → binding named x
 "x/inner"   → binding inner nested in x's definition
+"#0", "#1"  → item by index (IMPLEMENTED)
+"$"         → final expression (IMPLEMENTED)
+"f/|A"      → case arm by pattern (IMPLEMENTED)
+"xs/[0]"    → list element by index (IMPLEMENTED)
+"p/(0)"     → tuple element by index (IMPLEMENTED)
 ```
-**Strengths**: Readable, semantic, stable across minor edits.
-**Limitations**: Only addresses named bindings. Fixed granularity.
+**Strengths**: Readable, semantic, stable across minor edits, covers common cases.
+**Limitations**: Can't address sub-expressions (if branches, fun bodies, etc.).
 
-### 3.2 Proposed extension: form-slot paths ("abbreviated syntax" approach)
+### 3.2 Previously proposed extension: form-slot paths
+
+> **STATUS: SUPERSEDED** by the selector language. Kept for historical reference.
 
 The idea: a path reads like an abbreviation of the syntax you'd traverse from
 left to right. Each segment names either a binding (by name) or a syntactic
@@ -392,7 +488,7 @@ The deep path `"app/update/fun/fun/case/arm[0]/body"` reads naturally: "in
 app's update, go through the outer fun, inner fun, into the case, first arm,
 body."
 
-### 3.3 Path disambiguation rules
+### 3.3 Path disambiguation rules (SUPERSEDED — see selector language)
 
 When a form name could case multiple children:
 1. **Form names are unique per expression type**: `fun` only appears once in
@@ -405,7 +501,7 @@ When a form name could case multiple children:
 4. **Names take priority over form descent**: `"f/x"` looks for a named
    binding `x` inside f before trying to case a form `x`
 
-### 3.4 Multiple addressing schemes coexist
+### 3.4 Multiple addressing schemes coexist (PARTIALLY IMPLEMENTED)
 
 We don't pick one scheme — we have a **layered system**:
 
@@ -424,7 +520,7 @@ All coexist in a single string format. Parsing rules:
   Slot selection within current form
 - `arm[n]` → indexed slot (for case arms, list/tuple items)
 
-### 3.5 Internal representation
+### 3.5 Internal representation (SUPERSEDED — see selector language)
 
 ```reason
 type path_segment =
@@ -452,9 +548,9 @@ All operate on the binding-level node map:
 - `Delete(BindingClause|Body, path)` — Definition/Pattern delete unimplemented
 - `Insert(Before|After, path, code)`
 
-### 4.2 Module edit actions (new, Phase 1)
+### 4.2 Module edit actions (IMPLEMENTED)
 
-Modules are genuinely flat, so the existing action vocabulary maps cleanly:
+All module edit actions work via TermEdit + HighLevelNodeMap:
 
 | Action | Example | Meaning |
 |--------|---------|---------|
@@ -463,66 +559,66 @@ Modules are genuinely flat, so the existing action vocabulary maps cleanly:
 | `Insert(After, "M/x", "let z = 3")` | Add item after x in M |
 | `Delete(BindingClause, "M/x")` | Remove x from M |
 
-Implementation: extend `HighLevelNodeMap.build_children` to walk `Module(items)`
-and create nodes for each `ModLet`/`ModType`/`ModuleMod`. `ModExp` items get
-index names.
+### 4.3 TypeAnnotation target (IMPLEMENTED)
 
-### 4.3 TypeAnnotation target (new, Phase 2)
+`Update(TypeAnnotation, "x", "Bool")` changes just the type annotation on `let x : Int = ...`.
 
-```reason
-type target = ... | TypeAnnotation
-```
+### 4.4 Sequence element editing (IMPLEMENTED)
 
-For `let x : Int = 1 in ...`, `Update(TypeAnnotation, "x", "Bool")` changes
-just the type annotation. Common operation, shows clear intent.
+Case arms, list elements, and tuple elements all support Insert/Delete/Update:
 
-### 4.4 Sub-expression edits (future, Phase 3+)
+| Action | Example | Meaning |
+|--------|---------|---------|
+| `Update(Body, "f/\|A", "0")` | Change arm A's body |
+| `Update(Pattern, "f/\|A", "B")` | Change arm A's pattern |
+| `Insert(After, "f/\|A", "\| C => 3")` | Insert arm after A |
+| `Delete(BindingClause, "f/\|A")` | Delete arm A |
+| `Update(Body, "xs/[0]", "42")` | Change first list element |
+| `Insert(Before, "xs/[1]", "99")` | Insert before second element |
+| `Delete(BindingClause, "p/(0)")` | Delete first tuple element |
 
-With form-slot paths, the existing `Update(Definition, path, code)` generalizes:
-the path navigates to any sub-expression, and the target says what to do there.
-But this needs the form-slot path resolution working first.
+### 4.5 Sub-expression edits (future)
+
+The selector language can address sub-expressions (`let f = ⋱ if … else *`).
+Wiring selectors to edit actions would enable replacing arbitrary sub-expressions.
+This would use `Selector.query_unique` for single-match resolution, then TermEdit
+for the actual replacement. Main design question: should this be a new action type
+(`UpdateSelector(selector, code)`) or should we unify the path format?
 
 ---
 
-## 5. Read/Query Actions (New)
+## 5. Read/Query Actions
 
-### 5.1 Granular read actions (Phase 2)
-
-Most granular building blocks first. Each takes a path and returns information.
+### 5.1 Granular read actions (MOSTLY IMPLEMENTED)
 
 ```reason
 type read_action =
-  | GetSyntax(path)              /* return the syntax at this path */
-  | GetStatics(path, options)    /* return type info at this path */
-  | GetDynamics(path, options)   /* return probe/runtime values at this path */
-  | GetContext(path)             /* return typing context at this path */
+  | GetSyntax(path)         /* IMPLEMENTED — return code at this path */
+  | GetStatics(path)        /* IMPLEMENTED — return type info at this path */
+  | GetContext(path)         /* IMPLEMENTED — return typing context at this path */
+  | Select(selector)         /* IMPLEMENTED — selector language queries */
+  | GetCompleteness          /* IMPLEMENTED — count unfilled holes */
+  | GetDynamics(path, options) /* NOT YET — return probe/runtime values */
 ```
 
-**`GetSyntax(path)`**: Returns the pretty-printed code at the path. Could
-include options for expansion depth (how many levels of nested bindings to
-show before folding).
+**`GetSyntax(path)`** (IMPLEMENTED): Returns pretty-printed code at the path.
 
-**`GetStatics(path, options)`**: Returns:
-- Analytic type (expected/required type from context)
-- Synthetic type (inferred type of the expression)
-- Status (consistent, inconsistent, unknown)
-- Optionally: relevant context entries caseing the expected type
+**`GetStatics(path)`** (IMPLEMENTED): Returns analytic type, synthesized type,
+status (consistent/inconsistent/error), and errors in subtree.
 
-Options might include `{expected_type: bool, relevant_ctx: bool}` —
-similar to what ChatLSP had, using TyDiCtx infrastructure.
+**`GetContext(path)`** (IMPLEMENTED): Returns variables, type aliases, and
+constructors in scope at the path. Uses `Ctx.filter_shadowed`.
 
-**`GetDynamics(path, options)`**: Returns probe/runtime values. Uses the
-existing `Sample.Cursor.t` system:
-- Current sample values at this node
-- Available samples (how many, from which call contexts)
-- Step range information
+**`Select(selector)`** (IMPLEMENTED): Uses the selector language for flexible
+pattern-matching queries. Returns all matches with focused subtrees.
 
-Options: `{sample_index: option(int), call_stack: option(call_stack)}`
+**`GetCompleteness`** (IMPLEMENTED): Counts expression, pattern, and type holes.
 
-**`GetContext(path)`**: Returns what's in scope — variable names, types,
-type aliases, modules.
+**`GetDynamics(path, options)`** (NOT YET): Would return probe/runtime values.
+Uses existing `Sample.Cursor.t` system. Options would include sample index
+and call stack filtering. See section 6.3.
 
-### 5.2 Annotated views (Phase 2-3)
+### 5.2 Annotated views (NOT YET)
 
 Compose the granular reads into richer views:
 
@@ -572,44 +668,31 @@ UpdateAll("@refs(x)", "y")    → rename all references
 
 ---
 
-## 6. Restore Static Context & Error Feedback
+## 6. Static Context & Error Feedback
 
-### 6.1 Error feedback loop (Phase 2)
+### 6.1 Error feedback loop (IMPLEMENTED)
 
-**Current state**: Tool failures → raw error message → ToolResult → LLM can
-retry. This works at the protocol level but the error messages aren't curated.
+Parse errors block edits (unmatched delimiters, Invalid tokens, MultiHole).
+Static errors produce warnings but do NOT block (allows multi-step refactoring).
+Error messages include node type, path, and code for debugging.
 
-**Enhancement**: When a structural action fails due to static errors, format
-the feedback using the old ErrorRound approach:
-1. Parse error detection (uncaseed delimiters via `Zipper.local_backpack`)
-2. Differential static error detection (new errors vs. pre-existing)
-3. Curated feedback message: "The following static errors were discovered: ...
-   Please try to address them."
+Implementation: `parse_error_check` + `static_error_warning` in `CompositionGo.re`.
+`validate_edit` combines both checks.
 
-This doesn't need a separate retry loop — the standard ToolResult mechanism
-handles retries. We just need better error messages.
+### 6.2 Static context for agent (PARTIALLY IMPLEMENTED)
 
-**Implementation**: Add a formatting layer in `CompositionGo.re` that uses
-`ErrorPrint.all` differentially and checks for parse errors before attempting
-the structural edit.
+Three approaches, two implemented:
 
-### 6.2 Static context for agent (Phase 2)
+**Approach 1 — Read actions** (IMPLEMENTED): `GetStatics(path)` returns expected
+type, synthesized type, status, and subtree errors. `GetContext(path)` returns
+in-scope variables, type aliases, and constructors.
 
-**Goal**: Give the agent curated type context for the current editing position.
+**Approach 2 — Annotated views** (NOT YET): Show code with inline type annotations.
+See section 5.2 above.
 
-**Approach 1 — Read action**: `GetStatics(path)` returns expected type +
-relevant bindings. Uses `TyDiCtx.bound_variables`, `TyDiCtx.bound_constructors`,
-etc. to find what's in scope and consistent with the expected type.
-
-**Approach 2 — Annotated view**: When the agent expands a definition, show
-type annotations alongside the code (refractor-style, but text-only for now).
-
-**Approach 3 — Context message enhancement**: Augment the auto-sent context
-message (`mk_context_message` in Agent.re) with expected-type info at the
-current cursor position.
-
-All three are useful. Approach 1 is most granular. Approach 3 is cheapest to
-implement and gives always-on context.
+**Approach 3 — Context message** (IMPLEMENTED): `mk_context_message` in Agent.re
+sends cursor-position type info unconditionally on every message. Low priority
+to optimize since it's informational.
 
 ### 6.3 Dynamic cursor for agent (Phase 2-3)
 
@@ -629,111 +712,76 @@ The dynamic cursor state already lives in the editor and is dispatched via
 
 ---
 
-## 7. Test Suite Plan
+## 7. Test Suite Status
 
-### 7.1 Existing action edge cases
+**124 tests total** (all passing). Test groups:
 
-- [ ] Nested lets: `let a = let b = let c = 1 in c in b in a` — path `"a/b/c"`
-- [ ] Type alias editing: `type T = Int in let x : T = 1 in x`
-- [ ] Pattern with annotation: `let x : Int = 1 in x`
-- [ ] Tuple patterns: `let (a, b) = (1, 2) in a + b`
-- [ ] Shadowed names: `let a = 1 in let b = let a = 2 in a in b`
-- [ ] Empty body (hole): `let a = 1 in ?`
-- [ ] Static error rejection: confirm bad edits are rejected
-- [ ] Invalid path: confirm useful error message with suggestion
+### 7.1 AgentTools tests (comprehensive)
+- Basic edit operations (update definition, body, pattern, binding clause)
+- Module operations (insert, delete, update, rename, nested modules, bare exprs)
+- Case arm operations (insert, delete, update body, update pattern)
+- List element operations (insert, delete, update)
+- Tuple element operations (insert, delete, update, labeled)
+- TypeAnnotation updates
+- Dispatch-level round-trip tests for all operation types
+- Path resolution (names, `#n`, `$`, sequence element names)
+- Read actions (GetSyntax, GetStatics, GetContext)
+- Parse error detection
+- Static error warnings
 
-### 7.2 Module actions
+### 7.2 Selector language tests (in Test_AgentTools.re)
+- Tokenization, elaboration, resolution
+- Binder chains, descendant search, focus
+- Complex programs (modules, case, nested lets)
 
-- [ ] Node map for module: `module M = { let x = 1; let y = 2 } in M`
-- [ ] Update module item definition
-- [ ] Insert module item
-- [ ] Delete module item
-- [ ] Rename module item
-- [ ] Nested modules: `module M = { module N = { let x = 1 } } in M`
-- [ ] Module with type aliases
-- [ ] Module with bare expressions (indexed)
-- [ ] ModuleExp node map structure
+### 7.3 HighLevelNodeMap tests
+- Node map construction for various program structures
+- Path resolution for all naming conventions
+- Sibling ordering
 
-### 7.3 Path resolution
-
-- [ ] Name-based (backward compat)
-- [ ] Index-based (`#0`, `#1`)
-- [ ] FinalExpr (`$`)
-- [ ] Form-slot (when implemented): `"f/fun/if/then"`
-- [ ] Error messages for bad paths
-
-### 7.4 Read actions
-
-- [ ] GetSyntax returns correct code at path
-- [ ] GetStatics returns expected/synthesized type
-- [ ] GetContext returns in-scope bindings
-- [ ] GetDynamics returns sample values (when wired)
+### 7.4 Not yet tested
+- [ ] Shadowed name disambiguation
+- [ ] Selector-driven edits (when implemented)
+- [ ] GetDynamics (when implemented)
 
 ---
 
 ## 8. Implementation Order
 
-### Phase 1: Module support + tests
-1. Extend `HighLevelNodeMap.build_children` for `Module(items)`
-2. Extend `Namer` for module patterns (`MPat`)
-3. Extend `get_inner_term_id` and `edit_dispatch` for module items
-4. Add `$` (FinalExpr) and `#n` (Index) to path parsing
-5. Comprehensive tests for existing + module actions
-6. Test edge cases for existing actions
+### Completed phases
 
-### Phase 2: Read actions + restored context
-7. Implement `GetSyntax(path)` — return code at path
-8. Implement `GetStatics(path)` — return type info using TyDiCtx
-9. Implement `GetContext(path)` — return in-scope bindings
-10. Enhance error messages in `CompositionGo.re` (parse errors, differential statics)
-11. Augment `mk_context_message` with expected-type info
-12. `TypeAnnotation` target for patterns
-13. Seq/expression-line node map support
+**Phase 1** (DONE): Module support, `$`/`#n` paths, HighLevelNodeMap, tests.
 
-### Phase 2.5: Term-level syntax transformations
+**Phase 2** (DONE): Read actions (GetSyntax/GetStatics/GetContext/GetCompleteness),
+TypeAnnotation target, Seq/Test node map, parse error detection, error gating
+(warnings not rejection), context message enhancement.
 
-**Motivation**: The current edit operations use `Parser.to_segment` + `Zipper.insert_segment`
-to splice code. This creates tiles in Exp sort context regardless of where they're inserted.
-For module items (Mod sort context), this produces wrong-sort tiles (e.g., `["let","=","in"]`
-instead of `["let","="]`). Now that whitespace is stored in terms (via `IdTagged.annotation.secondary`),
-we can do syntax transformations at the term level instead, sidestepping sort issues entirely.
+**Phase 2.5** (DONE): TermEdit term-level transformations for ALL edit operations.
+All edit_dispatch cases use TermEdit (term tree → splice → ExpToSegment → new Zipper).
+Module, case arm, list, tuple operations all implemented.
 
-**Round-trip infrastructure** (already exists):
-- `Parser.to_term(string) → option(Exp.t)` — parse to term with secondary
-- `ExpToSegment.exp_to_segment(~settings={secondary: PreserveExact, ...}, term) → Segment.t`
-- `Printer.of_segment(segment) → string`
-- Round-trip tests in `Test_ExpToSegment.re` (200+ tests)
+**Selector language** (DONE for reads): tokenizer, elaborator, resolver implemented.
+Select read action wired through Agent.re.
 
-**New approach for edit operations**:
-1. Parse the current program to a term: `MakeTerm.from_zip_for_sem(z).term`
-2. Locate the target sub-term by ID (walk the term tree using node map path)
-3. Splice in the new sub-term (parsed from the code string)
-4. Convert the modified term back to a segment via `ExpToSegment`
-5. Replace the zipper contents with the new segment
+### Next phases
 
-**Specific items**:
-- [x] 14a. Implement TermEdit.re: term-level helpers for module item manipulation (replace_module_items, find_module_containing_item, exp_to_mod_item, insert/delete/replace_item)
-- [ ] 14b. Extend term-level approach to non-module edits (replaces segment-based approach) — deferred
-- [x] 14c. Module Insert: parse code as Exp term, wrap as ModLet/ModType/ModExp, insert into Module(items) list with proper secondary whitespace
-- [x] 14d. Module Delete: remove item from Module(items) list cleanly (no leftover holes)
-- [x] 14e. Module Update(BindingClause): replace the ModLet/ModType item directly in the items list
-- [x] 14f. Fix gather_top_level ordering: sort by sibling_idx (set during build_siblings_and_trim from dummy root's children order)
-- [x] 14g. Enhance parse_error_check: detect Invalid nodes and MultiHole via Exp.map_term walk
-- [x] 14h. Fix validate_edit: added validate_edit_full returning (z, info_map, node_map); Pattern case refactored to use it
-- [x] 14i. Audit cursor context: format_cursor_context sent unconditionally on every message; not useful for path-based agent. Deferred — low priority.
+**Convergence & cleanup** (current):
+- [ ] Evaluate `target` vs path unification (see to-do above)
+- [ ] Wire selectors to edit actions (`query_unique` → TermEdit splice)
+- [ ] Ensure HighLevelNodeMap and Selector produce consistent results
+- [ ] Add disambiguation annotations for shadowed names
+- [ ] Clean up dead segment-level code in CompositionGo
+- [ ] Improve dispatch error reporting (see to-do above)
 
-**Architecture note**: Consider lightweight binding-structure-only analysis instead of full statics for node map building. Currently we run `Statics.mk` just to get ancestor chains and term structure. A simpler walk could provide the same info without type checking. However, full statics IS needed for post-edit validation (differential error checking), so the savings may be small in practice.
+**Dynamics & annotated views** (future):
+- [ ] Wire `Sample.Cursor.t` to agent tools (capture, pin, step-into)
+- [ ] `GetDynamics(path)` — return probe values at path
+- [ ] Annotated views (syntax + statics, syntax + dynamics)
 
-### Phase 3: Deep paths + dynamics
-14. Form-slot path parsing and resolution against term structure
-15. Wire `Sample.Cursor.t` to agent tools (capture, pin, step-into)
-16. `GetDynamics(path)` — return probe values at path
-17. Annotated views (syntax + statics, syntax + dynamics)
-
-### Phase 4: Compositional queries
-18. Query language design and implementation
-19. Multi-cursor/multi-edit operations
-20. Collapsed/expanded view composition from query results
+**Compositional queries** (future):
+- [ ] Multi-match edits (`UpdateAll`)
+- [ ] Collapsed/expanded view composition
+- [ ] Semantic filters (`@refs(x)`, `@type(Int)`, `@errors`)
 
 ---
 
@@ -810,25 +858,55 @@ produce combined views.
 
 ## 10. Open Questions
 
-1. **Path string syntax**: Is the proposed syntax (`#n`, `$`, `arm[n]`,
-   form names) reasonable? Should form-slot segments use a different
-   separator (e.g., `.` for slots vs `/` for names)?
+### Resolved
+- ~~Path string syntax~~ → `#n`, `$`, `|pat`, `[n]`, `(n)` all implemented in HighLevelNodeMap.
+  Selector language provides the sub-expression addressing that form-slot paths would have.
+- ~~How to present statics to agent~~ → GetStatics read action + always-on context message.
+- ~~Error feedback granularity~~ → Parse errors block, static errors warn. Messages include
+  node type, path, code, and "did you mean?" suggestions.
 
-2. **Default slot**: When you say `"f/fun"` without a slot name, should it
-   default to `body`? This makes paths shorter for the common case of
-   descending through function bodies.
+### Still open
+1. **Target vs path unification**: Should `Definition|Body|Pattern|...` be folded into the
+   path/selector? Or kept as sugar? Selector language can express `let x = *` (definition)
+   vs `let x … in *` (body), so the target enum is technically redundant. But it constrains
+   the agent's action space and provides useful inapplicability checks.
 
-3. **Name vs form priority**: If a binding is named `fun` (unlikely but
-   legal), does `"fun"` case the name or the form? Proposal: names always
-   win; use explicit form syntax like `@fun` for form descent.
+2. **Shadowed name disambiguation**: When multiple bindings share a name (`let a = 1 in let a = 2`),
+   how to disambiguate? Options: `a@1` index suffix, or require selectors for ambiguous cases.
+   Related: should *output* syntax include disambiguation annotations so round-tripping works?
 
-4. **Module shadowing**: `"M/x"` targets last effective binding. `"M/#n"`
-   for positional. Is this the right default?
+3. **Selector-driven edits (concrete proposal)**: Add a new constructor to `Action.Structural.t`:
+   ```
+   | Selector(selector_action)
 
-5. **How to present statics to agent**: As a separate tool result? Inline
-   annotations? Always-on in context messages? Probably: separate granular
-   tool + always-on summary in context.
+   type selector_action =
+     | SelectorUpdate(selector_string, code)
+     | SelectorDelete(selector_string)
+     | SelectorInsert(direction, selector_string, code)
+   ```
+   This coexists with the existing target-based actions. Implementation plan:
+   - Use `Selector.query_unique` for single-match resolution
+   - For Update/Delete: selector resolves to an ID, TermEdit replaces/removes at that ID
+   - For Insert: selector must resolve to a "spine element" (something with siblings) +
+     direction is still needed since selectors don't express Before/After
 
-6. **Error feedback granularity**: Should error messages distinguish parse
-   errors vs. type errors vs. scope errors? The old ErrorRound did. Probably
-   yes — parse errors suggest syntax issues, type errors suggest logic issues.
+   **Assessment of path/selector feature completeness (March 2026)**:
+   - **Paths alone are NOT sufficient** to replace the `target` enum. Paths resolve to
+     binding *nodes* (which contain pattern + definition + body + type annotation).
+     The `target` parameter is needed to select which sub-expression to operate on.
+   - **Selectors CAN distinguish sub-expressions**: `let x = *` (definition), `let x … in *`
+     (body), `* = … in` (pattern). But binding clause and type annotation targeting would
+     need new selector patterns.
+   - **What works today with selectors**: Update definition, Update body, Delete whole binding
+   - **What needs new selector patterns**: pattern targeting, type annotation targeting,
+     binding clause targeting (whole let clause)
+   - **Insert is the trickiest**: selectors don't express direction (Before/After), and the
+     target must be a "spine element" — needs explicit direction parameter alongside selector
+   - **Recommended approach**: implement SelectorUpdate and SelectorDelete first (body/definition
+     targets only), then progressively add pattern/type-annotation selector patterns
+
+4. **Combined views**: Should GetSyntax/GetStatics/GetDynamics be composable into a single
+   annotated view? Or separate calls composed by the agent?
+
+5. **Dead code cleanup**: Segment-level helpers (`introduce`, `~syntax`, `~return` params)
+   in CompositionGo are unused. When to remove?

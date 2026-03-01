@@ -16,6 +16,7 @@ module Model = {
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    show_action_explorer: bool,
   };
 
   let init = {
@@ -61,6 +62,7 @@ module Model = {
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
+    show_action_explorer: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -124,7 +126,8 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | ToggleLineNumbers
-    | ToggleRelativeLineNumbers;
+    | ToggleRelativeLineNumbers
+    | ToggleActionExplorer;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -331,6 +334,10 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | ToggleActionExplorer => {
+          ...settings,
+          show_action_explorer: !settings.show_action_explorer,
         }
       }
     )

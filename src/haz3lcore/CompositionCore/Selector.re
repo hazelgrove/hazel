@@ -1,17 +1,17 @@
 open Language;
 
 /* Selector language for addressing Hazel syntax subtrees.
-   See plans/Hazel-Agent-Path-Selector-Language.md for the full spec.
+      See plans/Hazel-Agent-Path-Selector-Language.md for the full spec.
 
-   Core operators:
-   - `_`    : matches one syntactic slot
-   - `_...` : matches zero or more slots along current spine
-   - `⋱`    : descendant search (match P, then find Q inside)
-   - `*`    : focus marker (selects the next syntactic unit)
+      Core operators:
+      - `_`    : matches one syntactic slot
+      - `_...` : matches zero or more slots along current spine
+      - `⋱`/`\...` : descendant search (match P, then find Q inside)
+      - `*`    : focus marker (selects the next syntactic unit)
 
-   Binder-chain sugar:
-   - `A/B/C` : navigate into binder A's def, then B's def, then resolve C
-*/
+      Binder-chain sugar:
+      - `A/B/C` : navigate into binder A's def, then B's def, then resolve C
+   */
 
 /* === Surface AST === */
 
@@ -20,7 +20,7 @@ type token =
   | Slot /* _ */
   | Ellipsis /* _... or … */
   | Focus /* * */
-  | Descend /* ⋱ or \_ */
+  | Descend /* ⋱ or \... */
   | KW_let
   | KW_fun
   | KW_if
@@ -36,6 +36,11 @@ type token =
   | FatArrow /* => */
   | Equals /* = */
   | Colon /* : */
+  | Arrow /* -> */
+  | LBracket /* [ */
+  | RBracket /* ] */
+  | LParen /* ( */
+  | RParen /* ) */
   | Chain(list(string)) /* A/B/C - binder chain */
   | Name(string); /* bare name */
 
@@ -79,9 +84,12 @@ let tokenize = (input: string): list(token) => {
     part =>
       switch (part) {
       | "_" => Slot
-      | "_..." | "..." | "\xe2\x80\xa6" => Ellipsis /* … UTF-8 */
+      | "_..."
+      | "..."
+      | "…" => Ellipsis /* … UTF-8 */
       | "*" => Focus
-      | "\\_" | "\xe2\x8b\xb1" => Descend /* ⋱ UTF-8 */
+      | "\\..."
+      | "⋱" => Descend /* ⋱ UTF-8 */
       | "let" => KW_let
       | "fun" => KW_fun
       | "if" => KW_if
@@ -97,6 +105,11 @@ let tokenize = (input: string): list(token) => {
       | "=>" => FatArrow
       | "=" => Equals
       | ":" => Colon
+      | "->" => Arrow
+      | "[" => LBracket
+      | "]" => RBracket
+      | "(" => LParen
+      | ")" => RParen
       | s when String.contains(s, '/') =>
         let segments =
           s
@@ -139,6 +152,11 @@ let elaborate = (sel: selector): sem_selector => {
     | [FatArrow, ...rest] => [MatchDelimiter("=>"), ...go(rest)]
     | [Equals, ...rest] => [MatchDelimiter("="), ...go(rest)]
     | [Colon, ...rest] => [MatchDelimiter(":"), ...go(rest)]
+    | [Arrow, ...rest] => [MatchDelimiter("->"), ...go(rest)]
+    | [LBracket, ...rest] => [MatchDelimiter("["), ...go(rest)]
+    | [RBracket, ...rest] => [MatchDelimiter("]"), ...go(rest)]
+    | [LParen, ...rest] => [MatchDelimiter("("), ...go(rest)]
+    | [RParen, ...rest] => [MatchDelimiter(")"), ...go(rest)]
     | [Chain(segments), ...rest] =>
       /* A/B/C expands to: EnterBinderDef(A), EnterBinderDef(B), MatchName(C) */
       let chain_steps =
@@ -231,12 +249,24 @@ type case_arm = {
   body: Exp.t,
 };
 
+/* The spine of a fun expression: pat, body */
+type fun_spine = {
+  pat: Pat.t,
+  body: Exp.t,
+  whole: Exp.t,
+};
+
+/* The spine of a test expression: body */
+type test_spine = {
+  body: Exp.t,
+  whole: Exp.t,
+};
+
 /* Resolve a selector against an expression, returning all matches */
 let resolve = (sel: selector, root: Exp.t): list(match_result) => {
   /* Walk the selector steps against a current expression context.
      Returns list of (focused_exp) for each match. */
-  let rec walk =
-          (steps: sem_selector, current: Exp.t): list(match_result) =>
+  let rec walk = (steps: sem_selector, current: Exp.t): list(match_result) =>
     switch (steps) {
     | [] => []
 
@@ -345,15 +375,22 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
     | [MatchKeyword("if"), ...rest] =>
       switch (Exp.term_of(current)) {
       | If(cond, then_, else_) =>
-        walk_if_spine({cond, then_, else_, whole: current}, rest)
+        walk_if_spine(
+          {
+            cond,
+            then_,
+            else_,
+            whole: current,
+          },
+          rest,
+        )
       | _ => []
       }
 
     /* case keyword: expect current to be a Match */
     | [MatchKeyword("case"), ...rest] =>
       switch (Exp.term_of(current)) {
-      | Match(scrut, rules) =>
-        walk_case_spine(current, scrut, rules, rest)
+      | Match(scrut, rules) => walk_case_spine(current, scrut, rules, rest)
       | _ => []
       }
 
@@ -377,6 +414,37 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
       switch (Exp.term_of(current)) {
       | TyAlias(tpat, _tdef, _body) =>
         walk_after_type_kw(tpat, current, rest)
+      | _ => []
+      }
+
+    /* fun keyword */
+    | [MatchKeyword("fun"), ...rest] =>
+      switch (Exp.term_of(current)) {
+      | Fun(pat, body, _, _) =>
+        walk_fun_spine({pat, body, whole: current}, rest)
+      | _ => []
+      }
+
+    /* test keyword */
+    | [MatchKeyword("test"), ...rest] =>
+      switch (Exp.term_of(current)) {
+      | Test(body) =>
+        walk_test_spine({body, whole: current}, rest)
+      | _ => []
+      }
+
+    /* List literal [ ... ] */
+    | [MatchDelimiter("["), ...rest] =>
+      switch (Exp.term_of(current)) {
+      | ListLit(items) => walk_list_spine(items, current, rest)
+      | _ => []
+      }
+
+    /* Tuple ( ... ) — only matches actual Tuple nodes.
+       Parens(Tuple(...)) is transparent: descend_all will reach the Tuple. */
+    | [MatchDelimiter("("), ...rest] =>
+      switch (Exp.term_of(current)) {
+      | Tuple(items) => walk_seq_spine(items, current, rest)
       | _ => []
       }
 
@@ -421,8 +489,7 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
 
     /* let <name> = * : focus on definition */
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
-        when
-          Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         {
           focused: spine.def,
           focused_id: Exp.rep_id(spine.def),
@@ -432,14 +499,12 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
 
     /* let <name> = * ... : focus on definition, continue */
     | [MatchName(name), MatchDelimiter("="), MatchFocus, ...rest]
-        when
-          Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.def)
 
     /* let <name> ... in * : focus on body */
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), MatchFocus]
-        when
-          Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         {
           focused: spine.body,
           focused_id: Exp.rep_id(spine.body),
@@ -455,26 +520,69 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
         MatchFocus,
         ...rest,
       ]
-        when
-          Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.body)
 
     /* let <name> = ... : match but continue through remaining steps */
     | [MatchName(name), MatchDelimiter("="), ...rest]
-        when
-          Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.def)
 
     /* let <name> ... in <more> : skip to body */
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), ...rest]
-        when
-          Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.body)
+
+    /* Colon patterns: let <name> : * selects type annotation.
+       In Hazel, `let x : T = def in body` parses as Let(Asc(pat, typ), def, body). */
+
+    /* let <name> : * : focus on the type annotation */
+    | [MatchName(name), MatchDelimiter(":"), MatchFocus] =>
+      switch (Pat.term_of(spine.pat)) {
+      | Asc(inner_pat, ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
+        let _ty = ty;
+        [{
+          focused: spine.def,
+          focused_id: Exp.rep_id(spine.def),
+          breadcrumb: "let " ++ name ++ " : <type> = ...",
+        }]
+      | _ => []
+      }
+
+    /* let <name> : _ = * : skip type annotation, focus on def */
+    | [MatchName(name), MatchDelimiter(":"), MatchSlot, MatchDelimiter("="), MatchFocus] =>
+      switch (Pat.term_of(spine.pat)) {
+      | Asc(inner_pat, _ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
+        [{
+          focused: spine.def,
+          focused_id: Exp.rep_id(spine.def),
+          breadcrumb: "let " ++ name ++ " : _ = ...",
+        }]
+      /* Also handle non-Asc patterns — name : _ = * just skips to def */
+      | _ when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+        [{
+          focused: spine.def,
+          focused_id: Exp.rep_id(spine.def),
+          breadcrumb: "let " ++ name ++ " : _ = ...",
+        }]
+      | _ => []
+      }
+
+    /* let <name> : _ = _ ... in * : skip annotation and def, focus on body */
+    | [MatchName(name), MatchDelimiter(":"), MatchSlot, MatchDelimiter("="), MatchSlot, MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
+      switch (Pat.term_of(spine.pat)) {
+      | Asc(inner_pat, _ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
+        [{
+          focused: spine.body,
+          focused_id: Exp.rep_id(spine.body),
+          breadcrumb: "let " ++ name ++ " : _ = _ ... in ...",
+        }]
+      | _ => []
+      }
 
     /* let <name> : match name, return whole or continue */
     | [MatchName(name)]
-        when
-          Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         {
           focused: spine.whole,
           focused_id: Exp.rep_id(spine.whole),
@@ -482,8 +590,7 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
         },
       ]
     | [MatchName(name), ...rest]
-        when
-          Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.whole)
 
     /* let _ = * : slot pattern, focus on def */
@@ -538,7 +645,13 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
       ]
 
     /* if _ then _ else * : focus on else branch */
-    | [MatchSlot, MatchKeyword("then"), MatchSlot, MatchKeyword("else"), MatchFocus] => [
+    | [
+        MatchSlot,
+        MatchKeyword("then"),
+        MatchSlot,
+        MatchKeyword("else"),
+        MatchFocus,
+      ] => [
         {
           focused: spine.else_,
           focused_id: Exp.rep_id(spine.else_),
@@ -634,8 +747,7 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
                | Ap({term: Constructor(cname, _), _}, _)
                    when String.equal(cname, name) =>
                  true
-               | Constructor(cname, _) when String.equal(cname, name) =>
-                 true
+               | Constructor(cname, _) when String.equal(cname, name) => true
                | _ => false
                }
              };
@@ -674,14 +786,163 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
     }
 
   /* Walk after "type" keyword */
-  and walk_after_type_kw =
-      (tpat: TPat.t, whole: Exp.t, steps: sem_selector) =>
+  and walk_after_type_kw = (tpat: TPat.t, whole: Exp.t, steps: sem_selector) =>
     switch (steps) {
     | [MatchName(name), ...rest]
         when Option.equal(String.equal, tpat_name(tpat), Some(name)) =>
       walk(rest, whole)
     | _ => []
     }
+
+  /* Walk a fun spine after "fun" keyword */
+  and walk_fun_spine = (spine: fun_spine, steps: sem_selector) =>
+    switch (steps) {
+    /* fun * : focus on the pattern (as an expression context — actually
+       we can't return a Pat as Exp, so focus on whole fun) */
+    | [MatchFocus] => [
+        {
+          focused: spine.body,
+          focused_id: Exp.rep_id(spine.body),
+          breadcrumb: "fun ... -> ...",
+        },
+      ]
+
+    /* fun _ -> * : skip pattern, focus on body */
+    | [MatchSlot, MatchDelimiter("->"), MatchFocus] => [
+        {
+          focused: spine.body,
+          focused_id: Exp.rep_id(spine.body),
+          breadcrumb: "fun _ -> ...",
+        },
+      ]
+
+    /* fun _ -> <more> : skip pattern, continue in body */
+    | [MatchSlot, MatchDelimiter("->"), ...rest] =>
+      walk(rest, spine.body)
+
+    /* fun ... -> * : skip pattern via ellipsis, focus on body */
+    | [MatchEllipsis, MatchDelimiter("->"), MatchFocus] => [
+        {
+          focused: spine.body,
+          focused_id: Exp.rep_id(spine.body),
+          breadcrumb: "fun ... -> ...",
+        },
+      ]
+
+    /* fun ... -> <more> : skip pattern via ellipsis, continue in body */
+    | [MatchEllipsis, MatchDelimiter("->"), ...rest] =>
+      walk(rest, spine.body)
+
+    /* fun <name> -> * : match pattern by name, focus on body */
+    | [MatchName(name), MatchDelimiter("->"), MatchFocus]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        {
+          focused: spine.body,
+          focused_id: Exp.rep_id(spine.body),
+          breadcrumb: "fun " ++ name ++ " -> ...",
+        },
+      ]
+
+    /* fun <name> -> <more> : match pattern by name, continue in body */
+    | [MatchName(name), MatchDelimiter("->"), ...rest]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+      walk(rest, spine.body)
+
+    | _ => []
+    }
+
+  /* Walk a test spine after "test" keyword */
+  and walk_test_spine = (spine: test_spine, steps: sem_selector) =>
+    switch (steps) {
+    /* test * : focus on the test body */
+    | [MatchFocus] => [
+        {
+          focused: spine.body,
+          focused_id: Exp.rep_id(spine.body),
+          breadcrumb: "test ...",
+        },
+      ]
+
+    /* test _ end : match slot, then end keyword (no focus) */
+    | [MatchSlot, MatchKeyword("end")] => [
+        {
+          focused: spine.whole,
+          focused_id: Exp.rep_id(spine.whole),
+          breadcrumb: "test _ end",
+        },
+      ]
+
+    /* test <more> : continue matching inside the body */
+    | rest => walk(rest, spine.body)
+    }
+
+  /* Generic sequence spine walker: handles both list [e0, e1, ...]
+     and tuple (e0, e1, ...) uniformly.
+     Steps consume items via Slot (skip one), Ellipsis (skip many),
+     Focus (return current item), or closing delimiters. */
+  and walk_seq_spine =
+      (items: list(Exp.t), whole: Exp.t, steps: sem_selector) => {
+    /* Inner walk: consume steps against remaining items */
+    let rec walk_items = (items: list(Exp.t), steps: sem_selector) =>
+      switch (steps) {
+      /* Focus: return current (first remaining) item */
+      | [MatchFocus, ..._] =>
+        switch (items) {
+        | [item, ..._] => [
+            {
+              focused: item,
+              focused_id: Exp.rep_id(item),
+              breadcrumb: "",
+            },
+          ]
+        | [] => []
+        }
+
+      /* Ellipsis + Focus: skip to last, focus on it */
+      | [MatchEllipsis, MatchFocus, ..._] =>
+        switch (List.rev(items)) {
+        | [last, ..._] => [
+            {
+              focused: last,
+              focused_id: Exp.rep_id(last),
+              breadcrumb: "",
+            },
+          ]
+        | [] => []
+        }
+
+      /* Slot: skip one item, continue */
+      | [MatchSlot, ...rest] =>
+        switch (items) {
+        | [_, ...remaining] => walk_items(remaining, rest)
+        | [] => []
+        }
+
+      /* Ellipsis: try matching rest at current position (zero skip)
+         and also skip forward one at a time */
+      | [MatchEllipsis, ...rest] =>
+        let here = walk_items(items, rest);
+        let skipped =
+          switch (items) {
+          | [_, ...remaining] => walk_items(remaining, steps)
+          | [] => []
+          };
+        here @ skipped;
+
+      /* Closing delimiter: done, ignore */
+      | [MatchDelimiter("]")]
+      | [MatchDelimiter(")")] => []
+
+      | _ => []
+      };
+    let _ = whole;
+    walk_items(items, steps);
+  }
+
+  /* List spine delegates to generic sequence walker */
+  and walk_list_spine =
+      (items: list(Exp.t), whole: Exp.t, steps: sem_selector) =>
+    walk_seq_spine(items, whole, steps)
 
   /* Find the Let node for a given binder name */
   and find_let_node = (name: string, e: Exp.t): option(Exp.t) =>
@@ -698,7 +959,12 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
   and find_all_lets = (e: Exp.t): list(let_spine) =>
     switch (Exp.term_of(e)) {
     | Let(pat, def, body) => [
-        {pat, def, body, whole: e},
+        {
+          pat,
+          def,
+          body,
+          whole: e,
+        },
         ...find_all_lets(body),
       ]
     | _ => []
@@ -728,10 +994,9 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
       | Ap(_, fn, arg) =>
         descend_all(fn, remaining) @ descend_all(arg, remaining)
       | Fun(_, body, _, _) => descend_all(body, remaining)
-      | Tuple(es) =>
-        List.concat_map(e => descend_all(e, remaining), es)
-      | ListLit(es) =>
-        List.concat_map(e => descend_all(e, remaining), es)
+      | Test(body) => descend_all(body, remaining)
+      | Tuple(es) => List.concat_map(e => descend_all(e, remaining), es)
+      | ListLit(es) => List.concat_map(e => descend_all(e, remaining), es)
       | Seq(e1, e2) =>
         descend_all(e1, remaining) @ descend_all(e2, remaining)
       | Parens(e) => descend_all(e, remaining)
@@ -766,8 +1031,7 @@ let query = (selector_str: string, root: Exp.t): list(match_result) => {
 
 /* For edit actions: require exactly one match */
 let query_unique =
-    (selector_str: string, root: Exp.t)
-    : result(match_result, string) => {
+    (selector_str: string, root: Exp.t): result(match_result, string) => {
   switch (query(selector_str, root)) {
   | [] => Error("No match for selector: " ++ selector_str)
   | [m] => Ok(m)

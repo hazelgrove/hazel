@@ -118,8 +118,7 @@ let expect_composition_failure =
 };
 
 /* Check that an edit succeeds but produces a warning */
-let expect_warning =
-    (code: string, a: Action.Structural.t, name: string) => {
+let expect_warning = (code: string, a: Action.Structural.t, name: string) => {
   switch (run_agent_action(code, a)) {
   | Ok(_) =>
     switch (CompositionGo.Public.last_warning^) {
@@ -163,33 +162,60 @@ let edit_action_tests = (
         )
       }
     }),
-    edit_test("update_definition",
-      "let a = 1 in a", Update(Definition, "a", "2"),
-      "let a = 2 in a"),
-    edit_test("update_body",
-      "let a = 1 in let b = 2 in a + b", Update(Body, "b", "b + 1"),
-      "let a = 1 in let b = 2 in b + 1"),
-    edit_test("update_pattern renames uses",
-      "let a = 1 in let b = a + 1 in b + a", Update(Pattern, "a", "x"),
-      "let x = 1 in let b = x + 1 in b + x"),
-    edit_test("update_pattern renames in def",
-      "let x = 3 in let y = x in y", Update(Pattern, "x", "z"),
-      "let z = 3 in let y = z in y"),
-    edit_test("update_binding_clause",
-      "let a = 1 in let b = 2 in a + b", Update(BindingClause, "b", "let b = a + 2 in"),
-      "let a = 1 in let b = a + 2 in a + b"),
-    edit_test("insert_before",
-      "let a = 1 in let b = 2 in a + b", Insert(Before, "b", "let x = a in"),
-      "let a = 1 in let x = a in let b = 2 in a + b"),
-    edit_test("insert_after",
-      "let a = 1 in let b = 2 in a + b", Insert(After, "a", "let x = a in"),
-      "let a = 1 in let x = a in let b = 2 in a + b"),
-    edit_test("delete_binding_clause",
-      "let a = 1 in let b = 2 in let c = 3 in a + c", Delete(BindingClause, "b"),
-      "let a = 1 in let c = 3 in a + c"),
-    edit_test("delete_body",
-      "let a = 1 in let b = 2 in a + b", Delete(Body, "b"),
-      "let a = 1 in let b = 2 in ?"),
+    edit_test(
+      "update_definition",
+      "let a = 1 in a",
+      Update(Definition, "a", "2"),
+      "let a = 2 in a",
+    ),
+    edit_test(
+      "update_body",
+      "let a = 1 in let b = 2 in a + b",
+      Update(Body, "b", "b + 1"),
+      "let a = 1 in let b = 2 in b + 1",
+    ),
+    edit_test(
+      "update_pattern renames uses",
+      "let a = 1 in let b = a + 1 in b + a",
+      Update(Pattern, "a", "x"),
+      "let x = 1 in let b = x + 1 in b + x",
+    ),
+    edit_test(
+      "update_pattern renames in def",
+      "let x = 3 in let y = x in y",
+      Update(Pattern, "x", "z"),
+      "let z = 3 in let y = z in y",
+    ),
+    edit_test(
+      "update_binding_clause",
+      "let a = 1 in let b = 2 in a + b",
+      Update(BindingClause, "b", "let b = a + 2 in"),
+      "let a = 1 in let b = a + 2 in a + b",
+    ),
+    edit_test(
+      "insert_before",
+      "let a = 1 in let b = 2 in a + b",
+      Insert(Before, "b", "let x = a in"),
+      "let a = 1 in let x = a in let b = 2 in a + b",
+    ),
+    edit_test(
+      "insert_after",
+      "let a = 1 in let b = 2 in a + b",
+      Insert(After, "a", "let x = a in"),
+      "let a = 1 in let x = a in let b = 2 in a + b",
+    ),
+    edit_test(
+      "delete_binding_clause",
+      "let a = 1 in let b = 2 in let c = 3 in a + c",
+      Delete(BindingClause, "b"),
+      "let a = 1 in let c = 3 in a + c",
+    ),
+    edit_test(
+      "delete_body",
+      "let a = 1 in let b = 2 in a + b",
+      Delete(Body, "b"),
+      "let a = 1 in let b = 2 in ?",
+    ),
   ],
 );
 
@@ -305,9 +331,7 @@ let module_node_map_tests = (
       `Quick,
       () => {
         let node_map =
-          build_node_map(
-            "let m = { let a = 1; let b = 2 } in m.a + m.b",
-          );
+          build_node_map("let m = { let a = 1; let b = 2 } in m.a + m.b");
         let node_m = HighLevelNodeMap.path_to_node(node_map, "m");
         let child_names =
           HighLevelNodeMap.children_of(node_map, node_m) |> name_list;
@@ -338,9 +362,7 @@ let module_node_map_tests = (
       `Quick,
       () => {
         let node_map =
-          build_node_map(
-            "let m = { let a = 1; let b = 2 } in m.a + m.b",
-          );
+          build_node_map("let m = { let a = 1; let b = 2 } in m.a + m.b");
         /* Path m/a should resolve to the module item "a" */
         let id_a = HighLevelNodeMap.path_to_id(node_map, "m/a");
         check(
@@ -460,9 +482,7 @@ let path_extension_tests = (
       `Quick,
       () => {
         let node_map =
-          build_node_map(
-            "let m = { let a = 1; let b = 2 } in m.a",
-          );
+          build_node_map("let m = { let a = 1; let b = 2 } in m.a");
         /* #0 resolves to m (first top-level), then #1 resolves to b (second child) */
         let id = HighLevelNodeMap.path_to_id(node_map, "#0/#1");
         check(
@@ -482,7 +502,11 @@ let path_extension_tests = (
             "let a = 1 in let b = 2 in a + b",
             Update(Definition, "#1", "42"),
           );
-        check_rendered("update via #1", "let a = 1 in let b = 42 in a + b", result);
+        check_rendered(
+          "update via #1",
+          "let a = 1 in let b = 42 in a + b",
+          result,
+        );
       },
     ),
   ],
@@ -619,30 +643,44 @@ let module_edit_action_tests = (
 let edge_case_tests = (
   "AgentTools.EdgeCases",
   [
-    edit_test("nested def update",
-      "let a = let inner = 1 in inner in a", Update(Definition, "a/inner", "42"),
-      "let a = let inner = 42 in inner in a"),
-    edit_test("type alias def update",
-      "type T = Int in let x = 1 in x", Update(Definition, "T", "Bool"),
-      "type T = Bool in let x = 1 in x"),
+    edit_test(
+      "nested def update",
+      "let a = let inner = 1 in inner in a",
+      Update(Definition, "a/inner", "42"),
+      "let a = let inner = 42 in inner in a",
+    ),
+    edit_test(
+      "type alias def update",
+      "type T = Int in let x = 1 in x",
+      Update(Definition, "T", "Bool"),
+      "type T = Bool in let x = 1 in x",
+    ),
     test_case("bad path gives error", `Quick, () =>
       expect_composition_failure(
         "let a = 1 in let b = 2 in a + b",
-        Update(Definition, "nonexistent", "42"), "bad path")
+        Update(Definition, "nonexistent", "42"),
+        "bad path",
+      )
     ),
     test_case("index out of range", `Quick, () =>
       expect_composition_failure(
         "let a = 1 in let b = 2 in a + b",
-        Update(Definition, "#99", "42"), "out of range")
+        Update(Definition, "#99", "42"),
+        "out of range",
+      )
     ),
-    edit_test("preserves surrounding",
+    edit_test(
+      "preserves surrounding",
       "let a = 1 in let b = 2 in let c = 3 in a + b + c",
       Update(Definition, "b", "a * 10"),
-      "let a = 1 in let b = a * 10 in let c = 3 in a + b + c"),
+      "let a = 1 in let b = a * 10 in let c = 3 in a + b + c",
+    ),
     test_case("type error warned", `Quick, () =>
       expect_warning(
         "let a : Int = 1 in a + 1",
-        Update(Definition, "a", "true"), "type error")
+        Update(Definition, "a", "true"),
+        "type error",
+      )
     ),
     /* Multi-step refactoring: changing a type alias cascades type errors
        to dependents. Previously this was rejected; now it succeeds with
@@ -650,41 +688,45 @@ let edge_case_tests = (
     test_case("type alias cascade warned", `Quick, () =>
       expect_warning(
         "type T = Int in let x : T = 5 in x",
-        Update(Definition, "T", "Bool"), "type alias cascade")
+        Update(Definition, "T", "Bool"),
+        "type alias cascade",
+      )
     ),
-    edit_test("type alias cascade code correct",
+    edit_test(
+      "type alias cascade code correct",
       "type T = Int in let x : T = 5 in x",
       Update(Definition, "T", "Bool"),
-      "type T = Bool in let x : T = 5 in x"),
+      "type T = Bool in let x : T = 5 in x",
+    ),
     test_case("unmatched delimiter", `Quick, () =>
       expect_composition_failure(
         "let a = 1 in a",
-        Update(Definition, "a", "if true then 1"), "parse error")
+        Update(Definition, "a", "if true then 1"),
+        "parse error",
+      )
     ),
     test_case("invalid token warned", `Quick, () =>
       expect_warning(
         "let a = 1 in let b = 2 in a + b",
-        Insert(After, "a", "let c = $invalid"), "invalid token")
+        Insert(After, "a", "let c = $invalid"),
+        "invalid token",
+      )
     ),
-    edit_test("$ path edit",
+    edit_test(
+      "$ path edit",
       "let a = 1 in let b = 2 in let c = 3 in a + b + c",
       Update(Definition, "$", "0"),
-      "let a = 1 in let b = 2 in let c = 0 in a + b + c"),
+      "let a = 1 in let b = 2 in let c = 0 in a + b + c",
+    ),
     test_case(
       "#n matches name-based path",
       `Quick,
       () => {
         /* #0 and name "a" should resolve to the same node */
-        let node_map =
-          build_node_map("let a = 1 in let b = 2 in a + b");
+        let node_map = build_node_map("let a = 1 in let b = 2 in a + b");
         let id_by_name = HighLevelNodeMap.path_to_id(node_map, "a");
         let id_by_index = HighLevelNodeMap.path_to_id(node_map, "#0");
-        check(
-          bool,
-          "#0 == a",
-          true,
-          Id.equal(id_by_name, id_by_index),
-        );
+        check(bool, "#0 == a", true, Id.equal(id_by_name, id_by_index));
       },
     ),
     test_case(
@@ -753,7 +795,12 @@ let read_action_tests = (
             GetSyntax("a"),
           );
         /* Should contain the let binding for a */
-        check(bool, "contains let a", true, string_contains("let a", result));
+        check(
+          bool,
+          "contains let a",
+          true,
+          string_contains("let a", result),
+        );
         check(
           bool,
           "contains 1 + 2",
@@ -798,10 +845,7 @@ let read_action_tests = (
       `Quick,
       () => {
         let result =
-          run_read_action(
-            "let x : Int = 1 + 2 in x",
-            GetStatics("x"),
-          );
+          run_read_action("let x : Int = 1 + 2 in x", GetStatics("x"));
         check(bool, "contains Int", true, string_contains("Int", result));
         check(
           bool,
@@ -816,10 +860,7 @@ let read_action_tests = (
       `Quick,
       () => {
         let result =
-          run_read_action(
-            "let x : Int = true in x",
-            GetStatics("x"),
-          );
+          run_read_action("let x : Int = true in x", GetStatics("x"));
         /* Should report a type error in the subtree */
         check(
           bool,
@@ -939,23 +980,37 @@ let read_action_tests = (
 let type_annotation_tests = (
   "AgentTools.TypeAnnotation",
   [
-    edit_test("update type annotation",
-      "let x : Int = 5 in x + 1", Update(TypeAnnotation, "x", "Float"),
-      "let x : Float = 5 in x + 1"),
-    edit_test("preserves other bindings",
-      "let a : Int = 1 in let b : Bool = true in a", Update(TypeAnnotation, "a", "Float"),
-      "let a : Float = 1 in let b : Bool = true in a"),
-    edit_test("nested type annotation",
-      "let a = let inner : Int = 1 in inner in a", Update(TypeAnnotation, "a/inner", "Float"),
-      "let a = let inner : Float = 1 in inner in a"),
+    edit_test(
+      "update type annotation",
+      "let x : Int = 5 in x + 1",
+      Update(TypeAnnotation, "x", "Float"),
+      "let x : Float = 5 in x + 1",
+    ),
+    edit_test(
+      "preserves other bindings",
+      "let a : Int = 1 in let b : Bool = true in a",
+      Update(TypeAnnotation, "a", "Float"),
+      "let a : Float = 1 in let b : Bool = true in a",
+    ),
+    edit_test(
+      "nested type annotation",
+      "let a = let inner : Int = 1 in inner in a",
+      Update(TypeAnnotation, "a/inner", "Float"),
+      "let a = let inner : Float = 1 in inner in a",
+    ),
     test_case("fails on unannotated binding", `Quick, () =>
       expect_composition_failure(
-        "let x = 5 in x + 1", Update(TypeAnnotation, "x", "Int"),
-        "no annotation error")
+        "let x = 5 in x + 1",
+        Update(TypeAnnotation, "x", "Int"),
+        "no annotation error",
+      )
     ),
-    edit_test("type alias via TypeAnnotation",
-      "type T = Int in let x = 1 in x", Update(TypeAnnotation, "T", "Bool"),
-      "type T = Bool in let x = 1 in x"),
+    edit_test(
+      "type alias via TypeAnnotation",
+      "type T = Int in let x = 1 in x",
+      Update(TypeAnnotation, "T", "Bool"),
+      "type T = Bool in let x = 1 in x",
+    ),
   ],
 );
 
@@ -966,8 +1021,7 @@ let seq_node_map_tests = (
       "test expression after let is a sibling node",
       `Quick,
       () => {
-        let node_map =
-          build_node_map("let x = 1 in test x == 1 end; x");
+        let node_map = build_node_map("let x = 1 in test x == 1 end; x");
         let top_names =
           HighLevelNodeMap.gather_top_level(node_map)
           |> List.map((id: Id.t) =>
@@ -986,8 +1040,7 @@ let seq_node_map_tests = (
       "test expression addressable by index",
       `Quick,
       () => {
-        let node_map =
-          build_node_map("let x = 1 in test x == 1 end; x");
+        let node_map = build_node_map("let x = 1 in test x == 1 end; x");
         /* x is #0, the test is #1, trailing x is #2 */
         let id = HighLevelNodeMap.path_to_id(node_map, "#1");
         check(
@@ -1003,9 +1056,7 @@ let seq_node_map_tests = (
       `Quick,
       () => {
         let node_map =
-          build_node_map(
-            "let x = 1 in test x == 1 end; test x > 0 end; x",
-          );
+          build_node_map("let x = 1 in test x == 1 end; test x > 0 end; x");
         let top_names =
           HighLevelNodeMap.gather_top_level(node_map)
           |> List.map((id: Id.t) =>
@@ -1024,9 +1075,7 @@ let seq_node_map_tests = (
       `Quick,
       () => {
         let node_map =
-          build_node_map(
-            "let x = 1 in test x == 1 end; let y = x + 1 in y",
-          );
+          build_node_map("let x = 1 in test x == 1 end; let y = x + 1 in y");
         let node_x = HighLevelNodeMap.path_to_node(node_map, "x");
         let sibling_names =
           HighLevelNodeMap.siblings_of(node_map, node_x) |> name_list;
@@ -1042,8 +1091,7 @@ let seq_node_map_tests = (
       "$ resolves to trailing expression",
       `Quick,
       () => {
-        let node_map =
-          build_node_map("let x = 1 in test x == 1 end; x");
+        let node_map = build_node_map("let x = 1 in test x == 1 end; x");
         let id = HighLevelNodeMap.path_to_id(node_map, "$");
         check(
           string,
@@ -1094,12 +1142,12 @@ let selector_query_unique = (code: string, sel: string): string => {
 };
 
 /* Concise test helpers for common patterns */
-let sel_test = (name, code, sel, expected) =>
+let sel_test = (~name, ~code, ~sel, ~expected) =>
   test_case(name, `Quick, () =>
     check(string, name, expected, selector_query_unique(code, sel))
   );
 
-let sel_test_rendered = (name, code, sel, expected) =>
+let sel_test_rendered = (~name, ~code, ~sel, ~expected) =>
   test_case(name, `Quick, () =>
     check_rendered(name, expected, selector_query_unique(code, sel))
   );
@@ -1113,77 +1161,319 @@ let selector_tests = (
   "AgentTools.Selectors",
   [
     /* Let spine */
-    sel_test("let x = *", "let x = 42 in x", "let x = *", "42"),
-    sel_test("let x _... in *", "let x = 42 in x + 1", "let x _... in *", "x + 1"),
-    sel_test("let b = * nested", "let a = 1 in let b = 2 in a + b", "let b = *", "2"),
+    sel_test(~name="let x = *", ~code="let x = 42 in x", ~sel="let x = *", ~expected="42"),
+    sel_test(
+      ~name="let x _... in *",
+      ~code="let x = 42 in x + 1",
+      ~sel="let x _... in *",
+      ~expected="x + 1",
+    ),
+    sel_test(
+      ~name="let b = * nested",
+      ~code="let a = 1 in let b = 2 in a + b",
+      ~sel="let b = *",
+      ~expected="2",
+    ),
     /* Binder chain */
-    sel_test("m/x = *", "let m = { let x = 42 } in m.x", "m/x = *", "42"),
+    sel_test(~name="m/x = *", ~code="let m = { let x = 42 } in m.x", ~sel="m/x = *", ~expected="42"),
     /* If spine */
-    sel_test("if *", if_program, "if *", "true"),
-    sel_test("if _ then *", if_program, "if _ then *", "1"),
-    sel_test("if _... else *", if_program, "if _... else *", "0"),
+    sel_test(~name="if *", ~code=if_program, ~sel="if *", ~expected="true"),
+    sel_test(~name="if _ then *", ~code=if_program, ~sel="if _ then *", ~expected="1"),
+    sel_test(~name="if _... else *", ~code=if_program, ~sel="if _... else *", ~expected="0"),
     /* Descendant search */
-    sel_test("descend if then", let_fun_if, "let f = \\_ if _ then *", "x"),
+    sel_test(~name="descend if then", ~code=let_fun_if, ~sel="let f = \\... if _ then *", ~expected="x"),
     /* Case/match spine */
-    sel_test("case *", case_program, "case *", "x"),
-    sel_test("| B => *", case_program, "| B => *", "2"),
+    sel_test(~name="case *", ~code=case_program, ~sel="case *", ~expected="x"),
+    sel_test(~name="| B => *", ~code=case_program, ~sel="| B => *", ~expected="2"),
     /* No match */
-    test_case("no match returns error", `Quick, () => {
-      let result = selector_query_unique("let x = 1 in x", "let y = *");
-      check(bool, "starts with ERROR", true,
-        String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR");
-    }),
+    test_case(
+      "no match returns error",
+      `Quick,
+      () => {
+        let result = selector_query_unique("let x = 1 in x", "let y = *");
+        check(
+          bool,
+          "starts with ERROR",
+          true,
+          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+        );
+      },
+    ),
     /* Multiple matches */
-    test_case("query returns multiple matches", `Quick, () => {
-      let results = selector_query("let a = 1 in let b = 2 in a + b", "let _ = *");
-      check(int, "match count", 2, List.length(results));
-    }),
+    test_case(
+      "query returns multiple matches",
+      `Quick,
+      () => {
+        let results =
+          selector_query("let a = 1 in let b = 2 in a + b", "let _ = *");
+        check(int, "match count", 2, List.length(results));
+      },
+    ),
     /* Read action integration */
-    read_test("Select def", "let x = 42 in x + 1", Select("let x = *"), "42"),
-    read_test("Select descend", let_fun_if, Select("let f = \\_ if _... else *"), "0"),
-    read_test("Select chain", "let m = { let x = 42 } in m.x", Select("m/x = *"), "42"),
-    test_case("Select multiple matches", `Quick, () => {
-      let result = run_read_action("let a = 1 in let b = 2 in a + b", Select("let _ = *"));
-      let lines = result |> String.split_on_char('\n')
-        |> List.filter(s => String.length(String.trim(s)) > 0);
-      check(int, "line count", 2, List.length(lines));
-    }),
+    read_test(
+      "Select def",
+      "let x = 42 in x + 1",
+      Select("let x = *"),
+      "42",
+    ),
+    read_test(
+      "Select descend",
+      let_fun_if,
+      Select("let f = \\... if _... else *"),
+      "0",
+    ),
+    read_test(
+      "Select chain",
+      "let m = { let x = 42 } in m.x",
+      Select("m/x = *"),
+      "42",
+    ),
+    test_case(
+      "Select multiple matches",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let a = 1 in let b = 2 in a + b",
+            Select("let _ = *"),
+          );
+        let lines =
+          result
+          |> String.split_on_char('\n')
+          |> List.filter(s => String.length(String.trim(s)) > 0);
+        check(int, "line count", 2, List.length(lines));
+      },
+    ),
     /* Spec examples */
-    sel_test("spec: descend if *", let_fun_if, "let f = \\_ if *", "x > 0"),
-    sel_test("spec: descend if _ then *", let_fun_if, "let f = \\_ if _ then *", "x"),
-    test_case("spec: * let f", `Quick, () => {
-      let result = selector_query_unique(let_fun_if, "* let f");
-      check(bool, "not error", false,
-        String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR");
-    }),
+    sel_test(~name="spec: descend if *", ~code=let_fun_if, ~sel="let f = \\... if *", ~expected="x > 0"),
+    sel_test(
+      ~name="spec: descend if _ then *",
+      ~code=let_fun_if,
+      ~sel="let f = \\... if _ then *",
+      ~expected="x",
+    ),
+    test_case(
+      "spec: * let f",
+      `Quick,
+      () => {
+        let result = selector_query_unique(let_fun_if, "* let f");
+        check(
+          bool,
+          "not error",
+          false,
+          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+        );
+      },
+    ),
     /* Case arms */
-    sel_test("spec: | Increment => *", case_msg, "| Increment => *", "count + 1"),
-    sel_test("spec: | Decrement => *", case_msg, "| Decrement => *", "count - 1"),
+    sel_test(
+      ~name="spec: | Increment => *",
+      ~code=case_msg,
+      ~sel="| Increment => *",
+      ~expected="count + 1",
+    ),
+    sel_test(
+      ~name="spec: | Decrement => *",
+      ~code=case_msg,
+      ~sel="| Decrement => *",
+      ~expected="count - 1",
+    ),
     /* Module items */
-    sel_test("spec: m/x = *", "let m = { let x = 1; let y = 2 } in m.x", "m/x = *", "1"),
-    sel_test("spec: m/y = *", "let m = { let x = 1; let y = 2 } in m.y", "m/y = *", "2"),
+    sel_test(
+      ~name="spec: m/x = *",
+      ~code="let m = { let x = 1; let y = 2 } in m.x",
+      ~sel="m/x = *",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="spec: m/y = *",
+      ~code="let m = { let x = 1; let y = 2 } in m.y",
+      ~sel="m/y = *",
+      ~expected="2",
+    ),
     /* Nested binder chains */
-    sel_test("spec: a/b/y = *",
-      "let a = { let x = 1; let b = { let y = 42 } } in a.b.y",
-      "a/b/y = *", "42"),
+    sel_test(
+      ~name="spec: a/b/y = *",
+      ~code="let a = { let x = 1; let b = { let y = 42 } } in a.b.y",
+      ~sel="a/b/y = *",
+      ~expected="42",
+    ),
     /* Bare name */
-    sel_test("y = * bare", "let x = 42 in let y = 99 in x + y", "y = *", "99"),
+    sel_test(
+      ~name="y = * bare",
+      ~code="let x = 42 in let y = 99 in x + y",
+      ~sel="y = *",
+      ~expected="99",
+    ),
     /* Body selection */
-    sel_test("x _... in *", "let x = 42 in let y = 99 in x + y",
-      "x _... in *", "let y = 99 in x + y"),
+    sel_test(
+      ~name="x _... in *",
+      ~code="let x = 42 in let y = 99 in x + y",
+      ~sel="x _... in *",
+      ~expected="let y = 99 in x + y",
+    ),
+    /* === Descend-to-find nested binder === */
+    sel_test(
+      ~name="\\... let b = * (nested in def)",
+      ~code="let a = (let b = 42 in b) in a",
+      ~sel="\\... let b = *",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="let b = * (NOT found at root)",
+      ~code="let a = (let b = 42 in b) in a",
+      ~sel="let b = *",
+      ~expected="ERROR: No match for selector: let b = *",
+    ),
+    /* === Fun spine tests === */
+    sel_test(
+      ~name="fun _ -> *",
+      ~code="let f = fun x -> x + 1 in f",
+      ~sel="let f = \\... fun _ -> *",
+      ~expected="x + 1",
+    ),
+    sel_test(
+      ~name="fun x -> *",
+      ~code="let f = fun x -> x + 1 in f",
+      ~sel="let f = \\... fun x -> *",
+      ~expected="x + 1",
+    ),
+    sel_test(
+      ~name="fun ... -> *",
+      ~code="let f = fun x -> x + 1 in f",
+      ~sel="let f = \\... fun _... -> *",
+      ~expected="x + 1",
+    ),
+    sel_test(
+      ~name="descend fun then if",
+      ~code="let f = fun x -> if x > 0 then x else 0 in f",
+      ~sel="let f = \\... fun _ -> \\... if _... else *",
+      ~expected="0",
+    ),
+    /* === Test keyword tests === */
+    sel_test(
+      ~name="test *",
+      ~code="let x = 1 in test x == 1 end; x",
+      ~sel="\\... test *",
+      ~expected="x == 1",
+    ),
+    /* === Colon (type annotation) tests === */
+    sel_test(
+      ~name="let x : _ = * (annotated)",
+      ~code="let x : Int = 42 in x",
+      ~sel="let x : _ = *",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="let x = * (annotated, no colon in selector)",
+      ~code="let x : Int = 42 in x",
+      ~sel="let x = *",
+      ~expected="42",
+    ),
+    /* === List spine tests === */
+    sel_test(
+      ~name="[ * ... ] first",
+      ~code="let xs = [1, 2, 3] in xs",
+      ~sel="let xs = \\... [ *",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="[ ... * ] last",
+      ~code="let xs = [1, 2, 3] in xs",
+      ~sel="let xs = \\... [ _... *",
+      ~expected="3",
+    ),
+    sel_test(
+      ~name="[ _ * ... ] second",
+      ~code="let xs = [1, 2, 3] in xs",
+      ~sel="let xs = \\... [ _ *",
+      ~expected="2",
+    ),
+    /* === Tuple spine tests === */
+    sel_test(
+      ~name="( * first",
+      ~code="let t = (1, 2, 3) in t",
+      ~sel="let t = \\... ( *",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="( _... * last",
+      ~code="let t = (1, 2, 3) in t",
+      ~sel="let t = \\... ( _... *",
+      ~expected="3",
+    ),
+    sel_test(
+      ~name="( _ * second",
+      ~code="let t = (1, 2, 3) in t",
+      ~sel="let t = \\... ( _ *",
+      ~expected="2",
+    ),
+    sel_test(
+      ~name="( _ _ * third",
+      ~code="let t = (1, 2, 3) in t",
+      ~sel="let t = \\... ( _ _ *",
+      ~expected="3",
+    ),
+    /* === Focus-before-keyword tests === */
+    test_case(
+      "* let x selects whole let",
+      `Quick,
+      () => {
+        let result = selector_query_unique(
+          "let x = 42 in x + 1",
+          "* let x",
+        );
+        /* Should return the entire let expression, not an error */
+        check(
+          bool,
+          "not error",
+          false,
+          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+        );
+        check(
+          bool,
+          "has let",
+          true,
+          string_contains("let", result),
+        );
+      },
+    ),
+    test_case(
+      "* fun matches whole fun",
+      `Quick,
+      () => {
+        let code = "let f = fun x -> x + 1 in f";
+        let result = selector_query_unique(code, "let f = \\... * fun _ -> *");
+        /* The first * focuses, the second is in the fun spine */
+        check(
+          bool,
+          "not error",
+          false,
+          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+        );
+      },
+    ),
   ],
 );
 
 /* === Completeness Tests === */
 
 let expect_completeness = (code: string, expected: string) =>
-  check(string, "completeness", expected, run_read_action(code, GetCompleteness));
+  check(
+    string,
+    "completeness",
+    expected,
+    run_read_action(code, GetCompleteness),
+  );
 
 let completeness_tests = (
   "AgentTools.Completeness",
   [
     test_case("complete program", `Quick, () =>
-      expect_completeness("let x = 42 in x + 1", "Complete: no unfilled holes.")
+      expect_completeness(
+        "let x = 42 in x + 1",
+        "Complete: no unfilled holes.",
+      )
     ),
     test_case("expression hole", `Quick, () =>
       expect_completeness(
@@ -1207,89 +1497,142 @@ let completeness_tests = (
 );
 
 /* Programs with sum types, records, case dispatch, and functions */
-let sum_type_program =
-  "type Color = Red + Green + Blue in\nlet name_of : Color -> String = fun c ->\n  case c\n  | Red => \"red\"\n  | Green => \"green\"\n  | Blue => \"blue\"\n  end\nin\nname_of(Red)";
+let sum_type_program = "type Color = Red + Green + Blue in\nlet name_of : Color -> String = fun c ->\n  case c\n  | Red => \"red\"\n  | Green => \"green\"\n  | Blue => \"blue\"\n  end\nin\nname_of(Red)";
 
-let record_program =
-  "let mk_point = fun x -> fun y -> (x=x, y=y) in\nlet dist = fun p -> p.x * p.x + p.y * p.y in\nlet origin = mk_point(0)(0) in\ndist(origin)";
+let record_program = "let mk_point = fun x -> fun y -> (x=x, y=y) in\nlet dist = fun p -> p.x * p.x + p.y * p.y in\nlet origin = mk_point(0)(0) in\ndist(origin)";
 
 let complex_program_tests = (
   "AgentTools.ComplexPrograms",
   [
     /* Sum type + case: update a case arm body */
-    test_case("update case arm body", `Quick, () => {
-      let result =
-        apply_and_render(
-          sum_type_program,
-          Update(Definition, "name_of", "fun c ->\n  case c\n  | Red => \"RED\"\n  | Green => \"green\"\n  | Blue => \"blue\"\n  end"),
-        );
-      check(bool, "has RED", true, string_contains("RED", result));
-    }),
+    test_case(
+      "update case arm body",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            sum_type_program,
+            Update(
+              Definition,
+              "name_of",
+              "fun c ->\n  case c\n  | Red => \"RED\"\n  | Green => \"green\"\n  | Blue => \"blue\"\n  end",
+            ),
+          );
+        check(bool, "has RED", true, string_contains("RED", result));
+      },
+    ),
     /* Sum type: read statics on annotated function */
-    test_case("statics on sum type function", `Quick, () => {
-      let result = run_read_action(sum_type_program, GetStatics("name_of"));
-      check(bool, "has String", true, string_contains("String", result));
-      check(bool, "has name_of", true, string_contains("name_of", result));
-    }),
+    test_case(
+      "statics on sum type function",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(sum_type_program, GetStatics("name_of"));
+        check(bool, "has String", true, string_contains("String", result));
+        check(bool, "has name_of", true, string_contains("name_of", result));
+      },
+    ),
     /* Sum type: context shows constructors */
-    test_case("context has constructors", `Quick, () => {
-      let result = run_read_action(sum_type_program, GetContext("name_of"));
-      check(bool, "has Red", true, string_contains("Red", result));
-      check(bool, "has Green", true, string_contains("Green", result));
-      check(bool, "has Blue", true, string_contains("Blue", result));
-    }),
+    test_case(
+      "context has constructors",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(sum_type_program, GetContext("name_of"));
+        check(bool, "has Red", true, string_contains("Red", result));
+        check(bool, "has Green", true, string_contains("Green", result));
+        check(bool, "has Blue", true, string_contains("Blue", result));
+      },
+    ),
     /* Sum type: selector on case arm via pipe */
-    test_case("selector on case arm", `Quick, () => {
-      let result =
-        selector_query_unique(sum_type_program, "name_of = \\_ | Green => *");
-      check_rendered("green arm", "\"green\"", result);
-    }),
+    test_case(
+      "selector on case arm",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            sum_type_program,
+            "name_of = \\... | Green => *",
+          );
+        check_rendered("green arm", "\"green\"", result);
+      },
+    ),
     /* Sum type: completeness */
     test_case("sum type program is complete", `Quick, () =>
       expect_completeness(sum_type_program, "Complete: no unfilled holes.")
     ),
     /* Record: update definition */
-    test_case("update record function def", `Quick, () => {
-      let result =
-        apply_and_render(
-          record_program,
-          Update(Definition, "origin", "mk_point(1)(1)"),
-        );
-      check(bool, "has 1)(1)", true, string_contains("1)(1)", result));
-    }),
+    test_case(
+      "update record function def",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            record_program,
+            Update(Definition, "origin", "mk_point(1)(1)"),
+          );
+        check(bool, "has 1)(1)", true, string_contains("1)(1)", result));
+      },
+    ),
     /* Record: insert new binding */
-    test_case("insert after record binding", `Quick, () => {
-      let result =
-        apply_and_render(
-          record_program,
-          Insert(After, "dist", "let manhattan = fun p -> p.x + p.y"),
+    test_case(
+      "insert after record binding",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            record_program,
+            Insert(After, "dist", "let manhattan = fun p -> p.x + p.y"),
+          );
+        check(
+          bool,
+          "has manhattan",
+          true,
+          string_contains("manhattan", result),
         );
-      check(bool, "has manhattan", true, string_contains("manhattan", result));
-    }),
+      },
+    ),
     /* Updating type alias without cascading errors */
-    test_case("update type alias def", `Quick, () => {
-      let result =
-        apply_and_render(
-          "type T = Int in let x = 5 in x",
-          Update(Definition, "T", "Bool"),
+    test_case(
+      "update type alias def",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "type T = Int in let x = 5 in x",
+            Update(Definition, "T", "Bool"),
+          );
+        check_rendered(
+          "type alias change",
+          "type T = Bool in let x = 5 in x",
+          result,
         );
-      check_rendered("type alias change", "type T = Bool in let x = 5 in x", result);
-    }),
+      },
+    ),
     /* Delete a binding clause */
-    test_case("delete binding in chain", `Quick, () => {
-      let result =
-        apply_and_render(
-          "let a = 1 in let b = 2 in let c = 3 in c",
-          Delete(BindingClause, "b"),
-        );
-      check_rendered("delete b", "let a = 1 in let c = 3 in c", result);
-    }),
+    test_case(
+      "delete binding in chain",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let a = 1 in let b = 2 in let c = 3 in c",
+            Delete(BindingClause, "b"),
+          );
+        check_rendered("delete b", "let a = 1 in let c = 3 in c", result);
+      },
+    ),
     /* Selector with descendant search into function */
-    test_case("selector descend into function if", `Quick, () => {
-      let code = "let f = fun x -> if x > 0 then x else 0 - x in f(5)";
-      let result = selector_query_unique(code, "let f = \\_ if _... else *");
-      check_rendered("else branch", "0 - x", result);
-    }),
+    test_case(
+      "selector descend into function if",
+      `Quick,
+      () => {
+        let code = "let f = fun x -> if x > 0 then x else 0 - x in f(5)";
+        let result =
+          selector_query_unique(code, "let f = \\... if _... else *");
+        check_rendered("else branch", "0 - x", result);
+      },
+    ),
   ],
 );
 
@@ -1311,7 +1654,7 @@ let find_arm_body_id_in_zipper = (z: Zipper.t, arm_idx: int): Id.t => {
             };
             e;
           | _ => continue(e)
-          };
+          }
         },
       term,
     );
@@ -1322,7 +1665,9 @@ let find_arm_body_id_in_zipper = (z: Zipper.t, arm_idx: int): Id.t => {
 };
 
 /* Helper: apply a TermEdit case arm operation on code, using shared zipper */
-let case_arm_edit = (code: string, arm_idx: int, f: (Zipper.t, Id.t) => option(Zipper.t)): string => {
+let case_arm_edit =
+    (code: string, arm_idx: int, f: (Zipper.t, Id.t) => option(Zipper.t))
+    : string => {
   let z = mk_zipper(code);
   let body_id = find_arm_body_id_in_zipper(z, arm_idx);
   switch (f(z, body_id)) {
@@ -1338,82 +1683,155 @@ let case_arm_tests = (
   "AgentTools.CaseArms",
   [
     /* Delete case arms */
-    test_case("delete first case arm", `Quick, () => {
-      let result = case_arm_edit(simple_case, 0, (z, id) =>
-        TermEdit.case_delete_arm(z, id));
-      check(bool, "no A", false, string_contains("A", result));
-      check(bool, "has B", true, string_contains("B", result));
-      check(bool, "has C", true, string_contains("C", result));
-    }),
-    test_case("delete middle case arm", `Quick, () => {
-      let result = case_arm_edit(simple_case, 1, (z, id) =>
-        TermEdit.case_delete_arm(z, id));
-      check(bool, "has A", true, string_contains("A", result));
-      check(bool, "no B", false, string_contains("B", result));
-      check(bool, "has C", true, string_contains("C", result));
-    }),
-    test_case("delete last case arm", `Quick, () => {
-      let result = case_arm_edit(simple_case, 2, (z, id) =>
-        TermEdit.case_delete_arm(z, id));
-      check(bool, "has A", true, string_contains("A", result));
-      check(bool, "has B", true, string_contains("B", result));
-      check(bool, "no C", false, string_contains("C", result));
-    }),
+    test_case(
+      "delete first case arm",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(simple_case, 0, (z, id) =>
+            TermEdit.case_delete_arm(z, id)
+          );
+        check(bool, "no A", false, string_contains("A", result));
+        check(bool, "has B", true, string_contains("B", result));
+        check(bool, "has C", true, string_contains("C", result));
+      },
+    ),
+    test_case(
+      "delete middle case arm",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(simple_case, 1, (z, id) =>
+            TermEdit.case_delete_arm(z, id)
+          );
+        check(bool, "has A", true, string_contains("A", result));
+        check(bool, "no B", false, string_contains("B", result));
+        check(bool, "has C", true, string_contains("C", result));
+      },
+    ),
+    test_case(
+      "delete last case arm",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(simple_case, 2, (z, id) =>
+            TermEdit.case_delete_arm(z, id)
+          );
+        check(bool, "has A", true, string_contains("A", result));
+        check(bool, "has B", true, string_contains("B", result));
+        check(bool, "no C", false, string_contains("C", result));
+      },
+    ),
     /* Insert case arms */
-    test_case("insert arm after last", `Quick, () => {
-      let result = case_arm_edit(simple_case, 2, (z, id) =>
-        TermEdit.case_insert_arm(z, id, "D => 4", Direction.Right));
-      check(bool, "has D", true, string_contains("D", result));
-      check(bool, "has 4", true, string_contains("4", result));
-    }),
-    test_case("insert arm before first", `Quick, () => {
-      let result = case_arm_edit(simple_case, 0, (z, id) =>
-        TermEdit.case_insert_arm(z, id, "Z => 0", Direction.Left));
-      check(bool, "has Z", true, string_contains("Z", result));
-    }),
-    test_case("insert arm with pipe prefix", `Quick, () => {
-      let result = case_arm_edit(simple_case, 1, (z, id) =>
-        TermEdit.case_insert_arm(z, id, "| D => 4", Direction.Right));
-      check(bool, "has D", true, string_contains("D", result));
-    }),
+    test_case(
+      "insert arm after last",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(simple_case, 2, (z, id) =>
+            TermEdit.case_insert_arm(z, id, "D => 4", Direction.Right)
+          );
+        check(bool, "has D", true, string_contains("D", result));
+        check(bool, "has 4", true, string_contains("4", result));
+      },
+    ),
+    test_case(
+      "insert arm before first",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(simple_case, 0, (z, id) =>
+            TermEdit.case_insert_arm(z, id, "Z => 0", Direction.Left)
+          );
+        check(bool, "has Z", true, string_contains("Z", result));
+      },
+    ),
+    test_case(
+      "insert arm with pipe prefix",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(simple_case, 1, (z, id) =>
+            TermEdit.case_insert_arm(z, id, "| D => 4", Direction.Right)
+          );
+        check(bool, "has D", true, string_contains("D", result));
+      },
+    ),
     /* Update arm body */
-    test_case("update arm body", `Quick, () => {
-      let result = case_arm_edit(simple_case, 0, (z, id) =>
-        TermEdit.case_update_arm_body(z, id, "100"));
-      check(bool, "has 100", true, string_contains("100", result));
-      check(bool, "has B", true, string_contains("B", result));
-    }),
+    test_case(
+      "update arm body",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(simple_case, 0, (z, id) =>
+            TermEdit.case_update_arm_body(z, id, "100")
+          );
+        check(bool, "has 100", true, string_contains("100", result));
+        check(bool, "has B", true, string_contains("B", result));
+      },
+    ),
     /* Update arm pattern */
-    test_case("update arm pattern", `Quick, () => {
-      let result = case_arm_edit(simple_case, 1, (z, id) =>
-        TermEdit.case_update_arm_pattern(z, id, "D"));
-      check(bool, "has D", true, string_contains("D", result));
-      check(bool, "no B", false, string_contains("| B", result));
-    }),
+    test_case(
+      "update arm pattern",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(simple_case, 1, (z, id) =>
+            TermEdit.case_update_arm_pattern(z, id, "D")
+          );
+        check(bool, "has D", true, string_contains("D", result));
+        check(bool, "no B", false, string_contains("| B", result));
+      },
+    ),
     /* is_case_arm */
-    test_case("is_case_arm true for arm body", `Quick, () => {
-      let z = mk_zipper(simple_case);
-      let body_id = find_arm_body_id_in_zipper(z, 0);
-      check(bool, "is case arm", true, TermEdit.is_case_arm(z, body_id));
-    }),
-    test_case("is_case_arm false for non-arm", `Quick, () => {
-      let z = mk_zipper("let x = 1 in x");
-      let term = MakeTerm.from_zip_for_sem(z).term;
-      let id = Exp.rep_id(term);
-      check(bool, "not case arm", false, TermEdit.is_case_arm(z, id));
-    }),
+    test_case(
+      "is_case_arm true for arm body",
+      `Quick,
+      () => {
+        let z = mk_zipper(simple_case);
+        let body_id = find_arm_body_id_in_zipper(z, 0);
+        check(bool, "is case arm", true, TermEdit.is_case_arm(z, body_id));
+      },
+    ),
+    test_case(
+      "is_case_arm false for non-arm",
+      `Quick,
+      () => {
+        let z = mk_zipper("let x = 1 in x");
+        let term = MakeTerm.from_zip_for_sem(z).term;
+        let id = Exp.rep_id(term);
+        check(bool, "not case arm", false, TermEdit.is_case_arm(z, id));
+      },
+    ),
     /* Case arm in let binding */
-    test_case("delete arm in let binding", `Quick, () => {
-      let result = case_arm_edit(case_in_let, 1, (z, id) =>
-        TermEdit.case_delete_arm(z, id));
-      check(bool, "no None", false, string_contains("None", result));
-      check(bool, "has Some", true, string_contains("Some", result));
-    }),
-    test_case("insert arm in let binding", `Quick, () => {
-      let result = case_arm_edit(case_in_let, 1, (z, id) =>
-        TermEdit.case_insert_arm(z, id, "Err(e) => 0 - 1", Direction.Right));
-      check(bool, "has Err", true, string_contains("Err", result));
-    }),
+    test_case(
+      "delete arm in let binding",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(case_in_let, 1, (z, id) =>
+            TermEdit.case_delete_arm(z, id)
+          );
+        check(bool, "no None", false, string_contains("None", result));
+        check(bool, "has Some", true, string_contains("Some", result));
+      },
+    ),
+    test_case(
+      "insert arm in let binding",
+      `Quick,
+      () => {
+        let result =
+          case_arm_edit(case_in_let, 1, (z, id) =>
+            TermEdit.case_insert_arm(
+              z,
+              id,
+              "Err(e) => 0 - 1",
+              Direction.Right,
+            )
+          );
+        check(bool, "has Err", true, string_contains("Err", result));
+      },
+    ),
     /* parse_case_arm directly */
     test_case("parse_case_arm simple", `Quick, () => {
       switch (TermEdit.parse_case_arm("Foo => 42")) {
@@ -1428,63 +1846,107 @@ let case_arm_tests = (
       }
     }),
     /* Case arms in HighLevelNodeMap */
-    test_case("case arms appear in node map", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 | C => 3 end in f";
-      let node_map = build_node_map(case_code);
-      /* Arms should be children of f, named |A, |B, |C */
-      check(bool, "|A exists",  true, HighLevelNodeMap.path_to_id_opt(node_map, "f/|A") != None);
-      check(bool, "|B exists",  true, HighLevelNodeMap.path_to_id_opt(node_map, "f/|B") != None);
-      check(bool, "|C exists",  true, HighLevelNodeMap.path_to_id_opt(node_map, "f/|C") != None);
-    }),
-    test_case("case arm path resolves correctly", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in f";
-      let result = run_read_action(case_code, GetSyntax("f/|A"));
-      check_rendered("arm A body", "1", result);
-    }),
-    test_case("case arm path resolves B", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in f";
-      let result = run_read_action(case_code, GetSyntax("f/|B"));
-      check_rendered("arm B body", "2", result);
-    }),
+    test_case(
+      "case arms appear in node map",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 | C => 3 end in f";
+        let node_map = build_node_map(case_code);
+        /* Arms should be children of f, named |A, |B, |C */
+        check(
+          bool,
+          "|A exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "f/|A") != None,
+        );
+        check(
+          bool,
+          "|B exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "f/|B") != None,
+        );
+        check(
+          bool,
+          "|C exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "f/|C") != None,
+        );
+      },
+    ),
+    test_case(
+      "case arm path resolves correctly",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result = run_read_action(case_code, GetSyntax("f/|A"));
+        check_rendered("arm A body", "1", result);
+      },
+    ),
+    test_case(
+      "case arm path resolves B",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result = run_read_action(case_code, GetSyntax("f/|B"));
+        check_rendered("arm B body", "2", result);
+      },
+    ),
     /* Case arm edit via dispatch */
-    test_case("update case arm body via dispatch", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in f";
-      let result = apply_and_render(case_code, Update(Body, "f/|A", "100"));
-      check(bool, "has 100", true, string_contains("100", result));
-      check(bool, "still has B", true, string_contains("B", result));
-    }),
-    test_case("update case arm pattern via dispatch", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in f";
-      let result = apply_and_render(case_code, Update(Pattern, "f/|B", "C"));
-      check(bool, "has C", true, string_contains("C", result));
-      check(bool, "no B arm", false, string_contains("| B", result));
-    }),
-    test_case("delete case arm via dispatch", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 | C => 3 end in f";
-      let result = apply_and_render(case_code, Delete(BindingClause, "f/|B"));
-      check(bool, "no B", false, string_contains("B", result));
-      check(bool, "has A", true, string_contains("A", result));
-      check(bool, "has C", true, string_contains("C", result));
-    }),
-    test_case("insert case arm via dispatch", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in f";
-      let result = apply_and_render(case_code, Insert(After, "f/|B", "C => 3"));
-      check(bool, "has C", true, string_contains("C", result));
-      check(bool, "has 3", true, string_contains("3", result));
-    }),
-    test_case("insert case arm before via dispatch", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in f";
-      let result = apply_and_render(case_code, Insert(Before, "f/|A", "Z => 0"));
-      check(bool, "has Z", true, string_contains("Z", result));
-    }),
+    test_case(
+      "update case arm body via dispatch",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result =
+          apply_and_render(case_code, Update(Body, "f/|A", "100"));
+        check(bool, "has 100", true, string_contains("100", result));
+        check(bool, "still has B", true, string_contains("B", result));
+      },
+    ),
+    test_case(
+      "update case arm pattern via dispatch",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result =
+          apply_and_render(case_code, Update(Pattern, "f/|B", "C"));
+        check(bool, "has C", true, string_contains("C", result));
+        check(bool, "no B arm", false, string_contains("| B", result));
+      },
+    ),
+    test_case(
+      "delete case arm via dispatch",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 | C => 3 end in f";
+        let result =
+          apply_and_render(case_code, Delete(BindingClause, "f/|B"));
+        check(bool, "no B", false, string_contains("B", result));
+        check(bool, "has A", true, string_contains("A", result));
+        check(bool, "has C", true, string_contains("C", result));
+      },
+    ),
+    test_case(
+      "insert case arm via dispatch",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result =
+          apply_and_render(case_code, Insert(After, "f/|B", "C => 3"));
+        check(bool, "has C", true, string_contains("C", result));
+        check(bool, "has 3", true, string_contains("3", result));
+      },
+    ),
+    test_case(
+      "insert case arm before via dispatch",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result =
+          apply_and_render(case_code, Insert(Before, "f/|A", "Z => 0"));
+        check(bool, "has Z", true, string_contains("Z", result));
+      },
+    ),
   ],
 );
 
@@ -1506,7 +1968,7 @@ let find_list_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
             };
             e;
           | _ => continue(e)
-          };
+          }
         },
       term,
     );
@@ -1516,7 +1978,8 @@ let find_list_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
   };
 };
 
-let list_edit = (code: string, idx: int, f: (Zipper.t, Id.t) => option(Zipper.t)): string => {
+let list_edit =
+    (code: string, idx: int, f: (Zipper.t, Id.t) => option(Zipper.t)): string => {
   let z = mk_zipper(code);
   let el_id = find_list_element_id_in_zipper(z, idx);
   switch (f(z, el_id)) {
@@ -1531,53 +1994,108 @@ let list_element_tests = (
   "AgentTools.ListElements",
   [
     /* TermEdit-level operations */
-    test_case("delete first list element", `Quick, () => {
-      let result = list_edit(list_program, 0, (z, id) =>
-        TermEdit.list_delete_element(z, id));
-      check(bool, "no 1", false, string_contains("1,", result));
-      check(bool, "has 2", true, string_contains("2", result));
-      check(bool, "has 3", true, string_contains("3", result));
-    }),
-    test_case("delete last list element", `Quick, () => {
-      let result = list_edit(list_program, 2, (z, id) =>
-        TermEdit.list_delete_element(z, id));
-      check(bool, "has 1", true, string_contains("1", result));
-      check(bool, "has 2", true, string_contains("2", result));
-    }),
-    test_case("insert list element after", `Quick, () => {
-      let result = list_edit(list_program, 2, (z, id) =>
-        TermEdit.list_insert_element(z, id, "4", Direction.Right));
-      check(bool, "has 4", true, string_contains("4", result));
-    }),
-    test_case("update list element", `Quick, () => {
-      let result = list_edit(list_program, 1, (z, id) =>
-        TermEdit.list_update_element(z, id, "99"));
-      check(bool, "has 99", true, string_contains("99", result));
-    }),
+    test_case(
+      "delete first list element",
+      `Quick,
+      () => {
+        let result =
+          list_edit(list_program, 0, (z, id) =>
+            TermEdit.list_delete_element(z, id)
+          );
+        check(bool, "no 1", false, string_contains("1,", result));
+        check(bool, "has 2", true, string_contains("2", result));
+        check(bool, "has 3", true, string_contains("3", result));
+      },
+    ),
+    test_case(
+      "delete last list element",
+      `Quick,
+      () => {
+        let result =
+          list_edit(list_program, 2, (z, id) =>
+            TermEdit.list_delete_element(z, id)
+          );
+        check(bool, "has 1", true, string_contains("1", result));
+        check(bool, "has 2", true, string_contains("2", result));
+      },
+    ),
+    test_case(
+      "insert list element after",
+      `Quick,
+      () => {
+        let result =
+          list_edit(list_program, 2, (z, id) =>
+            TermEdit.list_insert_element(z, id, "4", Direction.Right)
+          );
+        check(bool, "has 4", true, string_contains("4", result));
+      },
+    ),
+    test_case(
+      "update list element",
+      `Quick,
+      () => {
+        let result =
+          list_edit(list_program, 1, (z, id) =>
+            TermEdit.list_update_element(z, id, "99")
+          );
+        check(bool, "has 99", true, string_contains("99", result));
+      },
+    ),
     /* Node map indexing */
-    test_case("list elements in node map", `Quick, () => {
-      let node_map = build_node_map(list_program);
-      check(bool, "[0] exists", true,
-        HighLevelNodeMap.path_to_id_opt(node_map, "xs/[0]") != None);
-      check(bool, "[1] exists", true,
-        HighLevelNodeMap.path_to_id_opt(node_map, "xs/[1]") != None);
-      check(bool, "[2] exists", true,
-        HighLevelNodeMap.path_to_id_opt(node_map, "xs/[2]") != None);
-    }),
+    test_case(
+      "list elements in node map",
+      `Quick,
+      () => {
+        let node_map = build_node_map(list_program);
+        check(
+          bool,
+          "[0] exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "xs/[0]") != None,
+        );
+        check(
+          bool,
+          "[1] exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "xs/[1]") != None,
+        );
+        check(
+          bool,
+          "[2] exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "xs/[2]") != None,
+        );
+      },
+    ),
     /* Dispatch-level operations */
-    test_case("update list element via dispatch", `Quick, () => {
-      let result = apply_and_render(list_program, Update(Body, "xs/[1]", "99"));
-      check(bool, "has 99", true, string_contains("99", result));
-    }),
-    test_case("delete list element via dispatch", `Quick, () => {
-      let result = apply_and_render(list_program, Delete(BindingClause, "xs/[1]"));
-      check(bool, "has 1", true, string_contains("1", result));
-      check(bool, "has 3", true, string_contains("3", result));
-    }),
-    test_case("insert list element via dispatch", `Quick, () => {
-      let result = apply_and_render(list_program, Insert(After, "xs/[2]", "4"));
-      check(bool, "has 4", true, string_contains("4", result));
-    }),
+    test_case(
+      "update list element via dispatch",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(list_program, Update(Body, "xs/[1]", "99"));
+        check(bool, "has 99", true, string_contains("99", result));
+      },
+    ),
+    test_case(
+      "delete list element via dispatch",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(list_program, Delete(BindingClause, "xs/[1]"));
+        check(bool, "has 1", true, string_contains("1", result));
+        check(bool, "has 3", true, string_contains("3", result));
+      },
+    ),
+    test_case(
+      "insert list element via dispatch",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(list_program, Insert(After, "xs/[2]", "4"));
+        check(bool, "has 4", true, string_contains("4", result));
+      },
+    ),
   ],
 );
 
@@ -1598,7 +2116,7 @@ let find_tuple_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
             };
             e;
           | _ => continue(e)
-          };
+          }
         },
       term,
     );
@@ -1608,7 +2126,8 @@ let find_tuple_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
   };
 };
 
-let tuple_edit = (code: string, idx: int, f: (Zipper.t, Id.t) => option(Zipper.t)): string => {
+let tuple_edit =
+    (code: string, idx: int, f: (Zipper.t, Id.t) => option(Zipper.t)): string => {
   let z = mk_zipper(code);
   let el_id = find_tuple_element_id_in_zipper(z, idx);
   switch (f(z, el_id)) {
@@ -1624,54 +2143,115 @@ let tuple_element_tests = (
   "AgentTools.TupleElements",
   [
     /* TermEdit-level operations */
-    test_case("delete tuple element", `Quick, () => {
-      let result = tuple_edit(tuple_program, 1, (z, id) =>
-        TermEdit.tuple_delete_element(z, id));
-      check(bool, "has 1", true, string_contains("1", result));
-      check(bool, "has 3", true, string_contains("3", result));
-    }),
-    test_case("insert tuple element", `Quick, () => {
-      let result = tuple_edit(tuple_program, 2, (z, id) =>
-        TermEdit.tuple_insert_element(z, id, "4", Direction.Right));
-      check(bool, "has 4", true, string_contains("4", result));
-    }),
-    test_case("update tuple element", `Quick, () => {
-      let result = tuple_edit(tuple_program, 0, (z, id) =>
-        TermEdit.tuple_update_element(z, id, "99"));
-      check(bool, "has 99", true, string_contains("99", result));
-    }),
+    test_case(
+      "delete tuple element",
+      `Quick,
+      () => {
+        let result =
+          tuple_edit(tuple_program, 1, (z, id) =>
+            TermEdit.tuple_delete_element(z, id)
+          );
+        check(bool, "has 1", true, string_contains("1", result));
+        check(bool, "has 3", true, string_contains("3", result));
+      },
+    ),
+    test_case(
+      "insert tuple element",
+      `Quick,
+      () => {
+        let result =
+          tuple_edit(tuple_program, 2, (z, id) =>
+            TermEdit.tuple_insert_element(z, id, "4", Direction.Right)
+          );
+        check(bool, "has 4", true, string_contains("4", result));
+      },
+    ),
+    test_case(
+      "update tuple element",
+      `Quick,
+      () => {
+        let result =
+          tuple_edit(tuple_program, 0, (z, id) =>
+            TermEdit.tuple_update_element(z, id, "99")
+          );
+        check(bool, "has 99", true, string_contains("99", result));
+      },
+    ),
     /* Node map indexing */
-    test_case("tuple elements in node map", `Quick, () => {
-      let node_map = build_node_map(tuple_program);
-      check(bool, "(0) exists", true,
-        HighLevelNodeMap.path_to_id_opt(node_map, "p/(0)") != None);
-      check(bool, "(1) exists", true,
-        HighLevelNodeMap.path_to_id_opt(node_map, "p/(1)") != None);
-      check(bool, "(2) exists", true,
-        HighLevelNodeMap.path_to_id_opt(node_map, "p/(2)") != None);
-    }),
+    test_case(
+      "tuple elements in node map",
+      `Quick,
+      () => {
+        let node_map = build_node_map(tuple_program);
+        check(
+          bool,
+          "(0) exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "p/(0)") != None,
+        );
+        check(
+          bool,
+          "(1) exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "p/(1)") != None,
+        );
+        check(
+          bool,
+          "(2) exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "p/(2)") != None,
+        );
+      },
+    ),
     /* Labeled tuple elements use label names */
-    test_case("labeled tuple elements in node map", `Quick, () => {
-      let node_map = build_node_map(labeled_tuple_program);
-      check(bool, "x exists", true,
-        HighLevelNodeMap.path_to_id_opt(node_map, "p/x") != None);
-      check(bool, "y exists", true,
-        HighLevelNodeMap.path_to_id_opt(node_map, "p/y") != None);
-    }),
+    test_case(
+      "labeled tuple elements in node map",
+      `Quick,
+      () => {
+        let node_map = build_node_map(labeled_tuple_program);
+        check(
+          bool,
+          "x exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "p/x") != None,
+        );
+        check(
+          bool,
+          "y exists",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "p/y") != None,
+        );
+      },
+    ),
     /* Dispatch-level operations */
-    test_case("update tuple element via dispatch", `Quick, () => {
-      let result = apply_and_render(tuple_program, Update(Body, "p/(0)", "99"));
-      check(bool, "has 99", true, string_contains("99", result));
-    }),
-    test_case("delete tuple element via dispatch", `Quick, () => {
-      let result = apply_and_render(tuple_program, Delete(BindingClause, "p/(1)"));
-      check(bool, "has 1", true, string_contains("1", result));
-      check(bool, "has 3", true, string_contains("3", result));
-    }),
-    test_case("insert tuple element via dispatch", `Quick, () => {
-      let result = apply_and_render(tuple_program, Insert(After, "p/(2)", "4"));
-      check(bool, "has 4", true, string_contains("4", result));
-    }),
+    test_case(
+      "update tuple element via dispatch",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(tuple_program, Update(Body, "p/(0)", "99"));
+        check(bool, "has 99", true, string_contains("99", result));
+      },
+    ),
+    test_case(
+      "delete tuple element via dispatch",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(tuple_program, Delete(BindingClause, "p/(1)"));
+        check(bool, "has 1", true, string_contains("1", result));
+        check(bool, "has 3", true, string_contains("3", result));
+      },
+    ),
+    test_case(
+      "insert tuple element via dispatch",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(tuple_program, Insert(After, "p/(2)", "4"));
+        check(bool, "has 4", true, string_contains("4", result));
+      },
+    ),
   ],
 );
 
@@ -1681,42 +2261,73 @@ let cross_cutting_tests = (
   "AgentTools.CrossCutting",
   [
     /* Read actions on sequence element paths */
-    test_case("GetSyntax on list element path", `Quick, () => {
-      let result = run_read_action(list_program, GetSyntax("xs/[1]"));
-      check_rendered("list[1]", "2", result);
-    }),
-    test_case("GetSyntax on tuple element path", `Quick, () => {
-      let result = run_read_action(tuple_program, GetSyntax("p/(0)"));
-      check_rendered("tuple(0)", "1", result);
-    }),
-    test_case("GetSyntax on labeled tuple element path", `Quick, () => {
-      let result = run_read_action(labeled_tuple_program, GetSyntax("p/x"));
-      check(bool, "contains 1", true, string_contains("1", result));
-    }),
+    test_case(
+      "GetSyntax on list element path",
+      `Quick,
+      () => {
+        let result = run_read_action(list_program, GetSyntax("xs/[1]"));
+        check_rendered("list[1]", "2", result);
+      },
+    ),
+    test_case(
+      "GetSyntax on tuple element path",
+      `Quick,
+      () => {
+        let result = run_read_action(tuple_program, GetSyntax("p/(0)"));
+        check_rendered("tuple(0)", "1", result);
+      },
+    ),
+    test_case(
+      "GetSyntax on labeled tuple element path",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(labeled_tuple_program, GetSyntax("p/x"));
+        check(bool, "contains 1", true, string_contains("1", result));
+      },
+    ),
     /* Shadowed names: first binding wins */
-    test_case("shadowed name resolves to first binding", `Quick, () => {
-      let shadowed = "let a = 1 in let a = 2 in a";
-      let result = apply_and_render(shadowed, Update(Definition, "a", "10"));
-      /* Should update the FIRST a (from 1 to 10), second a stays at 2 */
-      check(bool, "has 10", true, string_contains("10", result));
-      check(bool, "has 2", true, string_contains("2", result));
-    }),
-    test_case("shadowed name accessible by index", `Quick, () => {
-      let shadowed = "let a = 1 in let a = 2 in a";
-      let result = apply_and_render(shadowed, Update(Definition, "#1", "20"));
-      /* #1 should target the SECOND binding */
-      check(bool, "has 1", true, string_contains("1", result));
-      check(bool, "has 20", true, string_contains("20", result));
-    }),
+    test_case(
+      "shadowed name resolves to first binding",
+      `Quick,
+      () => {
+        let shadowed = "let a = 1 in let a = 2 in a";
+        let result =
+          apply_and_render(shadowed, Update(Definition, "a", "10"));
+        /* Should update the FIRST a (from 1 to 10), second a stays at 2 */
+        check(bool, "has 10", true, string_contains("10", result));
+        check(bool, "has 2", true, string_contains("2", result));
+      },
+    ),
+    test_case(
+      "shadowed name accessible by index",
+      `Quick,
+      () => {
+        let shadowed = "let a = 1 in let a = 2 in a";
+        let result =
+          apply_and_render(shadowed, Update(Definition, "#1", "20"));
+        /* #1 should target the SECOND binding */
+        check(bool, "has 1", true, string_contains("1", result));
+        check(bool, "has 20", true, string_contains("20", result));
+      },
+    ),
     /* Inapplicability errors */
     test_case("Update(Pattern) on list element gives clear error", `Quick, () => {
       switch (run_agent_action(list_program, Update(Pattern, "xs/[0]", "x"))) {
       | Ok(_) => Alcotest.fail("Expected failure")
       | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(bool, "says not applicable", true,
-          string_contains("not applicable", msg));
-        check(bool, "says list element", true,
-          string_contains("list element", msg));
+        check(
+          bool,
+          "says not applicable",
+          true,
+          string_contains("not applicable", msg),
+        );
+        check(
+          bool,
+          "says list element",
+          true,
+          string_contains("list element", msg),
+        );
       | Error(err) =>
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
@@ -1725,40 +2336,69 @@ let cross_cutting_tests = (
       switch (run_agent_action(tuple_program, Update(Pattern, "p/(0)", "x"))) {
       | Ok(_) => Alcotest.fail("Expected failure")
       | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(bool, "says not applicable", true,
-          string_contains("not applicable", msg));
-        check(bool, "says tuple element", true,
-          string_contains("tuple element", msg));
+        check(
+          bool,
+          "says not applicable",
+          true,
+          string_contains("not applicable", msg),
+        );
+        check(
+          bool,
+          "says tuple element",
+          true,
+          string_contains("tuple element", msg),
+        );
       | Error(err) =>
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
     }),
-    test_case("GetStatics on list element path", `Quick, () => {
-      let result = run_read_action(list_program, GetStatics("xs/[1]"));
-      check(bool, "mentions type", true,
-        string_contains("type", result));
-    }),
-    test_case("GetStatics on case arm path", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in f";
-      let result = run_read_action(case_code, GetStatics("f/|A"));
-      check(bool, "mentions type", true,
-        string_contains("type", result));
-    }),
-    test_case("Update(BindingClause) on case arm gives clear error", `Quick, () => {
-      let case_code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in f";
-      switch (run_agent_action(case_code, Update(BindingClause, "f/|A", "| C => 3"))) {
-      | Ok(_) => Alcotest.fail("Expected failure")
-      | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(bool, "says not applicable", true,
-          string_contains("not applicable", msg));
-        check(bool, "says case arm", true,
-          string_contains("case arm", msg));
-      | Error(err) =>
-        Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
-      }
-    }),
+    test_case(
+      "GetStatics on list element path",
+      `Quick,
+      () => {
+        let result = run_read_action(list_program, GetStatics("xs/[1]"));
+        check(bool, "mentions type", true, string_contains("type", result));
+      },
+    ),
+    test_case(
+      "GetStatics on case arm path",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result = run_read_action(case_code, GetStatics("f/|A"));
+        check(bool, "mentions type", true, string_contains("type", result));
+      },
+    ),
+    test_case(
+      "Update(BindingClause) on case arm gives clear error",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        switch (
+          run_agent_action(
+            case_code,
+            Update(BindingClause, "f/|A", "| C => 3"),
+          )
+        ) {
+        | Ok(_) => Alcotest.fail("Expected failure")
+        | Error(Action.Failure.Composition_action_failure(msg)) =>
+          check(
+            bool,
+            "says not applicable",
+            true,
+            string_contains("not applicable", msg),
+          );
+          check(
+            bool,
+            "says case arm",
+            true,
+            string_contains("case arm", msg),
+          );
+        | Error(err) =>
+          Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
   ],
 );
 

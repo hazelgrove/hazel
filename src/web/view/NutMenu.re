@@ -124,6 +124,12 @@ let dev_group = (~globals: Globals.t) => {
         Settings.Update.Benchmark,
       ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
+      (
+        "⚡",
+        "Action Explorer",
+        globals.settings.show_action_explorer,
+        ToggleActionExplorer,
+      ),
     ]
     @ (
       ExerciseSettings.show_instructor

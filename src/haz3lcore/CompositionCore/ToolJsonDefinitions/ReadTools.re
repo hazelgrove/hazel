@@ -200,7 +200,7 @@ Selectors are concise, surface-oriented patterns that address Hazel syntax.
 Core operators:
 - `_` matches one syntactic slot
 - `_...` matches zero or more slots along the current spine
-- `\` (backslash) is descendant search — match P, then find Q inside
+- `\...` (backslash-dots) is descendant search — match P, then find Q inside
 - `*` marks the focused subtree to return
 
 Common patterns:
@@ -222,9 +222,9 @@ Given:
 ```
 let f = fun x -> if x > 0 then x else 0 in f 5
 ```
-- select(selector="let f = \ if *") returns: "x > 0"
-- select(selector="let f = \ if _ then *") returns: "x"
-- select(selector="let f = \ if _... else *") returns: "0"
+- select(selector="let f = \... if *") returns: "x > 0"
+- select(selector="let f = \... if _ then *") returns: "x"
+- select(selector="let f = \... if _... else *") returns: "0"
 |};
 
 let select: API.Json.t =
