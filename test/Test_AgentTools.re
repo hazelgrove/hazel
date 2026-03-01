@@ -1532,6 +1532,42 @@ let selector_tests = (
       ~sel="\\... let y = *",
       ~expected="M.x + 1",
     ),
+    /* === Module/type spine uniformity === */
+    /* module _ = * : wildcard module name */
+    sel_test(
+      ~name="module _ = * (wildcard name)",
+      ~code="module M = { let x = 1 } in M.x",
+      ~sel="module _ = *",
+      ~expected="{ let x = 1 }",
+    ),
+    /* module M _... in * : focus on module body */
+    sel_test(
+      ~name="module M _... in *",
+      ~code="module M = { let x = 1 } in M.x",
+      ~sel="module M _... in *",
+      ~expected="M.x",
+    ),
+    /* module _... in * : wildcard name, skip to body */
+    sel_test(
+      ~name="module _... in *",
+      ~code="module M = { let x = 1 } in M.x",
+      ~sel="module _... in *",
+      ~expected="M.x",
+    ),
+    /* type T _... in * : skip type def, focus on body */
+    sel_test(
+      ~name="type T _... in *",
+      ~code="type T = Int in let x : T = 42 in x",
+      ~sel="type T _... in *",
+      ~expected="let x = 42 in x",
+    ),
+    /* * module M : whole-binding focus */
+    sel_test_rendered(
+      ~name="* module M (whole binding)",
+      ~code="module M = { let x = 1 } in M.x",
+      ~sel="* module M",
+      ~expected="module M = { let x = 1 } in M.x",
+    ),
     /* === Compositionality tests on realistic program === */
     /* Binder chains into module members */
     sel_test(

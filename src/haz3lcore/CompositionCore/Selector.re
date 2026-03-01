@@ -837,11 +837,30 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
         def: Exp.t,
         whole: Exp.t,
         steps: sem_selector,
-      ) =>
+      ) => {
+    let name_str = Option.value(~default="_", name_opt);
+    let name_matches = (n) =>
+      Option.equal(String.equal, name_opt, Some(n));
+    /* Extract body from whole expression for in-body navigation */
+    let body_opt =
+      switch (Exp.term_of(whole)) {
+      | ModuleExp(_, _, body) => Some(body)
+      | Let(_, _, body) => Some(body)
+      | _ => None
+      };
     switch (steps) {
+    /* module M : bare name match, return whole module expression */
+    | [MatchName(name)] when name_matches(name) => [
+        {
+          focused: whole,
+          focused_id: Exp.rep_id(whole),
+          breadcrumb: "module " ++ name,
+        },
+      ]
+
     /* module M = * : focus on module def */
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
-        when Option.equal(String.equal, name_opt, Some(name)) => [
+        when name_matches(name) => [
         {
           focused: def,
           focused_id: Exp.rep_id(def),
@@ -849,24 +868,165 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
         },
       ]
 
-    /* module M = ... : match, continue into def */
+    /* module M = ... : match by name, continue into def */
     | [MatchName(name), MatchDelimiter("="), ...rest]
-        when Option.equal(String.equal, name_opt, Some(name)) =>
+        when name_matches(name) =>
       walk(rest, def)
 
-    | _ =>
-      let _ = whole;
-      [];
-    }
+    /* module M _... in * : skip def, focus on body */
+    | [MatchName(name), MatchEllipsis, MatchKeyword("in"), MatchFocus]
+        when name_matches(name) =>
+      switch (body_opt) {
+      | Some(body) => [
+          {
+            focused: body,
+            focused_id: Exp.rep_id(body),
+            breadcrumb: "module " ++ name ++ " ... in ...",
+          },
+        ]
+      | None => []
+      }
 
-  /* Walk after "type" keyword */
-  and walk_after_type_kw = (tpat: TPat.t, whole: Exp.t, steps: sem_selector) =>
-    switch (steps) {
-    | [MatchName(name), ...rest]
-        when Option.equal(String.equal, tpat_name(tpat), Some(name)) =>
-      walk(rest, whole)
+    /* module M _... in <more> : skip def, continue in body */
+    | [MatchName(name), MatchEllipsis, MatchKeyword("in"), ...rest]
+        when name_matches(name) =>
+      switch (body_opt) {
+      | Some(body) => walk(rest, body)
+      | None => []
+      }
+
+    /* module _ = * : wildcard name, focus on def */
+    | [MatchSlot, MatchDelimiter("="), MatchFocus] => [
+        {
+          focused: def,
+          focused_id: Exp.rep_id(def),
+          breadcrumb: "module " ++ name_str ++ " = ...",
+        },
+      ]
+
+    /* module _ = <more> : wildcard name, continue into def */
+    | [MatchSlot, MatchDelimiter("="), ...rest] =>
+      walk(rest, def)
+
+    /* module _... in * : skip name and def, focus on body */
+    | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
+      switch (body_opt) {
+      | Some(body) => [
+          {
+            focused: body,
+            focused_id: Exp.rep_id(body),
+            breadcrumb: "module " ++ name_str ++ " ... in ...",
+          },
+        ]
+      | None => []
+      }
+
+    /* module _... in <more> : skip to body, continue */
+    | [MatchEllipsis, MatchKeyword("in"), ...rest] =>
+      switch (body_opt) {
+      | Some(body) => walk(rest, body)
+      | None => []
+      }
+
+    /* module * : focus on whole module expression */
+    | [MatchFocus] => [
+        {
+          focused: whole,
+          focused_id: Exp.rep_id(whole),
+          breadcrumb: "module " ++ name_str,
+        },
+      ]
+
     | _ => []
-    }
+    };
+  }
+
+  /* Walk after "type" keyword.
+     type T = <typedef> in <body>
+     Note: <typedef> is a Typ.t, not an Exp.t, so `type T = *` can't focus on
+     the type definition directly. Use `type T _... in *` for the body. */
+  and walk_after_type_kw = (tpat: TPat.t, whole: Exp.t, steps: sem_selector) => {
+    let name_opt = tpat_name(tpat);
+    let name_matches = (n) =>
+      Option.equal(String.equal, name_opt, Some(n));
+    let body_opt =
+      switch (Exp.term_of(whole)) {
+      | TyAlias(_, _, body) => Some(body)
+      | _ => None
+      };
+    let name_str = Option.value(~default="_", name_opt);
+    /* Helper: handle steps after the name has been matched/consumed */
+    let walk_after_name = (remaining: sem_selector) =>
+      switch (remaining) {
+      /* type T _... in * : skip def, focus on body */
+      | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
+        switch (body_opt) {
+        | Some(body) => [
+            {
+              focused: body,
+              focused_id: Exp.rep_id(body),
+              breadcrumb: "type " ++ name_str ++ " ... in ...",
+            },
+          ]
+        | None => []
+        }
+      /* type T _... in <more> : skip def, continue in body */
+      | [MatchEllipsis, MatchKeyword("in"), ...rest] =>
+        switch (body_opt) {
+        | Some(body) => walk(rest, body)
+        | None => []
+        }
+      | other => walk(other, whole)
+      };
+    switch (steps) {
+    /* type T : bare name match, return whole type alias expression */
+    | [MatchName(name)] when name_matches(name) => [
+        {
+          focused: whole,
+          focused_id: Exp.rep_id(whole),
+          breadcrumb: "type " ++ name,
+        },
+      ]
+
+    /* type T <more> : match by name, continue */
+    | [MatchName(name), ...rest] when name_matches(name) =>
+      walk_after_name(rest)
+
+    /* type _ <more> : wildcard name */
+    | [MatchSlot, ...rest] =>
+      walk_after_name(rest)
+
+    /* type _... in * : skip name and def */
+    | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
+      switch (body_opt) {
+      | Some(body) => [
+          {
+            focused: body,
+            focused_id: Exp.rep_id(body),
+            breadcrumb: "type " ++ name_str ++ " ... in ...",
+          },
+        ]
+      | None => []
+      }
+
+    | [MatchEllipsis, MatchKeyword("in"), ...rest] =>
+      switch (body_opt) {
+      | Some(body) => walk(rest, body)
+      | None => []
+      }
+
+    /* type * : focus on whole type alias expression */
+    | [MatchFocus] => [
+        {
+          focused: whole,
+          focused_id: Exp.rep_id(whole),
+          breadcrumb: "type " ++ name_str,
+        },
+      ]
+
+    | _ => []
+    };
+  }
 
   /* Walk a fun spine after "fun" keyword */
   and walk_fun_spine = (spine: fun_spine, steps: sem_selector) =>
