@@ -378,8 +378,430 @@ let composition_view_print_tests = (
   ],
 );
 
+let module_node_map_tests = (
+  "HighLevelNodeMap.Modules",
+  [
+    test_case(
+      "module items appear as children of parent let",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let m = { let a = 1; let b = 2 } in m.a + m.b",
+          );
+        let node_m = HighLevelNodeMap.path_to_node(node_map, "m");
+        let child_names =
+          HighLevelNodeMap.children_of(node_map, node_m) |> name_list;
+        check(list(string), "module children", ["a", "b"], child_names);
+      },
+    ),
+    test_case(
+      "module items with type alias",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let m = { let a = 1; type T = Int; let b : T = 2 } in m.a + m.b",
+          );
+        let node_m = HighLevelNodeMap.path_to_node(node_map, "m");
+        let child_names =
+          HighLevelNodeMap.children_of(node_map, node_m) |> name_list;
+        check(
+          list(string),
+          "module children with type",
+          ["a", "T", "b"],
+          child_names,
+        );
+      },
+    ),
+    test_case(
+      "module item path resolution",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let m = { let a = 1; let b = 2 } in m.a + m.b",
+          );
+        /* Path m/a should resolve to the module item "a" */
+        let id_a = HighLevelNodeMap.path_to_id(node_map, "m/a");
+        check(
+          string,
+          "path m/a resolves",
+          "a",
+          HighLevelNodeMap.id_to_name(node_map, id_a),
+        );
+      },
+    ),
+    test_case(
+      "module items are siblings of each other",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let m = { let a = 1; let b = 2; let c = 3 } in m.a",
+          );
+        let node_b = HighLevelNodeMap.path_to_node(node_map, "m/b");
+        let sibling_names =
+          HighLevelNodeMap.siblings_of(node_map, node_b) |> name_list;
+        check(
+          list(string),
+          "module item siblings",
+          ["a", "b", "c"],
+          sibling_names,
+        );
+      },
+    ),
+  ],
+);
+
+let path_extension_tests = (
+  "HighLevelNodeMap.PathExtensions",
+  [
+    test_case(
+      "#n resolves to n-th top-level binding",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
+        let id_by_index = HighLevelNodeMap.path_to_id(node_map, "#1");
+        check(
+          string,
+          "#1 = b",
+          "b",
+          HighLevelNodeMap.id_to_name(node_map, id_by_index),
+        );
+      },
+    ),
+    test_case(
+      "#0 resolves to first binding",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
+        let id_first = HighLevelNodeMap.path_to_id(node_map, "#0");
+        check(
+          string,
+          "#0 = a",
+          "a",
+          HighLevelNodeMap.id_to_name(node_map, id_first),
+        );
+      },
+    ),
+    test_case(
+      "$ resolves to last binding",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
+        let id_last = HighLevelNodeMap.path_to_id(node_map, "$");
+        check(
+          string,
+          "$ = c",
+          "c",
+          HighLevelNodeMap.id_to_name(node_map, id_last),
+        );
+      },
+    ),
+    test_case(
+      "#n works for module children",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let m = { let a = 1; let b = 2; let c = 3 } in m.a",
+          );
+        let id_by_index = HighLevelNodeMap.path_to_id(node_map, "m/#1");
+        check(
+          string,
+          "m/#1 = b",
+          "b",
+          HighLevelNodeMap.id_to_name(node_map, id_by_index),
+        );
+      },
+    ),
+    test_case(
+      "$ works for module children",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let m = { let a = 1; let b = 2; let c = 3 } in m.a",
+          );
+        let id_last = HighLevelNodeMap.path_to_id(node_map, "m/$");
+        check(
+          string,
+          "m/$ = c",
+          "c",
+          HighLevelNodeMap.id_to_name(node_map, id_last),
+        );
+      },
+    ),
+    test_case(
+      "mixed name and index path",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let m = { let a = 1; let b = 2 } in m.a",
+          );
+        /* #0 resolves to m (first top-level), then #1 resolves to b (second child) */
+        let id = HighLevelNodeMap.path_to_id(node_map, "#0/#1");
+        check(
+          string,
+          "#0/#1 = b",
+          "b",
+          HighLevelNodeMap.id_to_name(node_map, id),
+        );
+      },
+    ),
+    test_case(
+      "update via index path",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let a = 1 in let b = 2 in a + b",
+            Update(Definition, "#1", "42"),
+          );
+        check_rendered("update via #1", "let a = 1 in let b = 42 in a + b", result);
+      },
+    ),
+  ],
+);
+
+let module_edit_action_tests = (
+  "AgentTools.ModuleEditActions",
+  [
+    test_case(
+      "update definition in module item",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let a = 1; let b = 2 } in m.a + m.b",
+            Update(Definition, "m/a", "42"),
+          );
+        check_rendered(
+          "update module item def",
+          "let m = { let a = 42; let b = 2 } in m.a + m.b",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update definition of type alias in module",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { type T = Int; let a : T = 1 } in m.a",
+            Update(Definition, "m/T", "Bool"),
+          );
+        check_rendered(
+          "update module type def",
+          "let m = { type T = Bool; let a : T = 1 } in m.a",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update pattern in module item renames",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let a = 1; let b = m.a + 1 } in m.b",
+            Update(Pattern, "m/a", "x"),
+          );
+        /* Pattern update renames the binding within the module.
+           Note: use sites via m.a are NOT automatically renamed since
+           they use dot-access, not direct variable references. */
+        check_rendered(
+          "update module item pattern",
+          "let m = { let x = 1; let b = m.a + 1 } in m.b",
+          result,
+        );
+      },
+    ),
+    /* Module-context insert/delete/bindingclause limitations:
+       - Insert(Before/After): Segment insertion + remolding creates
+         expression-level Let tiles instead of ModLet tiles in module
+         context, garbling the output.
+       - Update(BindingClause): Same issue — pasted "let x = 42"
+         becomes expression-level Let with "in" instead of ModLet.
+       - Delete(BindingClause): Works but leaves a hole (?) instead
+         of cleanly removing the item, due to module items being
+         independent (;-separated) rather than chained (in-separated).
+       Working operations: Update(Definition), Update(Pattern). */
+    test_case(
+      "delete module item replaces with hole",
+      `Quick,
+      () => {
+        /* Unlike let-chains where delete seamlessly connects the body,
+           module items are independent (;-separated), so deleting a
+           module item replaces it with an expression hole. */
+        let result =
+          apply_and_render(
+            "let m = { let a = 1; let b = 2; let c = 3 } in m.a + m.c",
+            Delete(BindingClause, "m/b"),
+          );
+        check_rendered(
+          "delete module item",
+          "let m = { let a = 1; ?; let c = 3 } in m.a + m.c",
+          result,
+        );
+      },
+    ),
+  ],
+);
+
+let edge_case_tests = (
+  "AgentTools.EdgeCases",
+  [
+    test_case(
+      "update def in nested let",
+      `Quick,
+      () => {
+        /* a/inner targets inner inside a's definition */
+        let result =
+          apply_and_render(
+            "let a = let inner = 1 in inner in a",
+            Update(Definition, "a/inner", "42"),
+          );
+        check_rendered(
+          "nested def update",
+          "let a = let inner = 42 in inner in a",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update def with type alias",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "type T = Int in let x : T = 1 in x",
+            Update(Definition, "T", "Bool"),
+          );
+        check_rendered(
+          "type alias def update",
+          "type T = Bool in let x : T = 1 in x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "bad path gives helpful error",
+      `Quick,
+      () => {
+        expect_composition_failure(
+          "let a = 1 in let b = 2 in a + b",
+          Update(Definition, "nonexistent", "42"),
+          "bad path error",
+        );
+      },
+    ),
+    test_case(
+      "index out of range gives error",
+      `Quick,
+      () => {
+        expect_composition_failure(
+          "let a = 1 in let b = 2 in a + b",
+          Update(Definition, "#99", "42"),
+          "index out of range",
+        );
+      },
+    ),
+    test_case(
+      "update def preserves surrounding structure",
+      `Quick,
+      () => {
+        /* Updating b's def shouldn't affect a or c */
+        let result =
+          apply_and_render(
+            "let a = 1 in let b = 2 in let c = 3 in a + b + c",
+            Update(Definition, "b", "a * 10"),
+          );
+        check_rendered(
+          "preserve surrounding",
+          "let a = 1 in let b = a * 10 in let c = 3 in a + b + c",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update introduces static error is rejected",
+      `Quick,
+      () => {
+        /* Changing def to wrong type should be caught */
+        expect_composition_failure(
+          "let a : Int = 1 in a + 1",
+          Update(Definition, "a", "true"),
+          "type error rejection",
+        );
+      },
+    ),
+    test_case(
+      "$ path works with edit action",
+      `Quick,
+      () => {
+        /* $ targets the last binding */
+        let result =
+          apply_and_render(
+            "let a = 1 in let b = 2 in let c = 3 in a + b + c",
+            Update(Definition, "$", "0"),
+          );
+        check_rendered(
+          "$ edit",
+          "let a = 1 in let b = 2 in let c = 0 in a + b + c",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "#n matches name-based path",
+      `Quick,
+      () => {
+        /* #0 and name "a" should resolve to the same node */
+        let node_map =
+          build_node_map("let a = 1 in let b = 2 in a + b");
+        let id_by_name = HighLevelNodeMap.path_to_id(node_map, "a");
+        let id_by_index = HighLevelNodeMap.path_to_id(node_map, "#0");
+        check(
+          bool,
+          "#0 == a",
+          true,
+          Id.equal(id_by_name, id_by_index),
+        );
+      },
+    ),
+    test_case(
+      "deeply nested module path",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let outer = let m = { let a = 1; let b = 2 } in m.a in outer",
+          );
+        let id = HighLevelNodeMap.path_to_id(node_map, "outer/m/a");
+        check(
+          string,
+          "deep module path",
+          "a",
+          HighLevelNodeMap.id_to_name(node_map, id),
+        );
+      },
+    ),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
+  module_node_map_tests,
+  path_extension_tests,
+  module_edit_action_tests,
+  edge_case_tests,
   composition_view_print_tests,
 ];

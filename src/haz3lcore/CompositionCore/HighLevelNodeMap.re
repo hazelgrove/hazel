@@ -237,6 +237,16 @@ module Namer = {
     };
   };
 
+  let rec mk_name_from_mpat = (mpat: TermBase.mpat_t) => {
+    switch (mpat.term) {
+    | Var(name) => name
+    | Asc(mpat, _) => mk_name_from_mpat(mpat)
+    | Invalid(s) => s
+    | EmptyHole => "{empty module pattern hole}"
+    | MultiHole(_) => "{multi module pattern hole}"
+    };
+  };
+
   let mk_name = (info: Info.t): string => {
     switch (info) {
     | InfoExp({term, _}) =>
@@ -468,6 +478,32 @@ let rec build_children =
       // 2. Find siblings
       // use "old" path for siblings!!
       build_children(exp_to_info(body), path, node_map, info_map);
+    | Module(items) =>
+      /* Module items are expanded to a Let/TyAlias chain in the info_map.
+         Find the first named item (ModLet/ModType/ModuleMod) whose ID is
+         preserved on the expanded expression, then follow the chain to
+         discover all items as siblings. ModExp items in the chain appear
+         as "{wild}" nodes. */
+      let first_named_item =
+        List.find_opt(
+          (item: Mod.t) =>
+            switch (item.term) {
+            | ModLet(_, _)
+            | ModType(_, _)
+            | ModuleMod(_, _) => true
+            | _ => false
+            },
+          items,
+        );
+      switch (first_named_item) {
+      | Some(item) =>
+        let item_id = Mod.rep_id(item);
+        switch (Id.Map.find_opt(item_id, info_map)) {
+        | Some(info) => build_children(info, path, node_map, info_map)
+        | None => node_map
+        };
+      | None => node_map
+      };
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);
@@ -556,27 +592,103 @@ let gather_top_level = (node_map: t): list(Id.t) => {
      });
 };
 
+type path_segment =
+  | Name(string)
+  | Index(int)
+  | FinalExpr;
+
+let parse_segment = (s: string): path_segment =>
+  if (s == "$") {
+    FinalExpr;
+  } else if (String.length(s) > 1 && s.[0] == '#') {
+    switch (int_of_string_opt(String.sub(s, 1, String.length(s) - 1))) {
+    | Some(n) => Index(n)
+    | None => Name(s)
+    };
+  } else {
+    Name(s);
+  };
+
 let split_path = (path: string): list(string) => {
   String.split_on_char('/', path);
+};
+
+let parse_path = (path: string): list(path_segment) => {
+  split_path(path) |> List.map(parse_segment);
 };
 
 let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {
   List.map((id: Id.t) => id_to_name(node_map, id), id_path);
 };
 
+/* Get the ordered list of nodes at a given level.
+   For top-level (no parent): use any top-level node's siblings, or gather_top_level.
+   For nested (with parent): use parent's children. */
+let nodes_at_level = (node_map: t, parent_id: option(Id.t)): list(node) => {
+  switch (parent_id) {
+  | Some(pid) => children_of(node_map, find(node_map, pid))
+  | None =>
+    /* Top-level: use the siblings list of any top-level node (preserves order) */
+    let top_level_ids = gather_top_level(node_map);
+    switch (top_level_ids) {
+    | [] => []
+    | [first_id, ..._] =>
+      let first_node = find(node_map, first_id);
+      if (List.length(first_node.siblings) > 0) {
+        List.map(
+          (id: Id.t) => find(node_map, id),
+          first_node.siblings,
+        );
+      } else {
+        /* Fallback: just return top-level nodes (unordered) */
+        List.map((id: Id.t) => find(node_map, id), top_level_ids);
+      };
+    };
+  };
+};
+
+/* Resolve a parsed path to a node ID by walking segments. */
+let resolve_path = (node_map: t, segments: list(path_segment)): option(Id.t) => {
+  let rec walk =
+          (segments: list(path_segment), parent_id: option(Id.t))
+          : option(Id.t) => {
+    switch (segments) {
+    | [] => parent_id
+    | [seg, ...rest] =>
+      let candidates = nodes_at_level(node_map, parent_id);
+      let found =
+        switch (seg) {
+        | Name(name) =>
+          List.find_opt((n: node) => String.equal(n.name, name), candidates)
+        | Index(idx) => List.nth_opt(candidates, idx)
+        | FinalExpr => ListUtil.last_opt(candidates)
+        };
+      switch (found) {
+      | Some(node) => walk(rest, Some(id_of(node)))
+      | None => None
+      };
+    };
+  };
+  walk(segments, None);
+};
+
 let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
-  let path_names = split_path(path);
-  // Convert each node's path (list of Ids) to a list of names and compare
-  // XXX: Very hacky and ineffecient (O(n) in size of node_map)
-  // TODO: Implement a method which improves the efficiency of this operation
-  Id.Map.bindings(node_map)
-  |> List.find_map(((id: Id.t, node: node)) =>
-       if (id_path_to_name_path(node.path, node_map) == path_names) {
-         Some(id);
-       } else {
-         None;
-       }
-     );
+  let segments = parse_path(path);
+  /* Try structured resolution first */
+  switch (resolve_path(node_map, segments)) {
+  | Some(id) => Some(id)
+  | None =>
+    /* Fallback: original name-path comparison for backward compat */
+    let path_names = split_path(path);
+    Id.Map.bindings(node_map)
+    |> List.find_map(((id: Id.t, node: node)) =>
+         if (id_path_to_name_path(node.path, node_map) == path_names) {
+           Some(id);
+         } else {
+           None;
+         }
+       );
+  };
 };
 
 let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
@@ -631,23 +743,9 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
 };
 
 let path_to_id = (node_map: t, path: string): Id.t => {
-  let path_names = split_path(path);
-  // Convert each node's path (list of Ids) to a list of names and compare
-  // XXX: Very hacky and ineffecient (O(n) in size of node_map)
-  // TODO: Implement a method which improves the efficiency of this operation
-  try(
-    Option.get(
-      Id.Map.bindings(node_map)
-      |> List.find_map(((id: Id.t, node: node)) =>
-           if (id_path_to_name_path(node.path, node_map) == path_names) {
-             Some(id);
-           } else {
-             None;
-           }
-         ),
-    )
-  ) {
-  | _ =>
+  switch (path_to_id_opt(node_map, path)) {
+  | Some(id) => id
+  | None =>
     raise(
       Failure(
         "Path \""

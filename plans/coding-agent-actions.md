@@ -12,11 +12,13 @@
 - [x] Build passes, all 11 AgentTools tests pass
 - [x] Investigate & critique current structural action system
 - [x] Investigate ChatLSP.re removal and functionality gaps
-- [ ] Design addressing/path improvements (this document)
-- [ ] Add module edit actions
-- [ ] Expand test suite
+- [x] Design addressing/path improvements (this document)
+- [x] Add module edit actions (HighLevelNodeMap + edit_dispatch for Module items)
+- [x] Add `$` (FinalExpr) and `#n` (Index) path extensions
+- [x] Expand test suite (39 tests: 24 AgentTools + 15 HighLevelNodeMap)
 - [ ] Restore static context and error feedback
 - [ ] Design read/query actions
+- [ ] Module Insert/Delete/BindingClause (blocked by segment/remolding issues)
 
 ---
 
