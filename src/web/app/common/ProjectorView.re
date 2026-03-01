@@ -197,6 +197,7 @@ let handle = (idx, action: external_action): Action.t =>
   | SetSyntax(f) => Project(SetSyntax(idx, f))
   | SampleCursor(sc) => Project(SampleCursor(sc))
   | Probe(p) => Probe(p)
+  | FocusById(id) => Project(FocusById(id))
   };
 
 let offside_wrapper =

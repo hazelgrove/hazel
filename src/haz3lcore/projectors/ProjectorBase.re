@@ -22,7 +22,8 @@ type external_action =
   | Probe(Action.probe) /* Probe actions like StepInto */
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(Base.segment); /* Set underlying syntax */
+  | SetSyntax(Base.segment) /* Set underlying syntax */
+  | FocusById(Util.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */

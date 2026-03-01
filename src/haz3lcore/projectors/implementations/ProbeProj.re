@@ -1115,6 +1115,20 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default])
   | D("ArrowLeft") =>
     Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
+  | D("ArrowDown") =>
+    let effect =
+      switch (JsUtil.navigate_probes(Id.cls(id), `Down)) {
+      | Some(target_id) => parent(FocusById(target_id))
+      | None => Ignore
+      };
+    Many([effect, Stop_propagation, Prevent_default]);
+  | D("ArrowUp") =>
+    let effect =
+      switch (JsUtil.navigate_probes(Id.cls(id), `Up)) {
+      | Some(target_id) => parent(FocusById(target_id))
+      | None => Ignore
+      };
+    Many([effect, Stop_propagation, Prevent_default]);
   | D(" ") =>
     Many([local(ToggleWindowMode), Stop_propagation, Prevent_default])
   | D("p") =>
@@ -1213,6 +1227,7 @@ let offside_view =
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(id)),
+        Attr.create("data-probe-id", Id.to_string(id)),
         Attr.tabindex(0),
         Attr.on_keydown(key_handler(ctx, ~id, local)),
         Attr.classes([
