@@ -22,6 +22,9 @@ module Local = {
     EditTools.delete_body,
     EditTools.insert_after,
     EditTools.insert_before,
+    ReadTools.get_syntax,
+    ReadTools.get_statics,
+    ReadTools.get_context,
     WorkbenchTools.create_new_task,
     WorkbenchTools.set_active_task,
     WorkbenchTools.unset_active_task,
@@ -123,6 +126,12 @@ module Local = {
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>
               EditorAction(Delete(Body, get_string(args, "path")))
+            | "get_syntax" =>
+              ReadAction(GetSyntax(get_string(args, "path")))
+            | "get_statics" =>
+              ReadAction(GetStatics(get_string(args, "path")))
+            | "get_context" =>
+              ReadAction(GetContext(get_string(args, "path")))
             | "create_new_task" =>
               WorkbenchAction(
                 CreateNewTask(
@@ -210,6 +219,9 @@ module Local = {
     | EditorAction(Delete(Body, path)) => "delete_body(\"" ++ path ++ "\")"
     | EditorAction(Delete(Definition | Pattern, path)) =>
       "delete(\"" ++ path ++ "\")"
+    | ReadAction(GetSyntax(path)) => "get_syntax(\"" ++ path ++ "\")"
+    | ReadAction(GetStatics(path)) => "get_statics(\"" ++ path ++ "\")"
+    | ReadAction(GetContext(path)) => "get_context(\"" ++ path ++ "\")"
     | EditorAction(Insert(After, path, code)) =>
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Insert(Before, path, code)) =>

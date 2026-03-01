@@ -157,18 +157,31 @@ module Message = {
       };
     };
 
+    let is_read_action = (name: string): bool =>
+      switch (name) {
+      | "get_syntax"
+      | "get_statics"
+      | "get_context" => true
+      | _ => false
+      };
+
     let mk_tool_result_message =
         (tool_result: AgentToolResult.tool_result): Model.t => {
       let sanitized_content = String.trim(tool_result.content);
 
       let msg =
-        tool_result.success
-          ? "The "
-            ++ tool_result.tool_call.name
-            ++ " tool call with the following arguments was successful and has been applied to the model. "
-            ++ " Arguments: "
-            ++ Yojson.Safe.to_string(tool_result.tool_call.args)
-          : sanitized_content;
+        if (!tool_result.success) {
+          sanitized_content;
+        } else if (is_read_action(tool_result.tool_call.name)) {
+          /* Read actions return their content directly to the LLM */
+          sanitized_content;
+        } else {
+          "The "
+          ++ tool_result.tool_call.name
+          ++ " tool call with the following arguments was successful and has been applied to the model. "
+          ++ " Arguments: "
+          ++ Yojson.Safe.to_string(tool_result.tool_call.args);
+        };
       {
         // This is a message from our backend.
         // Protocols require a tool id to be associated, thus we send this is as an OpenRouter.Tool message.contents
@@ -1229,6 +1242,32 @@ module Agent = {
             )
           }
         };
+      | ReadAction(read_action) =>
+        let z = editor.editor.state.zipper;
+        let info_map = CompositionGo.Public.mk_statics(z);
+        let syntax = CachedSyntax.init(z);
+        switch (
+          CompositionGo.Local.read_dispatch(
+            ~action=read_action,
+            ~z,
+            ~info_map,
+            ~syntax,
+          )
+        ) {
+        | Ok(_content) =>
+          /* Read actions don't modify the editor. The content is
+             returned as the tool_result content in handle_tool_call. */
+          Ok((agent, editor))
+        | Error(err) =>
+          switch (err) {
+          | Action.Failure.Composition_action_failure(msg) =>
+            Error(Failure.Info(msg))
+          | _ =>
+            Error(
+              Failure.Info("Failed to execute read action"),
+            )
+          }
+        };
       | LanguageServerAction(_) =>
         /* TODO: implement language server queries */
         Ok((agent, editor))
@@ -1618,9 +1657,24 @@ module Agent = {
         | Ok((model, editor)) =>
           let model = update_context(model, editor, chat_id);
           let success_message =
-            "The "
-            ++ tool_call.name
-            ++ " tool call was successful and has been applied to the model.";
+            switch (action) {
+            | ReadAction(read_action) =>
+              /* For read actions, compute the result content */
+              let z = cell_editor.editor.editor.state.zipper;
+              switch (
+                CompositionGo.Public.read_dispatch(~action=read_action, ~z)
+              ) {
+              | Ok(content) => content
+              | Error(_) =>
+                "The "
+                ++ tool_call.name
+                ++ " tool call encountered an error."
+              };
+            | _ =>
+              "The "
+              ++ tool_call.name
+              ++ " tool call was successful and has been applied to the model."
+            };
           let (before_segment, after_segment) =
             mk_segment_snapshots(
               ~old_editor=cell_editor.editor.editor,

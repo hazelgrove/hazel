@@ -16,8 +16,9 @@
 - [x] Add module edit actions (HighLevelNodeMap + edit_dispatch for Module items)
 - [x] Add `$` (FinalExpr) and `#n` (Index) path extensions
 - [x] Expand test suite (39 tests: 24 AgentTools + 15 HighLevelNodeMap)
-- [ ] Restore static context and error feedback
-- [ ] Design read/query actions
+- [x] Implement read actions: GetSyntax, GetStatics, GetContext
+- [x] Wire read actions through Agent.re (tool definitions, dispatch, LLM message)
+- [x] Read action tests (10 tests: syntax, statics, context, modules, indices)
 - [ ] Module Insert/Delete/BindingClause (blocked by segment/remolding issues)
 
 ---

@@ -545,6 +545,197 @@ module Local = {
     };
   };
 
+  let format_typ = (ty: Typ.t): string => ErrorPrint.Print.typ(ty);
+
+  let format_status_exp = (status: Info.status_exp): string =>
+    switch (status) {
+    | NotInHole(Common(Syn(ty))) =>
+      "Synthesized type: " ++ format_typ(ty)
+    | NotInHole(Common(Ana(Consistent({ana, syn, _})))) =>
+      "Expected type: "
+      ++ format_typ(ana)
+      ++ "\nSynthesized type: "
+      ++ format_typ(syn)
+      ++ "\nStatus: consistent"
+    | NotInHole(Common(Ana(InternallyInconsistent({ana, _})))) =>
+      "Expected type: "
+      ++ format_typ(ana)
+      ++ "\nStatus: internally inconsistent (ok in analytic position)"
+    | NotInHole(AnaDeferralConsistent(ty)) =>
+      "Deferral consistent with type: " ++ format_typ(ty)
+    | InHole(err) =>
+      "Status: error\nError: " ++ ErrorPrint.exp_error(err)
+    };
+
+  let format_ctx_entry = (entry: Ctx.entry): option(string) =>
+    switch (entry) {
+    | VarEntry({name, typ, _}) =>
+      Some(name ++ " : " ++ format_typ(typ))
+    | ConstructorEntry({name, typ, _}) =>
+      Some(name ++ " : " ++ format_typ(typ))
+    | TVarEntry({name, kind, _}) =>
+      switch (kind) {
+      | Singleton(ty) => Some(name ++ " = " ++ format_typ(ty))
+      | Abstract => Some(name ++ " (abstract)")
+      }
+    | LivelitEntry(_) => None
+    };
+
+  let read_dispatch =
+      (
+        ~action: CompositionActions.read_action,
+        ~z: Zipper.t,
+        ~info_map: Id.Map.t(Info.t),
+        ~syntax: CachedSyntax.t,
+      )
+      : result(string, Action.Failure.t) => {
+    switch (build(z, info_map)) {
+    | None => Error(Cant_derive_local_AST_information)
+    | Some(node_map) =>
+      switch (action) {
+      | GetSyntax(path) =>
+        let node = path_to_node(node_map, path);
+        let target_id = Info.id_of(node.info);
+        switch (segment_of_term(z, Some(target_id), syntax)) {
+        | Some(segment) =>
+          let code = Printer.of_segment(~holes="?", segment);
+          Ok(code);
+        | None =>
+          Error(
+            Composition_action_failure(
+              "Could not select the term at path: " ++ path,
+            ),
+          )
+        };
+      | GetStatics(path) =>
+        let node = path_to_node(node_map, path);
+        let result =
+          switch (node.info) {
+          | InfoExp({ana, status, _}) =>
+            "Path: "
+            ++ path
+            ++ "\nBinding: "
+            ++ node.name
+            ++ "\nAnalytic (expected) type: "
+            ++ format_typ(ana)
+            ++ "\n"
+            ++ format_status_exp(status)
+          | InfoPat({ana, status, _}) =>
+            "Path: "
+            ++ path
+            ++ "\nBinding: "
+            ++ node.name
+            ++ "\nAnalytic type: "
+            ++ format_typ(ana)
+            ++ "\nStatus: "
+            ++ (
+              switch (status) {
+              | NotInHole(_) => "ok"
+              | InHole(err) => "error: " ++ ErrorPrint.pat_error(err)
+              }
+            )
+          | info =>
+            "Path: "
+            ++ path
+            ++ "\nBinding: "
+            ++ node.name
+            ++ "\nClass: "
+            ++ Cls.show(Info.cls_of(info))
+            ++ (
+              switch (Info.error_of(info)) {
+              | None => "\nStatus: ok"
+              | Some(err) =>
+                "\nStatus: error: " ++ ErrorPrint.string_of(err)
+              }
+            )
+          };
+        /* Also gather errors from the node's subtree */
+        let subtree =
+          GeneralTreeUtils.subtree_of(
+            ~info=node.info,
+            ~orig_info_map=info_map,
+            ~of_pat=true,
+            ~of_def=true,
+            ~of_body=true,
+          );
+        let errors = ErrorPrint.all(subtree);
+        let result =
+          switch (errors) {
+          | [] => result
+          | _ =>
+            result
+            ++ "\nErrors in subtree:\n"
+            ++ String.concat("\n", errors)
+          };
+        Ok(result);
+      | GetContext(path) =>
+        let node = path_to_node(node_map, path);
+        let ctx = Info.ctx_of(node.info) |> Ctx.filter_shadowed;
+        let vars =
+          ctx.entries
+          |> List.filter_map(entry =>
+               switch (entry) {
+               | Ctx.VarEntry(ve) => Some(ve)
+               | _ => None
+               }
+             );
+        let constructors =
+          ctx.entries
+          |> List.filter_map(entry =>
+               switch (entry) {
+               | Ctx.ConstructorEntry(ve) => Some(ve)
+               | _ => None
+               }
+             );
+        let type_aliases =
+          ctx.entries
+          |> List.filter_map(entry =>
+               switch (entry) {
+               | Ctx.TVarEntry(te) => Some(te)
+               | _ => None
+               }
+             );
+        let fmt_var = (ve: Ctx.var_entry) =>
+          "  " ++ ve.name ++ " : " ++ format_typ(ve.typ);
+        let fmt_tvar = (te: Ctx.tvar_entry) =>
+          switch (te.kind) {
+          | Singleton(ty) =>
+            "  " ++ te.name ++ " = " ++ format_typ(ty)
+          | Abstract => "  " ++ te.name ++ " (abstract)"
+          };
+        let result = "Context at path: " ++ path;
+        let result =
+          switch (vars) {
+          | [] => result
+          | _ =>
+            result
+            ++ "\nVariables:\n"
+            ++ String.concat("\n", List.map(fmt_var, vars))
+          };
+        let result =
+          switch (type_aliases) {
+          | [] => result
+          | _ =>
+            result
+            ++ "\nType aliases:\n"
+            ++ String.concat("\n", List.map(fmt_tvar, type_aliases))
+          };
+        let result =
+          switch (constructors) {
+          | [] => result
+          | _ =>
+            result
+            ++ "\nConstructors:\n"
+            ++ String.concat(
+                 "\n",
+                 List.map(fmt_var, constructors),
+               )
+          };
+        Ok(result);
+      }
+    };
+  };
+
   let composition_dispatch =
       (
         a: Action.Structural.t,
@@ -606,4 +797,14 @@ module Public = {
       )
     );
   let go = Local.go(~mk_statics);
+  let read_dispatch =
+      (
+        ~action: CompositionActions.read_action,
+        ~z: Zipper.t,
+      )
+      : result(string, Action.Failure.t) => {
+    let info_map = mk_statics(z);
+    let syntax = CachedSyntax.init(z);
+    Local.read_dispatch(~action, ~z, ~info_map, ~syntax);
+  };
 };

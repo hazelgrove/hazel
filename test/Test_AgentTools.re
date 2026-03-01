@@ -796,6 +796,229 @@ let edge_case_tests = (
   ],
 );
 
+let string_contains = (needle: string, haystack: string): bool => {
+  let needle_len = String.length(needle);
+  let haystack_len = String.length(haystack);
+  if (needle_len > haystack_len) {
+    false;
+  } else {
+    let found = ref(false);
+    for (i in 0 to haystack_len - needle_len) {
+      if (String.sub(haystack, i, needle_len) == needle) {
+        found := true;
+      };
+    };
+    found^;
+  };
+};
+
+let run_read_action =
+    (code: string, action: CompositionActions.read_action): string => {
+  let z = mk_zipper(code);
+  switch (CompositionGo.Public.read_dispatch(~action, ~z)) {
+  | Ok(content) => content
+  | Error(Composition_action_failure(msg)) =>
+    Alcotest.fail("Read action failed: " ++ msg)
+  | Error(_) => Alcotest.fail("Read action failed with unknown error")
+  };
+};
+
+let read_action_tests = (
+  "AgentTools.ReadActions",
+  [
+    test_case(
+      "get_syntax returns binding clause",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let a = 1 + 2 in let b = 3 in a + b",
+            GetSyntax("a"),
+          );
+        /* Should contain the let binding for a */
+        check(bool, "contains let a", true, string_contains("let a", result));
+        check(
+          bool,
+          "contains 1 + 2",
+          true,
+          string_contains("1 + 2", result),
+        );
+      },
+    ),
+    test_case(
+      "get_syntax returns nested binding",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let a = let inner = 42 in inner in a",
+            GetSyntax("a/inner"),
+          );
+        check(
+          bool,
+          "contains inner",
+          true,
+          string_contains("inner", result),
+        );
+        check(bool, "contains 42", true, string_contains("42", result));
+      },
+    ),
+    test_case(
+      "get_syntax for module child",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let m = { let x = 5; let y = 10 } in m.x",
+            GetSyntax("m/x"),
+          );
+        check(bool, "contains x", true, string_contains("x", result));
+        check(bool, "contains 5", true, string_contains("5", result));
+      },
+    ),
+    test_case(
+      "get_statics shows types for annotated binding",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let x : Int = 1 + 2 in x",
+            GetStatics("x"),
+          );
+        check(bool, "contains Int", true, string_contains("Int", result));
+        check(
+          bool,
+          "contains path",
+          true,
+          string_contains("Path: x", result),
+        );
+      },
+    ),
+    test_case(
+      "get_statics shows error for inconsistent types",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let x : Int = true in x",
+            GetStatics("x"),
+          );
+        /* Should report a type error in the subtree */
+        check(
+          bool,
+          "contains error",
+          true,
+          string_contains("error", String.lowercase_ascii(result))
+          || string_contains("Error", result)
+          || string_contains("inconsistent", String.lowercase_ascii(result)),
+        );
+      },
+    ),
+    test_case(
+      "get_context shows variables in scope",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let x : Int = 5 in let y = x + 1 in y",
+            GetContext("y"),
+          );
+        /* y's context should include x */
+        check(
+          bool,
+          "contains x in context",
+          true,
+          string_contains("x", result),
+        );
+        check(
+          bool,
+          "contains Variables section",
+          true,
+          string_contains("Variables", result),
+        );
+      },
+    ),
+    test_case(
+      "get_context shows type aliases",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "type Color = Red + Green + Blue in let x : Color = Red in x",
+            GetContext("x"),
+          );
+        check(
+          bool,
+          "contains Color type alias",
+          true,
+          string_contains("Color", result),
+        );
+      },
+    ),
+    test_case(
+      "get_context shows constructors",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "type Color = Red + Green + Blue in let x : Color = Red in x",
+            GetContext("x"),
+          );
+        check(
+          bool,
+          "contains constructors section",
+          true,
+          string_contains("Constructors", result),
+        );
+        check(
+          bool,
+          "contains Red constructor",
+          true,
+          string_contains("Red", result),
+        );
+      },
+    ),
+    test_case(
+      "get_statics for type alias binding",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "type T = Int in let x : T = 1 in x",
+            GetStatics("T"),
+          );
+        check(
+          bool,
+          "contains binding name T",
+          true,
+          string_contains("T", result),
+        );
+        /* Type alias should not have errors in its subtree */
+        check(
+          bool,
+          "no error in result",
+          false,
+          string_contains("error", String.lowercase_ascii(result))
+          && string_contains("inconsistent", String.lowercase_ascii(result)),
+        );
+      },
+    ),
+    test_case(
+      "get_syntax with index path",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let a = 1 in let b = 2 in let c = 3 in a + b + c",
+            GetSyntax("#1"),
+          );
+        check(bool, "contains b", true, string_contains("b", result));
+        check(bool, "contains 2", true, string_contains("2", result));
+      },
+    ),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -803,5 +1026,6 @@ let tests = [
   path_extension_tests,
   module_edit_action_tests,
   edge_case_tests,
+  read_action_tests,
   composition_view_print_tests,
 ];
