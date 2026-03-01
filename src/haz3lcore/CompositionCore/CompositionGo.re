@@ -385,11 +385,11 @@ module Local = {
           }
         | _ => false
         };
-      let term_edit_result =
+      let (term_edit_result, kind) =
         if (is_type_alias) {
-          TermEdit.update_type_annotation(initial_z, target_id, code);
+          (TermEdit.update_type_annotation(initial_z, target_id, code), "type alias definition");
         } else {
-          TermEdit.update_definition(initial_z, target_id, code);
+          (TermEdit.update_definition(initial_z, target_id, code), "definition");
         };
       switch (term_edit_result) {
       | Some(new_z) =>
@@ -403,7 +403,7 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to parse the new definition code.",
+            "Failed to update " ++ kind ++ ": could not parse \"" ++ code ++ "\" as valid code.",
           ),
         )
       };
@@ -419,15 +419,15 @@ module Local = {
         } else {
           Utils.get_inner_term_id(Body, initial_node);
         };
-      let term_edit_result =
+      let (term_edit_result, kind) =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
-          TermEdit.case_update_arm_body(initial_z, target_id, code);
+          (TermEdit.case_update_arm_body(initial_z, target_id, code), "case arm body");
         } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          TermEdit.list_update_element(initial_z, target_id, code);
+          (TermEdit.list_update_element(initial_z, target_id, code), "list element");
         } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          TermEdit.tuple_update_element(initial_z, target_id, code);
+          (TermEdit.tuple_update_element(initial_z, target_id, code), "tuple element");
         } else {
-          TermEdit.update_body(initial_z, target_id, code);
+          (TermEdit.update_body(initial_z, target_id, code), "body");
         };
       switch (term_edit_result) {
       | Some(new_z) =>
@@ -441,7 +441,7 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to parse the new body code.",
+            "Failed to update " ++ kind ++ ": could not parse \"" ++ code ++ "\" as valid code.",
           ),
         )
       };
@@ -450,58 +450,91 @@ module Local = {
       let target_id = path_to_id(initial_node_map, path);
       /* For case arm nodes, use case_update_arm_pattern which finds
          the arm by its body ID. For list/tuple elements, Pattern update
-         doesn't apply. For Let/TyAlias, use update_pattern which handles
+         doesn't apply — return an explicit inapplicability error.
+         For Let/TyAlias, use update_pattern which handles
          pattern replacement and variable renaming. */
-      let term_edit_result =
-        if (TermEdit.is_case_arm(initial_z, target_id)) {
-          TermEdit.case_update_arm_pattern(initial_z, target_id, code);
-        } else if (TermEdit.is_list_element(initial_z, target_id)
-                   || TermEdit.is_tuple_element(initial_z, target_id)) {
-          None; /* Pattern update not applicable for list/tuple elements */
-        } else {
-          let pat_id = Utils.get_inner_term_id(Pat, initial_node);
-          TermEdit.update_pattern(initial_z, pat_id, code);
-        };
-      switch (term_edit_result) {
-      | Some(new_z) =>
-        PerformUtils.validate_edit(
-          ~edit_action=e,
-          ~initial_node=Some(initial_node),
-          ~initial_info_map,
-          ~new_z,
-          ~mk_statics,
-        )
-      | None =>
+      if (TermEdit.is_list_element(initial_z, target_id)) {
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to parse the new pattern code.",
+            "Update(Pattern) is not applicable to list elements. "
+            ++ "Use Update(Body, ...) to replace the element value.",
           ),
-        )
+        );
+      } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Update(Pattern) is not applicable to tuple elements. "
+            ++ "Use Update(Body, ...) to replace the element value.",
+          ),
+        );
+      } else {
+        let (term_edit_result, kind) =
+          if (TermEdit.is_case_arm(initial_z, target_id)) {
+            (TermEdit.case_update_arm_pattern(initial_z, target_id, code), "case arm pattern");
+          } else {
+            let pat_id = Utils.get_inner_term_id(Pat, initial_node);
+            (TermEdit.update_pattern(initial_z, pat_id, code), "pattern");
+          };
+        switch (term_edit_result) {
+        | Some(new_z) =>
+          PerformUtils.validate_edit(
+            ~edit_action=e,
+            ~initial_node=Some(initial_node),
+            ~initial_info_map,
+            ~new_z,
+            ~mk_statics,
+          )
+        | None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Failed to update " ++ kind ++ ": could not parse \"" ++ code ++ "\" as a valid pattern.",
+            ),
+          )
+        };
       };
     | Update(BindingClause, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
-      let term_edit_result =
-        if (TermEdit.is_module_item(initial_z, target_id)) {
-          TermEdit.module_update_binding(initial_z, target_id, code);
-        } else {
-          TermEdit.update_binding_clause(initial_z, target_id, code);
-        };
-      switch (term_edit_result) {
-      | Some(new_z) =>
-        PerformUtils.validate_edit(
-          ~edit_action=e,
-          ~initial_node=Some(initial_node),
-          ~initial_info_map,
-          ~new_z,
-          ~mk_statics,
-        )
-      | None =>
+      /* Case arms, list elements, and tuple elements don't have
+         "binding clauses" — use Update(Body) for those. */
+      if (TermEdit.is_case_arm(initial_z, target_id)) {
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to update binding clause.",
+            "Update(BindingClause) is not applicable to case arms. "
+            ++ "Use Update(Body, ...) or Update(Pattern, ...) instead.",
           ),
-        )
+        );
+      } else if (TermEdit.is_list_element(initial_z, target_id)
+                 || TermEdit.is_tuple_element(initial_z, target_id)) {
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Update(BindingClause) is not applicable to list/tuple elements. "
+            ++ "Use Update(Body, ...) to replace the element value.",
+          ),
+        );
+      } else {
+        let (term_edit_result, kind) =
+          if (TermEdit.is_module_item(initial_z, target_id)) {
+            (TermEdit.module_update_binding(initial_z, target_id, code), "module item");
+          } else {
+            (TermEdit.update_binding_clause(initial_z, target_id, code), "binding clause");
+          };
+        switch (term_edit_result) {
+        | Some(new_z) =>
+          PerformUtils.validate_edit(
+            ~edit_action=e,
+            ~initial_node=Some(initial_node),
+            ~initial_info_map,
+            ~new_z,
+            ~mk_statics,
+          )
+        | None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Failed to update " ++ kind ++ ": could not parse \"" ++ code ++ "\" as a valid binding.",
+            ),
+          )
+        };
       };
     | Update(TypeAnnotation, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
@@ -518,31 +551,32 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to parse the new type annotation code.",
+            "Failed to update type annotation: could not parse \"" ++ code ++ "\" as a valid type.",
           ),
         )
       };
     | Insert(Before, path, code) =>
       let target_id = path_to_id(initial_node_map, path);
-      let term_edit_result =
+      let (term_edit_result, kind) =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
-          TermEdit.case_insert_arm(
+          (TermEdit.case_insert_arm(
             initial_z, target_id, code, Direction.Left,
-          );
+          ), "case arm");
         } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          TermEdit.list_insert_element(
+          (TermEdit.list_insert_element(
             initial_z, target_id, code, Direction.Left,
-          );
+          ), "list element");
         } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          TermEdit.tuple_insert_element(
+          (TermEdit.tuple_insert_element(
             initial_z, target_id, code, Direction.Left,
-          );
+          ), "tuple element");
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
-          TermEdit.module_insert(initial_z, target_id, code, Direction.Left);
+          (TermEdit.module_insert(initial_z, target_id, code, Direction.Left),
+           "module item");
         } else {
-          TermEdit.insert_binding(
+          (TermEdit.insert_binding(
             initial_z, target_id, code, Direction.Left,
-          );
+          ), "binding");
         };
       switch (term_edit_result) {
       | Some(new_z) =>
@@ -568,33 +602,34 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to insert element.",
+            "Failed to insert " ++ kind ++ " before \"" ++ path
+            ++ "\": could not parse \"" ++ code ++ "\" as valid code.",
           ),
         )
       };
     | Insert(After, path, code) =>
       let target_id = path_to_id(initial_node_map, path);
-      let term_edit_result =
+      let (term_edit_result, kind) =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
-          TermEdit.case_insert_arm(
+          (TermEdit.case_insert_arm(
             initial_z, target_id, code, Direction.Right,
-          );
+          ), "case arm");
         } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          TermEdit.list_insert_element(
+          (TermEdit.list_insert_element(
             initial_z, target_id, code, Direction.Right,
-          );
+          ), "list element");
         } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          TermEdit.tuple_insert_element(
+          (TermEdit.tuple_insert_element(
             initial_z, target_id, code, Direction.Right,
-          );
+          ), "tuple element");
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
-          TermEdit.module_insert(
+          (TermEdit.module_insert(
             initial_z, target_id, code, Direction.Right,
-          );
+          ), "module item");
         } else {
-          TermEdit.insert_binding(
+          (TermEdit.insert_binding(
             initial_z, target_id, code, Direction.Right,
-          );
+          ), "binding");
         };
       switch (term_edit_result) {
       | Some(new_z) =>
@@ -620,30 +655,32 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to insert element.",
+            "Failed to insert " ++ kind ++ " after \"" ++ path
+            ++ "\": could not parse \"" ++ code ++ "\" as valid code.",
           ),
         )
       };
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
-      let term_edit_result =
+      let (term_edit_result, kind) =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
-          TermEdit.case_delete_arm(initial_z, target_id);
+          (TermEdit.case_delete_arm(initial_z, target_id), "case arm");
         } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          TermEdit.list_delete_element(initial_z, target_id);
+          (TermEdit.list_delete_element(initial_z, target_id), "list element");
         } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          TermEdit.tuple_delete_element(initial_z, target_id);
+          (TermEdit.tuple_delete_element(initial_z, target_id), "tuple element");
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
-          TermEdit.module_delete(initial_z, target_id);
+          (TermEdit.module_delete(initial_z, target_id), "module item");
         } else {
-          TermEdit.delete_binding(initial_z, target_id);
+          (TermEdit.delete_binding(initial_z, target_id), "binding");
         };
       switch (term_edit_result) {
       | Some(new_z) => Ok((new_z, None))
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to delete element.",
+            "Failed to delete " ++ kind ++ " at \"" ++ path
+            ++ "\": the element could not be found in the term tree.",
           ),
         )
       };
@@ -655,7 +692,8 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to delete body.",
+            "Failed to delete body at \"" ++ path
+            ++ "\": the body expression could not be found in the term tree.",
           ),
         )
       };

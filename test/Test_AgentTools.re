@@ -1675,6 +1675,81 @@ let tuple_element_tests = (
   ],
 );
 
+/* === Cross-Cutting Path & Error Tests === */
+
+let cross_cutting_tests = (
+  "AgentTools.CrossCutting",
+  [
+    /* Read actions on sequence element paths */
+    test_case("GetSyntax on list element path", `Quick, () => {
+      let result = run_read_action(list_program, GetSyntax("xs/[1]"));
+      check_rendered("list[1]", "2", result);
+    }),
+    test_case("GetSyntax on tuple element path", `Quick, () => {
+      let result = run_read_action(tuple_program, GetSyntax("p/(0)"));
+      check_rendered("tuple(0)", "1", result);
+    }),
+    test_case("GetSyntax on labeled tuple element path", `Quick, () => {
+      let result = run_read_action(labeled_tuple_program, GetSyntax("p/x"));
+      check(bool, "contains 1", true, string_contains("1", result));
+    }),
+    /* Shadowed names: first binding wins */
+    test_case("shadowed name resolves to first binding", `Quick, () => {
+      let shadowed = "let a = 1 in let a = 2 in a";
+      let result = apply_and_render(shadowed, Update(Definition, "a", "10"));
+      /* Should update the FIRST a (from 1 to 10), second a stays at 2 */
+      check(bool, "has 10", true, string_contains("10", result));
+      check(bool, "has 2", true, string_contains("2", result));
+    }),
+    test_case("shadowed name accessible by index", `Quick, () => {
+      let shadowed = "let a = 1 in let a = 2 in a";
+      let result = apply_and_render(shadowed, Update(Definition, "#1", "20"));
+      /* #1 should target the SECOND binding */
+      check(bool, "has 1", true, string_contains("1", result));
+      check(bool, "has 20", true, string_contains("20", result));
+    }),
+    /* Inapplicability errors */
+    test_case("Update(Pattern) on list element gives clear error", `Quick, () => {
+      switch (run_agent_action(list_program, Update(Pattern, "xs/[0]", "x"))) {
+      | Ok(_) => Alcotest.fail("Expected failure")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(bool, "says not applicable", true,
+          string_contains("not applicable", msg));
+        check(bool, "says list element", true,
+          string_contains("list element", msg));
+      | Error(err) =>
+        Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
+      }
+    }),
+    test_case("Update(Pattern) on tuple element gives clear error", `Quick, () => {
+      switch (run_agent_action(tuple_program, Update(Pattern, "p/(0)", "x"))) {
+      | Ok(_) => Alcotest.fail("Expected failure")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(bool, "says not applicable", true,
+          string_contains("not applicable", msg));
+        check(bool, "says tuple element", true,
+          string_contains("tuple element", msg));
+      | Error(err) =>
+        Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
+      }
+    }),
+    test_case("Update(BindingClause) on case arm gives clear error", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in f";
+      switch (run_agent_action(case_code, Update(BindingClause, "f/|A", "| C => 3"))) {
+      | Ok(_) => Alcotest.fail("Expected failure")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(bool, "says not applicable", true,
+          string_contains("not applicable", msg));
+        check(bool, "says case arm", true,
+          string_contains("case arm", msg));
+      | Error(err) =>
+        Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
+      }
+    }),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -1692,4 +1767,5 @@ let tests = [
   case_arm_tests,
   list_element_tests,
   tuple_element_tests,
+  cross_cutting_tests,
 ];

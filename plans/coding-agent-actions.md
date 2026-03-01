@@ -42,9 +42,10 @@
 - [ ] Improve parse_error_check messages: line numbers, syntax excerpts (thread Measured.t + TermData.t)
 - [x] Add completeness_check: track EmptyHoles via GetCompleteness read action
 - [ ] Copy whitespace from neighboring items for TermEdit insertions (instead of hardcoded space)
-- [ ] Re-evaluate error gating strategy: currently too conservative for multi-step refactoring (see notes-for-andrew.md §6)
-  - Consider compositional gating (batch actions, force flag, warnings instead of rejection)
-  - Type alias changes that cascade should be possible via multi-step edits
+- [x] Re-evaluate error gating strategy: warnings instead of rejection
+  - Static errors now produce warnings, not hard failures
+  - Parse errors (unmatched delimiters, Invalid/MultiHole) still block
+  - Allows multi-step refactoring (e.g., change type alias, then fix dependents)
 - [ ] Generalize pattern actions: split Update(Pattern) into "replace whole pattern" + separate "RenameVariable" action
 - [x] Add more complex test programs (sum types, records, case dispatch, selectors)
 - [x] **Path selector language** (see `plans/Hazel-Agent-Path-Selector-Language.md`)
@@ -52,25 +53,26 @@
   - [x] Implement resolver against Hazel term tree
   - [x] Start with read actions (Select via selector) — heavily unit-tested
   - [ ] Incrementally extend to edit actions (replacing current path system)
-- [ ] **Case arm editing**: insert/remove/update individual case arms
-  - Selector language can already READ arms (e.g., `| Foo => *`)
-  - HighLevelNodeMap doesn't create addressable nodes for individual arms
-  - TermEdit has no arm manipulation operations
-  - Implementation: similar to module item operations
-    - [ ] Add case arm TermEdit helpers (insert_arm, delete_arm, update_arm_body, update_arm_pattern)
-    - [ ] Address arms via selector-based edits or indexed paths
-    - [ ] Add tests for case arm manipulation
-- [ ] **List/tuple element editing**: insert/remove/update individual elements
-  - Elements extracted as children but not individually addressable by index
-  - No TermEdit operations for element manipulation
-  - Implementation:
-    - [ ] Add list/tuple element TermEdit helpers
-    - [ ] Selector language support for indexed elements
-    - [ ] Tests for element manipulation
+- [x] **Sequence element editing** (unified approach for all "spine" structures)
+  - All sequence-type structures follow the module item pattern:
+    Insert(Before/After), Delete, Update on individual elements
+  - [x] **Case arms**: addressable as `"f/|A"`, `"f/|Some(x)"` (pipe-prefixed pattern names)
+    - TermEdit: parse_case_arm, case_delete_arm, case_insert_arm, case_update_arm_body, case_update_arm_pattern
+    - HighLevelNodeMap indexes arm bodies as children of enclosing node
+    - 22 tests (TermEdit + node map + dispatch)
+  - [x] **List elements**: addressable as `"xs/[0]"`, `"xs/[1]"`, `"xs/[2]"`
+    - TermEdit: list_delete_element, list_insert_element, list_update_element
+    - 8 tests (TermEdit + node map + dispatch)
+  - [x] **Tuple elements**: addressable as `"p/(0)"`, `"p/(1)"` (positional) or `"p/x"`, `"p/y"` (labeled)
+    - TermEdit: tuple_delete_element, tuple_insert_element, tuple_update_element
+    - Labeled tuple elements named by label, unlabeled by index
+    - 8 tests (TermEdit + node map + dispatch)
+  - All wired through CompositionGo dispatch with is_case_arm/is_list_element/is_tuple_element detection
 - [ ] **Strategic edit granularity audit**: survey what precise edits agents/programmers need
   - Current: whole definition/body/pattern/type-annotation/binding-clause
-  - Missing: case arms, list/tuple elements, function parameters, record fields
+  - Missing: case arms, list/tuple/labeled-tuple elements, function parameters
   - Goal: identify the minimal set of granular edit operations for expressive intent
+  - Consider: what edits express precise intent vs what can be done by replacing larger chunks?
 
 ### Known compromises & issues in the TermEdit approach
 
