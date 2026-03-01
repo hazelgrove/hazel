@@ -32,15 +32,21 @@
   --Y2: oklch(88% 0.2 95); /* explicit hole */
   --Y3: oklch(71% 0.2 95); /* incomplete shards */
 
+  /* WARNING HOLE DECO */
+
   /* MAGMA - opportunities */
   --R0: oklch(85% 0.1 30); /* broken shard fill */
   --R1: oklch(60% 0.3 30); /* caret, error stroke */
-  --R2: oklch(40% 0.3 30); /* error text, broken shard text
+  --R2: oklch(40% 0.3 30); /* error text, broken shard text */
+  --O1: oklch(60% 0.3 90); /* warning stroke */
 
   /* GLASS - sorts */
   --TYP: oklch(60% 0.2 300);
   --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
   --TPAT: var(--PAT);
+  --MOD: var(--STONE); /* Module sort oklch(0.65 0.05 165)  */
+  --SIG: var(--TYP); /* Signature sort oklch(0.65 0.1 320); */
+  --MPAT: var(--PAT); /* Module pattern sort oklch(60% 0.2 60)  */
   --LABEL: oklch(60% 0.2 180);
 
   /* AURA - docs highlighting */
@@ -62,6 +68,7 @@
   --textarea-h-strip-selected: oklch(68% 0.14 76 / 30%);
   --SHADOW: oklch(50% 0.1 90 / 33%);
   --ERRHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
+  --WARNHOLE: oklch(0.97 0.04 78.17);
   --CREASE: oklch(0% 0 0 / 40%);
 
   /* CODE BACKGROUND */
@@ -84,6 +91,9 @@
   --token-pat: var(--PAT);
   --token-typ: var(--TYP);
   --token-tpat: var(--TPAT);
+  --token-mod: var(--MOD);
+  --token-sig: var(--SIG);
+  --token-mpat: var(--MPAT);
   --token-label: var(--LABEL);
   --token-string-lit: var(--Y3);
   --token-comment: var(--G2);
@@ -104,9 +114,15 @@
   --shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);
   --shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);
   --shard-caret-tpat: oklch(from var(--token-tpat) 95% calc(c/4) h);
+  --shard-caret-mod: oklch(from var(--token-mod) 95% calc(c/4) h);
+  --shard-caret-sig: oklch(from var(--token-sig) 95% calc(c/4) h);
+  --shard-caret-mpat: oklch(from var(--token-mpat) 95% calc(c/4) h);
   --shard-pat: var(--shard-caret-pat);
   --shard-typ: var(--shard-caret-typ);
   --shard-tpat: var(--shard-caret-tpat);
+  --shard-mod: var(--shard-caret-mod);
+  --shard-sig: var(--shard-caret-sig);
+  --shard-mpat: var(--shard-caret-mpat);
   --shard-selected: var(--Y1);
   --shard-selected-expanded: var(--Y0);
   --shard-buffer: var(--T1);
@@ -125,6 +141,10 @@
   /* ERROR HOLE DECO */
 
   --error-hole-fill: var(--ERRHOLE);
+
+  /* WARNING HOLE DECO */
+  --warning-hole-stroke: var(--O1);
+  --warning-hole-fill: var(--WARNHOLE);
 
   /* BACKPACK DECO */
 
@@ -174,6 +194,8 @@
   --ci-status-text: var(--BR4);
   --ci-status-error-text: var(--R2);
   --ci-status-error-bkg: var(--test-fail-active);
+  --ci-status-warning-text: var(--warning-hole-stroke);
+  --ci-status-warning-bkg: var(--warning-hole-fill);
   --context-inspector-colon: var(--BR2);
 
   --ui-header-text: var(--BR3);
@@ -200,6 +222,7 @@
   --err-hole-arms-z: 1;
   --tile-z: 2;
   --err-hole-z: 3;
+  --warn-hole-z: 3;
   --select-z: 4;
   --stepper-interactive-z: 5;
   --projector-underlay-z: 9;

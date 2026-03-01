@@ -21,6 +21,17 @@ module Map = {
       info_map,
       [],
     );
+  let warning_ids = (info_map: t): list(Id.t) =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        acc
+        |> (
+          Info.is_warning(info) && id == Info.id_of(info)
+            ? List.cons(id) : Fun.id
+        ),
+      info_map,
+      [],
+    );
 
   let errors = (map: t): list((Id.t, Info.error)) =>
     Id.Map.fold(
@@ -168,6 +179,7 @@ module type ExpressionStatics = {
       ~inferred_label: string=?,
       ~override_self: Self.exp=?,
       ~label_sort: bool=?,
+      ~dot_labels: list(string)=?,
       Exp.t,
       Map.t
     ) =>
