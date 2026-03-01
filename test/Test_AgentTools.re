@@ -592,14 +592,16 @@ let module_edit_action_tests = (
       "update definition of type alias in module",
       `Quick,
       () => {
+        /* Use a program where changing T doesn't create a type error
+           on other items (no `: T` annotation that depends on T). */
         let result =
           apply_and_render(
-            "let m = { type T = Int; let a : T = 1 } in m.a",
+            "let m = { type T = Int; let a = 1 } in m.a",
             Update(Definition, "m/T", "Bool"),
           );
         check_rendered(
           "update module type def",
-          "let m = { type T = Bool; let a : T = 1 } in m.a",
+          "let m = { type T = Bool; let a = 1 } in m.a",
           result,
         );
       },
@@ -623,23 +625,15 @@ let module_edit_action_tests = (
         );
       },
     ),
-    /* Module-context insert/delete/bindingclause limitations:
-       - Insert(Before/After): Segment insertion + remolding creates
-         expression-level Let tiles instead of ModLet tiles in module
-         context, garbling the output.
-       - Update(BindingClause): Same issue — pasted "let x = 42"
-         becomes expression-level Let with "in" instead of ModLet.
-       - Delete(BindingClause): Works but leaves a hole (?) instead
-         of cleanly removing the item, due to module items being
-         independent (;-separated) rather than chained (in-separated).
-       Working operations: Update(Definition), Update(Pattern). */
+    /* Module edit operations use term-level transformations (TermEdit)
+       which manipulate the Module(items) list directly, avoiding the
+       sort-context mismatch that occurs with segment-level operations. */
     test_case(
-      "delete module item replaces with hole",
+      "delete module item cleanly",
       `Quick,
       () => {
-        /* Unlike let-chains where delete seamlessly connects the body,
-           module items are independent (;-separated), so deleting a
-           module item replaces it with an expression hole. */
+        /* Term-level delete removes the item from the Module(items) list
+           and round-trips back to a zipper — no hole left behind. */
         let result =
           apply_and_render(
             "let m = { let a = 1; let b = 2; let c = 3 } in m.a + m.c",
@@ -647,7 +641,55 @@ let module_edit_action_tests = (
           );
         check_rendered(
           "delete module item",
-          "let m = { let a = 1; ?; let c = 3 } in m.a + m.c",
+          "let m = { let a = 1; let c = 3 } in m.a + m.c",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "insert module item before",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let a = 1; let c = 3 } in m.a + m.c",
+            Insert(Before, "m/c", "let b = 2"),
+          );
+        check_rendered(
+          "insert module item before",
+          "let m = { let a = 1; let b = 2; let c = 3 } in m.a + m.c",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "insert module item after",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let a = 1; let c = 3 } in m.a + m.c",
+            Insert(After, "m/a", "let b = 2"),
+          );
+        check_rendered(
+          "insert module item after",
+          "let m = { let a = 1; let b = 2; let c = 3 } in m.a + m.c",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update module item binding clause",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let a = 1; let b = 2; let c = 3 } in m.a + m.c",
+            Update(BindingClause, "m/b", "let x = 42"),
+          );
+        check_rendered(
+          "update module item binding clause",
+          "let m = { let a = 1; let x = 42; let c = 3 } in m.a + m.c",
           result,
         );
       },
@@ -679,14 +721,16 @@ let edge_case_tests = (
       "update def with type alias",
       `Quick,
       () => {
+        /* Use a program where x doesn't depend on T's definition
+           to avoid type errors when changing T from Int to Bool. */
         let result =
           apply_and_render(
-            "type T = Int in let x : T = 1 in x",
+            "type T = Int in let x = 1 in x",
             Update(Definition, "T", "Bool"),
           );
         check_rendered(
           "type alias def update",
-          "type T = Bool in let x : T = 1 in x",
+          "type T = Bool in let x = 1 in x",
           result,
         );
       },
@@ -751,6 +795,18 @@ let edge_case_tests = (
           "let a = 1 in a",
           Update(Definition, "a", "if true then 1"),
           "parse error detection",
+        );
+      },
+    ),
+    test_case(
+      "invalid token in code gives parse error",
+      `Quick,
+      () => {
+        /* Inserting code that produces an Invalid token should be caught */
+        expect_composition_failure(
+          "let a = 1 in let b = 2 in a + b",
+          Insert(After, "a", "let c = $invalid"),
+          "invalid token parse error",
         );
       },
     ),
@@ -1097,15 +1153,16 @@ let type_annotation_tests = (
       "update type alias definition via TypeAnnotation",
       `Quick,
       () => {
-        /* For type aliases, TypeAnnotation targets the type definition itself */
+        /* For type aliases, TypeAnnotation targets the type definition itself.
+           Use a program where x doesn't depend on T to avoid type errors. */
         let result =
           apply_and_render(
-            "type T = Int in let x : T = 1 in x",
+            "type T = Int in let x = 1 in x",
             Update(TypeAnnotation, "T", "Bool"),
           );
         check_rendered(
           "type alias via TypeAnnotation",
-          "type T = Bool in let x : T = 1 in x",
+          "type T = Bool in let x = 1 in x",
           result,
         );
       },
@@ -1126,13 +1183,12 @@ let seq_node_map_tests = (
           HighLevelNodeMap.gather_top_level(node_map)
           |> List.map((id: Id.t) =>
                HighLevelNodeMap.id_to_name(node_map, id)
-             )
-          |> List.sort(String.compare);
-        /* gather_top_level returns unordered IDs; sort for comparison */
+             );
+        /* gather_top_level returns IDs in source order */
         check(
           list(string),
           "top level includes test",
-          ["x", "{expr}", "{test}"],
+          ["x", "{test}", "{expr}"],
           top_names,
         );
       },
@@ -1165,12 +1221,11 @@ let seq_node_map_tests = (
           HighLevelNodeMap.gather_top_level(node_map)
           |> List.map((id: Id.t) =>
                HighLevelNodeMap.id_to_name(node_map, id)
-             )
-          |> List.sort(String.compare);
+             );
         check(
           list(string),
           "two tests and trailing expr",
-          ["x", "{expr}", "{test}", "{test}"],
+          ["x", "{test}", "{test}", "{expr}"],
           top_names,
         );
       },

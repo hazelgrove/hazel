@@ -246,6 +246,9 @@ module Message = {
         ++ sanitized_workbench_content
         ++ workbench_content_suffix;
 
+      /* TODO: cursor context is sent on every message but the agent operates
+         path-based, not cursor-based. This may be unnecessary noise.
+         Consider gating on relevance or removing for path-based agents. */
       let cursor_context_section =
         switch (String.trim(cursor_context_content)) {
         | "" => ""

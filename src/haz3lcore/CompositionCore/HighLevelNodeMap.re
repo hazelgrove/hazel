@@ -610,17 +610,18 @@ let build_siblings_and_trim = (node_map: t): t => {
 };
 
 let gather_top_level = (node_map: t): list(Id.t) => {
-  // If the node has no parent, then it is a top-level node
-  // XXX: Hacky, cause it could be done more efficiently either on the fly or in
-  // build_siblings_and_trim...
+  /* Collect top-level nodes (no parent) and sort by sibling_idx
+     so they appear in source order */
   node_map
   |> Id.Map.bindings
   |> List.filter_map(((id: Id.t, node: node)) => {
        switch (parent_of(node_map, node)) {
        | Some(_) => None
-       | None => Some(id)
+       | None => Some((id, node.sibling_idx))
        }
-     });
+     })
+  |> List.sort(((_, idx_a), (_, idx_b)) => Int.compare(idx_a, idx_b))
+  |> List.map(fst);
 };
 
 type path_segment =
