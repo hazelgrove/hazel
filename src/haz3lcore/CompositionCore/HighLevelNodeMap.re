@@ -452,6 +452,26 @@ let init_node = (info: Info.t, path: list(Id.t), node_map: t): t => {
   // 4. Build the children of the node
   node_map;
 };
+
+/* Like init_node but with a custom name (used for case arms, list/tuple
+   elements, etc. where the name comes from context rather than the term). */
+let init_node_named =
+    (info: Info.t, name: string, path: list(Id.t), node_map: t): t => {
+  let node_map =
+    switch (parent_id_from_path(path)) {
+    | Some(parent) => add_child(node_map, parent, Info.id_of(info))
+    | None => node_map
+    };
+  let node: node = {
+    info,
+    path,
+    children: [],
+    siblings: [],
+    sibling_idx: (-1),
+    name,
+  };
+  Id.Map.add(Info.id_of(info), node, node_map);
+};
 let rec build_children =
         (
           candidate: Info.t,
@@ -509,6 +529,23 @@ let rec build_children =
         };
       let node_map = make_or_recurse(e1, node_map);
       make_or_recurse(e2, node_map);
+    | Match(_, arms) =>
+      /* Case arms: create a node for each arm body, named after its pattern.
+         Names are prefixed with | (e.g. "|A", "|Some(x)").
+         Arm bodies become siblings of each other and children of the
+         enclosing node (same path level as the Match). */
+      List.fold_left(
+        (node_map, (pat, body)) => {
+          let body_info = exp_to_info(body);
+          let arm_path = path @ [Info.id_of(body_info)];
+          let name = "|" ++ Namer.mk_name_from_pat(pat);
+          let node_map =
+            init_node_named(body_info, name, arm_path, node_map);
+          build_children(body_info, arm_path, node_map, info_map);
+        },
+        node_map,
+        arms,
+      );
     | Module(items) =>
       /* Module items are expanded to a Let/TyAlias chain in the info_map.
          Find the first named item (ModLet/ModType/ModuleMod) whose ID is

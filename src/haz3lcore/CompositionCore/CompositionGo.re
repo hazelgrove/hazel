@@ -409,8 +409,22 @@ module Local = {
       };
     | Update(Body, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
-      let target_id = Utils.get_inner_term_id(Body, initial_node);
-      switch (TermEdit.update_body(initial_z, target_id, code)) {
+      let target_id = path_to_id(initial_node_map, path);
+      /* For case arm nodes, the path points directly to the arm body
+         expression. For Let/TyAlias nodes, extract the body sub-expression. */
+      let target_id =
+        if (TermEdit.is_case_arm(initial_z, target_id)) {
+          target_id;
+        } else {
+          Utils.get_inner_term_id(Body, initial_node);
+        };
+      let term_edit_result =
+        if (TermEdit.is_case_arm(initial_z, target_id)) {
+          TermEdit.case_update_arm_body(initial_z, target_id, code);
+        } else {
+          TermEdit.update_body(initial_z, target_id, code);
+        };
+      switch (term_edit_result) {
       | Some(new_z) =>
         PerformUtils.validate_edit(
           ~edit_action=e,
@@ -428,11 +442,18 @@ module Local = {
       };
     | Update(Pattern, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
-      let target_id = Utils.get_inner_term_id(Pat, initial_node);
-      /* TermEdit.update_pattern handles both pattern replacement and
-         variable renaming at the term level (before round-trip), so
-         we don't need the old statics-based use-site renaming. */
-      switch (TermEdit.update_pattern(initial_z, target_id, code)) {
+      let target_id = path_to_id(initial_node_map, path);
+      /* For case arm nodes, use case_update_arm_pattern which finds
+         the arm by its body ID. For Let/TyAlias, use update_pattern
+         which handles pattern replacement and variable renaming. */
+      let term_edit_result =
+        if (TermEdit.is_case_arm(initial_z, target_id)) {
+          TermEdit.case_update_arm_pattern(initial_z, target_id, code);
+        } else {
+          let pat_id = Utils.get_inner_term_id(Pat, initial_node);
+          TermEdit.update_pattern(initial_z, pat_id, code);
+        };
+      switch (term_edit_result) {
       | Some(new_z) =>
         PerformUtils.validate_edit(
           ~edit_action=e,
@@ -495,7 +516,11 @@ module Local = {
     | Insert(Before, path, code) =>
       let target_id = path_to_id(initial_node_map, path);
       let term_edit_result =
-        if (TermEdit.is_module_item(initial_z, target_id)) {
+        if (TermEdit.is_case_arm(initial_z, target_id)) {
+          TermEdit.case_insert_arm(
+            initial_z, target_id, code, Direction.Left,
+          );
+        } else if (TermEdit.is_module_item(initial_z, target_id)) {
           TermEdit.module_insert(initial_z, target_id, code, Direction.Left);
         } else {
           TermEdit.insert_binding(
@@ -533,7 +558,11 @@ module Local = {
     | Insert(After, path, code) =>
       let target_id = path_to_id(initial_node_map, path);
       let term_edit_result =
-        if (TermEdit.is_module_item(initial_z, target_id)) {
+        if (TermEdit.is_case_arm(initial_z, target_id)) {
+          TermEdit.case_insert_arm(
+            initial_z, target_id, code, Direction.Right,
+          );
+        } else if (TermEdit.is_module_item(initial_z, target_id)) {
           TermEdit.module_insert(
             initial_z, target_id, code, Direction.Right,
           );
@@ -573,7 +602,9 @@ module Local = {
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
       let term_edit_result =
-        if (TermEdit.is_module_item(initial_z, target_id)) {
+        if (TermEdit.is_case_arm(initial_z, target_id)) {
+          TermEdit.case_delete_arm(initial_z, target_id);
+        } else if (TermEdit.is_module_item(initial_z, target_id)) {
           TermEdit.module_delete(initial_z, target_id);
         } else {
           TermEdit.delete_binding(initial_z, target_id);

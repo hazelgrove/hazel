@@ -326,6 +326,208 @@ let parse_typ = (code: string): option(Typ.t) =>
   | None => None
   };
 
+/* --- Case arm operations --- */
+
+/* A case arm is (Pat.t, Exp.t) — pattern + body. */
+type case_arm = (Pat.t, Exp.t);
+
+/* Replace the arms list of a Match expression by ID. */
+let replace_match_arms =
+    (target_match_id: Id.t, new_arms: list(case_arm), term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        if (Id.equal(Exp.rep_id(e), target_match_id)) {
+          switch (Exp.term_of(e)) {
+          | Match(scrutinee, _) => {...e, term: Match(scrutinee, new_arms)}
+          | _ => continue(e)
+          };
+        } else {
+          continue(e);
+        },
+    term,
+  );
+
+/* Find the Match expression containing an arm whose body has the given ID.
+   Returns (match_id, scrutinee, arms, arm_index). */
+let find_match_containing_arm_by_body =
+    (target_body_id: Id.t, term: Exp.t)
+    : option((Id.t, Exp.t, list(case_arm), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Match(scrutinee, arms) =>
+            switch (
+              ListUtil.findi_opt(
+                ((_, body)) => Id.equal(Exp.rep_id(body), target_body_id),
+                arms,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), scrutinee, arms, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          };
+        },
+      term,
+    );
+  result^;
+};
+
+/* Find the Match expression containing an arm whose pattern has the given ID. */
+let find_match_containing_arm_by_pat =
+    (target_pat_id: Id.t, term: Exp.t)
+    : option((Id.t, Exp.t, list(case_arm), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Match(scrutinee, arms) =>
+            switch (
+              ListUtil.findi_opt(
+                ((pat, _)) => Id.equal(Pat.rep_id(pat), target_pat_id),
+                arms,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), scrutinee, arms, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          };
+        },
+      term,
+    );
+  result^;
+};
+
+/* Find the Match expression containing an arm by either pattern or body ID. */
+let find_match_containing_arm =
+    (target_id: Id.t, term: Exp.t)
+    : option((Id.t, Exp.t, list(case_arm), int)) =>
+  switch (find_match_containing_arm_by_body(target_id, term)) {
+  | Some(_) as result => result
+  | None => find_match_containing_arm_by_pat(target_id, term)
+  };
+
+/* Parse a case arm string (e.g., "| Foo(x) => x + 1" or "Foo(x) => x + 1")
+   by wrapping it in a dummy case expression and extracting the arm. */
+let parse_case_arm = (code: string): option(case_arm) => {
+  /* Strip leading | if present */
+  let code =
+    String.trim(code)
+    |> (
+      s =>
+        if (String.length(s) > 0 && s.[0] == '|') {
+          String.trim(String.sub(s, 1, String.length(s) - 1));
+        } else {
+          s;
+        }
+    );
+  switch (parse_exp("case ? | " ++ code ++ " end")) {
+  | Some(term) =>
+    switch (Exp.term_of(term)) {
+    | Match(_, [(pat, body)]) => Some((pat, body))
+    | _ => None
+    }
+  | None => None
+  };
+};
+
+/* Delete a case arm by index. */
+let case_delete_arm =
+    (z: Zipper.t, target_arm_body_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_match_containing_arm(target_arm_body_id, term)) {
+  | Some((match_id, _, arms, idx)) =>
+    let new_arms = List.filteri((i, _) => i != idx, arms);
+    let new_term = replace_match_arms(match_id, new_arms, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Insert a case arm before/after a reference arm. */
+let case_insert_arm =
+    (z: Zipper.t, target_arm_body_id: Id.t, code: string, d: Direction.t)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_match_containing_arm(target_arm_body_id, term)) {
+  | Some((match_id, _, arms, idx)) =>
+    switch (parse_case_arm(code)) {
+    | Some(new_arm) =>
+      let insert_at = d == Left ? idx : idx + 1;
+      let (before, after) = ListUtil.split_n(insert_at, arms);
+      let new_arms = before @ [new_arm] @ after;
+      let new_term = replace_match_arms(match_id, new_arms, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+/* Update the body of a case arm. */
+let case_update_arm_body =
+    (z: Zipper.t, target_arm_body_id: Id.t, code: string)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_match_containing_arm_by_body(target_arm_body_id, term)) {
+  | Some((match_id, _, arms, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_body) =>
+      let new_arms =
+        List.mapi(
+          (i, (pat, body)) => i == idx ? (pat, new_body) : (pat, body),
+          arms,
+        );
+      let new_term = replace_match_arms(match_id, new_arms, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+/* Update the pattern of a case arm. */
+let case_update_arm_pattern =
+    (z: Zipper.t, target_arm_body_id: Id.t, code: string)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_match_containing_arm_by_body(target_arm_body_id, term)) {
+  | Some((match_id, _, arms, idx)) =>
+    switch (parse_pat(code)) {
+    | Some(new_pat) =>
+      let new_arms =
+        List.mapi(
+          (i, (pat, body)) => i == idx ? (new_pat, body) : (pat, body),
+          arms,
+        );
+      let new_term = replace_match_arms(match_id, new_arms, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+/* Check if a target ID is inside a Match expression (is a case arm component) */
+let is_case_arm = (z: Zipper.t, target_id: Id.t): bool => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_match_containing_arm(target_id, term)) {
+  | Some(_) => true
+  | None => false
+  };
+};
+
 /* --- Update operations on let-chain bindings --- */
 
 /* Update the definition of a binding (the expression after = ).

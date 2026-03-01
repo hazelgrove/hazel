@@ -1293,6 +1293,201 @@ let complex_program_tests = (
   ],
 );
 
+/* === Case Arm TermEdit Tests === */
+
+/* Helper: find the nth arm body ID from a zipper's term */
+let find_arm_body_id_in_zipper = (z: Zipper.t, arm_idx: int): Id.t => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Match(_, arms) when result^ == None =>
+            switch (List.nth_opt(arms, arm_idx)) {
+            | Some((_, body)) => result := Some(Exp.rep_id(body))
+            | None => ()
+            };
+            e;
+          | _ => continue(e)
+          };
+        },
+      term,
+    );
+  switch (result^) {
+  | Some(id) => id
+  | None => Alcotest.fail("No case arm at index " ++ string_of_int(arm_idx))
+  };
+};
+
+/* Helper: apply a TermEdit case arm operation on code, using shared zipper */
+let case_arm_edit = (code: string, arm_idx: int, f: (Zipper.t, Id.t) => option(Zipper.t)): string => {
+  let z = mk_zipper(code);
+  let body_id = find_arm_body_id_in_zipper(z, arm_idx);
+  switch (f(z, body_id)) {
+  | Some(new_z) => render_zipper(new_z)
+  | None => Alcotest.fail("Case arm operation returned None")
+  };
+};
+
+let simple_case = "case x | A => 1 | B => 2 | C => 3 end";
+let case_in_let = "let f = fun x -> case x | Some(v) => v | None => 0 end in f";
+
+let case_arm_tests = (
+  "AgentTools.CaseArms",
+  [
+    /* Delete case arms */
+    test_case("delete first case arm", `Quick, () => {
+      let result = case_arm_edit(simple_case, 0, (z, id) =>
+        TermEdit.case_delete_arm(z, id));
+      check(bool, "no A", false, string_contains("A", result));
+      check(bool, "has B", true, string_contains("B", result));
+      check(bool, "has C", true, string_contains("C", result));
+    }),
+    test_case("delete middle case arm", `Quick, () => {
+      let result = case_arm_edit(simple_case, 1, (z, id) =>
+        TermEdit.case_delete_arm(z, id));
+      check(bool, "has A", true, string_contains("A", result));
+      check(bool, "no B", false, string_contains("B", result));
+      check(bool, "has C", true, string_contains("C", result));
+    }),
+    test_case("delete last case arm", `Quick, () => {
+      let result = case_arm_edit(simple_case, 2, (z, id) =>
+        TermEdit.case_delete_arm(z, id));
+      check(bool, "has A", true, string_contains("A", result));
+      check(bool, "has B", true, string_contains("B", result));
+      check(bool, "no C", false, string_contains("C", result));
+    }),
+    /* Insert case arms */
+    test_case("insert arm after last", `Quick, () => {
+      let result = case_arm_edit(simple_case, 2, (z, id) =>
+        TermEdit.case_insert_arm(z, id, "D => 4", Direction.Right));
+      check(bool, "has D", true, string_contains("D", result));
+      check(bool, "has 4", true, string_contains("4", result));
+    }),
+    test_case("insert arm before first", `Quick, () => {
+      let result = case_arm_edit(simple_case, 0, (z, id) =>
+        TermEdit.case_insert_arm(z, id, "Z => 0", Direction.Left));
+      check(bool, "has Z", true, string_contains("Z", result));
+    }),
+    test_case("insert arm with pipe prefix", `Quick, () => {
+      let result = case_arm_edit(simple_case, 1, (z, id) =>
+        TermEdit.case_insert_arm(z, id, "| D => 4", Direction.Right));
+      check(bool, "has D", true, string_contains("D", result));
+    }),
+    /* Update arm body */
+    test_case("update arm body", `Quick, () => {
+      let result = case_arm_edit(simple_case, 0, (z, id) =>
+        TermEdit.case_update_arm_body(z, id, "100"));
+      check(bool, "has 100", true, string_contains("100", result));
+      check(bool, "has B", true, string_contains("B", result));
+    }),
+    /* Update arm pattern */
+    test_case("update arm pattern", `Quick, () => {
+      let result = case_arm_edit(simple_case, 1, (z, id) =>
+        TermEdit.case_update_arm_pattern(z, id, "D"));
+      check(bool, "has D", true, string_contains("D", result));
+      check(bool, "no B", false, string_contains("| B", result));
+    }),
+    /* is_case_arm */
+    test_case("is_case_arm true for arm body", `Quick, () => {
+      let z = mk_zipper(simple_case);
+      let body_id = find_arm_body_id_in_zipper(z, 0);
+      check(bool, "is case arm", true, TermEdit.is_case_arm(z, body_id));
+    }),
+    test_case("is_case_arm false for non-arm", `Quick, () => {
+      let z = mk_zipper("let x = 1 in x");
+      let term = MakeTerm.from_zip_for_sem(z).term;
+      let id = Exp.rep_id(term);
+      check(bool, "not case arm", false, TermEdit.is_case_arm(z, id));
+    }),
+    /* Case arm in let binding */
+    test_case("delete arm in let binding", `Quick, () => {
+      let result = case_arm_edit(case_in_let, 1, (z, id) =>
+        TermEdit.case_delete_arm(z, id));
+      check(bool, "no None", false, string_contains("None", result));
+      check(bool, "has Some", true, string_contains("Some", result));
+    }),
+    test_case("insert arm in let binding", `Quick, () => {
+      let result = case_arm_edit(case_in_let, 1, (z, id) =>
+        TermEdit.case_insert_arm(z, id, "Err(e) => 0 - 1", Direction.Right));
+      check(bool, "has Err", true, string_contains("Err", result));
+    }),
+    /* parse_case_arm directly */
+    test_case("parse_case_arm simple", `Quick, () => {
+      switch (TermEdit.parse_case_arm("Foo => 42")) {
+      | Some(_) => ()
+      | None => Alcotest.fail("Failed to parse case arm")
+      }
+    }),
+    test_case("parse_case_arm with pipe", `Quick, () => {
+      switch (TermEdit.parse_case_arm("| Bar(x) => x + 1")) {
+      | Some(_) => ()
+      | None => Alcotest.fail("Failed to parse case arm with pipe")
+      }
+    }),
+    /* Case arms in HighLevelNodeMap */
+    test_case("case arms appear in node map", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 | C => 3 end in f";
+      let node_map = build_node_map(case_code);
+      /* Arms should be children of f, named |A, |B, |C */
+      check(bool, "|A exists",  true, HighLevelNodeMap.path_to_id_opt(node_map, "f/|A") != None);
+      check(bool, "|B exists",  true, HighLevelNodeMap.path_to_id_opt(node_map, "f/|B") != None);
+      check(bool, "|C exists",  true, HighLevelNodeMap.path_to_id_opt(node_map, "f/|C") != None);
+    }),
+    test_case("case arm path resolves correctly", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in f";
+      let result = run_read_action(case_code, GetSyntax("f/|A"));
+      check_rendered("arm A body", "1", result);
+    }),
+    test_case("case arm path resolves B", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in f";
+      let result = run_read_action(case_code, GetSyntax("f/|B"));
+      check_rendered("arm B body", "2", result);
+    }),
+    /* Case arm edit via dispatch */
+    test_case("update case arm body via dispatch", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in f";
+      let result = apply_and_render(case_code, Update(Body, "f/|A", "100"));
+      check(bool, "has 100", true, string_contains("100", result));
+      check(bool, "still has B", true, string_contains("B", result));
+    }),
+    test_case("update case arm pattern via dispatch", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in f";
+      let result = apply_and_render(case_code, Update(Pattern, "f/|B", "C"));
+      check(bool, "has C", true, string_contains("C", result));
+      check(bool, "no B arm", false, string_contains("| B", result));
+    }),
+    test_case("delete case arm via dispatch", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 | C => 3 end in f";
+      let result = apply_and_render(case_code, Delete(BindingClause, "f/|B"));
+      check(bool, "no B", false, string_contains("B", result));
+      check(bool, "has A", true, string_contains("A", result));
+      check(bool, "has C", true, string_contains("C", result));
+    }),
+    test_case("insert case arm via dispatch", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in f";
+      let result = apply_and_render(case_code, Insert(After, "f/|B", "C => 3"));
+      check(bool, "has C", true, string_contains("C", result));
+      check(bool, "has 3", true, string_contains("3", result));
+    }),
+    test_case("insert case arm before via dispatch", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in f";
+      let result = apply_and_render(case_code, Insert(Before, "f/|A", "Z => 0"));
+      check(bool, "has Z", true, string_contains("Z", result));
+    }),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -1307,4 +1502,5 @@ let tests = [
   selector_tests,
   completeness_tests,
   complex_program_tests,
+  case_arm_tests,
 ];
