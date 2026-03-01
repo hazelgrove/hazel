@@ -103,9 +103,9 @@
   - [x] Focus-before-keyword: `* let x`, `* fun _ -> *`
   - [x] Root-anchored selectors with `\...` for explicit descend
   - [x] Generic `walk_seq_spine` unifies list and tuple matching
-  - [ ] Section 9 (selector-driven edits) not wired — edits use HighLevelNodeMap paths only
-  - [ ] `query_unique` exists but not integrated into edit_dispatch
-  - [ ] Selector error diagnostics: partial-match info, similar name suggestions
+  - [x] Section 9 (selector-driven edits) wired — SelectorUpdate/SelectorDelete in edit_dispatch
+  - [x] `query_unique` integrated into edit_dispatch (bypasses HighLevelNodeMap)
+  - [x] Selector error diagnostics: partial-match info, similar name suggestions, Levenshtein
 - [x] **Strategic edit granularity audit**: survey what precise edits agents/programmers need
   - Implemented: whole definition/body/pattern/type-annotation/binding-clause
   - Implemented: case arms, list elements, tuple elements (labeled + positional)
@@ -547,7 +547,7 @@ The dynamic cursor state already lives in the editor and is dispatched via
 
 ### 7.4 Not yet tested
 - [ ] Shadowed name disambiguation
-- [ ] Selector-driven edits (when implemented)
+- [x] Selector-driven edits: SelectorUpdate, SelectorDelete, SelectorInsertBefore, SelectorInsertAfter
 - [ ] GetDynamics (when implemented)
 
 ---
@@ -572,19 +572,30 @@ Select read action wired through Agent.re.
 ### Next phases
 
 **Convergence & cleanup** (current):
-- [ ] Wire selectors to edit actions (`query_unique` → TermEdit splice)
-  - Add `SelectorUpdate(selector, code)` and `SelectorDelete(selector)` to `Action.Structural.t`
+- [x] Wire selectors to edit actions (`query_unique` → TermEdit splice)
+  - Added `SelectorUpdate(selector, code)` and `SelectorDelete(selector)` to `Action.Structural.t`
   - Coexists with existing target-based actions (alternative, not replacement)
-  - Use `Selector.query_unique` for single-match resolution → TermEdit splice at focused ID
-- [ ] Selector error diagnostics: when selectors don't resolve, provide:
-  - What part of the selector matched before failing (partial match breadcrumbs)
-  - Similar name suggestions (Levenshtein distance on binder names)
-  - Surface diagnostics in Action Explorer UI result display
-- [ ] Evaluate `target` vs selector unification (see to-do above)
-- [ ] Ensure HighLevelNodeMap and Selector produce consistent results
+  - Uses `Selector.query_unique` for single-match resolution → TermEdit splice at focused ID
+- [x] Selector error diagnostics: partial match info + name suggestions
+  - `diagnose_no_match`: reports how far the selector matched, which step failed
+  - `suggest_similar_names`: Levenshtein distance on binder names (threshold 2)
+  - `collect_binder_names`: lists available names at failure point
+- [x] Evaluate `target` vs selector unification (analysis below)
+- [x] SelectorInsertBefore/After with module item bridging
 - [ ] Add disambiguation annotations for shadowed names
 - [ ] Clean up dead segment-level code in CompositionGo
-- [ ] Improve dispatch error reporting (see to-do above)
+
+**Target vs Selector unification analysis:**
+Every `target` variant maps to a selector pattern:
+- `Update(Definition, "x", code)` → `SelectorUpdate("let x = *", code)`
+- `Update(Body, "x", code)` → `SelectorUpdate("let x _... in *", code)`
+- `Update(BindingClause, "x", code)` → `SelectorUpdate("* let x", code)`
+- `Insert(After, "x", code)` → `SelectorInsertAfter("* let x", code)`
+
+Selectors are strictly more expressive (arbitrary depth, pattern matching, wildcard).
+The path+target system provides a discoverable tree structure (useful for tooling).
+Recommendation: keep both, let selectors gradually replace path-based edits as the
+primary interface. The path system remains as a structured index for navigation/listing.
 
 **Dynamics & annotated views** (future):
 - [ ] Wire `Sample.Cursor.t` to agent tools (capture, pin, step-into)
@@ -597,8 +608,8 @@ Select read action wired through Agent.re.
   - Fixed: `| _ => *` matches all arm bodies, `| _... Foo => *` skips to arm Foo
   - Principle: every spine walker (let, if, case/pipe, list, tuple, fun, test, module)
     should handle MatchSlot, MatchEllipsis, and MatchFocus consistently
-- [ ] Audit all spine walkers for missing MatchSlot/MatchEllipsis/MatchFocus handling
-- [ ] Consider refactoring pipe arms to use `walk_seq_spine`-like generic pattern
+- [x] Audit all spine walkers: all now have MatchSlot/MatchEllipsis/MatchFocus
+- [ ] Consider spine-schema unification (medium-term, see compositionality analysis)
 
 **Compositional queries** (future):
 - [ ] Multi-match edits (`UpdateAll`)

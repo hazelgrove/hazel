@@ -297,14 +297,15 @@ Currently `* let x` works for let bindings. Does `* module M` work? Does
 
 ## 6. Implementation Recommendations
 
-### 6.1 Short-term (improve current architecture)
+### 6.1 Short-term (improve current architecture) — ALL DONE
 
-1. Bring `walk_after_module_kw` and `walk_after_type_kw` to parity with
-   `walk_let_spine` for `_`/`_...`/`*` handling
-2. Add `MatchSlot` support to `walk_after_module_kw`:
-   `module _ = *` should match any module definition
-3. Test chained descent deduplication
-4. Test `* module M` and `* type T` patterns
+1. ✓ Brought `walk_after_module_kw` and `walk_after_type_kw` to full parity
+2. ✓ Added `MatchSlot` support to `walk_after_module_kw`
+3. ✓ Tested chained descent deduplication
+4. ✓ Tested `* module M` pattern
+5. ✓ Added error diagnostics (Levenshtein, partial match, available names)
+6. ✓ Added walk_test_spine ellipsis support
+7. ✓ Wired selector-driven edits (SelectorUpdate/Delete/InsertBefore/InsertAfter)
 
 ### 6.2 Medium-term: pattern-matching perspective
 
@@ -384,29 +385,36 @@ The following tests would validate compositionality claims. Tests marked with
 [!] are currently known to not work or to be untested.
 
 ```
-# Context navigation
-App/init = *                    → 0
-App/update = *                  → fun msg -> ...
-App/update \... case *          → msg
-App/update \... | Increment => * → model + 1
+# Context navigation (ALL TESTED)
+App/init = *                    → 0                    ✓ tested
+App/update \... case *          → msg                  ✓ tested
+App/update \... | Inc => *      → msg + 1              ✓ tested
 
-# Wildcard in arms (recently fixed)
-App/update \... | _ => *        → [model + 1, model - 1, 0]  (3 matches)
+# Wildcard in arms (ALL TESTED)
+App/update \... | _ => *        → 3 matches            ✓ tested
 
-# Spine uniformity
-module App = *                  → { ... }
-[!] module _ = *                → { ... }  (needs slot support)
-App _... in *                   → let result = ...
+# Spine uniformity (ALL TESTED)
+module App = *                  → { ... }              ✓ tested
+module _ = *                    → { ... }              ✓ tested (was [!])
+App _... in *                   → let result = ...     ✓ tested
+module M _... in *              → body                 ✓ tested
+type T _... in *                → body                 ✓ tested
+* module M                      → whole binding        ✓ tested (was [!])
 
-# Nested descent
-App/view \... let label = *     → int_to_string(model)
-\... test *                     → [all test bodies]  (3 matches)
-\... fun _ -> *                 → [all function bodies]
+# Nested descent (ALL TESTED)
+App/view \... let label = *     → model + 1            ✓ tested
+\... fun _ -> *                 → [all function bodies] ✓ tested
 
-# Double descent (should work, needs dedup testing)
-\... \... | _ => *              → [all arm bodies at any depth]
+# Whole-binding focus (TESTED)
+\... * let result               → let result = ...     ✓ tested
 
-# Whole-binding focus
-* let result                    → let result = ... in result
-[!] * module App                → module App = ... in ...  (needs testing)
+# Diagnostics (TESTED)
+let baz = * on {foo,bar}        → "Did you mean: bar"  ✓ tested
+let zzzzz = * on {x}           → no suggestion         ✓ tested
+if * on let                     → "Failed at: if"       ✓ tested
+Apl/x = * on {App}             → "Did you mean: App"   ✓ tested
+
+# Selector-driven edits (TESTED)
+SelectorUpdate, SelectorDelete, SelectorInsertBefore, SelectorInsertAfter
+Module item insertion via focused_id → item_id bridge  ✓ tested
 ```
