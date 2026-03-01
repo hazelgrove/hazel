@@ -1744,6 +1744,42 @@ let selector_tests = (
       check(bool, "lists available in module", true,
         str_contains(result, "x") && str_contains(result, "y"));
     }),
+    /* === Double descent === */
+    /* \... \... | _ => * : find all arm bodies at any depth */
+    test_case("double descent: all arms", `Quick, () => {
+      let code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in "
+        ++ "let g = fun y -> case y | C => 3 | D => 4 end in "
+        ++ "f(g(0))";
+      let results = selector_query(code, "\\... \\... | _ => *");
+      /* Should find arms from both case expressions: 1,2 from f, 3,4 from g */
+      check(bool, "at least 4 arms", true, List.length(results) >= 4);
+    }),
+    /* Descend + chain + spine: complex composition */
+    test_case("chain + descend + if else + focus", `Quick, () => {
+      let code =
+        "module M = { "
+        ++ "let f = fun x -> if x > 0 then x + 1 else x - 1 "
+        ++ "} in M.f(5)";
+      let result = selector_query_unique(code, "M/f \\... if _... else *");
+      check(string, "else branch", "x - 1", result);
+    }),
+    /* InsertAfter via selector + verify result via selector query */
+    test_case("selector roundtrip: insert then query", `Quick, () => {
+      let code = "let x = 1 in x + 1";
+      switch (run_agent_action(code, SelectorInsertAfter("* let x", "let y = 2"))) {
+      | Ok(new_z) =>
+        let new_term = MakeTerm.from_zip_for_sem(new_z).term;
+        /* Verify the inserted binding exists */
+        let y_results = Selector.query("let y = *", new_term);
+        check(int, "y binding found", 1, List.length(y_results));
+        /* Verify original still exists */
+        let x_results = Selector.query("let x = *", new_term);
+        check(int, "x binding still there", 1, List.length(x_results));
+      | Error(err) =>
+        Alcotest.fail("Insert failed: " ++ Action.Failure.show(err))
+      }
+    }),
   ],
 );
 
