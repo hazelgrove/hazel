@@ -1185,6 +1185,27 @@ let selector_tests = (
     /* Case/match spine */
     sel_test(~name="case *", ~code=case_program, ~sel="case *", ~expected="x"),
     sel_test(~name="| B => *", ~code=case_program, ~sel="| B => *", ~expected="2"),
+    /* Wildcard arm matching: | _ => * matches any single arm body */
+    test_case(
+      "| _ => * matches all arm bodies",
+      `Quick,
+      () => {
+        let results = selector_query(case_program, "| _ => *");
+        check(int, "match count", 2, List.length(results));
+      },
+    ),
+    sel_test(~name="| _ => * (3 arms)", ~code="case x | A => 1 | B => 2 | C => 3 end", ~sel="case _... | C => *", ~expected="3"),
+    /* Wildcard arm with continuation: | _ => <walk> */
+    test_case(
+      "\\... | _ => * returns all arm bodies via descend",
+      `Quick,
+      () => {
+        let results = selector_query("let f = fun x -> case x | A => 1 | B => 2 end in f 0", "\\... | _ => *");
+        check(int, "match count", 2, List.length(results));
+      },
+    ),
+    /* Ellipsis in arms: | _... <name> => * */
+    sel_test(~name="| _... Decrement => *", ~code=case_msg, ~sel="| _... Decrement => *", ~expected="count - 1"),
     /* No match */
     test_case(
       "no match returns error",

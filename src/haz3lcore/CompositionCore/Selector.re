@@ -783,6 +783,50 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
            };
          })
 
+    /* | _ => * : wildcard, match any single arm body */
+    | [MatchSlot, MatchDelimiter("=>"), MatchFocus] =>
+      rules
+      |> List.map(((pat, body)) => {
+           let name =
+             switch (pat_name(pat)) {
+             | Some(n) => n
+             | None => "_"
+             };
+           {
+             focused: body,
+             focused_id: Exp.rep_id(body),
+             breadcrumb: "| " ++ name ++ " => ...",
+           };
+         })
+
+    /* | _ => <more steps> : wildcard, continue into each arm body */
+    | [MatchSlot, MatchDelimiter("=>"), ...rest] =>
+      rules |> List.concat_map(((_pat, body)) => walk(rest, body))
+
+    /* | _... <more> : skip zero or more arms, try rest at each position */
+    | [MatchEllipsis, ...rest] =>
+      let rec try_from = (remaining_rules) =>
+        switch (remaining_rules) {
+        | [] => []
+        | [_, ...tail] =>
+          let here = walk_pipe_in_rules(remaining_rules, rest);
+          here @ try_from(tail);
+        };
+      let all = try_from(rules);
+      /* Deduplicate by focused_id (ellipsis can reach same arm from
+         multiple starting positions) */
+      let seen = Hashtbl.create(List.length(all));
+      List.filter(
+        ({focused_id, _}) =>
+          if (Hashtbl.mem(seen, focused_id)) {
+            false;
+          } else {
+            Hashtbl.add(seen, focused_id, ());
+            true;
+          },
+        all,
+      )
+
     | _ => []
     }
 

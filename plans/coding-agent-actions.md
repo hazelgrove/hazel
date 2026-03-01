@@ -591,6 +591,15 @@ Select read action wired through Agent.re.
 - [ ] `GetDynamics(path)` — return probe values at path
 - [ ] Annotated views (syntax + statics, syntax + dynamics)
 
+**Selector compositionality** (architectural principle):
+- [x] `_` (MatchSlot) and `_...` (MatchEllipsis) must work uniformly in ALL spine contexts
+  - Previously `walk_pipe_in_rules` only handled `MatchName(name)` — `| _ => *` didn't work
+  - Fixed: `| _ => *` matches all arm bodies, `| _... Foo => *` skips to arm Foo
+  - Principle: every spine walker (let, if, case/pipe, list, tuple, fun, test, module)
+    should handle MatchSlot, MatchEllipsis, and MatchFocus consistently
+- [ ] Audit all spine walkers for missing MatchSlot/MatchEllipsis/MatchFocus handling
+- [ ] Consider refactoring pipe arms to use `walk_seq_spine`-like generic pattern
+
 **Compositional queries** (future):
 - [ ] Multi-match edits (`UpdateAll`)
 - [ ] Collapsed/expanded view composition
