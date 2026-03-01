@@ -117,6 +117,25 @@ let expect_composition_failure =
   };
 };
 
+/* Check that an edit succeeds but produces a warning */
+let expect_warning =
+    (code: string, a: Action.Structural.t, name: string) => {
+  switch (run_agent_action(code, a)) {
+  | Ok(_) =>
+    switch (CompositionGo.Public.last_warning^) {
+    | Some(_) => () /* Warning produced, as expected */
+    | None => Alcotest.fail("Expected warning but got none: " ++ name)
+    }
+  | Error(err) =>
+    Alcotest.fail(
+      "Expected success with warning for "
+      ++ name
+      ++ ", but got error: "
+      ++ Action.Failure.show(err),
+    )
+  };
+};
+
 /* Concise test helper for edit actions */
 let edit_test = (name, code, action, expected) =>
   test_case(name, `Quick, () =>
@@ -620,20 +639,32 @@ let edge_case_tests = (
       "let a = 1 in let b = 2 in let c = 3 in a + b + c",
       Update(Definition, "b", "a * 10"),
       "let a = 1 in let b = a * 10 in let c = 3 in a + b + c"),
-    test_case("type error rejected", `Quick, () =>
-      expect_composition_failure(
+    test_case("type error warned", `Quick, () =>
+      expect_warning(
         "let a : Int = 1 in a + 1",
         Update(Definition, "a", "true"), "type error")
     ),
+    /* Multi-step refactoring: changing a type alias cascades type errors
+       to dependents. Previously this was rejected; now it succeeds with
+       a warning so the agent can fix dependents in a follow-up edit. */
+    test_case("type alias cascade warned", `Quick, () =>
+      expect_warning(
+        "type T = Int in let x : T = 5 in x",
+        Update(Definition, "T", "Bool"), "type alias cascade")
+    ),
+    edit_test("type alias cascade code correct",
+      "type T = Int in let x : T = 5 in x",
+      Update(Definition, "T", "Bool"),
+      "type T = Bool in let x : T = 5 in x"),
     test_case("unmatched delimiter", `Quick, () =>
       expect_composition_failure(
         "let a = 1 in a",
         Update(Definition, "a", "if true then 1"), "parse error")
     ),
-    test_case("invalid token", `Quick, () =>
-      expect_composition_failure(
+    test_case("invalid token warned", `Quick, () =>
+      expect_warning(
         "let a = 1 in let b = 2 in a + b",
-        Insert(After, "a", "let c = $invalid"), "parse error")
+        Insert(After, "a", "let c = $invalid"), "invalid token")
     ),
     edit_test("$ path edit",
       "let a = 1 in let b = 2 in let c = 3 in a + b + c",

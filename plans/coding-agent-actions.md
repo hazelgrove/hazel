@@ -40,25 +40,37 @@
   - 68 tests pass (45 AgentTools + 23 supporting)
 - [x] Clean up dead segment-level code (overwrite_term, insert_term, destruct, statics_map_new_ids, format_ctx_entry)
 - [ ] Improve parse_error_check messages: line numbers, syntax excerpts (thread Measured.t + TermData.t)
-- [ ] Add completeness_check: track EmptyHoles (grout vs explicit `?`, distinguished at segment level)
+- [x] Add completeness_check: track EmptyHoles via GetCompleteness read action
 - [ ] Copy whitespace from neighboring items for TermEdit insertions (instead of hardcoded space)
 - [ ] Re-evaluate error gating strategy: currently too conservative for multi-step refactoring (see notes-for-andrew.md §6)
   - Consider compositional gating (batch actions, force flag, warnings instead of rejection)
   - Type alias changes that cascade should be possible via multi-step edits
 - [ ] Generalize pattern actions: split Update(Pattern) into "replace whole pattern" + separate "RenameVariable" action
-- [ ] Add more complex test programs (inspired by study/debugging programs: sum types, records, tests, case dispatch)
-- [ ] **Path selector language** (see `plans/Hazel-Agent-Path-Selector-Language.md`)
-  - Concise surface-oriented selector language for addressing Hazel syntax
-  - Core operators: `_` (slot), `_...` (spine ellipsis), `⋱` (descendant search), `*` (focus)
-  - Binder-chain sugar `A/B/C` (replaces current `/`-separated path system)
-  - Form-slot patterns: `if _ then *`, `let x = *`, `case ... | Pat => *`
-  - Two modes: query (0..N matches) vs edit (exactly 1 match required)
-  - Implementation plan:
-    - [ ] Parse concrete selector syntax into AST
-    - [ ] Implement resolver against Hazel term tree
-    - [ ] Start with read actions (GetSyntax via selector) — heavily unit-tested
-    - [ ] Incrementally extend to edit actions (replacing current path system)
-  - This subsumes the current binder-chain paths and adds sub-expression addressing
+- [x] Add more complex test programs (sum types, records, case dispatch, selectors)
+- [x] **Path selector language** (see `plans/Hazel-Agent-Path-Selector-Language.md`)
+  - [x] Parse concrete selector syntax into AST
+  - [x] Implement resolver against Hazel term tree
+  - [x] Start with read actions (Select via selector) — heavily unit-tested
+  - [ ] Incrementally extend to edit actions (replacing current path system)
+- [ ] **Case arm editing**: insert/remove/update individual case arms
+  - Selector language can already READ arms (e.g., `| Foo => *`)
+  - HighLevelNodeMap doesn't create addressable nodes for individual arms
+  - TermEdit has no arm manipulation operations
+  - Implementation: similar to module item operations
+    - [ ] Add case arm TermEdit helpers (insert_arm, delete_arm, update_arm_body, update_arm_pattern)
+    - [ ] Address arms via selector-based edits or indexed paths
+    - [ ] Add tests for case arm manipulation
+- [ ] **List/tuple element editing**: insert/remove/update individual elements
+  - Elements extracted as children but not individually addressable by index
+  - No TermEdit operations for element manipulation
+  - Implementation:
+    - [ ] Add list/tuple element TermEdit helpers
+    - [ ] Selector language support for indexed elements
+    - [ ] Tests for element manipulation
+- [ ] **Strategic edit granularity audit**: survey what precise edits agents/programmers need
+  - Current: whole definition/body/pattern/type-annotation/binding-clause
+  - Missing: case arms, list/tuple elements, function parameters, record fields
+  - Goal: identify the minimal set of granular edit operations for expressive intent
 
 ### Known compromises & issues in the TermEdit approach
 

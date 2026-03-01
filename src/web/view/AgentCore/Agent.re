@@ -1752,9 +1752,16 @@ module Agent = {
                 ++ " tool call encountered an error."
               };
             | _ =>
-              "The "
-              ++ tool_call.name
-              ++ " tool call was successful and has been applied to the model."
+              let base_msg =
+                "The "
+                ++ tool_call.name
+                ++ " tool call was successful and has been applied to the model.";
+              switch (CompositionGo.Public.last_warning^) {
+              | Some(warning) =>
+                CompositionGo.Public.last_warning := None;
+                base_msg ++ "\n" ++ warning;
+              | None => base_msg
+              };
             };
           let (before_segment, after_segment) =
             mk_segment_snapshots(

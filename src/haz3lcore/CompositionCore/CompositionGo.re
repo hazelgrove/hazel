@@ -226,7 +226,11 @@ module Local = {
       (exp_holes^, pat_holes^, typ_holes^);
     };
 
-    let static_error_check =
+    /* Compute a static error warning for an edit. Returns Some(warning)
+       if the edit introduces new errors, None otherwise. This is purely
+       informational — it does NOT block the edit. The agent can use
+       get_statics to investigate and fix any errors. */
+    let static_error_warning =
         (
           ~edit_action: Action.Structural.t,
           ~initial_node: option(node),
@@ -235,14 +239,6 @@ module Local = {
           ~new_info_map: Id.Map.t(Info.t),
         )
         : option(string) => {
-      /*
-       A localized static error check to ensure that newly inserted segments do not introduce any errors.
-
-       This is a localized check, as obligations occuring elsewhere in the program are inevitable for
-       many types of edits.
-
-       of_pat, of_def, and of_body are used to specify which parts of the program to check for errors.
-       */
       let (of_pat, of_def, of_body) =
         edit_action_to_static_error_scrutiny(~edit_action);
       let initial_errors =
@@ -270,17 +266,19 @@ module Local = {
       let new_errors = ErrorPrint.all(new_subtree);
       if (List.length(new_errors) > List.length(initial_errors)) {
         Some(
-          "Not applying the action you requested as it would have the following static error(s): "
-          ++ String.concat(", ", new_errors),
+          "Warning: this edit introduced new static error(s): "
+          ++ String.concat(", ", new_errors)
+          ++ ". Use get_statics to investigate.",
         );
       } else {
         None;
       };
     };
 
-    /* Combined check: parse errors first (unmatched delimiters), then
-       static errors (type mismatches, scope errors). Returns Error if
-       either check fails. validate_edit_full returns intermediate results
+    /* Combined check: parse errors are hard failures (unmatched delimiters,
+       invalid tokens). Static errors produce warnings but do NOT block the
+       edit, allowing multi-step refactoring where intermediate states have
+       type errors. validate_edit_full returns intermediate results
        (info_map, node_map) for callers that need them (e.g. Pattern rename). */
     let validate_edit_full =
         (
@@ -291,7 +289,7 @@ module Local = {
           ~mk_statics: Zipper.t => StaticsBase.Map.t,
         )
         : result(
-            (Zipper.t, Id.Map.t(Info.t), node_map),
+            (Zipper.t, Id.Map.t(Info.t), node_map, option(string)),
             Action.Failure.t,
           ) => {
       switch (parse_error_check(new_z)) {
@@ -302,18 +300,15 @@ module Local = {
         switch (build(new_z, new_info_map)) {
         | None => Error(Action.Failure.Cant_derive_local_AST_information)
         | Some(new_node_map) =>
-          switch (
-            static_error_check(
+          let warning =
+            static_error_warning(
               ~edit_action,
               ~initial_node,
               ~initial_info_map,
               ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
               ~new_info_map,
-            )
-          ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
-          | None => Ok((new_z, new_info_map, new_node_map))
-          }
+            );
+          Ok((new_z, new_info_map, new_node_map, warning));
         };
       };
     };
@@ -326,7 +321,7 @@ module Local = {
           ~new_z: Zipper.t,
           ~mk_statics: Zipper.t => StaticsBase.Map.t,
         )
-        : result(Zipper.t, Action.Failure.t) =>
+        : result((Zipper.t, option(string)), Action.Failure.t) =>
       switch (
         validate_edit_full(
           ~edit_action,
@@ -336,7 +331,7 @@ module Local = {
           ~mk_statics,
         )
       ) {
-      | Ok((z, _, _)) => Ok(z)
+      | Ok((z, _, _, warning)) => Ok((z, warning))
       | Error(e) => Error(e)
       };
 
@@ -372,7 +367,8 @@ module Local = {
            (Action.Failure.t, option(Zipper.t)) =>
            result(Zipper.t, Action.Failure.t),
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
-      ) => {
+      )
+      : result((Zipper.t, option(string)), Action.Failure.t) => {
     switch (e) {
     | Update(Definition, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
@@ -515,16 +511,17 @@ module Local = {
           let new_info_map = mk_statics(new_z);
           let old_errors = ErrorPrint.all(initial_info_map);
           let new_errors = ErrorPrint.all(new_info_map);
-          if (List.length(new_errors) > List.length(old_errors)) {
-            Error(
-              Action.Failure.Composition_action_failure(
-                "Not applying the action you requested as it would introduce new static error(s): "
-                ++ String.concat(", ", new_errors),
-              ),
-            );
-          } else {
-            Ok(new_z);
-          };
+          let warning =
+            if (List.length(new_errors) > List.length(old_errors)) {
+              Some(
+                "Warning: this edit introduced new static error(s): "
+                ++ String.concat(", ", new_errors)
+                ++ ". Use get_statics to investigate.",
+              );
+            } else {
+              None;
+            };
+          Ok((new_z, warning));
         }
       | None =>
         Error(
@@ -554,16 +551,17 @@ module Local = {
           let new_info_map = mk_statics(new_z);
           let old_errors = ErrorPrint.all(initial_info_map);
           let new_errors = ErrorPrint.all(new_info_map);
-          if (List.length(new_errors) > List.length(old_errors)) {
-            Error(
-              Action.Failure.Composition_action_failure(
-                "Not applying the action you requested as it would introduce new static error(s): "
-                ++ String.concat(", ", new_errors),
-              ),
-            );
-          } else {
-            Ok(new_z);
-          };
+          let warning =
+            if (List.length(new_errors) > List.length(old_errors)) {
+              Some(
+                "Warning: this edit introduced new static error(s): "
+                ++ String.concat(", ", new_errors)
+                ++ ". Use get_statics to investigate.",
+              );
+            } else {
+              None;
+            };
+          Ok((new_z, warning));
         }
       | None =>
         Error(
@@ -581,7 +579,7 @@ module Local = {
           TermEdit.delete_binding(initial_z, target_id);
         };
       switch (term_edit_result) {
-      | Some(new_z) => Ok(new_z)
+      | Some(new_z) => Ok((new_z, None))
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
@@ -593,7 +591,7 @@ module Local = {
       let node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, node);
       switch (TermEdit.delete_body(initial_z, target_id)) {
-      | Some(new_z) => Ok(new_z)
+      | Some(new_z) => Ok((new_z, None))
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
@@ -842,7 +840,8 @@ module Local = {
         return:
           (Action.Failure.t, option(Zipper.t)) =>
           result(Zipper.t, Action.Failure.t),
-      ) => {
+      )
+      : result((Zipper.t, option(string)), Action.Failure.t) => {
     let initial_info_map = mk_statics(z);
     switch (build(z, initial_info_map)) {
     | None => Error(Action.Failure.Cant_derive_local_AST_information)
@@ -869,11 +868,11 @@ module Local = {
            (Action.Failure.t, option(Zipper.t)) =>
            result(Zipper.t, Action.Failure.t),
       )
-      : result(Zipper.t, Action.Failure.t) => {
+      : result((Zipper.t, option(string)), Action.Failure.t) => {
     let res =
       try(
         switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
-        | Ok(new_z) => Ok(Dump.to_zipper(new_z))
+        | Ok((new_z, warning)) => Ok((Dump.to_zipper(new_z), warning))
         | Error(e) => Error(e)
         }
       ) {
@@ -893,7 +892,31 @@ module Public = {
         MakeTerm.from_zip_for_sem(z).term,
       )
     );
-  let go = Local.go(~mk_statics);
+
+  /* Stores the warning from the most recent structural edit.
+     Set by go(), read by Agent.re to include in success messages.
+     Cleared on each call to go(). */
+  let last_warning: ref(option(string)) = ref(None);
+
+  let go =
+      (
+        ~syntax: CachedSyntax.t,
+        ~z: Zipper.t,
+        ~a: Action.Structural.t,
+        ~return:
+           (Action.Failure.t, option(Zipper.t)) =>
+           result(Zipper.t, Action.Failure.t),
+      ) => {
+    last_warning := None;
+    let result = Local.go(~mk_statics, ~syntax, ~z, ~a, ~return);
+    switch (result) {
+    | Ok((z, warning)) =>
+      last_warning := warning;
+      Ok((z, warning));
+    | Error(_) => result
+    };
+  };
+
   let read_dispatch =
       (
         ~action: CompositionActions.read_action,
