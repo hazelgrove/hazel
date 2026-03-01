@@ -158,10 +158,8 @@ let elaborate = (sel: selector): sem_selector => {
 
 /* Helper: get the pattern name from a Pat.t */
 let pat_name = (p: Pat.t): option(string) =>
-  switch (Pat.term_of(p)) {
-  | Var(name) => Some(name)
-  | _ => None
-  };
+  /* Use Pat.is_var which handles Asc/Parens/Projector/TupLabel wrappers */
+  Pat.is_var(p);
 
 /* Helper: get the tpat name from a TPat.t */
 let tpat_name = (tp: TPat.t): option(string) =>

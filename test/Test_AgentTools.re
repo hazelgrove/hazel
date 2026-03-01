@@ -1648,6 +1648,93 @@ let completeness_tests = (
   ],
 );
 
+/* Programs with sum types, records, case dispatch, and functions */
+let sum_type_program =
+  "type Color = Red + Green + Blue in\nlet name_of : Color -> String = fun c ->\n  case c\n  | Red => \"red\"\n  | Green => \"green\"\n  | Blue => \"blue\"\n  end\nin\nname_of(Red)";
+
+let record_program =
+  "let mk_point = fun x -> fun y -> (x=x, y=y) in\nlet dist = fun p -> p.x * p.x + p.y * p.y in\nlet origin = mk_point(0)(0) in\ndist(origin)";
+
+let complex_program_tests = (
+  "AgentTools.ComplexPrograms",
+  [
+    /* Sum type + case: update a case arm body */
+    test_case("update case arm body", `Quick, () => {
+      let result =
+        apply_and_render(
+          sum_type_program,
+          Update(Definition, "name_of", "fun c ->\n  case c\n  | Red => \"RED\"\n  | Green => \"green\"\n  | Blue => \"blue\"\n  end"),
+        );
+      check(bool, "has RED", true, string_contains("RED", result));
+    }),
+    /* Sum type: read statics on annotated function */
+    test_case("statics on sum type function", `Quick, () => {
+      let result = run_read_action(sum_type_program, GetStatics("name_of"));
+      check(bool, "has String", true, string_contains("String", result));
+      check(bool, "has name_of", true, string_contains("name_of", result));
+    }),
+    /* Sum type: context shows constructors */
+    test_case("context has constructors", `Quick, () => {
+      let result = run_read_action(sum_type_program, GetContext("name_of"));
+      check(bool, "has Red", true, string_contains("Red", result));
+      check(bool, "has Green", true, string_contains("Green", result));
+      check(bool, "has Blue", true, string_contains("Blue", result));
+    }),
+    /* Sum type: selector on case arm via pipe */
+    test_case("selector on case arm", `Quick, () => {
+      let result =
+        selector_query_unique(sum_type_program, "name_of = \\_ | Green => *");
+      check_rendered("green arm", "\"green\"", result);
+    }),
+    /* Sum type: completeness */
+    test_case("sum type program is complete", `Quick, () =>
+      expect_completeness(sum_type_program, "Complete: no unfilled holes.")
+    ),
+    /* Record: update definition */
+    test_case("update record function def", `Quick, () => {
+      let result =
+        apply_and_render(
+          record_program,
+          Update(Definition, "origin", "mk_point(1)(1)"),
+        );
+      check(bool, "has 1)(1)", true, string_contains("1)(1)", result));
+    }),
+    /* Record: insert new binding */
+    test_case("insert after record binding", `Quick, () => {
+      let result =
+        apply_and_render(
+          record_program,
+          Insert(After, "dist", "let manhattan = fun p -> p.x + p.y"),
+        );
+      check(bool, "has manhattan", true, string_contains("manhattan", result));
+    }),
+    /* Updating type alias without cascading errors */
+    test_case("update type alias def", `Quick, () => {
+      let result =
+        apply_and_render(
+          "type T = Int in let x = 5 in x",
+          Update(Definition, "T", "Bool"),
+        );
+      check_rendered("type alias change", "type T = Bool in let x = 5 in x", result);
+    }),
+    /* Delete a binding clause */
+    test_case("delete binding in chain", `Quick, () => {
+      let result =
+        apply_and_render(
+          "let a = 1 in let b = 2 in let c = 3 in c",
+          Delete(BindingClause, "b"),
+        );
+      check_rendered("delete b", "let a = 1 in let c = 3 in c", result);
+    }),
+    /* Selector with descendant search into function */
+    test_case("selector descend into function if", `Quick, () => {
+      let code = "let f = fun x -> if x > 0 then x else 0 - x in f(5)";
+      let result = selector_query_unique(code, "let f = \\_ if _... else *");
+      check_rendered("else branch", "0 - x", result);
+    }),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -1661,4 +1748,5 @@ let tests = [
   seq_node_map_tests,
   selector_tests,
   completeness_tests,
+  complex_program_tests,
 ];
