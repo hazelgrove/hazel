@@ -13,7 +13,8 @@ type read_action =
   | GetSyntax(Action.Structural.path) /* Return pretty-printed code at path */
   | GetStatics(Action.Structural.path) /* Return type info at path */
   | GetContext(Action.Structural.path) /* Return in-scope bindings at path */
-  | Select(string); /* Return focused syntax via selector language */
+  | Select(string) /* Return focused syntax via selector language */
+  | GetCompleteness; /* Report unfilled holes in the program */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =

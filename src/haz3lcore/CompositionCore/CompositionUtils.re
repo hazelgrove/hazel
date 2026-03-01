@@ -234,6 +234,7 @@ module Local = {
     | ReadAction(GetStatics(path)) => "get_statics(\"" ++ path ++ "\")"
     | ReadAction(GetContext(path)) => "get_context(\"" ++ path ++ "\")"
     | ReadAction(Select(selector)) => "select(\"" ++ selector ++ "\")"
+    | ReadAction(GetCompleteness) => "get_completeness()"
     | EditorAction(Insert(After, path, code)) =>
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Insert(Before, path, code)) =>

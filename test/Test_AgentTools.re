@@ -1616,6 +1616,38 @@ let selector_tests = (
   ],
 );
 
+/* === Completeness Tests === */
+
+let expect_completeness = (code: string, expected: string) =>
+  check(string, "completeness", expected, run_read_action(code, GetCompleteness));
+
+let completeness_tests = (
+  "AgentTools.Completeness",
+  [
+    test_case("complete program", `Quick, () =>
+      expect_completeness("let x = 42 in x + 1", "Complete: no unfilled holes.")
+    ),
+    test_case("expression hole", `Quick, () =>
+      expect_completeness(
+        "let x = ? in x + 1",
+        "Incomplete: 1 unfilled hole(s) (1 expression).",
+      )
+    ),
+    test_case("type hole", `Quick, () =>
+      expect_completeness(
+        "let x : ? = 42 in x",
+        "Incomplete: 1 unfilled hole(s) (1 type).",
+      )
+    ),
+    test_case("multiple holes", `Quick, () =>
+      expect_completeness(
+        "let x = ? in let y = ? in x + y",
+        "Incomplete: 2 unfilled hole(s) (2 expression).",
+      )
+    ),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -1628,4 +1660,5 @@ let tests = [
   composition_view_print_tests,
   seq_node_map_tests,
   selector_tests,
+  completeness_tests,
 ];

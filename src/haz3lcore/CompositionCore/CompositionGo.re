@@ -184,6 +184,48 @@ module Local = {
       };
     };
 
+    /* Count empty holes in the program. Returns the number of
+       expression, pattern, and type holes. Useful for the agent to
+       know if the program is "complete" (no unfilled holes). */
+    let count_holes = (z: Zipper.t): (int, int, int) => {
+      let term = MakeTerm.from_zip_for_sem(z).term;
+      let exp_holes = ref(0);
+      let pat_holes = ref(0);
+      let typ_holes = ref(0);
+      let _ =
+        Exp.map_term(
+          ~f_exp=
+            (continue, e) => {
+              switch (Exp.term_of(e)) {
+              | EmptyHole =>
+                exp_holes := exp_holes^ + 1;
+                e;
+              | _ => continue(e)
+              };
+            },
+          ~f_pat=
+            (continue, p) => {
+              switch (Pat.term_of(p)) {
+              | EmptyHole =>
+                pat_holes := pat_holes^ + 1;
+                p;
+              | _ => continue(p)
+              };
+            },
+          ~f_typ=
+            (continue, t) => {
+              switch (Typ.term_of(t)) {
+              | Unknown(Hole(EmptyHole)) =>
+                typ_holes := typ_holes^ + 1;
+                t;
+              | _ => continue(t)
+              };
+            },
+          term,
+        );
+      (exp_holes^, pat_holes^, typ_holes^);
+    };
+
     let static_error_check =
         (
           ~edit_action: Action.Structural.t,
@@ -615,6 +657,31 @@ module Local = {
           matches |> List.map(Selector.print_match);
         Ok(String.concat("\n", results));
       };
+    | GetCompleteness =>
+      let (exp_holes, pat_holes, typ_holes) =
+        PerformUtils.count_holes(z);
+      let total = exp_holes + pat_holes + typ_holes;
+      if (total == 0) {
+        Ok("Complete: no unfilled holes.");
+      } else {
+        let parts = ref([]);
+        if (typ_holes > 0) {
+          parts := [string_of_int(typ_holes) ++ " type", ...parts^];
+        };
+        if (pat_holes > 0) {
+          parts := [string_of_int(pat_holes) ++ " pattern", ...parts^];
+        };
+        if (exp_holes > 0) {
+          parts := [string_of_int(exp_holes) ++ " expression", ...parts^];
+        };
+        Ok(
+          "Incomplete: "
+          ++ string_of_int(total)
+          ++ " unfilled hole(s) ("
+          ++ String.concat(", ", parts^)
+          ++ ").",
+        );
+      };
     | _ =>
       switch (build(z, info_map)) {
       | None => Error(Cant_derive_local_AST_information)
@@ -759,7 +826,8 @@ module Local = {
                )
           };
         Ok(result);
-      | Select(_) => assert(false) /* handled above */
+      | Select(_)
+      | GetCompleteness => assert(false) /* handled above */
       }
     }
     };
