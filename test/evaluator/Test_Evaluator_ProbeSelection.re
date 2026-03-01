@@ -438,6 +438,108 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
   ),
 ];
 
+/* --- Tests: intent preservation with nested function calls --- */
+
+/* Helper: mk_cursor with explicit index for intent preservation testing */
+let mk_cursor_at_index =
+    (
+      ~pinned=None,
+      ~indicated_call=None,
+      ~index: int,
+      stack: Sample.call_stack,
+    )
+    : Sample.Cursor.t => {
+  call_stack: stack,
+  index,
+  pinned_stack: pinned,
+  indicated_call,
+  time: None,
+  seq: 0,
+  step_range: None,
+  pending_focus: None,
+};
+
+let intent_preservation_tests = [
+  test_case(
+    "Intent preservation: inner selection preserved when clicking outer probe",
+    `Quick,
+    () => {
+      /* Program: function called 3 times with probe inside.
+       * When user selects inner sample 1, then clicks outer probe
+       * (lowering cursor index), inner probe should still show sample 1. */
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
+in [f(1), f(2), f(3)]|};
+      let inner_samples = get_all_samples(code);
+      check(
+        int,
+        "should have 3 samples (one per call)",
+        3,
+        List.length(inner_samples),
+      );
+      /* All samples should have non-empty call stacks (inside f) */
+      check(
+        bool,
+        "all samples should have depth >= 1",
+        true,
+        List.for_all(
+          (s: Sample.t) => List.length(s.call_stack) >= 1,
+          inner_samples,
+        ),
+      );
+      /* Simulate: user selected inner sample 1, then clicked outer probe.
+       * Cursor has full stack from sample 1 but index lowered to outer level. */
+      let sample_1 = List.nth(inner_samples, 1);
+      let outer_index = max(0, List.length(sample_1.call_stack) - 2);
+      let cursor =
+        mk_cursor_at_index(~index=outer_index, sample_1.call_stack);
+      /* first_related_index with trimmed=true should find sample 1, not 0 */
+      let found_idx =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      check(
+        bool,
+        "should preserve inner selection at index 1 (not reset to 0)",
+        true,
+        found_idx == Some(1),
+      );
+    },
+  ),
+  test_case(
+    "Intent preservation: arrow navigation from preserved position",
+    `Quick,
+    () => {
+      /* Same setup: verify that arrow navigation starts from the
+       * preserved position, not from 0. */
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
+in [f(10), f(20), f(30)]|};
+      let inner_samples = get_all_samples(code);
+      check(int, "should have 3 samples", 3, List.length(inner_samples));
+      /* Select sample 2, lower index to outer level */
+      let sample_2 = List.nth(inner_samples, 2);
+      let outer_index = max(0, List.length(sample_2.call_stack) - 2);
+      let cursor =
+        mk_cursor_at_index(~index=outer_index, sample_2.call_stack);
+      let cursor_idx =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      check(
+        bool,
+        "cursor should be at preserved position (index 2)",
+        true,
+        cursor_idx == Some(2),
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -446,5 +548,6 @@ let tests = (
     pin_integration_tests,
     relation_integration_tests,
     mode_tests,
+    intent_preservation_tests,
   ]),
 );
