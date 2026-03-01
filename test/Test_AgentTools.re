@@ -117,6 +117,11 @@ let expect_composition_failure =
   };
 };
 
+/* Concise test helper for edit actions */
+let edit_test = (name, code, action, expected) =>
+  test_case(name, `Quick, () =>
+    check_rendered(name, expected, apply_and_render(code, action))
+  );
 
 let edit_action_tests = (
   "AgentTools.EditActions",
@@ -139,139 +144,33 @@ let edit_action_tests = (
         )
       }
     }),
-    test_case(
-      "update_definition replaces def",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render("let a = 1 in a", Update(Definition, "a", "2"));
-        check_rendered("update_definition", "let a = 2 in a", result);
-      },
-    ),
-    test_case(
-      "update_body replaces body",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Update(Body, "b", "b + 1"),
-          );
-        check_rendered(
-          "update_body",
-          "let a = 1 in let b = 2 in b + 1",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "update_pattern renames uses",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = a + 1 in b + a",
-            Update(Pattern, "a", "x"),
-          );
-        check_rendered(
-          "update_pattern",
-          "let x = 1 in let b = x + 1 in b + x",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "update_pattern renames in let def",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let x = 3 in let y = x in y",
-            Update(Pattern, "x", "z"),
-          );
-        check_rendered(
-          "update_pattern_let_def",
-          "let z = 3 in let y = z in y",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "update_binding_clause replaces binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Update(BindingClause, "b", "let b = a + 2 in"),
-          );
-        check_rendered(
-          "update_binding_clause",
-          "let a = 1 in let b = a + 2 in a + b",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "insert_before adds binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Insert(Before, "b", "let x = a in"),
-          );
-        check_rendered(
-          "insert_before",
-          "let a = 1 in let x = a in let b = 2 in a + b",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "insert_after adds binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Insert(After, "a", "let x = a in"),
-          );
-        check_rendered(
-          "insert_after",
-          "let a = 1 in let x = a in let b = 2 in a + b",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "delete_binding_clause removes binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in let c = 3 in a + c",
-            Delete(BindingClause, "b"),
-          );
-        check_rendered(
-          "delete_binding_clause",
-          "let a = 1 in let c = 3 in a + c",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "delete_body replaces body with hole",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Delete(Body, "b"),
-          );
-        check_rendered("delete_body", "let a = 1 in let b = 2 in ?", result);
-      },
-    ),
+    edit_test("update_definition",
+      "let a = 1 in a", Update(Definition, "a", "2"),
+      "let a = 2 in a"),
+    edit_test("update_body",
+      "let a = 1 in let b = 2 in a + b", Update(Body, "b", "b + 1"),
+      "let a = 1 in let b = 2 in b + 1"),
+    edit_test("update_pattern renames uses",
+      "let a = 1 in let b = a + 1 in b + a", Update(Pattern, "a", "x"),
+      "let x = 1 in let b = x + 1 in b + x"),
+    edit_test("update_pattern renames in def",
+      "let x = 3 in let y = x in y", Update(Pattern, "x", "z"),
+      "let z = 3 in let y = z in y"),
+    edit_test("update_binding_clause",
+      "let a = 1 in let b = 2 in a + b", Update(BindingClause, "b", "let b = a + 2 in"),
+      "let a = 1 in let b = a + 2 in a + b"),
+    edit_test("insert_before",
+      "let a = 1 in let b = 2 in a + b", Insert(Before, "b", "let x = a in"),
+      "let a = 1 in let x = a in let b = 2 in a + b"),
+    edit_test("insert_after",
+      "let a = 1 in let b = 2 in a + b", Insert(After, "a", "let x = a in"),
+      "let a = 1 in let x = a in let b = 2 in a + b"),
+    edit_test("delete_binding_clause",
+      "let a = 1 in let b = 2 in let c = 3 in a + c", Delete(BindingClause, "b"),
+      "let a = 1 in let c = 3 in a + c"),
+    edit_test("delete_body",
+      "let a = 1 in let b = 2 in a + b", Delete(Body, "b"),
+      "let a = 1 in let b = 2 in ?"),
   ],
 );
 
@@ -701,133 +600,45 @@ let module_edit_action_tests = (
 let edge_case_tests = (
   "AgentTools.EdgeCases",
   [
-    test_case(
-      "update def in nested let",
-      `Quick,
-      () => {
-        /* a/inner targets inner inside a's definition */
-        let result =
-          apply_and_render(
-            "let a = let inner = 1 in inner in a",
-            Update(Definition, "a/inner", "42"),
-          );
-        check_rendered(
-          "nested def update",
-          "let a = let inner = 42 in inner in a",
-          result,
-        );
-      },
+    edit_test("nested def update",
+      "let a = let inner = 1 in inner in a", Update(Definition, "a/inner", "42"),
+      "let a = let inner = 42 in inner in a"),
+    edit_test("type alias def update",
+      "type T = Int in let x = 1 in x", Update(Definition, "T", "Bool"),
+      "type T = Bool in let x = 1 in x"),
+    test_case("bad path gives error", `Quick, () =>
+      expect_composition_failure(
+        "let a = 1 in let b = 2 in a + b",
+        Update(Definition, "nonexistent", "42"), "bad path")
     ),
-    test_case(
-      "update def with type alias",
-      `Quick,
-      () => {
-        /* Use a program where x doesn't depend on T's definition
-           to avoid type errors when changing T from Int to Bool. */
-        let result =
-          apply_and_render(
-            "type T = Int in let x = 1 in x",
-            Update(Definition, "T", "Bool"),
-          );
-        check_rendered(
-          "type alias def update",
-          "type T = Bool in let x = 1 in x",
-          result,
-        );
-      },
+    test_case("index out of range", `Quick, () =>
+      expect_composition_failure(
+        "let a = 1 in let b = 2 in a + b",
+        Update(Definition, "#99", "42"), "out of range")
     ),
-    test_case(
-      "bad path gives helpful error",
-      `Quick,
-      () => {
-        expect_composition_failure(
-          "let a = 1 in let b = 2 in a + b",
-          Update(Definition, "nonexistent", "42"),
-          "bad path error",
-        );
-      },
+    edit_test("preserves surrounding",
+      "let a = 1 in let b = 2 in let c = 3 in a + b + c",
+      Update(Definition, "b", "a * 10"),
+      "let a = 1 in let b = a * 10 in let c = 3 in a + b + c"),
+    test_case("type error rejected", `Quick, () =>
+      expect_composition_failure(
+        "let a : Int = 1 in a + 1",
+        Update(Definition, "a", "true"), "type error")
     ),
-    test_case(
-      "index out of range gives error",
-      `Quick,
-      () => {
-        expect_composition_failure(
-          "let a = 1 in let b = 2 in a + b",
-          Update(Definition, "#99", "42"),
-          "index out of range",
-        );
-      },
+    test_case("unmatched delimiter", `Quick, () =>
+      expect_composition_failure(
+        "let a = 1 in a",
+        Update(Definition, "a", "if true then 1"), "parse error")
     ),
-    test_case(
-      "update def preserves surrounding structure",
-      `Quick,
-      () => {
-        /* Updating b's def shouldn't affect a or c */
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Update(Definition, "b", "a * 10"),
-          );
-        check_rendered(
-          "preserve surrounding",
-          "let a = 1 in let b = a * 10 in let c = 3 in a + b + c",
-          result,
-        );
-      },
+    test_case("invalid token", `Quick, () =>
+      expect_composition_failure(
+        "let a = 1 in let b = 2 in a + b",
+        Insert(After, "a", "let c = $invalid"), "parse error")
     ),
-    test_case(
-      "update introduces static error is rejected",
-      `Quick,
-      () => {
-        /* Changing def to wrong type should be caught */
-        expect_composition_failure(
-          "let a : Int = 1 in a + 1",
-          Update(Definition, "a", "true"),
-          "type error rejection",
-        );
-      },
-    ),
-    test_case(
-      "unmatched delimiter gives parse error",
-      `Quick,
-      () => {
-        /* Code with unmatched 'if' delimiter should be caught as parse error */
-        expect_composition_failure(
-          "let a = 1 in a",
-          Update(Definition, "a", "if true then 1"),
-          "parse error detection",
-        );
-      },
-    ),
-    test_case(
-      "invalid token in code gives parse error",
-      `Quick,
-      () => {
-        /* Inserting code that produces an Invalid token should be caught */
-        expect_composition_failure(
-          "let a = 1 in let b = 2 in a + b",
-          Insert(After, "a", "let c = $invalid"),
-          "invalid token parse error",
-        );
-      },
-    ),
-    test_case(
-      "$ path works with edit action",
-      `Quick,
-      () => {
-        /* $ targets the last binding */
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Update(Definition, "$", "0"),
-          );
-        check_rendered(
-          "$ edit",
-          "let a = 1 in let b = 2 in let c = 0 in a + b + c",
-          result,
-        );
-      },
-    ),
+    edit_test("$ path edit",
+      "let a = 1 in let b = 2 in let c = 3 in a + b + c",
+      Update(Definition, "$", "0"),
+      "let a = 1 in let b = 2 in let c = 0 in a + b + c"),
     test_case(
       "#n matches name-based path",
       `Quick,
@@ -891,6 +702,12 @@ let run_read_action =
   | Error(_) => Alcotest.fail("Read action failed with unknown error")
   };
 };
+
+/* Concise test helper for read actions */
+let read_test = (name, code, action, expected) =>
+  test_case(name, `Quick, () =>
+    check(string, name, expected, run_read_action(code, action))
+  );
 
 let read_action_tests = (
   "AgentTools.ReadActions",
@@ -1091,83 +908,23 @@ let read_action_tests = (
 let type_annotation_tests = (
   "AgentTools.TypeAnnotation",
   [
-    test_case(
-      "update type annotation on let binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let x : Int = 5 in x + 1",
-            Update(TypeAnnotation, "x", "Float"),
-          );
-        check_rendered(
-          "type annotation updated",
-          "let x : Float = 5 in x + 1",
-          result,
-        );
-      },
+    edit_test("update type annotation",
+      "let x : Int = 5 in x + 1", Update(TypeAnnotation, "x", "Float"),
+      "let x : Float = 5 in x + 1"),
+    edit_test("preserves other bindings",
+      "let a : Int = 1 in let b : Bool = true in a", Update(TypeAnnotation, "a", "Float"),
+      "let a : Float = 1 in let b : Bool = true in a"),
+    edit_test("nested type annotation",
+      "let a = let inner : Int = 1 in inner in a", Update(TypeAnnotation, "a/inner", "Float"),
+      "let a = let inner : Float = 1 in inner in a"),
+    test_case("fails on unannotated binding", `Quick, () =>
+      expect_composition_failure(
+        "let x = 5 in x + 1", Update(TypeAnnotation, "x", "Int"),
+        "no annotation error")
     ),
-    test_case(
-      "update type annotation preserves definition and body",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a : Int = 1 in let b : Bool = true in a",
-            Update(TypeAnnotation, "a", "Float"),
-          );
-        check_rendered(
-          "preserves other bindings",
-          "let a : Float = 1 in let b : Bool = true in a",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "update type annotation on nested binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = let inner : Int = 1 in inner in a",
-            Update(TypeAnnotation, "a/inner", "Float"),
-          );
-        check_rendered(
-          "nested type annotation",
-          "let a = let inner : Float = 1 in inner in a",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "update type annotation fails on unannotated binding",
-      `Quick,
-      () => {
-        expect_composition_failure(
-          "let x = 5 in x + 1",
-          Update(TypeAnnotation, "x", "Int"),
-          "no annotation error",
-        );
-      },
-    ),
-    test_case(
-      "update type alias definition via TypeAnnotation",
-      `Quick,
-      () => {
-        /* For type aliases, TypeAnnotation targets the type definition itself.
-           Use a program where x doesn't depend on T to avoid type errors. */
-        let result =
-          apply_and_render(
-            "type T = Int in let x = 1 in x",
-            Update(TypeAnnotation, "T", "Bool"),
-          );
-        check_rendered(
-          "type alias via TypeAnnotation",
-          "type T = Bool in let x = 1 in x",
-          result,
-        );
-      },
-    ),
+    edit_test("type alias via TypeAnnotation",
+      "type T = Int in let x = 1 in x", Update(TypeAnnotation, "T", "Bool"),
+      "type T = Bool in let x = 1 in x"),
   ],
 );
 
@@ -1314,16 +1071,6 @@ let sel_test = (name, code, sel, expected) =>
 let sel_test_rendered = (name, code, sel, expected) =>
   test_case(name, `Quick, () =>
     check_rendered(name, expected, selector_query_unique(code, sel))
-  );
-
-let edit_test = (name, code, action, expected) =>
-  test_case(name, `Quick, () =>
-    check_rendered(name, expected, apply_and_render(code, action))
-  );
-
-let read_test = (name, code, action, expected) =>
-  test_case(name, `Quick, () =>
-    check(string, name, expected, run_read_action(code, action))
   );
 
 let if_program = "if true then 1 else 0";
