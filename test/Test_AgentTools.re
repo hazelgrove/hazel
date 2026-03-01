@@ -1305,314 +1305,94 @@ let selector_query_unique = (code: string, sel: string): string => {
   };
 };
 
+/* Concise test helpers for common patterns */
+let sel_test = (name, code, sel, expected) =>
+  test_case(name, `Quick, () =>
+    check(string, name, expected, selector_query_unique(code, sel))
+  );
+
+let sel_test_rendered = (name, code, sel, expected) =>
+  test_case(name, `Quick, () =>
+    check_rendered(name, expected, selector_query_unique(code, sel))
+  );
+
+let edit_test = (name, code, action, expected) =>
+  test_case(name, `Quick, () =>
+    check_rendered(name, expected, apply_and_render(code, action))
+  );
+
+let read_test = (name, code, action, expected) =>
+  test_case(name, `Quick, () =>
+    check(string, name, expected, run_read_action(code, action))
+  );
+
+let if_program = "if true then 1 else 0";
+let let_fun_if = "let f = fun x -> if x > 0 then x else 0 in f 5";
+let case_program = "case x | A => 1 | B => 2 end";
+let case_msg = "case msg | Increment => count + 1 | Decrement => count - 1 end";
+
 let selector_tests = (
   "AgentTools.Selectors",
   [
-    /* Basic let spine selectors */
-    test_case(
-      "let x = * selects definition",
-      `Quick,
-      () => {
-        let result = selector_query_unique("let x = 42 in x", "let x = *");
-        check(string, "def", "42", result);
-      },
-    ),
-    test_case(
-      "let x ... in * selects body",
-      `Quick,
-      () => {
-        let result =
-          selector_query_unique("let x = 42 in x + 1", "let x _... in *");
-        check(string, "body", "x + 1", result);
-      },
-    ),
-    test_case(
-      "let with nested lets selects correct one",
-      `Quick,
-      () => {
-        let result =
-          selector_query_unique(
-            "let a = 1 in let b = 2 in a + b",
-            "let b = *",
-          );
-        check(string, "def of b", "2", result);
-      },
-    ),
+    /* Let spine */
+    sel_test("let x = *", "let x = 42 in x", "let x = *", "42"),
+    sel_test("let x _... in *", "let x = 42 in x + 1", "let x _... in *", "x + 1"),
+    sel_test("let b = * nested", "let a = 1 in let b = 2 in a + b", "let b = *", "2"),
     /* Binder chain */
-    test_case(
-      "binder chain A/B navigates nested defs",
-      `Quick,
-      () => {
-        let code = "let m = { let x = 42 } in m.x";
-        let result = selector_query_unique(code, "m/x = *");
-        check(string, "chain def", "42", result);
-      },
-    ),
+    sel_test("m/x = *", "let m = { let x = 42 } in m.x", "m/x = *", "42"),
     /* If spine */
-    test_case(
-      "if * selects condition",
-      `Quick,
-      () => {
-        let result =
-          selector_query_unique(
-            "if true then 1 else 0",
-            "if *",
-          );
-        check(string, "cond", "true", result);
-      },
-    ),
-    test_case(
-      "if _ then * selects then branch",
-      `Quick,
-      () => {
-        let result =
-          selector_query_unique(
-            "if true then 1 else 0",
-            "if _ then *",
-          );
-        check(string, "then", "1", result);
-      },
-    ),
-    test_case(
-      "if _... else * selects else branch",
-      `Quick,
-      () => {
-        let result =
-          selector_query_unique(
-            "if true then 1 else 0",
-            "if _... else *",
-          );
-        check(string, "else", "0", result);
-      },
-    ),
+    sel_test("if *", if_program, "if *", "true"),
+    sel_test("if _ then *", if_program, "if _ then *", "1"),
+    sel_test("if _... else *", if_program, "if _... else *", "0"),
     /* Descendant search */
-    test_case(
-      "descendant search finds nested if",
-      `Quick,
-      () => {
-        let code = "let f = fun x -> if x > 0 then x else 0 in f 5";
-        let result = selector_query_unique(code, "let f = \\_ if _ then *");
-        check(string, "then branch", "x", result);
-      },
-    ),
+    sel_test("descend if then", let_fun_if, "let f = \\_ if _ then *", "x"),
     /* Case/match spine */
-    test_case(
-      "case * selects scrutinee",
-      `Quick,
-      () => {
-        let result =
-          selector_query_unique(
-            "case x | A => 1 | B => 2 end",
-            "case *",
-          );
-        check(string, "scrutinee", "x", result);
-      },
-    ),
-    test_case(
-      "| Arm => * selects arm body",
-      `Quick,
-      () => {
-        let result =
-          selector_query_unique(
-            "case x | A => 1 | B => 2 end",
-            "| B => *",
-          );
-        check(string, "arm B body", "2", result);
-      },
-    ),
+    sel_test("case *", case_program, "case *", "x"),
+    sel_test("| B => *", case_program, "| B => *", "2"),
     /* No match */
-    test_case(
-      "no match returns error",
-      `Quick,
-      () => {
-        let result =
-          selector_query_unique(
-            "let x = 1 in x",
-            "let y = *",
-          );
-        check(
-          bool,
-          "starts with ERROR",
-          true,
-          String.length(result) > 5
-          && String.sub(result, 0, 5) == "ERROR",
-        );
-      },
-    ),
-    /* Multiple matches for query mode */
-    test_case(
-      "query returns multiple matches",
-      `Quick,
-      () => {
-        let code = "let a = 1 in let b = 2 in a + b";
-        let results = selector_query(code, "let _ = *");
-        check(int, "match count", 2, List.length(results));
-      },
-    ),
-    /* Read action integration tests */
-    test_case(
-      "Select read action returns focused syntax",
-      `Quick,
-      () => {
-        let result =
-          run_read_action(
-            "let x = 42 in x + 1",
-            Select("let x = *"),
-          );
-        check(string, "select def", "42", result);
-      },
-    ),
-    test_case(
-      "Select with descendant search via read action",
-      `Quick,
-      () => {
-        let result =
-          run_read_action(
-            "let f = fun x -> if x > 0 then x else 0 in f 5",
-            Select("let f = \\_ if _... else *"),
-          );
-        check(string, "select else", "0", result);
-      },
-    ),
-    test_case(
-      "Select with binder chain via read action",
-      `Quick,
-      () => {
-        let result =
-          run_read_action(
-            "let m = { let x = 42 } in m.x",
-            Select("m/x = *"),
-          );
-        check(string, "chain select", "42", result);
-      },
-    ),
-    test_case(
-      "Select returns multiple matches",
-      `Quick,
-      () => {
-        let result =
-          run_read_action(
-            "let a = 1 in let b = 2 in a + b",
-            Select("let _ = *"),
-          );
-        /* Should have 2 lines, one per match */
-        let lines =
-          result
-          |> String.split_on_char('\n')
-          |> List.filter(s => String.length(String.trim(s)) > 0);
-        check(int, "line count", 2, List.length(lines));
-      },
-    ),
-    /* Spec Example 1: if inside a function binding */
-    test_case(
-      "spec ex1: let f = \\_ if * gets condition",
-      `Quick,
-      () => {
-        let code = "let f = fun x -> if x > 0 then x else 0 in f 5";
-        let result = selector_query_unique(code, "let f = \\_ if *");
-        check(string, "cond", "x > 0", result);
-      },
-    ),
-    test_case(
-      "spec ex1: let f = \\_ if _ then * gets then branch",
-      `Quick,
-      () => {
-        let code = "let f = fun x -> if x > 0 then x else 0 in f 5";
-        let result =
-          selector_query_unique(code, "let f = \\_ if _ then *");
-        check(string, "then", "x", result);
-      },
-    ),
-    test_case(
-      "spec ex1: * let f selects whole binding",
-      `Quick,
-      () => {
-        let code = "let f = fun x -> if x > 0 then x else 0 in f 5";
-        let result = selector_query_unique(code, "* let f");
-        /* Should return the whole let f = ... in ... expression */
-        let has_let =
-          String.length(result) > 5
-          && String.sub(result, 0, 5) == "ERROR";
-        /* If this errors, we need to implement * before keywords */
-        check(bool, "not error", false, has_let);
-      },
-    ),
-    /* Spec Example 2: case arms */
-    test_case(
-      "spec ex2: case \\_ | Increment => * gets arm body",
-      `Quick,
-      () => {
-        let code =
-          "case msg | Increment => count + 1 | Decrement => count - 1 end";
-        let result =
-          selector_query_unique(code, "| Increment => *");
-        check(string, "incr body", "count + 1", result);
-      },
-    ),
-    test_case(
-      "spec ex2: | Decrement => * gets second arm",
-      `Quick,
-      () => {
-        let code =
-          "case msg | Increment => count + 1 | Decrement => count - 1 end";
-        let result =
-          selector_query_unique(code, "| Decrement => *");
-        check(string, "decr body", "count - 1", result);
-      },
-    ),
-    /* Spec Example 3: module items */
-    test_case(
-      "spec ex3: module M = \\_ let x = * in module",
-      `Quick,
-      () => {
-        let code = "let m = { let x = 1; let y = 2 } in m.x";
-        let result =
-          selector_query_unique(code, "m/x = *");
-        check(string, "module member x def", "1", result);
-      },
-    ),
-    test_case(
-      "spec ex3: module member y via chain",
-      `Quick,
-      () => {
-        let code = "let m = { let x = 1; let y = 2 } in m.y";
-        let result =
-          selector_query_unique(code, "m/y = *");
-        check(string, "module member y def", "2", result);
-      },
-    ),
-    /* Spec Example 4: nested binder chains */
-    test_case(
-      "spec ex4: A/B chain with nested modules",
-      `Quick,
-      () => {
-        let code =
-          "let a = { let x = 1; let b = { let y = 42 } } in a.b.y";
-        let result =
-          selector_query_unique(code, "a/b/y = *");
-        check(string, "nested chain", "42", result);
-      },
-    ),
-    /* name = * without let keyword */
-    test_case(
-      "name = * works without let keyword",
-      `Quick,
-      () => {
-        let code = "let x = 42 in let y = 99 in x + y";
-        let result = selector_query_unique(code, "y = *");
-        check(string, "y def", "99", result);
-      },
-    ),
-    /* body selection */
-    test_case(
-      "name _... in * selects body",
-      `Quick,
-      () => {
-        let code = "let x = 42 in let y = 99 in x + y";
-        let result = selector_query_unique(code, "x _... in *");
-        check(string, "x body", "let y = 99 in x + y", result);
-      },
-    ),
+    test_case("no match returns error", `Quick, () => {
+      let result = selector_query_unique("let x = 1 in x", "let y = *");
+      check(bool, "starts with ERROR", true,
+        String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR");
+    }),
+    /* Multiple matches */
+    test_case("query returns multiple matches", `Quick, () => {
+      let results = selector_query("let a = 1 in let b = 2 in a + b", "let _ = *");
+      check(int, "match count", 2, List.length(results));
+    }),
+    /* Read action integration */
+    read_test("Select def", "let x = 42 in x + 1", Select("let x = *"), "42"),
+    read_test("Select descend", let_fun_if, Select("let f = \\_ if _... else *"), "0"),
+    read_test("Select chain", "let m = { let x = 42 } in m.x", Select("m/x = *"), "42"),
+    test_case("Select multiple matches", `Quick, () => {
+      let result = run_read_action("let a = 1 in let b = 2 in a + b", Select("let _ = *"));
+      let lines = result |> String.split_on_char('\n')
+        |> List.filter(s => String.length(String.trim(s)) > 0);
+      check(int, "line count", 2, List.length(lines));
+    }),
+    /* Spec examples */
+    sel_test("spec: descend if *", let_fun_if, "let f = \\_ if *", "x > 0"),
+    sel_test("spec: descend if _ then *", let_fun_if, "let f = \\_ if _ then *", "x"),
+    test_case("spec: * let f", `Quick, () => {
+      let result = selector_query_unique(let_fun_if, "* let f");
+      check(bool, "not error", false,
+        String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR");
+    }),
+    /* Case arms */
+    sel_test("spec: | Increment => *", case_msg, "| Increment => *", "count + 1"),
+    sel_test("spec: | Decrement => *", case_msg, "| Decrement => *", "count - 1"),
+    /* Module items */
+    sel_test("spec: m/x = *", "let m = { let x = 1; let y = 2 } in m.x", "m/x = *", "1"),
+    sel_test("spec: m/y = *", "let m = { let x = 1; let y = 2 } in m.y", "m/y = *", "2"),
+    /* Nested binder chains */
+    sel_test("spec: a/b/y = *",
+      "let a = { let x = 1; let b = { let y = 42 } } in a.b.y",
+      "a/b/y = *", "42"),
+    /* Bare name */
+    sel_test("y = * bare", "let x = 42 in let y = 99 in x + y", "y = *", "99"),
+    /* Body selection */
+    sel_test("x _... in *", "let x = 42 in let y = 99 in x + y",
+      "x _... in *", "let y = 99 in x + y"),
   ],
 );
 
