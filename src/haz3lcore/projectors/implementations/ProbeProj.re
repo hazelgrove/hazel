@@ -51,6 +51,10 @@ module Settings = {
     callee_cutoff: None,
   };
 
+  /* When true, ArrowUp/Down skip probes that have no samples
+   * aligned with the current cursor. */
+  let skip_unaligned_nav = true;
+
   let update = (settings: settings, action: set_action): settings =>
     switch (action) {
     | ToggleWindow => {
@@ -1116,15 +1120,19 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   | D("ArrowLeft") =>
     Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
   | D("ArrowDown") =>
+    let skip = Settings.skip_unaligned_nav;
     let effect =
-      switch (JsUtil.navigate_probes(Id.cls(id), `Down)) {
+      switch (
+        JsUtil.navigate_probes(~skip_unaligned=skip, Id.cls(id), `Down)
+      ) {
       | Some(target_id) => parent(FocusById(target_id))
       | None => Ignore
       };
     Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowUp") =>
+    let skip = Settings.skip_unaligned_nav;
     let effect =
-      switch (JsUtil.navigate_probes(Id.cls(id), `Up)) {
+      switch (JsUtil.navigate_probes(~skip_unaligned=skip, Id.cls(id), `Up)) {
       | Some(target_id) => parent(FocusById(target_id))
       | None => Ignore
       };
@@ -1160,6 +1168,7 @@ let empty_view = (~id: Id.t, ~settings: settings) =>
   Node.div(
     ~attrs=[
       Attr.id(Id.cls(id)),
+      Attr.create("data-cursor-aligned", "false"),
       Attr.classes([
         "live-offside",
         settings.window |> Sample.Window.show_mode,
@@ -1198,6 +1207,14 @@ let offside_view =
         dynamics.samples,
       );
     let num_total = List.length(filtered_samples);
+    let is_cursor_aligned =
+      Sample.Selection.first_related_index(
+        ~trimmed=true,
+        ~ap_id,
+        dynamics.sample_cursor,
+        filtered_samples,
+      )
+      != None;
     let samples =
       select_samples(
         ~settings,
@@ -1228,6 +1245,10 @@ let offside_view =
       ~attrs=[
         Attr.id(Id.cls(id)),
         Attr.create("data-probe-id", Id.to_string(id)),
+        Attr.create(
+          "data-cursor-aligned",
+          is_cursor_aligned ? "true" : "false",
+        ),
         Attr.tabindex(0),
         Attr.on_keydown(key_handler(ctx, ~id, local)),
         Attr.classes([

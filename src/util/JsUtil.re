@@ -396,10 +396,14 @@ module QueryParams = {
 /* Navigate between probe elements in document order.
    Finds all .live-offside[tabindex] elements, sorts by visual position,
    and focuses the next/previous one relative to current_id.
+   When ~skip_unaligned is true, skips probes whose data-cursor-aligned
+   attribute is not "true" (i.e. probes with no samples related to
+   the current cursor).
    Returns the target probe's Id.t (from data-probe-id attribute)
    and gives it DOM focus. */
 let navigate_probes =
     (
+      ~skip_unaligned: bool=false,
       current_id: string,
       direction: [
         | `Up
@@ -447,14 +451,33 @@ let navigate_probes =
     },
     sorted,
   );
-  /* Step to target */
-  let target_idx =
+  /* Find target, optionally skipping unaligned probes */
+  let offset =
     switch (direction) {
-    | `Down => current_idx^ + 1
-    | `Up => current_idx^ - 1
+    | `Down => 1
+    | `Up => (-1)
     };
-  if (target_idx >= 0 && target_idx < List.length(sorted)) {
-    let (el, _, _) = List.nth(sorted, target_idx);
+  let n = List.length(sorted);
+  let rec find_target = idx =>
+    if (idx < 0 || idx >= n) {
+      None;
+    } else {
+      let (el, _, _) = List.nth(sorted, idx);
+      let dominated =
+        skip_unaligned
+        && {
+          let attr =
+            el##getAttribute(Js.string("data-cursor-aligned"))
+            |> Js.Opt.to_option;
+          switch (attr) {
+          | Some(s) => Js.to_string(s) != "true"
+          | None => true
+          };
+        };
+      dominated ? find_target(idx + offset) : Some(el);
+    };
+  switch (find_target(current_idx^ + offset)) {
+  | Some(el) =>
     el##focus;
     el##scrollIntoView(
       Js.Unsafe.obj([|("block", Js.Unsafe.inject(Js.string("nearest")))|]),
@@ -466,7 +489,6 @@ let navigate_probes =
     | Some(s) => Id.of_string(Js.to_string(s))
     | None => None
     };
-  } else {
-    None;
+  | None => None
   };
 };
