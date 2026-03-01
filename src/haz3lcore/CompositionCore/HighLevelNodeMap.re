@@ -118,6 +118,7 @@ module Utils = {
         switch (Exp.term_of(term)) {
         | Let(_) => Some(start_point) // if it is a let binding, then this term is a nominee
         | TyAlias(_) => Some(start_point) // if it is a type binding, then this term is a nominee
+        | Seq(_) => Some(start_point) // if it is a seq, it contains expression lines
         | _ => None
         }
       | _ => None
@@ -158,6 +159,15 @@ module Utils = {
               if (Id.equal(tdef_id, Info.id_of(departure_point))
                   || Id.equal(body_id, Info.id_of(departure_point))
                   || Id.equal(tpat_id, Info.id_of(departure_point))) {
+                Some(candidate);
+              } else {
+                nominee;
+              };
+            | Seq(e1, e2) =>
+              let e1_id = Exp.rep_id(e1);
+              let e2_id = Exp.rep_id(e2);
+              if (Id.equal(e1_id, Info.id_of(departure_point))
+                  || Id.equal(e2_id, Info.id_of(departure_point))) {
                 Some(candidate);
               } else {
                 nominee;
@@ -253,7 +263,9 @@ module Namer = {
       switch (Exp.term_of(term)) {
       | Let(pat, _, _) => mk_name_from_pat(pat)
       | TyAlias(tpat, _, _) => mk_name_from_tpat(tpat)
-      | _ => raise(Failure("Not a valid expression to make a name from"))
+      | Test(_)
+      | HintedTest(_, _) => "{test}"
+      | _ => "{expr}"
       }
     | _ => raise(Failure("Not a valid term to make a name from"))
     };
@@ -478,6 +490,25 @@ let rec build_children =
       // 2. Find siblings
       // use "old" path for siblings!!
       build_children(exp_to_info(body), path, node_map, info_map);
+    | Seq(e1, e2) =>
+      /* Semicolon-separated expression lines. Create nodes for bare
+         expressions (non-binding) so they're addressable by #n index.
+         Let/TyAlias/Seq/Module create their own nodes via recursion. */
+      let make_or_recurse = (e, node_map) =>
+        switch (Exp.term_of(e)) {
+        | Let(_)
+        | TyAlias(_)
+        | Seq(_)
+        | Module(_) =>
+          build_children(exp_to_info(e), path, node_map, info_map)
+        | _ =>
+          let info = exp_to_info(e);
+          let new_path = path @ [Info.id_of(info)];
+          let node_map = init_node(info, new_path, node_map);
+          build_children(info, new_path, node_map, info_map);
+        };
+      let node_map = make_or_recurse(e1, node_map);
+      make_or_recurse(e2, node_map);
     | Module(items) =>
       /* Module items are expanded to a Let/TyAlias chain in the info_map.
          Find the first named item (ModLet/ModType/ModuleMod) whose ID is

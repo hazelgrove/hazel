@@ -1101,6 +1101,121 @@ let type_annotation_tests = (
   ],
 );
 
+let seq_node_map_tests = (
+  "HighLevelNodeMap.SeqLines",
+  [
+    test_case(
+      "test expression after let is a sibling node",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let x = 1 in test x == 1 end; x");
+        let top_names =
+          HighLevelNodeMap.gather_top_level(node_map)
+          |> List.map((id: Id.t) =>
+               HighLevelNodeMap.id_to_name(node_map, id)
+             )
+          |> List.sort(String.compare);
+        /* gather_top_level returns unordered IDs; sort for comparison */
+        check(
+          list(string),
+          "top level includes test",
+          ["x", "{expr}", "{test}"],
+          top_names,
+        );
+      },
+    ),
+    test_case(
+      "test expression addressable by index",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let x = 1 in test x == 1 end; x");
+        /* x is #0, the test is #1, trailing x is #2 */
+        let id = HighLevelNodeMap.path_to_id(node_map, "#1");
+        check(
+          string,
+          "#1 resolves to test",
+          "{test}",
+          HighLevelNodeMap.id_to_name(node_map, id),
+        );
+      },
+    ),
+    test_case(
+      "multiple tests in sequence",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let x = 1 in test x == 1 end; test x > 0 end; x",
+          );
+        let top_names =
+          HighLevelNodeMap.gather_top_level(node_map)
+          |> List.map((id: Id.t) =>
+               HighLevelNodeMap.id_to_name(node_map, id)
+             )
+          |> List.sort(String.compare);
+        check(
+          list(string),
+          "two tests and trailing expr",
+          ["x", "{expr}", "{test}", "{test}"],
+          top_names,
+        );
+      },
+    ),
+    test_case(
+      "test between two lets",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let x = 1 in test x == 1 end; let y = x + 1 in y",
+          );
+        let node_x = HighLevelNodeMap.path_to_node(node_map, "x");
+        let sibling_names =
+          HighLevelNodeMap.siblings_of(node_map, node_x) |> name_list;
+        check(
+          list(string),
+          "siblings",
+          ["x", "{test}", "y"],
+          sibling_names,
+        );
+      },
+    ),
+    test_case(
+      "$ resolves to trailing expression",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let x = 1 in test x == 1 end; x");
+        let id = HighLevelNodeMap.path_to_id(node_map, "$");
+        check(
+          string,
+          "$ resolves to trailing expr",
+          "{expr}",
+          HighLevelNodeMap.id_to_name(node_map, id),
+        );
+      },
+    ),
+    test_case(
+      "update_binding_clause on test expression",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x = 1 in test x == 1 end; x",
+            Update(BindingClause, "#1", "test x > 0 end"),
+          );
+        check_rendered(
+          "update test via #1",
+          "let x = 1 in test x > 0 end; x",
+          result,
+        );
+      },
+    ),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -1111,4 +1226,5 @@ let tests = [
   read_action_tests,
   type_annotation_tests,
   composition_view_print_tests,
+  seq_node_map_tests,
 ];
