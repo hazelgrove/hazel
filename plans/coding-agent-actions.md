@@ -68,7 +68,7 @@
     - Labeled tuple elements named by label, unlabeled by index
     - 8 tests (TermEdit + node map + dispatch)
   - All wired through CompositionGo dispatch with is_case_arm/is_list_element/is_tuple_element detection
-- [ ] **Improve dispatch error reporting**: distinguish failure reasons in edit_dispatch
+- [x] **Improve dispatch error reporting**: distinguish failure reasons in edit_dispatch
   - Path resolution failures (path doesn't point to any node)
   - Action inapplicability (e.g., Update(Pattern) on a list element)
   - Code parsing failures (code string doesn't parse as valid syntax)
@@ -76,15 +76,10 @@
   - Currently TermEdit returns `option(Zipper.t)` — consider `result(Zipper.t, string)` for failure reasons
   - Currently misleading messages like "Failed to parse" when the real issue is wrong node kind
   - Consider: explicit inapplicability checks before attempting the operation
-- [ ] **Evaluate `target` vs path unification**: decide whether `Definition|Body|Pattern|...` target enum should be absorbed into the path
-  - The extended path design (section 3.2/9.2) already proposes `"f/def"`, `"f/pat"`, `"f/body"` as path suffixes
-  - Could simplify `Action.Structural.t` to just `Update(path, code)` / `Delete(path)` / `Insert(Before|After, path, code)`
-  - Internal implementation question: should `Update(Definition, "f", code)` be sugar for `Update("f/def", code)`?
-  - Benefits: simpler API surface, paths are self-describing, one resolution mechanism
-  - Risks: target enum provides useful static guarantees (inapplicability checks at type level)
-  - Step 1: ensure internal dispatch converges — target-based and path-based should use the same underlying resolution
-  - Step 2: decide whether to keep targets as sugar, remove them, or keep them as the primary API
-  - Related: case arm/list/tuple elements already use path-only addressing (no target beyond Body)
+- [ ] **Evaluate `target` vs selector unification**: the selector language can express all target
+  distinctions (`let x = *` for Definition, `let x _... in *` for Body, etc.). Consider whether
+  the `target` enum should remain as a simpler constrained interface alongside selectors, or
+  be folded into selector-based addressing over time. For now, both systems coexist.
 - [x] **Action Explorer UI**: developer toolbar for interactive path/action exploration
   - Toggle via Nut Menu > Developer Settings > "Action Explorer"
   - Bar below top bar with: action type selector, target/direction dropdowns, path input, code input, execute button
@@ -99,17 +94,23 @@
     improved with a separate overlay layer that doesn't depend on shard splitting.
   - [ ] **GetCompleteness with path**: currently whole-program only; could accept an optional
     path to scope hole-counting to a subtree
-- [ ] **Selector language gaps** (from audit against spec):
-  - Missing keyword resolvers: `fun`, `test`, `end` (tokenized but no walk handler)
-  - Missing `:` (colon) delimiter resolver
-  - Missing list spine matching: `[ * , ... ]` and `[ ... , * ]` patterns
-  - Section 9 (selector-driven edits) not wired — edits use HighLevelNodeMap paths only
-  - `query_unique` exists but not integrated into edit_dispatch
-- [ ] **Strategic edit granularity audit**: survey what precise edits agents/programmers need
-  - Current: whole definition/body/pattern/type-annotation/binding-clause
-  - Missing: case arms, list/tuple/labeled-tuple elements, function parameters
-  - Goal: identify the minimal set of granular edit operations for expressive intent
-  - Consider: what edits express precise intent vs what can be done by replacing larger chunks?
+- [x] **Selector language spine coverage** (implemented):
+  - [x] `fun` keyword resolver (`fun *`, `fun _ -> *`, `fun _... -> *`)
+  - [x] `test` keyword resolver (`test *`, `test _ end`)
+  - [x] `:` (colon) delimiter in let spine (`let x : _ = *`, `let x : * = _`)
+  - [x] List spine matching: `[ * _... ]`, `[ _... , * ]`, `[ _ , * _... ]`
+  - [x] Tuple spine matching: `( * , _... )`, `( _... , * )`, `( _ , * , _... )`
+  - [x] Focus-before-keyword: `* let x`, `* fun _ -> *`
+  - [x] Root-anchored selectors with `\...` for explicit descend
+  - [x] Generic `walk_seq_spine` unifies list and tuple matching
+  - [ ] Section 9 (selector-driven edits) not wired — edits use HighLevelNodeMap paths only
+  - [ ] `query_unique` exists but not integrated into edit_dispatch
+  - [ ] Selector error diagnostics: partial-match info, similar name suggestions
+- [x] **Strategic edit granularity audit**: survey what precise edits agents/programmers need
+  - Implemented: whole definition/body/pattern/type-annotation/binding-clause
+  - Implemented: case arms, list elements, tuple elements (labeled + positional)
+  - Remaining: function parameters, sub-expression edits (via selector language)
+  - Selector language provides arbitrary sub-expression targeting for reads; wiring to edits is next
 
 ### Known compromises & issues in the TermEdit approach
 
@@ -307,14 +308,6 @@ Agent.re
 
 ## 3. Path System: Design Exploration
 
-> **NOTE (March 2026):** The form-slot path design in sections 3.2-3.5 below has been
-> **largely superseded** by the selector language (see `plans/Hazel-Agent-Path-Selector-Language.md`
-> and `Selector.re`). The selector language provides the same sub-expression addressing
-> capability with a more expressive pattern-matching approach. The worked examples below
-> remain useful as motivation for what the selector language solves, and some ideas
-> (like index notation `arm[n]`, disambiguation syntax `a@1`) may still be adopted
-> into the selector language or the HighLevelNodeMap path system.
-
 ### 3.1 Current system: name-based paths (IMPLEMENTED)
 
 Works well for the common case of named bindings, plus extensions:
@@ -330,212 +323,18 @@ Works well for the common case of named bindings, plus extensions:
 **Strengths**: Readable, semantic, stable across minor edits, covers common cases.
 **Limitations**: Can't address sub-expressions (if branches, fun bodies, etc.).
 
-### 3.2 Previously proposed extension: form-slot paths
+### 3.2 Sub-expression addressing (SUPERSEDED by selector language)
 
-> **STATUS: SUPERSEDED** by the selector language. Kept for historical reference.
-
-The idea: a path reads like an abbreviation of the syntax you'd traverse from
-left to right. Each segment names either a binding (by name) or a syntactic
-form + slot you descend through. The path mirrors what you'd read in the code.
-
-#### Term form reference (children slots)
-
-```
-let    → pat, def, body         if     → cond, then, else
-fun    → pat, body              case  → scrut, arm[i]
-typfun → tpat, body             tuple  → [i]
-tyalias→ tpat, def, body        list   → [i]
-ap     → fn, arg                cons   → hd, tl
-binop  → left, right            seq    → expr, rest
-asc    → expr, type             module → (named items or [i])
-```
-
-#### Worked examples
-
-**Program 1**: Simple let chain
-```
-let x = 1 in
-let y = x + 1 in
-y
-```
-
-| Target | Current path | Extended path |
-|--------|-------------|---------------|
-| Binding x | `"x"` | `"x"` |
-| x's definition (1) | `Update(Definition, "x", ...)` | same |
-| y's body (y) | `Update(Body, "y", ...)` | same |
-| Trailing expr after all lets | _(impossible)_ | `"$"` or `Update(Body, "y", ...)` |
-
-Here `$` means "final expression". In this case it's the same as y's body.
-
-**Program 2**: Function with branching
-```
-let f = fun x ->
-  if x > 0 then x else 0
-in
-let result = f 5 in
-result
-```
-
-| Target | Path |
-|--------|------|
-| f's definition (the fun) | `"f"` + `Definition` |
-| fun's body (the if) | `"f/fun/body"` or `"f/def/body"` |
-| if condition (x > 0) | `"f/fun/if/cond"` |
-| then branch (x) | `"f/fun/if/then"` |
-| else branch (0) | `"f/fun/if/else"` |
-| result's def (f 5) | `"result"` + `Definition` |
-| application's argument (5) | `"result/ap/arg"` |
-
-Reading `"f/fun/if/then"` left to right: "go to f, into the fun, into the if,
-take the then branch." It reads like the code itself, abbreviated.
-
-**Program 3**: Module
-```
-module M = {
-  let x = 1;
-  type T = Int;
-  let y : T = x + 1;
-  test y == 2 end
-} in
-let z = M.x in
-z
-```
-
-| Target | Path |
-|--------|------|
-| Module M | `"M"` |
-| x inside M | `"M/x"` |
-| T inside M | `"M/T"` |
-| y inside M | `"M/y"` |
-| test expression (4th item) | `"M/#3"` |
-| y's type annotation (T) | `"M/y"` + `TypeAnnotation` |
-| z (after module) | `"z"` |
-
-Module items addressed by name (for named items) or index (for bare exprs).
-
-**Program 4**: Match expression
-```
-let classify = fun x ->
-  case x with
-  | 0 => "zero"
-  | 1 => "one"
-  | _ => "other"
-  end
-in
-classify 5
-```
-
-| Target | Path |
-|--------|------|
-| classify's def | `"classify"` + `Definition` |
-| case scrutinee (x) | `"classify/fun/case/scrut"` |
-| first branch body ("zero") | `"classify/fun/case/arm[0]/body"` |
-| second branch pattern (1) | `"classify/fun/case/arm[1]/pat"` |
-| wildcard branch body | `"classify/fun/case/arm[2]/body"` |
-
-**Program 5**: Nested lets with seq
-```
-let x = 1 in
-test x == 1 end;
-let y = 2 in
-test y == 2 end;
-y
-```
-
-Term structure: `Let(x, 1, Seq(Test(...), Let(y, 2, Seq(Test(...), Var(y)))))`
-
-| Target | Path |
-|--------|------|
-| First test | `"x/$"` or `"#0"` — first expr after x before y |
-| Second test | `"y/$"` or `"#1"` |
-| Final y | `"$"` |
-
-The `$` suffix means "the non-binding expression at this scope." `"x/$"` = "x's
-body, but just the expression part before the next binding." Alternately, we
-number bare expressions with `#n` at each scope level.
-
-**Program 6**: Deeply nested — the "CSS selector" feel
-```
-let app =
-  let model = { count = 0 } in
-  let update = fun msg -> fun model ->
-    case msg with
-    | Increment => { count = model.count + 1 }
-    | Decrement => { count = model.count - 1 }
-    end
-  in
-  let view = fun model ->
-    div [
-      button (text "+") Increment,
-      span (text (to_string model.count)),
-      button (text "-") Decrement
-    ]
-  in
-  (model, update, view)
-in
-app
-```
-
-| Target | Path |
-|--------|------|
-| update function | `"app/update"` |
-| Increment handler body | `"app/update/fun/fun/case/arm[0]/body"` |
-| view's div children list | `"app/view/fun/body"` (the list) |
-| model's count field | `"app/model"` + `Definition` |
-
-The deep path `"app/update/fun/fun/case/arm[0]/body"` reads naturally: "in
-app's update, go through the outer fun, inner fun, into the case, first arm,
-body."
-
-### 3.3 Path disambiguation rules (SUPERSEDED — see selector language)
-
-When a form name could case multiple children:
-1. **Form names are unique per expression type**: `fun` only appears once in
-   a definition (if there are nested funs, the path goes through each one)
-2. **Slot names are unambiguous within a form**: each form's children have
-   distinct names (`cond`/`then`/`else` for if, `pat`/`body` for fun)
-3. **When the slot is "the obvious one"**, it can be omitted:
-   - `"f/fun"` without a slot → defaults to the fun's body
-   - `"f/if"` without a slot → ambiguous, require slot
-4. **Names take priority over form descent**: `"f/x"` looks for a named
-   binding `x` inside f before trying to case a form `x`
-
-### 3.4 Multiple addressing schemes coexist (PARTIALLY IMPLEMENTED)
-
-We don't pick one scheme — we have a **layered system**:
-
-1. **Name paths** (existing): `"x"`, `"x/inner"` — for named bindings
-2. **Form-slot paths** (new): `"x/fun/if/then"` — for sub-expression navigation
-3. **Index paths**: `"#0"`, `"M/#3"` — for positional items
-4. **Special tokens**: `"$"` for final expression
-
-All coexist in a single string format. Parsing rules:
-- Bare identifier → Name
-- `#n` → Index
-- `$` → FinalExpr
-- Known form names (`fun`, `if`, `case`, `let`, `ap`, `binop`, etc.) → Form
-  descent (only when no Name binding casees)
-- Known slot names (`cond`, `then`, `else`, `body`, `pat`, `def`, etc.) →
-  Slot selection within current form
-- `arm[n]` → indexed slot (for case arms, list/tuple items)
-
-### 3.5 Internal representation (SUPERSEDED — see selector language)
-
-```reason
-type path_segment =
-  | Name(string)
-  | Index(int)
-  | Form(string)          /* "fun", "if", "case", etc. */
-  | Slot(string)          /* "cond", "then", "body", etc. */
-  | IndexedSlot(string, int)  /* "arm", 0 → arm[0] */
-  | FinalExpr             /* $ */
-
-type path = list(path_segment)
-```
-
-String parsing produces this. The current `path_to_id` can be extended to
-resolve these against the actual term structure, not just the node map.
+> Sections 3.2-3.5 previously contained a "form-slot path" design for sub-expression
+> addressing (e.g., `"f/fun/if/then"` to reach the then-branch of an if inside f).
+> This has been **fully superseded** by the selector language, which provides the same
+> capability more expressively: `let f = \... if _ then *` achieves the same as
+> `"f/fun/if/then"` while also supporting pattern-matching, multiple matches, and
+> compositional combination.
+>
+> See `plans/Hazel-Agent-Path-Selector-Language.md` and `Selector.re` for the
+> implemented approach. Some ideas from the old design (like `arm[n]` indexing and
+> `a@1` disambiguation) may still be adopted into the HighLevelNodeMap path system.
 
 ---
 
@@ -714,7 +513,7 @@ The dynamic cursor state already lives in the editor and is dispatched via
 
 ## 7. Test Suite Status
 
-**124 tests total** (all passing). Test groups:
+**159 tests total** (all passing). Test groups:
 
 ### 7.1 AgentTools tests (comprehensive)
 - Basic edit operations (update definition, body, pattern, binding clause)
@@ -729,10 +528,17 @@ The dynamic cursor state already lives in the editor and is dispatched via
 - Parse error detection
 - Static error warnings
 
-### 7.2 Selector language tests (in Test_AgentTools.re)
+### 7.2 Selector language tests (in Test_AgentTools.re, ~44 tests)
 - Tokenization, elaboration, resolution
 - Binder chains, descendant search, focus
 - Complex programs (modules, case, nested lets)
+- Fun spine (slot, name, ellipsis, descend-through-fun-to-if)
+- Test keyword, colon annotation patterns
+- List spine (first, last, second element)
+- Tuple spine (first, last, second, third element)
+- Focus-before-keyword (`* let x`, `* fun _ -> *`)
+- Root-anchored vs descend (`\... let b = *` vs `let b = *`)
+- Module expressions: `M/x = *`, `module M = *`, nested `A/B/x = *`, descend through body
 
 ### 7.3 HighLevelNodeMap tests
 - Node map construction for various program structures
@@ -766,8 +572,15 @@ Select read action wired through Agent.re.
 ### Next phases
 
 **Convergence & cleanup** (current):
-- [ ] Evaluate `target` vs path unification (see to-do above)
 - [ ] Wire selectors to edit actions (`query_unique` → TermEdit splice)
+  - Add `SelectorUpdate(selector, code)` and `SelectorDelete(selector)` to `Action.Structural.t`
+  - Coexists with existing target-based actions (alternative, not replacement)
+  - Use `Selector.query_unique` for single-match resolution → TermEdit splice at focused ID
+- [ ] Selector error diagnostics: when selectors don't resolve, provide:
+  - What part of the selector matched before failing (partial match breadcrumbs)
+  - Similar name suggestions (Levenshtein distance on binder names)
+  - Surface diagnostics in Action Explorer UI result display
+- [ ] Evaluate `target` vs selector unification (see to-do above)
 - [ ] Ensure HighLevelNodeMap and Selector produce consistent results
 - [ ] Add disambiguation annotations for shadowed names
 - [ ] Clean up dead segment-level code in CompositionGo
@@ -787,28 +600,21 @@ Select read action wired through Agent.re.
 
 ## 9. Design Notes from Review
 
-### 9.1 Delimiter-based child naming
+### 9.1 Delimiter-based child naming (VALIDATED by selector language)
 
-Instead of inventing slot names (`cond`, `then`, `else`), use the actual
-delimiters from the syntax where possible:
-- `if` has delimiters `if`, `then`, `else` → children addressed by those tokens
-- `fun` has `fun`, `->` → first child gets form name, body gets `->` (or default)
-- `let` has `let`, `=`, `in` → pattern is `let`/default, def is `=`, body is `in`
-- `case` (NOT `case` — Hazel syntax is `case`) has `case`, `|`, `=>`
+This insight is now embodied in the selector language: selectors use actual
+Hazel delimiters as tokens rather than invented slot names.
+- `if _ then * else _` uses the actual `if`/`then`/`else` keywords
+- `let x = * _... in _` uses `let`/`=`/`in`
+- `fun _ -> *` uses `fun`/`->`
+- `case _ | A => *` uses `case`/`|`/`=>`
 
-Rule: the prefix delimiter names the first child (or the form itself). Subsequent
-delimiters name subsequent children. A trailing child with no delimiter needs a
-special symbol.
+### ~~9.2 Definition/Pattern/etc should become path segments~~ (SUPERSEDED)
 
-### 9.2 Definition/Pattern/etc should become path segments
-
-The current `target` type (`Definition`, `Pattern`, `Body`, `BindingClause`)
-should probably fold into the path itself:
-- `Update("f/def", code)` instead of `Update(Definition, "f", code)`
-- `Update("f/pat", code)` instead of `Update(Pattern, "f", code)`
-
-This unifies the addressing — everything is just a path, and the action is
-just `Update(path, code)` or `Delete(path)`.
+> Superseded by the selector language. `let x = *` (definition), `let x _... in *`
+> (body), and `* let x` (whole binding) achieve the same disambiguation that
+> folding targets into paths would have. The `target` enum remains useful as a
+> simpler constrained interface for common operations.
 
 ### 9.3 Names are pattern caseers
 
@@ -817,15 +623,11 @@ pattern casees x." This generalizes: for tuple patterns `(a, b)`, the name
 is the rendered pattern. For case arms, you could address by pattern text.
 The current system already does this via `Namer.mk_name_from_pat`.
 
-### 9.4 Sibling selectors
+### ~~9.4 Sibling selectors~~ (SUPERSEDED)
 
-Want to address case arms by pattern, not just index. E.g., for
-`case x | 0 => "zero" | _ => "other" end`, address the wildcard arm as
-`"classify/case/_/body"` (pattern as selector among siblings).
-
-More generally: sibling selectors let you pick among children of a node by
-caseing on a property of one child (the pattern) and then accessing another
-child (the body) of the same branch.
+> Superseded by the selector language. Case arms are addressed by pattern:
+> `| Increment => *` selects the arm body. The selector spine for case
+> expressions handles `| <pat> => <body>` patterns naturally.
 
 ### 9.5 `in` and `;` as equivalent separators
 
@@ -851,7 +653,7 @@ produce combined views.
 ### 9.8 Hazel syntax notes
 
 - Comments: `/* ... */` (NOT `/*... */`)
-- Case expressions, not case: `case x | 0 => ... | _ => ... end`
+- Case expressions: `case x | 0 => ... | _ => ... end` (no `with` keyword)
 - Probes already give dynamics (will improve with probes branch merge)
 
 ---
@@ -866,10 +668,11 @@ produce combined views.
   node type, path, code, and "did you mean?" suggestions.
 
 ### Still open
-1. **Target vs path unification**: Should `Definition|Body|Pattern|...` be folded into the
-   path/selector? Or kept as sugar? Selector language can express `let x = *` (definition)
-   vs `let x … in *` (body), so the target enum is technically redundant. But it constrains
-   the agent's action space and provides useful inapplicability checks.
+1. **Target vs selector unification**: The selector language can express all target distinctions
+   (`let x = *` = definition, `let x _... in *` = body). The `target` enum is technically
+   redundant but constrains the agent's action space and provides useful inapplicability checks.
+   Decision: keep both systems for now — `target`-based actions for the common case, selectors
+   for sub-expression access. Re-evaluate after selector-driven edits are wired up.
 
 2. **Shadowed name disambiguation**: When multiple bindings share a name (`let a = 1 in let a = 2`),
    how to disambiguate? Options: `a@1` index suffix, or require selectors for ambiguous cases.

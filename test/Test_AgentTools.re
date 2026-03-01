@@ -1453,6 +1453,52 @@ let selector_tests = (
         );
       },
     ),
+    /* === Module expression (ModuleExp) tests === */
+    sel_test(
+      ~name="module M chain M/x = *",
+      ~code="module M = { let x = 42; let y = 99 } in M.x",
+      ~sel="M/x = *",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="module M chain M/y = *",
+      ~code="module M = { let x = 42; let y = 99 } in M.y",
+      ~sel="M/y = *",
+      ~expected="99",
+    ),
+    sel_test(
+      ~name="module M = * (def)",
+      ~code="module M = { let x = 1 } in M.x",
+      ~sel="module M = *",
+      ~expected="{ let x = 1 }",
+    ),
+    sel_test(
+      ~name="module M body (M _... in *)",
+      ~code="module M = { let x = 1 } in M.x",
+      ~sel="M _... in *",
+      ~expected="M.x",
+    ),
+    sel_test(
+      ~name="module nested: A/B/x = *",
+      ~code=
+        "module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
+      ~sel="A/B/x = *",
+      ~expected="42",
+    ),
+    /* Descend through regular let chain should find unique match */
+    sel_test(
+      ~name="descend let chain unique",
+      ~code="let x = 1 in let y = x + 1 in y",
+      ~sel="\\... let y = *",
+      ~expected="x + 1",
+    ),
+    /* Descend through ModuleExp body to find a let */
+    sel_test(
+      ~name="descend through module body",
+      ~code="module M = { let x = 1 } in let y = M.x + 1 in y",
+      ~sel="\\... let y = *",
+      ~expected="M.x + 1",
+    ),
   ],
 );
 

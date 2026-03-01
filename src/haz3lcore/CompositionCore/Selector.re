@@ -186,6 +186,14 @@ let tpat_name = (tp: TPat.t): option(string) =>
   | _ => None
   };
 
+/* Helper: get the module pattern name from an mpat_t */
+let rec mpat_name = (mp: TermBase.mpat_t): option(string) =>
+  switch (mp.term) {
+  | Var(name) => Some(name)
+  | Asc(mp, _) => mpat_name(mp)
+  | _ => None
+  };
+
 /* Find a binder by name in an expression, returning (binder_exp, def, body).
    Searches through nested let/type/module chains. */
 let rec find_binder_in_exp =
@@ -203,8 +211,13 @@ let rec find_binder_in_exp =
       find_binder_in_exp(name, body)
     | _ => find_binder_in_exp(name, body)
     }
+  | ModuleExp(mpat, def, body) =>
+    switch (mpat_name(mpat)) {
+    | Some(n) when String.equal(n, name) => Some((def, body))
+    | _ => find_binder_in_exp(name, body)
+    }
   | Module(items) =>
-    /* Search module items for a let/type named `name` */
+    /* Search module items for a let/type/module named `name` */
     List.fold_left(
       (acc, item: Mod.t) =>
         switch (acc) {
@@ -216,6 +229,11 @@ let rec find_binder_in_exp =
             | Some(n) when String.equal(n, name) =>
               /* For module let, def is the definition. No body per se. */
               Some((def, e))
+            | _ => None
+            }
+          | ModuleMod(mpat, def) =>
+            switch (mpat_name(mpat)) {
+            | Some(n) when String.equal(n, name) => Some((def, e))
             | _ => None
             }
           | _ => None
@@ -397,11 +415,18 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
     /* module keyword */
     | [MatchKeyword("module"), ...rest] =>
       switch (Exp.term_of(current)) {
+      | ModuleExp(mpat, def, _body) =>
+        switch (mpat_name(mpat)) {
+        | Some(_name) =>
+          walk_after_module_kw(mpat_name(mpat), def, current, rest)
+        | None => []
+        }
       | Let(pat, def, _body) =>
         switch (Exp.term_of(def)) {
         | Module(_) =>
           switch (pat_name(pat)) {
-          | Some(_) => walk_after_module_kw(pat, def, current, rest)
+          | Some(_) =>
+            walk_after_module_kw(pat_name(pat), def, current, rest)
           | None => []
           }
         | _ => []
@@ -763,11 +788,16 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
 
   /* Walk after "module" keyword */
   and walk_after_module_kw =
-      (pat: Pat.t, def: Exp.t, whole: Exp.t, steps: sem_selector) =>
+      (
+        name_opt: option(string),
+        def: Exp.t,
+        whole: Exp.t,
+        steps: sem_selector,
+      ) =>
     switch (steps) {
     /* module M = * : focus on module def */
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
-        when Option.equal(String.equal, pat_name(pat), Some(name)) => [
+        when Option.equal(String.equal, name_opt, Some(name)) => [
         {
           focused: def,
           focused_id: Exp.rep_id(def),
@@ -777,7 +807,7 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
 
     /* module M = ... : match, continue into def */
     | [MatchName(name), MatchDelimiter("="), ...rest]
-        when Option.equal(String.equal, pat_name(pat), Some(name)) =>
+        when Option.equal(String.equal, name_opt, Some(name)) =>
       walk(rest, def)
 
     | _ =>
@@ -944,7 +974,7 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
       (items: list(Exp.t), whole: Exp.t, steps: sem_selector) =>
     walk_seq_spine(items, whole, steps)
 
-  /* Find the Let node for a given binder name */
+  /* Find the Let/ModuleExp node for a given binder name */
   and find_let_node = (name: string, e: Exp.t): option(Exp.t) =>
     switch (Exp.term_of(e)) {
     | Let(pat, _def, body) =>
@@ -952,10 +982,20 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
       | Some(n) when String.equal(n, name) => Some(e)
       | _ => find_let_node(name, body)
       }
+    | ModuleExp(mpat, _def, body) =>
+      switch (mpat_name(mpat)) {
+      | Some(n) when String.equal(n, name) => Some(e)
+      | _ => find_let_node(name, body)
+      }
+    | TyAlias(tpat, _tdef, body) =>
+      switch (tpat_name(tpat)) {
+      | Some(n) when String.equal(n, name) => Some(e)
+      | _ => find_let_node(name, body)
+      }
     | _ => None
     }
 
-  /* Find all Let nodes in an expression chain */
+  /* Find all Let/ModuleExp nodes in an expression chain */
   and find_all_lets = (e: Exp.t): list(let_spine) =>
     switch (Exp.term_of(e)) {
     | Let(pat, def, body) => [
@@ -967,6 +1007,11 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
         },
         ...find_all_lets(body),
       ]
+    | ModuleExp(_, _, body) =>
+      /* Skip module bindings (use `module` keyword or chain sugar M/x).
+         Continue searching through the body for lets after the module. */
+      find_all_lets(body)
+    | TyAlias(_, _, body) => find_all_lets(body)
     | _ => []
     }
 
@@ -979,6 +1024,8 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
     let children =
       switch (Exp.term_of(e)) {
       | Let(_, def, body) =>
+        descend_all(def, remaining) @ descend_all(body, remaining)
+      | ModuleExp(_, def, body) =>
         descend_all(def, remaining) @ descend_all(body, remaining)
       | TyAlias(_, _, body) => descend_all(body, remaining)
       | If(cond, then_, else_) =>
@@ -1016,7 +1063,21 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
       | Asc(e, _) => descend_all(e, remaining)
       | _ => []
       };
-    here @ children;
+    /* Deduplicate by focused_id: the same node can be reached via both
+       walk (which follows body chains) and descend_all (which recurses
+       into children). Keep the first occurrence. */
+    let all = here @ children;
+    let seen = Hashtbl.create(List.length(all));
+    List.filter(
+      ({focused_id, _}) =>
+        if (Hashtbl.mem(seen, focused_id)) {
+          false;
+        } else {
+          Hashtbl.add(seen, focused_id, ());
+          true;
+        },
+      all,
+    );
   };
 
   walk(elaborate(sel), root);
