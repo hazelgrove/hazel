@@ -20,6 +20,7 @@ module Local = {
     EditTools.update_binding_clause,
     EditTools.delete_binding_clause,
     EditTools.delete_body,
+    EditTools.update_type_annotation,
     EditTools.insert_after,
     EditTools.insert_before,
     ReadTools.get_syntax,
@@ -126,6 +127,14 @@ module Local = {
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>
               EditorAction(Delete(Body, get_string(args, "path")))
+            | "update_type_annotation" =>
+              EditorAction(
+                Update(
+                  TypeAnnotation,
+                  get_string(args, "path"),
+                  get_string(args, "code"),
+                ),
+              )
             | "get_syntax" =>
               ReadAction(GetSyntax(get_string(args, "path")))
             | "get_statics" =>
@@ -214,10 +223,12 @@ module Local = {
       "update_pattern(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Update(BindingClause, path, code)) =>
       "update_binding_clause(\"" ++ path ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(Update(TypeAnnotation, path, code)) =>
+      "update_type_annotation(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Delete(BindingClause, path)) =>
       "delete_binding_clause(\"" ++ path ++ "\")"
     | EditorAction(Delete(Body, path)) => "delete_body(\"" ++ path ++ "\")"
-    | EditorAction(Delete(Definition | Pattern, path)) =>
+    | EditorAction(Delete(Definition | Pattern | TypeAnnotation, path)) =>
       "delete(\"" ++ path ++ "\")"
     | ReadAction(GetSyntax(path)) => "get_syntax(\"" ++ path ++ "\")"
     | ReadAction(GetStatics(path)) => "get_statics(\"" ++ path ++ "\")"

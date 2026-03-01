@@ -99,7 +99,8 @@ module Structural = {
     | Definition /* RHS of `=`, before `in` */
     | Body /* expression after `in` */
     | Pattern /* LHS of `=`, after `let`/`type`; updates also rename use sites */
-    | BindingClause; /* entire `let ... = ... in` / `type ... = ... in` */
+    | BindingClause /* entire `let ... = ... in` / `type ... = ... in` */
+    | TypeAnnotation; /* type annotation in `let x : T = ...`; the `T` part */
 
   /* Where to insert relative to the target binding */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]

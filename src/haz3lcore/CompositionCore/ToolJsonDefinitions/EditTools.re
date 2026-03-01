@@ -500,6 +500,76 @@ let delete_body: API.Json.t =
     ),
   ]);
 
+let update_type_annotation_description = {|
+Description:
+Updates the type annotation of a binding's pattern.
+This only applies to bindings that have a type annotation (e.g. `let x : Int = ...`).
+It changes just the type part, leaving the variable name and definition unchanged.
+
+Parameters:
+path: string — slash-delimited path to the binding whose type annotation should change
+code: string — new type annotation
+
+Example(s):
+Given path "x" and the program:
+```
+let x : Int = 5 in
+x + 1
+```
+Calling update_type_annotation(path="x", code="Float") would result in:
+```
+let x : Float = 5 in
+x + 1
+```
+Note: If the binding has no type annotation (e.g. `let x = 5 in ...`), this tool will fail.
+|};
+
+let update_type_annotation: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("update_type_annotation")),
+        ("description", `String(update_type_annotation_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "path",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Slash-delimited path to the binding whose type annotation should change.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The new type annotation."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("path"), `String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
 let insert_after_description = {|
 Description:
 Inserts code immediately after the definition located at the provided path.

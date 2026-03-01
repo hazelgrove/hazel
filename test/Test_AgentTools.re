@@ -1019,6 +1019,88 @@ let read_action_tests = (
   ],
 );
 
+let type_annotation_tests = (
+  "AgentTools.TypeAnnotation",
+  [
+    test_case(
+      "update type annotation on let binding",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x : Int = 5 in x + 1",
+            Update(TypeAnnotation, "x", "Float"),
+          );
+        check_rendered(
+          "type annotation updated",
+          "let x : Float = 5 in x + 1",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update type annotation preserves definition and body",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let a : Int = 1 in let b : Bool = true in a",
+            Update(TypeAnnotation, "a", "Float"),
+          );
+        check_rendered(
+          "preserves other bindings",
+          "let a : Float = 1 in let b : Bool = true in a",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update type annotation on nested binding",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let a = let inner : Int = 1 in inner in a",
+            Update(TypeAnnotation, "a/inner", "Float"),
+          );
+        check_rendered(
+          "nested type annotation",
+          "let a = let inner : Float = 1 in inner in a",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update type annotation fails on unannotated binding",
+      `Quick,
+      () => {
+        expect_composition_failure(
+          "let x = 5 in x + 1",
+          Update(TypeAnnotation, "x", "Int"),
+          "no annotation error",
+        );
+      },
+    ),
+    test_case(
+      "update type alias definition via TypeAnnotation",
+      `Quick,
+      () => {
+        /* For type aliases, TypeAnnotation targets the type definition itself */
+        let result =
+          apply_and_render(
+            "type T = Int in let x : T = 1 in x",
+            Update(TypeAnnotation, "T", "Bool"),
+          );
+        check_rendered(
+          "type alias via TypeAnnotation",
+          "type T = Bool in let x : T = 1 in x",
+          result,
+        );
+      },
+    ),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -1027,5 +1109,6 @@ let tests = [
   module_edit_action_tests,
   edge_case_tests,
   read_action_tests,
+  type_annotation_tests,
   composition_view_print_tests,
 ];

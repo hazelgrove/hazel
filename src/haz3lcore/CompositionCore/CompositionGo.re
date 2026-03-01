@@ -10,7 +10,8 @@ module Local = {
   type inner_term =
     | Pat
     | Def
-    | Body;
+    | Body
+    | TypeAnn;
 
   module Utils = {
     let get_inner_term_id = (inner_term: inner_term, node: node): Id.t => {
@@ -30,12 +31,23 @@ module Local = {
           | Pat => Pat.rep_id(pat)
           | Def => Exp.rep_id(def)
           | Body => Exp.rep_id(body)
+          | TypeAnn =>
+            switch (Pat.term_of(pat)) {
+            | Asc(_, typ) => Typ.rep_id(typ)
+            | _ =>
+              raise(
+                Failure(
+                  "No type annotation found on this binding's pattern",
+                ),
+              )
+            }
           }
         | TyAlias(tpat, tdef, body) =>
           switch (inner_term) {
           | Pat => TPat.rep_id(tpat)
           | Def => Typ.rep_id(tdef)
           | Body => Exp.rep_id(body)
+          | TypeAnn => Typ.rep_id(tdef) /* For type alias, the "annotation" is the definition */
           }
         | _ =>
           raise(
@@ -112,11 +124,12 @@ module Local = {
       | Update(Definition, _, _) => (true, true, false)
       | Update(Body, _, _) => (true, true, true)
       | Update(Pattern, _, _) => (true, false, false)
+      | Update(TypeAnnotation, _, _) => (true, true, false)
       | Update(BindingClause, _, _) => (false, true, false)
       | Insert(_, _, _) => (false, false, false)
       | Delete(BindingClause, _) => (false, true, false)
       | Delete(Body, _) => (false, false, true)
-      | Delete(Definition | Pattern, _) => (false, false, false)
+      | Delete(Definition | Pattern | TypeAnnotation, _) => (false, false, false)
       };
     };
 
@@ -459,6 +472,39 @@ module Local = {
           }
         };
       };
+    | Update(TypeAnnotation, path, code) =>
+      let initial_node = path_to_node(initial_node_map, path);
+      let target_id = Utils.get_inner_term_id(TypeAnn, initial_node);
+      switch (
+        PerformUtils.overwrite_term(
+          initial_z,
+          target_id,
+          code,
+          false,
+          syntax,
+          return,
+        )
+      ) {
+      | Error(e) => Error(e)
+      | Ok(new_z) =>
+        let new_info_map = mk_statics(new_z);
+        switch (build(new_z, new_info_map)) {
+        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | Some(new_node_map) =>
+          switch (
+            PerformUtils.static_error_check(
+              ~edit_action=e,
+              ~initial_node=Some(initial_node),
+              ~initial_info_map,
+              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
+              ~new_info_map,
+            )
+          ) {
+          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | None => Ok(new_z)
+          }
+        };
+      };
     | Insert(Before, path, code) =>
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
@@ -536,10 +582,10 @@ module Local = {
         target_id,
         syntax,
       );
-    | Delete(Definition | Pattern, _) =>
+    | Delete(Definition | Pattern | TypeAnnotation, _) =>
       Error(
         Action.Failure.Composition_action_failure(
-          "Deleting a definition or pattern is not yet implemented.",
+          "Deleting a definition, pattern, or type annotation is not yet implemented.",
         ),
       )
     };
