@@ -1733,6 +1733,18 @@ let cross_cutting_tests = (
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
     }),
+    test_case("GetStatics on list element path", `Quick, () => {
+      let result = run_read_action(list_program, GetStatics("xs/[1]"));
+      check(bool, "mentions type", true,
+        string_contains("type", result));
+    }),
+    test_case("GetStatics on case arm path", `Quick, () => {
+      let case_code =
+        "let f = fun x -> case x | A => 1 | B => 2 end in f";
+      let result = run_read_action(case_code, GetStatics("f/|A"));
+      check(bool, "mentions type", true,
+        string_contains("type", result));
+    }),
     test_case("Update(BindingClause) on case arm gives clear error", `Quick, () => {
       let case_code =
         "let f = fun x -> case x | A => 1 | B => 2 end in f";
