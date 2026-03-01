@@ -247,6 +247,10 @@ module Local = {
       "selector_update(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
     | EditorAction(SelectorDelete(selector)) =>
       "selector_delete(\"" ++ selector ++ "\")"
+    | EditorAction(SelectorInsertBefore(selector, code)) =>
+      "selector_insert_before(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(SelectorInsertAfter(selector, code)) =>
+      "selector_insert_after(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
     | WorkbenchAction(CreateNewTask(task)) =>
       "create_new_task( "
       ++ AgentWorkbench.Utils.TaskUtils.task_to_json_string(task)

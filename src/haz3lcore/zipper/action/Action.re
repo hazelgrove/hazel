@@ -120,7 +120,9 @@ module Structural = {
     | Insert(insert_target, path, code)
     /* Selector-driven edits: resolve via selector language */
     | SelectorUpdate(selector, code)
-    | SelectorDelete(selector);
+    | SelectorDelete(selector)
+    | SelectorInsertBefore(selector, code)
+    | SelectorInsertAfter(selector, code);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

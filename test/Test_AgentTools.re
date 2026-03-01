@@ -1812,6 +1812,47 @@ let selector_edit_tests = (
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
     }),
+    /* === SelectorInsert tests === */
+    /* InsertAfter: insert let binding after anchor */
+    edit_test(
+      "SelectorInsertAfter: let after anchor",
+      "let x = 1 in x + 1",
+      SelectorInsertAfter("* let x", "let y = 2"),
+      "let x = 1 in let y = 2 in x + 1",
+    ),
+    /* InsertBefore: insert let binding before anchor */
+    edit_test(
+      "SelectorInsertBefore: let before anchor",
+      "let x = 1 in x + 1",
+      SelectorInsertBefore("* let x", "let y = 2"),
+      "let y = 2 in let x = 1 in x + 1",
+    ),
+    /* InsertAfter in module: insert after a module item */
+    edit_test(
+      "SelectorInsertAfter: module item",
+      "module M = { let x = 1 } in M.x",
+      SelectorInsertAfter("M/x = *", "let y = 2"),
+      "module M = { let x = 1; let y = 2 } in M.x",
+    ),
+    /* InsertBefore in module: insert before a module item */
+    edit_test(
+      "SelectorInsertBefore: module item",
+      "module M = { let x = 1 } in M.x",
+      SelectorInsertBefore("M/x = *", "let y = 0"),
+      "module M = { let y = 0; let x = 1 } in M.x",
+    ),
+    /* Error: selector no match */
+    test_case("SelectorInsertAfter: no match", `Quick, () => {
+      switch (run_agent_action("let x = 1 in x",
+        SelectorInsertAfter("* let z", "let y = 2"))) {
+      | Ok(_) => Alcotest.fail("Expected failure: no match")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(bool, "error mentions no match", true,
+          str_contains(msg, "No match"))
+      | Error(err) =>
+        Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
+      }
+    }),
   ],
 );
 

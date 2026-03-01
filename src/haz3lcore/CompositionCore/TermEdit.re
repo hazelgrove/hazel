@@ -201,6 +201,59 @@ let is_module_item = (z: Zipper.t, target_id: Id.t): bool => {
   };
 };
 
+/* Find the module item ID that contains or matches a given expression ID.
+   This bridges selector-focused IDs (which target sub-expressions like defs)
+   to module item IDs needed by module_insert/module_delete. */
+let find_module_item_id = (z: Zipper.t, exp_id: Id.t): option(Id.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  /* First check if exp_id IS a module item ID directly */
+  switch (find_module_containing_item(exp_id, term)) {
+  | Some(_) => Some(exp_id)
+  | None =>
+    /* Otherwise scan all modules to find an item whose sub-expression
+       (pat/def) has the given ID */
+    let result = ref(None);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) => {
+            switch (Exp.term_of(e)) {
+            | Module(items) =>
+              List.iter(
+                (item: Mod.t) =>
+                  switch (item.term) {
+                  | ModLet(pat, def) =>
+                    if (Id.equal(Pat.rep_id(pat), exp_id)
+                        || Id.equal(Exp.rep_id(def), exp_id)) {
+                      result := Some(Mod.rep_id(item));
+                    }
+                  | ModuleMod(mpat, def) =>
+                    if (Id.equal(IdTagged.rep_id(mpat), exp_id)
+                        || Id.equal(Exp.rep_id(def), exp_id)) {
+                      result := Some(Mod.rep_id(item));
+                    }
+                  | ModType(tpat, _tdef) =>
+                    if (Id.equal(TPat.rep_id(tpat), exp_id)) {
+                      result := Some(Mod.rep_id(item));
+                    }
+                  | ModExp(e') =>
+                    if (Id.equal(Exp.rep_id(e'), exp_id)) {
+                      result := Some(Mod.rep_id(item));
+                    }
+                  | _ => ()
+                  },
+                items,
+              );
+              continue(e);
+            | _ => continue(e)
+            }
+          },
+        term,
+      );
+    result^;
+  };
+};
+
 /* --- General-purpose term-level edit operations --- */
 
 /* Replace a sub-expression by ID anywhere in the term tree.

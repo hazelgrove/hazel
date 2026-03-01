@@ -112,7 +112,9 @@ module Local = {
         segment_of_term(new_zipper, Some(new_target_id), syntax);
       Some((old_segment, new_segment));
     | SelectorUpdate(_, _)
-    | SelectorDelete(_) =>
+    | SelectorDelete(_)
+    | SelectorInsertBefore(_, _)
+    | SelectorInsertAfter(_, _) =>
       /* Selector-driven edits: diff the whole program */
       let* old_segment = segment_of_term(old_zipper, None, syntax);
       let new_segment = segment_of_term(new_zipper, None, syntax);
@@ -141,6 +143,8 @@ module Local = {
       /* Selector-driven: check everything since we don't know the target */
       | SelectorUpdate(_, _) => (true, true, true)
       | SelectorDelete(_) => (true, true, true)
+      | SelectorInsertBefore(_, _) => (false, false, false)
+      | SelectorInsertAfter(_, _) => (false, false, false)
       };
     };
 
@@ -867,6 +871,81 @@ module Local = {
         let new_z = TermEdit.term_to_zipper(new_term);
         Ok((new_z, None));
       };
+
+    | SelectorInsertBefore(selector, code)
+    | SelectorInsertAfter(selector, code) =>
+      let dir =
+        switch (e) {
+        | SelectorInsertBefore(_, _) => Direction.Left
+        | _ => Direction.Right
+        };
+      let term = MakeTerm.from_zip_for_sem(initial_z).term;
+      switch (Selector.query_unique(selector, term)) {
+      | Error(msg) =>
+        Error(Action.Failure.Composition_action_failure(msg))
+      | Ok({focused_id, _}) =>
+        let (term_edit_result, kind) =
+          if (TermEdit.is_case_arm(initial_z, focused_id)) {
+            (
+              TermEdit.case_insert_arm(initial_z, focused_id, code, dir),
+              "case arm",
+            );
+          } else if (TermEdit.is_list_element(initial_z, focused_id)) {
+            (
+              TermEdit.list_insert_element(
+                initial_z,
+                focused_id,
+                code,
+                dir,
+              ),
+              "list element",
+            );
+          } else if (TermEdit.is_tuple_element(initial_z, focused_id)) {
+            (
+              TermEdit.tuple_insert_element(
+                initial_z,
+                focused_id,
+                code,
+                dir,
+              ),
+              "tuple element",
+            );
+          } else {
+            /* Check if focused_id is inside a module item (directly or
+               as a sub-expression like the definition). If so, use
+               module_insert with the item's ID. */
+            switch (TermEdit.find_module_item_id(initial_z, focused_id)) {
+            | Some(item_id) => (
+                TermEdit.module_insert(initial_z, item_id, code, dir),
+                "module item",
+              )
+            | None => (
+                TermEdit.insert_binding(initial_z, focused_id, code, dir),
+                "binding",
+              )
+            };
+          };
+        switch (term_edit_result) {
+        | Some(new_z) =>
+          switch (PerformUtils.parse_error_check(new_z)) {
+          | Some(parse_err) =>
+            Error(Action.Failure.Composition_action_failure(parse_err))
+          | None => Ok((new_z, None))
+          }
+        | None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Failed to insert "
+              ++ kind
+              ++ " via selector \""
+              ++ selector
+              ++ "\": could not parse \""
+              ++ code
+              ++ "\" as valid code.",
+            ),
+          )
+        };
+      };
     };
   };
 
@@ -1099,7 +1178,8 @@ module Local = {
     /* Selector-driven edits bypass the HighLevelNodeMap entirely —
        they resolve against the term tree directly via Selector */
     switch (a) {
-    | SelectorUpdate(_) | SelectorDelete(_) =>
+    | SelectorUpdate(_) | SelectorDelete(_)
+    | SelectorInsertBefore(_) | SelectorInsertAfter(_) =>
       let initial_info_map = mk_statics(z);
       /* Pass an empty node map — selector edits don't use it */
       edit_dispatch(
