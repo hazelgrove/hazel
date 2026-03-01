@@ -27,7 +27,7 @@ let lessons: list(Tutorial.spec) = [
   Tu_TableProjection.exercise,
   Ta_GradebookMean.exercise,
   Ta_GradebookOverallGrade.exercise,
-  Ta_RichProbes.exercise,
+  Tu_RichProbes.exercise,
   Ta_TidyTerm.exercise,
   Ta_BugIdentification1.exercise,
   Tu_LiveTyping.exercise,

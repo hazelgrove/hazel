@@ -4,7 +4,7 @@ let exercise : Tutorial.spec =
   {
     id = Option.get (Id.of_string "b2000001-0001-0001-0001-000000000001");
     title = "Rich Probes";
-    module_name = "Ta_RichProbes";
+    module_name = "Tu_RichProbes";
     version = 1;
     prompt =
       {md|**Rich probes** display tabular data — lists of labeled tuples — as interactive tables in the editor. When you add a probe to a table expression and press the **table button**, the rich probe shows a **⋮** menu button beside each column name with options for adding columns or changing types. These actions rewrite the source code directly.
