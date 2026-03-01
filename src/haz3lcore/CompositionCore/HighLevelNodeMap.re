@@ -546,6 +546,44 @@ let rec build_children =
         node_map,
         arms,
       );
+    | ListLit(elements) =>
+      /* List elements: create a node for each element, named by index.
+         Names are [0], [1], [2], etc. */
+      List.fold_left(
+        (node_map, (idx, el)) => {
+          let el_info = exp_to_info(el);
+          let el_path = path @ [Info.id_of(el_info)];
+          let name = "[" ++ string_of_int(idx) ++ "]";
+          let node_map =
+            init_node_named(el_info, name, el_path, node_map);
+          build_children(el_info, el_path, node_map, info_map);
+        },
+        node_map,
+        List.mapi((i, el) => (i, el), elements),
+      );
+    | Tuple(elements) =>
+      /* Tuple elements: create a node for each element. Labeled tuple
+         elements use their label name; unlabeled use index notation. */
+      List.fold_left(
+        (node_map, (idx, el)) => {
+          let el_info = exp_to_info(el);
+          let el_path = path @ [Info.id_of(el_info)];
+          let name =
+            switch (Exp.term_of(el)) {
+            | TupLabel(label, _) =>
+              switch (Exp.term_of(label)) {
+              | Label(s) => s
+              | _ => "(" ++ string_of_int(idx) ++ ")"
+              }
+            | _ => "(" ++ string_of_int(idx) ++ ")"
+            };
+          let node_map =
+            init_node_named(el_info, name, el_path, node_map);
+          build_children(el_info, el_path, node_map, info_map);
+        },
+        node_map,
+        List.mapi((i, el) => (i, el), elements),
+      );
     | Module(items) =>
       /* Module items are expanded to a Let/TyAlias chain in the info_map.
          Find the first named item (ModLet/ModType/ModuleMod) whose ID is

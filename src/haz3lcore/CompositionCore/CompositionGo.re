@@ -410,10 +410,11 @@ module Local = {
     | Update(Body, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
-      /* For case arm nodes, the path points directly to the arm body
-         expression. For Let/TyAlias nodes, extract the body sub-expression. */
+      /* For sequence element nodes (case arms, list/tuple elements), the
+         path points directly to the element expression. For Let/TyAlias
+         nodes, extract the body sub-expression. */
       let target_id =
-        if (TermEdit.is_case_arm(initial_z, target_id)) {
+        if (TermEdit.is_sequence_element(initial_z, target_id)) {
           target_id;
         } else {
           Utils.get_inner_term_id(Body, initial_node);
@@ -421,6 +422,10 @@ module Local = {
       let term_edit_result =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
           TermEdit.case_update_arm_body(initial_z, target_id, code);
+        } else if (TermEdit.is_list_element(initial_z, target_id)) {
+          TermEdit.list_update_element(initial_z, target_id, code);
+        } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
+          TermEdit.tuple_update_element(initial_z, target_id, code);
         } else {
           TermEdit.update_body(initial_z, target_id, code);
         };
@@ -444,11 +449,15 @@ module Local = {
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
       /* For case arm nodes, use case_update_arm_pattern which finds
-         the arm by its body ID. For Let/TyAlias, use update_pattern
-         which handles pattern replacement and variable renaming. */
+         the arm by its body ID. For list/tuple elements, Pattern update
+         doesn't apply. For Let/TyAlias, use update_pattern which handles
+         pattern replacement and variable renaming. */
       let term_edit_result =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
           TermEdit.case_update_arm_pattern(initial_z, target_id, code);
+        } else if (TermEdit.is_list_element(initial_z, target_id)
+                   || TermEdit.is_tuple_element(initial_z, target_id)) {
+          None; /* Pattern update not applicable for list/tuple elements */
         } else {
           let pat_id = Utils.get_inner_term_id(Pat, initial_node);
           TermEdit.update_pattern(initial_z, pat_id, code);
@@ -520,6 +529,14 @@ module Local = {
           TermEdit.case_insert_arm(
             initial_z, target_id, code, Direction.Left,
           );
+        } else if (TermEdit.is_list_element(initial_z, target_id)) {
+          TermEdit.list_insert_element(
+            initial_z, target_id, code, Direction.Left,
+          );
+        } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
+          TermEdit.tuple_insert_element(
+            initial_z, target_id, code, Direction.Left,
+          );
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
           TermEdit.module_insert(initial_z, target_id, code, Direction.Left);
         } else {
@@ -551,7 +568,7 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to insert binding.",
+            "Failed to insert element.",
           ),
         )
       };
@@ -560,6 +577,14 @@ module Local = {
       let term_edit_result =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
           TermEdit.case_insert_arm(
+            initial_z, target_id, code, Direction.Right,
+          );
+        } else if (TermEdit.is_list_element(initial_z, target_id)) {
+          TermEdit.list_insert_element(
+            initial_z, target_id, code, Direction.Right,
+          );
+        } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
+          TermEdit.tuple_insert_element(
             initial_z, target_id, code, Direction.Right,
           );
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
@@ -595,7 +620,7 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to insert binding.",
+            "Failed to insert element.",
           ),
         )
       };
@@ -604,6 +629,10 @@ module Local = {
       let term_edit_result =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
           TermEdit.case_delete_arm(initial_z, target_id);
+        } else if (TermEdit.is_list_element(initial_z, target_id)) {
+          TermEdit.list_delete_element(initial_z, target_id);
+        } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
+          TermEdit.tuple_delete_element(initial_z, target_id);
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
           TermEdit.module_delete(initial_z, target_id);
         } else {
@@ -614,7 +643,7 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to delete binding.",
+            "Failed to delete element.",
           ),
         )
       };

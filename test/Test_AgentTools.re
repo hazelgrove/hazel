@@ -1488,6 +1488,193 @@ let case_arm_tests = (
   ],
 );
 
+/* === List Element Tests === */
+
+/* Helper: find nth element ID in the first ListLit in the term */
+let find_list_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | ListLit(elements) when result^ == None =>
+            switch (List.nth_opt(elements, idx)) {
+            | Some(el) => result := Some(Exp.rep_id(el))
+            | None => ()
+            };
+            e;
+          | _ => continue(e)
+          };
+        },
+      term,
+    );
+  switch (result^) {
+  | Some(id) => id
+  | None => Alcotest.fail("No list element at index " ++ string_of_int(idx))
+  };
+};
+
+let list_edit = (code: string, idx: int, f: (Zipper.t, Id.t) => option(Zipper.t)): string => {
+  let z = mk_zipper(code);
+  let el_id = find_list_element_id_in_zipper(z, idx);
+  switch (f(z, el_id)) {
+  | Some(new_z) => render_zipper(new_z)
+  | None => Alcotest.fail("List operation returned None")
+  };
+};
+
+let list_program = "let xs = [1, 2, 3] in xs";
+
+let list_element_tests = (
+  "AgentTools.ListElements",
+  [
+    /* TermEdit-level operations */
+    test_case("delete first list element", `Quick, () => {
+      let result = list_edit(list_program, 0, (z, id) =>
+        TermEdit.list_delete_element(z, id));
+      check(bool, "no 1", false, string_contains("1,", result));
+      check(bool, "has 2", true, string_contains("2", result));
+      check(bool, "has 3", true, string_contains("3", result));
+    }),
+    test_case("delete last list element", `Quick, () => {
+      let result = list_edit(list_program, 2, (z, id) =>
+        TermEdit.list_delete_element(z, id));
+      check(bool, "has 1", true, string_contains("1", result));
+      check(bool, "has 2", true, string_contains("2", result));
+    }),
+    test_case("insert list element after", `Quick, () => {
+      let result = list_edit(list_program, 2, (z, id) =>
+        TermEdit.list_insert_element(z, id, "4", Direction.Right));
+      check(bool, "has 4", true, string_contains("4", result));
+    }),
+    test_case("update list element", `Quick, () => {
+      let result = list_edit(list_program, 1, (z, id) =>
+        TermEdit.list_update_element(z, id, "99"));
+      check(bool, "has 99", true, string_contains("99", result));
+    }),
+    /* Node map indexing */
+    test_case("list elements in node map", `Quick, () => {
+      let node_map = build_node_map(list_program);
+      check(bool, "[0] exists", true,
+        HighLevelNodeMap.path_to_id_opt(node_map, "xs/[0]") != None);
+      check(bool, "[1] exists", true,
+        HighLevelNodeMap.path_to_id_opt(node_map, "xs/[1]") != None);
+      check(bool, "[2] exists", true,
+        HighLevelNodeMap.path_to_id_opt(node_map, "xs/[2]") != None);
+    }),
+    /* Dispatch-level operations */
+    test_case("update list element via dispatch", `Quick, () => {
+      let result = apply_and_render(list_program, Update(Body, "xs/[1]", "99"));
+      check(bool, "has 99", true, string_contains("99", result));
+    }),
+    test_case("delete list element via dispatch", `Quick, () => {
+      let result = apply_and_render(list_program, Delete(BindingClause, "xs/[1]"));
+      check(bool, "has 1", true, string_contains("1", result));
+      check(bool, "has 3", true, string_contains("3", result));
+    }),
+    test_case("insert list element via dispatch", `Quick, () => {
+      let result = apply_and_render(list_program, Insert(After, "xs/[2]", "4"));
+      check(bool, "has 4", true, string_contains("4", result));
+    }),
+  ],
+);
+
+/* === Tuple Element Tests === */
+
+let find_tuple_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Tuple(elements) when result^ == None =>
+            switch (List.nth_opt(elements, idx)) {
+            | Some(el) => result := Some(Exp.rep_id(el))
+            | None => ()
+            };
+            e;
+          | _ => continue(e)
+          };
+        },
+      term,
+    );
+  switch (result^) {
+  | Some(id) => id
+  | None => Alcotest.fail("No tuple element at index " ++ string_of_int(idx))
+  };
+};
+
+let tuple_edit = (code: string, idx: int, f: (Zipper.t, Id.t) => option(Zipper.t)): string => {
+  let z = mk_zipper(code);
+  let el_id = find_tuple_element_id_in_zipper(z, idx);
+  switch (f(z, el_id)) {
+  | Some(new_z) => render_zipper(new_z)
+  | None => Alcotest.fail("Tuple operation returned None")
+  };
+};
+
+let tuple_program = "let p = (1, 2, 3) in p";
+let labeled_tuple_program = "let p = (x=1, y=2) in p";
+
+let tuple_element_tests = (
+  "AgentTools.TupleElements",
+  [
+    /* TermEdit-level operations */
+    test_case("delete tuple element", `Quick, () => {
+      let result = tuple_edit(tuple_program, 1, (z, id) =>
+        TermEdit.tuple_delete_element(z, id));
+      check(bool, "has 1", true, string_contains("1", result));
+      check(bool, "has 3", true, string_contains("3", result));
+    }),
+    test_case("insert tuple element", `Quick, () => {
+      let result = tuple_edit(tuple_program, 2, (z, id) =>
+        TermEdit.tuple_insert_element(z, id, "4", Direction.Right));
+      check(bool, "has 4", true, string_contains("4", result));
+    }),
+    test_case("update tuple element", `Quick, () => {
+      let result = tuple_edit(tuple_program, 0, (z, id) =>
+        TermEdit.tuple_update_element(z, id, "99"));
+      check(bool, "has 99", true, string_contains("99", result));
+    }),
+    /* Node map indexing */
+    test_case("tuple elements in node map", `Quick, () => {
+      let node_map = build_node_map(tuple_program);
+      check(bool, "(0) exists", true,
+        HighLevelNodeMap.path_to_id_opt(node_map, "p/(0)") != None);
+      check(bool, "(1) exists", true,
+        HighLevelNodeMap.path_to_id_opt(node_map, "p/(1)") != None);
+      check(bool, "(2) exists", true,
+        HighLevelNodeMap.path_to_id_opt(node_map, "p/(2)") != None);
+    }),
+    /* Labeled tuple elements use label names */
+    test_case("labeled tuple elements in node map", `Quick, () => {
+      let node_map = build_node_map(labeled_tuple_program);
+      check(bool, "x exists", true,
+        HighLevelNodeMap.path_to_id_opt(node_map, "p/x") != None);
+      check(bool, "y exists", true,
+        HighLevelNodeMap.path_to_id_opt(node_map, "p/y") != None);
+    }),
+    /* Dispatch-level operations */
+    test_case("update tuple element via dispatch", `Quick, () => {
+      let result = apply_and_render(tuple_program, Update(Body, "p/(0)", "99"));
+      check(bool, "has 99", true, string_contains("99", result));
+    }),
+    test_case("delete tuple element via dispatch", `Quick, () => {
+      let result = apply_and_render(tuple_program, Delete(BindingClause, "p/(1)"));
+      check(bool, "has 1", true, string_contains("1", result));
+      check(bool, "has 3", true, string_contains("3", result));
+    }),
+    test_case("insert tuple element via dispatch", `Quick, () => {
+      let result = apply_and_render(tuple_program, Insert(After, "p/(2)", "4"));
+      check(bool, "has 4", true, string_contains("4", result));
+    }),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -1503,4 +1690,6 @@ let tests = [
   completeness_tests,
   complex_program_tests,
   case_arm_tests,
+  list_element_tests,
+  tuple_element_tests,
 ];

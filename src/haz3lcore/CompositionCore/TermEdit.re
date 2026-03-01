@@ -528,6 +528,226 @@ let is_case_arm = (z: Zipper.t, target_id: Id.t): bool => {
   };
 };
 
+/* --- List element operations --- */
+
+/* Replace the elements of a ListLit expression by ID. */
+let replace_list_elements =
+    (target_list_id: Id.t, new_elements: list(Exp.t), term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        if (Id.equal(Exp.rep_id(e), target_list_id)) {
+          switch (Exp.term_of(e)) {
+          | ListLit(_) => {...e, term: ListLit(new_elements)}
+          | _ => continue(e)
+          };
+        } else {
+          continue(e);
+        },
+    term,
+  );
+
+/* Find the ListLit containing an element with the given ID.
+   Returns (list_id, elements, element_index). */
+let find_list_containing_element =
+    (target_element_id: Id.t, term: Exp.t)
+    : option((Id.t, list(Exp.t), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | ListLit(elements) =>
+            switch (
+              ListUtil.findi_opt(
+                el => Id.equal(Exp.rep_id(el), target_element_id),
+                elements,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), elements, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          };
+        },
+      term,
+    );
+  result^;
+};
+
+let list_delete_element =
+    (z: Zipper.t, target_element_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_list_containing_element(target_element_id, term)) {
+  | Some((list_id, elements, idx)) =>
+    let new_elements = List.filteri((i, _) => i != idx, elements);
+    let new_term = replace_list_elements(list_id, new_elements, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+let list_insert_element =
+    (z: Zipper.t, target_element_id: Id.t, code: string, d: Direction.t)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_list_containing_element(target_element_id, term)) {
+  | Some((list_id, elements, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_element) =>
+      let insert_at = d == Left ? idx : idx + 1;
+      let (before, after) = ListUtil.split_n(insert_at, elements);
+      let new_elements = before @ [new_element] @ after;
+      let new_term = replace_list_elements(list_id, new_elements, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+let list_update_element =
+    (z: Zipper.t, target_element_id: Id.t, code: string)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_list_containing_element(target_element_id, term)) {
+  | Some((list_id, elements, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_element) =>
+      let new_elements =
+        List.mapi((i, el) => i == idx ? new_element : el, elements);
+      let new_term = replace_list_elements(list_id, new_elements, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+let is_list_element = (z: Zipper.t, target_id: Id.t): bool => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_list_containing_element(target_id, term)) {
+  | Some(_) => true
+  | None => false
+  };
+};
+
+/* --- Tuple element operations --- */
+
+/* Replace the elements of a Tuple expression by ID. */
+let replace_tuple_elements =
+    (target_tuple_id: Id.t, new_elements: list(Exp.t), term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        if (Id.equal(Exp.rep_id(e), target_tuple_id)) {
+          switch (Exp.term_of(e)) {
+          | Tuple(_) => {...e, term: Tuple(new_elements)}
+          | _ => continue(e)
+          };
+        } else {
+          continue(e);
+        },
+    term,
+  );
+
+/* Find the Tuple containing an element with the given ID.
+   Returns (tuple_id, elements, element_index). */
+let find_tuple_containing_element =
+    (target_element_id: Id.t, term: Exp.t)
+    : option((Id.t, list(Exp.t), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Tuple(elements) =>
+            switch (
+              ListUtil.findi_opt(
+                el => Id.equal(Exp.rep_id(el), target_element_id),
+                elements,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), elements, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          };
+        },
+      term,
+    );
+  result^;
+};
+
+let tuple_delete_element =
+    (z: Zipper.t, target_element_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_tuple_containing_element(target_element_id, term)) {
+  | Some((tuple_id, elements, idx)) =>
+    let new_elements = List.filteri((i, _) => i != idx, elements);
+    let new_term = replace_tuple_elements(tuple_id, new_elements, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+let tuple_insert_element =
+    (z: Zipper.t, target_element_id: Id.t, code: string, d: Direction.t)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_tuple_containing_element(target_element_id, term)) {
+  | Some((tuple_id, elements, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_element) =>
+      let insert_at = d == Left ? idx : idx + 1;
+      let (before, after) = ListUtil.split_n(insert_at, elements);
+      let new_elements = before @ [new_element] @ after;
+      let new_term = replace_tuple_elements(tuple_id, new_elements, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+let tuple_update_element =
+    (z: Zipper.t, target_element_id: Id.t, code: string)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_tuple_containing_element(target_element_id, term)) {
+  | Some((tuple_id, elements, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_element) =>
+      let new_elements =
+        List.mapi((i, el) => i == idx ? new_element : el, elements);
+      let new_term = replace_tuple_elements(tuple_id, new_elements, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+let is_tuple_element = (z: Zipper.t, target_id: Id.t): bool => {
+  let term = MakeTerm.from_zip_for_sem(z).term;
+  switch (find_tuple_containing_element(target_id, term)) {
+  | Some(_) => true
+  | None => false
+  };
+};
+
+/* Check if a target ID is any kind of sequence element (case arm, list, or tuple) */
+let is_sequence_element = (z: Zipper.t, target_id: Id.t): bool =>
+  is_case_arm(z, target_id)
+  || is_list_element(z, target_id)
+  || is_tuple_element(z, target_id);
+
 /* --- Update operations on let-chain bindings --- */
 
 /* Update the definition of a binding (the expression after = ).
