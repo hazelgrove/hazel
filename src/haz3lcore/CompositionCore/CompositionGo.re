@@ -598,10 +598,37 @@ module Local = {
         ~syntax: CachedSyntax.t,
       )
       : result(string, Action.Failure.t) => {
-    switch (build(z, info_map)) {
-    | None => Error(Cant_derive_local_AST_information)
-    | Some(node_map) =>
-      switch (action) {
+    /* Select uses the selector language directly on the term tree,
+       bypassing the HighLevelNodeMap path system */
+    switch (action) {
+    | Select(selector_str) =>
+      let term = MakeTerm.from_zip_for_sem(z).term;
+      switch (Selector.query(selector_str, term)) {
+      | [] =>
+        Error(
+          Composition_action_failure(
+            "No match for selector: " ++ selector_str,
+          ),
+        )
+      | matches =>
+        let results =
+          matches
+          |> List.map((m: Selector.match_result) => {
+               let code = Selector.print_match(m);
+               let breadcrumb = m.breadcrumb;
+               if (String.length(breadcrumb) > 0) {
+                 breadcrumb ++ ": " ++ code;
+               } else {
+                 code;
+               };
+             });
+        Ok(String.concat("\n", results));
+      };
+    | _ =>
+      switch (build(z, info_map)) {
+      | None => Error(Cant_derive_local_AST_information)
+      | Some(node_map) =>
+        switch (action) {
       | GetSyntax(path) =>
         let node = path_to_node(node_map, path);
         let target_id = Info.id_of(node.info);
@@ -741,7 +768,9 @@ module Local = {
                )
           };
         Ok(result);
+      | Select(_) => assert(false) /* handled above */
       }
+    }
     };
   };
 

@@ -233,6 +233,7 @@ module Local = {
     | ReadAction(GetSyntax(path)) => "get_syntax(\"" ++ path ++ "\")"
     | ReadAction(GetStatics(path)) => "get_statics(\"" ++ path ++ "\")"
     | ReadAction(GetContext(path)) => "get_context(\"" ++ path ++ "\")"
+    | ReadAction(Select(selector)) => "select(\"" ++ selector ++ "\")"
     | EditorAction(Insert(After, path, code)) =>
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Insert(Before, path, code)) =>

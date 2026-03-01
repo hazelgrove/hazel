@@ -1449,6 +1449,60 @@ let selector_tests = (
         check(int, "match count", 2, List.length(results));
       },
     ),
+    /* Read action integration tests */
+    test_case(
+      "Select read action returns focused syntax",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let x = 42 in x + 1",
+            Select("let x = *"),
+          );
+        check(string, "select def", "let x = ...: 42", result);
+      },
+    ),
+    test_case(
+      "Select with descendant search via read action",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let f = fun x -> if x > 0 then x else 0 in f 5",
+            Select("let f = \\_ if _... else *"),
+          );
+        check(string, "select else", "if ... else ...: 0", result);
+      },
+    ),
+    test_case(
+      "Select with binder chain via read action",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let m = { let x = 42 } in m.x",
+            Select("m/x = *"),
+          );
+        check(string, "chain select", "x = ...: 42", result);
+      },
+    ),
+    test_case(
+      "Select returns multiple matches",
+      `Quick,
+      () => {
+        let result =
+          run_read_action(
+            "let a = 1 in let b = 2 in a + b",
+            Select("let _ = *"),
+          );
+        /* Should have 2 lines, one per match */
+        let lines =
+          result
+          |> String.split_on_char('\n')
+          |> List.filter(s => String.length(String.trim(s)) > 0);
+        check(int, "line count", 2, List.length(lines));
+      },
+    ),
   ],
 );
 
