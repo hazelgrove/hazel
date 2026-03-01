@@ -117,6 +117,7 @@ let expect_composition_failure =
   };
 };
 
+
 let edit_action_tests = (
   "AgentTools.EditActions",
   [
@@ -1283,6 +1284,174 @@ let seq_node_map_tests = (
   ],
 );
 
+/* === Selector Language Tests === */
+
+let mk_term = (code: string): Exp.t => {
+  let z = mk_zipper(code);
+  MakeTerm.from_zip_for_sem(z).term;
+};
+
+let selector_query = (code: string, sel: string): list(string) => {
+  let term = mk_term(code);
+  let matches = Selector.query(sel, term);
+  List.map(Selector.print_match, matches);
+};
+
+let selector_query_unique = (code: string, sel: string): string => {
+  let term = mk_term(code);
+  switch (Selector.query_unique(sel, term)) {
+  | Ok(m) => Selector.print_match(m)
+  | Error(e) => "ERROR: " ++ e
+  };
+};
+
+let selector_tests = (
+  "AgentTools.Selectors",
+  [
+    /* Basic let spine selectors */
+    test_case(
+      "let x = * selects definition",
+      `Quick,
+      () => {
+        let result = selector_query_unique("let x = 42 in x", "let x = *");
+        check(string, "def", "42", result);
+      },
+    ),
+    test_case(
+      "let x ... in * selects body",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique("let x = 42 in x + 1", "let x _... in *");
+        check(string, "body", "x + 1", result);
+      },
+    ),
+    test_case(
+      "let with nested lets selects correct one",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "let a = 1 in let b = 2 in a + b",
+            "let b = *",
+          );
+        check(string, "def of b", "2", result);
+      },
+    ),
+    /* Binder chain */
+    test_case(
+      "binder chain A/B navigates nested defs",
+      `Quick,
+      () => {
+        let code = "let m = { let x = 42 } in m.x";
+        let result = selector_query_unique(code, "m/x = *");
+        check(string, "chain def", "42", result);
+      },
+    ),
+    /* If spine */
+    test_case(
+      "if * selects condition",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "if true then 1 else 0",
+            "if *",
+          );
+        check(string, "cond", "true", result);
+      },
+    ),
+    test_case(
+      "if _ then * selects then branch",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "if true then 1 else 0",
+            "if _ then *",
+          );
+        check(string, "then", "1", result);
+      },
+    ),
+    test_case(
+      "if _... else * selects else branch",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "if true then 1 else 0",
+            "if _... else *",
+          );
+        check(string, "else", "0", result);
+      },
+    ),
+    /* Descendant search */
+    test_case(
+      "descendant search finds nested if",
+      `Quick,
+      () => {
+        let code = "let f = fun x -> if x > 0 then x else 0 in f 5";
+        let result = selector_query_unique(code, "let f = \\_ if _ then *");
+        check(string, "then branch", "x", result);
+      },
+    ),
+    /* Case/match spine */
+    test_case(
+      "case * selects scrutinee",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "case x | A => 1 | B => 2 end",
+            "case *",
+          );
+        check(string, "scrutinee", "x", result);
+      },
+    ),
+    test_case(
+      "| Arm => * selects arm body",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "case x | A => 1 | B => 2 end",
+            "| B => *",
+          );
+        check(string, "arm B body", "2", result);
+      },
+    ),
+    /* No match */
+    test_case(
+      "no match returns error",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "let x = 1 in x",
+            "let y = *",
+          );
+        check(
+          bool,
+          "starts with ERROR",
+          true,
+          String.length(result) > 5
+          && String.sub(result, 0, 5) == "ERROR",
+        );
+      },
+    ),
+    /* Multiple matches for query mode */
+    test_case(
+      "query returns multiple matches",
+      `Quick,
+      () => {
+        let code = "let a = 1 in let b = 2 in a + b";
+        let results = selector_query(code, "let _ = *");
+        check(int, "match count", 2, List.length(results));
+      },
+    ),
+  ],
+);
+
 let tests = [
   edit_action_tests,
   high_level_node_map_tests,
@@ -1294,4 +1463,5 @@ let tests = [
   type_annotation_tests,
   composition_view_print_tests,
   seq_node_map_tests,
+  selector_tests,
 ];
