@@ -64,40 +64,35 @@ let preamble: list(Tutorial.spec) = [
   Ta_GradebookMean.exercise,
 ];
 
-/* Group A: current order */
-let tail_a: list(Tutorial.spec) = [
-  Ta_GradebookOverallGrade.exercise,
-  Tu_RichProbes.exercise,
-  Ta_TidyTerm.exercise,
-  Ta_BugIdentification1.exercise,
-  Tu_LiveTyping.exercise,
-  Ta_BugIdentification2.exercise,
-];
-
-/* Group B: swapped pairs with modified titles, settings, and prompts */
-let tail_b: list(Tutorial.spec) = [
-  Ta_TidyTerm.exercise
-  |> Tutorial.with_title("Task 3: Gradebook Tidy Term")
-  |> Tutorial.with_rich_probes(Some(false)),
-  Tu_RichProbes.exercise,
-  Ta_GradebookOverallGrade.exercise
-  |> Tutorial.with_title("Task 4: Gradebook Overall Grade")
-  |> Tutorial.with_rich_probes(Some(true)),
-  Ta_BugIdentification2.exercise
-  |> Tutorial.with_title("Task 5: Bug Identification 1")
-  |> Tutorial.with_prompt(
-       strip_live_typing_prefix(Ta_BugIdentification2.exercise.prompt),
-     ),
-  Tu_LiveTyping.exercise,
-  Ta_BugIdentification1.exercise
-  |> Tutorial.with_title("Task 6: Bug Identification 2")
-  |> Tutorial.with_prompt(
-       add_live_typing_prefix(Ta_BugIdentification1.exercise.prompt),
-     ),
-];
-
-let lessons: list(Tutorial.spec) =
+/* Select task pairs based on treatment */
+let (rich_probes_pre, rich_probes_post) =
   switch (get_treatment()) {
-  | A => preamble @ tail_a
-  | B => preamble @ tail_b
+  | A => (Ta_GradebookOverallGrade.exercise, Ta_TidyTerm.exercise)
+  | B => (Ta_TidyTerm.exercise, Ta_GradebookOverallGrade.exercise)
   };
+
+let (bug_id_pre, bug_id_post) =
+  switch (get_treatment()) {
+  | A => (Ta_BugIdentification1.exercise, Ta_BugIdentification2.exercise)
+  | B => (Ta_BugIdentification2.exercise, Ta_BugIdentification1.exercise)
+  };
+
+/* Apply positional transformations and assemble */
+let lessons: list(Tutorial.spec) =
+  preamble
+  @ [
+    rich_probes_pre
+    |> Tutorial.with_title("Task 3: " ++ rich_probes_pre.title)
+    |> Tutorial.with_rich_probes(Some(false)),
+    Tu_RichProbes.exercise,
+    rich_probes_post
+    |> Tutorial.with_title("Task 4: " ++ rich_probes_post.title)
+    |> Tutorial.with_rich_probes(Some(true)),
+    bug_id_pre
+    |> Tutorial.with_title("Task 5: " ++ bug_id_pre.title ++ " 1")
+    |> Tutorial.with_prompt(strip_live_typing_prefix(bug_id_pre.prompt)),
+    Tu_LiveTyping.exercise,
+    bug_id_post
+    |> Tutorial.with_title("Task 6: " ++ bug_id_post.title ++ " 2")
+    |> Tutorial.with_prompt(add_live_typing_prefix(bug_id_post.prompt)),
+  ];

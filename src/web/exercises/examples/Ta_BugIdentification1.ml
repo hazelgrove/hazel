@@ -2,7 +2,7 @@ let exercise : Tutorial.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "b2bfd554-42e8-46de-bfc4-4372b5cb3ea3");
-    title = "Task 5: Bug identification 1";
+    title = "Bug Identification";
     version = 1;
     module_name = "Ta_BugIdentification1";
     prompt =

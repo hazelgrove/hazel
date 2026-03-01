@@ -2,7 +2,7 @@ let exercise : Tutorial.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "7eab0859-5c92-419a-92cb-54e2c65c6b89");
-    title = "Task 3: Gradebook Overall Grade";
+    title = "Gradebook Overall Grade";
     version = 1;
     module_name = "Ta_GradebookOverallGrade";
     prompt =
