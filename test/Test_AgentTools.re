@@ -743,6 +743,18 @@ let edge_case_tests = (
       },
     ),
     test_case(
+      "unmatched delimiter gives parse error",
+      `Quick,
+      () => {
+        /* Code with unmatched 'if' delimiter should be caught as parse error */
+        expect_composition_failure(
+          "let a = 1 in a",
+          Update(Definition, "a", "if true then 1"),
+          "parse error detection",
+        );
+      },
+    ),
+    test_case(
       "$ path works with edit action",
       `Quick,
       () => {
