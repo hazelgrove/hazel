@@ -473,7 +473,16 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
           Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.body)
 
-    /* let <name> : match name, continue with remaining */
+    /* let <name> : match name, return whole or continue */
+    | [MatchName(name)]
+        when
+          Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        {
+          focused: spine.whole,
+          focused_id: Exp.rep_id(spine.whole),
+          breadcrumb: "let " ++ name,
+        },
+      ]
     | [MatchName(name), ...rest]
         when
           Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>

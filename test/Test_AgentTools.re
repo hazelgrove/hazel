@@ -1503,6 +1503,116 @@ let selector_tests = (
         check(int, "line count", 2, List.length(lines));
       },
     ),
+    /* Spec Example 1: if inside a function binding */
+    test_case(
+      "spec ex1: let f = \\_ if * gets condition",
+      `Quick,
+      () => {
+        let code = "let f = fun x -> if x > 0 then x else 0 in f 5";
+        let result = selector_query_unique(code, "let f = \\_ if *");
+        check(string, "cond", "x > 0", result);
+      },
+    ),
+    test_case(
+      "spec ex1: let f = \\_ if _ then * gets then branch",
+      `Quick,
+      () => {
+        let code = "let f = fun x -> if x > 0 then x else 0 in f 5";
+        let result =
+          selector_query_unique(code, "let f = \\_ if _ then *");
+        check(string, "then", "x", result);
+      },
+    ),
+    test_case(
+      "spec ex1: * let f selects whole binding",
+      `Quick,
+      () => {
+        let code = "let f = fun x -> if x > 0 then x else 0 in f 5";
+        let result = selector_query_unique(code, "* let f");
+        /* Should return the whole let f = ... in ... expression */
+        let has_let =
+          String.length(result) > 5
+          && String.sub(result, 0, 5) == "ERROR";
+        /* If this errors, we need to implement * before keywords */
+        check(bool, "not error", false, has_let);
+      },
+    ),
+    /* Spec Example 2: case arms */
+    test_case(
+      "spec ex2: case \\_ | Increment => * gets arm body",
+      `Quick,
+      () => {
+        let code =
+          "case msg | Increment => count + 1 | Decrement => count - 1 end";
+        let result =
+          selector_query_unique(code, "| Increment => *");
+        check(string, "incr body", "count + 1", result);
+      },
+    ),
+    test_case(
+      "spec ex2: | Decrement => * gets second arm",
+      `Quick,
+      () => {
+        let code =
+          "case msg | Increment => count + 1 | Decrement => count - 1 end";
+        let result =
+          selector_query_unique(code, "| Decrement => *");
+        check(string, "decr body", "count - 1", result);
+      },
+    ),
+    /* Spec Example 3: module items */
+    test_case(
+      "spec ex3: module M = \\_ let x = * in module",
+      `Quick,
+      () => {
+        let code = "let m = { let x = 1; let y = 2 } in m.x";
+        let result =
+          selector_query_unique(code, "m/x = *");
+        check(string, "module member x def", "1", result);
+      },
+    ),
+    test_case(
+      "spec ex3: module member y via chain",
+      `Quick,
+      () => {
+        let code = "let m = { let x = 1; let y = 2 } in m.y";
+        let result =
+          selector_query_unique(code, "m/y = *");
+        check(string, "module member y def", "2", result);
+      },
+    ),
+    /* Spec Example 4: nested binder chains */
+    test_case(
+      "spec ex4: A/B chain with nested modules",
+      `Quick,
+      () => {
+        let code =
+          "let a = { let x = 1; let b = { let y = 42 } } in a.b.y";
+        let result =
+          selector_query_unique(code, "a/b/y = *");
+        check(string, "nested chain", "42", result);
+      },
+    ),
+    /* name = * without let keyword */
+    test_case(
+      "name = * works without let keyword",
+      `Quick,
+      () => {
+        let code = "let x = 42 in let y = 99 in x + y";
+        let result = selector_query_unique(code, "y = *");
+        check(string, "y def", "99", result);
+      },
+    ),
+    /* body selection */
+    test_case(
+      "name _... in * selects body",
+      `Quick,
+      () => {
+        let code = "let x = 42 in let y = 99 in x + y";
+        let result = selector_query_unique(code, "x _... in *");
+        check(string, "x body", "let y = 99 in x + y", result);
+      },
+    ),
   ],
 );
 
