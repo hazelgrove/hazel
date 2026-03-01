@@ -120,6 +120,7 @@
 }
 
 .modal .table th {
+    position: relative;
     padding-left: 15px;
     padding-right: 15px;
 }
