@@ -28,8 +28,24 @@ module Info = {
     );
   };
 
+  /* Same full-then-trimmed priority chain as
+   * Sample.Selection.first_related_index (see that function's comment). */
   let first_cursor_sample = (ap_id: option(Id.t), di: t): option(Sample.t) => {
-    let find_cursor =
+    let find_full =
+      List.find_opt(
+        sample =>
+          Sample.Cursor.relation(
+            ~trimmed=false,
+            ~ap_id,
+            di.sample_cursor,
+            sample,
+          ).
+            is_call_cursor,
+        di.samples,
+      );
+    switch (find_full) {
+    | Some(_) as result => result
+    | None =>
       List.find_opt(
         sample =>
           Sample.Cursor.relation(
@@ -40,10 +56,7 @@ module Info = {
           ).
             is_call_cursor,
         di.samples,
-      );
-    switch (find_cursor) {
-    | Some(sample) => Some(sample)
-    | None => None
+      )
     };
   };
 };

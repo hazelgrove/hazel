@@ -253,6 +253,8 @@ module Window = {
  * represented as a list of ids of function application forms which have
  * been called but have not yet returned.
  *
+ * See plans/dynamic-cursor-conservatism.md for detailed design notes.
+ *
  * CONSISTENCY AND INTENT PRESERVATION
  *
  * Two goals govern how probe sample displays update during navigation:
@@ -266,66 +268,44 @@ module Window = {
  *    would be consistent with a navigation action, prefer keeping the
  *    user's previous selection rather than resetting to a default.
  *
- * Example in single-sample display mode:
+ * Example:
  *
- *   let grid = [[1, 2], [3, 4]] in
- *   map(grid, fun ^^probe(row) ->
- *     map(row, fun ^^probe(x) -> x))
+ *   let f : ([Int] -> [Int]) = fun xs ->
+ *     map(fun ^^probe(x) -> x + 1, xs)
+ *   in [f([1, 2, 3]), f([4, 5, 6])]
+ *   -- with ^^probe on the outer pattern too --
  *
- * Outer probe samples: [1,2], [3,4]
- * Inner probe samples: 1, 2, 3, 4
- * Samples 1,2 are below [1,2]; samples 3,4 are below [3,4].
+ * Outer probe (xs): [1,2,3], [4,5,6]  (2 samples, one per call to f)
+ * Inner probe (x):  1,2,3,4,5,6       (6 samples, 3 per call to f)
  *
- * CONSISTENCY examples (navigation forces change):
+ * CONSISTENCY (navigation forces change):
+ *   Arrow outer from [1,2,3] to [4,5,6]:
+ *     inner must change (e.g. 2 -> 4) because 2 is not below [4,5,6]
+ *   Arrow inner from 3 to 4:
+ *     outer must change ([1,2,3] -> [4,5,6]) because 4 is not below [1,2,3]
  *
- *   # Frame A: Arrow outer from [1,2] to [3,4] #
- *   fun ^^probe(row) ->           # [1,2] -> [3,4]
- *     map(row, fun ^^probe(x) ..) # 2 -> 3 (must change: 2 not below [3,4])
+ * INTENT PRESERVATION (consistency underdetermines):
+ *   User arrows inner from 1 to 2 (outer stays at [1,2,3]).
+ *   User clicks outer [1,2,3] (already above inner 2).
+ *   Inner stays at 2 — not reset to 1 — because both are consistent.
  *
- *   # Frame B: Arrow inner from 2 to 3 #
- *   fun ^^probe(row) ->           # [1,2] -> [3,4] (must change: 3 not below [1,2])
- *     map(row, fun ^^probe(x) ..) # 2 -> 3
+ * MECHANISM — WRITE AND READ SIDES
  *
- * INTENT PRESERVATION example (consistency underdetermines):
+ * The cursor stores (call_stack, index) where call_stack may be deeper
+ * than index indicates. This is a two-part mechanism:
  *
- *   # Frame C1: User arrows inner from 1 to 2 #
- *   fun ^^probe(row) ->           # [1,2]
- *     map(row, fun ^^probe(x) ..) # 1 -> 2
+ * Write side (SampleCursorPerform.capture): When clicking on a shallower
+ * sample whose stack is a suffix of the current stack, we KEEP the deeper
+ * stack but lower the index. This preserves the deeper selection info.
  *
- *   # Frame C2: User clicks on outer [1,2] (already above inner 2) #
- *   fun ^^probe(row) ->           # [1,2] (cursor moves to outer depth)
- *     map(row, fun ^^probe(x) ..) # 2 (unchanged - both 1 and 2 are consistent)
+ * Read side (Selection.first_related_index): When finding which sample to
+ * display, we first try matching against the FULL (untrimmed) cursor stack.
+ * This recovers the preserved deeper selection. If no full match exists
+ * (e.g. an outer probe whose samples are shallower), we fall back to the
+ * trimmed stack. This priority chain is critical — using only trimmed
+ * loses intent preservation; using only untrimmed breaks shallower probes.
  *
- *   Without intent preservation, inner would reset to 1 (first/default).
- *   With intent preservation, inner stays at 2.
- *
- * MECHANISM: The cursor maintains both a full `call_stack` and an `index`.
- * The `index` is the effective cursor depth; `call_stack` may retain deeper
- * call information. When clicking "up" to a shallower sample that already
- * contains the current selection, we keep the deeper stack but lower the
- * index. Use `trimmed_stack(cursor)` to get the effective stack.
- *
- * WHY CURSOR STORES COORDINATES, NOT A SAMPLE REFERENCE
- *
- * The cursor points to a position in the evaluation trace, not to a specific
- * sample. This is because:
- *
- * 1. MULTIPLE PROBES, ONE CURSOR: Many probes share the same cursor. Each
- *    probe shows the sample at its location that matches the cursor's
- *    call stack depth. A direct Sample reference would only work for one probe.
- *
- * 2. SAMPLES ARE EPHEMERAL: Samples are recomputed on every edit. The cursor
- *    must survive across evaluations. Call stacks provide stable coordinates
- *    because they're based on syntax IDs, which persist across edits.
- *
- * 3. INTENT PRESERVATION: Storing (call_stack, index) lets us preserve user
- *    intent when navigating. A shallower click can keep the deeper stack info
- *    so we remember the user's prior selection if they navigate back down.
- *
- * RELATIONSHIP TO Sample.t: Sample.t records a single evaluation moment
- * (value, environment, call_stack, timing). Cursor.t identifies which
- * evaluation moment the user is focused on across all probes. They share
- * the call_stack type as the common coordinate system. */
+ * See also: Dynamics.Info.first_cursor_sample (same priority chain). */
 module Cursor = {
   open OptUtil.Syntax;
 
@@ -565,7 +545,24 @@ module Selection = {
     | None => samples
     };
 
-  /* Find index of first sample related to cursor position */
+  /* Find index of first sample related to cursor position.
+   *
+   * Called with ~trimmed=true from ProbeProj (select_samples, move_cursor)
+   * and with ~trimmed=false from Selection.select.
+   *
+   * Priority chain when trimmed=true:
+   *   1. Full-stack exact match (untrimmed) — intent preservation
+   *   2. Trimmed-stack exact match — shallower probe matching
+   *   3. Direct callee of indicated call
+   *   4. Any related sample (Above/Below/Same)
+   *
+   * Step 1 is the "read side" of intent preservation (see module comment).
+   * The cursor may retain a deeper call_stack than index indicates, e.g.
+   * [inner_1, outer_0] at index=0. Trying the full stack first finds
+   * inner_1 specifically; without it, all inner samples under outer_0
+   * are equally related and the first one wins (resetting the selection).
+   * Step 2 handles probes at the cursor's effective level (e.g. an outer
+   * probe that needs to match [outer_0] from trimmed stack). */
   let first_related_index =
       (
         ~trimmed: bool,
@@ -580,15 +577,29 @@ module Selection = {
           predicate(Cursor.relation(~trimmed, ~ap_id, cursor, sample)),
         samples,
       );
-    /* Priority: exact cursor match > direct callee > any related */
-    switch (find(rel => rel.is_call_cursor)) {
+    let full_match =
+      if (trimmed) {
+        List.find_index(
+          (sample: t) =>
+            Cursor.relation(~trimmed=false, ~ap_id, cursor, sample).
+              is_call_cursor,
+          samples,
+        );
+      } else {
+        None;
+      };
+    switch (full_match) {
     | Some(_) as result => result
     | None =>
-      switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+      switch (find(rel => rel.is_call_cursor)) {
       | Some(_) as result => result
       | None =>
-        let indirect = find(rel => rel.is_below_indicated_call != None);
-        indirect == None ? find(Cursor.is_related) : indirect;
+        switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+        | Some(_) as result => result
+        | None =>
+          let indirect = find(rel => rel.is_below_indicated_call != None);
+          indirect == None ? find(Cursor.is_related) : indirect;
+        }
       }
     };
   };

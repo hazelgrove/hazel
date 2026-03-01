@@ -18,6 +18,11 @@ let update_pinned_call =
     }
   );
 
+/* "Write side" of intent preservation: when clicking on a shallower
+ * sample whose stack is a suffix of the current (deeper) stack, we keep
+ * the deeper stack but lower the index. This retains the user's prior
+ * inner selection so the "read side" (first_related_index) can recover it.
+ * See Sample.Cursor module comment for the full mechanism. */
 let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t =>
   update(z, sample_cursor =>
     {

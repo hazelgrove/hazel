@@ -580,6 +580,199 @@ let empty_status_tests = [
   ),
 ];
 
+/* --- Test: intent preservation with trimmed cursor --- */
+
+/* Helper: mk_cursor with explicit index (for testing intent preservation) */
+let mk_cursor_at_index =
+    (
+      ~pinned=None,
+      ~indicated_call=None,
+      ~seq=0,
+      ~step_range=None,
+      ~index: int,
+      stack: Sample.call_stack,
+    )
+    : Sample.Cursor.t => {
+  call_stack: stack,
+  index,
+  pinned_stack: pinned,
+  indicated_call,
+  time: None,
+  seq,
+  step_range,
+  pending_focus: None,
+};
+
+let intent_preservation_tests = [
+  test_case(
+    "trimmed first_related_index preserves inner selection",
+    `Quick,
+    () => {
+      /* Scenario: nested functions, outer called once, inner called 3 times.
+       * User focuses inner sample 1, then clicks outer probe.
+       * Cursor: full stack = [inner_1, outer_0], index = 0 (outer level).
+       * Inner probe's first_related_index(~trimmed=true) should find
+       * the sample matching the full stack (index 1), not reset to 0. */
+      let outer_0 = frame(id_a);
+      let inner_0 = frame(id_b);
+      let inner_1 = frame(id_c);
+      let inner_2 = frame(id_d);
+      let inner_samples = [
+        mk_sample(~seq=0, [inner_0, outer_0]),
+        mk_sample(~seq=1, [inner_1, outer_0]),
+        mk_sample(~seq=2, [inner_2, outer_0]),
+      ];
+      /* Cursor at outer level but with inner_1 info preserved */
+      let cursor = mk_cursor_at_index(~index=0, [inner_1, outer_0]);
+      let result =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      check(
+        bool,
+        "should find inner_1 sample at index 1 (not reset to 0)",
+        true,
+        result == Some(1),
+      );
+    },
+  ),
+  test_case(
+    "trimmed first_related_index: no preserved info falls back correctly",
+    `Quick,
+    () => {
+      /* When cursor is genuinely at outer level (no deeper info),
+       * should fall back to first related sample. */
+      let outer_0 = frame(id_a);
+      let inner_0 = frame(id_b);
+      let inner_1 = frame(id_c);
+      let inner_samples = [
+        mk_sample(~seq=0, [inner_0, outer_0]),
+        mk_sample(~seq=1, [inner_1, outer_0]),
+      ];
+      /* Cursor at outer level with NO deeper info */
+      let cursor = mk_cursor([outer_0]);
+      let result =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      /* Should find first related (index 0) via is_related fallback */
+      check(
+        bool,
+        "should find first related sample at index 0",
+        true,
+        result == Some(0),
+      );
+    },
+  ),
+  test_case(
+    "trimmed first_related_index: outer probe unaffected by preserved info",
+    `Quick,
+    () => {
+      /* When cursor has inner info but we're looking at the outer probe,
+       * the outer probe should still find its correct sample. */
+      let outer_0 = frame(id_a);
+      let outer_1 = frame(id_b);
+      let inner_1 = frame(id_c);
+      let outer_samples = [
+        mk_sample(~seq=0, [outer_0]),
+        mk_sample(~seq=1, [outer_1]),
+      ];
+      /* Cursor at outer level with inner info preserved */
+      let cursor = mk_cursor_at_index(~index=0, [inner_1, outer_0]);
+      let result =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          outer_samples,
+        );
+      /* Full stack [inner_1, outer_0] doesn't match any outer sample,
+       * so falls through to trimmed match. Trimmed = [outer_0],
+       * which matches outer_0 sample at index 0. */
+      check(bool, "should find outer_0 at index 0", true, result == Some(0));
+    },
+  ),
+  test_case(
+    "select Single preserves inner selection with trimmed cursor",
+    `Quick,
+    () => {
+      /* End-to-end: Selection.select should return the preserved inner sample,
+       * not the first inner sample. Uses ~trimmed=false internally, but
+       * this tests the overall behavior matches what ProbeProj expects. */
+      let outer_0 = frame(id_a);
+      let inner_0 = frame(id_b);
+      let inner_1 = frame(id_c);
+      let inner_2 = frame(id_d);
+      let inner_samples = [
+        mk_sample(~seq=0, [inner_0, outer_0]),
+        mk_sample(~seq=1, [inner_1, outer_0]),
+        mk_sample(~seq=2, [inner_2, outer_0]),
+      ];
+      let cursor = mk_cursor_at_index(~index=0, [inner_1, outer_0]);
+      /* Selection.select uses ~trimmed=false, so it should find the match.
+       * This verifies the overall pipeline works. */
+      let selected = do_select(~cursor, inner_samples);
+      check(int, "should show 1 sample", 1, List.length(selected));
+      switch (selected) {
+      | [s] => check(int, "should be inner_1 (seq=1)", 1, s.seq)
+      | _ => fail("expected exactly 1 sample")
+      };
+    },
+  ),
+  test_case(
+    "move_cursor simulation: arrow from preserved position",
+    `Quick,
+    () => {
+      /* Simulates what ProbeProj.move_cursor does:
+       * first_related_index(~trimmed=true) to find current position,
+       * then offset ±1 to get next sample. With intent preservation,
+       * current position should be at the preserved sample, not reset. */
+      let outer_0 = frame(id_a);
+      let inner_0 = frame(id_b);
+      let inner_1 = frame(id_c);
+      let inner_2 = frame(id_d);
+      let inner_samples = [
+        mk_sample(~seq=0, [inner_0, outer_0]),
+        mk_sample(~seq=1, [inner_1, outer_0]),
+        mk_sample(~seq=2, [inner_2, outer_0]),
+      ];
+      let cursor = mk_cursor_at_index(~index=0, [inner_1, outer_0]);
+      let cursor_idx =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      /* Should be at index 1 (inner_1), not index 0 */
+      check(
+        bool,
+        "cursor should be at index 1",
+        true,
+        cursor_idx == Some(1),
+      );
+      /* Arrow right (offset=-1): next_idx = 1 + 1 = 2 (inner_2) */
+      let next_idx =
+        switch (cursor_idx) {
+        | Some(idx) => Some(idx + 1)
+        | None => None
+        };
+      check(
+        bool,
+        "next sample should be index 2",
+        true,
+        next_idx == Some(2),
+      );
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -590,5 +783,6 @@ let tests = (
     is_same_call_tests,
     closest_tests,
     empty_status_tests,
+    intent_preservation_tests,
   ]),
 );
