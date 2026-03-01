@@ -233,13 +233,26 @@ let go =
     let id = idx_to_id(kind, idx);
     switch (d) {
     | None =>
-      /* Focus by mouse click */
+      /* Focus by pointer click or probe-to-probe navigation */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.pointer) {
       | Some(focus) => focus(id)
       | None => ()
       };
-      Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
+      let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
+      /* Set pending_probe_cursor so the sample cursor adapts to the
+         newly focused probe. For pointer clicks on a specific sample,
+         the subsequent Capture action will override with more specific
+         data; for probe-to-probe navigation, closest_to_cursor picks
+         the best match. */
+      let z =
+        Zipper.update_refractors(z, r =>
+          {
+            ...r,
+            pending_probe_cursor: Some([id]),
+          }
+        );
+      Ok(z);
     | Some(Right) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
@@ -257,19 +270,6 @@ let go =
       };
       Ok(z);
     };
-  | FocusById(id) =>
-    /* Focus a projector by term id (probe-to-probe navigation).
-       DOM focus is handled by the caller; here we move the caret
-       and set pending_probe_cursor so the sample cursor adapts. */
-    let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
-    let z =
-      Zipper.update_refractors(z, r =>
-        {
-          ...r,
-          pending_probe_cursor: Some([id]),
-        }
-      );
-    Ok(z);
   | Escape(idx, d) =>
     switch (Move.jump_to_side_of_id(d, z, projector_idx_to_id(idx))) {
     | Some(z) => Ok(z)

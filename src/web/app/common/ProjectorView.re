@@ -197,7 +197,7 @@ let handle = (idx, action: external_action): Action.t =>
   | SetSyntax(f) => Project(SetSyntax(idx, f))
   | SampleCursor(sc) => Project(SampleCursor(sc))
   | Probe(p) => Probe(p)
-  | FocusById(id) => Project(FocusById(id))
+  | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };
 
 let offside_wrapper =
@@ -319,7 +319,17 @@ let mk_view =
       let new_model = P.update(p.model, info, a);
       inject(Project(SetModel(idx, p.kind, new_model)));
     },
-    parent: a => inject(handle(idx, a)),
+    parent: a =>
+      switch (a) {
+      | FocusById(id) =>
+        let target_idx = List.find_index(x => x == id, projector_list);
+        switch (target_idx) {
+        | Some(target_idx) =>
+          inject(Project(Focus(target_idx, Probe, None)))
+        | None => Effect.Ignore
+        };
+      | a => inject(handle(idx, a))
+      },
     view_seg: (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
       flex_code(
         ~font_metrics,
