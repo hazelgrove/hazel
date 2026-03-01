@@ -192,6 +192,113 @@ let get_context: API.Json.t =
     ),
   ]);
 
+let select_description = {|
+Description:
+Uses a selector expression to find and return matching subtrees of the program.
+Selectors are concise, surface-oriented patterns that address Hazel syntax.
+
+Core operators:
+- `_` matches one syntactic slot
+- `_...` matches zero or more slots along the current spine
+- `\` (backslash) is descendant search — match P, then find Q inside
+- `*` marks the focused subtree to return
+
+Common patterns:
+- `let x = *` — select x's definition
+- `let x _... in *` — select x's body
+- `if *` — select the if condition
+- `if _ then *` — select the then branch
+- `if _... else *` — select the else branch
+- `| Foo => *` — select arm body for constructor Foo
+- `case *` — select the scrutinee
+- `* let x` — select the whole let-binding expression
+- `A/B/x = *` — binder chain: navigate into A's def, then B's, select x's def
+
+Parameters:
+selector: string — the selector expression
+
+Example(s):
+Given:
+```
+let f = fun x -> if x > 0 then x else 0 in f 5
+```
+- select(selector="let f = \ if *") returns: "x > 0"
+- select(selector="let f = \ if _ then *") returns: "x"
+- select(selector="let f = \ if _... else *") returns: "0"
+|};
+
+let select: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("select")),
+        ("description", `String(select_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "selector",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Selector expression (e.g. \"let x = *\", \"if _... else *\", \"A/B/x = *\").",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("selector")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let get_completeness_description = {|
+Description:
+Reports whether the program has any unfilled holes.
+Counts empty holes in expressions, patterns, and types.
+
+Parameters:
+None
+
+Example(s):
+For a complete program like `let x = 42 in x + 1`:
+  Returns: "Complete: no unfilled holes."
+
+For a program with holes like `let x = ? in let y : ? = x in y`:
+  Returns: "Incomplete: 2 unfilled hole(s) (1 expression, 1 type)."
+|};
+
+let get_completeness: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("get_completeness")),
+        ("description", `String(get_completeness_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            ("properties", `Assoc([])),
+            ("required", `List([])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
 let view_entire_definition: API.Json.t =
   `Assoc([
     ("type", `String("function")),

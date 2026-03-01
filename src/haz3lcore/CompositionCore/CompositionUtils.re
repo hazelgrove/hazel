@@ -26,6 +26,8 @@ module Local = {
     ReadTools.get_syntax,
     ReadTools.get_statics,
     ReadTools.get_context,
+    ReadTools.select,
+    ReadTools.get_completeness,
     WorkbenchTools.create_new_task,
     WorkbenchTools.set_active_task,
     WorkbenchTools.unset_active_task,
@@ -141,6 +143,9 @@ module Local = {
               ReadAction(GetStatics(get_string(args, "path")))
             | "get_context" =>
               ReadAction(GetContext(get_string(args, "path")))
+            | "select" =>
+              ReadAction(Select(get_string(args, "selector")))
+            | "get_completeness" => ReadAction(GetCompleteness)
             | "create_new_task" =>
               WorkbenchAction(
                 CreateNewTask(
