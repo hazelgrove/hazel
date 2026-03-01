@@ -104,7 +104,9 @@ module Utils = {
     | ProofObject(_)
     | Forall(_, _)
     | Projector(_, _)
+    | Module(_)
     | Var(_) => []
+    | ModuleExp(_, e1, e2) => [e1, e2]
     };
   };
 
