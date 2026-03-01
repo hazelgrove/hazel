@@ -243,6 +243,10 @@ module Local = {
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Insert(Before, path, code)) =>
       "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(SelectorUpdate(selector, code)) =>
+      "selector_update(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(SelectorDelete(selector)) =>
+      "selector_delete(\"" ++ selector ++ "\")"
     | WorkbenchAction(CreateNewTask(task)) =>
       "create_new_task( "
       ++ AgentWorkbench.Utils.TaskUtils.task_to_json_string(task)

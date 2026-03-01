@@ -111,6 +111,12 @@ module Local = {
       let new_segment =
         segment_of_term(new_zipper, Some(new_target_id), syntax);
       Some((old_segment, new_segment));
+    | SelectorUpdate(_, _)
+    | SelectorDelete(_) =>
+      /* Selector-driven edits: diff the whole program */
+      let* old_segment = segment_of_term(old_zipper, None, syntax);
+      let new_segment = segment_of_term(new_zipper, None, syntax);
+      Some((old_segment, new_segment));
     };
   };
 
@@ -132,6 +138,9 @@ module Local = {
           false,
           false,
         )
+      /* Selector-driven: check everything since we don't know the target */
+      | SelectorUpdate(_, _) => (true, true, true)
+      | SelectorDelete(_) => (true, true, true)
       };
     };
 
@@ -822,6 +831,42 @@ module Local = {
           "Deleting a definition, pattern, or type annotation is not yet implemented.",
         ),
       )
+
+    /* --- Selector-driven edits --- */
+
+    | SelectorUpdate(selector, code) =>
+      let term = MakeTerm.from_zip_for_sem(initial_z).term;
+      switch (Selector.query_unique(selector, term)) {
+      | Error(msg) =>
+        Error(Action.Failure.Composition_action_failure(msg))
+      | Ok({focused_id, _}) =>
+        switch (TermEdit.parse_exp(code)) {
+        | None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Failed to parse replacement code: " ++ code,
+            ),
+          )
+        | Some(new_exp) =>
+          let new_term =
+            TermEdit.replace_exp_by_id(focused_id, _ => new_exp, term);
+          let new_z = TermEdit.term_to_zipper(new_term);
+          Ok((new_z, None));
+        }
+      };
+
+    | SelectorDelete(selector) =>
+      let term = MakeTerm.from_zip_for_sem(initial_z).term;
+      switch (Selector.query_unique(selector, term)) {
+      | Error(msg) =>
+        Error(Action.Failure.Composition_action_failure(msg))
+      | Ok({focused_id, _}) =>
+        let hole = Exp.fresh(EmptyHole);
+        let new_term =
+          TermEdit.replace_exp_by_id(focused_id, _ => hole, term);
+        let new_z = TermEdit.term_to_zipper(new_term);
+        Ok((new_z, None));
+      };
     };
   };
 
@@ -1051,19 +1096,36 @@ module Local = {
           result(Zipper.t, Action.Failure.t),
       )
       : result((Zipper.t, option(string)), Action.Failure.t) => {
-    let initial_info_map = mk_statics(z);
-    switch (build(z, initial_info_map)) {
-    | None => Error(Action.Failure.Cant_derive_local_AST_information)
-    | Some(initial_node_map) =>
+    /* Selector-driven edits bypass the HighLevelNodeMap entirely —
+       they resolve against the term tree directly via Selector */
+    switch (a) {
+    | SelectorUpdate(_) | SelectorDelete(_) =>
+      let initial_info_map = mk_statics(z);
+      /* Pass an empty node map — selector edits don't use it */
       edit_dispatch(
         ~e=a,
         ~initial_z=z,
-        ~initial_node_map,
+        ~initial_node_map=Id.Map.empty,
         ~initial_info_map,
         ~syntax,
         ~return,
         ~mk_statics,
-      )
+      );
+    | _ =>
+      let initial_info_map = mk_statics(z);
+      switch (build(z, initial_info_map)) {
+      | None => Error(Action.Failure.Cant_derive_local_AST_information)
+      | Some(initial_node_map) =>
+        edit_dispatch(
+          ~e=a,
+          ~initial_z=z,
+          ~initial_node_map,
+          ~initial_info_map,
+          ~syntax,
+          ~return,
+          ~mk_statics,
+        )
+      };
     };
   };
 

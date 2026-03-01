@@ -1523,6 +1523,74 @@ let selector_tests = (
   ],
 );
 
+/* === Selector Edit Tests === */
+
+let selector_edit_tests = (
+  "AgentTools.SelectorEdits",
+  [
+    /* SelectorUpdate: replace the focused subtree with new code */
+    edit_test(
+      "SelectorUpdate: let x = * -> 99",
+      "let x = 42 in x + 1",
+      SelectorUpdate("let x = *", "99"),
+      "let x = 99 in x + 1",
+    ),
+    edit_test(
+      "SelectorUpdate: if else branch",
+      "if true then 1 else 0",
+      SelectorUpdate("if _... else *", "42"),
+      "if true then 1 else 42",
+    ),
+    edit_test(
+      "SelectorUpdate: nested via descend",
+      "let f = fun x -> if x > 0 then x else 0 in f 5",
+      SelectorUpdate("\\... if _... else *", "1"),
+      "let f = fun x -> if x > 0 then x else 1 in f 5",
+    ),
+    edit_test(
+      "SelectorUpdate: case arm body",
+      "let r = case x | A => 1 | B => 2 end in r",
+      SelectorUpdate("\\... | B => *", "99"),
+      "let r = case x | A => 1| B => 99 end in r",
+    ),
+    edit_test(
+      "SelectorUpdate: module member def",
+      "module M = { let x = 1; let y = 2 } in M.x",
+      SelectorUpdate("M/x = *", "42"),
+      "module M = { let x = 42; let y = 2 } in M.x",
+    ),
+    /* SelectorDelete: replace focused subtree with hole */
+    edit_test(
+      "SelectorDelete: let def -> hole",
+      "let x = 42 in x + 1",
+      SelectorDelete("let x = *"),
+      "let x = ? in x + 1",
+    ),
+    /* Error cases */
+    test_case("SelectorUpdate: no match", `Quick, () => {
+      switch (run_agent_action("let x = 1 in x", SelectorUpdate("let y = *", "2"))) {
+      | Ok(_) => Alcotest.fail("Expected failure: no match")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(bool, "error mentions no match", true,
+          String.length(msg) >= 8 && String.sub(msg, 0, 8) == "No match")
+      | Error(err) =>
+        Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
+      }
+    }),
+    test_case("SelectorUpdate: ambiguous match", `Quick, () => {
+      switch (run_agent_action("let a = 1 in let b = 2 in a + b",
+        SelectorUpdate("let _ = *", "0"))) {
+      | Ok(_) => Alcotest.fail("Expected failure: ambiguous")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(bool, "error mentions ambiguous", true,
+          String.length(msg) >= 9 && String.sub(msg, 0, 9) == "Ambiguous")
+      | Error(err) =>
+        Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
+      }
+    }),
+  ],
+);
+
 /* === Completeness Tests === */
 
 let expect_completeness = (code: string, expected: string) =>
@@ -2481,6 +2549,7 @@ let tests = [
   composition_view_print_tests,
   seq_node_map_tests,
   selector_tests,
+  selector_edit_tests,
   completeness_tests,
   complex_program_tests,
   case_arm_tests,
