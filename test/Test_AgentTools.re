@@ -1122,6 +1122,23 @@ let seq_node_map_tests = (
 
 /* === Selector Language Tests === */
 
+/* Check if haystack contains needle as a substring */
+let str_contains = (haystack: string, needle: string): bool => {
+  let hlen = String.length(haystack);
+  let nlen = String.length(needle);
+  if (nlen > hlen) {
+    false;
+  } else {
+    let found = ref(false);
+    for (i in 0 to hlen - nlen) {
+      if (String.sub(haystack, i, nlen) == needle) {
+        found := true;
+      };
+    };
+    found^;
+  };
+};
+
 let mk_term = (code: string): Exp.t => {
   let z = mk_zipper(code);
   MakeTerm.from_zip_for_sem(z).term;
@@ -1352,12 +1369,17 @@ let selector_tests = (
       ~sel="\\... let b = *",
       ~expected="42",
     ),
-    sel_test(
-      ~name="let b = * (NOT found at root)",
-      ~code="let a = (let b = 42 in b) in a",
-      ~sel="let b = *",
-      ~expected="ERROR: No match for selector: let b = *",
-    ),
+    test_case("let b = * (NOT found at root)", `Quick, () => {
+      let result = selector_query_unique(
+        "let a = (let b = 42 in b) in a", "let b = *");
+      /* Verify base error + diagnostics */
+      check(bool, "has error prefix", true,
+        str_contains(result, "ERROR: No match"));
+      check(bool, "did-you-mean", true,
+        str_contains(result, "Did you mean: a"));
+      check(bool, "available names", true,
+        str_contains(result, "Available names: a"));
+    }),
     /* === Fun spine tests === */
     sel_test(
       ~name="fun _ -> *",
@@ -1648,6 +1670,80 @@ let selector_tests = (
           && String.sub(result, 0, 10) == "let result");
       },
     ),
+    /* === Test spine ellipsis === */
+    sel_test(
+      ~name="test _... end (ellipsis)",
+      ~code="test 1 + 1 == 2 end",
+      ~sel="test _... end",
+      ~expected="test 1 + 1 == 2 end",
+    ),
+    sel_test(
+      ~name="test _ * (slot then focus)",
+      ~code="let x = 1 in test x == 1 end",
+      ~sel="\\... test _ *",
+      ~expected="x == 1",
+    ),
+    /* === Diagnostic tests === */
+    /* Name not found: suggest similar + list available */
+    test_case("diag: name not found with suggestion", `Quick, () => {
+      let result = selector_query_unique(
+        "let foo = 1 in let bar = 2 in foo + bar", "let baz = *");
+      check(bool, "is error", true,
+        str_contains(result, "ERROR:"));
+      check(bool, "suggests bar", true,
+        str_contains(result, "Did you mean: bar"));
+      check(bool, "lists available", true,
+        str_contains(result, "foo") && str_contains(result, "bar"));
+    }),
+    /* Name not found: no similar names (Levenshtein > 2) */
+    test_case("diag: name not found, no suggestion", `Quick, () => {
+      let result = selector_query_unique(
+        "let x = 1 in x", "let zzzzz = *");
+      check(bool, "is error", true,
+        str_contains(result, "ERROR:"));
+      check(bool, "no did-you-mean", false,
+        str_contains(result, "Did you mean"));
+      check(bool, "lists available", true,
+        str_contains(result, "Available names: x"));
+    }),
+    /* Keyword mismatch: if on a let */
+    test_case("diag: keyword mismatch", `Quick, () => {
+      let result = selector_query_unique(
+        "let x = 1 in x", "if *");
+      check(bool, "is error", true,
+        str_contains(result, "ERROR:"));
+      check(bool, "failed at first step", true,
+        str_contains(result, "Failed at first step: if"));
+    }),
+    /* Binder chain: first segment fails */
+    test_case("diag: chain first segment fails", `Quick, () => {
+      let result = selector_query_unique(
+        "module App = { let x = 1 } in App.x", "Apl/x = *");
+      check(bool, "is error", true,
+        str_contains(result, "ERROR:"));
+      check(bool, "suggests App", true,
+        str_contains(result, "Did you mean: App"));
+    }),
+    /* Partial match: let keyword matches but name fails */
+    test_case("diag: partial match on let", `Quick, () => {
+      let result = selector_query_unique(
+        "let alpha = 1 in let beta = 2 in alpha + beta", "let gamma = *");
+      check(bool, "is error", true,
+        str_contains(result, "ERROR:"));
+      check(bool, "matched let", true,
+        str_contains(result, "Matched up to: let"));
+      check(bool, "failed at gamma", true,
+        str_contains(result, "Failed at: gamma"));
+    }),
+    /* Module-scoped name diagnostics */
+    test_case("diag: module member not found", `Quick, () => {
+      let result = selector_query_unique(
+        "module M = { let x = 1; let y = 2 } in M.x", "M/z = *");
+      check(bool, "is error", true,
+        str_contains(result, "ERROR:"));
+      check(bool, "lists available in module", true,
+        str_contains(result, "x") && str_contains(result, "y"));
+    }),
   ],
 );
 

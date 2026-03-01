@@ -245,6 +245,103 @@ let rec find_binder_in_exp =
   | _ => None
   };
 
+/* Collect all binder names visible at the top level of an expression.
+   Walks through let/type/module chains and module item lists. */
+let rec collect_binder_names = (e: Exp.t): list(string) =>
+  switch (Exp.term_of(e)) {
+  | Let(pat, _def, body) =>
+    let here =
+      switch (pat_name(pat)) {
+      | Some(n) => [n]
+      | None => []
+      };
+    here @ collect_binder_names(body);
+  | TyAlias(tpat, _tdef, body) =>
+    let here =
+      switch (tpat_name(tpat)) {
+      | Some(n) => [n]
+      | None => []
+      };
+    here @ collect_binder_names(body);
+  | ModuleExp(mpat, _def, body) =>
+    let here =
+      switch (mpat_name(mpat)) {
+      | Some(n) => [n]
+      | None => []
+      };
+    here @ collect_binder_names(body);
+  | Module(items) =>
+    List.concat_map(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(pat, _) =>
+          switch (pat_name(pat)) {
+          | Some(n) => [n]
+          | None => []
+          }
+        | ModuleMod(mpat, _) =>
+          switch (mpat_name(mpat)) {
+          | Some(n) => [n]
+          | None => []
+          }
+        | ModType(tpat, _) =>
+          switch (tpat_name(tpat)) {
+          | Some(n) => [n]
+          | None => []
+          }
+        | _ => []
+        },
+      items,
+    )
+  | _ => []
+  };
+
+/* Levenshtein edit distance between two strings */
+let levenshtein = (s: string, t: string): int => {
+  let m = String.length(s);
+  let n = String.length(t);
+  if (m == 0) {
+    n;
+  } else if (n == 0) {
+    m;
+  } else {
+    let d = Array.make_matrix(m + 1, n + 1, 0);
+    for (i in 0 to m) {
+      d[i][0] = i;
+    };
+    for (j in 0 to n) {
+      d[0][j] = j;
+    };
+    for (i in 1 to m) {
+      for (j in 1 to n) {
+        let cost =
+          if (Char.equal(s.[i - 1], t.[j - 1])) {
+            0;
+          } else {
+            1;
+          };
+        d[i][j] =
+          min(d[i - 1][j] + 1, min(d[i][j - 1] + 1, d[i - 1][j - 1] + cost));
+      };
+    };
+    d[m][n];
+  };
+};
+
+/* Suggest similar binder names for a failed name lookup */
+let suggest_similar_names =
+    (target: string, available: list(string)): option(string) => {
+  let candidates =
+    available
+    |> List.map(name => (name, levenshtein(target, name)))
+    |> List.filter(((_, dist)) => dist <= 2 && dist > 0)
+    |> List.sort(((_, d1), (_, d2)) => Int.compare(d1, d2));
+  switch (candidates) {
+  | [(name, _), ..._] => Some(name)
+  | [] => None
+  };
+};
+
 /* The spine of a let expression: pat, def, body */
 type let_spine = {
   pat: Pat.t,
@@ -280,8 +377,8 @@ type test_spine = {
   whole: Exp.t,
 };
 
-/* Resolve a selector against an expression, returning all matches */
-let resolve = (sel: selector, root: Exp.t): list(match_result) => {
+/* Resolve an elaborated semantic selector against an expression */
+let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   /* Walk the selector steps against a current expression context.
      Returns list of (focused_exp) for each match. */
   let rec walk = (steps: sem_selector, current: Exp.t): list(match_result) =>
@@ -1097,14 +1194,29 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
         },
       ]
 
-    /* test _ end : match slot, then end keyword (no focus) */
-    | [MatchSlot, MatchKeyword("end")] => [
+    /* test _ end : match slot, then end keyword → whole test */
+    | [MatchSlot, MatchKeyword("end")]
+    | [MatchEllipsis, MatchKeyword("end")] => [
         {
           focused: spine.whole,
           focused_id: Exp.rep_id(spine.whole),
           breadcrumb: "test _ end",
         },
       ]
+
+    /* test _ * : match slot, then focus on body */
+    | [MatchSlot, MatchFocus]
+    | [MatchEllipsis, MatchFocus] => [
+        {
+          focused: spine.body,
+          focused_id: Exp.rep_id(spine.body),
+          breadcrumb: "test ...",
+        },
+      ]
+
+    /* test _ <more> : match slot, continue into body */
+    | [MatchSlot, ...rest]
+    | [MatchEllipsis, ...rest] => walk(rest, spine.body)
 
     /* test <more> : continue matching inside the body */
     | rest => walk(rest, spine.body)
@@ -1284,8 +1396,12 @@ let resolve = (sel: selector, root: Exp.t): list(match_result) => {
     );
   };
 
-  walk(elaborate(sel), root);
+  walk(steps, root);
 };
+
+/* Resolve a surface selector against an expression */
+let resolve = (sel: selector, root: Exp.t): list(match_result) =>
+  resolve_sem(elaborate(sel), root);
 
 /* === Convenience: parse + resolve === */
 
@@ -1294,11 +1410,141 @@ let query = (selector_str: string, root: Exp.t): list(match_result) => {
   resolve(sel, root);
 };
 
+/* Format a semantic selector step as a readable string */
+let step_to_string = (step: sem_step): string =>
+  switch (step) {
+  | MatchFocus => "*"
+  | MatchSlot => "_"
+  | MatchEllipsis => "_..."
+  | MatchName(s) => s
+  | MatchKeyword(kw) => kw
+  | MatchDelimiter(d) => d
+  | EnterBinderDef(s) => s ++ "/"
+  | DescendInto => "\\..."
+  };
+
+/* Format a prefix of sem_selector steps as a readable string */
+let steps_to_string = (steps: sem_selector): string =>
+  steps |> List.map(step_to_string) |> String.concat(" ");
+
+/* Diagnose why a selector produced no matches.
+   Returns a helpful error message with:
+   - How far the selector matched before failing
+   - Available names at the failure point
+   - "Did you mean?" suggestions for close name mismatches */
+let diagnose_no_match =
+    (selector_str: string, root: Exp.t): string => {
+  let sel = parse(selector_str);
+  let steps = elaborate(sel);
+  let n = List.length(steps);
+
+  /* Try progressively longer prefixes to find where matching stops.
+     For each prefix, append a MatchFocus so resolve returns results
+     if the prefix successfully navigates to some subtree. */
+  let rec find_last_match = (len: int): (int, list(match_result)) =>
+    if (len <= 0) {
+      (0, []);
+    } else {
+      let prefix = List.filteri((i, _) => i < len, steps);
+      /* Skip if prefix ends with DescendInto (needs more context) */
+      switch (List.rev(prefix)) {
+      | [DescendInto, ..._] => find_last_match(len - 1)
+      | _ =>
+        let probe = prefix @ [MatchFocus];
+        let matches = resolve_sem(probe, root);
+        if (List.length(matches) > 0) {
+          (len, matches);
+        } else {
+          find_last_match(len - 1);
+        };
+      };
+    };
+
+  let (matched_depth, _context_matches) = find_last_match(n - 1);
+
+  /* Build the error message */
+  let base_msg = "No match for selector: " ++ selector_str;
+
+  /* If we matched some prefix, report the failing step */
+  let partial_msg =
+    if (matched_depth > 0 && matched_depth < n) {
+      let matched_part =
+        List.filteri((i, _) => i < matched_depth, steps)
+        |> steps_to_string;
+      let failing_step =
+        switch (List.nth_opt(steps, matched_depth)) {
+        | Some(s) => step_to_string(s)
+        | None => "?"
+        };
+      "\n  Matched up to: "
+      ++ matched_part
+      ++ "\n  Failed at: "
+      ++ failing_step;
+    } else if (matched_depth == 0 && n > 0) {
+      let failing_step =
+        switch (List.nth_opt(steps, 0)) {
+        | Some(s) => step_to_string(s)
+        | None => "?"
+        };
+      "\n  Failed at first step: " ++ failing_step;
+    } else {
+      "";
+    };
+
+  /* If the failing step is a name, suggest alternatives */
+  let name_suggestion =
+    switch (List.nth_opt(steps, matched_depth)) {
+    | Some(MatchName(target_name)) =>
+      /* Find the context expression at the matched depth.
+         Use the context_matches from the prefix to get available names. */
+      let context_expr =
+        if (matched_depth > 0) {
+          let prefix = List.filteri((i, _) => i < matched_depth, steps);
+          let probe = prefix @ [MatchFocus];
+          let matches = resolve_sem(probe, root);
+          switch (matches) {
+          | [{focused, _}, ..._] => focused
+          | [] => root
+          };
+        } else {
+          root;
+        };
+      let available = collect_binder_names(context_expr);
+      let suggestion =
+        switch (suggest_similar_names(target_name, available)) {
+        | Some(suggested) => "\n  Did you mean: " ++ suggested
+        | None => ""
+        };
+      let available_str =
+        switch (available) {
+        | [] => ""
+        | names => "\n  Available names: " ++ String.concat(", ", names)
+        };
+      suggestion ++ available_str;
+    | Some(EnterBinderDef(target_name)) =>
+      let available = collect_binder_names(root);
+      let suggestion =
+        switch (suggest_similar_names(target_name, available)) {
+        | Some(suggested) => "\n  Did you mean: " ++ suggested
+        | None => ""
+        };
+      let available_str =
+        switch (available) {
+        | [] => ""
+        | names => "\n  Available names: " ++ String.concat(", ", names)
+        };
+      suggestion ++ available_str;
+    | _ => ""
+    };
+
+  base_msg ++ partial_msg ++ name_suggestion;
+};
+
 /* For edit actions: require exactly one match */
 let query_unique =
     (selector_str: string, root: Exp.t): result(match_result, string) => {
   switch (query(selector_str, root)) {
-  | [] => Error("No match for selector: " ++ selector_str)
+  | [] => Error(diagnose_no_match(selector_str, root))
   | [m] => Ok(m)
   | matches =>
     let n = List.length(matches);
