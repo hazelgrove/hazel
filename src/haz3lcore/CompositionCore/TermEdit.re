@@ -1,16 +1,16 @@
 /* TermEdit: Term-level syntax transformations for structural editing.
 
-   Instead of manipulating the zipper/segment directly (which has sort-context
-   issues for module items), we:
-   1. Get the full program term from the zipper
-   2. Modify the term tree (splice in/out sub-terms)
-   3. Convert back to a segment via ExpToSegment with AutoFormat
-   4. Create a new zipper from the modified segment
+      Instead of manipulating the zipper/segment directly (which has sort-context
+      issues for module items), we:
+      1. Get the full program term from the zipper
+      2. Modify the term tree (splice in/out sub-terms)
+      3. Convert back to a segment via ExpToSegment with AutoFormat
+      4. Create a new zipper from the modified segment
 
-   This approach is sort-correct by construction and handles modules cleanly.
-   AutoFormat uses should_add_space heuristics for whitespace, which produces
-   correct spacing for programmatic edits without relying on stored secondary.
-*/
+      This approach is sort-correct by construction and handles modules cleanly.
+      AutoFormat uses should_add_space heuristics for whitespace, which produces
+      correct spacing for programmatic edits without relying on stored secondary.
+   */
 
 open Util;
 open Language;
@@ -50,7 +50,10 @@ let replace_module_items =
       (continue, e) =>
         if (Id.equal(Exp.rep_id(e), target_module_id)) {
           switch (Exp.term_of(e)) {
-          | Module(_) => {...e, term: Module(new_items)}
+          | Module(_) => {
+              ...e,
+              term: Module(new_items),
+            }
           | _ => continue(e)
           };
         } else {
@@ -63,8 +66,7 @@ let replace_module_items =
 /* Find which module contains the target item, given the item's ID.
    Returns (module_exp_id, module_items, item_index). */
 let find_module_containing_item =
-    (target_item_id: Id.t, term: Exp.t)
-    : option((Id.t, list(Mod.t), int)) => {
+    (target_item_id: Id.t, term: Exp.t): option((Id.t, list(Mod.t), int)) => {
   let result = ref(None);
   let _ =
     Exp.map_term(
@@ -84,7 +86,7 @@ let find_module_containing_item =
             | None => continue(e)
             }
           | _ => continue(e)
-          };
+          }
         },
       term,
     );
@@ -105,14 +107,11 @@ let exp_to_mod_item = (code: string): option(Mod.t) => {
       };
     /* Add a space before the item so it renders as "; let b = 2"
        rather than ";let b = 2" when round-tripped */
-    let space: Secondary.t = {id: Id.mk(), content: Whitespace(" ")};
-    Some(
-      IdTagged.mk(
-        [Id.mk()],
-        ([space], []),
-        item_term,
-      ),
-    );
+    let space: Secondary.t = {
+      id: Id.mk(),
+      content: Whitespace(" "),
+    };
+    Some(IdTagged.mk([Id.mk()], ([space], []), item_term));
   | None => None
   };
 };
@@ -142,8 +141,7 @@ let replace_item =
 /* Delete a module item cleanly (no hole left).
    target_item_id: the ID of the ModLet/ModType item to delete.
    Returns the modified zipper, or None if the item wasn't found. */
-let module_delete =
-    (z: Zipper.t, target_item_id: Id.t): option(Zipper.t) => {
+let module_delete = (z: Zipper.t, target_item_id: Id.t): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
   switch (find_module_containing_item(target_item_id, term)) {
   | Some((module_id, items, idx)) =>
@@ -223,8 +221,7 @@ let replace_exp_by_id =
 
 /* Replace a sub-pattern by ID. Walks the term tree and within any
    expression that contains the target pattern, replaces it. */
-let replace_pat_by_id =
-    (target_id: Id.t, new_pat: Pat.t, term: Exp.t): Exp.t =>
+let replace_pat_by_id = (target_id: Id.t, new_pat: Pat.t, term: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_pat=
       (continue, p) =>
@@ -237,8 +234,7 @@ let replace_pat_by_id =
   );
 
 /* Replace a sub-type by ID. */
-let replace_typ_by_id =
-    (target_id: Id.t, new_typ: Typ.t, term: Exp.t): Exp.t =>
+let replace_typ_by_id = (target_id: Id.t, new_typ: Typ.t, term: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_typ=
       (continue, t) =>
@@ -339,7 +335,10 @@ let replace_match_arms =
       (continue, e) =>
         if (Id.equal(Exp.rep_id(e), target_match_id)) {
           switch (Exp.term_of(e)) {
-          | Match(scrutinee, _) => {...e, term: Match(scrutinee, new_arms)}
+          | Match(scrutinee, _) => {
+              ...e,
+              term: Match(scrutinee, new_arms),
+            }
           | _ => continue(e)
           };
         } else {
@@ -372,7 +371,7 @@ let find_match_containing_arm_by_body =
             | None => continue(e)
             }
           | _ => continue(e)
-          };
+          }
         },
       term,
     );
@@ -402,7 +401,7 @@ let find_match_containing_arm_by_pat =
             | None => continue(e)
             }
           | _ => continue(e)
-          };
+          }
         },
       term,
     );
@@ -477,8 +476,7 @@ let case_insert_arm =
 
 /* Update the body of a case arm. */
 let case_update_arm_body =
-    (z: Zipper.t, target_arm_body_id: Id.t, code: string)
-    : option(Zipper.t) => {
+    (z: Zipper.t, target_arm_body_id: Id.t, code: string): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
   switch (find_match_containing_arm_by_body(target_arm_body_id, term)) {
   | Some((match_id, _, arms, idx)) =>
@@ -499,8 +497,7 @@ let case_update_arm_body =
 
 /* Update the pattern of a case arm. */
 let case_update_arm_pattern =
-    (z: Zipper.t, target_arm_body_id: Id.t, code: string)
-    : option(Zipper.t) => {
+    (z: Zipper.t, target_arm_body_id: Id.t, code: string): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
   switch (find_match_containing_arm_by_body(target_arm_body_id, term)) {
   | Some((match_id, _, arms, idx)) =>
@@ -538,7 +535,10 @@ let replace_list_elements =
       (continue, e) =>
         if (Id.equal(Exp.rep_id(e), target_list_id)) {
           switch (Exp.term_of(e)) {
-          | ListLit(_) => {...e, term: ListLit(new_elements)}
+          | ListLit(_) => {
+              ...e,
+              term: ListLit(new_elements),
+            }
           | _ => continue(e)
           };
         } else {
@@ -571,7 +571,7 @@ let find_list_containing_element =
             | None => continue(e)
             }
           | _ => continue(e)
-          };
+          }
         },
       term,
     );
@@ -610,8 +610,7 @@ let list_insert_element =
 };
 
 let list_update_element =
-    (z: Zipper.t, target_element_id: Id.t, code: string)
-    : option(Zipper.t) => {
+    (z: Zipper.t, target_element_id: Id.t, code: string): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
   switch (find_list_containing_element(target_element_id, term)) {
   | Some((list_id, elements, idx)) =>
@@ -645,7 +644,10 @@ let replace_tuple_elements =
       (continue, e) =>
         if (Id.equal(Exp.rep_id(e), target_tuple_id)) {
           switch (Exp.term_of(e)) {
-          | Tuple(_) => {...e, term: Tuple(new_elements)}
+          | Tuple(_) => {
+              ...e,
+              term: Tuple(new_elements),
+            }
           | _ => continue(e)
           };
         } else {
@@ -678,7 +680,7 @@ let find_tuple_containing_element =
             | None => continue(e)
             }
           | _ => continue(e)
-          };
+          }
         },
       term,
     );
@@ -717,8 +719,7 @@ let tuple_insert_element =
 };
 
 let tuple_update_element =
-    (z: Zipper.t, target_element_id: Id.t, code: string)
-    : option(Zipper.t) => {
+    (z: Zipper.t, target_element_id: Id.t, code: string): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
   switch (find_tuple_containing_element(target_element_id, term)) {
   | Some((tuple_id, elements, idx)) =>
@@ -807,11 +808,16 @@ let rename_var_in_exp =
     ~f_exp=
       (continue, e) =>
         switch (Exp.term_of(e)) {
-        | Var(name) when String.equal(name, old_name) =>
-          {...e, term: Var(new_name)}
+        | Var(name) when String.equal(name, old_name) => {
+            ...e,
+            term: Var(new_name),
+          }
         | Let(pat, def, body) when pat_binds(pat, old_name) =>
           /* Shadowed: rename in def (for recursive bindings) but not body */
-          {...e, term: Let(pat, continue(def), body)}
+          {
+            ...e,
+            term: Let(pat, continue(def), body),
+          }
         | _ => continue(e)
         },
     term,
@@ -833,8 +839,7 @@ let update_pattern =
         ~f_exp=
           (continue, e) =>
             switch (Exp.term_of(e)) {
-            | Let(pat, def, body)
-                when Id.equal(Pat.rep_id(pat), target_id) =>
+            | Let(pat, def, body) when Id.equal(Pat.rep_id(pat), target_id) =>
               let old_name = pat_var_name(pat);
               /* Rename variables in def and body */
               let (def, body) =
@@ -846,15 +851,17 @@ let update_pattern =
                   )
                 | _ => (def, body)
                 };
-              {...e, term: Let(new_pat, continue(def), continue(body))}
+              {
+                ...e,
+                term: Let(new_pat, continue(def), continue(body)),
+              };
             | Module(items) =>
               /* Check if any ModLet has the target pattern */
               let target_idx =
                 ListUtil.findi_opt(
                   (item: Mod.t) =>
                     switch (item.term) {
-                    | ModLet(pat, _) =>
-                      Id.equal(Pat.rep_id(pat), target_id)
+                    | ModLet(pat, _) => Id.equal(Pat.rep_id(pat), target_id)
                     | _ => false
                     },
                   items,
@@ -887,7 +894,10 @@ let update_pattern =
                             };
                           let new_term: TermBase.mod_term =
                             ModLet(new_pat, def);
-                          {...item, term: new_term};
+                          {
+                            ...item,
+                            term: new_term,
+                          };
                         | _ => item
                         };
                       } else if (i > idx) {
@@ -900,13 +910,17 @@ let update_pattern =
                                 p,
                                 rename_var_in_exp(old_n, new_n, def),
                               );
-                            {...item, term: new_term};
+                            {
+                              ...item,
+                              term: new_term,
+                            };
                           | ModExp(exp) =>
                             let new_term: TermBase.mod_term =
-                              ModExp(
-                                rename_var_in_exp(old_n, new_n, exp),
-                              );
-                            {...item, term: new_term};
+                              ModExp(rename_var_in_exp(old_n, new_n, exp));
+                            {
+                              ...item,
+                              term: new_term,
+                            };
                           | _ => item
                           }
                         | None => item
@@ -916,7 +930,10 @@ let update_pattern =
                       },
                     items,
                   );
-                {...e, term: Module(new_items)};
+                {
+                  ...e,
+                  term: Module(new_items),
+                };
               | None => continue(e)
               };
             | _ => continue(e)
@@ -955,11 +972,15 @@ let update_binding_clause =
         e =>
           switch (Exp.term_of(e), Exp.term_of(parsed)) {
           /* Replace pat+def of a Let, keeping the original body */
-          | (Let(_, _, body), Let(new_pat, new_def, _)) =>
-            {...e, term: Let(new_pat, new_def, body)}
+          | (Let(_, _, body), Let(new_pat, new_def, _)) => {
+              ...e,
+              term: Let(new_pat, new_def, body),
+            }
           /* Replace tpat+tdef of a TyAlias, keeping the original body */
-          | (TyAlias(_, _, body), TyAlias(new_tpat, new_tdef, _)) =>
-            {...e, term: TyAlias(new_tpat, new_tdef, body)}
+          | (TyAlias(_, _, body), TyAlias(new_tpat, new_tdef, _)) => {
+              ...e,
+              term: TyAlias(new_tpat, new_tdef, body),
+            }
           /* For bare expressions (Seq items), replace entirely */
           | _ => parsed
           },
@@ -974,8 +995,7 @@ let update_binding_clause =
    For Let(pat, def, body): removes the binding and replaces with body.
    For Seq(e, rest): removes e and replaces with rest.
    target_id: the ID of the Let/TyAlias/Seq expression. */
-let delete_binding =
-    (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
+let delete_binding = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
   let new_term =
     replace_exp_by_id(
@@ -995,8 +1015,7 @@ let delete_binding =
 /* Delete a body expression.
    Replaces the body with an empty hole.
    target_id: the ID of the body expression. */
-let delete_body =
-    (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
+let delete_body = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
   let hole = Exp.fresh(EmptyHole);
   let new_term = replace_exp_by_id(target_id, _ => hole, term);
@@ -1036,13 +1055,28 @@ let insert_binding =
             | Right =>
               /* Insert after: wrap target's body in new Let */
               switch (Exp.term_of(e)) {
-              | Let(pat, def, body) =>
-                {...e, term: Let(pat, def, Exp.fresh(Let(new_pat, new_def, body)))}
-              | TyAlias(tpat, tdef, body) =>
-                {...e, term: TyAlias(tpat, tdef, Exp.fresh(Let(new_pat, new_def, body)))}
+              | Let(pat, def, body) => {
+                  ...e,
+                  term:
+                    Let(pat, def, Exp.fresh(Let(new_pat, new_def, body))),
+                }
+              | TyAlias(tpat, tdef, body) => {
+                  ...e,
+                  term:
+                    TyAlias(
+                      tpat,
+                      tdef,
+                      Exp.fresh(Let(new_pat, new_def, body)),
+                    ),
+                }
               | _ =>
                 /* For bare expressions, wrap in a Seq */
-                Exp.fresh(Seq(e, Exp.fresh(Let(new_pat, new_def, Exp.fresh(EmptyHole)))))
+                Exp.fresh(
+                  Seq(
+                    e,
+                    Exp.fresh(Let(new_pat, new_def, Exp.fresh(EmptyHole))),
+                  ),
+                )
               }
             },
           term,
@@ -1054,16 +1088,36 @@ let insert_binding =
           target_id,
           e =>
             switch (d) {
-            | Left =>
-              Exp.fresh(TyAlias(new_tpat, new_tdef, e))
+            | Left => Exp.fresh(TyAlias(new_tpat, new_tdef, e))
             | Right =>
               switch (Exp.term_of(e)) {
-              | Let(pat, def, body) =>
-                {...e, term: Let(pat, def, Exp.fresh(TyAlias(new_tpat, new_tdef, body)))}
-              | TyAlias(tpat, tdef, body) =>
-                {...e, term: TyAlias(tpat, tdef, Exp.fresh(TyAlias(new_tpat, new_tdef, body)))}
+              | Let(pat, def, body) => {
+                  ...e,
+                  term:
+                    Let(
+                      pat,
+                      def,
+                      Exp.fresh(TyAlias(new_tpat, new_tdef, body)),
+                    ),
+                }
+              | TyAlias(tpat, tdef, body) => {
+                  ...e,
+                  term:
+                    TyAlias(
+                      tpat,
+                      tdef,
+                      Exp.fresh(TyAlias(new_tpat, new_tdef, body)),
+                    ),
+                }
               | _ =>
-                Exp.fresh(Seq(e, Exp.fresh(TyAlias(new_tpat, new_tdef, Exp.fresh(EmptyHole)))))
+                Exp.fresh(
+                  Seq(
+                    e,
+                    Exp.fresh(
+                      TyAlias(new_tpat, new_tdef, Exp.fresh(EmptyHole)),
+                    ),
+                  ),
+                )
               }
             },
           term,

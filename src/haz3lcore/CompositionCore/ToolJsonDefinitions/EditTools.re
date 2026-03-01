@@ -555,10 +555,7 @@ let update_type_annotation: API.Json.t =
                   "code",
                   `Assoc([
                     ("type", `String("string")),
-                    (
-                      "description",
-                      `String("The new type annotation."),
-                    ),
+                    ("description", `String("The new type annotation.")),
                   ]),
                 ),
               ]),

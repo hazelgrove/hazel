@@ -36,9 +36,7 @@ module Local = {
             | Asc(_, typ) => Typ.rep_id(typ)
             | _ =>
               raise(
-                Failure(
-                  "No type annotation found on this binding's pattern",
-                ),
+                Failure("No type annotation found on this binding's pattern"),
               )
             }
           }
@@ -129,7 +127,11 @@ module Local = {
       | Insert(_, _, _) => (false, false, false)
       | Delete(BindingClause, _) => (false, true, false)
       | Delete(Body, _) => (false, false, true)
-      | Delete(Definition | Pattern | TypeAnnotation, _) => (false, false, false)
+      | Delete(Definition | Pattern | TypeAnnotation, _) => (
+          false,
+          false,
+          false,
+        )
       };
     };
 
@@ -161,14 +163,13 @@ module Local = {
               (continue, e) => {
                 switch (Exp.term_of(e)) {
                 | Invalid(token) =>
-                  errors :=
-                    ["Invalid token: \"" ++ token ++ "\"", ...errors^];
+                  errors := ["Invalid token: \"" ++ token ++ "\"", ...errors^];
                   e;
                 | MultiHole(_) =>
                   errors := ["MultiHole (malformed expression)", ...errors^];
                   e;
                 | _ => continue(e)
-                };
+                }
               },
             term,
           );
@@ -201,7 +202,7 @@ module Local = {
                 exp_holes := exp_holes^ + 1;
                 e;
               | _ => continue(e)
-              };
+              }
             },
           ~f_pat=
             (continue, p) => {
@@ -210,7 +211,7 @@ module Local = {
                 pat_holes := pat_holes^ + 1;
                 p;
               | _ => continue(p)
-              };
+              }
             },
           ~f_typ=
             (continue, t) => {
@@ -219,7 +220,7 @@ module Local = {
                 typ_holes := typ_holes^ + 1;
                 t;
               | _ => continue(t)
-              };
+              }
             },
           term,
         );
@@ -353,7 +354,6 @@ module Local = {
          )
       |> return(CantPaste);
     };
-
   };
 
   let edit_dispatch =
@@ -363,9 +363,10 @@ module Local = {
         ~initial_node_map: node_map,
         ~initial_info_map: Id.Map.t(Info.t),
         ~syntax as _syntax: CachedSyntax.t,
-        ~return as _return:
-           (Action.Failure.t, option(Zipper.t)) =>
-           result(Zipper.t, Action.Failure.t),
+        ~return as
+          _return:
+            (Action.Failure.t, option(Zipper.t)) =>
+            result(Zipper.t, Action.Failure.t),
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
       )
       : result((Zipper.t, option(string)), Action.Failure.t) => {
@@ -387,9 +388,15 @@ module Local = {
         };
       let (term_edit_result, kind) =
         if (is_type_alias) {
-          (TermEdit.update_type_annotation(initial_z, target_id, code), "type alias definition");
+          (
+            TermEdit.update_type_annotation(initial_z, target_id, code),
+            "type alias definition",
+          );
         } else {
-          (TermEdit.update_definition(initial_z, target_id, code), "definition");
+          (
+            TermEdit.update_definition(initial_z, target_id, code),
+            "definition",
+          );
         };
       switch (term_edit_result) {
       | Some(new_z) =>
@@ -403,7 +410,11 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to update " ++ kind ++ ": could not parse \"" ++ code ++ "\" as valid code.",
+            "Failed to update "
+            ++ kind
+            ++ ": could not parse \""
+            ++ code
+            ++ "\" as valid code.",
           ),
         )
       };
@@ -421,11 +432,20 @@ module Local = {
         };
       let (term_edit_result, kind) =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
-          (TermEdit.case_update_arm_body(initial_z, target_id, code), "case arm body");
+          (
+            TermEdit.case_update_arm_body(initial_z, target_id, code),
+            "case arm body",
+          );
         } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          (TermEdit.list_update_element(initial_z, target_id, code), "list element");
+          (
+            TermEdit.list_update_element(initial_z, target_id, code),
+            "list element",
+          );
         } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          (TermEdit.tuple_update_element(initial_z, target_id, code), "tuple element");
+          (
+            TermEdit.tuple_update_element(initial_z, target_id, code),
+            "tuple element",
+          );
         } else {
           (TermEdit.update_body(initial_z, target_id, code), "body");
         };
@@ -441,7 +461,11 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to update " ++ kind ++ ": could not parse \"" ++ code ++ "\" as valid code.",
+            "Failed to update "
+            ++ kind
+            ++ ": could not parse \""
+            ++ code
+            ++ "\" as valid code.",
           ),
         )
       };
@@ -470,7 +494,10 @@ module Local = {
       } else {
         let (term_edit_result, kind) =
           if (TermEdit.is_case_arm(initial_z, target_id)) {
-            (TermEdit.case_update_arm_pattern(initial_z, target_id, code), "case arm pattern");
+            (
+              TermEdit.case_update_arm_pattern(initial_z, target_id, code),
+              "case arm pattern",
+            );
           } else {
             let pat_id = Utils.get_inner_term_id(Pat, initial_node);
             (TermEdit.update_pattern(initial_z, pat_id, code), "pattern");
@@ -487,7 +514,11 @@ module Local = {
         | None =>
           Error(
             Action.Failure.Composition_action_failure(
-              "Failed to update " ++ kind ++ ": could not parse \"" ++ code ++ "\" as a valid pattern.",
+              "Failed to update "
+              ++ kind
+              ++ ": could not parse \""
+              ++ code
+              ++ "\" as a valid pattern.",
             ),
           )
         };
@@ -515,9 +546,15 @@ module Local = {
       } else {
         let (term_edit_result, kind) =
           if (TermEdit.is_module_item(initial_z, target_id)) {
-            (TermEdit.module_update_binding(initial_z, target_id, code), "module item");
+            (
+              TermEdit.module_update_binding(initial_z, target_id, code),
+              "module item",
+            );
           } else {
-            (TermEdit.update_binding_clause(initial_z, target_id, code), "binding clause");
+            (
+              TermEdit.update_binding_clause(initial_z, target_id, code),
+              "binding clause",
+            );
           };
         switch (term_edit_result) {
         | Some(new_z) =>
@@ -531,7 +568,11 @@ module Local = {
         | None =>
           Error(
             Action.Failure.Composition_action_failure(
-              "Failed to update " ++ kind ++ ": could not parse \"" ++ code ++ "\" as a valid binding.",
+              "Failed to update "
+              ++ kind
+              ++ ": could not parse \""
+              ++ code
+              ++ "\" as a valid binding.",
             ),
           )
         };
@@ -551,7 +592,9 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to update type annotation: could not parse \"" ++ code ++ "\" as a valid type.",
+            "Failed to update type annotation: could not parse \""
+            ++ code
+            ++ "\" as a valid type.",
           ),
         )
       };
@@ -559,24 +602,50 @@ module Local = {
       let target_id = path_to_id(initial_node_map, path);
       let (term_edit_result, kind) =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
-          (TermEdit.case_insert_arm(
-            initial_z, target_id, code, Direction.Left,
-          ), "case arm");
+          (
+            TermEdit.case_insert_arm(
+              initial_z,
+              target_id,
+              code,
+              Direction.Left,
+            ),
+            "case arm",
+          );
         } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          (TermEdit.list_insert_element(
-            initial_z, target_id, code, Direction.Left,
-          ), "list element");
+          (
+            TermEdit.list_insert_element(
+              initial_z,
+              target_id,
+              code,
+              Direction.Left,
+            ),
+            "list element",
+          );
         } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          (TermEdit.tuple_insert_element(
-            initial_z, target_id, code, Direction.Left,
-          ), "tuple element");
+          (
+            TermEdit.tuple_insert_element(
+              initial_z,
+              target_id,
+              code,
+              Direction.Left,
+            ),
+            "tuple element",
+          );
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
-          (TermEdit.module_insert(initial_z, target_id, code, Direction.Left),
-           "module item");
+          (
+            TermEdit.module_insert(initial_z, target_id, code, Direction.Left),
+            "module item",
+          );
         } else {
-          (TermEdit.insert_binding(
-            initial_z, target_id, code, Direction.Left,
-          ), "binding");
+          (
+            TermEdit.insert_binding(
+              initial_z,
+              target_id,
+              code,
+              Direction.Left,
+            ),
+            "binding",
+          );
         };
       switch (term_edit_result) {
       | Some(new_z) =>
@@ -602,8 +671,13 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to insert " ++ kind ++ " before \"" ++ path
-            ++ "\": could not parse \"" ++ code ++ "\" as valid code.",
+            "Failed to insert "
+            ++ kind
+            ++ " before \""
+            ++ path
+            ++ "\": could not parse \""
+            ++ code
+            ++ "\" as valid code.",
           ),
         )
       };
@@ -611,25 +685,55 @@ module Local = {
       let target_id = path_to_id(initial_node_map, path);
       let (term_edit_result, kind) =
         if (TermEdit.is_case_arm(initial_z, target_id)) {
-          (TermEdit.case_insert_arm(
-            initial_z, target_id, code, Direction.Right,
-          ), "case arm");
+          (
+            TermEdit.case_insert_arm(
+              initial_z,
+              target_id,
+              code,
+              Direction.Right,
+            ),
+            "case arm",
+          );
         } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          (TermEdit.list_insert_element(
-            initial_z, target_id, code, Direction.Right,
-          ), "list element");
+          (
+            TermEdit.list_insert_element(
+              initial_z,
+              target_id,
+              code,
+              Direction.Right,
+            ),
+            "list element",
+          );
         } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          (TermEdit.tuple_insert_element(
-            initial_z, target_id, code, Direction.Right,
-          ), "tuple element");
+          (
+            TermEdit.tuple_insert_element(
+              initial_z,
+              target_id,
+              code,
+              Direction.Right,
+            ),
+            "tuple element",
+          );
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
-          (TermEdit.module_insert(
-            initial_z, target_id, code, Direction.Right,
-          ), "module item");
+          (
+            TermEdit.module_insert(
+              initial_z,
+              target_id,
+              code,
+              Direction.Right,
+            ),
+            "module item",
+          );
         } else {
-          (TermEdit.insert_binding(
-            initial_z, target_id, code, Direction.Right,
-          ), "binding");
+          (
+            TermEdit.insert_binding(
+              initial_z,
+              target_id,
+              code,
+              Direction.Right,
+            ),
+            "binding",
+          );
         };
       switch (term_edit_result) {
       | Some(new_z) =>
@@ -655,8 +759,13 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to insert " ++ kind ++ " after \"" ++ path
-            ++ "\": could not parse \"" ++ code ++ "\" as valid code.",
+            "Failed to insert "
+            ++ kind
+            ++ " after \""
+            ++ path
+            ++ "\": could not parse \""
+            ++ code
+            ++ "\" as valid code.",
           ),
         )
       };
@@ -666,9 +775,15 @@ module Local = {
         if (TermEdit.is_case_arm(initial_z, target_id)) {
           (TermEdit.case_delete_arm(initial_z, target_id), "case arm");
         } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          (TermEdit.list_delete_element(initial_z, target_id), "list element");
+          (
+            TermEdit.list_delete_element(initial_z, target_id),
+            "list element",
+          );
         } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          (TermEdit.tuple_delete_element(initial_z, target_id), "tuple element");
+          (
+            TermEdit.tuple_delete_element(initial_z, target_id),
+            "tuple element",
+          );
         } else if (TermEdit.is_module_item(initial_z, target_id)) {
           (TermEdit.module_delete(initial_z, target_id), "module item");
         } else {
@@ -679,7 +794,10 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to delete " ++ kind ++ " at \"" ++ path
+            "Failed to delete "
+            ++ kind
+            ++ " at \""
+            ++ path
             ++ "\": the element could not be found in the term tree.",
           ),
         )
@@ -692,7 +810,8 @@ module Local = {
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
-            "Failed to delete body at \"" ++ path
+            "Failed to delete body at \""
+            ++ path
             ++ "\": the body expression could not be found in the term tree.",
           ),
         )
@@ -710,8 +829,7 @@ module Local = {
 
   let format_status_exp = (status: Info.status_exp): string =>
     switch (status) {
-    | NotInHole(Common(Syn(ty))) =>
-      "Synthesized type: " ++ format_typ(ty)
+    | NotInHole(Common(Syn(ty))) => "Synthesized type: " ++ format_typ(ty)
     | NotInHole(Common(Ana(Consistent({ana, syn, _})))) =>
       "Expected type: "
       ++ format_typ(ana)
@@ -724,8 +842,7 @@ module Local = {
       ++ "\nStatus: internally inconsistent (ok in analytic position)"
     | NotInHole(AnaDeferralConsistent(ty)) =>
       "Deferral consistent with type: " ++ format_typ(ty)
-    | InHole(err) =>
-      "Status: error\nError: " ++ ErrorPrint.exp_error(err)
+    | InHole(err) => "Status: error\nError: " ++ ErrorPrint.exp_error(err)
     };
 
   let read_dispatch =
@@ -749,13 +866,11 @@ module Local = {
           ),
         )
       | matches =>
-        let results =
-          matches |> List.map(Selector.print_match);
+        let results = matches |> List.map(Selector.print_match);
         Ok(String.concat("\n", results));
       };
     | GetCompleteness =>
-      let (exp_holes, pat_holes, typ_holes) =
-        PerformUtils.count_holes(z);
+      let (exp_holes, pat_holes, typ_holes) = PerformUtils.count_holes(z);
       let total = exp_holes + pat_holes + typ_holes;
       if (total == 0) {
         Ok("Complete: no unfilled holes.");
@@ -783,149 +898,145 @@ module Local = {
       | None => Error(Cant_derive_local_AST_information)
       | Some(node_map) =>
         switch (action) {
-      | GetSyntax(path) =>
-        let node = path_to_node(node_map, path);
-        let target_id = Info.id_of(node.info);
-        switch (segment_of_term(z, Some(target_id), syntax)) {
-        | Some(segment) =>
-          let code = Printer.of_segment(~holes="?", segment);
-          Ok(code);
-        | None =>
-          Error(
-            Composition_action_failure(
-              "Could not select the term at path: " ++ path,
-            ),
-          )
-        };
-      | GetStatics(path) =>
-        let node = path_to_node(node_map, path);
-        let result =
-          switch (node.info) {
-          | InfoExp({ana, status, _}) =>
-            "Path: "
-            ++ path
-            ++ "\nBinding: "
-            ++ node.name
-            ++ "\nAnalytic (expected) type: "
-            ++ format_typ(ana)
-            ++ "\n"
-            ++ format_status_exp(status)
-          | InfoPat({ana, status, _}) =>
-            "Path: "
-            ++ path
-            ++ "\nBinding: "
-            ++ node.name
-            ++ "\nAnalytic type: "
-            ++ format_typ(ana)
-            ++ "\nStatus: "
-            ++ (
-              switch (status) {
-              | NotInHole(_) => "ok"
-              | InHole(err) => "error: " ++ ErrorPrint.pat_error(err)
-              }
-            )
-          | info =>
-            "Path: "
-            ++ path
-            ++ "\nBinding: "
-            ++ node.name
-            ++ "\nClass: "
-            ++ Cls.show(Info.cls_of(info))
-            ++ (
-              switch (Info.error_of(info)) {
-              | None => "\nStatus: ok"
-              | Some(err) =>
-                "\nStatus: error: " ++ ErrorPrint.string_of(err)
-              }
+        | GetSyntax(path) =>
+          let node = path_to_node(node_map, path);
+          let target_id = Info.id_of(node.info);
+          switch (segment_of_term(z, Some(target_id), syntax)) {
+          | Some(segment) =>
+            let code = Printer.of_segment(~holes="?", segment);
+            Ok(code);
+          | None =>
+            Error(
+              Composition_action_failure(
+                "Could not select the term at path: " ++ path,
+              ),
             )
           };
-        /* Also gather errors from the node's subtree */
-        let subtree =
-          GeneralTreeUtils.subtree_of(
-            ~info=node.info,
-            ~orig_info_map=info_map,
-            ~of_pat=true,
-            ~of_def=true,
-            ~of_body=true,
-          );
-        let errors = ErrorPrint.all(subtree);
-        let result =
-          switch (errors) {
-          | [] => result
-          | _ =>
-            result
-            ++ "\nErrors in subtree:\n"
-            ++ String.concat("\n", errors)
-          };
-        Ok(result);
-      | GetContext(path) =>
-        let node = path_to_node(node_map, path);
-        let ctx = Info.ctx_of(node.info) |> Ctx.filter_shadowed;
-        let vars =
-          ctx.entries
-          |> List.filter_map(entry =>
-               switch (entry) {
-               | Ctx.VarEntry(ve) => Some(ve)
-               | _ => None
-               }
-             );
-        let constructors =
-          ctx.entries
-          |> List.filter_map(entry =>
-               switch (entry) {
-               | Ctx.ConstructorEntry(ve) => Some(ve)
-               | _ => None
-               }
-             );
-        let type_aliases =
-          ctx.entries
-          |> List.filter_map(entry =>
-               switch (entry) {
-               | Ctx.TVarEntry(te) => Some(te)
-               | _ => None
-               }
-             );
-        let fmt_var = (ve: Ctx.var_entry) =>
-          "  " ++ ve.name ++ " : " ++ format_typ(ve.typ);
-        let fmt_tvar = (te: Ctx.tvar_entry) =>
-          switch (te.kind) {
-          | Singleton(ty) =>
-            "  " ++ te.name ++ " = " ++ format_typ(ty)
-          | Abstract => "  " ++ te.name ++ " (abstract)"
-          };
-        let result = "Context at path: " ++ path;
-        let result =
-          switch (vars) {
-          | [] => result
-          | _ =>
-            result
-            ++ "\nVariables:\n"
-            ++ String.concat("\n", List.map(fmt_var, vars))
-          };
-        let result =
-          switch (type_aliases) {
-          | [] => result
-          | _ =>
-            result
-            ++ "\nType aliases:\n"
-            ++ String.concat("\n", List.map(fmt_tvar, type_aliases))
-          };
-        let result =
-          switch (constructors) {
-          | [] => result
-          | _ =>
-            result
-            ++ "\nConstructors:\n"
-            ++ String.concat(
-                 "\n",
-                 List.map(fmt_var, constructors),
-               )
-          };
-        Ok(result);
-      | Select(_)
-      | GetCompleteness => assert(false) /* handled above */
+        | GetStatics(path) =>
+          let node = path_to_node(node_map, path);
+          let result =
+            switch (node.info) {
+            | InfoExp({ana, status, _}) =>
+              "Path: "
+              ++ path
+              ++ "\nBinding: "
+              ++ node.name
+              ++ "\nAnalytic (expected) type: "
+              ++ format_typ(ana)
+              ++ "\n"
+              ++ format_status_exp(status)
+            | InfoPat({ana, status, _}) =>
+              "Path: "
+              ++ path
+              ++ "\nBinding: "
+              ++ node.name
+              ++ "\nAnalytic type: "
+              ++ format_typ(ana)
+              ++ "\nStatus: "
+              ++ (
+                switch (status) {
+                | NotInHole(_) => "ok"
+                | InHole(err) => "error: " ++ ErrorPrint.pat_error(err)
+                }
+              )
+            | info =>
+              "Path: "
+              ++ path
+              ++ "\nBinding: "
+              ++ node.name
+              ++ "\nClass: "
+              ++ Cls.show(Info.cls_of(info))
+              ++ (
+                switch (Info.error_of(info)) {
+                | None => "\nStatus: ok"
+                | Some(err) =>
+                  "\nStatus: error: " ++ ErrorPrint.string_of(err)
+                }
+              )
+            };
+          /* Also gather errors from the node's subtree */
+          let subtree =
+            GeneralTreeUtils.subtree_of(
+              ~info=node.info,
+              ~orig_info_map=info_map,
+              ~of_pat=true,
+              ~of_def=true,
+              ~of_body=true,
+            );
+          let errors = ErrorPrint.all(subtree);
+          let result =
+            switch (errors) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nErrors in subtree:\n"
+              ++ String.concat("\n", errors)
+            };
+          Ok(result);
+        | GetContext(path) =>
+          let node = path_to_node(node_map, path);
+          let ctx = Info.ctx_of(node.info) |> Ctx.filter_shadowed;
+          let vars =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.VarEntry(ve) => Some(ve)
+                 | _ => None
+                 }
+               );
+          let constructors =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.ConstructorEntry(ve) => Some(ve)
+                 | _ => None
+                 }
+               );
+          let type_aliases =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.TVarEntry(te) => Some(te)
+                 | _ => None
+                 }
+               );
+          let fmt_var = (ve: Ctx.var_entry) =>
+            "  " ++ ve.name ++ " : " ++ format_typ(ve.typ);
+          let fmt_tvar = (te: Ctx.tvar_entry) =>
+            switch (te.kind) {
+            | Singleton(ty) => "  " ++ te.name ++ " = " ++ format_typ(ty)
+            | Abstract => "  " ++ te.name ++ " (abstract)"
+            };
+          let result = "Context at path: " ++ path;
+          let result =
+            switch (vars) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nVariables:\n"
+              ++ String.concat("\n", List.map(fmt_var, vars))
+            };
+          let result =
+            switch (type_aliases) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nType aliases:\n"
+              ++ String.concat("\n", List.map(fmt_tvar, type_aliases))
+            };
+          let result =
+            switch (constructors) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nConstructors:\n"
+              ++ String.concat("\n", List.map(fmt_var, constructors))
+            };
+          Ok(result);
+        | Select(_)
+        | GetCompleteness => assert(false) /* handled above */
+        }
       }
-    }
     };
   };
 
@@ -1016,10 +1127,7 @@ module Public = {
   };
 
   let read_dispatch =
-      (
-        ~action: CompositionActions.read_action,
-        ~z: Zipper.t,
-      )
+      (~action: CompositionActions.read_action, ~z: Zipper.t)
       : result(string, Action.Failure.t) => {
     let info_map = mk_statics(z);
     let syntax = CachedSyntax.init(z);

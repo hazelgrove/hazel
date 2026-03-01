@@ -252,8 +252,7 @@ module Message = {
       let cursor_context_section =
         switch (String.trim(cursor_context_content)) {
         | "" => ""
-        | s =>
-          "\n<cursorContext>\n" ++ s ++ "\n</cursorContext>\n"
+        | s => "\n<cursorContext>\n" ++ s ++ "\n</cursorContext>\n"
         };
 
       let context_prefix = "\n<context>\n";
@@ -1285,10 +1284,7 @@ module Agent = {
           switch (err) {
           | Action.Failure.Composition_action_failure(msg) =>
             Error(Failure.Info(msg))
-          | _ =>
-            Error(
-              Failure.Info("Failed to execute read action"),
-            )
+          | _ => Error(Failure.Info("Failed to execute read action"))
           }
         };
       | LanguageServerAction(_) =>
@@ -1556,7 +1552,9 @@ module Agent = {
             let shown = ListUtil.take(10, entries);
             let suffix =
               List.length(entries) > 10
-                ? " (+" ++ string_of_int(List.length(entries) - 10) ++ " more)"
+                ? " (+"
+                  ++ string_of_int(List.length(entries) - 10)
+                  ++ " more)"
                 : "";
             String.concat(", ", shown) ++ suffix;
           };
@@ -1747,9 +1745,7 @@ module Agent = {
               ) {
               | Ok(content) => content
               | Error(_) =>
-                "The "
-                ++ tool_call.name
-                ++ " tool call encountered an error."
+                "The " ++ tool_call.name ++ " tool call encountered an error."
               };
             | _ =>
               let base_msg =

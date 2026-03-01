@@ -539,13 +539,12 @@ let rec build_children =
           let body_info = exp_to_info(body);
           let arm_path = path @ [Info.id_of(body_info)];
           let name = "|" ++ Namer.mk_name_from_pat(pat);
-          let node_map =
-            init_node_named(body_info, name, arm_path, node_map);
+          let node_map = init_node_named(body_info, name, arm_path, node_map);
           build_children(body_info, arm_path, node_map, info_map);
         },
         node_map,
         arms,
-      );
+      )
     | ListLit(elements) =>
       /* List elements: create a node for each element, named by index.
          Names are [0], [1], [2], etc. */
@@ -554,13 +553,12 @@ let rec build_children =
           let el_info = exp_to_info(el);
           let el_path = path @ [Info.id_of(el_info)];
           let name = "[" ++ string_of_int(idx) ++ "]";
-          let node_map =
-            init_node_named(el_info, name, el_path, node_map);
+          let node_map = init_node_named(el_info, name, el_path, node_map);
           build_children(el_info, el_path, node_map, info_map);
         },
         node_map,
         List.mapi((i, el) => (i, el), elements),
-      );
+      )
     | Tuple(elements) =>
       /* Tuple elements: create a node for each element. Labeled tuple
          elements use their label name; unlabeled use index notation. */
@@ -577,13 +575,12 @@ let rec build_children =
               }
             | _ => "(" ++ string_of_int(idx) ++ ")"
             };
-          let node_map =
-            init_node_named(el_info, name, el_path, node_map);
+          let node_map = init_node_named(el_info, name, el_path, node_map);
           build_children(el_info, el_path, node_map, info_map);
         },
         node_map,
         List.mapi((i, el) => (i, el), elements),
-      );
+      )
     | Module(items) =>
       /* Module items are expanded to a Let/TyAlias chain in the info_map.
          Find the first named item (ModLet/ModType/ModuleMod) whose ID is
@@ -742,13 +739,13 @@ let nodes_at_level = (node_map: t, parent_id: option(Id.t)): list(node) => {
     | [first_id, ..._] =>
       let first_node = find(node_map, first_id);
       if (List.length(first_node.siblings) > 0) {
-        List.map(
-          (id: Id.t) => find(node_map, id),
-          first_node.siblings,
-        );
+        List.map((id: Id.t) => find(node_map, id), first_node.siblings);
       } else {
         /* Fallback: just return top-level nodes (unordered) */
-        List.map((id: Id.t) => find(node_map, id), top_level_ids);
+        List.map(
+          (id: Id.t) => find(node_map, id),
+          top_level_ids,
+        );
       };
     };
   };
