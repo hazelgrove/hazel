@@ -392,3 +392,81 @@ module QueryParams = {
          );
        });
 };
+
+/* Navigate between probe elements in document order.
+   Finds all .live-offside[tabindex] elements, sorts by visual position,
+   and focuses the next/previous one relative to current_id.
+   Returns the target probe's Id.t (from data-probe-id attribute)
+   and gives it DOM focus. */
+let navigate_probes =
+    (
+      current_id: string,
+      direction: [
+        | `Up
+        | `Down
+      ],
+    )
+    : option(Id.t) => {
+  let elements =
+    Dom_html.document##querySelectorAll(
+      Js.string(".live-offside[tabindex]"),
+    );
+  let len = elements##.length;
+  /* Collect elements with their bounding rects */
+  let items = ref([]);
+  for (i in 0 to len - 1) {
+    switch (elements##item(i) |> Js.Opt.to_option) {
+    | Some(el) =>
+      let el = Js.Unsafe.coerce(el);
+      let rect = el##getBoundingClientRect;
+      items := [(el, rect##.top, rect##.left), ...items^];
+    | None => ()
+    };
+  };
+  /* Sort by top, then left */
+  let sorted =
+    List.sort(
+      ((_, t1, l1), (_, t2, l2)) => {
+        let c = compare(t1, t2);
+        if (c != 0) {
+          c;
+        } else {
+          compare(l1, l2);
+        };
+      },
+      items^,
+    );
+  /* Find current index */
+  let current_idx = ref(-1);
+  List.iteri(
+    (i, (el, _, _)) => {
+      let id: string = Js.to_string(el##.id);
+      if (id == current_id) {
+        current_idx := i;
+      };
+    },
+    sorted,
+  );
+  /* Step to target */
+  let target_idx =
+    switch (direction) {
+    | `Down => current_idx^ + 1
+    | `Up => current_idx^ - 1
+    };
+  if (target_idx >= 0 && target_idx < List.length(sorted)) {
+    let (el, _, _) = List.nth(sorted, target_idx);
+    el##focus;
+    el##scrollIntoView(
+      Js.Unsafe.obj([|("block", Js.Unsafe.inject(Js.string("nearest")))|]),
+    );
+    /* Extract the full probe Id from data-probe-id attribute */
+    let probe_id_str =
+      el##getAttribute(Js.string("data-probe-id")) |> Js.Opt.to_option;
+    switch (probe_id_str) {
+    | Some(s) => Id.of_string(Js.to_string(s))
+    | None => None
+    };
+  } else {
+    None;
+  };
+};

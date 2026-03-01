@@ -66,6 +66,7 @@ type project =
   | SetSyntax(int, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
+  | FocusById(Id.t) /* Focus a projector by term id (for probe-to-probe navigation) */
   | Escape(int, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -157,6 +158,7 @@ let is_edit: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
+    | FocusById(_)
     | SampleCursor(_)
     | Escape(_) => false
     }
@@ -185,6 +187,7 @@ let is_historic: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
+    | FocusById(_)
     | SampleCursor(_)
     | Escape(_) => false
     }
@@ -212,6 +215,7 @@ let prevent_in_read_only_editor = (a: t) =>
     | SetIndicated(_)
     | RemoveIndicated
     | Focus(_)
+    | FocusById(_)
     | SampleCursor(_)
     | Escape(_) => false
     }
