@@ -38,10 +38,27 @@
   - insert_binding strips trailing " in" from user code before parsing
   - Fixed should_add_space in ExpToSegment to add spaces around ":" for type annotations
   - 68 tests pass (45 AgentTools + 23 supporting)
+- [x] Clean up dead segment-level code (overwrite_term, insert_term, destruct, statics_map_new_ids, format_ctx_entry)
 - [ ] Improve parse_error_check messages: line numbers, syntax excerpts (thread Measured.t + TermData.t)
 - [ ] Add completeness_check: track EmptyHoles (grout vs explicit `?`, distinguished at segment level)
 - [ ] Copy whitespace from neighboring items for TermEdit insertions (instead of hardcoded space)
+- [ ] Re-evaluate error gating strategy: currently too conservative for multi-step refactoring (see notes-for-andrew.md §6)
+  - Consider compositional gating (batch actions, force flag, warnings instead of rejection)
+  - Type alias changes that cascade should be possible via multi-step edits
+- [ ] Generalize pattern actions: split Update(Pattern) into "replace whole pattern" + separate "RenameVariable" action
 - [ ] Add more complex test programs (inspired by study/debugging programs: sum types, records, tests, case dispatch)
+- [ ] **Path selector language** (see `plans/Hazel-Agent-Path-Selector-Language.md`)
+  - Concise surface-oriented selector language for addressing Hazel syntax
+  - Core operators: `_` (slot), `_...` (spine ellipsis), `⋱` (descendant search), `*` (focus)
+  - Binder-chain sugar `A/B/C` (replaces current `/`-separated path system)
+  - Form-slot patterns: `if _ then *`, `let x = *`, `case ... | Pat => *`
+  - Two modes: query (0..N matches) vs edit (exactly 1 match required)
+  - Implementation plan:
+    - [ ] Parse concrete selector syntax into AST
+    - [ ] Implement resolver against Hazel term tree
+    - [ ] Start with read actions (GetSyntax via selector) — heavily unit-tested
+    - [ ] Incrementally extend to edit actions (replacing current path system)
+  - This subsumes the current binder-chain paths and adds sub-expression addressing
 
 ### Known compromises & issues in the TermEdit approach
 

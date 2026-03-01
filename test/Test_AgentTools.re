@@ -1459,7 +1459,7 @@ let selector_tests = (
             "let x = 42 in x + 1",
             Select("let x = *"),
           );
-        check(string, "select def", "let x = ...: 42", result);
+        check(string, "select def", "42", result);
       },
     ),
     test_case(
@@ -1471,7 +1471,7 @@ let selector_tests = (
             "let f = fun x -> if x > 0 then x else 0 in f 5",
             Select("let f = \\_ if _... else *"),
           );
-        check(string, "select else", "if ... else ...: 0", result);
+        check(string, "select else", "0", result);
       },
     ),
     test_case(
@@ -1483,7 +1483,7 @@ let selector_tests = (
             "let m = { let x = 42 } in m.x",
             Select("m/x = *"),
           );
-        check(string, "chain select", "x = ...: 42", result);
+        check(string, "chain select", "42", result);
       },
     ),
     test_case(

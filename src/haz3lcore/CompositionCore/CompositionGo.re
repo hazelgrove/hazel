@@ -612,16 +612,7 @@ module Local = {
         )
       | matches =>
         let results =
-          matches
-          |> List.map((m: Selector.match_result) => {
-               let code = Selector.print_match(m);
-               let breadcrumb = m.breadcrumb;
-               if (String.length(breadcrumb) > 0) {
-                 breadcrumb ++ ": " ++ code;
-               } else {
-                 code;
-               };
-             });
+          matches |> List.map(Selector.print_match);
         Ok(String.concat("\n", results));
       };
     | _ =>
