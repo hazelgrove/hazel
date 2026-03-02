@@ -63,10 +63,7 @@ module Message = {
           "function",
           `Assoc([
             ("name", `String(tool_call.name)),
-            (
-              "arguments",
-              `String(Yojson.Safe.to_string(tool_call.args)),
-            ),
+            ("arguments", `String(Yojson.Safe.to_string(tool_call.args))),
           ]),
         ),
       ]);
@@ -96,10 +93,7 @@ module Message = {
       };
 
     let mk_assistant_msg =
-        (
-          ~tool_calls: list(Reply.Model.tool_call)=[],
-          content: string,
-        )
+        (~tool_calls: list(Reply.Model.tool_call)=[], content: string)
         : Model.t => {
       role: Assistant,
       content,
