@@ -1,8 +1,27 @@
-# Selector Language: Examples & Reference
+# Selector Language: Reference & Examples
 
-This document provides a progressive introduction to the Hazel selector
-language through concrete examples. For the formal specification, see
-`Hazel-Agent-Path-Selector-Language.md`.
+The selector language is a **concise, surface-oriented pattern language** for
+addressing Hazel syntax in a coding agent. Selectors are best understood as
+**partial pattern matching against syntax**: each selector reads as the opening
+delimiters of a Hazel form — the keywords and landmarks that identify it —
+with `_`/`_...` for wildcards and `*` for capture.
+
+Every Hazel form has a sequence of opening delimiters that form a linear prefix:
+- `let <pat> = <def> in <body>` — prefix: `let`, `=`, `in`
+- `if <cond> then <then> else <else>` — prefix: `if`, `then`, `else`
+- `fun <pat> -> <body>` — prefix: `fun`, `->`
+- `case <scrut> | <pat> => <body> ... end` — prefix: `case`, `|`, `=>`, `end`
+
+A selector matches a prefix of this delimiter sequence, with `_` for "skip one
+slot", `_...` for "skip to the next landmark", and `*` for "capture this slot".
+You never need closing delimiters because the opening delimiters already uniquely
+identify the form and which slot you're targeting.
+
+The language composes via two primitives:
+1. **Spine walking**: navigate within a single form's structure
+2. **Descent** (`\...`): search all descendants to find a nested form
+
+The composition pattern is: `context \... keyword spine-pattern`.
 
 ## Grammar Summary
 
@@ -907,15 +926,51 @@ canonical_named(id_of(2), "let x = 1 + 2 in x")  →  "x = _ + *"
 
 For deeper targets inside operands, falls back to numeric `#N` addressing.
 
+## Known Limitations
+
+1. **`*` and `/` operator conflicts**: `*` (multiplication) conflicts with
+   focus syntax; `/` (division) conflicts with chain syntax. Use `#0`/`#1`
+   to address operands of these operators. Fix: new surface characters or
+   context-sensitive disambiguation.
+
+2. **FocusMod SelectorUpdate falls back to expression parsing**: When a
+   selector focuses on a `Mod.t` item (e.g., `\... module B`), SelectorUpdate
+   parses the replacement code as an expression since there's no
+   `replace_mod_by_id` yet. Works for simple cases but may not handle all
+   module item forms correctly.
+
+3. **SelectorInsert is permissive**: The binding fallback (step 5 in the
+   insertion cascade) will wrap any expression in a Let, even for nonsensical
+   positions like inside a BinOp operand. The agent is responsible for using
+   sensible selectors. Consider adding a strict mode that refuses to insert
+   unless the target is in a recognized sequence-like position.
+
 ## Future Directions
 
-### Multi-variable selectors
+### Features to add
 
-Multiple focus variables (`*a`, `*b`, `*c`) for extracting several
-subexpressions in one pass.
+- **Multi-variable selectors**: Multiple focus variables (`*a`, `*b`, `*c`)
+  for extracting several subexpressions in one pass.
+- **Dynamics/probe integration**: `GetDynamics(path)` to return probe/runtime
+  values. Wire `Sample.Cursor.t` to agent tools (capture, pin, step-into).
+- **Semantic filters**: `@refs(x)`, `@type(Int)`, `@errors` for query-based
+  filtering. Multi-cursor edits building on queries (`UpdateAll`).
+- **Nested selector patterns**: `let (_, x) = *` for tuple-pattern let bindings.
+- **Spine-schema unification**: Generic resolver parameterized by form structure
+  instead of per-form walkers. New forms would get selector support by defining
+  a spine schema.
 
-### Multiplication and division operators
+## Implementation Notes
 
-`*` (Times) and `/` (Divide) conflict with focus and chain syntax
-respectively. Options: use different surface characters, or add
-context-sensitive disambiguation. Deferred.
+### Key files
+
+- `Selector.re` — tokenizer, parser (elaborate), resolver (walk/descend_all),
+  diagnostics, canonical generation, deparse
+- `CompositionGo.re` — edit_dispatch (path+selector), read_dispatch
+- `CompositionActions.re` — action type definitions
+- `HighLevelNodeMap.re` — node map construction, path resolution
+- `TermEdit.re` — term-level transformations for all edit operations
+- `ExpToSegment.re` — pretty-printing (mod_to_segment, pat_to_segment, typ_to_segment)
+- `ToolJsonDefinitions/EditTools.re` — JSON tool defs for edit tools
+- `ToolJsonDefinitions/ReadTools.re` — JSON tool defs for read tools
+- `Test_AgentTools.re` — 352+ tests
