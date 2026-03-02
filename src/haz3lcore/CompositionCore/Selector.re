@@ -362,6 +362,7 @@ let rec find_binder_in_exp =
       None,
       items,
     )
+  | Parens(inner) => find_binder_in_exp(name, inner)
   | _ => None
   };
 
@@ -425,6 +426,7 @@ let rec find_all_binders_named =
       };
     here @ find_all_binders_named(name, body);
   | TyAlias(_tpat, _tdef, body) => find_all_binders_named(name, body)
+  | Parens(inner) => find_all_binders_named(name, inner)
   | Module(items) =>
     List.concat_map(
       (item: Mod.t) =>
@@ -786,12 +788,11 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* Focus + more steps: focus on whatever the remaining steps select */
     | [MatchFocus, ...rest] => walk(rest, current)
 
-    /* EnterBinderDef: find binder by name, enter its definition */
+    /* EnterBinderDef: find binder by name, enter its definition.
+       Tries all binders with that name (handles shadowed bindings). */
     | [EnterBinderDef(name), ...rest] =>
-      switch (find_binder_in_exp(name, current)) {
-      | Some((def, _body)) => walk(rest, def)
-      | None => [] /* binder not found */
-      }
+      find_all_binders_named(name, current)
+      |> List.concat_map(((def, _body)) => walk(rest, def))
 
     /* MatchName: find a binder by name in the current expression */
     | [MatchName(name)] =>
@@ -810,33 +811,25 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         }
       }
 
-    /* name = * : select the definition of binder `name` */
+    /* name = * : select the definition of all binders named `name` */
     | [MatchName(name), MatchDelimiter("="), MatchFocus] =>
-      switch (find_binder_in_exp(name, current)) {
-      | Some((def, _body)) => [mk_exp(~bc=name ++ " = ...", def)]
-      | None => []
-      }
+      find_all_binders_named(name, current)
+      |> List.map(((def, _body)) => mk_exp(~bc=name ++ " = ...", def))
 
-    /* name = <more> : enter the definition of binder `name` */
+    /* name = <more> : enter the definition of all binders named `name` */
     | [MatchName(name), MatchDelimiter("="), ...rest] =>
-      switch (find_binder_in_exp(name, current)) {
-      | Some((def, _body)) => walk(rest, def)
-      | None => []
-      }
+      find_all_binders_named(name, current)
+      |> List.concat_map(((def, _body)) => walk(rest, def))
 
-    /* name ... in * : select the body of binder `name` */
+    /* name ... in * : select the body of all binders named `name` */
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
-      switch (find_binder_in_exp(name, current)) {
-      | Some((_def, body)) => [mk_exp(~bc=name ++ " ... in ...", body)]
-      | None => []
-      }
+      find_all_binders_named(name, current)
+      |> List.map(((_def, body)) => mk_exp(~bc=name ++ " ... in ...", body))
 
-    /* name ... in <more> : enter the body of binder `name` */
+    /* name ... in <more> : enter the body of all binders named `name` */
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), ...rest] =>
-      switch (find_binder_in_exp(name, current)) {
-      | Some((_def, body)) => walk(rest, body)
-      | None => []
-      }
+      find_all_binders_named(name, current)
+      |> List.concat_map(((_def, body)) => walk(rest, body))
 
     | [MatchName(name), ...rest] =>
       /* Name followed by other steps: find the let node, continue */
@@ -1876,6 +1869,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | Some(n) when String.equal(n, name) => Some(e)
       | _ => find_let_node(name, body)
       }
+    | Parens(inner) => find_let_node(name, inner)
     | _ => None
     }
 

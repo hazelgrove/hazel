@@ -4,24 +4,27 @@
       issues for module items), we:
       1. Get the full program term from the zipper
       2. Modify the term tree (splice in/out sub-terms)
-      3. Convert back to a segment via ExpToSegment with AutoFormat
+      3. Convert back to a segment via ExpToSegment with PreserveExact
       4. Create a new zipper from the modified segment
 
       This approach is sort-correct by construction and handles modules cleanly.
-      AutoFormat uses should_add_space heuristics for whitespace, which produces
-      correct spacing for programmatic edits without relying on stored secondary.
+      PreserveExact reads stored secondary (whitespace/newlines) from each term's
+      annotation, preserving the original formatting of unmodified code.
+      Freshly constructed nodes must have their secondary populated explicitly.
    */
 
 open Util;
 open Language;
 
-/* Round-trip settings: use AutoFormat for heuristic spacing.
-   This produces consistent, correct whitespace for programmatic edits.
-   AutoFormat adds spaces based on should_add_space heuristics in mk_form,
-   rather than relying on stored secondary (which may be empty on freshly
-   created terms). */
+/* Round-trip settings: use PreserveExact to preserve original whitespace.
+   MakeTerm populates each term's annotation.secondary with (before, after)
+   whitespace runs from the original segment. PreserveExact emits these
+   verbatim. Freshly constructed nodes must have their secondary populated
+   explicitly (via fresh_exp_with_secondary or ensure_leading_secondary).
+   inline: true avoids generating additional heuristic newlines that
+   would double up with stored secondary. */
 let roundtrip_settings: ExpToSegment.Settings.t = {
-  secondary: AutoFormat,
+  secondary: PreserveExact,
   parenthesization: Structural,
   label_format: QuoteWhenNecessary,
   inline: true,
@@ -31,6 +34,50 @@ let roundtrip_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+};
+
+/* Create a newline Secondary token */
+let mk_newline = (): Secondary.t => {
+  id: Id.mk(),
+  content: Whitespace("\n"),
+};
+
+/* Create a space Secondary token */
+let mk_space = (): Secondary.t => {
+  id: Id.mk(),
+  content: Whitespace(" "),
+};
+
+/* Create an Exp.t with secondary annotation (before, after whitespace runs).
+   Use this for programmatically constructed nodes that need whitespace
+   around them when rendered with PreserveExact mode. */
+let fresh_exp_with_secondary =
+    (~before=[], ~after=[], term: TermBase.exp_term): Exp.t => {
+  let e = Exp.fresh(term);
+  {
+    ...e,
+    annotation: {
+      ...e.annotation,
+      secondary: (before, after),
+    },
+  };
+};
+
+/* Ensure an expression has leading secondary (whitespace before it).
+   If it already has before-secondary, return unchanged.
+   Otherwise add the default (a space). */
+let ensure_leading_secondary = (~default=mk_space(), e: Exp.t): Exp.t => {
+  let (before, after) = e.annotation.secondary;
+  switch (before) {
+  | [] => {
+      ...e,
+      annotation: {
+        ...e.annotation,
+        secondary: ([default], after),
+      },
+    }
+  | _ => e
+  };
 };
 
 /* Convert a term back to a zipper via round-trip */
@@ -122,19 +169,45 @@ let delete_item = (items: list(Mod.t), idx: int): list(Mod.t) =>
   List.filteri((i, _) => i != idx, items);
 
 /* Insert a module item at a position in the items list.
-   Left = before idx, Right = after idx. */
+   Left = before idx, Right = after idx.
+   When inserting at the end, adds trailing secondary (space before })
+   to the new last item. */
 let insert_item =
     (items: list(Mod.t), idx: int, new_item: Mod.t, d: Direction.t)
     : list(Mod.t) => {
   let insert_at = d == Left ? idx : idx + 1;
   let (before, after) = ListUtil.split_n(insert_at, items);
+  /* If inserting at the end, add a trailing space to the new item
+     so there's whitespace before the closing } delimiter */
+  let new_item =
+    switch (after) {
+    | [] =>
+      let (item_before, _) = new_item.annotation.secondary;
+      let space: Secondary.t = {id: Id.mk(), content: Whitespace(" ")};
+      IdTagged.mk(
+        new_item.annotation.ids,
+        (item_before, [space]),
+        new_item.term,
+      );
+    | _ => new_item
+    };
   before @ [new_item] @ after;
 };
 
-/* Replace a module item at a position in the items list. */
+/* Copy secondary from one Mod item to another. */
+let copy_mod_secondary = (from: Mod.t, to_: Mod.t): Mod.t => {
+  let (before, after) = from.annotation.secondary;
+  IdTagged.mk(to_.annotation.ids, (before, after), to_.term);
+};
+
+/* Replace a module item at a position in the items list.
+   Copies secondary from original item to preserve positional whitespace. */
 let replace_item =
     (items: list(Mod.t), idx: int, new_item: Mod.t): list(Mod.t) =>
-  List.mapi((i, item) => i == idx ? new_item : item, items);
+  List.mapi(
+    (i, item) => i == idx ? copy_mod_secondary(item, new_item) : item,
+    items,
+  );
 
 /* --- High-level edit operations --- */
 
@@ -256,16 +329,119 @@ let find_module_item_id = (z: Zipper.t, exp_id: Id.t): option(Id.t) => {
 
 /* --- General-purpose term-level edit operations --- */
 
+/* Extract the effective leading (before) secondary from an expression.
+   For compound forms like BinOp where the root's before-secondary is empty
+   (because MakeTerm assigns it to the leftmost leaf), this walks left
+   to find the actual leading whitespace. */
+let rec leading_secondary_of = (e: Exp.t): list(Secondary.t) => {
+  let (before, _) = e.annotation.secondary;
+  switch (before) {
+  | [_, ..._] => before
+  | [] =>
+    switch (Exp.term_of(e)) {
+    | BinOp(_, e1, _)
+    | Seq(e1, _)
+    | Cons(e1, _)
+    | ListConcat(e1, _) => leading_secondary_of(e1)
+    | Ap(_, e1, _) => leading_secondary_of(e1)
+    | Tuple([e1, ..._])
+    | ListLit([e1, ..._]) => leading_secondary_of(e1)
+    | _ => []
+    }
+  };
+};
+
+/* Extract the effective trailing (after) secondary from an expression.
+   Symmetric to leading_secondary_of: walks rightward for compound forms
+   where the root's after-secondary is empty but the rightmost leaf has it. */
+let rec trailing_secondary_of = (e: Exp.t): list(Secondary.t) => {
+  let (_, after) = e.annotation.secondary;
+  switch (after) {
+  | [_, ..._] => after
+  | [] =>
+    switch (Exp.term_of(e)) {
+    | BinOp(_, _, e2)
+    | Seq(_, e2)
+    | Cons(_, e2)
+    | ListConcat(_, e2) => trailing_secondary_of(e2)
+    | Ap(_, _, e2) => trailing_secondary_of(e2)
+    | Tuple(es)
+    | ListLit(es) =>
+      switch (ListUtil.last_opt(es)) {
+      | Some(last) => trailing_secondary_of(last)
+      | None => []
+      }
+    | _ => []
+    }
+  };
+};
+
+/* Copy positional secondary (whitespace) from one term to another.
+   When replacing a node in the tree, the replacement should inherit the
+   original's secondary so PreserveExact mode maintains correct spacing.
+   For compound forms where leading/trailing whitespace lives on a child
+   (e.g., BinOp root has empty secondary), extracts via walking left/right. */
+let copy_exp_secondary = (from: Exp.t, to_: Exp.t): Exp.t => {
+  let (from_before, from_after) = from.annotation.secondary;
+  let before =
+    switch (from_before) {
+    | [_, ..._] => from_before
+    | [] => leading_secondary_of(from)
+    };
+  let after =
+    switch (from_after) {
+    | [_, ..._] => from_after
+    | [] => trailing_secondary_of(from)
+    };
+  {
+    ...to_,
+    annotation: {
+      ...to_.annotation,
+      secondary: (before, after),
+    },
+  };
+};
+let copy_pat_secondary = (from: Pat.t, to_: Pat.t): Pat.t => {
+  ...to_,
+  annotation: {
+    ...to_.annotation,
+    secondary: from.annotation.secondary,
+  },
+};
+let copy_typ_secondary = (from: Typ.t, to_: Typ.t): Typ.t => {
+  ...to_,
+  annotation: {
+    ...to_.annotation,
+    secondary: from.annotation.secondary,
+  },
+};
+let copy_tpat_secondary = (from: TPat.t, to_: TPat.t): TPat.t => {
+  ...to_,
+  annotation: {
+    ...to_.annotation,
+    secondary: from.annotation.secondary,
+  },
+};
+
 /* Replace a sub-expression by ID anywhere in the term tree.
    The replacement function receives the matched expression and returns
-   the new expression to substitute. */
+   the new expression to substitute. Automatically copies positional
+   secondary from the original to the replacement when the ID changes,
+   preserving whitespace context for PreserveExact rendering. */
 let replace_exp_by_id =
     (target_id: Id.t, f: Exp.t => Exp.t, term: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_exp=
       (continue, e) =>
         if (Id.equal(Exp.rep_id(e), target_id)) {
-          f(e);
+          let result = f(e);
+          /* Copy secondary when IDs differ (fresh replacement node).
+             When IDs match (spread/mutation), secondary already correct. */
+          if (Id.equal(Exp.rep_id(result), Exp.rep_id(e))) {
+            result;
+          } else {
+            copy_exp_secondary(e, result);
+          };
         } else {
           continue(e);
         },
@@ -273,40 +449,43 @@ let replace_exp_by_id =
   );
 
 /* Replace a sub-pattern by ID. Walks the term tree and within any
-   expression that contains the target pattern, replaces it. */
+   expression that contains the target pattern, replaces it.
+   Copies secondary from original to preserve positional whitespace. */
 let replace_pat_by_id = (target_id: Id.t, new_pat: Pat.t, term: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_pat=
       (continue, p) =>
         if (Id.equal(Pat.rep_id(p), target_id)) {
-          new_pat;
+          copy_pat_secondary(p, new_pat);
         } else {
           continue(p);
         },
     term,
   );
 
-/* Replace a sub-type by ID. */
+/* Replace a sub-type by ID.
+   Copies secondary from original to preserve positional whitespace. */
 let replace_typ_by_id = (target_id: Id.t, new_typ: Typ.t, term: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_typ=
       (continue, t) =>
         if (Id.equal(Typ.rep_id(t), target_id)) {
-          new_typ;
+          copy_typ_secondary(t, new_typ);
         } else {
           continue(t);
         },
     term,
   );
 
-/* Replace a sub-tpat by ID. */
+/* Replace a sub-tpat by ID.
+   Copies secondary from original to preserve positional whitespace. */
 let replace_tpat_by_id =
     (target_id: Id.t, new_tpat: TPat.t, term: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_tpat=
       (continue, tp) =>
         if (Id.equal(TPat.rep_id(tp), target_id)) {
-          new_tpat;
+          copy_tpat_secondary(tp, new_tpat);
         } else {
           continue(tp);
         },
@@ -527,7 +706,8 @@ let case_insert_arm =
   };
 };
 
-/* Update the body of a case arm. */
+/* Update the body of a case arm.
+   Copies secondary from old body to new to preserve positional whitespace. */
 let case_update_arm_body =
     (z: Zipper.t, target_arm_body_id: Id.t, code: string): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
@@ -537,7 +717,9 @@ let case_update_arm_body =
     | Some(new_body) =>
       let new_arms =
         List.mapi(
-          (i, (pat, body)) => i == idx ? (pat, new_body) : (pat, body),
+          (i, (pat, body)) =>
+            i == idx
+              ? (pat, copy_exp_secondary(body, new_body)) : (pat, body),
           arms,
         );
       let new_term = replace_match_arms(match_id, new_arms, term);
@@ -548,7 +730,8 @@ let case_update_arm_body =
   };
 };
 
-/* Update the pattern of a case arm. */
+/* Update the pattern of a case arm.
+   Copies secondary from old pattern to new to preserve positional whitespace. */
 let case_update_arm_pattern =
     (z: Zipper.t, target_arm_body_id: Id.t, code: string): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
@@ -558,7 +741,9 @@ let case_update_arm_pattern =
     | Some(new_pat) =>
       let new_arms =
         List.mapi(
-          (i, (pat, body)) => i == idx ? (new_pat, body) : (pat, body),
+          (i, (pat, body)) =>
+            i == idx
+              ? (copy_pat_secondary(pat, new_pat), body) : (pat, body),
           arms,
         );
       let new_term = replace_match_arms(match_id, new_arms, term);
@@ -1103,15 +1288,26 @@ let insert_binding =
           e =>
             switch (d) {
             | Left =>
-              /* Insert before: wrap target in new Let */
-              Exp.fresh(Let(new_pat, new_def, e))
+              /* Insert before: wrap target in new Let.
+                 Ensure body has leading whitespace after "in". */
+              fresh_exp_with_secondary(
+                Let(new_pat, new_def, ensure_leading_secondary(e)),
+              )
             | Right =>
-              /* Insert after: wrap target's body in new Let */
+              /* Insert after: wrap target's body in new Let.
+                 The new Let gets a newline before it. */
               switch (Exp.term_of(e)) {
               | Let(pat, def, body) => {
                   ...e,
                   term:
-                    Let(pat, def, Exp.fresh(Let(new_pat, new_def, body))),
+                    Let(
+                      pat,
+                      def,
+                      fresh_exp_with_secondary(
+                        ~before=[mk_newline()],
+                        Let(new_pat, new_def, body),
+                      ),
+                    ),
                 }
               | TyAlias(tpat, tdef, body) => {
                   ...e,
@@ -1119,7 +1315,10 @@ let insert_binding =
                     TyAlias(
                       tpat,
                       tdef,
-                      Exp.fresh(Let(new_pat, new_def, body)),
+                      fresh_exp_with_secondary(
+                        ~before=[mk_newline()],
+                        Let(new_pat, new_def, body),
+                      ),
                     ),
                 }
               | _ =>
@@ -1127,7 +1326,17 @@ let insert_binding =
                 Exp.fresh(
                   Seq(
                     e,
-                    Exp.fresh(Let(new_pat, new_def, Exp.fresh(EmptyHole))),
+                    fresh_exp_with_secondary(
+                      ~before=[mk_newline()],
+                      Let(
+                        new_pat,
+                        new_def,
+                        fresh_exp_with_secondary(
+                          ~before=[mk_space()],
+                          EmptyHole,
+                        ),
+                      ),
+                    ),
                   ),
                 )
               }
@@ -1141,7 +1350,10 @@ let insert_binding =
           target_id,
           e =>
             switch (d) {
-            | Left => Exp.fresh(TyAlias(new_tpat, new_tdef, e))
+            | Left =>
+              fresh_exp_with_secondary(
+                TyAlias(new_tpat, new_tdef, ensure_leading_secondary(e)),
+              )
             | Right =>
               switch (Exp.term_of(e)) {
               | Let(pat, def, body) => {
@@ -1150,7 +1362,10 @@ let insert_binding =
                     Let(
                       pat,
                       def,
-                      Exp.fresh(TyAlias(new_tpat, new_tdef, body)),
+                      fresh_exp_with_secondary(
+                        ~before=[mk_newline()],
+                        TyAlias(new_tpat, new_tdef, body),
+                      ),
                     ),
                 }
               | TyAlias(tpat, tdef, body) => {
@@ -1159,15 +1374,26 @@ let insert_binding =
                     TyAlias(
                       tpat,
                       tdef,
-                      Exp.fresh(TyAlias(new_tpat, new_tdef, body)),
+                      fresh_exp_with_secondary(
+                        ~before=[mk_newline()],
+                        TyAlias(new_tpat, new_tdef, body),
+                      ),
                     ),
                 }
               | _ =>
                 Exp.fresh(
                   Seq(
                     e,
-                    Exp.fresh(
-                      TyAlias(new_tpat, new_tdef, Exp.fresh(EmptyHole)),
+                    fresh_exp_with_secondary(
+                      ~before=[mk_newline()],
+                      TyAlias(
+                        new_tpat,
+                        new_tdef,
+                        fresh_exp_with_secondary(
+                          ~before=[mk_space()],
+                          EmptyHole,
+                        ),
+                      ),
                     ),
                   ),
                 )

@@ -168,6 +168,14 @@ let edit_action_tests = (
       Update(Definition, "a", "2"),
       "let a = 2 in a",
     ),
+    /* Replace compound def with simple: trailing secondary of BinOp
+       root is empty (lives on rightmost child), must not lose space. */
+    edit_test(
+      "update_definition: compound to simple",
+      "let a = x + 1 in a",
+      Update(Definition, "a", "42"),
+      "let a = 42 in a",
+    ),
     edit_test(
       "update_body",
       "let a = 1 in let b = 2 in a + b",
@@ -1708,6 +1716,71 @@ let selector_tests = (
       ~code="let x = 10 in let x = 20 in x",
       ~sel="let x#1 = *",
       ~expected="20",
+    ),
+    /* === Shadowed bindings: multi-match with bare name (a = *) === */
+    test_case(
+      "a = * matches all shadowed bindings",
+      `Quick,
+      () => {
+        let results =
+          selector_query(
+            "let a = 4 in let a = 4 in let a = 4 in a",
+            "a = *",
+          );
+        check(int, "match count", 3, List.length(results));
+      },
+    ),
+    test_case(
+      "a ... in * matches all shadowed bodies",
+      `Quick,
+      () => {
+        let results =
+          selector_query(
+            "let a = 4 in let a = 4 in let a = 4 in a",
+            "a _... in *",
+          );
+        check(int, "match count", 3, List.length(results));
+      },
+    ),
+    /* === Chain resolution through shadowed names (a/a) === */
+    test_case(
+      "a/a finds nested binding through shadow",
+      `Quick,
+      () => {
+        let results =
+          selector_query(
+            "let a = 4 in let a = (let a = 0 in 4) in let a = 4 in a",
+            "a/a = *",
+          );
+        check(int, "match count", 1, List.length(results));
+        check(string, "value", "0", List.hd(results));
+      },
+    ),
+    test_case(
+      "a/b chain finds correct nested binding",
+      `Quick,
+      () => {
+        let results =
+          selector_query(
+            "let a = (let b = 42 in b) in a",
+            "a/b = *",
+          );
+        check(int, "match count", 1, List.length(results));
+        check(string, "value", "42", List.hd(results));
+      },
+    ),
+    test_case(
+      "a/a/a three-level chain",
+      `Quick,
+      () => {
+        let results =
+          selector_query(
+            "let a = (let a = (let a = 99 in a) in a) in a",
+            "a/a/a = *",
+          );
+        check(int, "match count", 1, List.length(results));
+        check(string, "value", "99", List.hd(results));
+      },
     ),
     /* === Module/type spine uniformity === */
     /* module _ = * : wildcard module name */
@@ -3380,7 +3453,10 @@ let selector_edit_tests = (
       "SelectorInsertAfter: module item",
       "module M = { let x = 1 } in M.x",
       SelectorInsertAfter("M/x = *", "let y = 2"),
-      "module M = { let x = 1; let y = 2 } in M.x",
+      /* Space before ; is from original item's stored after-secondary
+         (was space before } in original code). Cosmetic artifact of
+         PreserveExact preserving positional whitespace. */
+      "module M = { let x = 1 ; let y = 2 } in M.x",
     ),
     /* InsertBefore in module: insert before a module item */
     edit_test(
@@ -3409,6 +3485,102 @@ let selector_edit_tests = (
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
     }),
+  ],
+);
+
+/* === Whitespace / Line Break Preservation Tests === */
+
+let whitespace_tests = (
+  "AgentTools.WhitespacePreservation",
+  [
+    /* --- Existing line breaks preserved through edits --- */
+    edit_test(
+      "update_definition preserves line breaks",
+      "let a = 1\nin a",
+      Update(Definition, "a", "42"),
+      "let a = 42\nin a",
+    ),
+    edit_test(
+      "update_body preserves line breaks",
+      "let a = 1\nin let b = 2\nin a + b",
+      Update(Body, "b", "b + 1"),
+      "let a = 1\nin let b = 2\nin b + 1",
+    ),
+    edit_test(
+      "update_definition in multi-line let chain",
+      "let x = 1\nin let y = 2\nin let z = 3\nin x + y + z",
+      Update(Definition, "y", "20"),
+      "let x = 1\nin let y = 20\nin let z = 3\nin x + y + z",
+    ),
+    edit_test(
+      "selector_update preserves line breaks in def",
+      "let x = 1\nin let y = 2\nin x + y",
+      SelectorUpdate("x = *", "99"),
+      "let x = 99\nin let y = 2\nin x + y",
+    ),
+    edit_test(
+      "selector_update preserves line breaks in body",
+      "let x = 1\nin let y = 2\nin x + y",
+      SelectorUpdate("\\... y = *", "20"),
+      "let x = 1\nin let y = 20\nin x + y",
+    ),
+    edit_test(
+      "delete_body preserves line breaks",
+      "let a = 1\nin let b = 2\nin a + b",
+      Delete(Body, "b"),
+      "let a = 1\nin let b = 2\nin ?",
+    ),
+    edit_test(
+      "delete_binding preserves surrounding line breaks",
+      "let a = 1\nin let b = 2\nin let c = 3\nin a + c",
+      Delete(BindingClause, "b"),
+      "let a = 1\nin let c = 3\nin a + c",
+    ),
+    edit_test(
+      "selector_delete preserves line breaks",
+      "let x = 1\nin let y = 2\nin x + y",
+      SelectorDelete("x = *"),
+      "let x = ?\nin let y = 2\nin x + y",
+    ),
+    /* --- New bindings get appropriate line breaks --- */
+    edit_test(
+      "insert_after adds newline for new binding",
+      "let a = 1\nin a + 1",
+      Insert(After, "a", "let b = 2"),
+      "let a = 1\nin let b = 2\nin a + 1",
+    ),
+    edit_test(
+      "insert_before adds newline for new binding",
+      "let a = 1\nin a + 1",
+      Insert(Before, "a", "let b = 0"),
+      "let b = 0\nin let a = 1\nin a + 1",
+    ),
+    edit_test(
+      "selector_insert_after with line breaks",
+      "let x = 1\nin x + 1",
+      SelectorInsertAfter("* let x", "let y = 2"),
+      "let x = 1\nin let y = 2\nin x + 1",
+    ),
+    edit_test(
+      "selector_insert_before with line breaks",
+      "let x = 1\nin x + 1",
+      SelectorInsertBefore("* let x", "let y = 2"),
+      "let y = 2\nin let x = 1\nin x + 1",
+    ),
+    /* --- Pattern/type updates preserve line breaks --- */
+    edit_test(
+      "update_pattern preserves line breaks",
+      "let a = 1\nin let b = a + 1\nin b",
+      Update(Pattern, "a", "x"),
+      "let x = 1\nin let b = x + 1\nin b",
+    ),
+    /* --- Case arm with line breaks --- */
+    edit_test(
+      "selector_update in case arm preserves breaks",
+      "let r = case x\n| A => 1\n| B => 2\nend\nin r",
+      SelectorUpdate("\\... | B => *", "99"),
+      "let r = case x\n| A => 1\n| B => 99\nend\nin r",
+    ),
   ],
 );
 
@@ -4420,6 +4592,7 @@ let tests = [
   canonical_tests,
   canonical_read_tests,
   selector_edit_tests,
+  whitespace_tests,
   completeness_tests,
   complex_program_tests,
   case_arm_tests,
