@@ -153,3 +153,17 @@
 .modal .table tr:last-child td:last-child {
     border-bottom-right-radius: 8px;
 }
+
+/* Add Column Header Button */
+.table th.add-column-header {
+    cursor: pointer;
+    padding: 2px 8px;
+    color: var(--BR2);
+    opacity: 0.5;
+    font-size: 1rem;
+    user-select: none;
+}
+
+.table th.add-column-header:hover {
+    opacity: 1;
+}

@@ -888,21 +888,6 @@ let build_column_menu =
     /* Group 1: Structural, frequently used actions */
     let structural_items = [
       Action({
-        text: "Add Column",
-        tooltip: "Add a new labeled column to each row",
-        action: () => {
-          let new_column_name = JsUtil.prompt("New column name:", "");
-          switch (new_column_name) {
-          | None => local(CloseMenu)
-          | Some(new_name) =>
-            Effect.Many([
-              local(CloseMenu),
-              parent(SetSyntax(add_column(info, new_name))),
-            ])
-          };
-        },
-      }),
-      Action({
         text: "Drop Column",
         tooltip: "Remove this column from every row",
         action: () =>
@@ -1090,19 +1075,50 @@ let render =
       headers,
     );
 
+  let header_cells =
+    if (!is_readonly) {
+      header_cells
+      @ [
+        Node.th(
+          ~attrs=[
+            Attr.classes(["add-column-header"]),
+            Attr.on_click(_ => {
+              let new_column_name = JsUtil.prompt("New column name:", "");
+              switch (new_column_name) {
+              | None => Effect.Ignore
+              | Some(new_name) =>
+                parent(SetSyntax(add_column(info, new_name)))
+              };
+            }),
+            Attr.create("title", "Add column"),
+          ],
+          [Node.text("+")],
+        ),
+      ];
+    } else {
+      header_cells;
+    };
+
   Node.table(
     ~attrs=[Attr.classes(["table"])],
     [
       Node.thead([Node.tr(header_cells)]),
       Node.tbody(
         List.map(
-          row =>
-            Node.tr(
+          row => {
+            let cells =
               List.map(
                 e => Node.td([value_view(info, info.utility, view_seg, e)]),
                 row,
-              ),
-            ),
+              );
+            let cells =
+              if (!is_readonly) {
+                cells @ [Node.td([])];
+              } else {
+                cells;
+              };
+            Node.tr(cells);
+          },
           rows,
         ),
       ),
