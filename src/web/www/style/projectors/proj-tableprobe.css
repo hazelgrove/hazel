@@ -77,6 +77,12 @@
     background-color: var(--df-hover-bg);
 }
 
+.column-menu .menu-divider {
+    height: 0.6px;
+    background: var(--menu-divider, #ddd);
+    margin: 6px 0.5em;
+}
+
 .submenu-item {
     padding: 8px 12px;
     cursor: pointer;

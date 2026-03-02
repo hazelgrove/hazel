@@ -41,12 +41,14 @@ type value = v;
 type menu_item =
   | Action({
       text: string,
+      tooltip: string,
       action: unit => Ui_effect.t(unit),
     })
   | Submenu({
       text: string,
       subitems: list(menu_item),
-    });
+    })
+  | Separator;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_data = list(menu_item);
@@ -556,33 +558,39 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
 };
 
 /* Menu system */
-let menu_item = (text, action) =>
+let menu_item = (~tooltip="", text, action) =>
   Node.div(
-    ~attrs=[Attr.classes(["menu-item"]), Attr.on_click(action)],
+    ~attrs=[
+      Attr.classes(["menu-item"]),
+      Attr.on_click(action),
+      Attr.title(tooltip),
+    ],
     [Node.text(text)],
   );
+
+let menu_divider = Node.div(~attrs=[Attr.classes(["menu-divider"])], []);
 
 let conversion_functions = (cls: Atom.cls) =>
   switch (cls) {
   | Atom.String => [
-      ("int", "int_of_string"),
-      ("float", "float_of_string"),
-      ("bool", "bool_of_string"),
+      ("Int", "int_of_string"),
+      ("Float", "float_of_string"),
+      ("Bool", "bool_of_string"),
     ]
   | Atom.Int => [
-      ("string", "string_of_int"),
-      ("float", "float_of_int"),
-      ("bool", "bool_of_int"),
+      ("String", "string_of_int"),
+      ("Float", "float_of_int"),
+      ("Bool", "bool_of_int"),
     ]
   | Atom.Float => [
-      ("string", "string_of_float"),
-      ("int", "int_of_float"),
-      ("bool", "bool_of_float"),
+      ("String", "string_of_float"),
+      ("Int", "int_of_float"),
+      ("Bool", "bool_of_float"),
     ]
   | Atom.Bool => [
-      ("string", "string_of_bool"),
-      ("int", "int_of_bool"),
-      ("float", "float_of_bool"),
+      ("String", "string_of_bool"),
+      ("Int", "int_of_bool"),
+      ("Float", "float_of_bool"),
     ]
   | _ => []
   };
@@ -679,12 +687,11 @@ let build_column_menu =
   // If we're in a submenu, show that submenu
   switch (menu_path) {
   | ["Filter"] =>
-    // Show filter submenu
-
     [
       Action({
         text: "← Back",
-        action: () => local(ShowSubmenu([])) // Go back to main menu
+        tooltip: "",
+        action: () => local(ShowSubmenu([])),
       }),
     ]
     @ {
@@ -705,6 +712,7 @@ let build_column_menu =
         | Some(op) => [
             Action({
               text: "Greater than",
+              tooltip: "Keep rows where this column is greater than a value",
               action: () =>
                 Effect.Many([
                   local(CloseMenu),
@@ -720,6 +728,7 @@ let build_column_menu =
         | Some(op) => [
             Action({
               text: "Less than",
+              tooltip: "Keep rows where this column is less than a value",
               action: () =>
                 Effect.Many([
                   local(CloseMenu),
@@ -733,6 +742,7 @@ let build_column_menu =
       @ [
         Action({
           text: "Equals",
+          tooltip: "Keep rows where this column equals a value",
           action: () =>
             Effect.Many([
               local(CloseMenu),
@@ -741,44 +751,44 @@ let build_column_menu =
         }),
       ];
     }
-  | ["Convert"] =>
-    // Show conversion submenu
-    switch (column_type) {
-    | Some(ty) =>
-      switch (Typ.cls_of_term(ty.term)) {
-      | Typ.Atom(atom) =>
-        let conversions = conversion_functions(atom);
-        [
-          Action({
-            text: "← Back",
-            action: () => local(ShowSubmenu([])) // Go back to main menu
-          }),
-        ]
-        @ List.map(
+  | ["Transform"] =>
+    // Merged Transform submenu: conversion options + Clear + Identity
+    let conversion_items =
+      switch (column_type) {
+      | Some(ty) =>
+        switch (Typ.cls_of_term(ty.term)) {
+        | Typ.Atom(atom) =>
+          List.map(
             ((display, func)) =>
               Action({
                 text: display,
+                tooltip: "Convert column values to " ++ display,
                 action: () =>
                   Effect.Many([
                     local(CloseMenu),
                     parent(SetSyntax(convert_column(info, h, func))),
                   ]),
               }),
-            conversions,
-          );
-      | _ => []
-      }
-    | None => []
-    }
-  | ["Transform"] =>
-    // Show transform submenu
+            conversion_functions(atom),
+          )
+        | _ => []
+        }
+      | None => []
+      };
+
     [
       Action({
         text: "← Back",
-        action: () => local(ShowSubmenu([])) // Go back to main menu
+        tooltip: "",
+        action: () => local(ShowSubmenu([])),
       }),
+    ]
+    @ conversion_items
+    @ (List.length(conversion_items) > 0 ? [Separator] : [])
+    @ [
       Action({
         text: "Clear",
+        tooltip: "Replace all values with holes",
         action: () =>
           Effect.Many([
             local(CloseMenu),
@@ -787,22 +797,23 @@ let build_column_menu =
       }),
       Action({
         text: "Identity",
+        tooltip: "Reassigns each value to itself; useful as a starting point for custom edits",
         action: () =>
           Effect.Many([
             local(CloseMenu),
             parent(SetSyntax(noop_column(info, h))),
           ]),
       }),
-    ]
-  | ["Sort"] =>
-    // Show sort submenu
-    [
+    ];
+  | ["Sort"] => [
       Action({
         text: "← Back",
-        action: () => local(ShowSubmenu([])) // Go back to main menu
+        tooltip: "",
+        action: () => local(ShowSubmenu([])),
       }),
       Action({
         text: "Ascending",
+        tooltip: "Sort from lowest to highest",
         action: () =>
           switch (sort_column_with_direction(info, column_type, h, false)) {
           | Some(segment) =>
@@ -812,6 +823,7 @@ let build_column_menu =
       }),
       Action({
         text: "Descending",
+        tooltip: "Sort from highest to lowest",
         action: () =>
           switch (sort_column_with_direction(info, column_type, h, true)) {
           | Some(segment) =>
@@ -820,11 +832,79 @@ let build_column_menu =
           },
       }),
     ]
+  | ["Move"] =>
+    [
+      Action({
+        text: "← Back",
+        tooltip: "",
+        action: () => local(ShowSubmenu([])),
+      }),
+    ]
+    @ (
+      can_move_left
+        ? [
+          Action({
+            text: "Move Left",
+            tooltip: "Move this column one position to the left",
+            action: () =>
+              Effect.Many([
+                local(CloseMenu),
+                parent(
+                  SetSyntax(
+                    OptUtil.get_or_fail(
+                      "move left failed",
+                      move_column(info, dyn_type, h, true),
+                    ),
+                  ),
+                ),
+              ]),
+          }),
+        ]
+        : []
+    )
+    @ (
+      can_move_right
+        ? [
+          Action({
+            text: "Move Right",
+            tooltip: "Move this column one position to the right",
+            action: () =>
+              Effect.Many([
+                local(CloseMenu),
+                parent(
+                  SetSyntax(
+                    OptUtil.get_or_fail(
+                      "move right failed",
+                      move_column(info, dyn_type, h, false),
+                    ),
+                  ),
+                ),
+              ]),
+          }),
+        ]
+        : []
+    )
   | [] =>
-    // Show main menu
-    let base_items = [
+    /* Group 1: Structural, frequently used actions */
+    let structural_items = [
+      Action({
+        text: "Add Column",
+        tooltip: "Add a new labeled column to each row",
+        action: () => {
+          let new_column_name = JsUtil.prompt("New column name:", "");
+          switch (new_column_name) {
+          | None => local(CloseMenu)
+          | Some(new_name) =>
+            Effect.Many([
+              local(CloseMenu),
+              parent(SetSyntax(add_column(info, new_name))),
+            ])
+          };
+        },
+      }),
       Action({
         text: "Drop Column",
+        tooltip: "Remove this column from every row",
         action: () =>
           Effect.Many([
             local(CloseMenu),
@@ -833,10 +913,11 @@ let build_column_menu =
       }),
       Action({
         text: "Rename",
+        tooltip: "Change this column's label",
         action: () => {
           let new_column_name = JsUtil.prompt("New column name:", h);
           switch (new_column_name) {
-          | None => local(CloseMenu) // User cancelled
+          | None => local(CloseMenu)
           | Some(new_name) =>
             Effect.Many([
               local(CloseMenu),
@@ -846,77 +927,24 @@ let build_column_menu =
         },
       }),
       Action({
-        text: "Add Column",
-        action: () => {
-          let new_column_name = JsUtil.prompt("New column name:", "");
-          switch (new_column_name) {
-          | None => local(CloseMenu) // User cancelled
-          | Some(new_name) =>
-            Effect.Many([
-              local(CloseMenu),
-              parent(SetSyntax(add_column(info, new_name))),
-            ])
-          };
-        },
+        text: "Group By",
+        tooltip: "Group rows by the values in this column",
+        action: () =>
+          Effect.Many([
+            local(CloseMenu),
+            parent(SetSyntax(group_by_column(info, h))),
+          ]),
       }),
     ];
 
-    let conversion_submenu =
-      switch (column_type) {
-      | Some(ty) =>
-        switch (Typ.cls_of_term(ty.term)) {
-        | Typ.Atom(atom) =>
-          let conversions = conversion_functions(atom);
-          if (List.length(conversions) == 0) {
-            [];
-          } else {
-            [
-              Action({
-                text: "Convert →",
-                action: () => local(ShowSubmenu(["Convert"])) // Navigate to conversion submenu
-              }),
-            ];
-          };
-        | _ => []
-        }
-      | None => []
-      };
-
-    /* Transform submenu is always available */
-    let transform_submenu = [
-      Action({
-        text: "Transform →",
-        action: () => local(ShowSubmenu(["Transform"])) // Navigate to transform submenu
-      }),
-    ];
-
-    let move_items =
-      (can_move_left ? [true] : [])
-      @ (can_move_right ? [false] : [])
-      |> List.map(left =>
-           Action({
-             text: left ? "Move Left" : "Move Right",
-             action: () =>
-               Effect.Many([
-                 local(CloseMenu),
-                 parent(
-                   SetSyntax(
-                     OptUtil.get_or_fail(
-                       (left ? "move left" : "move right") ++ " failed",
-                       move_column(info, dyn_type, h, left),
-                     ),
-                   ),
-                 ),
-               ]),
-           })
-         );
-
+    /* Group 2: Data operation submenus */
     let sort_submenu =
       switch (sort_column_with_direction(info, column_type, h, false)) {
       | Some(_) => [
           Action({
             text: "Sort →",
-            action: () => local(ShowSubmenu(["Sort"])) // Navigate to sort submenu
+            tooltip: "Sort rows by this column",
+            action: () => local(ShowSubmenu(["Sort"])),
           }),
         ]
       | None => []
@@ -929,7 +957,8 @@ let build_column_menu =
         | Typ.Atom(Atom.Int | Atom.Float) => [
             Action({
               text: "Filter →",
-              action: () => local(ShowSubmenu(["Filter"])) // Navigate to filter submenu
+              tooltip: "Keep rows matching a condition on this column",
+              action: () => local(ShowSubmenu(["Filter"])),
             }),
           ]
         | _ => []
@@ -937,7 +966,29 @@ let build_column_menu =
       | None => []
       };
 
-    /* Option type actions: Drop Nones and Provide Default */
+    let transform_submenu = [
+      Action({
+        text: "Transform →",
+        tooltip: "Modify the values in this column",
+        action: () => local(ShowSubmenu(["Transform"])),
+      }),
+    ];
+
+    let move_submenu =
+      can_move_left || can_move_right
+        ? [
+          Action({
+            text: "Move →",
+            tooltip: "Reorder this column's position",
+            action: () => local(ShowSubmenu(["Move"])),
+          }),
+        ]
+        : [];
+
+    let data_items =
+      sort_submenu @ filter_submenu @ transform_submenu @ move_submenu;
+
+    /* Group 3: Option-type actions */
     let option_items =
       switch (column_type) {
       | Some(ty) =>
@@ -945,6 +996,7 @@ let build_column_menu =
           ? [
             Action({
               text: "Drop Nones",
+              tooltip: "Remove rows where this column is None",
               action: () =>
                 Effect.Many([
                   local(CloseMenu),
@@ -953,6 +1005,7 @@ let build_column_menu =
             }),
             Action({
               text: "Provide Default",
+              tooltip: "Replace None values with a default you specify",
               action: () =>
                 Effect.Many([
                   local(CloseMenu),
@@ -964,24 +1017,10 @@ let build_column_menu =
       | None => []
       };
 
-    base_items
-    @ [
-      Action({
-        text: "Group By",
-        action: () =>
-          Effect.Many([
-            local(CloseMenu),
-            parent(SetSyntax(group_by_column(info, h))),
-          ]),
-      }),
-    ]
-    @ conversion_submenu
-    @ transform_submenu
-    @ move_items
-    @ sort_submenu
-    @ filter_submenu
-    @ option_items;
-  | _ => [] // Unknown menu path
+    structural_items
+    @ (List.length(data_items) > 0 ? [Separator] @ data_items : [])
+    @ (List.length(option_items) > 0 ? [Separator] @ option_items : []);
+  | _ => []
   };
 };
 
@@ -989,10 +1028,10 @@ let render_menu = menu_data => {
   List.map(
     item =>
       switch (item) {
-      | Action({text, action}) => menu_item(text, _ => action())
-      | Submenu({text, subitems: _}) =>
-        // Submenu navigation is handled by the Action in build_column_menu
-        menu_item(text, _ => Effect.Ignore)
+      | Action({text, tooltip, action}) =>
+        menu_item(~tooltip, text, _ => action())
+      | Submenu({text, subitems: _}) => menu_item(text, _ => Effect.Ignore)
+      | Separator => menu_divider
       },
     menu_data,
   );
