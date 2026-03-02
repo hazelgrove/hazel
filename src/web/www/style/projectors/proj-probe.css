@@ -800,20 +800,14 @@
   padding-left: 1em;
 }
 
-/* Require .indicated on probe AND .focus on value for menu to appear */
-.projector.probe.indicated
-  .live-offside:focus
-  .sample:has(.value.focus):hover
-  .sample-context-menu,
+/* Show sample context menu only via JS-managed dropdown-active class
+ * (with configurable delay via SafeTriangle.Config.show_delay) */
 .projector.probe.indicated
   .live-offside:focus
   .sample:has(.value.focus)
   .sample-context-menu.dropdown-active {
   display: block;
 }
-.projector.probe.indicated
-  .sample:has(.value.focus):hover
-  .sample-context-menu:empty,
 .projector.probe.indicated
   .sample:has(.value.focus)
   .sample-context-menu.dropdown-active:empty {
