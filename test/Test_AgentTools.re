@@ -2299,6 +2299,62 @@ let selector_tests = (
         String.length(result) >= 5
         && String.sub(result, 0, 5) == "ERROR");
     }),
+
+    /* BinOp spine */
+    sel_test(
+      ~name="_ + * (right operand)",
+      ~code="let x = 1 + 2 in x",
+      ~sel="x = _ + *",
+      ~expected="2",
+    ),
+    sel_test(
+      ~name="* + _ (left operand)",
+      ~code="let x = 1 + 2 in x",
+      ~sel="x = * + _",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="_ + _ (whole binop)",
+      ~code="let x = 1 + 2 in x",
+      ~sel="x = _ + _",
+      ~expected="1 + 2",
+    ),
+    sel_test(
+      ~name="_ - * (subtraction right)",
+      ~code="let x = 10 - 3 in x",
+      ~sel="x = _ - *",
+      ~expected="3",
+    ),
+    sel_test(
+      ~name="_ && * (boolean and)",
+      ~code="let x = true && false in x",
+      ~sel="x = _ && *",
+      ~expected="false",
+    ),
+    sel_test(
+      ~name="_ == * (equality right)",
+      ~code="let x = 1 == 2 in x",
+      ~sel="x = _ == *",
+      ~expected="2",
+    ),
+    sel_test(
+      ~name="_ ++ * (string concat)",
+      ~code={|let x = "a" ++ "b" in x|},
+      ~sel="x = _ ++ *",
+      ~expected={|"b"|},
+    ),
+    sel_test(
+      ~name="_ :: * (cons right)",
+      ~code="let x = 1 :: [2, 3] in x",
+      ~sel="x = _ :: *",
+      ~expected="[2, 3]",
+    ),
+    sel_test(
+      ~name="* :: _ (cons left)",
+      ~code="let x = 1 :: [2, 3] in x",
+      ~sel="x = * :: _",
+      ~expected="1",
+    ),
   ],
 );
 
@@ -2724,7 +2780,48 @@ let canonical_tests = (
         | None => fail("named returned None")
         | Some(path) =>
           let s = Selector.deparse(path);
-          check(string, "named path", "x = #0 *", s);
+          check(string, "named path", "x = * + _", s);
+        }
+      };
+    }),
+
+    /* BinOp: right operand named canonical */
+    test_case("named: binop right in def", `Quick, () => {
+      let root = mk_term("let x = 1 + 2 in x");
+      switch (Selector.query_unique("x = #1", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "x = _ + *", s);
+          /* Roundtrip */
+          switch (Selector.query_unique(s, root)) {
+          | Error(e) => fail("roundtrip: " ++ e)
+          | Ok(m2) =>
+            check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
+          };
+        }
+      };
+    }),
+
+    /* Cons: named canonical */
+    test_case("named: cons left", `Quick, () => {
+      let root = mk_term("let x = 1 :: [2] in x");
+      switch (Selector.query_unique("x = #0", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "x = * :: _", s);
+          switch (Selector.query_unique(s, root)) {
+          | Error(e) => fail("roundtrip: " ++ e)
+          | Ok(m2) =>
+            check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
+          };
         }
       };
     }),
@@ -3015,7 +3112,7 @@ let canonical_read_tests = (
           "let x = 1 + 2 in x",
           GetCanonical("x = #0"),
         );
-      check(string, "canonical", "numeric: #1 #0 *\nnamed: x = #0 *", result);
+      check(string, "canonical", "numeric: #1 #0 *\nnamed: x = * + _", result);
     }),
     test_case("get_canonical error for bad selector", `Quick, () => {
       let z = mk_zipper("let x = 42 in x");

@@ -15,6 +15,7 @@ Operators:
 
 Keywords:     let  fun  if  then  else  case  end  module  type  in  test
 Delimiters:   =  :  ->  =>  |  [  ]  (  )
+BinOps:       +  -  **  <  <=  >  >=  ==  !=  &&  ||  ++  ::  (and float variants)
 
 Names:        x  foo  MyModule  (bare identifiers)
 Indexing:     x#0  x#1  (nth binder named x, 0-based)
@@ -35,6 +36,8 @@ Implicit star: if no * appears, one is appended at the end.
 | `x/` | EnterBinderDef("x"), [implicit *] | x's definition |
 | `A/B/C` | EnterBinderDef(A), EnterBinderDef(B), MatchName(C) , [implicit *] | whole binding of C inside B inside A |
 | `A/B/C/` | EnterBinderDef(A), EnterBinderDef(B), EnterBinderDef(C), [implicit *] | C's definition |
+| `_ + *` | MatchSlot, MatchDelimiter("+"), MatchFocus | right operand of + |
+| `* + _` | MatchFocus, MatchDelimiter("+"), MatchSlot | left operand of + |
 
 ---
 
@@ -846,35 +849,73 @@ the same `focused_id`, but needs testing.
 
 ---
 
+## 20. Binary Operators
+
+BinOp selectors use operator tokens as delimiters between left and right
+operand positions. Supported operators: `+`, `-`, `**`, `<`, `<=`, `>`,
+`>=`, `==`, `!=`, `&&`, `||`, `++`, `::`, and float variants (`+.`, `-.`,
+`*.`, `**.`, `/.`, `<.`, `<=.`, `>.`, `>=.`, `==.`, `!=.`).
+
+**NOTE**: `*` (multiplication) and `/` (division) are NOT supported as
+operator tokens — `*` conflicts with focus syntax and `/` with chain syntax.
+Use `#0` / `#1` (child index) to address operands of these operators.
+
+### Basic patterns
+
+```
+Given:   let x = 1 + 2 in x
+
+x = _ + *     →  2           (right operand of +)
+x = * + _     →  1           (left operand of +)
+x = _ + _     →  1 + 2       (whole BinOp, implicit star)
+```
+
+### Other operators
+
+```
+Given:   let y = true && false in y
+
+y = _ && *    →  false        (right of &&)
+y = * && _    →  true         (left of &&)
+```
+
+```
+Given:   let z = 1 :: [2, 3] in z
+
+z = _ :: *    →  [2, 3]      (cons tail)
+z = * :: _    →  1            (cons head)
+```
+
+### Nested operator context
+
+```
+Given:   let x = (1 + 2) + 3 in x
+
+x = _ + *          →  3           (right of outer +)
+x = #0 _ + *       →  2           (right of inner + via child index)
+x = #0 * + _       →  1           (left of inner +)
+```
+
+### Named canonical for BinOp operands
+
+The named canonical generator uses operator syntax for immediate operands:
+
+```
+canonical_named(id_of(1), "let x = 1 + 2 in x")  →  "x = * + _"
+canonical_named(id_of(2), "let x = 1 + 2 in x")  →  "x = _ + *"
+```
+
+For deeper targets inside operands, falls back to numeric `#N` addressing.
+
 ## Future Directions
-
-### Wildcard keyword `_` in keyword position
-
-Currently chains are the only way to be keyword-agnostic. The expansion:
-
-```
-A/B/C  ≈  _ A = \... _ B = \... * _ C
-```
-
-where `_` in keyword position matches `let`, `module`, `type`, etc.
-
-### BinOp spine walkers
-
-Named canonicals for binary operators (e.g., `x = * + _` for the left
-operand of `+`). Requires BinOp-aware spine walkers.
-
-### Inline `*` in BinOp context
-
-Currently `*` as focus is always terminal. Inline use like `x = * + _`
-would capture the left operand — disambiguated from multiplication by
-syntactic context (bare `*` vs `* + _`).
 
 ### Multi-variable selectors
 
 Multiple focus variables (`*a`, `*b`, `*c`) for extracting several
 subexpressions in one pass.
 
-### Indexing for non-let binders
+### Multiplication and division operators
 
-Currently `x#N` only works for let bindings. Could extend to
-`fun x#1 -> *` (nth fun with parameter x) or `module M#1 = *`.
+`*` (Times) and `/` (Divide) conflict with focus and chain syntax
+respectively. Options: use different surface characters, or add
+context-sensitive disambiguation. Deferred.

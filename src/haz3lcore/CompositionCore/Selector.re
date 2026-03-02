@@ -42,6 +42,7 @@ type token =
   | LParen /* ( */
   | RParen /* ) */
   | Chain(list(string), bool) /* A/B/C - binder chain; bool = trailing slash */
+  | Operator(string) /* binary operator: +, -, **, <, <=, >, >=, ==, !=, &&, ||, ++, etc. */
   | Name(string) /* bare name */
   | NameIndex(string, int) /* x#0, x#1 - indexed name for shadowed bindings */
   | Index(int); /* #0, #1 - child index */
@@ -84,6 +85,39 @@ type match_result = {
 
 /* === Tokenizer / Parser === */
 
+/* Known binary operator symbols for selector matching.
+   NOTE: * (multiplication) and / (division) are omitted due to conflicts
+   with focus (*) and chain (/) syntax. Will revisit later. */
+let is_binop_token = (s: string): bool =>
+  switch (s) {
+  | "+"
+  | "-"
+  | "**"
+  | "<"
+  | "<="
+  | ">"
+  | ">="
+  | "=="
+  | "!="
+  | "&&"
+  | "||"
+  | "++"
+  | "$=="
+  | "+."
+  | "-."
+  | "*."
+  | "**."
+  | "/."
+  | "<."
+  | "<=."
+  | ">."
+  | ">=."
+  | "==."
+  | "!=."
+  | "::" => true
+  | _ => false
+  };
+
 let tokenize = (input: string): list(token) => {
   /* Split on whitespace, then parse each token */
   let parts =
@@ -120,6 +154,7 @@ let tokenize = (input: string): list(token) => {
       | "]" => RBracket
       | "(" => LParen
       | ")" => RParen
+      | s when is_binop_token(s) => Operator(s)
       | s when String.contains(s, '/') =>
         let len = String.length(s);
         let trailing_slash = len > 0 && s.[len - 1] == '/';
@@ -202,6 +237,7 @@ let elaborate = (sel: selector): sem_selector => {
           };
         };
       chain_steps @ go(rest);
+    | [Operator(op), ...rest] => [MatchDelimiter(op), ...go(rest)]
     | [NameIndex(name, idx), ...rest] => [MatchNameIndex(name, idx), ...go(rest)]
     | [Index(n), ...rest] => [ChildIndex(n), ...go(rest)]
     | [Name(s), ...rest] => [MatchName(s), ...go(rest)]
@@ -236,6 +272,18 @@ let rec mpat_name = (mp: TermBase.mpat_t): option(string) =>
   switch (mp.term) {
   | Var(name) => Some(name)
   | Asc(mp, _) => mpat_name(mp)
+  | _ => None
+  };
+
+/* Match a binary operator expression against an operator string.
+   Returns Some((left, right)) if the expression is a BinOp with matching
+   operator or a Cons with "::". Returns None otherwise. */
+let match_binop = (op: string, e: Exp.t): option((Exp.t, Exp.t)) =>
+  switch (Exp.term_of(e)) {
+  | BinOp(bin_op, e1, e2)
+      when Operators.bin_op_to_string(bin_op) == op =>
+    Some((e1, e2))
+  | Cons(e1, e2) when op == "::" => Some((e1, e2))
   | _ => None
   };
 
@@ -672,6 +720,20 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         },
       ]
 
+    /* Focus + binop: * op _ focuses the left operand */
+    | [MatchFocus, MatchDelimiter(op), MatchSlot]
+        when is_binop_token(op) =>
+      switch (match_binop(op, current)) {
+      | Some((e1, _e2)) => [
+          {
+            focused: FocusExp(e1),
+            focused_id: Exp.rep_id(e1),
+            breadcrumb: "* " ++ op ++ " _",
+          },
+        ]
+      | None => []
+      }
+
     /* Focus + more steps: focus on whatever the remaining steps select */
     | [MatchFocus, ...rest] => walk(rest, current)
 
@@ -1009,6 +1071,55 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
     /* Pipe: match a case arm with the given constructor */
     | [MatchDelimiter("|"), ...rest] => walk_pipe(current, rest)
+
+    /* BinOp: pattern with operator delimiter matches a binary operation.
+       Handles full left-op-right patterns to correctly focus either side.
+       NOTE: * (multiplication) and / (division) are not supported as operators
+       due to conflicts with focus (*) and chain (/) syntax. */
+
+    /* _ op * : focus right operand */
+    | [MatchSlot, MatchDelimiter(op), MatchFocus]
+        when is_binop_token(op) =>
+      switch (match_binop(op, current)) {
+      | Some((_e1, e2)) => [
+          {
+            focused: FocusExp(e2),
+            focused_id: Exp.rep_id(e2),
+            breadcrumb: "_ " ++ op ++ " *",
+          },
+        ]
+      | None => []
+      }
+
+    /* _ op _ : focus whole BinOp (with or without trailing implicit star) */
+    | [MatchSlot, MatchDelimiter(op), MatchSlot]
+    | [MatchSlot, MatchDelimiter(op), MatchSlot, MatchFocus]
+        when is_binop_token(op) =>
+      switch (match_binop(op, current)) {
+      | Some(_) => [
+          {
+            focused: FocusExp(current),
+            focused_id: Exp.rep_id(current),
+            breadcrumb: "_ " ++ op ++ " _",
+          },
+        ]
+      | None => []
+      }
+
+    /* _ op <more> : descend into right operand */
+    | [MatchSlot, MatchDelimiter(op), ...rest]
+        when is_binop_token(op) =>
+      switch (match_binop(op, current)) {
+      | Some((_e1, e2)) => walk(rest, e2)
+      | None => []
+      }
+
+    /* bare op <rest> : operator without explicit left slot */
+    | [MatchDelimiter(op), ...rest] when is_binop_token(op) =>
+      switch (match_binop(op, current)) {
+      | Some((e1, e2)) => walk_binop_spine(e1, e2, current, rest)
+      | None => []
+      }
 
     /* DescendInto: search all descendants */
     | [DescendInto, ...rest] => descend_all(current, rest)
@@ -1767,6 +1878,35 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
     /* test <more> : continue matching inside the body */
     | rest => walk(rest, spine.body)
+    }
+
+  /* BinOp spine walker: matches after the operator delimiter has been consumed.
+     The remaining steps apply to the right operand. The left operand was
+     consumed by MatchSlot/MatchFocus before the operator in the top-level walk. */
+  and walk_binop_spine =
+      (_left: Exp.t, right: Exp.t, whole: Exp.t, steps: sem_selector) =>
+    switch (steps) {
+    /* op * : focus right operand */
+    | [MatchFocus] => [
+        {
+          focused: FocusExp(right),
+          focused_id: Exp.rep_id(right),
+          breadcrumb: "... op ...",
+        },
+      ]
+    /* op _ : focus whole (slot consumes right, implicit star on whole) */
+    | [MatchSlot]
+    | [MatchSlot, MatchFocus]
+    | [MatchEllipsis]
+    | [MatchEllipsis, MatchFocus] => [
+        {
+          focused: FocusExp(whole),
+          focused_id: Exp.rep_id(whole),
+          breadcrumb: "_ op _",
+        },
+      ]
+    /* op <more> : descend into right operand */
+    | rest => walk(rest, right)
     }
 
   /* Generic sequence spine walker: handles both list [e0, e1, ...]
@@ -2669,6 +2809,33 @@ let rec named_in_exp =
 
     /* Parens: transparent, look inside */
     | Parens(inner) => named_in_exp(~chain_root=cr, target, inner)
+
+    /* BinOp: use operator delimiter for named addressing of operands.
+       Only uses operator syntax for immediate operands; deeper targets
+       fall back to numeric ChildIndex. */
+    | BinOp(op, e1, e2) =>
+      let op_str = Operators.bin_op_to_string(op);
+      if (is_binop_token(op_str)) {
+        if (Exp.rep_id(e1) == target) {
+          Some([MatchFocus, MatchDelimiter(op_str), MatchSlot]);
+        } else if (Exp.rep_id(e2) == target) {
+          Some([MatchSlot, MatchDelimiter(op_str), MatchFocus]);
+        } else {
+          numeric_fallback(target, e);
+        };
+      } else {
+        numeric_fallback(target, e);
+      }
+
+    /* Cons: use :: operator for named addressing of operands */
+    | Cons(e1, e2) =>
+      if (Exp.rep_id(e1) == target) {
+        Some([MatchFocus, MatchDelimiter("::"), MatchSlot]);
+      } else if (Exp.rep_id(e2) == target) {
+        Some([MatchSlot, MatchDelimiter("::"), MatchFocus]);
+      } else {
+        numeric_fallback(target, e);
+      }
 
     /* Everything else: fall back to numeric */
     | _ => numeric_fallback(target, e)
