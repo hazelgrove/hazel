@@ -6,11 +6,13 @@ open Haz3lcore;
 
    Toggled via Nut Menu > Developer > Action Explorer.
    Renders below the top bar. Provides:
-   - Action type selector (Update/Insert/Delete)
-   - Target selector (Definition/Body/Pattern/BindingClause/TypeAnnotation)
-   - Direction selector (Before/After, for Insert only)
-   - Path text input with live highlight resolution
-   - Code text input (for Update/Insert)
+   - Action type selector:
+     - Path-based: Update/Insert/Delete (with target/direction sub-selectors)
+     - Selector-based: Sel Update/Sel Delete/Sel Insert Before/Sel Insert After
+     - Read: GetSyntax/GetStatics/GetContext/Select/GetCanonical/GetCompleteness
+   - Path text input with live highlight resolution (for path-based actions)
+   - Selector text input with live highlight resolution (for selector-based actions)
+   - Code text input (for Update/Insert variants)
    - Execute button
    - Result/error display */
 
@@ -20,7 +22,11 @@ module Model = {
     | Update
     | Insert
     | Delete
-    | Read;
+    | Read
+    | SelectorUpdate
+    | SelectorDelete
+    | SelectorInsertBefore
+    | SelectorInsertAfter;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type target =
@@ -41,6 +47,7 @@ module Model = {
     | GetStatics
     | GetContext
     | Select
+    | GetCanonical
     | GetCompleteness;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -50,6 +57,7 @@ module Model = {
     direction,
     read_kind,
     path: string,
+    selector: string,
     code: string,
     highlight_ids: list(Id.t),
     result_msg: option(string),
@@ -61,6 +69,7 @@ module Model = {
     direction: Before,
     read_kind: GetSyntax,
     path: "",
+    selector: "",
     code: "",
     highlight_ids: [],
     result_msg: None,
@@ -95,6 +104,12 @@ module Model = {
         | TypeAnnotation => TypeAnnotation
         };
       Some(Delete(target, model.path));
+    | SelectorUpdate => Some(SelectorUpdate(model.selector, model.code))
+    | SelectorDelete => Some(SelectorDelete(model.selector))
+    | SelectorInsertBefore =>
+      Some(SelectorInsertBefore(model.selector, model.code))
+    | SelectorInsertAfter =>
+      Some(SelectorInsertAfter(model.selector, model.code))
     | Read => None /* Read actions handled separately */
     };
 
@@ -105,7 +120,8 @@ module Model = {
       | GetSyntax => Some(GetSyntax(model.path))
       | GetStatics => Some(GetStatics(model.path))
       | GetContext => Some(GetContext(model.path))
-      | Select => Some(Select(model.path))
+      | Select => Some(Select(model.selector))
+      | GetCanonical => Some(GetCanonical(model.selector))
       | GetCompleteness => Some(GetCompleteness)
       }
     | _ => None
@@ -120,6 +136,7 @@ module Update = {
     | SetDirection(Model.direction)
     | SetReadKind(Model.read_kind)
     | SetPath(string)
+    | SetSelector(string)
     | SetCode(string)
     | SetHighlightIds(list(Id.t))
     | SetResult(option(string))
@@ -146,6 +163,10 @@ module Update = {
     | SetPath(path) => {
         ...model,
         path,
+      }
+    | SetSelector(selector) => {
+        ...model,
+        selector,
       }
     | SetCode(code) => {
         ...model,
@@ -228,6 +249,10 @@ module View = {
       | Insert => "insert"
       | Delete => "delete"
       | Read => "read"
+      | SelectorUpdate => "sel_update"
+      | SelectorDelete => "sel_delete"
+      | SelectorInsertBefore => "sel_insert_before"
+      | SelectorInsertAfter => "sel_insert_after"
       };
 
     let target_str =
@@ -254,6 +279,10 @@ module View = {
           ("update", "Update"),
           ("insert", "Insert"),
           ("delete", "Delete"),
+          ("sel_update", "Sel Update"),
+          ("sel_delete", "Sel Delete"),
+          ("sel_insert_before", "Sel Insert Before"),
+          ("sel_insert_after", "Sel Insert After"),
         ],
         ~on_change=v =>
         inject(
@@ -262,6 +291,10 @@ module View = {
             | "update" => Update
             | "insert" => Insert
             | "delete" => Delete
+            | "sel_update" => SelectorUpdate
+            | "sel_delete" => SelectorDelete
+            | "sel_insert_before" => SelectorInsertBefore
+            | "sel_insert_after" => SelectorInsertAfter
             | _ => Read
             },
           ),
@@ -315,6 +348,7 @@ module View = {
       | GetStatics => "get_statics"
       | GetContext => "get_context"
       | Select => "select"
+      | GetCanonical => "get_canonical"
       | GetCompleteness => "get_completeness"
       };
 
@@ -327,6 +361,7 @@ module View = {
           ("get_statics", "GetStatics"),
           ("get_context", "GetContext"),
           ("select", "Select"),
+          ("get_canonical", "GetCanonical"),
           ("get_completeness", "GetCompleteness"),
         ],
         ~on_change=v =>
@@ -336,6 +371,7 @@ module View = {
             | "get_statics" => GetStatics
             | "get_context" => GetContext
             | "select" => Select
+            | "get_canonical" => GetCanonical
             | "get_completeness" => GetCompleteness
             | _ => GetSyntax
             },
@@ -343,19 +379,22 @@ module View = {
         )
       );
 
-    let path_placeholder =
-      switch (model.action_kind, model.read_kind) {
-      | (Read, Select) => "selector (e.g. let _ = * in _, _ \\... *)"
-      | _ => "path (e.g. x, x/y, #0, |A, [0])"
-      };
-
     let path_input =
       text_field(
         ~clss="ae-path",
-        ~placeholder=path_placeholder,
+        ~placeholder="path (e.g. x, x/y, #0, |A, [0])",
         ~value=model.path,
         ~on_input=v =>
         inject(SetPath(v))
+      );
+
+    let selector_input =
+      text_field(
+        ~clss="ae-selector",
+        ~placeholder="selector (e.g. let _ = * in _, _ \\... *)",
+        ~value=model.selector,
+        ~on_input=v =>
+        inject(SetSelector(v))
       );
 
     let code_input =
@@ -417,11 +456,40 @@ module View = {
           execute_button,
           highlight_count,
         ]
+      | SelectorUpdate => [
+          action_select,
+          selector_input,
+          code_input,
+          execute_button,
+          highlight_count,
+        ]
+      | SelectorDelete => [
+          action_select,
+          selector_input,
+          execute_button,
+          highlight_count,
+        ]
+      | SelectorInsertBefore
+      | SelectorInsertAfter => [
+          action_select,
+          selector_input,
+          code_input,
+          execute_button,
+          highlight_count,
+        ]
       | Read =>
         switch (model.read_kind) {
         | GetCompleteness => [
             action_select,
             read_kind_select,
+            execute_button,
+            highlight_count,
+          ]
+        | Select
+        | GetCanonical => [
+            action_select,
+            read_kind_select,
+            selector_input,
             execute_button,
             highlight_count,
           ]

@@ -53,7 +53,8 @@
   color: var(--STONE, #333);
 }
 
-.ae-path {
+.ae-path,
+.ae-selector {
   flex: 1;
   min-width: 140px;
 }

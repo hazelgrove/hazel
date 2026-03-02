@@ -841,8 +841,7 @@ module Local = {
     | SelectorUpdate(selector, code) =>
       let term = MakeTerm.from_zip_for_sem(initial_z).term;
       switch (Selector.query_unique(selector, term)) {
-      | Error(msg) =>
-        Error(Action.Failure.Composition_action_failure(msg))
+      | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
       | Ok({focused, focused_id, _}) =>
         let parse_err = msg =>
           Error(
@@ -895,12 +894,12 @@ module Local = {
     | SelectorDelete(selector) =>
       let term = MakeTerm.from_zip_for_sem(initial_z).term;
       switch (Selector.query_unique(selector, term)) {
-      | Error(msg) =>
-        Error(Action.Failure.Composition_action_failure(msg))
+      | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
       | Ok({focused, focused_id, _}) =>
         let new_term =
           switch (focused) {
-          | FocusExp(_) | FocusMod(_) =>
+          | FocusExp(_)
+          | FocusMod(_) =>
             let hole = Exp.fresh(EmptyHole);
             TermEdit.replace_exp_by_id(focused_id, _ => hole, term);
           | FocusPat(_) =>
@@ -923,8 +922,7 @@ module Local = {
         };
       let term = MakeTerm.from_zip_for_sem(initial_z).term;
       switch (Selector.query_unique(selector, term)) {
-      | Error(msg) =>
-        Error(Action.Failure.Composition_action_failure(msg))
+      | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
       | Ok({focused_id, _}) =>
         let (term_edit_result, kind) =
           if (TermEdit.is_case_arm(initial_z, focused_id)) {
@@ -934,22 +932,12 @@ module Local = {
             );
           } else if (TermEdit.is_list_element(initial_z, focused_id)) {
             (
-              TermEdit.list_insert_element(
-                initial_z,
-                focused_id,
-                code,
-                dir,
-              ),
+              TermEdit.list_insert_element(initial_z, focused_id, code, dir),
               "list element",
             );
           } else if (TermEdit.is_tuple_element(initial_z, focused_id)) {
             (
-              TermEdit.tuple_insert_element(
-                initial_z,
-                focused_id,
-                code,
-                dir,
-              ),
+              TermEdit.tuple_insert_element(initial_z, focused_id, code, dir),
               "tuple element",
             );
           } else {
@@ -1240,8 +1228,10 @@ module Local = {
     /* Selector-driven edits bypass the HighLevelNodeMap entirely —
        they resolve against the term tree directly via Selector */
     switch (a) {
-    | SelectorUpdate(_) | SelectorDelete(_)
-    | SelectorInsertBefore(_) | SelectorInsertAfter(_) =>
+    | SelectorUpdate(_)
+    | SelectorDelete(_)
+    | SelectorInsertBefore(_)
+    | SelectorInsertAfter(_) =>
       let initial_info_map = mk_statics(z);
       /* Pass an empty node map — selector edits don't use it */
       edit_dispatch(

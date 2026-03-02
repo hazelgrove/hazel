@@ -788,7 +788,9 @@ let selector_update: API.Json.t =
                     ("type", `String("string")),
                     (
                       "description",
-                      `String("The replacement code for the focused subtree."),
+                      `String(
+                        "The replacement code for the focused subtree.",
+                      ),
                     ),
                   ]),
                 ),

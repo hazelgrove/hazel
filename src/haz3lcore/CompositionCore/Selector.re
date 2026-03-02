@@ -263,7 +263,10 @@ let elaborate = (sel: selector): sem_selector => {
         };
       chain_steps @ go(rest);
     | [Operator(op), ...rest] => [MatchDelimiter(op), ...go(rest)]
-    | [NameIndex(name, idx), ...rest] => [MatchNameIndex(name, idx), ...go(rest)]
+    | [NameIndex(name, idx), ...rest] => [
+        MatchNameIndex(name, idx),
+        ...go(rest),
+      ]
     | [Index(n), ...rest] => [ChildIndex(n), ...go(rest)]
     | [Name(s), ...rest] => [MatchName(s), ...go(rest)]
     };
@@ -305,8 +308,7 @@ let rec mpat_name = (mp: TermBase.mpat_t): option(string) =>
    operator or a Cons with "::". Returns None otherwise. */
 let match_binop = (op: string, e: Exp.t): option((Exp.t, Exp.t)) =>
   switch (Exp.term_of(e)) {
-  | BinOp(bin_op, e1, e2)
-      when Operators.bin_op_to_string(bin_op) == op =>
+  | BinOp(bin_op, e1, e2) when Operators.bin_op_to_string(bin_op) == op =>
     Some((e1, e2))
   | Cons(e1, e2) when op == "::" => Some((e1, e2))
   | _ => None
@@ -367,8 +369,7 @@ let rec find_binder_in_exp =
    Let/ModuleExp/TyAlias chains to reach the module. Returns the
    Mod.t item itself (ModLet, ModuleMod, or ModType) so callers
    can return FocusMod. */
-let rec find_mod_item_by_name =
-        (name: string, e: Exp.t): option(Mod.t) =>
+let rec find_mod_item_by_name = (name: string, e: Exp.t): option(Mod.t) =>
   switch (Exp.term_of(e)) {
   | Let(_, _, body) => find_mod_item_by_name(name, body)
   | ModuleExp(_, _, body) => find_mod_item_by_name(name, body)
@@ -415,16 +416,15 @@ let rec find_all_binders_named =
       | Some(n) when String.equal(n, name) => [(def, body)]
       | _ => []
       };
-    here @ find_all_binders_named(name, body)
+    here @ find_all_binders_named(name, body);
   | ModuleExp(mpat, def, body) =>
     let here =
       switch (mpat_name(mpat)) {
       | Some(n) when String.equal(n, name) => [(def, body)]
       | _ => []
       };
-    here @ find_all_binders_named(name, body)
-  | TyAlias(_tpat, _tdef, body) =>
-    find_all_binders_named(name, body)
+    here @ find_all_binders_named(name, body);
+  | TyAlias(_tpat, _tdef, body) => find_all_binders_named(name, body)
   | Module(items) =>
     List.concat_map(
       (item: Mod.t) =>
@@ -454,8 +454,7 @@ let find_binder_indexed =
 };
 
 /* Find the Let/ModuleExp node for a given binder name, at a specific index */
-let find_let_node_indexed =
-        (name: string, idx: int, e: Exp.t): option(Exp.t) => {
+let find_let_node_indexed = (name: string, idx: int, e: Exp.t): option(Exp.t) => {
   let rec collect = (e: Exp.t): list(Exp.t) =>
     switch (Exp.term_of(e)) {
     | Let(pat, _def, body) =>
@@ -464,21 +463,21 @@ let find_let_node_indexed =
         | Some(n) when String.equal(n, name) => [e]
         | _ => []
         };
-      here @ collect(body)
+      here @ collect(body);
     | ModuleExp(mpat, _def, body) =>
       let here =
         switch (mpat_name(mpat)) {
         | Some(n) when String.equal(n, name) => [e]
         | _ => []
         };
-      here @ collect(body)
+      here @ collect(body);
     | TyAlias(tpat, _tdef, body) =>
       let here =
         switch (tpat_name(tpat)) {
         | Some(n) when String.equal(n, name) => [e]
         | _ => []
         };
-      here @ collect(body)
+      here @ collect(body);
     | _ => []
     };
   List.nth_opt(collect(e), idx);
@@ -633,34 +632,55 @@ let nth_child_exp = (n: int, e: Exp.t): option(focus_target) => {
   let mod_ = m => FocusMod(m);
   switch (Exp.term_of(e)) {
   /* 0 children */
-  | Invalid(_) | EmptyHole | Deferral(_) | Undefined | Atom(_)
-  | Constructor(_, _) | Var(_) | BuiltinFun(_) | Label(_)
-  | ExplicitNonlabel | LivelitName(_) | MultiHole(_) => None
+  | Invalid(_)
+  | EmptyHole
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | Constructor(_, _)
+  | Var(_)
+  | BuiltinFun(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | LivelitName(_)
+  | MultiHole(_) => None
 
   /* 1 Exp child */
-  | DynamicErrorHole(e1, _) | UnOp(_, e1) | Test(e1)
-  | Parens(e1) | Projector(_, e1) | Closure(_, e1)
-  | ProofObject(e1) | Filter(_, e1) | TypFun(_, e1, _) =>
-    nth_of(n, [exp(e1)])
+  | DynamicErrorHole(e1, _)
+  | UnOp(_, e1)
+  | Test(e1)
+  | Parens(e1)
+  | Projector(_, e1)
+  | Closure(_, e1)
+  | ProofObject(e1)
+  | Filter(_, e1)
+  | TypFun(_, e1, _) => nth_of(n, [exp(e1)])
 
   /* 2 Exp children */
-  | BinOp(_, e1, e2) | Seq(e1, e2) | Cons(e1, e2)
-  | ListConcat(e1, e2) | Dot(e1, e2) | TupLabel(e1, e2)
-  | TupleExtension(e1, e2) | HintedTest(e1, e2) | Ap(_, e1, e2) =>
-    nth_of(n, [exp(e1), exp(e2)])
+  | BinOp(_, e1, e2)
+  | Seq(e1, e2)
+  | Cons(e1, e2)
+  | ListConcat(e1, e2)
+  | Dot(e1, e2)
+  | TupLabel(e1, e2)
+  | TupleExtension(e1, e2)
+  | HintedTest(e1, e2)
+  | Ap(_, e1, e2) => nth_of(n, [exp(e1), exp(e2)])
 
   /* Pat, Exp */
-  | Fun(p, body, _, _) | FixF(p, body, _) | Forall(p, body) =>
-    nth_of(n, [pat(p), exp(body)])
+  | Fun(p, body, _, _)
+  | FixF(p, body, _)
+  | Forall(p, body) => nth_of(n, [pat(p), exp(body)])
 
   /* Exp, Typ */
-  | Asc(e1, t) | TypAp(e1, t) => nth_of(n, [exp(e1), typ(t)])
+  | Asc(e1, t)
+  | TypAp(e1, t) => nth_of(n, [exp(e1), typ(t)])
   /* Typ, Exp */
   | Use(t, body) => nth_of(n, [typ(t), exp(body)])
 
   /* Pat, Exp, Exp */
-  | Let(p, def, body) | Theorem(p, def, body) =>
-    nth_of(n, [pat(p), exp(def), exp(body)])
+  | Let(p, def, body)
+  | Theorem(p, def, body) => nth_of(n, [pat(p), exp(def), exp(body)])
   /* 3 Exp children */
   | If(e1, e2, e3) => nth_of(n, [exp(e1), exp(e2), exp(e3)])
   /* Typ, Exp (TPat/MPat skipped) */
@@ -668,15 +688,13 @@ let nth_child_exp = (n: int, e: Exp.t): option(focus_target) => {
   | ModuleExp(_, def, body) => nth_of(n, [exp(def), exp(body)])
 
   /* Variable-length */
-  | Tuple(items) | ListLit(items) =>
-    List.nth_opt(items, n) |> Option.map(exp)
-  | DeferredAp(fn, args) =>
-    nth_of(n, [exp(fn), ...List.map(exp, args)])
+  | Tuple(items)
+  | ListLit(items) => List.nth_opt(items, n) |> Option.map(exp)
+  | DeferredAp(fn, args) => nth_of(n, [exp(fn), ...List.map(exp, args)])
   /* Match: #0=scrut. Rule pairs are virtual nodes handled in walk. */
   | Match(scrut, _) => nth_of(n, [exp(scrut)])
   /* Module items */
-  | Module(items) =>
-    List.nth_opt(items, n) |> Option.map(mod_)
+  | Module(items) => List.nth_opt(items, n) |> Option.map(mod_)
   };
 };
 
@@ -685,14 +703,23 @@ let nth_child_pat = (n: int, p: Pat.t): option(focus_target) => {
   let pat = p => FocusPat(p);
   let typ = t => FocusTyp(t);
   switch (Pat.term_of(p)) {
-  | Invalid(_) | EmptyHole | Wild | Atom(_) | Constructor(_, _)
-  | Var(_) | Label(_) | ExplicitNonlabel | MultiHole(_) => None
-  | Parens(p1) | Projector(_, p1) => nth_of(n, [pat(p1)])
-  | Cons(p1, p2) | TupLabel(p1, p2) | Ap(p1, p2) =>
-    nth_of(n, [pat(p1), pat(p2)])
+  | Invalid(_)
+  | EmptyHole
+  | Wild
+  | Atom(_)
+  | Constructor(_, _)
+  | Var(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | MultiHole(_) => None
+  | Parens(p1)
+  | Projector(_, p1) => nth_of(n, [pat(p1)])
+  | Cons(p1, p2)
+  | TupLabel(p1, p2)
+  | Ap(p1, p2) => nth_of(n, [pat(p1), pat(p2)])
   | Asc(p1, t) => nth_of(n, [pat(p1), typ(t)])
-  | Tuple(items) | ListLit(items) =>
-    List.nth_opt(items, n) |> Option.map(pat)
+  | Tuple(items)
+  | ListLit(items) => List.nth_opt(items, n) |> Option.map(pat)
   };
 };
 
@@ -701,16 +728,24 @@ let nth_child_typ = (n: int, t: Typ.t): option(focus_target) => {
   let typ = t => FocusTyp(t);
   let exp = e => FocusExp(e);
   switch (Typ.term_of(t)) {
-  | Unknown(_) | Atom(_) | Var(_) | Label(_) | ExplicitNonlabel
-  | Sum(_) | Sig(_) => None
-  | List(t1) | Parens(t1) | Projector(_, t1)
-  | Rec(_, t1) | Poly(_, t1) => nth_of(n, [typ(t1)])
-  | Arrow(t1, t2) | TupLabel(t1, t2)
-  | ProdProjection(t1, t2) | ProdExtension(t1, t2) =>
-    nth_of(n, [typ(t1), typ(t2)])
+  | Unknown(_)
+  | Atom(_)
+  | Var(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Sum(_)
+  | Sig(_) => None
+  | List(t1)
+  | Parens(t1)
+  | Projector(_, t1)
+  | Rec(_, t1)
+  | Poly(_, t1) => nth_of(n, [typ(t1)])
+  | Arrow(t1, t2)
+  | TupLabel(t1, t2)
+  | ProdProjection(t1, t2)
+  | ProdExtension(t1, t2) => nth_of(n, [typ(t1), typ(t2)])
   | ProofOf(e) => nth_of(n, [exp(e)])
-  | Prod(items) =>
-    List.nth_opt(items, n) |> Option.map(typ)
+  | Prod(items) => List.nth_opt(items, n) |> Option.map(typ)
   };
 };
 
@@ -720,7 +755,9 @@ let nth_child_mod = (n: int, m: Mod.t): option(focus_target) => {
   let pat = p => FocusPat(p);
   let typ = t => FocusTyp(t);
   switch (m.term) {
-  | Invalid(_) | EmptyHole | MultiHole(_) => None
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
   | ModLet(p, def) => nth_of(n, [pat(p), exp(def)])
   | ModType(_, t) => nth_of(n, [typ(t)])
   | ModuleMod(_, def) => nth_of(n, [exp(def)])
@@ -740,8 +777,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchFocus] => [mk_exp(current)]
 
     /* Focus + binop: * op _ focuses the left operand */
-    | [MatchFocus, MatchDelimiter(op), MatchSlot]
-        when is_binop_token(op) =>
+    | [MatchFocus, MatchDelimiter(op), MatchSlot] when is_binop_token(op) =>
       switch (match_binop(op, current)) {
       | Some((e1, _e2)) => [mk_exp(~bc="* " ++ op ++ " _", e1)]
       | None => []
@@ -847,10 +883,18 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => []
       }
 
-    | [MatchNameIndex(name, idx), MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
+    | [
+        MatchNameIndex(name, idx),
+        MatchEllipsis,
+        MatchKeyword("in"),
+        MatchFocus,
+      ] =>
       switch (find_binder_indexed(name, idx, current)) {
       | Some((_def, body)) => [
-          mk_exp(~bc=name ++ "#" ++ string_of_int(idx) ++ " ... in ...", body),
+          mk_exp(
+            ~bc=name ++ "#" ++ string_of_int(idx) ++ " ... in ...",
+            body,
+          ),
         ]
       | None => []
       }
@@ -884,7 +928,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | Some(spine) =>
         walk_let_spine(spine, [MatchName(name), ...after_name])
       | None => []
-      }
+      };
     | [MatchKeyword("let"), ...rest] =>
       find_all_lets(current)
       |> List.concat_map(spine => walk_let_spine(spine, rest))
@@ -922,10 +966,15 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (List.nth_opt(matching, idx)) {
       | Some((name_opt, def, whole, body_opt, mod_item_opt)) =>
         walk_after_module_kw(
-          name_opt, def, whole, body_opt, mod_item_opt,
-          [MatchName(name), ...after_name])
+          name_opt,
+          def,
+          whole,
+          body_opt,
+          mod_item_opt,
+          [MatchName(name), ...after_name],
+        )
       | None => []
-      }
+      };
 
     /* module keyword */
     | [MatchKeyword("module"), ...rest] =>
@@ -933,7 +982,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | ModuleExp(mpat, def, body) =>
         switch (mpat_name(mpat)) {
         | Some(_name) =>
-          walk_after_module_kw(mpat_name(mpat), def, current, Some(body), None, rest)
+          walk_after_module_kw(
+            mpat_name(mpat),
+            def,
+            current,
+            Some(body),
+            None,
+            rest,
+          )
         | None => []
         }
       | Let(pat, def, body) =>
@@ -941,7 +997,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         | Module(_) =>
           switch (pat_name(pat)) {
           | Some(_) =>
-            walk_after_module_kw(pat_name(pat), def, current, Some(body), None, rest)
+            walk_after_module_kw(
+              pat_name(pat),
+              def,
+              current,
+              Some(body),
+              None,
+              rest,
+            )
           | None => []
           }
         | _ => []
@@ -955,7 +1018,13 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
               switch (mpat_name(mpat)) {
               | Some(_) =>
                 walk_after_module_kw(
-                  mpat_name(mpat), def, current, None, Some(item), rest)
+                  mpat_name(mpat),
+                  def,
+                  current,
+                  None,
+                  Some(item),
+                  rest,
+                )
               | None => []
               }
             | _ => []
@@ -975,23 +1044,42 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (List.nth_opt(matching, idx)) {
       | Some((tpat, whole, body_opt, tdef_opt, mod_item_opt)) =>
         walk_after_type_kw(
-          tpat, whole, body_opt, tdef_opt, mod_item_opt,
-          [MatchName(name), ...after_name])
+          tpat,
+          whole,
+          body_opt,
+          tdef_opt,
+          mod_item_opt,
+          [MatchName(name), ...after_name],
+        )
       | None => []
-      }
+      };
 
     /* type keyword */
     | [MatchKeyword("type"), ...rest] =>
       switch (Exp.term_of(current)) {
       | TyAlias(tpat, tdef, body) =>
-        walk_after_type_kw(tpat, current, Some(body), Some(tdef), None, rest)
+        walk_after_type_kw(
+          tpat,
+          current,
+          Some(body),
+          Some(tdef),
+          None,
+          rest,
+        )
       | Module(items) =>
         /* Match ModType items inside a module body */
         List.concat_map(
           (item: Mod.t) =>
             switch (item.term) {
             | ModType(tpat, tdef) =>
-              walk_after_type_kw(tpat, current, None, Some(tdef), Some(item), rest)
+              walk_after_type_kw(
+                tpat,
+                current,
+                None,
+                Some(tdef),
+                Some(item),
+                rest,
+              )
             | _ => []
             },
           items,
@@ -1003,7 +1091,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchKeyword("fun"), ...rest] =>
       switch (Exp.term_of(current)) {
       | Fun(pat, body, _, _) =>
-        walk_fun_spine({pat, body, whole: current}, rest)
+        walk_fun_spine(
+          {
+            pat,
+            body,
+            whole: current,
+          },
+          rest,
+        )
       | _ => []
       }
 
@@ -1011,7 +1106,13 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchKeyword("test"), ...rest] =>
       switch (Exp.term_of(current)) {
       | Test(body) =>
-        walk_test_spine({body, whole: current}, rest)
+        walk_test_spine(
+          {
+            body,
+            whole: current,
+          },
+          rest,
+        )
       | _ => []
       }
 
@@ -1039,8 +1140,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
        due to conflicts with focus (*) and chain (/) syntax. */
 
     /* _ op * : focus right operand */
-    | [MatchSlot, MatchDelimiter(op), MatchFocus]
-        when is_binop_token(op) =>
+    | [MatchSlot, MatchDelimiter(op), MatchFocus] when is_binop_token(op) =>
       switch (match_binop(op, current)) {
       | Some((_e1, e2)) => [mk_exp(~bc="_ " ++ op ++ " *", e2)]
       | None => []
@@ -1056,8 +1156,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       }
 
     /* _ op <more> : descend into right operand */
-    | [MatchSlot, MatchDelimiter(op), ...rest]
-        when is_binop_token(op) =>
+    | [MatchSlot, MatchDelimiter(op), ...rest] when is_binop_token(op) =>
       switch (match_binop(op, current)) {
       | Some((_e1, e2)) => walk(rest, e2)
       | None => []
@@ -1099,9 +1198,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
           | [MatchFocus] => [
               mk_exp(~bc="rule " ++ string_of_int(n - 1), body),
             ]
-          | [] => [
-              mk_exp(~bc="rule " ++ string_of_int(n - 1), body),
-            ]
+          | [] => [mk_exp(~bc="rule " ++ string_of_int(n - 1), body)]
           | _ => []
           }
         | None => []
@@ -1169,27 +1266,49 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* let <name> : * : focus on the type annotation */
     | [MatchName(name), MatchDelimiter(":"), MatchFocus] =>
       switch (Pat.term_of(spine.pat)) {
-      | Asc(inner_pat, ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
-        [mk_typ(~bc="let " ++ name ++ " : ...", ty)]
+      | Asc(inner_pat, ty)
+          when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) => [
+          mk_typ(~bc="let " ++ name ++ " : ...", ty),
+        ]
       | _ => []
       }
 
     /* let <name> : _ = * : skip type annotation, focus on def */
-    | [MatchName(name), MatchDelimiter(":"), MatchSlot, MatchDelimiter("="), MatchFocus] =>
+    | [
+        MatchName(name),
+        MatchDelimiter(":"),
+        MatchSlot,
+        MatchDelimiter("="),
+        MatchFocus,
+      ] =>
       switch (Pat.term_of(spine.pat)) {
-      | Asc(inner_pat, _ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
-        [mk_exp(~bc="let " ++ name ++ " : _ = ...", spine.def)]
+      | Asc(inner_pat, _ty)
+          when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) => [
+          mk_exp(~bc="let " ++ name ++ " : _ = ...", spine.def),
+        ]
       /* Also handle non-Asc patterns — name : _ = * just skips to def */
-      | _ when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
-        [mk_exp(~bc="let " ++ name ++ " : _ = ...", spine.def)]
+      | _ when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+          mk_exp(~bc="let " ++ name ++ " : _ = ...", spine.def),
+        ]
       | _ => []
       }
 
     /* let <name> : _ = _ ... in * : skip annotation and def, focus on body */
-    | [MatchName(name), MatchDelimiter(":"), MatchSlot, MatchDelimiter("="), MatchSlot, MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
+    | [
+        MatchName(name),
+        MatchDelimiter(":"),
+        MatchSlot,
+        MatchDelimiter("="),
+        MatchSlot,
+        MatchEllipsis,
+        MatchKeyword("in"),
+        MatchFocus,
+      ] =>
       switch (Pat.term_of(spine.pat)) {
-      | Asc(inner_pat, _ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
-        [mk_exp(~bc="let " ++ name ++ " : _ = _ ... in ...", spine.body)]
+      | Asc(inner_pat, _ty)
+          when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) => [
+          mk_exp(~bc="let " ++ name ++ " : _ = _ ... in ...", spine.body),
+        ]
       | _ => []
       }
 
@@ -1238,7 +1357,9 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         MatchSlot,
         MatchKeyword("else"),
         MatchFocus,
-      ] => [mk_exp(~bc="if _ then _ else ...", spine.else_)]
+      ] => [
+        mk_exp(~bc="if _ then _ else ...", spine.else_),
+      ]
 
     | _ => []
     }
@@ -1339,7 +1460,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
     /* | _... <more> : skip zero or more arms, try rest at each position */
     | [MatchEllipsis, ...rest] =>
-      let rec try_from = (remaining_rules) =>
+      let rec try_from = remaining_rules =>
         switch (remaining_rules) {
         | [] => []
         | [_, ...tail] =>
@@ -1359,7 +1480,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
             true;
           },
         all,
-      )
+      );
 
     | _ => []
     }
@@ -1380,8 +1501,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         steps: sem_selector,
       ) => {
     let name_str = Option.value(~default="_", name_opt);
-    let name_matches = (n) =>
-      Option.equal(String.equal, name_opt, Some(n));
+    let name_matches = n => Option.equal(String.equal, name_opt, Some(n));
     switch (steps) {
     /* module M : bare name match. For module items, return FocusMod;
        for top-level module expressions, return FocusExp(whole). */
@@ -1438,8 +1558,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       ]
 
     /* module _ = <more> : wildcard name, continue into def */
-    | [MatchSlot, MatchDelimiter("="), ...rest] =>
-      walk(rest, def)
+    | [MatchSlot, MatchDelimiter("="), ...rest] => walk(rest, def)
 
     /* module _... in * : skip name and def, focus on body */
     | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
@@ -1479,8 +1598,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         steps: sem_selector,
       ) => {
     let name_opt = tpat_name(tpat);
-    let name_matches = (n) =>
-      Option.equal(String.equal, name_opt, Some(n));
+    let name_matches = n => Option.equal(String.equal, name_opt, Some(n));
     let name_str = Option.value(~default="_", name_opt);
     /* Helper: handle steps after the name has been matched/consumed */
     let walk_after_name = (remaining: sem_selector) =>
@@ -1515,8 +1633,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       };
     switch (steps) {
     /* type T : bare name match */
-    | [MatchName(name)] when name_matches(name) =>
-      focus_whole_or_mod()
+    | [MatchName(name)] when name_matches(name) => focus_whole_or_mod()
     /* type T * : bare name + implicit star */
     | [MatchName(name), MatchFocus] when name_matches(name) =>
       focus_whole_or_mod()
@@ -1526,8 +1643,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       walk_after_name(rest)
 
     /* type _ <more> : wildcard name */
-    | [MatchSlot, ...rest] =>
-      walk_after_name(rest)
+    | [MatchSlot, ...rest] => walk_after_name(rest)
 
     /* type _... in * : skip name and def */
     | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
@@ -1564,8 +1680,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       ]
 
     /* fun _ -> <more> : skip pattern, continue in body */
-    | [MatchSlot, MatchDelimiter("->"), ...rest] =>
-      walk(rest, spine.body)
+    | [MatchSlot, MatchDelimiter("->"), ...rest] => walk(rest, spine.body)
 
     /* fun ... -> * : skip pattern via ellipsis, focus on body */
     | [MatchEllipsis, MatchDelimiter("->"), MatchFocus] => [
@@ -1695,14 +1810,16 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   /* Walk selector steps against a pattern node */
   and walk_pat = (steps: sem_selector, current: Pat.t): list(match_result) =>
     switch (steps) {
-    | [] | [MatchFocus] => [mk_pat(current)]
+    | []
+    | [MatchFocus] => [mk_pat(current)]
     | [MatchFocus, ...rest] => walk_pat(rest, current)
     | [ChildIndex(n), ...rest] =>
       switch (nth_child_pat(n, current)) {
       | Some(FocusPat(p)) => walk_pat(rest, p)
       | Some(FocusTyp(t)) => walk_typ(rest, t)
       | Some(FocusExp(e)) => walk(rest, e)
-      | Some(FocusMod(_)) | None => []
+      | Some(FocusMod(_))
+      | None => []
       }
     | _ => []
     }
@@ -1710,14 +1827,16 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   /* Walk selector steps against a type node */
   and walk_typ = (steps: sem_selector, current: Typ.t): list(match_result) =>
     switch (steps) {
-    | [] | [MatchFocus] => [mk_typ(current)]
+    | []
+    | [MatchFocus] => [mk_typ(current)]
     | [MatchFocus, ...rest] => walk_typ(rest, current)
     | [ChildIndex(n), ...rest] =>
       switch (nth_child_typ(n, current)) {
       | Some(FocusTyp(t)) => walk_typ(rest, t)
       | Some(FocusPat(p)) => walk_pat(rest, p)
       | Some(FocusExp(e)) => walk(rest, e)
-      | Some(FocusMod(_)) | None => []
+      | Some(FocusMod(_))
+      | None => []
       }
     | _ => []
     }
@@ -1725,7 +1844,8 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   /* Walk selector steps against a module item */
   and walk_mod = (steps: sem_selector, current: Mod.t): list(match_result) =>
     switch (steps) {
-    | [] | [MatchFocus] => [mk_mod(current)]
+    | []
+    | [MatchFocus] => [mk_mod(current)]
     | [MatchFocus, ...rest] => walk_mod(rest, current)
     | [ChildIndex(n), ...rest] =>
       switch (nth_child_mod(n, current)) {
@@ -1799,7 +1919,8 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
   /* Find all module-like binders in an expression chain.
      Returns tuples matching walk_after_module_kw's parameters. */
-  and find_all_modules = (e: Exp.t)
+  and find_all_modules =
+      (e: Exp.t)
       : list((option(string), Exp.t, Exp.t, option(Exp.t), option(Mod.t))) =>
     switch (Exp.term_of(e)) {
     | ModuleExp(mpat, def, body) => [
@@ -1831,14 +1952,16 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
   /* Find all type-alias-like binders in an expression chain.
      Returns tuples matching walk_after_type_kw's parameters. */
-  and find_all_types = (e: Exp.t)
+  and find_all_types =
+      (e: Exp.t)
       : list((TPat.t, Exp.t, option(Exp.t), option(Typ.t), option(Mod.t))) =>
     switch (Exp.term_of(e)) {
     | TyAlias(tpat, tdef, body) => [
         (tpat, e, Some(body), Some(tdef), None),
         ...find_all_types(body),
       ]
-    | Let(_, _, body) | ModuleExp(_, _, body) => find_all_types(body)
+    | Let(_, _, body)
+    | ModuleExp(_, _, body) => find_all_types(body)
     | Module(items) =>
       List.concat_map(
         (item: Mod.t) =>
@@ -1957,8 +2080,7 @@ let steps_to_string = (steps: sem_selector): string =>
    - How far the selector matched before failing
    - Available names at the failure point
    - "Did you mean?" suggestions for close name mismatches */
-let diagnose_no_match =
-    (selector_str: string, root: Exp.t): string => {
+let diagnose_no_match = (selector_str: string, root: Exp.t): string => {
   let sel = parse(selector_str);
   let steps = elaborate(sel);
   let n = List.length(steps);
@@ -1994,8 +2116,7 @@ let diagnose_no_match =
   let partial_msg =
     if (matched_depth > 0 && matched_depth < n) {
       let matched_part =
-        List.filteri((i, _) => i < matched_depth, steps)
-        |> steps_to_string;
+        List.filteri((i, _) => i < matched_depth, steps) |> steps_to_string;
       let failing_step =
         switch (List.nth_opt(steps, matched_depth)) {
         | Some(s) => step_to_string(s)
@@ -2141,62 +2262,89 @@ let rec find_in_exp = (target: Id.t, e: Exp.t): option(list(int)) =>
     let children =
       switch (Exp.term_of(e)) {
       /* 0 children */
-      | Invalid(_) | EmptyHole | Deferral(_) | Undefined | Atom(_)
-      | Constructor(_, _) | Var(_) | BuiltinFun(_) | Label(_)
-      | ExplicitNonlabel | LivelitName(_) | MultiHole(_) => []
+      | Invalid(_)
+      | EmptyHole
+      | Deferral(_)
+      | Undefined
+      | Atom(_)
+      | Constructor(_, _)
+      | Var(_)
+      | BuiltinFun(_)
+      | Label(_)
+      | ExplicitNonlabel
+      | LivelitName(_)
+      | MultiHole(_) => []
 
       /* 1 Exp child */
-      | DynamicErrorHole(e1, _) | UnOp(_, e1) | Test(e1)
-      | Parens(e1) | Projector(_, e1) | Closure(_, e1)
-      | ProofObject(e1) | Filter(_, e1) | TypFun(_, e1, _) =>
-        [(0, FocusExp(e1))]
+      | DynamicErrorHole(e1, _)
+      | UnOp(_, e1)
+      | Test(e1)
+      | Parens(e1)
+      | Projector(_, e1)
+      | Closure(_, e1)
+      | ProofObject(e1)
+      | Filter(_, e1)
+      | TypFun(_, e1, _) => [(0, FocusExp(e1))]
 
       /* 2 Exp children */
-      | BinOp(_, e1, e2) | Seq(e1, e2) | Cons(e1, e2)
-      | ListConcat(e1, e2) | Dot(e1, e2) | TupLabel(e1, e2)
-      | TupleExtension(e1, e2) | HintedTest(e1, e2) | Ap(_, e1, e2) =>
-        [(0, FocusExp(e1)), (1, FocusExp(e2))]
+      | BinOp(_, e1, e2)
+      | Seq(e1, e2)
+      | Cons(e1, e2)
+      | ListConcat(e1, e2)
+      | Dot(e1, e2)
+      | TupLabel(e1, e2)
+      | TupleExtension(e1, e2)
+      | HintedTest(e1, e2)
+      | Ap(_, e1, e2) => [(0, FocusExp(e1)), (1, FocusExp(e2))]
 
       /* Pat, Exp */
-      | Fun(p, body, _, _) | FixF(p, body, _) | Forall(p, body) =>
-        [(0, FocusPat(p)), (1, FocusExp(body))]
+      | Fun(p, body, _, _)
+      | FixF(p, body, _)
+      | Forall(p, body) => [(0, FocusPat(p)), (1, FocusExp(body))]
 
       /* Exp, Typ */
-      | Asc(e1, t) | TypAp(e1, t) =>
-        [(0, FocusExp(e1)), (1, FocusTyp(t))]
+      | Asc(e1, t)
+      | TypAp(e1, t) => [(0, FocusExp(e1)), (1, FocusTyp(t))]
       /* Typ, Exp */
       | Use(t, body) => [(0, FocusTyp(t)), (1, FocusExp(body))]
 
       /* Pat, Exp, Exp */
-      | Let(p, def, body) | Theorem(p, def, body) =>
-        [(0, FocusPat(p)), (1, FocusExp(def)), (2, FocusExp(body))]
+      | Let(p, def, body)
+      | Theorem(p, def, body) => [
+          (0, FocusPat(p)),
+          (1, FocusExp(def)),
+          (2, FocusExp(body)),
+        ]
       /* 3 Exp children */
-      | If(e1, e2, e3) =>
-        [(0, FocusExp(e1)), (1, FocusExp(e2)), (2, FocusExp(e3))]
+      | If(e1, e2, e3) => [
+          (0, FocusExp(e1)),
+          (1, FocusExp(e2)),
+          (2, FocusExp(e3)),
+        ]
       /* Typ, Exp (TPat/MPat skipped) */
       | TyAlias(_, t, body) => [(0, FocusTyp(t)), (1, FocusExp(body))]
-      | ModuleExp(_, def, body) =>
-        [(0, FocusExp(def)), (1, FocusExp(body))]
+      | ModuleExp(_, def, body) => [
+          (0, FocusExp(def)),
+          (1, FocusExp(body)),
+        ]
 
       /* Variable-length */
-      | Tuple(items) | ListLit(items) =>
-        List.mapi((i, e') => (i, FocusExp(e')), items)
-      | DeferredAp(fn, args) =>
-        [(0, FocusExp(fn)), ...List.mapi((i, a) => (i + 1, FocusExp(a)), args)]
+      | Tuple(items)
+      | ListLit(items) => List.mapi((i, e') => (i, FocusExp(e')), items)
+      | DeferredAp(fn, args) => [
+          (0, FocusExp(fn)),
+          ...List.mapi((i, a) => (i + 1, FocusExp(a)), args),
+        ]
       /* Match: #0=scrut, then virtual rule pairs at #1, #2, ... */
       | Match(scrut, rules) =>
         let scrut_child = [(0, FocusExp(scrut))];
         let rule_children =
-          List.mapi(
-            (i, (pat, body)) => (i + 1, (pat, body)),
-            rules,
-          );
+          List.mapi((i, (pat, body)) => (i + 1, (pat, body)), rules);
         /* Search scrut as normal child, rules handled below */
         ignore(rule_children);
         scrut_child;
       /* Module items */
-      | Module(items) =>
-        List.mapi((i, m) => (i, FocusMod(m)), items)
+      | Module(items) => List.mapi((i, m) => (i, FocusMod(m)), items)
       };
     /* Search normal children */
     let found =
@@ -2256,14 +2404,23 @@ and find_in_pat = (target: Id.t, p: Pat.t): option(list(int)) =>
   } else {
     let children =
       switch (Pat.term_of(p)) {
-      | Invalid(_) | EmptyHole | Wild | Atom(_) | Constructor(_, _)
-      | Var(_) | Label(_) | ExplicitNonlabel | MultiHole(_) => []
-      | Parens(p1) | Projector(_, p1) => [(0, FocusPat(p1))]
-      | Cons(p1, p2) | TupLabel(p1, p2) | Ap(p1, p2) =>
-        [(0, FocusPat(p1)), (1, FocusPat(p2))]
+      | Invalid(_)
+      | EmptyHole
+      | Wild
+      | Atom(_)
+      | Constructor(_, _)
+      | Var(_)
+      | Label(_)
+      | ExplicitNonlabel
+      | MultiHole(_) => []
+      | Parens(p1)
+      | Projector(_, p1) => [(0, FocusPat(p1))]
+      | Cons(p1, p2)
+      | TupLabel(p1, p2)
+      | Ap(p1, p2) => [(0, FocusPat(p1)), (1, FocusPat(p2))]
       | Asc(p1, t) => [(0, FocusPat(p1)), (1, FocusTyp(t))]
-      | Tuple(items) | ListLit(items) =>
-        List.mapi((i, p') => (i, FocusPat(p')), items)
+      | Tuple(items)
+      | ListLit(items) => List.mapi((i, p') => (i, FocusPat(p')), items)
       };
     List.fold_left(
       (acc, (i, child)) =>
@@ -2282,16 +2439,24 @@ and find_in_typ = (target: Id.t, t: Typ.t): option(list(int)) =>
   } else {
     let children =
       switch (Typ.term_of(t)) {
-      | Unknown(_) | Atom(_) | Var(_) | Label(_) | ExplicitNonlabel
-      | Sum(_) | Sig(_) => []
-      | List(t1) | Parens(t1) | Projector(_, t1)
-      | Rec(_, t1) | Poly(_, t1) => [(0, FocusTyp(t1))]
-      | Arrow(t1, t2) | TupLabel(t1, t2)
-      | ProdProjection(t1, t2) | ProdExtension(t1, t2) =>
-        [(0, FocusTyp(t1)), (1, FocusTyp(t2))]
+      | Unknown(_)
+      | Atom(_)
+      | Var(_)
+      | Label(_)
+      | ExplicitNonlabel
+      | Sum(_)
+      | Sig(_) => []
+      | List(t1)
+      | Parens(t1)
+      | Projector(_, t1)
+      | Rec(_, t1)
+      | Poly(_, t1) => [(0, FocusTyp(t1))]
+      | Arrow(t1, t2)
+      | TupLabel(t1, t2)
+      | ProdProjection(t1, t2)
+      | ProdExtension(t1, t2) => [(0, FocusTyp(t1)), (1, FocusTyp(t2))]
       | ProofOf(e) => [(0, FocusExp(e))]
-      | Prod(items) =>
-        List.mapi((i, t') => (i, FocusTyp(t')), items)
+      | Prod(items) => List.mapi((i, t') => (i, FocusTyp(t')), items)
       };
     List.fold_left(
       (acc, (i, child)) =>
@@ -2310,7 +2475,9 @@ and find_in_mod = (target: Id.t, m: Mod.t): option(list(int)) =>
   } else {
     let children =
       switch (m.term) {
-      | Invalid(_) | EmptyHole | MultiHole(_) => []
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => []
       | ModLet(p, def) => [(0, FocusPat(p)), (1, FocusExp(def))]
       | ModType(_, t) => [(0, FocusTyp(t))]
       | ModuleMod(_, def) => [(0, FocusExp(def))]
@@ -2360,8 +2527,8 @@ let rec count_name_before = (name: string, e: Exp.t, target_id: Id.t): int =>
       find_in_exp(target_id, def) != None
       || find_in_pat(target_id, pat) != None;
     if (is_target_in_def) {
-      /* Target is in this let's def/pat — count is 0 for binders above */
       0;
+      /* Target is in this let's def/pat — count is 0 for binders above */
     } else {
       let increment =
         switch (pat_name_opt(pat)) {
@@ -2377,7 +2544,11 @@ let rec count_name_before = (name: string, e: Exp.t, target_id: Id.t): int =>
    used for counting shadowed names across the entire chain */
 let rec named_in_exp =
         (~chain_root=?, target: Id.t, e: Exp.t): option(sem_selector) => {
-  let cr = switch (chain_root) { | Some(r) => r | None => e };
+  let cr =
+    switch (chain_root) {
+    | Some(r) => r
+    | None => e
+    };
   if (Exp.rep_id(e) == target) {
     Some([MatchFocus]);
   } else {
@@ -2397,7 +2568,7 @@ let rec named_in_exp =
           switch (named_in_exp(target, def)) {
           | Some(inner) =>
             let name_step = make_name_step(name, cr, target);
-            Some([name_step, MatchDelimiter("="), ...inner])
+            Some([name_step, MatchDelimiter("="), ...inner]);
           | None =>
             /* Target in body? Continue down the let chain, preserving chain_root */
             named_in_exp(~chain_root=cr, target, body)
@@ -2416,13 +2587,19 @@ let rec named_in_exp =
       | None =>
         switch (find_in_exp(target, then_)) {
         | Some(idx_path) =>
-          Some([MatchKeyword("if"), MatchSlot, MatchKeyword("then")]
-               @ idx_to_steps(idx_path) @ [MatchFocus])
+          Some(
+            [MatchKeyword("if"), MatchSlot, MatchKeyword("then")]
+            @ idx_to_steps(idx_path)
+            @ [MatchFocus],
+          )
         | None =>
           switch (find_in_exp(target, else_)) {
           | Some(idx_path) =>
-            Some([MatchKeyword("if"), MatchEllipsis, MatchKeyword("else")]
-                 @ idx_to_steps(idx_path) @ [MatchFocus])
+            Some(
+              [MatchKeyword("if"), MatchEllipsis, MatchKeyword("else")]
+              @ idx_to_steps(idx_path)
+              @ [MatchFocus],
+            )
           | None => None
           }
         }
@@ -2431,12 +2608,16 @@ let rec named_in_exp =
     /* Fun: keyword-based */
     | Fun(pat, body, _, _) =>
       switch (find_in_pat(target, pat)) {
-      | Some(_) =>
-        Some([MatchKeyword("fun"), MatchFocus])
+      | Some(_) => Some([MatchKeyword("fun"), MatchFocus])
       | None =>
         switch (named_in_exp(target, body)) {
         | Some(inner) =>
-          Some([MatchKeyword("fun"), MatchSlot, MatchDelimiter("->"), ...inner])
+          Some([
+            MatchKeyword("fun"),
+            MatchSlot,
+            MatchDelimiter("->"),
+            ...inner,
+          ])
         | None => None
         }
       }
@@ -2445,15 +2626,16 @@ let rec named_in_exp =
     | Match(scrut, rules) =>
       switch (find_in_exp(target, scrut)) {
       | Some(idx_path) =>
-        Some([MatchKeyword("case")] @ idx_to_steps(idx_path) @ [MatchFocus])
+        Some(
+          [MatchKeyword("case")] @ idx_to_steps(idx_path) @ [MatchFocus],
+        )
       | None => named_in_rules(target, rules)
       }
 
     /* Test: keyword-based */
     | Test(body) =>
       switch (named_in_exp(target, body)) {
-      | Some(inner) =>
-        Some([MatchKeyword("test"), ...inner])
+      | Some(inner) => Some([MatchKeyword("test"), ...inner])
       | None => None
       }
 
@@ -2478,8 +2660,11 @@ let rec named_in_exp =
       | Some(name) =>
         switch (find_in_typ(target, tdef)) {
         | Some(idx_path) =>
-          Some([MatchKeyword("type"), MatchName(name), MatchDelimiter("=")]
-               @ idx_to_steps(idx_path) @ [MatchFocus])
+          Some(
+            [MatchKeyword("type"), MatchName(name), MatchDelimiter("=")]
+            @ idx_to_steps(idx_path)
+            @ [MatchFocus],
+          )
         | None => named_in_exp(~chain_root=cr, target, body)
         }
       | None => numeric_fallback(target, e)
@@ -2496,7 +2681,12 @@ let rec named_in_exp =
       | Some(name) =>
         switch (named_in_exp(target, def)) {
         | Some(inner) =>
-          Some([MatchKeyword("module"), MatchName(name), MatchDelimiter("="), ...inner])
+          Some([
+            MatchKeyword("module"),
+            MatchName(name),
+            MatchDelimiter("="),
+            ...inner,
+          ])
         | None => named_in_exp(~chain_root=cr, target, body)
         }
       | None => numeric_fallback(target, e)
@@ -2520,7 +2710,7 @@ let rec named_in_exp =
         };
       } else {
         numeric_fallback(target, e);
-      }
+      };
 
     /* Cons: use :: operator for named addressing of operands */
     | Cons(e1, e2) =>
@@ -2581,10 +2771,12 @@ and named_in_rules =
       /* Use constructor name if available */
       let pat_prefix =
         switch (Pat.term_of(pat)) {
-        | Constructor(name, _) =>
-          [MatchDelimiter("|"), MatchEllipsis, MatchName(name)]
-        | _ =>
-          [MatchDelimiter("|"), MatchEllipsis]
+        | Constructor(name, _) => [
+            MatchDelimiter("|"),
+            MatchEllipsis,
+            MatchName(name),
+          ]
+        | _ => [MatchDelimiter("|"), MatchEllipsis]
         };
       Some(pat_prefix @ [MatchFocus]);
     | None =>
@@ -2592,12 +2784,15 @@ and named_in_rules =
       | Some(inner) =>
         let pat_prefix =
           switch (Pat.term_of(pat)) {
-          | Constructor(name, _) =>
-            [MatchDelimiter("|"), MatchEllipsis, MatchName(name), MatchDelimiter("=>")]
-          | _ =>
-            [MatchDelimiter("|"), MatchEllipsis, MatchDelimiter("=>")]
+          | Constructor(name, _) => [
+              MatchDelimiter("|"),
+              MatchEllipsis,
+              MatchName(name),
+              MatchDelimiter("=>"),
+            ]
+          | _ => [MatchDelimiter("|"), MatchEllipsis, MatchDelimiter("=>")]
           };
-        Some(pat_prefix @ inner)
+        Some(pat_prefix @ inner);
       | None => named_in_rules(target, rest)
       }
     }
@@ -2631,7 +2826,8 @@ and named_in_module_items =
           let idx = List.length(items) - List.length([item, ...rest]);
           find_in_mod(target, item)
           |> Option.map(indices =>
-               [ChildIndex(idx), ...List.map(i => ChildIndex(i), indices)] @ [MatchFocus]
+               [ChildIndex(idx), ...List.map(i => ChildIndex(i), indices)]
+               @ [MatchFocus]
              );
         }
       | ModExp(e) =>
@@ -2644,7 +2840,8 @@ and named_in_module_items =
         let idx = List.length(items) - List.length([item, ...rest]);
         find_in_mod(target, item)
         |> Option.map(indices =>
-             [ChildIndex(idx), ...List.map(i => ChildIndex(i), indices)] @ [MatchFocus]
+             [ChildIndex(idx), ...List.map(i => ChildIndex(i), indices)]
+             @ [MatchFocus]
            );
       }
     | None => named_in_module_items(target, rest)
@@ -2702,8 +2899,7 @@ let deparse = (steps: sem_selector): string => {
       (acc: list(string), steps: sem_selector)
       : (list(string), sem_selector) =>
     switch (steps) {
-    | [EnterBinderDef(name), ...rest] =>
-      collect_chain(acc @ [name], rest)
+    | [EnterBinderDef(name), ...rest] => collect_chain(acc @ [name], rest)
     | _ => (acc, steps)
     };
   String.concat(" ", go(steps));

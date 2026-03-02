@@ -1190,7 +1190,12 @@ let selector_tests = (
   "AgentTools.Selectors",
   [
     /* Let spine */
-    sel_test(~name="let x = *", ~code="let x = 42 in x", ~sel="let x = *", ~expected="42"),
+    sel_test(
+      ~name="let x = *",
+      ~code="let x = 42 in x",
+      ~sel="let x = *",
+      ~expected="42",
+    ),
     sel_test(
       ~name="let x _... in *",
       ~code="let x = 42 in x + 1",
@@ -1204,16 +1209,46 @@ let selector_tests = (
       ~expected="2",
     ),
     /* Binder chain */
-    sel_test(~name="m/x = *", ~code="let m = { let x = 42 } in m.x", ~sel="m/x = *", ~expected="42"),
+    sel_test(
+      ~name="m/x = *",
+      ~code="let m = { let x = 42 } in m.x",
+      ~sel="m/x = *",
+      ~expected="42",
+    ),
     /* If spine */
     sel_test(~name="if *", ~code=if_program, ~sel="if *", ~expected="true"),
-    sel_test(~name="if _ then *", ~code=if_program, ~sel="if _ then *", ~expected="1"),
-    sel_test(~name="if _... else *", ~code=if_program, ~sel="if _... else *", ~expected="0"),
+    sel_test(
+      ~name="if _ then *",
+      ~code=if_program,
+      ~sel="if _ then *",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="if _... else *",
+      ~code=if_program,
+      ~sel="if _... else *",
+      ~expected="0",
+    ),
     /* Descendant search */
-    sel_test(~name="descend if then", ~code=let_fun_if, ~sel="let f = \\... if _ then *", ~expected="x"),
+    sel_test(
+      ~name="descend if then",
+      ~code=let_fun_if,
+      ~sel="let f = \\... if _ then *",
+      ~expected="x",
+    ),
     /* Case/match spine */
-    sel_test(~name="case *", ~code=case_program, ~sel="case *", ~expected="x"),
-    sel_test(~name="| B => *", ~code=case_program, ~sel="| B => *", ~expected="2"),
+    sel_test(
+      ~name="case *",
+      ~code=case_program,
+      ~sel="case *",
+      ~expected="x",
+    ),
+    sel_test(
+      ~name="| B => *",
+      ~code=case_program,
+      ~sel="| B => *",
+      ~expected="2",
+    ),
     /* Wildcard arm matching: | _ => * matches any single arm body */
     test_case(
       "| _ => * matches all arm bodies",
@@ -1223,18 +1258,32 @@ let selector_tests = (
         check(int, "match count", 2, List.length(results));
       },
     ),
-    sel_test(~name="| _ => * (3 arms)", ~code="case x | A => 1 | B => 2 | C => 3 end", ~sel="case _... | C => *", ~expected="3"),
+    sel_test(
+      ~name="| _ => * (3 arms)",
+      ~code="case x | A => 1 | B => 2 | C => 3 end",
+      ~sel="case _... | C => *",
+      ~expected="3",
+    ),
     /* Wildcard arm with continuation: | _ => <walk> */
     test_case(
       "\\... | _ => * returns all arm bodies via descend",
       `Quick,
       () => {
-        let results = selector_query("let f = fun x -> case x | A => 1 | B => 2 end in f 0", "\\... | _ => *");
+        let results =
+          selector_query(
+            "let f = fun x -> case x | A => 1 | B => 2 end in f 0",
+            "\\... | _ => *",
+          );
         check(int, "match count", 2, List.length(results));
       },
     ),
     /* Ellipsis in arms: | _... <name> => * */
-    sel_test(~name="| _... Decrement => *", ~code=case_msg, ~sel="| _... Decrement => *", ~expected="count - 1"),
+    sel_test(
+      ~name="| _... Decrement => *",
+      ~code=case_msg,
+      ~sel="| _... Decrement => *",
+      ~expected="count - 1",
+    ),
     /* No match */
     test_case(
       "no match returns error",
@@ -1295,7 +1344,12 @@ let selector_tests = (
       },
     ),
     /* Spec examples */
-    sel_test(~name="spec: descend if *", ~code=let_fun_if, ~sel="let f = \\... if *", ~expected="x > 0"),
+    sel_test(
+      ~name="spec: descend if *",
+      ~code=let_fun_if,
+      ~sel="let f = \\... if *",
+      ~expected="x > 0",
+    ),
     sel_test(
       ~name="spec: descend if _ then *",
       ~code=let_fun_if,
@@ -1369,17 +1423,36 @@ let selector_tests = (
       ~sel="\\... let b = *",
       ~expected="42",
     ),
-    test_case("let b = * (NOT found at root)", `Quick, () => {
-      let result = selector_query_unique(
-        "let a = (let b = 42 in b) in a", "let b = *");
-      /* Verify base error + diagnostics */
-      check(bool, "has error prefix", true,
-        str_contains(result, "ERROR: No match"));
-      check(bool, "did-you-mean", true,
-        str_contains(result, "Did you mean: a"));
-      check(bool, "available names", true,
-        str_contains(result, "Available names: a"));
-    }),
+    test_case(
+      "let b = * (NOT found at root)",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "let a = (let b = 42 in b) in a",
+            "let b = *",
+          );
+        /* Verify base error + diagnostics */
+        check(
+          bool,
+          "has error prefix",
+          true,
+          str_contains(result, "ERROR: No match"),
+        );
+        check(
+          bool,
+          "did-you-mean",
+          true,
+          str_contains(result, "Did you mean: a"),
+        );
+        check(
+          bool,
+          "available names",
+          true,
+          str_contains(result, "Available names: a"),
+        );
+      },
+    ),
     /* === Fun spine tests === */
     sel_test(
       ~name="fun _ -> *",
@@ -1489,10 +1562,7 @@ let selector_tests = (
       "* let x selects whole let",
       `Quick,
       () => {
-        let result = selector_query_unique(
-          "let x = 42 in x + 1",
-          "* let x",
-        );
+        let result = selector_query_unique("let x = 42 in x + 1", "* let x");
         /* Should return the entire let expression, not an error */
         check(
           bool,
@@ -1500,12 +1570,7 @@ let selector_tests = (
           false,
           String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
         );
-        check(
-          bool,
-          "has let",
-          true,
-          string_contains("let", result),
-        );
+        check(bool, "has let", true, string_contains("let", result));
       },
     ),
     test_case(
@@ -1513,7 +1578,8 @@ let selector_tests = (
       `Quick,
       () => {
         let code = "let f = fun x -> x + 1 in f";
-        let result = selector_query_unique(code, "let f = \\... * fun _ -> *");
+        let result =
+          selector_query_unique(code, "let f = \\... * fun _ -> *");
         /* The first * focuses, the second is in the fun spine */
         check(
           bool,
@@ -1550,8 +1616,7 @@ let selector_tests = (
     ),
     sel_test(
       ~name="module nested: A/B/x = *",
-      ~code=
-        "module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
+      ~code="module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
       ~sel="A/B/x = *",
       ~expected="42",
     ),
@@ -1592,8 +1657,7 @@ let selector_tests = (
     /* descend_all recurses into ModuleMod defs */
     sel_test(
       ~name="descend into nested ModuleMod def",
-      ~code=
-        "module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
+      ~code="module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
       ~sel="\\... let x = *",
       ~expected="42",
     ),
@@ -1623,14 +1687,21 @@ let selector_tests = (
       ~expected="x",
     ),
     /* Out-of-range index diagnostic */
-    test_case("x#5 out of range", `Quick, () => {
-      let result = selector_query_unique(
-        "let x = 1 in let x = 2 in x", "x#5 = *");
-      check(bool, "has error prefix", true,
-        str_contains(result, "ERROR"));
-      check(bool, "mentions count", true,
-        str_contains(result, "2 binding(s) named 'x'"));
-    }),
+    test_case(
+      "x#5 out of range",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique("let x = 1 in let x = 2 in x", "x#5 = *");
+        check(bool, "has error prefix", true, str_contains(result, "ERROR"));
+        check(
+          bool,
+          "mentions count",
+          true,
+          str_contains(result, "2 binding(s) named 'x'"),
+        );
+      },
+    ),
     /* Index with let keyword */
     sel_test(
       ~name="let x#0 = * with let keyword",
@@ -1701,7 +1772,8 @@ let selector_tests = (
       "app: App/update \\... | _ => * (all arms)",
       `Quick,
       () => {
-        let results = selector_query(app_program, "App/update \\... | _ => *");
+        let results =
+          selector_query(app_program, "App/update \\... | _ => *");
         check(int, "match count", 3, List.length(results));
       },
     ),
@@ -1718,7 +1790,12 @@ let selector_tests = (
       `Quick,
       () => {
         let results = selector_query(app_program, "\\... fun _ -> *");
-        check(bool, "at least 2 fun bodies", true, List.length(results) >= 2);
+        check(
+          bool,
+          "at least 2 fun bodies",
+          true,
+          List.length(results) >= 2,
+        );
       },
     ),
     /* Module def — check starts with expected prefix */
@@ -1727,9 +1804,13 @@ let selector_tests = (
       `Quick,
       () => {
         let result = selector_query_unique(app_program, "module App = *");
-        check(bool, "starts with { let init", true,
+        check(
+          bool,
+          "starts with { let init",
+          true,
           String.length(result) >= 10
-          && String.sub(result, 0, 10) == "{ let init");
+          && String.sub(result, 0, 10) == "{ let init",
+        );
       },
     ),
     /* Module body (after in) */
@@ -1738,9 +1819,13 @@ let selector_tests = (
       `Quick,
       () => {
         let result = selector_query_unique(app_program, "App _... in *");
-        check(bool, "starts with let result", true,
+        check(
+          bool,
+          "starts with let result",
+          true,
           String.length(result) >= 10
-          && String.sub(result, 0, 10) == "let result");
+          && String.sub(result, 0, 10) == "let result",
+        );
       },
     ),
     /* Whole-binding focus */
@@ -1749,9 +1834,13 @@ let selector_tests = (
       `Quick,
       () => {
         let result = selector_query_unique(app_program, "\\... * let result");
-        check(bool, "starts with let result", true,
+        check(
+          bool,
+          "starts with let result",
+          true,
           String.length(result) >= 10
-          && String.sub(result, 0, 10) == "let result");
+          && String.sub(result, 0, 10) == "let result",
+        );
       },
     ),
     /* === Test spine ellipsis === */
@@ -1769,101 +1858,179 @@ let selector_tests = (
     ),
     /* === Diagnostic tests === */
     /* Name not found: suggest similar + list available */
-    test_case("diag: name not found with suggestion", `Quick, () => {
-      let result = selector_query_unique(
-        "let foo = 1 in let bar = 2 in foo + bar", "let baz = *");
-      check(bool, "is error", true,
-        str_contains(result, "ERROR:"));
-      check(bool, "suggests bar", true,
-        str_contains(result, "Did you mean: bar"));
-      check(bool, "lists available", true,
-        str_contains(result, "foo") && str_contains(result, "bar"));
-    }),
+    test_case(
+      "diag: name not found with suggestion",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "let foo = 1 in let bar = 2 in foo + bar",
+            "let baz = *",
+          );
+        check(bool, "is error", true, str_contains(result, "ERROR:"));
+        check(
+          bool,
+          "suggests bar",
+          true,
+          str_contains(result, "Did you mean: bar"),
+        );
+        check(
+          bool,
+          "lists available",
+          true,
+          str_contains(result, "foo") && str_contains(result, "bar"),
+        );
+      },
+    ),
     /* Name not found: no similar names (Levenshtein > 2) */
-    test_case("diag: name not found, no suggestion", `Quick, () => {
-      let result = selector_query_unique(
-        "let x = 1 in x", "let zzzzz = *");
-      check(bool, "is error", true,
-        str_contains(result, "ERROR:"));
-      check(bool, "no did-you-mean", false,
-        str_contains(result, "Did you mean"));
-      check(bool, "lists available", true,
-        str_contains(result, "Available names: x"));
-    }),
+    test_case(
+      "diag: name not found, no suggestion",
+      `Quick,
+      () => {
+        let result = selector_query_unique("let x = 1 in x", "let zzzzz = *");
+        check(bool, "is error", true, str_contains(result, "ERROR:"));
+        check(
+          bool,
+          "no did-you-mean",
+          false,
+          str_contains(result, "Did you mean"),
+        );
+        check(
+          bool,
+          "lists available",
+          true,
+          str_contains(result, "Available names: x"),
+        );
+      },
+    ),
     /* Keyword mismatch: if on a let */
-    test_case("diag: keyword mismatch", `Quick, () => {
-      let result = selector_query_unique(
-        "let x = 1 in x", "if *");
-      check(bool, "is error", true,
-        str_contains(result, "ERROR:"));
-      check(bool, "failed at first step", true,
-        str_contains(result, "Failed at first step: if"));
-    }),
+    test_case(
+      "diag: keyword mismatch",
+      `Quick,
+      () => {
+        let result = selector_query_unique("let x = 1 in x", "if *");
+        check(bool, "is error", true, str_contains(result, "ERROR:"));
+        check(
+          bool,
+          "failed at first step",
+          true,
+          str_contains(result, "Failed at first step: if"),
+        );
+      },
+    ),
     /* Binder chain: first segment fails */
-    test_case("diag: chain first segment fails", `Quick, () => {
-      let result = selector_query_unique(
-        "module App = { let x = 1 } in App.x", "Apl/x = *");
-      check(bool, "is error", true,
-        str_contains(result, "ERROR:"));
-      check(bool, "suggests App", true,
-        str_contains(result, "Did you mean: App"));
-    }),
+    test_case(
+      "diag: chain first segment fails",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "module App = { let x = 1 } in App.x",
+            "Apl/x = *",
+          );
+        check(bool, "is error", true, str_contains(result, "ERROR:"));
+        check(
+          bool,
+          "suggests App",
+          true,
+          str_contains(result, "Did you mean: App"),
+        );
+      },
+    ),
     /* Partial match: let keyword matches but name fails */
-    test_case("diag: partial match on let", `Quick, () => {
-      let result = selector_query_unique(
-        "let alpha = 1 in let beta = 2 in alpha + beta", "let gamma = *");
-      check(bool, "is error", true,
-        str_contains(result, "ERROR:"));
-      check(bool, "matched let", true,
-        str_contains(result, "Matched up to: let"));
-      check(bool, "failed at gamma", true,
-        str_contains(result, "Failed at: gamma"));
-    }),
+    test_case(
+      "diag: partial match on let",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "let alpha = 1 in let beta = 2 in alpha + beta",
+            "let gamma = *",
+          );
+        check(bool, "is error", true, str_contains(result, "ERROR:"));
+        check(
+          bool,
+          "matched let",
+          true,
+          str_contains(result, "Matched up to: let"),
+        );
+        check(
+          bool,
+          "failed at gamma",
+          true,
+          str_contains(result, "Failed at: gamma"),
+        );
+      },
+    ),
     /* Module-scoped name diagnostics */
-    test_case("diag: module member not found", `Quick, () => {
-      let result = selector_query_unique(
-        "module M = { let x = 1; let y = 2 } in M.x", "M/z = *");
-      check(bool, "is error", true,
-        str_contains(result, "ERROR:"));
-      check(bool, "lists available in module", true,
-        str_contains(result, "x") && str_contains(result, "y"));
-    }),
+    test_case(
+      "diag: module member not found",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            "module M = { let x = 1; let y = 2 } in M.x",
+            "M/z = *",
+          );
+        check(bool, "is error", true, str_contains(result, "ERROR:"));
+        check(
+          bool,
+          "lists available in module",
+          true,
+          str_contains(result, "x") && str_contains(result, "y"),
+        );
+      },
+    ),
     /* === Double descent === */
     /* \... \... is idempotent: collapsed to single \... in elaboration */
-    test_case("double descent is idempotent", `Quick, () => {
-      let code =
-        "let f = fun x -> case x | A => 1 | B => 2 end in "
-        ++ "let g = fun y -> case y | C => 3 | D => 4 end in "
-        ++ "f(g(0))";
-      let single = selector_query(code, "\\... | _ => *");
-      let double = selector_query(code, "\\... \\... | _ => *");
-      check(int, "same count", List.length(single), List.length(double));
-    }),
+    test_case(
+      "double descent is idempotent",
+      `Quick,
+      () => {
+        let code =
+          "let f = fun x -> case x | A => 1 | B => 2 end in "
+          ++ "let g = fun y -> case y | C => 3 | D => 4 end in "
+          ++ "f(g(0))";
+        let single = selector_query(code, "\\... | _ => *");
+        let double = selector_query(code, "\\... \\... | _ => *");
+        check(int, "same count", List.length(single), List.length(double));
+      },
+    ),
     /* Descend + chain + spine: complex composition */
-    test_case("chain + descend + if else + focus", `Quick, () => {
-      let code =
-        "module M = { "
-        ++ "let f = fun x -> if x > 0 then x + 1 else x - 1 "
-        ++ "} in M.f(5)";
-      let result = selector_query_unique(code, "M/f \\... if _... else *");
-      check(string, "else branch", "x - 1", result);
-    }),
+    test_case(
+      "chain + descend + if else + focus",
+      `Quick,
+      () => {
+        let code =
+          "module M = { "
+          ++ "let f = fun x -> if x > 0 then x + 1 else x - 1 "
+          ++ "} in M.f(5)";
+        let result = selector_query_unique(code, "M/f \\... if _... else *");
+        check(string, "else branch", "x - 1", result);
+      },
+    ),
     /* InsertAfter via selector + verify result via selector query */
-    test_case("selector roundtrip: insert then query", `Quick, () => {
-      let code = "let x = 1 in x + 1";
-      switch (run_agent_action(code, SelectorInsertAfter("* let x", "let y = 2"))) {
-      | Ok(new_z) =>
-        let new_term = MakeTerm.from_zip_for_sem(new_z).term;
-        /* Verify the inserted binding exists */
-        let y_results = Selector.query("let y = *", new_term);
-        check(int, "y binding found", 1, List.length(y_results));
-        /* Verify original still exists */
-        let x_results = Selector.query("let x = *", new_term);
-        check(int, "x binding still there", 1, List.length(x_results));
-      | Error(err) =>
-        Alcotest.fail("Insert failed: " ++ Action.Failure.show(err))
-      }
-    }),
+    test_case(
+      "selector roundtrip: insert then query",
+      `Quick,
+      () => {
+        let code = "let x = 1 in x + 1";
+        switch (
+          run_agent_action(code, SelectorInsertAfter("* let x", "let y = 2"))
+        ) {
+        | Ok(new_z) =>
+          let new_term = MakeTerm.from_zip_for_sem(new_z).term;
+          /* Verify the inserted binding exists */
+          let y_results = Selector.query("let y = *", new_term);
+          check(int, "y binding found", 1, List.length(y_results));
+          /* Verify original still exists */
+          let x_results = Selector.query("let x = *", new_term);
+          check(int, "x binding still there", 1, List.length(x_results));
+        | Error(err) =>
+          Alcotest.fail("Insert failed: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
     /* === Chain trailing-slash semantics === */
     /* a/ (trailing slash, single segment) = enter a's def */
     sel_test(
@@ -1951,8 +2118,7 @@ let selector_tests = (
     /* module keyword matches ModuleMod inside Module items */
     sel_test(
       ~name="module B = * inside module items",
-      ~code=
-        "module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
+      ~code="module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
       ~sel="A/ \\... module B = *",
       ~expected="{ let x = 42 }",
     ),
@@ -1966,8 +2132,7 @@ let selector_tests = (
     /* module B = * inside module items → focuses on B's def */
     sel_test(
       ~name="module B = * inside module items",
-      ~code=
-        "module A = { module B = { let x = 42 } } in A.B.x",
+      ~code="module A = { module B = { let x = 42 } } in A.B.x",
       ~sel="A/ \\... module B = *",
       ~expected="{ let x = 42 }",
     ),
@@ -2025,22 +2190,24 @@ let selector_tests = (
       ~expected="42",
     ),
     /* === Chain equivalence: compact vs spaced === */
-    test_case("spaced chain = compact chain", `Quick, () => {
-      let code = "let a = { let b = { let c = 99 } } in a.b.c";
-      let compact = selector_query_unique(code, "a/b/c/ *");
-      let spaced = selector_query_unique(code, "a/ b/ c/ *");
-      check(string, "same result", compact, spaced);
-    }),
+    test_case(
+      "spaced chain = compact chain",
+      `Quick,
+      () => {
+        let code = "let a = { let b = { let c = 99 } } in a.b.c";
+        let compact = selector_query_unique(code, "a/b/c/ *");
+        let spaced = selector_query_unique(code, "a/ b/ c/ *");
+        check(string, "same result", compact, spaced);
+      },
+    ),
     /* === FocusMod: module B bare name inside module items === */
     sel_test_rendered(
       ~name="module B (bare) inside module = FocusMod",
-      ~code=
-        "module A = { module B = { let x = 42 } } in A.B.x",
+      ~code="module A = { module B = { let x = 42 } } in A.B.x",
       ~sel="A/ \\... module B",
       ~expected="module B = { let x = 42 }",
     ),
     /* === Indexing for non-let binders === */
-
     /* module#N: disambiguate shadowed module binders */
     sel_test(
       ~name="module M#0 = * (first module)",
@@ -2067,9 +2234,7 @@ let selector_tests = (
       ~sel="type T#1 = *",
       ~expected="Bool",
     ),
-
     /* === ChildIndex: numeric child addressing === */
-
     /* Let: #0=pat, #1=def, #2=body */
     sel_test(
       ~name="#1 on let = def",
@@ -2089,7 +2254,6 @@ let selector_tests = (
       ~sel="#0",
       ~expected="x",
     ),
-
     /* BinOp: #0=left, #1=right */
     sel_test(
       ~name="x = #0 (left of binop)",
@@ -2103,7 +2267,6 @@ let selector_tests = (
       ~sel="x = #1",
       ~expected="2",
     ),
-
     /* Deep traversal: #1 #0 #0 */
     sel_test(
       ~name="#1 #0 (nested: left of inner binop)",
@@ -2123,7 +2286,6 @@ let selector_tests = (
       ~sel="x = #0 #0 #1",
       ~expected="2",
     ),
-
     /* Parens: #0 enters parens */
     sel_test(
       ~name="x = #0 (enters parens)",
@@ -2131,7 +2293,6 @@ let selector_tests = (
       ~sel="x = #0",
       ~expected="42",
     ),
-
     /* If: #0=cond, #1=then, #2=else */
     sel_test(
       ~name="#0 on if = cond",
@@ -2151,7 +2312,6 @@ let selector_tests = (
       ~sel="#2",
       ~expected="0",
     ),
-
     /* Cross-sort: Pat → Typ via Asc */
     sel_test_rendered(
       ~name="#0 #1 (pat Asc → type annotation)",
@@ -2165,7 +2325,6 @@ let selector_tests = (
       ~sel="#0 #0",
       ~expected="x",
     ),
-
     /* Cross-sort: Exp → Typ via Asc expression.
        (42 : Int) parses as Parens(Asc(42, Int)): #0 enters Parens, #1 gets type */
     sel_test_rendered(
@@ -2174,7 +2333,6 @@ let selector_tests = (
       ~sel="x = #0 #1",
       ~expected="Int",
     ),
-
     /* Tuple: (1, 2, 3) parses as Parens(Tuple(...)). #0 enters Parens,
        then #0/#1/#2 select tuple elements. */
     sel_test(
@@ -2189,7 +2347,6 @@ let selector_tests = (
       ~sel="x = #0 #2",
       ~expected="3",
     ),
-
     /* ListLit: #0, #1, #2 = elements (direct, no extra nesting) */
     sel_test(
       ~name="x = #0 (list first)",
@@ -2203,7 +2360,6 @@ let selector_tests = (
       ~sel="x = #2",
       ~expected="30",
     ),
-
     /* Match: #0=scrut, #1=(rule0 pair), #2=(rule1 pair) */
     sel_test(
       ~name="case #0 (scrutinee)",
@@ -2235,7 +2391,6 @@ let selector_tests = (
       ~sel="#2 #1",
       ~expected="2",
     ),
-
     /* Fun: #0=pat, #1=body */
     sel_test_rendered(
       ~name="fun #0 (pat)",
@@ -2249,7 +2404,6 @@ let selector_tests = (
       ~sel="#1",
       ~expected="x + 1",
     ),
-
     /* Module: #0, #1 = items */
     sel_test_rendered(
       ~name="M/ #0 (first module item)",
@@ -2263,7 +2417,6 @@ let selector_tests = (
       ~sel="m = #1",
       ~expected="let y = 2",
     ),
-
     /* ModItem child: #0 on ModLet = pat, #1 = def */
     sel_test(
       ~name="M/ #0 #1 (first item def)",
@@ -2277,7 +2430,6 @@ let selector_tests = (
       ~sel="m = #0 #0",
       ~expected="x",
     ),
-
     /* Mixing named + index: use name to navigate, index for anonymous parts */
     sel_test(
       ~name="named + index: x = #0 (left of +)",
@@ -2291,15 +2443,20 @@ let selector_tests = (
       ~sel="x = #1",
       ~expected="20",
     ),
-
     /* Out-of-range index: should produce error */
-    test_case("#5 out of range", `Quick, () => {
-      let result = selector_query_unique("let x = 42 in x", "#5");
-      check(bool, "starts with ERROR", true,
-        String.length(result) >= 5
-        && String.sub(result, 0, 5) == "ERROR");
-    }),
-
+    test_case(
+      "#5 out of range",
+      `Quick,
+      () => {
+        let result = selector_query_unique("let x = 42 in x", "#5");
+        check(
+          bool,
+          "starts with ERROR",
+          true,
+          String.length(result) >= 5 && String.sub(result, 0, 5) == "ERROR",
+        );
+      },
+    ),
     /* BinOp spine */
     sel_test(
       ~name="_ + * (right operand)",
@@ -2363,57 +2520,78 @@ let selector_tests = (
 /* Helper: parse code, resolve a selector to get a node, generate canonical
    path for that node, verify the deparsed path matches expected string */
 let canonical_test = (~name, ~code, ~sel, ~expected_path) =>
-  test_case(name, `Quick, () => {
-    let root = mk_term(code);
-    /* Resolve the selector to get the target node ID */
-    switch (Selector.query_unique(sel, root)) {
-    | Error(e) => fail(name ++ ": selector failed: " ++ e)
-    | Ok(m) =>
-      /* Generate canonical numeric path */
-      switch (Selector.canonical_numeric(m.focused_id, root)) {
-      | None => fail(name ++ ": canonical_numeric returned None")
-      | Some(path) =>
-        let deparsed = Selector.deparse(path);
-        check(string, name ++ " path", expected_path, deparsed);
-        /* Roundtrip: resolve the canonical path, verify same ID */
-        switch (Selector.query_unique(deparsed, root)) {
-        | Error(e) =>
-          fail(name ++ ": roundtrip resolve failed: " ++ e)
-        | Ok(m2) =>
-          check(bool, name ++ " roundtrip ID",
-            true, m.focused_id == m2.focused_id)
-        };
-      }
-    };
-  });
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let root = mk_term(code);
+      /* Resolve the selector to get the target node ID */
+      switch (Selector.query_unique(sel, root)) {
+      | Error(e) => fail(name ++ ": selector failed: " ++ e)
+      | Ok(m) =>
+        /* Generate canonical numeric path */
+        switch (Selector.canonical_numeric(m.focused_id, root)) {
+        | None => fail(name ++ ": canonical_numeric returned None")
+        | Some(path) =>
+          let deparsed = Selector.deparse(path);
+          check(string, name ++ " path", expected_path, deparsed);
+          /* Roundtrip: resolve the canonical path, verify same ID */
+          switch (Selector.query_unique(deparsed, root)) {
+          | Error(e) => fail(name ++ ": roundtrip resolve failed: " ++ e)
+          | Ok(m2) =>
+            check(
+              bool,
+              name ++ " roundtrip ID",
+              true,
+              m.focused_id == m2.focused_id,
+            )
+          };
+        }
+      };
+    },
+  );
 
 /* Helper: roundtrip only — verify canonical path resolves to same node */
 let canonical_roundtrip = (~name, ~code, ~sel) =>
-  test_case(name, `Quick, () => {
-    let root = mk_term(code);
-    switch (Selector.query_unique(sel, root)) {
-    | Error(e) => fail(name ++ ": selector failed: " ++ e)
-    | Ok(m) =>
-      switch (Selector.canonical_numeric(m.focused_id, root)) {
-      | None => fail(name ++ ": canonical_numeric returned None")
-      | Some(path) =>
-        let deparsed = Selector.deparse(path);
-        switch (Selector.query_unique(deparsed, root)) {
-        | Error(e) =>
-          fail(name ++ ": roundtrip failed: " ++ e ++ " (path: " ++ deparsed ++ ")")
-        | Ok(m2) =>
-          check(bool, name ++ " roundtrip",
-            true, m.focused_id == m2.focused_id)
-        };
-      }
-    };
-  });
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let root = mk_term(code);
+      switch (Selector.query_unique(sel, root)) {
+      | Error(e) => fail(name ++ ": selector failed: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_numeric(m.focused_id, root)) {
+        | None => fail(name ++ ": canonical_numeric returned None")
+        | Some(path) =>
+          let deparsed = Selector.deparse(path);
+          switch (Selector.query_unique(deparsed, root)) {
+          | Error(e) =>
+            fail(
+              name
+              ++ ": roundtrip failed: "
+              ++ e
+              ++ " (path: "
+              ++ deparsed
+              ++ ")",
+            )
+          | Ok(m2) =>
+            check(
+              bool,
+              name ++ " roundtrip",
+              true,
+              m.focused_id == m2.focused_id,
+            )
+          };
+        }
+      };
+    },
+  );
 
 let canonical_tests = (
   "AgentTools.Canonical",
   [
     /* === Canonical numeric path generation === */
-
     /* Root node: empty path */
     canonical_test(
       ~name="root = self",
@@ -2421,7 +2599,6 @@ let canonical_tests = (
       ~sel="*",
       ~expected_path="*",
     ),
-
     /* Let children */
     canonical_test(
       ~name="let def",
@@ -2440,7 +2617,6 @@ let canonical_tests = (
       ~code="let x = 42 in x",
       ~sel="#0",
     ),
-
     /* BinOp children */
     canonical_test(
       ~name="binop left",
@@ -2454,7 +2630,6 @@ let canonical_tests = (
       ~sel="x = #1",
       ~expected_path="#1 #1 *",
     ),
-
     /* Deep nested */
     canonical_test(
       ~name="deep left-left",
@@ -2468,7 +2643,6 @@ let canonical_tests = (
       ~sel="x = #0 #0 #1",
       ~expected_path="#1 #0 #0 #1 *",
     ),
-
     /* If */
     canonical_test(
       ~name="if cond",
@@ -2488,7 +2662,6 @@ let canonical_tests = (
       ~sel="if _... else *",
       ~expected_path="#2 *",
     ),
-
     /* Cross-sort: Pat */
     canonical_roundtrip(
       ~name="pat in let",
@@ -2501,7 +2674,6 @@ let canonical_tests = (
       ~code="let x : Int = 42 in x",
       ~sel="#0 #1",
     ),
-
     /* Tuple elements (via Parens) */
     canonical_test(
       ~name="tuple first",
@@ -2515,7 +2687,6 @@ let canonical_tests = (
       ~sel="x = #0 #2",
       ~expected_path="#1 #0 #2 *",
     ),
-
     /* List elements */
     canonical_test(
       ~name="list first",
@@ -2529,7 +2700,6 @@ let canonical_tests = (
       ~sel="x = #2",
       ~expected_path="#1 #2 *",
     ),
-
     /* Match: scrutinee and rule pairs */
     canonical_test(
       ~name="match scrut",
@@ -2559,20 +2729,14 @@ let canonical_tests = (
       ~sel="#2 #1",
       ~expected_path="#2 #1 *",
     ),
-
     /* Fun */
-    canonical_roundtrip(
-      ~name="fun pat",
-      ~code="fun x -> x + 1",
-      ~sel="#0",
-    ),
+    canonical_roundtrip(~name="fun pat", ~code="fun x -> x + 1", ~sel="#0"),
     canonical_test(
       ~name="fun body",
       ~code="fun x -> x + 1",
       ~sel="#1",
       ~expected_path="#1 *",
     ),
-
     /* Module items */
     canonical_roundtrip(
       ~name="module item 0",
@@ -2584,7 +2748,6 @@ let canonical_tests = (
       ~code="let m = { let x = 1; let y = 2 } in m",
       ~sel="m = #1",
     ),
-
     /* ModItem children */
     canonical_roundtrip(
       ~name="mod item pat",
@@ -2597,7 +2760,6 @@ let canonical_tests = (
       ~sel="m = #0 #1",
       ~expected_path="#1 #0 #1 *",
     ),
-
     /* Nested let chain */
     canonical_test(
       ~name="nested let: inner def",
@@ -2611,7 +2773,6 @@ let canonical_tests = (
       ~sel="#2 #2",
       ~expected_path="#2 #2 *",
     ),
-
     /* Seq */
     canonical_test(
       ~name="seq first",
@@ -2625,328 +2786,442 @@ let canonical_tests = (
       ~sel="#1",
       ~expected_path="#1 *",
     ),
-
     /* === Deparse tests === */
-
-    test_case("deparse: numeric path", `Quick, () => {
-      open Selector;
-      let path = [ChildIndex(1), ChildIndex(0), MatchFocus];
-      check(string, "deparse", "#1 #0 *", deparse(path));
-    }),
+    test_case(
+      "deparse: numeric path",
+      `Quick,
+      () => {
+        open Selector;
+        let path = [ChildIndex(1), ChildIndex(0), MatchFocus];
+        check(string, "deparse", "#1 #0 *", deparse(path));
+      },
+    ),
     test_case("deparse: just focus", `Quick, () => {
-      check(string, "deparse", "*", Selector.deparse([Selector.MatchFocus]));
+      check(string, "deparse", "*", Selector.deparse([Selector.MatchFocus]))
     }),
-    test_case("deparse: named steps", `Quick, () => {
-      open Selector;
-      let path = [MatchKeyword("let"), MatchName("x"), MatchDelimiter("="), MatchFocus];
-      check(string, "deparse", "let x = *", deparse(path));
-    }),
-    test_case("deparse: descend + name", `Quick, () => {
-      open Selector;
-      let path = [DescendInto, MatchKeyword("let"), MatchName("y"), MatchDelimiter("="), MatchFocus];
-      check(string, "deparse", "\\... let y = *", deparse(path));
-    }),
-    test_case("deparse: name index", `Quick, () => {
-      open Selector;
-      let path = [MatchKeyword("let"), MatchNameIndex("x", 1), MatchDelimiter("="), MatchFocus];
-      check(string, "deparse", "let x#1 = *", deparse(path));
-    }),
-    test_case("deparse: chain no trailing slash", `Quick, () => {
-      open Selector;
-      let path = [EnterBinderDef("A"), EnterBinderDef("B"), MatchName("x"), MatchDelimiter("="), MatchFocus];
-      check(string, "deparse", "A/B/x = *", deparse(path));
-    }),
-    test_case("deparse: chain with trailing slash", `Quick, () => {
-      open Selector;
-      let path = [EnterBinderDef("A"), EnterBinderDef("B"), MatchKeyword("let"), MatchName("y"), MatchDelimiter("="), MatchFocus];
-      check(string, "deparse", "A/B/ let y = *", deparse(path));
-    }),
-    test_case("deparse: single enter + name", `Quick, () => {
-      open Selector;
-      let path = [EnterBinderDef("M"), MatchName("x"), MatchDelimiter("="), MatchFocus];
-      check(string, "deparse", "M/x = *", deparse(path));
-    }),
-    test_case("deparse: single enter trailing slash", `Quick, () => {
-      open Selector;
-      let path = [EnterBinderDef("M"), MatchFocus];
-      check(string, "deparse", "M/ *", deparse(path));
-    }),
-
+    test_case(
+      "deparse: named steps",
+      `Quick,
+      () => {
+        open Selector;
+        let path = [
+          MatchKeyword("let"),
+          MatchName("x"),
+          MatchDelimiter("="),
+          MatchFocus,
+        ];
+        check(string, "deparse", "let x = *", deparse(path));
+      },
+    ),
+    test_case(
+      "deparse: descend + name",
+      `Quick,
+      () => {
+        open Selector;
+        let path = [
+          DescendInto,
+          MatchKeyword("let"),
+          MatchName("y"),
+          MatchDelimiter("="),
+          MatchFocus,
+        ];
+        check(string, "deparse", "\\... let y = *", deparse(path));
+      },
+    ),
+    test_case(
+      "deparse: name index",
+      `Quick,
+      () => {
+        open Selector;
+        let path = [
+          MatchKeyword("let"),
+          MatchNameIndex("x", 1),
+          MatchDelimiter("="),
+          MatchFocus,
+        ];
+        check(string, "deparse", "let x#1 = *", deparse(path));
+      },
+    ),
+    test_case(
+      "deparse: chain no trailing slash",
+      `Quick,
+      () => {
+        open Selector;
+        let path = [
+          EnterBinderDef("A"),
+          EnterBinderDef("B"),
+          MatchName("x"),
+          MatchDelimiter("="),
+          MatchFocus,
+        ];
+        check(string, "deparse", "A/B/x = *", deparse(path));
+      },
+    ),
+    test_case(
+      "deparse: chain with trailing slash",
+      `Quick,
+      () => {
+        open Selector;
+        let path = [
+          EnterBinderDef("A"),
+          EnterBinderDef("B"),
+          MatchKeyword("let"),
+          MatchName("y"),
+          MatchDelimiter("="),
+          MatchFocus,
+        ];
+        check(string, "deparse", "A/B/ let y = *", deparse(path));
+      },
+    ),
+    test_case(
+      "deparse: single enter + name",
+      `Quick,
+      () => {
+        open Selector;
+        let path = [
+          EnterBinderDef("M"),
+          MatchName("x"),
+          MatchDelimiter("="),
+          MatchFocus,
+        ];
+        check(string, "deparse", "M/x = *", deparse(path));
+      },
+    ),
+    test_case(
+      "deparse: single enter trailing slash",
+      `Quick,
+      () => {
+        open Selector;
+        let path = [EnterBinderDef("M"), MatchFocus];
+        check(string, "deparse", "M/ *", deparse(path));
+      },
+    ),
     /* === Named canonical path generation === */
-
     /* Helper tests: named_canonical produces readable selectors that resolve
        back to the same node as the numeric canonical */
-
     /* Let: def uses name */
-    test_case("named: let def", `Quick, () => {
-      let root = mk_term("let x = 42 in x");
-      switch (Selector.query_unique("x = *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "x = *", s);
-          /* Roundtrip */
-          switch (Selector.query_unique(s, root)) {
-          | Error(e) => fail("roundtrip: " ++ e)
-          | Ok(m2) =>
-            check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
-          };
-        }
-      };
-    }),
-
+    test_case(
+      "named: let def",
+      `Quick,
+      () => {
+        let root = mk_term("let x = 42 in x");
+        switch (Selector.query_unique("x = *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "x = *", s);
+            /* Roundtrip */
+            switch (Selector.query_unique(s, root)) {
+            | Error(e) => fail("roundtrip: " ++ e)
+            | Ok(m2) =>
+              check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
+            };
+          }
+        };
+      },
+    ),
     /* Let: body navigates through */
-    test_case("named: nested let body", `Quick, () => {
-      let root = mk_term("let x = 1 in let y = 2 in x + y");
-      switch (Selector.query_unique("y = *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "y = *", s);
-        }
-      };
-    }),
-
+    test_case(
+      "named: nested let body",
+      `Quick,
+      () => {
+        let root = mk_term("let x = 1 in let y = 2 in x + y");
+        switch (Selector.query_unique("y = *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "y = *", s);
+          }
+        };
+      },
+    ),
     /* If: keyword addressing */
-    test_case("named: if cond", `Quick, () => {
-      let root = mk_term("if true then 1 else 0");
-      switch (Selector.query_unique("if *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "if *", s);
-        }
-      };
-    }),
-    test_case("named: if then", `Quick, () => {
-      let root = mk_term("if true then 1 else 0");
-      switch (Selector.query_unique("if _ then *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "if _ then *", s);
-        }
-      };
-    }),
-    test_case("named: if else", `Quick, () => {
-      let root = mk_term("if true then 1 else 0");
-      switch (Selector.query_unique("if _... else *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "if _... else *", s);
-        }
-      };
-    }),
-
+    test_case(
+      "named: if cond",
+      `Quick,
+      () => {
+        let root = mk_term("if true then 1 else 0");
+        switch (Selector.query_unique("if *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "if *", s);
+          }
+        };
+      },
+    ),
+    test_case(
+      "named: if then",
+      `Quick,
+      () => {
+        let root = mk_term("if true then 1 else 0");
+        switch (Selector.query_unique("if _ then *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "if _ then *", s);
+          }
+        };
+      },
+    ),
+    test_case(
+      "named: if else",
+      `Quick,
+      () => {
+        let root = mk_term("if true then 1 else 0");
+        switch (Selector.query_unique("if _... else *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "if _... else *", s);
+          }
+        };
+      },
+    ),
     /* Fun: keyword addressing */
-    test_case("named: fun body", `Quick, () => {
-      let root = mk_term("let f = fun x -> x + 1 in f");
-      switch (Selector.query_unique("f = #1", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          /* Fun body is x+1, accessible via f = fun _ -> * */
-          check(string, "named path", "f = fun _ -> *", s);
-        }
-      };
-    }),
-
+    test_case(
+      "named: fun body",
+      `Quick,
+      () => {
+        let root = mk_term("let f = fun x -> x + 1 in f");
+        switch (Selector.query_unique("f = #1", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            /* Fun body is x+1, accessible via f = fun _ -> * */
+            check(string, "named path", "f = fun _ -> *", s);
+          }
+        };
+      },
+    ),
     /* BinOp inside def: name + index */
-    test_case("named: binop left in def", `Quick, () => {
-      let root = mk_term("let x = 1 + 2 in x");
-      switch (Selector.query_unique("x = #0", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "x = * + _", s);
-        }
-      };
-    }),
-
+    test_case(
+      "named: binop left in def",
+      `Quick,
+      () => {
+        let root = mk_term("let x = 1 + 2 in x");
+        switch (Selector.query_unique("x = #0", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "x = * + _", s);
+          }
+        };
+      },
+    ),
     /* BinOp: right operand named canonical */
-    test_case("named: binop right in def", `Quick, () => {
-      let root = mk_term("let x = 1 + 2 in x");
-      switch (Selector.query_unique("x = #1", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "x = _ + *", s);
-          /* Roundtrip */
-          switch (Selector.query_unique(s, root)) {
-          | Error(e) => fail("roundtrip: " ++ e)
-          | Ok(m2) =>
-            check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
-          };
-        }
-      };
-    }),
-
+    test_case(
+      "named: binop right in def",
+      `Quick,
+      () => {
+        let root = mk_term("let x = 1 + 2 in x");
+        switch (Selector.query_unique("x = #1", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "x = _ + *", s);
+            /* Roundtrip */
+            switch (Selector.query_unique(s, root)) {
+            | Error(e) => fail("roundtrip: " ++ e)
+            | Ok(m2) =>
+              check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
+            };
+          }
+        };
+      },
+    ),
     /* Cons: named canonical */
-    test_case("named: cons left", `Quick, () => {
-      let root = mk_term("let x = 1 :: [2] in x");
-      switch (Selector.query_unique("x = #0", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "x = * :: _", s);
-          switch (Selector.query_unique(s, root)) {
-          | Error(e) => fail("roundtrip: " ++ e)
-          | Ok(m2) =>
-            check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
-          };
-        }
-      };
-    }),
-
+    test_case(
+      "named: cons left",
+      `Quick,
+      () => {
+        let root = mk_term("let x = 1 :: [2] in x");
+        switch (Selector.query_unique("x = #0", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "x = * :: _", s);
+            switch (Selector.query_unique(s, root)) {
+            | Error(e) => fail("roundtrip: " ++ e)
+            | Ok(m2) =>
+              check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
+            };
+          }
+        };
+      },
+    ),
     /* Match: keyword + named rules */
-    test_case("named: case scrut", `Quick, () => {
-      let root = mk_term("case x | A => 1 | B => 2 end");
-      switch (Selector.query_unique("case *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "case *", s);
-        }
-      };
-    }),
-    test_case("named: case rule body", `Quick, () => {
-      let root = mk_term("case x | A => 1 | B => 2 end");
-      switch (Selector.query_unique("| B => *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "| _... B => *", s);
-        }
-      };
-    }),
-
+    test_case(
+      "named: case scrut",
+      `Quick,
+      () => {
+        let root = mk_term("case x | A => 1 | B => 2 end");
+        switch (Selector.query_unique("case *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "case *", s);
+          }
+        };
+      },
+    ),
+    test_case(
+      "named: case rule body",
+      `Quick,
+      () => {
+        let root = mk_term("case x | A => 1 | B => 2 end");
+        switch (Selector.query_unique("| B => *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "| _... B => *", s);
+          }
+        };
+      },
+    ),
     /* Shadowed names: indexing */
-    test_case("named: shadowed name", `Quick, () => {
-      let root = mk_term("let x = 1 in let x = 2 in x");
-      switch (Selector.query_unique("x#1 = *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "x#1 = *", s);
-        }
-      };
-    }),
-
+    test_case(
+      "named: shadowed name",
+      `Quick,
+      () => {
+        let root = mk_term("let x = 1 in let x = 2 in x");
+        switch (Selector.query_unique("x#1 = *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "x#1 = *", s);
+          }
+        };
+      },
+    ),
     /* Seq: transparent navigation */
-    test_case("named: seq", `Quick, () => {
-      let root = mk_term("let x = 1 in let y = 2 in x + y");
-      switch (Selector.query_unique("x = *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named returned None")
-        | Some(path) =>
-          let s = Selector.deparse(path);
-          check(string, "named path", "x = *", s);
-          /* Roundtrip */
-          switch (Selector.query_unique(s, root)) {
-          | Error(e) => fail("roundtrip: " ++ e)
-          | Ok(m2) =>
-            check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
-          };
-        }
-      };
-    }),
-
+    test_case(
+      "named: seq",
+      `Quick,
+      () => {
+        let root = mk_term("let x = 1 in let y = 2 in x + y");
+        switch (Selector.query_unique("x = *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named returned None")
+          | Some(path) =>
+            let s = Selector.deparse(path);
+            check(string, "named path", "x = *", s);
+            /* Roundtrip */
+            switch (Selector.query_unique(s, root)) {
+            | Error(e) => fail("roundtrip: " ++ e)
+            | Ok(m2) =>
+              check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
+            };
+          }
+        };
+      },
+    ),
     /* Numeric vs named comparison: both resolve to same node */
-    test_case("numeric vs named: same target", `Quick, () => {
-      let root = mk_term("let x = 42 in x + 1");
-      switch (Selector.query_unique("x = *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        let id = m.focused_id;
-        let num = Selector.canonical_numeric(id, root);
-        let named = Selector.canonical_named(id, root);
-        switch (num, named) {
-        | (Some(np), Some(nmp)) =>
-          let ns = Selector.deparse(np);
-          let nms = Selector.deparse(nmp);
-          /* Both should resolve to same ID */
-          switch (Selector.query_unique(ns, root), Selector.query_unique(nms, root)) {
-          | (Ok(m1), Ok(m2)) =>
-            check(bool, "same ID", true, m1.focused_id == m2.focused_id);
-            /* Named should be more readable */
-            check(string, "numeric", "#1 *", ns);
-            check(string, "named", "x = *", nms);
-          | _ => fail("roundtrip failed")
+    test_case(
+      "numeric vs named: same target",
+      `Quick,
+      () => {
+        let root = mk_term("let x = 42 in x + 1");
+        switch (Selector.query_unique("x = *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          let id = m.focused_id;
+          let num = Selector.canonical_numeric(id, root);
+          let named = Selector.canonical_named(id, root);
+          switch (num, named) {
+          | (Some(np), Some(nmp)) =>
+            let ns = Selector.deparse(np);
+            let nms = Selector.deparse(nmp);
+            /* Both should resolve to same ID */
+            switch (
+              Selector.query_unique(ns, root),
+              Selector.query_unique(nms, root),
+            ) {
+            | (Ok(m1), Ok(m2)) =>
+              check(bool, "same ID", true, m1.focused_id == m2.focused_id);
+              /* Named should be more readable */
+              check(string, "numeric", "#1 *", ns);
+              check(string, "named", "x = *", nms);
+            | _ => fail("roundtrip failed")
+            };
+          | _ => fail("generation failed")
           };
-        | _ => fail("generation failed")
         };
-      };
-    }),
-
+      },
+    ),
     /* === MVU app: canonical roundtrips on a realistic program === */
-
     /* Helper: verify both canonical forms roundtrip for a given selector */
-    test_case("mvu: init def roundtrip", `Quick, () => {
-      let root = mk_term(app_program);
-      switch (Selector.query_unique("App/init = *", root)) {
-      | Error(e) => fail("sel: " ++ e)
-      | Ok(m) =>
-        /* Numeric roundtrip */
-        switch (Selector.canonical_numeric(m.focused_id, root)) {
-        | None => fail("numeric None")
-        | Some(np) =>
-          let ns = Selector.deparse(np);
-          switch (Selector.query_unique(ns, root)) {
-          | Error(e) => fail("num roundtrip: " ++ e ++ " (" ++ ns ++ ")")
-          | Ok(m2) => check(bool, "num ID", true, m.focused_id == m2.focused_id)
+    test_case(
+      "mvu: init def roundtrip",
+      `Quick,
+      () => {
+        let root = mk_term(app_program);
+        switch (Selector.query_unique("App/init = *", root)) {
+        | Error(e) => fail("sel: " ++ e)
+        | Ok(m) =>
+          /* Numeric roundtrip */
+          switch (Selector.canonical_numeric(m.focused_id, root)) {
+          | None => fail("numeric None")
+          | Some(np) =>
+            let ns = Selector.deparse(np);
+            switch (Selector.query_unique(ns, root)) {
+            | Error(e) => fail("num roundtrip: " ++ e ++ " (" ++ ns ++ ")")
+            | Ok(m2) =>
+              check(bool, "num ID", true, m.focused_id == m2.focused_id)
+            };
+          };
+          /* Named roundtrip */
+          switch (Selector.canonical_named(m.focused_id, root)) {
+          | None => fail("named None")
+          | Some(nmp) =>
+            let nms = Selector.deparse(nmp);
+            switch (Selector.query_unique(nms, root)) {
+            | Error(e) => fail("named roundtrip: " ++ e ++ " (" ++ nms ++ ")")
+            | Ok(m2) =>
+              check(bool, "named ID", true, m.focused_id == m2.focused_id)
+            };
           };
         };
-        /* Named roundtrip */
-        switch (Selector.canonical_named(m.focused_id, root)) {
-        | None => fail("named None")
-        | Some(nmp) =>
-          let nms = Selector.deparse(nmp);
-          switch (Selector.query_unique(nms, root)) {
-          | Error(e) => fail("named roundtrip: " ++ e ++ " (" ++ nms ++ ")")
-          | Ok(m2) => check(bool, "named ID", true, m.focused_id == m2.focused_id)
-          };
-        };
-      };
-    }),
+      },
+    ),
     canonical_roundtrip(
       ~name="mvu: update case scrut",
       ~code=app_program,
@@ -3051,22 +3326,36 @@ let selector_edit_tests = (
     ),
     /* Error cases */
     test_case("SelectorUpdate: no match", `Quick, () => {
-      switch (run_agent_action("let x = 1 in x", SelectorUpdate("let y = *", "2"))) {
+      switch (
+        run_agent_action("let x = 1 in x", SelectorUpdate("let y = *", "2"))
+      ) {
       | Ok(_) => Alcotest.fail("Expected failure: no match")
       | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(bool, "error mentions no match", true,
-          String.length(msg) >= 8 && String.sub(msg, 0, 8) == "No match")
+        check(
+          bool,
+          "error mentions no match",
+          true,
+          String.length(msg) >= 8 && String.sub(msg, 0, 8) == "No match",
+        )
       | Error(err) =>
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
     }),
     test_case("SelectorUpdate: ambiguous match", `Quick, () => {
-      switch (run_agent_action("let a = 1 in let b = 2 in a + b",
-        SelectorUpdate("let _ = *", "0"))) {
+      switch (
+        run_agent_action(
+          "let a = 1 in let b = 2 in a + b",
+          SelectorUpdate("let _ = *", "0"),
+        )
+      ) {
       | Ok(_) => Alcotest.fail("Expected failure: ambiguous")
       | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(bool, "error mentions ambiguous", true,
-          String.length(msg) >= 9 && String.sub(msg, 0, 9) == "Ambiguous")
+        check(
+          bool,
+          "error mentions ambiguous",
+          true,
+          String.length(msg) >= 9 && String.sub(msg, 0, 9) == "Ambiguous",
+        )
       | Error(err) =>
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
@@ -3102,12 +3391,20 @@ let selector_edit_tests = (
     ),
     /* Error: selector no match */
     test_case("SelectorInsertAfter: no match", `Quick, () => {
-      switch (run_agent_action("let x = 1 in x",
-        SelectorInsertAfter("* let z", "let y = 2"))) {
+      switch (
+        run_agent_action(
+          "let x = 1 in x",
+          SelectorInsertAfter("* let z", "let y = 2"),
+        )
+      ) {
       | Ok(_) => Alcotest.fail("Expected failure: no match")
       | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(bool, "error mentions no match", true,
-          str_contains(msg, "No match"))
+        check(
+          bool,
+          "error mentions no match",
+          true,
+          str_contains(msg, "No match"),
+        )
       | Error(err) =>
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
@@ -3120,31 +3417,45 @@ let selector_edit_tests = (
 let canonical_read_tests = (
   "AgentTools.GetCanonical",
   [
-    test_case("get_canonical for named binding", `Quick, () => {
-      let result =
-        run_read_action("let x = 42 in x + 1", GetCanonical("x = *"));
-      check(string, "canonical", "numeric: #1 *\nnamed: x = *", result);
-    }),
-    test_case("get_canonical for nested def", `Quick, () => {
-      let result =
-        run_read_action(
-          "let x = 1 + 2 in x",
-          GetCanonical("x = #0"),
+    test_case(
+      "get_canonical for named binding",
+      `Quick,
+      () => {
+        let result =
+          run_read_action("let x = 42 in x + 1", GetCanonical("x = *"));
+        check(string, "canonical", "numeric: #1 *\nnamed: x = *", result);
+      },
+    ),
+    test_case(
+      "get_canonical for nested def",
+      `Quick,
+      () => {
+        let result =
+          run_read_action("let x = 1 + 2 in x", GetCanonical("x = #0"));
+        check(
+          string,
+          "canonical",
+          "numeric: #1 #0 *\nnamed: x = * + _",
+          result,
         );
-      check(string, "canonical", "numeric: #1 #0 *\nnamed: x = * + _", result);
-    }),
-    test_case("get_canonical error for bad selector", `Quick, () => {
-      let z = mk_zipper("let x = 42 in x");
-      switch (
-        CompositionGo.Public.read_dispatch(
-          ~action=GetCanonical("nonexistent = *"),
-          ~z,
-        )
-      ) {
-      | Error(_) => () /* expected */
-      | Ok(s) => Alcotest.fail("Expected error, got: " ++ s)
-      };
-    }),
+      },
+    ),
+    test_case(
+      "get_canonical error for bad selector",
+      `Quick,
+      () => {
+        let z = mk_zipper("let x = 42 in x");
+        switch (
+          CompositionGo.Public.read_dispatch(
+            ~action=GetCanonical("nonexistent = *"),
+            ~z,
+          )
+        ) {
+        | Error(_) => () /* expected */
+        | Ok(s) => Alcotest.fail("Expected error, got: " ++ s)
+        };
+      },
+    ),
   ],
 );
 

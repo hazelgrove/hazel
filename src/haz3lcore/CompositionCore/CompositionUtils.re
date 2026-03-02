@@ -159,9 +159,7 @@ module Local = {
                 ),
               )
             | "selector_delete" =>
-              EditorAction(
-                SelectorDelete(get_string(args, "selector")),
-              )
+              EditorAction(SelectorDelete(get_string(args, "selector")))
             | "selector_insert_after" =>
               EditorAction(
                 SelectorInsertAfter(

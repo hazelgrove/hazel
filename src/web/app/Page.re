@@ -391,6 +391,28 @@ module Update = {
           let results = List.map(Haz3lcore.Selector.print_match, matches);
           Ok((String.concat("\n", results), ids));
         };
+      | GetCanonical(selector_str) =>
+        /* Run via read_dispatch, then resolve selector for highlighting */
+        let term = Haz3lcore.MakeTerm.from_zip_for_sem(z).term;
+        switch (
+          Haz3lcore.CompositionGo.Public.read_dispatch(
+            ~action=read_action,
+            ~z,
+          )
+        ) {
+        | Ok(result_text) =>
+          let ids =
+            try(
+              Haz3lcore.Selector.query(selector_str, term)
+              |> List.map((m: Haz3lcore.Selector.match_result) =>
+                   m.focused_id
+                 )
+            ) {
+            | _ => []
+            };
+          Ok((result_text, ids));
+        | Error(failure) => Error(Haz3lcore.Action.Failure.show(failure))
+        };
       | _ =>
         switch (
           Haz3lcore.CompositionGo.Public.read_dispatch(
@@ -514,23 +536,36 @@ module Update = {
     | ActionExplorer(SetPath(path) as action) =>
       let ae =
         ActionExplorer.Update.update(~action, ~model=model.action_explorer);
-      /* Use selector resolution for Select read mode,
-         HighLevelNodeMap for everything else */
+      let ids = resolve_action_explorer_path(path, model);
+      {
+        ...model,
+        action_explorer: {
+          ...ae,
+          highlight_ids: ids,
+        },
+        globals: {
+          ...model.globals,
+          action_highlights: ids,
+        },
+      }
+      |> Updated.return(~is_edit=false, ~scroll_active=false);
+    | ActionExplorer(SetSelector(selector) as action) =>
+      let ae =
+        ActionExplorer.Update.update(~action, ~model=model.action_explorer);
+      /* Live-resolve selector for highlighting */
       let ids =
-        if (model.action_explorer.action_kind == Read
-            && model.action_explorer.read_kind == Select
-            && String.length(String.trim(path)) > 0) {
+        if (String.length(String.trim(selector)) > 0) {
           let editor = get_editor(model);
           let z = editor.editor.state.zipper;
           let term = Haz3lcore.MakeTerm.from_zip_for_sem(z).term;
           try(
-            Haz3lcore.Selector.query(path, term)
+            Haz3lcore.Selector.query(selector, term)
             |> List.map((m: Haz3lcore.Selector.match_result) => m.focused_id)
           ) {
           | _ => []
           };
         } else {
-          resolve_action_explorer_path(path, model);
+          [];
         };
       {
         ...model,
