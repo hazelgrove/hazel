@@ -42,7 +42,8 @@ type token =
   | LParen /* ( */
   | RParen /* ) */
   | Chain(list(string)) /* A/B/C - binder chain */
-  | Name(string); /* bare name */
+  | Name(string) /* bare name */
+  | NameIndex(string, int); /* x#0, x#1 - indexed name for shadowed bindings */
 
 /* A parsed selector is a list of tokens */
 type selector = list(token);
@@ -58,6 +59,7 @@ type sem_step =
   | MatchKeyword(string) /* match a keyword in the spine */
   | MatchDelimiter(string) /* match a delimiter like | or => */
   | MatchName(string) /* match a binder/identifier name */
+  | MatchNameIndex(string, int) /* match nth binder with given name (0-based) */
   | DescendInto /* descend into matched subtree */
   | EnterBinderDef(string); /* find binder by name, enter its def */
 
@@ -119,6 +121,17 @@ let tokenize = (input: string): list(token) => {
         | [single] => Name(single)
         | segs => Chain(segs)
         };
+      | s when String.contains(s, '#') =>
+        /* name#N syntax for indexed disambiguation */
+        let parts = String.split_on_char('#', s);
+        switch (parts) {
+        | [name, idx_str] when String.length(name) > 0 =>
+          switch (int_of_string_opt(idx_str)) {
+          | Some(idx) => NameIndex(name, idx)
+          | None => Name(s) /* fallback if not a number */
+          }
+        | _ => Name(s)
+        };
       | s => Name(s)
       },
     parts,
@@ -168,6 +181,7 @@ let elaborate = (sel: selector): sem_selector => {
           List.map(s => EnterBinderDef(s), init) @ [MatchName(last)];
         };
       chain_steps @ go(rest);
+    | [NameIndex(name, idx), ...rest] => [MatchNameIndex(name, idx), ...go(rest)]
     | [Name(s), ...rest] => [MatchName(s), ...go(rest)]
     };
   go(sel);
@@ -245,6 +259,86 @@ let rec find_binder_in_exp =
     )
   | _ => None
   };
+
+/* Find all binders with a given name in an expression chain.
+   Returns list of (def, body) pairs in order of appearance (0-indexed). */
+let rec find_all_binders_named =
+        (name: string, e: Exp.t): list((Exp.t, Exp.t)) =>
+  switch (Exp.term_of(e)) {
+  | Let(pat, def, body) =>
+    let here =
+      switch (pat_name(pat)) {
+      | Some(n) when String.equal(n, name) => [(def, body)]
+      | _ => []
+      };
+    here @ find_all_binders_named(name, body)
+  | ModuleExp(mpat, def, body) =>
+    let here =
+      switch (mpat_name(mpat)) {
+      | Some(n) when String.equal(n, name) => [(def, body)]
+      | _ => []
+      };
+    here @ find_all_binders_named(name, body)
+  | TyAlias(_tpat, _tdef, body) =>
+    find_all_binders_named(name, body)
+  | Module(items) =>
+    List.concat_map(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(pat, def) =>
+          switch (pat_name(pat)) {
+          | Some(n) when String.equal(n, name) => [(def, e)]
+          | _ => []
+          }
+        | ModuleMod(mpat, def) =>
+          switch (mpat_name(mpat)) {
+          | Some(n) when String.equal(n, name) => [(def, e)]
+          | _ => []
+          }
+        | _ => []
+        },
+      items,
+    )
+  | _ => []
+  };
+
+/* Find the nth (0-indexed) binder with the given name */
+let find_binder_indexed =
+    (name: string, idx: int, e: Exp.t): option((Exp.t, Exp.t)) => {
+  let all = find_all_binders_named(name, e);
+  List.nth_opt(all, idx);
+};
+
+/* Find the Let/ModuleExp node for a given binder name, at a specific index */
+let find_let_node_indexed =
+        (name: string, idx: int, e: Exp.t): option(Exp.t) => {
+  let rec collect = (e: Exp.t): list(Exp.t) =>
+    switch (Exp.term_of(e)) {
+    | Let(pat, _def, body) =>
+      let here =
+        switch (pat_name(pat)) {
+        | Some(n) when String.equal(n, name) => [e]
+        | _ => []
+        };
+      here @ collect(body)
+    | ModuleExp(mpat, _def, body) =>
+      let here =
+        switch (mpat_name(mpat)) {
+        | Some(n) when String.equal(n, name) => [e]
+        | _ => []
+        };
+      here @ collect(body)
+    | TyAlias(tpat, _tdef, body) =>
+      let here =
+        switch (tpat_name(tpat)) {
+        | Some(n) when String.equal(n, name) => [e]
+        | _ => []
+        };
+      here @ collect(body)
+    | _ => []
+    };
+  List.nth_opt(collect(e), idx);
+};
 
 /* Collect all binder names visible at the top level of an expression.
    Walks through let/type/module chains and module item lists. */
@@ -482,7 +576,88 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         }
       }
 
+    /* MatchNameIndex: indexed disambiguation for shadowed bindings */
+    | [MatchNameIndex(name, idx)] =>
+      switch (find_let_node_indexed(name, idx, current)) {
+      | Some(let_exp) => [
+          {
+            focused: let_exp,
+            focused_id: Exp.rep_id(let_exp),
+            breadcrumb: name ++ "#" ++ string_of_int(idx),
+          },
+        ]
+      | None =>
+        switch (find_binder_indexed(name, idx, current)) {
+        | Some((def, _)) => [
+            {
+              focused: def,
+              focused_id: Exp.rep_id(def),
+              breadcrumb: name ++ "#" ++ string_of_int(idx),
+            },
+          ]
+        | None => []
+        }
+      }
+
+    | [MatchNameIndex(name, idx), MatchDelimiter("="), MatchFocus] =>
+      switch (find_binder_indexed(name, idx, current)) {
+      | Some((def, _body)) => [
+          {
+            focused: def,
+            focused_id: Exp.rep_id(def),
+            breadcrumb: name ++ "#" ++ string_of_int(idx) ++ " = ...",
+          },
+        ]
+      | None => []
+      }
+
+    | [MatchNameIndex(name, idx), MatchDelimiter("="), ...rest] =>
+      switch (find_binder_indexed(name, idx, current)) {
+      | Some((def, _body)) => walk(rest, def)
+      | None => []
+      }
+
+    | [MatchNameIndex(name, idx), MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
+      switch (find_binder_indexed(name, idx, current)) {
+      | Some((_def, body)) => [
+          {
+            focused: body,
+            focused_id: Exp.rep_id(body),
+            breadcrumb: name ++ "#" ++ string_of_int(idx) ++ " ... in ...",
+          },
+        ]
+      | None => []
+      }
+
+    | [MatchNameIndex(name, idx), MatchEllipsis, MatchKeyword("in"), ...rest] =>
+      switch (find_binder_indexed(name, idx, current)) {
+      | Some((_def, body)) => walk(rest, body)
+      | None => []
+      }
+
+    | [MatchNameIndex(name, idx), ...rest] =>
+      switch (find_let_node_indexed(name, idx, current)) {
+      | Some(let_exp) => walk(rest, let_exp)
+      | None =>
+        switch (find_binder_indexed(name, idx, current)) {
+        | Some((def, _)) => walk(rest, def)
+        | None => []
+        }
+      }
+
     /* let keyword: try all lets in the chain */
+    | [MatchKeyword("let"), MatchNameIndex(name, idx), ...after_name] =>
+      /* Indexed: find the nth let spine with matching name */
+      let matching_spines =
+        find_all_lets(current)
+        |> List.filter((spine: let_spine) =>
+             Option.equal(String.equal, pat_name(spine.pat), Some(name))
+           );
+      switch (List.nth_opt(matching_spines, idx)) {
+      | Some(spine) =>
+        walk_let_spine(spine, [MatchName(name), ...after_name])
+      | None => []
+      }
     | [MatchKeyword("let"), ...rest] =>
       find_all_lets(current)
       |> List.concat_map(spine => walk_let_spine(spine, rest))
@@ -1437,6 +1612,7 @@ let step_to_string = (step: sem_step): string =>
   | MatchSlot => "_"
   | MatchEllipsis => "_..."
   | MatchName(s) => s
+  | MatchNameIndex(s, idx) => s ++ "#" ++ string_of_int(idx)
   | MatchKeyword(kw) => kw
   | MatchDelimiter(d) => d
   | EnterBinderDef(s) => s ++ "/"
@@ -1541,6 +1717,32 @@ let diagnose_no_match =
         | names => "\n  Available names: " ++ String.concat(", ", names)
         };
       suggestion ++ available_str;
+    | Some(MatchNameIndex(target_name, idx)) =>
+      let context_expr =
+        if (matched_depth > 0) {
+          let prefix = List.filteri((i, _) => i < matched_depth, steps);
+          let probe = prefix @ [MatchFocus];
+          let matches = resolve_sem(probe, root);
+          switch (matches) {
+          | [{focused, _}, ..._] => focused
+          | [] => root
+          };
+        } else {
+          root;
+        };
+      let all_matches = find_all_binders_named(target_name, context_expr);
+      let count = List.length(all_matches);
+      if (count == 0) {
+        "\n  No bindings named '" ++ target_name ++ "'";
+      } else {
+        "\n  Only "
+        ++ string_of_int(count)
+        ++ " binding(s) named '"
+        ++ target_name
+        ++ "' (requested index "
+        ++ string_of_int(idx)
+        ++ ")";
+      };
     | Some(EnterBinderDef(target_name)) =>
       let available = collect_binder_names(root);
       let suggestion =

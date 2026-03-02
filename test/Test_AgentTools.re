@@ -1582,6 +1582,47 @@ let selector_tests = (
       ~sel="\\... let x = *",
       ~expected="42",
     ),
+    /* === Name indexing for shadowed bindings === */
+    sel_test(
+      ~name="x#0 = * (first binding)",
+      ~code="let x = 1 in let x = 2 in x",
+      ~sel="x#0 = *",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="x#1 = * (second binding)",
+      ~code="let x = 1 in let x = 2 in x",
+      ~sel="x#1 = *",
+      ~expected="2",
+    ),
+    sel_test(
+      ~name="x#0 _... in * (first body)",
+      ~code="let x = 1 in let x = 2 in x",
+      ~sel="x#0 _... in *",
+      ~expected="let x = 2 in x",
+    ),
+    sel_test(
+      ~name="x#1 _... in * (second body)",
+      ~code="let x = 1 in let x = 2 in x",
+      ~sel="x#1 _... in *",
+      ~expected="x",
+    ),
+    /* Out-of-range index diagnostic */
+    test_case("x#5 out of range", `Quick, () => {
+      let result = selector_query_unique(
+        "let x = 1 in let x = 2 in x", "x#5 = *");
+      check(bool, "has error prefix", true,
+        str_contains(result, "ERROR"));
+      check(bool, "mentions count", true,
+        str_contains(result, "2 binding(s) named 'x'"));
+    }),
+    /* Index with let keyword */
+    sel_test(
+      ~name="let x#0 = * with let keyword",
+      ~code="let x = 10 in let x = 20 in x",
+      ~sel="let x#1 = *",
+      ~expected="20",
+    ),
     /* === Module/type spine uniformity === */
     /* module _ = * : wildcard module name */
     sel_test(
