@@ -142,7 +142,11 @@ module Message = {
       };
     };
     let mk_agent_message =
-        (content: string, usage: option(OpenRouter.Reply.Model.usage))
+        (
+          ~tool_calls: list(OpenRouter.Reply.Model.tool_call)=[],
+          content: string,
+          usage: option(OpenRouter.Reply.Model.usage),
+        )
         : Model.t => {
       let sanitized_content = String.trim(content);
       {
@@ -151,7 +155,12 @@ module Message = {
         timestamp: JsUtil.timestamp(),
         role: Agent(usage),
         api_message:
-          Some(OpenRouter.Message.Utils.mk_assistant_msg(sanitized_content)),
+          Some(
+            OpenRouter.Message.Utils.mk_assistant_msg(
+              ~tool_calls,
+              sanitized_content,
+            ),
+          ),
         children: [],
         current_child: None,
       };
@@ -1775,7 +1784,11 @@ module Agent = {
       } else {
         let content = reply.content;
         let new_message =
-          Message.Utils.mk_agent_message(content, reply.usage);
+          Message.Utils.mk_agent_message(
+            ~tool_calls=reply.tool_calls,
+            content,
+            reply.usage,
+          );
         let chat_system =
           ChatSystem.Update.update(
             ChatSystem.Update.Action.ChatAction(

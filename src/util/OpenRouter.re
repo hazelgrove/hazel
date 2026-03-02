@@ -42,6 +42,7 @@ module Message = {
     type t = {
       role,
       content: string,
+      tool_calls: list(Reply.Model.tool_call),
     };
   };
 
@@ -49,10 +50,26 @@ module Message = {
     let string_of_role =
       fun
       | Model.System => "system"
-      | Model.Developer => "developer"
+      | Model.Developer => "system"
       | Model.User => "user"
       | Model.Assistant => "assistant"
       | Model.Tool(_) => "tool";
+
+    let json_of_tool_call = (tool_call: Reply.Model.tool_call): Json.t =>
+      `Assoc([
+        ("id", `String(tool_call.id)),
+        ("type", `String("function")),
+        (
+          "function",
+          `Assoc([
+            ("name", `String(tool_call.name)),
+            (
+              "arguments",
+              `String(Yojson.Safe.to_string(tool_call.args)),
+            ),
+          ]),
+        ),
+      ]);
 
     let json_of_message = (message: Model.t): Json.t =>
       switch (message.role) {
@@ -61,8 +78,15 @@ module Message = {
           ("role", `String(string_of_role(message.role))),
           ("content", `String(message.content)),
           ("tool_call_id", `String(tool_call.id)),
-          ("name", `String(tool_call.name)),
-          ("arguments", `String(Yojson.Safe.to_string(tool_call.args))),
+        ])
+      | Assistant when message.tool_calls != [] =>
+        `Assoc([
+          ("role", `String("assistant")),
+          ("content", `String(message.content)),
+          (
+            "tool_calls",
+            `List(List.map(json_of_tool_call, message.tool_calls)),
+          ),
         ])
       | _ =>
         `Assoc([
@@ -71,26 +95,36 @@ module Message = {
         ])
       };
 
-    let mk_assistant_msg = (content: string): Model.t => {
+    let mk_assistant_msg =
+        (
+          ~tool_calls: list(Reply.Model.tool_call)=[],
+          content: string,
+        )
+        : Model.t => {
       role: Assistant,
       content,
+      tool_calls,
     };
     let mk_user_msg = (content: string): Model.t => {
       role: User,
       content,
+      tool_calls: [],
     };
     let mk_developer_msg = (content: string): Model.t => {
       role: Developer,
       content,
+      tool_calls: [],
     };
     let mk_system_msg = (content: string): Model.t => {
       role: System,
       content,
+      tool_calls: [],
     };
     let mk_tool_msg =
         (content: string, tool_call: Reply.Model.tool_call): Model.t => {
       role: Tool(tool_call),
       content,
+      tool_calls: [],
     };
   };
 };
@@ -112,7 +146,7 @@ module Payload = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       model_id: string,
-      reasoning,
+      reasoning: option(reasoning),
       temperature: float,
       top_p: float,
       tools: list(Json.t),
@@ -135,7 +169,7 @@ module Payload = {
         )
         : Model.t => {
       model_id,
-      reasoning: Effort(Low),
+      reasoning: None,
       temperature: 0.9,
       top_p: 1.0,
       tools,
@@ -152,9 +186,8 @@ module Payload = {
       };
 
     let json_of_payload = (~payload: Model.t): Json.t => {
-      `Assoc([
+      let base_fields = [
         ("model", `String(payload.model_id)),
-        ("reasoning", mk_reasoning(payload.reasoning)),
         ("temperature", `Float(payload.temperature)),
         ("top_p", `Float(payload.top_p)),
         ("tools", `List(payload.tools)),
@@ -163,7 +196,16 @@ module Payload = {
           "messages",
           `List(List.map(Message.Utils.json_of_message, payload.messages)),
         ),
-      ]);
+      ];
+      let fields =
+        switch (payload.reasoning) {
+        | Some(reasoning) => [
+            ("reasoning", mk_reasoning(reasoning)),
+            ...base_fields,
+          ]
+        | None => base_fields
+        };
+      `Assoc(fields);
     };
   };
 };
