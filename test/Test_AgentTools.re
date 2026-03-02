@@ -2566,6 +2566,210 @@ let canonical_tests = (
       let path = [MatchKeyword("let"), MatchNameIndex("x", 1), MatchDelimiter("="), MatchFocus];
       check(string, "deparse", "let x#1 = *", deparse(path));
     }),
+
+    /* === Named canonical path generation === */
+
+    /* Helper tests: named_canonical produces readable selectors that resolve
+       back to the same node as the numeric canonical */
+
+    /* Let: def uses name */
+    test_case("named: let def", `Quick, () => {
+      let root = mk_term("let x = 42 in x");
+      switch (Selector.query_unique("x = *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "x = *", s);
+          /* Roundtrip */
+          switch (Selector.query_unique(s, root)) {
+          | Error(e) => fail("roundtrip: " ++ e)
+          | Ok(m2) =>
+            check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
+          };
+        }
+      };
+    }),
+
+    /* Let: body navigates through */
+    test_case("named: nested let body", `Quick, () => {
+      let root = mk_term("let x = 1 in let y = 2 in x + y");
+      switch (Selector.query_unique("y = *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "y = *", s);
+        }
+      };
+    }),
+
+    /* If: keyword addressing */
+    test_case("named: if cond", `Quick, () => {
+      let root = mk_term("if true then 1 else 0");
+      switch (Selector.query_unique("if *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "if *", s);
+        }
+      };
+    }),
+    test_case("named: if then", `Quick, () => {
+      let root = mk_term("if true then 1 else 0");
+      switch (Selector.query_unique("if _ then *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "if _ then *", s);
+        }
+      };
+    }),
+    test_case("named: if else", `Quick, () => {
+      let root = mk_term("if true then 1 else 0");
+      switch (Selector.query_unique("if _... else *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "if _... else *", s);
+        }
+      };
+    }),
+
+    /* Fun: keyword addressing */
+    test_case("named: fun body", `Quick, () => {
+      let root = mk_term("let f = fun x -> x + 1 in f");
+      switch (Selector.query_unique("f = #1", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          /* Fun body is x+1, accessible via f = fun _ -> * */
+          check(string, "named path", "f = fun _ -> *", s);
+        }
+      };
+    }),
+
+    /* BinOp inside def: name + index */
+    test_case("named: binop left in def", `Quick, () => {
+      let root = mk_term("let x = 1 + 2 in x");
+      switch (Selector.query_unique("x = #0", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "x = #0 *", s);
+        }
+      };
+    }),
+
+    /* Match: keyword + named rules */
+    test_case("named: case scrut", `Quick, () => {
+      let root = mk_term("case x | A => 1 | B => 2 end");
+      switch (Selector.query_unique("case *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "case *", s);
+        }
+      };
+    }),
+    test_case("named: case rule body", `Quick, () => {
+      let root = mk_term("case x | A => 1 | B => 2 end");
+      switch (Selector.query_unique("| B => *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "| _... B => *", s);
+        }
+      };
+    }),
+
+    /* Shadowed names: indexing */
+    test_case("named: shadowed name", `Quick, () => {
+      let root = mk_term("let x = 1 in let x = 2 in x");
+      switch (Selector.query_unique("x#1 = *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "x#1 = *", s);
+        }
+      };
+    }),
+
+    /* Seq: transparent navigation */
+    test_case("named: seq", `Quick, () => {
+      let root = mk_term("let x = 1 in let y = 2 in x + y");
+      switch (Selector.query_unique("x = *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named returned None")
+        | Some(path) =>
+          let s = Selector.deparse(path);
+          check(string, "named path", "x = *", s);
+          /* Roundtrip */
+          switch (Selector.query_unique(s, root)) {
+          | Error(e) => fail("roundtrip: " ++ e)
+          | Ok(m2) =>
+            check(bool, "roundtrip ID", true, m.focused_id == m2.focused_id)
+          };
+        }
+      };
+    }),
+
+    /* Numeric vs named comparison: both resolve to same node */
+    test_case("numeric vs named: same target", `Quick, () => {
+      let root = mk_term("let x = 42 in x + 1");
+      switch (Selector.query_unique("x = *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        let id = m.focused_id;
+        let num = Selector.canonical_numeric(id, root);
+        let named = Selector.canonical_named(id, root);
+        switch (num, named) {
+        | (Some(np), Some(nmp)) =>
+          let ns = Selector.deparse(np);
+          let nms = Selector.deparse(nmp);
+          /* Both should resolve to same ID */
+          switch (Selector.query_unique(ns, root), Selector.query_unique(nms, root)) {
+          | (Ok(m1), Ok(m2)) =>
+            check(bool, "same ID", true, m1.focused_id == m2.focused_id);
+            /* Named should be more readable */
+            check(string, "numeric", "#1 *", ns);
+            check(string, "named", "x = *", nms);
+          | _ => fail("roundtrip failed")
+          };
+        | _ => fail("generation failed")
+        };
+      };
+    }),
   ],
 );
 

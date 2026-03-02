@@ -2420,6 +2420,300 @@ let canonical_numeric = (target: Id.t, root: Exp.t): option(sem_selector) =>
        List.map(i => ChildIndex(i), indices) @ [MatchFocus]
      );
 
+/* === Named canonical path generation ===
+   Prefer human-readable name-based steps where possible, falling back to
+   ChildIndex for anonymous subexpressions. Uses binder names for Let/Fun/
+   TyAlias/ModuleExp, keyword patterns for If/Match/Fun/Test. */
+
+/* Helper: get the pattern name from a Pat.t, if it's a simple variable */
+let pat_name_opt = (p: Pat.t): option(string) =>
+  switch (Pat.term_of(p)) {
+  | Var(name) => Some(name)
+  | Asc(p1, _) =>
+    switch (Pat.term_of(p1)) {
+    | Var(name) => Some(name)
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* Count how many binders with the given name appear before position idx
+   in the let-chain starting at root. Returns the shadowed index (0-based). */
+let rec count_name_before = (name: string, e: Exp.t, target_id: Id.t): int =>
+  switch (Exp.term_of(e)) {
+  | Let(pat, def, body) =>
+    let is_target_in_def =
+      find_in_exp(target_id, def) != None
+      || find_in_pat(target_id, pat) != None;
+    if (is_target_in_def) {
+      /* Target is in this let's def/pat — count is 0 for binders above */
+      0;
+    } else {
+      let increment =
+        switch (pat_name_opt(pat)) {
+        | Some(n) when n == name => 1
+        | _ => 0
+        };
+      increment + count_name_before(name, body, target_id);
+    };
+  | _ => 0
+  };
+
+/* chain_root: the outermost expression in the current let-chain,
+   used for counting shadowed names across the entire chain */
+let rec named_in_exp =
+        (~chain_root=?, target: Id.t, e: Exp.t): option(sem_selector) => {
+  let cr = switch (chain_root) { | Some(r) => r | None => e };
+  if (Exp.rep_id(e) == target) {
+    Some([MatchFocus]);
+  } else {
+    switch (Exp.term_of(e)) {
+    /* Named binders: prefer name-based addressing */
+    | Let(pat, def, body) =>
+      switch (pat_name_opt(pat)) {
+      | Some(name) =>
+        /* Target in pat? */
+        switch (find_in_pat(target, pat)) {
+        | Some(_indices) =>
+          /* Focus on the pattern: "let <name>" */
+          let name_step = make_name_step(name, cr, target);
+          Some([MatchKeyword("let"), name_step, MatchFocus]);
+        | None =>
+          /* Target in def? Use "<name> = ..." */
+          switch (named_in_exp(target, def)) {
+          | Some(inner) =>
+            let name_step = make_name_step(name, cr, target);
+            Some([name_step, MatchDelimiter("="), ...inner])
+          | None =>
+            /* Target in body? Continue down the let chain, preserving chain_root */
+            named_in_exp(~chain_root=cr, target, body)
+          }
+        }
+      | None =>
+        /* No name — fall back to numeric */
+        numeric_fallback(target, e)
+      }
+
+    /* If: keyword-based addressing */
+    | If(cond, then_, else_) =>
+      switch (find_in_exp(target, cond)) {
+      | Some(idx_path) =>
+        Some([MatchKeyword("if")] @ idx_to_steps(idx_path) @ [MatchFocus])
+      | None =>
+        switch (find_in_exp(target, then_)) {
+        | Some(idx_path) =>
+          Some([MatchKeyword("if"), MatchSlot, MatchKeyword("then")]
+               @ idx_to_steps(idx_path) @ [MatchFocus])
+        | None =>
+          switch (find_in_exp(target, else_)) {
+          | Some(idx_path) =>
+            Some([MatchKeyword("if"), MatchEllipsis, MatchKeyword("else")]
+                 @ idx_to_steps(idx_path) @ [MatchFocus])
+          | None => None
+          }
+        }
+      }
+
+    /* Fun: keyword-based */
+    | Fun(pat, body, _, _) =>
+      switch (find_in_pat(target, pat)) {
+      | Some(_) =>
+        Some([MatchKeyword("fun"), MatchFocus])
+      | None =>
+        switch (named_in_exp(target, body)) {
+        | Some(inner) =>
+          Some([MatchKeyword("fun"), MatchSlot, MatchDelimiter("->"), ...inner])
+        | None => None
+        }
+      }
+
+    /* Match: keyword-based */
+    | Match(scrut, rules) =>
+      switch (find_in_exp(target, scrut)) {
+      | Some(idx_path) =>
+        Some([MatchKeyword("case")] @ idx_to_steps(idx_path) @ [MatchFocus])
+      | None => named_in_rules(target, rules)
+      }
+
+    /* Test: keyword-based */
+    | Test(body) =>
+      switch (named_in_exp(target, body)) {
+      | Some(inner) =>
+        Some([MatchKeyword("test"), ...inner])
+      | None => None
+      }
+
+    /* Seq: target in first or second */
+    | Seq(e1, e2) =>
+      switch (named_in_exp(target, e1)) {
+      | Some(inner) => Some(inner)
+      | None => named_in_exp(target, e2)
+      }
+
+    /* Module: search items with named addressing */
+    | Module(items) => named_in_module_items(target, items)
+
+    /* TyAlias: name-based */
+    | TyAlias(tpat, tdef, body) =>
+      let tname =
+        switch (tpat.term) {
+        | Var(n) => Some(n)
+        | _ => None
+        };
+      switch (tname) {
+      | Some(name) =>
+        switch (find_in_typ(target, tdef)) {
+        | Some(idx_path) =>
+          Some([MatchKeyword("type"), MatchName(name), MatchDelimiter("=")]
+               @ idx_to_steps(idx_path) @ [MatchFocus])
+        | None => named_in_exp(~chain_root=cr, target, body)
+        }
+      | None => numeric_fallback(target, e)
+      };
+
+    /* ModuleExp: name-based */
+    | ModuleExp(mpat, def, body) =>
+      let mname =
+        switch (mpat.term) {
+        | Var(n) => Some(n)
+        | _ => None
+        };
+      switch (mname) {
+      | Some(name) =>
+        switch (named_in_exp(target, def)) {
+        | Some(inner) =>
+          Some([MatchKeyword("module"), MatchName(name), MatchDelimiter("="), ...inner])
+        | None => named_in_exp(~chain_root=cr, target, body)
+        }
+      | None => numeric_fallback(target, e)
+      };
+
+    /* Parens: transparent, look inside */
+    | Parens(inner) => named_in_exp(~chain_root=cr, target, inner)
+
+    /* Everything else: fall back to numeric */
+    | _ => numeric_fallback(target, e)
+    };
+  };
+}
+
+and make_name_step = (name: string, context: Exp.t, target: Id.t): sem_step => {
+  let idx = count_name_before(name, context, target);
+  /* Walk to the enclosing let chain root to count all instances of this name */
+  let total = count_all_name(name, context);
+  if (total > 1) {
+    MatchNameIndex(name, idx);
+  } else {
+    MatchName(name);
+  };
+}
+
+and count_all_name = (name: string, e: Exp.t): int =>
+  switch (Exp.term_of(e)) {
+  | Let(pat, _, body) =>
+    let here =
+      switch (pat_name_opt(pat)) {
+      | Some(n) when n == name => 1
+      | _ => 0
+      };
+    here + count_all_name(name, body);
+  | _ => 0
+  }
+
+and idx_to_steps = (indices: list(int)): list(sem_step) =>
+  List.map(i => ChildIndex(i), indices)
+
+and numeric_fallback = (target: Id.t, e: Exp.t): option(sem_selector) =>
+  find_in_exp(target, e)
+  |> Option.map(indices =>
+       List.map(i => ChildIndex(i), indices) @ [MatchFocus]
+     )
+
+and named_in_rules =
+    (target: Id.t, rules: list((Pat.t, Exp.t))): option(sem_selector) =>
+  switch (rules) {
+  | [] => None
+  | [(pat, body), ...rest] =>
+    switch (find_in_pat(target, pat)) {
+    | Some(_) =>
+      /* Focus on the pattern of this rule */
+      /* Use constructor name if available */
+      let pat_prefix =
+        switch (Pat.term_of(pat)) {
+        | Constructor(name, _) =>
+          [MatchDelimiter("|"), MatchEllipsis, MatchName(name)]
+        | _ =>
+          [MatchDelimiter("|"), MatchEllipsis]
+        };
+      Some(pat_prefix @ [MatchFocus]);
+    | None =>
+      switch (named_in_exp(target, body)) {
+      | Some(inner) =>
+        let pat_prefix =
+          switch (Pat.term_of(pat)) {
+          | Constructor(name, _) =>
+            [MatchDelimiter("|"), MatchEllipsis, MatchName(name), MatchDelimiter("=>")]
+          | _ =>
+            [MatchDelimiter("|"), MatchEllipsis, MatchDelimiter("=>")]
+          };
+        Some(pat_prefix @ inner)
+      | None => named_in_rules(target, rest)
+      }
+    }
+  }
+
+and named_in_module_items =
+    (target: Id.t, items: list(Mod.t)): option(sem_selector) =>
+  switch (items) {
+  | [] => None
+  | [item, ...rest] =>
+    switch (find_in_mod(target, item)) {
+    | Some(_) =>
+      /* Found in this item — try name-based addressing */
+      switch (item.term) {
+      | ModLet(pat, def) =>
+        switch (pat_name_opt(pat)) {
+        | Some(name) =>
+          /* Target is the pat or def */
+          switch (find_in_pat(target, pat)) {
+          | Some(_) =>
+            Some([MatchKeyword("let"), MatchName(name), MatchFocus])
+          | None =>
+            switch (named_in_exp(target, def)) {
+            | Some(inner) =>
+              Some([MatchName(name), MatchDelimiter("="), ...inner])
+            | None => None
+            }
+          }
+        | None =>
+          /* Unnamed — fall back to index */
+          let idx = List.length(items) - List.length([item, ...rest]);
+          find_in_mod(target, item)
+          |> Option.map(indices =>
+               [ChildIndex(idx), ...List.map(i => ChildIndex(i), indices)] @ [MatchFocus]
+             );
+        }
+      | ModExp(e) =>
+        switch (named_in_exp(target, e)) {
+        | Some(inner) => Some(inner)
+        | None => None
+        }
+      | _ =>
+        /* ModType, ModuleMod — fall back to index for now */
+        let idx = List.length(items) - List.length([item, ...rest]);
+        find_in_mod(target, item)
+        |> Option.map(indices =>
+             [ChildIndex(idx), ...List.map(i => ChildIndex(i), indices)] @ [MatchFocus]
+           );
+      }
+    | None => named_in_module_items(target, rest)
+    }
+  };
+
+/* Named canonical: prefer names/keywords over indices */
+let canonical_named = (target: Id.t, root: Exp.t): option(sem_selector) =>
+  named_in_exp(target, root);
+
 /* Deparse: convert a sem_selector back to surface syntax string */
 let deparse = (steps: sem_selector): string => {
   let step_str =
