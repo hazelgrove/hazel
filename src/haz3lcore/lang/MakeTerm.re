@@ -59,6 +59,52 @@ let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
+let is_mod_seq = is_nary(Any.is_mod, ";");
+let is_sig_seq = is_nary(Any.is_sig, ";");
+
+/* Flatten a module term into a list of module items.
+   Module sequences (from semicolons) are stored as MultiHole([Mod(m1), Mod(m2)])
+   during parsing and need to be flattened into a proper list for Module(items).
+   Non-Mod children (from broken parse states during editing) are wrapped as
+   module items to isolate breakage — valid items keep their statics. */
+let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
+  switch (m.term) {
+  | MultiHole(kids) =>
+    kids
+    |> List.map(
+         fun
+         | Grammar.Mod(m) => flatten_mod(m)
+         | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
+         | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
+       )
+    |> List.flatten
+  | ModLet(_, _)
+  | ModType(_, _)
+  | ModExp(_)
+  | ModuleMod(_, _)
+  | EmptyHole
+  | Invalid(_) => [m]
+  };
+
+/* Flatten a signature term into a list of signature items.
+   Signature sequences (from semicolons) are stored as MultiHole([Sig(s1), Sig(s2)])
+   during parsing and need to be flattened into a proper list for Sig(items).
+   Non-Sig children are wrapped to isolate breakage, matching flatten_mod. */
+let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
+  switch (s.term) {
+  | MultiHole(kids) =>
+    kids
+    |> List.map(
+         fun
+         | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
+         | other => [Sig.fresh(MultiHole([other]))],
+       )
+    |> List.flatten
+  | SigLet(_)
+  | SigType(_, _)
+  | EmptyHole
+  | Invalid(_) => [s]
+  };
 
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
@@ -254,6 +300,9 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   | Typ => Typ(typ(unsorted(Typ, skel, seg)))
   | Exp => Exp(exp(unsorted(Exp, skel, seg)))
   | Rul => Rul(rul(unsorted(Rul, skel, seg)))
+  | Mod => Mod(mod_(unsorted(Mod, skel, seg))) /* Phase 1.2: proper module parsing */
+  | Sig => Sig(sig_(unsorted(Sig, skel, seg)))
+  | MPat => MPat(mpat(unsorted(MPat, skel, seg)))
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
@@ -289,6 +338,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Token.is_empty_module(t) => ret(Module([]))
       | ([t], []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Token.is_undefined(t) => ret(Undefined)
@@ -304,6 +354,20 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(LivelitName(Token.parse_livelit(t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (["{", "}"], [Mod(body)]) =>
+        /* ModBody absorption: inner Mod's semicolon IDs become part of Module.
+           With flat Skel (ModSeq is chainable), body.annotation.ids contains
+           ALL semicolon IDs when body is MultiHole. These are absorbed so the
+           Module expression gets IDs = [curly_brace_id] @ [all_semicolon_ids].
+           IMPORTANT: Only absorb for MultiHole (multiple items with semicolons).
+           Single items have ModLet/ModType IDs that would conflict with expansion. */
+        switch (body) {
+        | {term: EmptyHole, _} => ret(Module([body]))
+        | {annotation: {ids, _}, term: MultiHole(_)} =>
+          adopted_ids := ids @ adopted_ids^;
+          (Module(flatten_mod(body)), ids);
+        | _ => ret(Module(flatten_mod(body)))
+        }
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
@@ -372,6 +436,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["module", "=", "in"], [MPat(mp), Exp(def)]) =>
+          ModuleExp(mp, def, r)
         | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
           Theorem(pat, thm, r)
         | (["hide", "in"], [Exp(filter)]) =>
@@ -532,7 +598,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               ) // Unlabeled tuple using deferred ap in tuplabel
-            | Var(name) =>
+            | Var(name)
+            | Constructor(name, None) =>
               TupLabel(
                 {
                   annotation: l.annotation,
@@ -552,7 +619,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }
           | (["."], []) =>
             switch (r.term) {
-            | Var(name) =>
+            | Var(name)
+            | Constructor(name, _) =>
               Dot(
                 l,
                 {
@@ -689,7 +757,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           ) // Unlabeled tuple using deferred ap in tuplabel
-        | Var(name) =>
+        | Var(name)
+        | Constructor(name, None) =>
           ret(
             TupLabel(
               {
@@ -732,10 +801,20 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
+    | ([(_id, (["{", "}"], [Sig(body)]))], []) =>
+      /* SigBody: parse signature body, similar to ModBody in exp_term */
+      switch (body) {
+      | {term: EmptyHole, _} => ret(Sig([]))
+      | {annotation: {ids, _}, term: MultiHole(_)} =>
+        adopted_ids := ids @ adopted_ids^;
+        (Sig(flatten_sig(body)), ids);
+      | _ => ret(Sig(flatten_sig(body)))
+      }
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Token.is_empty_tuple(t) => Prod([])
+        | ([t], []) when Token.is_empty_module(t) => Sig([])
         | (["Bool"], []) => Atom(Bool)
         | (["Int"], []) => Atom(Int)
         | (["SInt"], []) => Atom(SInt)
@@ -864,6 +943,122 @@ and tpat_term: unsorted => TPat.term = {
   | (Pre(_) | Post(_)) as tm => ret(hole(tm))
   | tm => ret(hole(tm));
 }
+/* Phase 1.2: Module parsing - placeholder implementation */
+and mod_ = unsorted => {
+  let term = mod_term(unsorted);
+  let ids = ids(unsorted);
+  return(m => Mod(m), ids, IdTagged.mk(ids, get_secondary(ids), term));
+}
+and mod_term: unsorted => TermBase.Mod.term = {
+  let ret = (term: TermBase.Mod.term) => term;
+  let hole = unsorted => Mod.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      switch (tile) {
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | _ =>
+        /* Try parsing as expression and wrap as ModExp */
+        let e = exp(Op(tiles));
+        switch (e.term) {
+        | EmptyHole
+        | MultiHole(_)
+        | Invalid(_) => ret(hole(tm))
+        | _ => ret(ModExp(e))
+        };
+      }
+    | _ => ret(hole(tm))
+    }
+  /* ModSeq: semicolon-separated module items (like tuples with commas) */
+  | Bin(Mod(m1), tiles, Mod(m2)) =>
+    switch (is_mod_seq(tiles)) {
+    | Some(between_kids) =>
+      /* Flatten all mod items into MultiHole, like tuples flatten into Tuple */
+      let all_items =
+        [Grammar.Mod(m1)]
+        @ List.map(m => Grammar.Mod(m), between_kids)
+        @ [Grammar.Mod(m2)];
+      ret(MultiHole(all_items));
+    | None => ret(hole(Bin(Mod(m1), tiles, Mod(m2))))
+    }
+  /* ModLet: let p = e - the pattern is inside the tile, expression is the body */
+  | Pre(([(_id, (["let", "="], [Pat(p)]))], []), Exp(e)) =>
+    ret(ModLet(p, e))
+  /* ModuleMod: module M = e - MPat inside tile, expression is the body */
+  | Pre(([(_id, (["module", "="], [MPat(mp)]))], []), Exp(e)) =>
+    ret(ModuleMod(mp, e))
+  /* ModType: type t = T - the tpat is inside the tile, type is the body */
+  | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
+    ret(ModType(tp, ty))
+  /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
+  | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
+  | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
+  | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+}
+and sig_ = unsorted => {
+  let term = sig_term(unsorted);
+  let ids = ids(unsorted);
+  return(s => Sig(s), ids, IdTagged.mk(ids, get_secondary(ids), term));
+}
+and sig_term: unsorted => TermBase.Sig.term = {
+  let ret = (term: TermBase.Sig.term) => term;
+  let hole = unsorted => Sig.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      switch (tile) {
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) => ret(Invalid(t))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
+  /* SigSeq: semicolon-separated signature items */
+  | Bin(Sig(s1), tiles, Sig(s2)) =>
+    switch (is_sig_seq(tiles)) {
+    | Some(between_kids) =>
+      let sig_to_any = (s): TermBase.Any.t => Grammar.Sig(s);
+      let all_items =
+        [sig_to_any(s1)]
+        @ List.map(sig_to_any, between_kids)
+        @ [sig_to_any(s2)];
+      ret(MultiHole(all_items));
+    | None => ret(hole(Bin(Sig(s1), tiles, Sig(s2))))
+    }
+  /* SigLet: let p - the pattern is the body */
+  | Pre(([(_id, (["let"], []))], []), Pat(p)) => ret(SigLet(p))
+  /* SigType: type t = T - the tpat is inside the tile, type is the body */
+  | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
+    ret(SigType(tp, ty))
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+}
+and mpat = unsorted => {
+  let term = mpat_term(unsorted);
+  let ids = ids(unsorted);
+  return(mp => MPat(mp), ids, IdTagged.mk(ids, get_secondary(ids), term));
+}
+and mpat_term: unsorted => TermBase.MPat.term = {
+  let ret = (term: TermBase.MPat.term) => term;
+  let hole = unsorted => MPat.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, ([t], []))], []) when Token.is_var(t) || Token.is_ctr(t) =>
+      ret(Var(t))
+    | ([(_id, ([t], []))], []) when is_hole_label(t) => ret(hole(tm))
+    | ([(_id, ([t], []))], []) => ret(Invalid(t))
+    | _ => ret(hole(tm))
+    }
+  | Bin(MPat(mp), tiles, Typ(ty)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) => ret(Asc(mp, ty))
+    | _ => ret(hole(tm))
+    }
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+}
 
 and rul = (unsorted): Rul.t => {
   let e = exp(unsorted);
@@ -932,7 +1127,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
            let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
-           go_s(s, Segment.skel(kid), kid);
+           go_s(s, Segment.skel(~sort=s, kid), kid);
          })
     };
 
@@ -977,10 +1172,11 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
  * Updates each adopted ID's term_data entry to match the rep_id's entry,
  * giving adopted IDs the correct skeleton/segment of the outer term.
  *
- * IMPORTANT: We preserve the original root_piece for each adopted ID.
- * The root_piece identifies the actual tile that the ID refers to, which
- * is needed by Arms.tiles_data to find the correct shards for decoration.
- * Only skel, sort, and base_seg should be updated to match the outer term. */
+ * IMPORTANT: We preserve the original root_piece and sort for each adopted ID.
+ * root_piece: identifies the actual tile, needed by Arms.tiles_data for decoration.
+ * sort: the tile's own sort context (e.g. Mod for semicolons inside Module body),
+ * needed by Code.re's sort-consistency check.
+ * Only skel and base_seg should be updated to match the outer term. */
 let consolidate_adopted = (): unit => {
   adopted_ids^
   |> List.iter(id => {
@@ -993,13 +1189,17 @@ let consolidate_adopted = (): unit => {
            Id.Map.find_opt(id, term_data^),
          ) {
          | (Some(rep_data), Some(old_data)) =>
-           /* Preserve the original root_piece while updating skel/sort/base_seg */
+           /* Preserve the original root_piece and sort while updating skel/base_seg.
+              root_piece: identifies the actual tile for shard decoration.
+              sort: the adopted tile's own sort context (e.g. Mod for semicolons
+              inside a Module body), not the outer expression's sort. */
            term_data :=
              Id.Map.add(
                id,
                {
                  ...rep_data,
                  root_piece: old_data.root_piece,
+                 sort: old_data.sort,
                },
                term_data^,
              )
@@ -1075,6 +1275,9 @@ let for_projection =
         /* Rul case below prevents returning pseudo-terms
          * consisting of case scrutinee + rule(s) */
         | Rul => None
+        | Mod => Some(Mod(mod_(unsorted)))
+        | Sig => Some(Sig(sig_(unsorted)))
+        | MPat => Some(MPat(mpat(unsorted)))
         | Any => Some(Any()) /* grout */
         };
       };
