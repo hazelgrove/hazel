@@ -243,7 +243,7 @@ let go =
       /* Set pending_probe_cursor so the sample cursor adapts to the
          newly focused probe. For pointer clicks on a specific sample,
          the subsequent Capture action will override with more specific
-         data; for probe-to-probe navigation, closest_to_cursor picks
+         data; for probe-to-probe navigation, most_aligned_sample picks
          the best match. */
       let z =
         Zipper.update_refractors(z, r =>

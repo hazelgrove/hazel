@@ -492,10 +492,9 @@ in [f(1), f(2), f(3)]|};
       let outer_index = max(0, List.length(sample_1.call_stack) - 2);
       let cursor =
         mk_cursor_at_index(~index=outer_index, sample_1.call_stack);
-      /* first_related_index with trimmed=true should find sample 1, not 0 */
+      /* most_aligned_index should find sample 1, not 0 */
       let found_idx =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
+        Sample.Selection.most_aligned_index(
           ~ap_id=None,
           cursor,
           inner_samples,
@@ -524,8 +523,7 @@ in [f(10), f(20), f(30)]|};
       let cursor =
         mk_cursor_at_index(~index=outer_index, sample_2.call_stack);
       let cursor_idx =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
+        Sample.Selection.most_aligned_index(
           ~ap_id=None,
           cursor,
           inner_samples,

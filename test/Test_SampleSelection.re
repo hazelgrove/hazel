@@ -8,7 +8,7 @@ open Language;
  * given a cursor position, pin state, and display mode. No evaluation needed.
  *
  * The key pipeline tested:
- *   samples -> filter_by_pin -> first_related_index/closest_to_cursor -> select
+ *   samples -> filter_by_pin -> most_aligned_index/most_aligned_sample -> select
  *
  * Key types:
  * - stack_frame = {id: Id.t, name: option(string)}
@@ -481,18 +481,18 @@ let is_same_call_tests = [
   ),
 ];
 
-/* --- Test: closest_to_cursor --- */
+/* --- Test: most_aligned_sample --- */
 
 let closest_tests = [
   test_case(
-    "closest_to_cursor: exact match preferred",
+    "most_aligned_sample: exact match preferred",
     `Quick,
     () => {
       let cursor = mk_cursor([frame(id_a)]);
       let exact = mk_sample(~seq=0, [frame(id_a)]);
       let related = mk_sample(~seq=1, [frame(id_b), frame(id_a)]);
       let result =
-        Sample.Selection.closest_to_cursor(
+        Sample.Selection.most_aligned_sample(
           ~ap_id=None,
           ~cursor,
           [related, exact],
@@ -504,13 +504,13 @@ let closest_tests = [
     },
   ),
   test_case(
-    "closest_to_cursor: None vs Some names (regression)",
+    "most_aligned_sample: None vs Some names (regression)",
     `Quick,
     () => {
       let cursor = mk_cursor([frame(id_a)]);
       let sample = mk_sample(~seq=42, [named_frame(id_a, "f")]);
       let result =
-        Sample.Selection.closest_to_cursor(~ap_id=None, ~cursor, [sample]);
+        Sample.Selection.most_aligned_sample(~ap_id=None, ~cursor, [sample]);
       switch (result) {
       | Some(s) => check(int, "should find the sample", 42, s.seq)
       | None => fail("should find a sample (was failing before fix)")
@@ -518,17 +518,17 @@ let closest_tests = [
     },
   ),
   test_case(
-    "closest_to_cursor: falls back to best suffix match",
+    "most_aligned_sample: true suffix preferred over unrelated",
     `Quick,
     () => {
-      /* Cursor at [C, A], samples at [B, A] and [D].
-       * [B, A] shares suffix [A] with cursor, [D] shares nothing.
-       * closest_to_cursor should prefer [B, A]. */
+      /* Cursor at [C, A], samples at [C, A] (true suffix) and [D].
+       * [C, A] is a suffix of cursor [C, A] → picked.
+       * [B, A] would NOT be a suffix (B ≠ C = different branch). */
       let cursor = mk_cursor([frame(id_c), frame(id_a)]);
-      let s_suffix = mk_sample(~seq=1, [frame(id_b), frame(id_a)]);
+      let s_suffix = mk_sample(~seq=1, [frame(id_c), frame(id_a)]);
       let s_none = mk_sample(~seq=2, [frame(id_d)]);
       let result =
-        Sample.Selection.closest_to_cursor(
+        Sample.Selection.most_aligned_sample(
           ~ap_id=None,
           ~cursor,
           [s_none, s_suffix],
@@ -583,7 +583,7 @@ let empty_status_tests = [
   ),
 ];
 
-/* --- Test: intent preservation with trimmed cursor --- */
+/* --- Test: intent preservation via most_aligned_index --- */
 
 /* Helper: mk_cursor with explicit index (for testing intent preservation) */
 let mk_cursor_at_index =
@@ -608,13 +608,13 @@ let mk_cursor_at_index =
 
 let intent_preservation_tests = [
   test_case(
-    "trimmed first_related_index preserves inner selection",
+    "most_aligned_index preserves inner selection",
     `Quick,
     () => {
       /* Scenario: nested functions, outer called once, inner called 3 times.
        * User focuses inner sample 1, then clicks outer probe.
        * Cursor: full stack = [inner_1, outer_0], index = 0 (outer level).
-       * Inner probe's first_related_index(~trimmed=true) should find
+       * Inner probe's most_aligned_index should find
        * the sample matching the full stack (index 1), not reset to 0. */
       let outer_0 = frame(id_a);
       let inner_0 = frame(id_b);
@@ -628,8 +628,7 @@ let intent_preservation_tests = [
       /* Cursor at outer level but with inner_1 info preserved */
       let cursor = mk_cursor_at_index(~index=0, [inner_1, outer_0]);
       let result =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
+        Sample.Selection.most_aligned_index(
           ~ap_id=None,
           cursor,
           inner_samples,
@@ -643,7 +642,7 @@ let intent_preservation_tests = [
     },
   ),
   test_case(
-    "trimmed first_related_index: no preserved info falls back correctly",
+    "most_aligned_index: no preserved info falls back correctly",
     `Quick,
     () => {
       /* When cursor is genuinely at outer level (no deeper info),
@@ -658,8 +657,7 @@ let intent_preservation_tests = [
       /* Cursor at outer level with NO deeper info */
       let cursor = mk_cursor([outer_0]);
       let result =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
+        Sample.Selection.most_aligned_index(
           ~ap_id=None,
           cursor,
           inner_samples,
@@ -674,7 +672,7 @@ let intent_preservation_tests = [
     },
   ),
   test_case(
-    "trimmed first_related_index: outer probe unaffected by preserved info",
+    "most_aligned_index: outer probe unaffected by preserved info",
     `Quick,
     () => {
       /* When cursor has inner info but we're looking at the outer probe,
@@ -689,25 +687,22 @@ let intent_preservation_tests = [
       /* Cursor at outer level with inner info preserved */
       let cursor = mk_cursor_at_index(~index=0, [inner_1, outer_0]);
       let result =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
+        Sample.Selection.most_aligned_index(
           ~ap_id=None,
           cursor,
           outer_samples,
         );
       /* Full stack [inner_1, outer_0] doesn't match any outer sample,
-       * so falls through to trimmed match. Trimmed = [outer_0],
-       * which matches outer_0 sample at index 0. */
+       * so [outer_0] is the longest suffix match → finds index 0. */
       check(bool, "should find outer_0 at index 0", true, result == Some(0));
     },
   ),
   test_case(
-    "select Single preserves inner selection with trimmed cursor",
+    "select Single preserves inner selection with preserved cursor",
     `Quick,
     () => {
       /* End-to-end: Selection.select should return the preserved inner sample,
-       * not the first inner sample. Uses ~trimmed=false internally, but
-       * this tests the overall behavior matches what ProbeProj expects. */
+       * not the first inner sample. */
       let outer_0 = frame(id_a);
       let inner_0 = frame(id_b);
       let inner_1 = frame(id_c);
@@ -718,8 +713,7 @@ let intent_preservation_tests = [
         mk_sample(~seq=2, [inner_2, outer_0]),
       ];
       let cursor = mk_cursor_at_index(~index=0, [inner_1, outer_0]);
-      /* Selection.select uses ~trimmed=false, so it should find the match.
-       * This verifies the overall pipeline works. */
+      /* Selection.select uses most_aligned_index internally. */
       let selected = do_select(~cursor, inner_samples);
       check(int, "should show 1 sample", 1, List.length(selected));
       switch (selected) {
@@ -733,7 +727,7 @@ let intent_preservation_tests = [
     `Quick,
     () => {
       /* Simulates what ProbeProj.move_cursor does:
-       * first_related_index(~trimmed=true) to find current position,
+       * most_aligned_index to find current position,
        * then offset ±1 to get next sample. With intent preservation,
        * current position should be at the preserved sample, not reset. */
       let outer_0 = frame(id_a);
@@ -747,8 +741,7 @@ let intent_preservation_tests = [
       ];
       let cursor = mk_cursor_at_index(~index=0, [inner_1, outer_0]);
       let cursor_idx =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
+        Sample.Selection.most_aligned_index(
           ~ap_id=None,
           cursor,
           inner_samples,
@@ -809,12 +802,7 @@ let three_level_tests = [
        * [N0, M1, F] at index=0 (viewing top level) */
       let cursor = mk_cursor_at_index(~index=0, [n0, m1, f_frame]);
       let result =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
-          ~ap_id=None,
-          cursor,
-          mid_samples,
-        );
+        Sample.Selection.most_aligned_index(~ap_id=None, cursor, mid_samples);
       check(
         bool,
         "should find M1 at index 1 via intermediate match (not M0 at 0)",
@@ -838,8 +826,7 @@ let three_level_tests = [
       /* Cursor stack = [N0, M1, F] at index=0 (top level) */
       let cursor = mk_cursor_at_index(~index=0, [n0, m1, f_frame]);
       let result =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
+        Sample.Selection.most_aligned_index(
           ~ap_id=None,
           cursor,
           inner_samples,
@@ -868,22 +855,17 @@ let three_level_tests = [
       /* Cursor stack = [N0, M1, F] at index=0 */
       let cursor = mk_cursor_at_index(~index=0, [n0, m1, f_frame]);
       let result =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
-          ~ap_id=None,
-          cursor,
-          top_samples,
-        );
+        Sample.Selection.most_aligned_index(~ap_id=None, cursor, top_samples);
       /* Intermediate: [F] is suffix of [N0,M1,F] → picks F at index 0 */
       check(bool, "should find F at index 0", true, result == Some(0));
     },
   ),
   test_case(
-    "three-level: closest_to_cursor picks correct mid sample",
+    "three-level: most_aligned_sample picks correct mid sample",
     `Quick,
     () => {
       /* This tests the capture path (resolve_pending_probe_cursor).
-       * When navigating from inner to mid, closest_to_cursor should
+       * When navigating from inner to mid, most_aligned_sample should
        * pick the mid sample in the same call branch. */
       let f_frame = frame(id_a);
       let m0 = frame(id_b);
@@ -898,7 +880,11 @@ let three_level_tests = [
       /* Cursor at inner level: [N0, M1, F] */
       let cursor = mk_cursor_at_index(~index=2, [n0, m1, f_frame]);
       let result =
-        Sample.Selection.closest_to_cursor(~ap_id=None, ~cursor, mid_samples);
+        Sample.Selection.most_aligned_sample(
+          ~ap_id=None,
+          ~cursor,
+          mid_samples,
+        );
       switch (result) {
       | Some(s) =>
         check(int, "should pick M1 (seq=1), not M0 (seq=0)", 1, s.seq)
@@ -991,8 +977,7 @@ let three_level_tests = [
         mk_sample(~seq=2, [m2, f_frame]),
       ];
       let result =
-        Sample.Selection.first_related_index(
-          ~trimmed=true,
+        Sample.Selection.most_aligned_index(
           ~ap_id=None,
           cursor_top,
           mid_samples,
