@@ -720,6 +720,110 @@ let result = App.update(App.init) in result
 
 ---
 
+## 19. Selector Insert Actions — Semantics & Edge Cases
+
+`SelectorInsertBefore(selector, code)` and `SelectorInsertAfter(selector, code)`
+insert new code relative to the node matched by `selector`. The selector resolves
+to a target node, and the insert logic checks what *kind* of structural position
+that node occupies to determine how to insert.
+
+### The cascade (checked in order)
+
+1. **Case arm**: If the target is a case arm body, insert a new rule.
+   The `code` is a rule like `"D => 4"` (optional leading `|`).
+
+2. **List element**: If the target is inside a `ListLit`, insert a new element.
+   The `code` is an expression like `"42"`.
+
+3. **Tuple element**: If the target is inside a `Tuple`, insert a new element.
+   The `code` is an expression like `"42"`.
+
+4. **Module item**: If the target is (or is inside) a `Module(items)` item,
+   insert a new item. The `code` is a binding like `"let y = 2"`.
+
+5. **Binding (fallback)**: Otherwise, treat the target as a Let/TyAlias chain
+   node. The `code` is a binding like `"let y = 2"`.
+
+### Examples
+
+#### Let bindings
+
+```
+Program: let x = 1 in x + 1
+
+SelectorInsertAfter("* let x", "let y = 2")
+→ let x = 1 in let y = 2 in x + 1
+  (new let is spliced into x's body)
+
+SelectorInsertBefore("* let x", "let y = 2")
+→ let y = 2 in let x = 1 in x + 1
+  (new let wraps the target)
+```
+
+#### Module items
+
+```
+Program: module M = { let x = 1 } in M.x
+
+SelectorInsertAfter("M/x = *", "let y = 2")
+→ module M = { let x = 1; let y = 2 } in M.x
+
+SelectorInsertBefore("M/x = *", "let y = 0")
+→ module M = { let y = 0; let x = 1 } in M.x
+```
+
+#### Case arms
+
+```
+Program: let f = fun x -> case x | A => 1 | B => 2 end in f
+
+(via path system, not yet wired through SelectorInsert directly)
+Insert(After, "f/|B", "C => 3")
+→ let f = fun x -> case x | A => 1 | B => 2 | C => 3 end in f
+
+Insert(Before, "f/|A", "Z => 0")
+→ let f = fun x -> case x | Z => 0 | A => 1 | B => 2 end in f
+```
+
+The code string for case arms is `"Pat => Body"` with an optional leading `|`.
+
+### Edge cases and open questions
+
+**What happens when the target isn't in a "sequence-like" position?**
+
+The binding fallback (step 5) will try to wrap *any* expression in a Let,
+even if the selector pointed at, say, an operand of `+`. The result would
+be structurally valid but semantically surprising:
+
+```
+Program: let x = 1 + 2 in x
+SelectorInsertAfter("x = #0", "let y = 99")
+→ wraps the "1" in: let y = 99 in 1 (inside the BinOp)
+```
+
+This is permissive — an agent never gets blocked — but may produce
+nonsensical results. Options:
+
+1. **Current (permissive)**: Always succeed. Agent is responsible for
+   using sensible selectors.
+2. **Strict**: Refuse to insert unless the target is in a recognized
+   "sequence-like" position (case arm, list, tuple, module item, or
+   let/type chain). Would require an explicit check before the fallback.
+3. **Diagnostic**: Succeed but return a warning when the target position
+   is unusual.
+
+Currently using option 1. May want to revisit.
+
+**SelectorInsert for case arms via selector syntax:**
+
+The current test suite uses the path system (`Insert(After, "f/|B", "C => 3")`)
+for case arm insertion. Wiring `SelectorInsertAfter("| B => *", "C => 3")`
+through the selector system would require the `is_case_arm` check to work
+with selector-resolved IDs. This should already work since both resolve to
+the same `focused_id`, but needs testing.
+
+---
+
 ## Future Directions
 
 ### Wildcard keyword `_` in keyword position
