@@ -15,6 +15,7 @@ open Language;
 type action =
   | ChangeLength(int, int)
   | ToggleWindowMode
+  | ToggleShowEnv
   | ResetSettings;
 
 module Settings = {
@@ -87,9 +88,14 @@ module Settings = {
 
   let s = ref(init);
 
+  /* When true, the context menu dropdown is shown for the indicated sample
+   * without hovering. Toggled by '/' key. Persists across probe navigation. */
+  let show_env = ref(false);
+
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
+    show_env := false;
   };
 
   let go = (a: set_action): unit => s := update(s^, a);
@@ -846,7 +852,8 @@ let sample_environment =
 };
 
 /* Sample context menu (dropdown) combining actions and environment */
-let sample_context_menu = (ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
+let sample_context_menu =
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
   /* Get variable names shown in call display to filter from environment */
   let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
@@ -856,7 +863,9 @@ let sample_context_menu = (ctx: probe_ctx, view_seg, sample: Sample.t): Node.t =
     ~attrs=
       [
         Attr.classes(
-          ["sample-context-menu"] @ (has_env || has_call ? [] : ["no-env"]),
+          ["sample-context-menu"]
+          @ (has_env || has_call ? [] : ["no-env"])
+          @ (show_env ? ["dropdown-active"] : []),
         ),
       ]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
@@ -879,10 +888,18 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
   };
 
 let sample_view =
-    (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
+    (
+      ctx: probe_ctx,
+      ~indicated_sample_id,
+      ~num_total,
+      view_seg,
+      local,
+      sample: Sample.t,
+    ) => {
   let hide_env = hide_env(ctx.statics);
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+  let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
   div(
     ~attrs=
       [Attr.classes(["sample"])]
@@ -893,7 +910,10 @@ let sample_view =
       ),
     [value_view(ctx, ~num_total, view_seg, local, sample)]
     @ pin_view(ctx, sample)
-    @ (has_dropdown ? [sample_context_menu(ctx, view_seg, sample)] : []),
+    @ (
+      has_dropdown
+        ? [sample_context_menu(~show_env, ctx, view_seg, sample)] : []
+    ),
   );
 };
 
@@ -1093,9 +1113,10 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([local(ResetSettings), parent(SampleCursor(Reset))]);
-  | D("Escape") =>
+  | D("Escape")
+  | D("Tab") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Ignore;
+    Many([Stop_propagation, Prevent_default]);
   | D("ArrowRight") when key.shift == Down =>
     let effect =
       switch (indicated_sample(ctx)) {
@@ -1156,6 +1177,17 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
         step_into_sample(~parent, ~sample, ~ap_id),
       ])
     | _ => Many([Stop_propagation, Prevent_default])
+    }
+  | D("/") => Many([local(ToggleShowEnv), Stop_propagation, Prevent_default])
+  | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
+    switch (indicated_sample(ctx)) {
+    | Some(sample) =>
+      let seg = ctx.utility.term_to_seg(Exp(sample.value));
+      let str = ctx.utility.seg_to_string(seg);
+      let _ =
+        Js.Unsafe.global##.navigator##.clipboard##writeText(Js.string(str));
+      Many([Stop_propagation, Prevent_default]);
+    | None => Many([Stop_propagation, Prevent_default])
     }
   | D("z" | "Z") when Key.ctrl_held(evt) || Key.meta_held(evt) => Ignore // Defer to parent editor undo for now
   | _ => Many([Stop_propagation])
@@ -1268,7 +1300,16 @@ let offside_view =
             Sort.Exp,
             segment,
           );
-        let sample_view = sample_view(ctx, ~num_total, view_seg_line, local);
+        let indicated_sample_id =
+          indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+        let sample_view =
+          sample_view(
+            ctx,
+            ~indicated_sample_id,
+            ~num_total,
+            view_seg_line,
+            local,
+          );
         let group_views =
           List.map(
             samples =>
@@ -1334,6 +1375,7 @@ module M: Projector = {
     switch (a) {
     | ChangeLength(id, len) => SampleLength.set(id, len)
     | ToggleWindowMode => Settings.go(ToggleWindow)
+    | ToggleShowEnv => Settings.show_env := ! Settings.show_env^
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();

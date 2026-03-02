@@ -218,6 +218,7 @@ let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
 let rm_multi =
     (
       ~drill: bool=true,
+      ~reset: bool=true,
       ~syntax: CachedSyntax.t,
       ~info_map: Statics.Map.t,
       id: Id.t,
@@ -227,30 +228,32 @@ let rm_multi =
   /* Remove all target IDs from multis, like rm_manual does for manuals.
      When drill=false, remove just the ID directly (must match how it was added). */
   let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
-  Zipper.update_refractors(z, refractors =>
-    {
-      ...refractors,
-      multis: {
-        ids:
-          Id.Map.filter(
-            (id, _) => !List.mem(id, target_ids),
-            z.refractors.multis.ids,
-          ),
-        ephemerals:
-          Id.Map.filter(
-            (id', _) => !List.mem(id', target_ids),
-            z.refractors.multis.ephemerals,
-          ),
-      },
-    }
-  )
-  /* We need to check if any of the probed ids are pinned; if so
-     we'll need to remove that pin when we remove the auto */
-  |> maybe_rm_pin(
-       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
-     )
-  /* Reset sample cursor if no probes remain */
-  |> maybe_reset_cursor;
+  let z =
+    Zipper.update_refractors(z, refractors =>
+      {
+        ...refractors,
+        multis: {
+          ids:
+            Id.Map.filter(
+              (id, _) => !List.mem(id, target_ids),
+              z.refractors.multis.ids,
+            ),
+          ephemerals:
+            Id.Map.filter(
+              (id', _) => !List.mem(id', target_ids),
+              z.refractors.multis.ephemerals,
+            ),
+        },
+      }
+    )
+    /* We need to check if any of the probed ids are pinned; if so
+       we'll need to remove that pin when we remove the auto */
+    |> maybe_rm_pin(
+         List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
+       );
+  /* Reset sample cursor if no probes remain (skipped when reset=false,
+     e.g. during clear_autoprobe to avoid style flash) */
+  reset ? maybe_reset_cursor(z) : z;
 };
 
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
@@ -1082,7 +1085,15 @@ let clear_autoprobe =
   switch (z.refractors.autoprobe_target) {
   | None => z
   | Some(old_id) =>
-    rm_multi(~drill=false, ~syntax, ~info_map, old_id, z)
+    /* Skip cursor reset here: the syntax cache still has the old probes
+     * (since this isn't an edit, CachedSyntax won't recalculate until
+     * the next is_edited cycle). If we reset the cursor now, the stale
+     * probes render one last frame with a reset cursor, causing a brief
+     * color flash before they disappear. By preserving the cursor, the
+     * departing probes render with their original colors. The cursor
+     * will be reset on the next editor_effects call when the probes
+     * are actually gone from the syntax cache. */
+    rm_multi(~drill=false, ~reset=false, ~syntax, ~info_map, old_id, z)
     |> Zipper.update_refractors(_, r =>
          {
            ...r,

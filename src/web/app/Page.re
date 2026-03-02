@@ -432,23 +432,9 @@ module Selection = {
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Globals(Undo))
-    /* Toggle auto-probe mode: Cmd+Shift+P (Mac) or Ctrl+Shift+P (PC) */
-    | {
-        key: D("P" | "p"),
-        sys: Mac,
-        shift: Down,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-      }
-    | {
-        key: D("P" | "p"),
-        sys: PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-      } =>
+    /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
+    | {key: D("P" | "p"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("P" | "p"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Globals(Set(AutoprobeMode)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
@@ -671,7 +657,7 @@ module View = {
 
   let autoprobe_indicator = (~globals: Globals.t, ~inject) => [
     Widgets.toggle(
-      ~tooltip="Auto-probe mode active (Cmd/Ctrl+Shift+P to toggle)",
+      ~tooltip="Auto-probe mode active (Cmd/Ctrl+P to toggle)",
       "🔬",
       globals.settings.autoprobe_mode,
       _ =>

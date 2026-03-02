@@ -146,10 +146,23 @@ module Selection = {
   };
 
   let handle_key_event =
-      (~selection as (), _: Model.t): (Key.t => option(Update.t)) =>
+      (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
-    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
-      Some(Update.TAB)
+    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} => {
+        let z = model.editor.state.zipper;
+        let refractors =
+          z.refractors.manuals
+          @ Id.Map.to_list(z.refractors.multis.ephemerals);
+        switch (Indicated.index(z)) {
+        | Some(id) =>
+          switch (List.find_index(((rid, _)) => rid == id, refractors)) {
+          | Some(idx) =>
+            Some(Update.Perform(Project(Focus(idx, Probe, None))))
+          | None => Some(Update.TAB)
+          }
+        | None => Some(Update.TAB)
+        };
+      }
     /* Cmd+. (Mac) / Ctrl+. (PC) opens context menu - VS Code Quick Fix convention */
     | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
