@@ -64,6 +64,7 @@ module Model = {
       Some(
         () =>
           Printer.of_segment(
+            ~indent=" ",
             ~refractors=model.editor.state.zipper.refractors.manuals,
             model.editor.state.zipper.selection.content,
           ),
