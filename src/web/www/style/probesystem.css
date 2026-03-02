@@ -91,8 +91,8 @@
 }
 
 #probesys .sketch .sketch-toggle-image {
-  width: 140px;
-  height: 140px;
+  width: 160px;
+  height: 160px;
   transition: all 0.2s ease-in-out;
   background-image: url("../img/probe-lenses.webp");
   background-size: contain;
@@ -154,6 +154,54 @@
   color: var(--BR2);
   display: flex;
   gap: 0.5em;
+  align-items: baseline;
+}
+
+#probesys .quick-ref .qr-when-focused,
+#probesys .quick-ref .qr-when-unfocused,
+#probesys .quick-ref .qr-cmd-e,
+#probesys .quick-ref .qr-focus-probe {
+  display: inline-flex;
+  gap: 0.4em;
+}
+
+#probesys .quick-ref .qr-how-text {
+  flex: 1;
+}
+
+#probesys .quick-ref .qr-divider {
+  padding: 0.3em 0;
+  border-bottom: 1px solid var(--BR1);
+}
+
+/* Dim keyboard badges based on probe focus state */
+body:has(.live-offside:focus) #probesys .qr-when-unfocused,
+body:not(:has(.live-offside:focus)) #probesys .qr-when-focused {
+  opacity: 0.45;
+}
+
+/* ⌘E: dim when code focused and indicated term can't be probed */
+body:not(:has(.live-offside:focus))
+  #probesys
+  .quick-ref:not(.can-probe)
+  .qr-cmd-e {
+  opacity: 0.45;
+}
+/* ⌘E: dim when probe focused and no manual probe to remove */
+body:has(.live-offside:focus) #probesys .quick-ref:not(.has-manual) .qr-cmd-e {
+  opacity: 0.45;
+}
+
+/* Focus probe Tab: dim when probe already focused */
+body:has(.live-offside:focus) #probesys .qr-focus-probe {
+  opacity: 0.45;
+}
+/* Focus probe Tab: dim when code focused but no probe on indicated term */
+body:not(:has(.live-offside:focus))
+  #probesys
+  .quick-ref:not(.has-probe)
+  .qr-focus-probe {
+  opacity: 0.45;
 }
 
 #probesys .quick-ref .qr-icons {
@@ -193,7 +241,7 @@
 #probesys .legend .legend-tooltip {
   display: none;
   position: absolute;
-  top: 101%;
+  top: 60%;
   left: 0;
   right: 0;
   /* margin-top: 0.25em; */
@@ -205,11 +253,13 @@
   line-height: 1.4;
   white-space: normal;
   z-index: 10;
-  text-align: left;
+  min-height: 4em;
+  align-items: center;
+  justify-content: center;
 }
 
 #probesys .legend .legend-item:hover .legend-tooltip {
-  display: block;
+  display: flex;
 }
 
 #probesys .legend-not-aligned {
@@ -375,14 +425,14 @@
   display: block;
 }
 
-/* Toggle controls row (auto probe + samples) */
-#probesys .legend .toggle-controls {
-  grid-column: 1 / -1;
+/* Toggle controls panel (auto probe + samples) */
+#probesys .panel.toggle-controls {
+  overflow: visible;
   display: flex;
   gap: 0.75rem;
 }
 
-#probesys .legend .toggle-group {
+#probesys .toggle-controls .toggle-group {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -390,7 +440,7 @@
   position: relative;
 }
 
-#probesys .legend .toggle-label {
+#probesys .toggle-controls .toggle-label {
   font-size: 0.85em;
   color: var(--BR2);
   display: flex;
@@ -398,8 +448,66 @@
   gap: 0.3em;
 }
 
-#probesys .legend .toggle-group:hover > .legend-tooltip {
+#probesys .toggle-controls .toggle-label .kbd-badge,
+#probesys .toggle-controls .toggle-label .click-kbd-pill {
+  margin-left: auto;
+}
+
+#probesys .toggle-controls .toggle-group:hover > .legend-tooltip {
   display: block;
+}
+
+#probesys .toggle-controls .segmented-control {
+  display: flex;
+  border: 1px solid var(--BR1);
+  border-radius: 4px;
+  overflow: visible;
+  pointer-events: auto;
+  position: relative;
+}
+
+#probesys .toggle-controls .segmented-control .segment {
+  flex: 1;
+  text-align: center;
+  padding: 0.2em 0.4em;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-family: var(--ui-font);
+  background-color: transparent;
+  border-right: 1px solid var(--BR1);
+  user-select: none;
+  position: relative;
+}
+
+#probesys .toggle-controls .segmented-control .segment:last-child {
+  border-right: none;
+}
+
+#probesys .toggle-controls .segmented-control .segment.active {
+  background-color: var(--Y1);
+  color: var(--BR4);
+  font-weight: 500;
+}
+
+#probesys .toggle-controls .segmented-control .segment:hover:not(.active) {
+  background-color: var(--Y0);
+}
+
+#probesys .toggle-controls .legend-tooltip {
+  display: none;
+  position: absolute;
+  top: 101%;
+  left: 0;
+  right: 0;
+  padding: 0.5em 0.75em;
+  background-color: var(--BR1);
+  color: var(--BR4);
+  border-radius: 0.5em;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: normal;
+  z-index: 10;
+  text-align: left;
 }
 
 /* Keyboard shortcut badge */

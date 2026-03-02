@@ -125,7 +125,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Probe(ToggleStatics))),
     ),
     mk_shortcut(
-      ~hotkey=Keyboard.meta(sys) ++ "+shift+p",
+      ~hotkey=Keyboard.meta(sys) ++ "+p",
       ~mdIcon="science",
       ~section="Projection",
       "Toggle Auto Probe",
