@@ -1,4 +1,4 @@
-# GROVE PATH - SOLUTION #
+# GARDEN PATH - SOLUTION #
 
 let grove_name = fun path ->
   let parts = string_split("/", path) in

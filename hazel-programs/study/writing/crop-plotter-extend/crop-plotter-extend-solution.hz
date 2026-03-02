@@ -1,4 +1,4 @@
-# GROVE PLOTTER EXTENSION - SOLUTION #
+# CROP PLOTTER EXTENSION - SOLUTION #
 
 type Plant = String in
 type Grove = [[Plant]] in

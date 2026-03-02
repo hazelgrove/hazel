@@ -1,6 +1,6 @@
-# GROVE PLOTTER EXTENSION TASK                   #
+# CROP PLOTTER EXTENSION TASK                     #
 #                                                 #
-# The grove plotter app lets you plant seeds on   #
+# The crop plotter app lets you plant seeds on    #
 # a grid. It already supports planting rows.      #
 #                                                 #
 # YOUR TASK: Add a PlantCol action that fills     #

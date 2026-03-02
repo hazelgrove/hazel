@@ -1,11 +1,13 @@
-# GROVE PATH TASK                                #
+# GARDEN PATH TASK                               #
 #                                                #
 # Implement grove_name: extract the first        #
 # section from a garden path.                    #
 #                                                #
 # Examples:                                      #
-#   grove_name("/moonlit-grove/ferns") == "moonlit-grove"  #
-#   grove_name("/night-garden/herbs/rosemary") == "night-garden"  #
+#   grove_name("/moonlit-grove/ferns")           #
+#     == "moonlit-grove"                         #
+#   grove_name("/night-garden/herbs/thyme")      #
+#     == "night-garden"                          #
 #   grove_name("/") == ""                        #
 #                                                #
 # Available functions:                           #
