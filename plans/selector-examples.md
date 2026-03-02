@@ -1017,4 +1017,4 @@ For deeper targets inside operands, falls back to numeric `#N` addressing.
 - `ExpToSegment.re` — pretty-printing (mod_to_segment, pat_to_segment, typ_to_segment)
 - `ToolJsonDefinitions/EditTools.re` — JSON tool defs for edit tools
 - `ToolJsonDefinitions/ReadTools.re` — JSON tool defs for read tools
-- `Test_AgentTools.re` — 374 tests
+- `Test_AgentTools.re` — 376 tests

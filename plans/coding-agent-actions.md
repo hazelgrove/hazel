@@ -130,7 +130,7 @@ Both systems coexist. Selectors are the primary interface for new work.
 
 ## Test Suite
 
-**374 tests** (all passing). Run with:
+**376 tests** (all passing). Run with:
 ```bash
 cd /Users/andrewblinn/.claude-worktrees/hazel/coding-agent-actions
 dune build
