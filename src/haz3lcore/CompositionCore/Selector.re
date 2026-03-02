@@ -2795,9 +2795,33 @@ let canonical_named = (target: Id.t, root: Exp.t): option(sem_selector) =>
 
 /* Deparse: convert a sem_selector back to surface syntax string */
 let deparse = (steps: sem_selector): string => {
-  let step_str =
-    List.map(
-      step =>
+  /* Collapse consecutive EnterBinderDef into chain syntax:
+     EnterBinderDef(A), EnterBinderDef(B), MatchName(C) → "A/B/C"
+     EnterBinderDef(A), EnterBinderDef(B), <other> → "A/B/" <other>
+     EnterBinderDef(A), MatchName(B) → "A/B" */
+  let rec go = (steps: sem_selector): list(string) =>
+    switch (steps) {
+    | [] => []
+    | [EnterBinderDef(name), ...rest] =>
+      let (chain_names, rest') = collect_chain([name], rest);
+      switch (rest') {
+      | [MatchName(last), ...rest''] =>
+        let chain = String.concat("/", chain_names) ++ "/" ++ last;
+        [chain, ...go(rest'')];
+      | [MatchNameIndex(last, idx), ...rest''] =>
+        let chain =
+          String.concat("/", chain_names)
+          ++ "/"
+          ++ last
+          ++ "#"
+          ++ string_of_int(idx);
+        [chain, ...go(rest'')];
+      | _ =>
+        let chain = String.concat("/", chain_names) ++ "/";
+        [chain, ...go(rest')];
+      };
+    | [step, ...rest] =>
+      let s =
         switch (step) {
         | MatchFocus => "*"
         | MatchSlot => "_"
@@ -2807,12 +2831,18 @@ let deparse = (steps: sem_selector): string => {
         | MatchName(n) => n
         | MatchNameIndex(n, i) => n ++ "#" ++ string_of_int(i)
         | ChildIndex(n) => "#" ++ string_of_int(n)
-        | EnterBinderDef(_) => ""
         | DescendInto => "\\..."
-        },
-      steps,
-    );
-  /* Filter empty strings from EnterBinderDef, join with spaces */
-  let parts = List.filter(s => s != "", step_str);
-  String.concat(" ", parts);
+        | EnterBinderDef(_) => "" /* unreachable */
+        };
+      [s, ...go(rest)];
+    }
+  and collect_chain =
+      (acc: list(string), steps: sem_selector)
+      : (list(string), sem_selector) =>
+    switch (steps) {
+    | [EnterBinderDef(name), ...rest] =>
+      collect_chain(acc @ [name], rest)
+    | _ => (acc, steps)
+    };
+  String.concat(" ", go(steps));
 };

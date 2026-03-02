@@ -2595,6 +2595,26 @@ let canonical_tests = (
       let path = [MatchKeyword("let"), MatchNameIndex("x", 1), MatchDelimiter("="), MatchFocus];
       check(string, "deparse", "let x#1 = *", deparse(path));
     }),
+    test_case("deparse: chain no trailing slash", `Quick, () => {
+      open Selector;
+      let path = [EnterBinderDef("A"), EnterBinderDef("B"), MatchName("x"), MatchDelimiter("="), MatchFocus];
+      check(string, "deparse", "A/B/x = *", deparse(path));
+    }),
+    test_case("deparse: chain with trailing slash", `Quick, () => {
+      open Selector;
+      let path = [EnterBinderDef("A"), EnterBinderDef("B"), MatchKeyword("let"), MatchName("y"), MatchDelimiter("="), MatchFocus];
+      check(string, "deparse", "A/B/ let y = *", deparse(path));
+    }),
+    test_case("deparse: single enter + name", `Quick, () => {
+      open Selector;
+      let path = [EnterBinderDef("M"), MatchName("x"), MatchDelimiter("="), MatchFocus];
+      check(string, "deparse", "M/x = *", deparse(path));
+    }),
+    test_case("deparse: single enter trailing slash", `Quick, () => {
+      open Selector;
+      let path = [EnterBinderDef("M"), MatchFocus];
+      check(string, "deparse", "M/ *", deparse(path));
+    }),
 
     /* === Named canonical path generation === */
 
