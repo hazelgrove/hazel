@@ -136,6 +136,7 @@ let elaborate = (sel: selector): sem_selector => {
     | [Slot, ...rest] => [MatchSlot, ...go(rest)]
     | [Ellipsis, ...rest] => [MatchEllipsis, ...go(rest)]
     | [Focus, ...rest] => [MatchFocus, ...go(rest)]
+    | [Descend, Descend, ...rest] => go([Descend, ...rest]) /* idempotent */
     | [Descend, ...rest] => [DescendInto, ...go(rest)]
     | [KW_let, ...rest] => [MatchKeyword("let"), ...go(rest)]
     | [KW_fun, ...rest] => [MatchKeyword("fun"), ...go(rest)]

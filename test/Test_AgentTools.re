@@ -1745,15 +1745,15 @@ let selector_tests = (
         str_contains(result, "x") && str_contains(result, "y"));
     }),
     /* === Double descent === */
-    /* \... \... | _ => * : find all arm bodies at any depth */
-    test_case("double descent: all arms", `Quick, () => {
+    /* \... \... is idempotent: collapsed to single \... in elaboration */
+    test_case("double descent is idempotent", `Quick, () => {
       let code =
         "let f = fun x -> case x | A => 1 | B => 2 end in "
         ++ "let g = fun y -> case y | C => 3 | D => 4 end in "
         ++ "f(g(0))";
-      let results = selector_query(code, "\\... \\... | _ => *");
-      /* Should find arms from both case expressions: 1,2 from f, 3,4 from g */
-      check(bool, "at least 4 arms", true, List.length(results) >= 4);
+      let single = selector_query(code, "\\... | _ => *");
+      let double = selector_query(code, "\\... \\... | _ => *");
+      check(int, "same count", List.length(single), List.length(double));
     }),
     /* Descend + chain + spine: complex composition */
     test_case("chain + descend + if else + focus", `Quick, () => {
