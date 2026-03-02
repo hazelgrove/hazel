@@ -2490,6 +2490,18 @@ let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
   p |> PrettySegment.select;
 };
 
+let pat_to_segment = (~settings: Settings.t, pat: Pat.t): Segment.t => {
+  let pat =
+    pat
+    |> parenthesize_pat(
+         ~parenthesization=settings.parenthesization,
+         ~show_filters=settings.show_filters,
+         ~show_ascriptions=settings.show_ascriptions,
+       );
+  let p = pat_to_pretty(~settings, pat);
+  p |> PrettySegment.select;
+};
+
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
   let any =

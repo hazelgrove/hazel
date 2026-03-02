@@ -67,8 +67,13 @@ type sem_selector = list(sem_step);
 
 /* === Match result === */
 
+type focus_target =
+  | FocusExp(Exp.t)
+  | FocusPat(Pat.t)
+  | FocusTyp(Typ.t);
+
 type match_result = {
-  focused: Exp.t,
+  focused: focus_target,
   focused_id: Id.t,
   /* breadcrumb for disambiguation */
   breadcrumb: string,
@@ -483,7 +488,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* Focus: return the current expression as match */
     | [MatchFocus] => [
         {
-          focused: current,
+          focused: FocusExp(current),
           focused_id: Exp.rep_id(current),
           breadcrumb: "",
         },
@@ -505,7 +510,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (find_let_node(name, current)) {
       | Some(let_exp) => [
           {
-            focused: let_exp,
+            focused: FocusExp(let_exp),
             focused_id: Exp.rep_id(let_exp),
             breadcrumb: name,
           },
@@ -515,7 +520,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         switch (find_binder_in_exp(name, current)) {
         | Some((def, _)) => [
             {
-              focused: def,
+              focused: FocusExp(def),
               focused_id: Exp.rep_id(def),
               breadcrumb: name,
             },
@@ -529,7 +534,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (find_binder_in_exp(name, current)) {
       | Some((def, _body)) => [
           {
-            focused: def,
+            focused: FocusExp(def),
             focused_id: Exp.rep_id(def),
             breadcrumb: name ++ " = ...",
           },
@@ -549,7 +554,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (find_binder_in_exp(name, current)) {
       | Some((_def, body)) => [
           {
-            focused: body,
+            focused: FocusExp(body),
             focused_id: Exp.rep_id(body),
             breadcrumb: name ++ " ... in ...",
           },
@@ -581,7 +586,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (find_let_node_indexed(name, idx, current)) {
       | Some(let_exp) => [
           {
-            focused: let_exp,
+            focused: FocusExp(let_exp),
             focused_id: Exp.rep_id(let_exp),
             breadcrumb: name ++ "#" ++ string_of_int(idx),
           },
@@ -590,7 +595,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         switch (find_binder_indexed(name, idx, current)) {
         | Some((def, _)) => [
             {
-              focused: def,
+              focused: FocusExp(def),
               focused_id: Exp.rep_id(def),
               breadcrumb: name ++ "#" ++ string_of_int(idx),
             },
@@ -603,7 +608,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (find_binder_indexed(name, idx, current)) {
       | Some((def, _body)) => [
           {
-            focused: def,
+            focused: FocusExp(def),
             focused_id: Exp.rep_id(def),
             breadcrumb: name ++ "#" ++ string_of_int(idx) ++ " = ...",
           },
@@ -621,7 +626,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (find_binder_indexed(name, idx, current)) {
       | Some((_def, body)) => [
           {
-            focused: body,
+            focused: FocusExp(body),
             focused_id: Exp.rep_id(body),
             breadcrumb: name ++ "#" ++ string_of_int(idx) ++ " ... in ...",
           },
@@ -772,14 +777,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     switch (steps) {
     | [] => [
         {
-          focused: spine.whole,
+          focused: FocusExp(spine.whole),
           focused_id: Exp.rep_id(spine.whole),
           breadcrumb: "",
         },
       ]
     | [MatchFocus] => [
         {
-          focused: spine.whole,
+          focused: FocusExp(spine.whole),
           focused_id: Exp.rep_id(spine.whole),
           breadcrumb: "",
         },
@@ -789,7 +794,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         {
-          focused: spine.def,
+          focused: FocusExp(spine.def),
           focused_id: Exp.rep_id(spine.def),
           breadcrumb: "let " ++ name ++ " = ...",
         },
@@ -804,7 +809,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), MatchFocus]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         {
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "let " ++ name ++ " ... in ...",
         },
@@ -838,11 +843,10 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchName(name), MatchDelimiter(":"), MatchFocus] =>
       switch (Pat.term_of(spine.pat)) {
       | Asc(inner_pat, ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
-        let _ty = ty;
         [{
-          focused: spine.def,
-          focused_id: Exp.rep_id(spine.def),
-          breadcrumb: "let " ++ name ++ " : <type> = ...",
+          focused: FocusTyp(ty),
+          focused_id: Typ.rep_id(ty),
+          breadcrumb: "let " ++ name ++ " : ...",
         }]
       | _ => []
       }
@@ -852,14 +856,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (Pat.term_of(spine.pat)) {
       | Asc(inner_pat, _ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
         [{
-          focused: spine.def,
+          focused: FocusExp(spine.def),
           focused_id: Exp.rep_id(spine.def),
           breadcrumb: "let " ++ name ++ " : _ = ...",
         }]
       /* Also handle non-Asc patterns — name : _ = * just skips to def */
       | _ when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
         [{
-          focused: spine.def,
+          focused: FocusExp(spine.def),
           focused_id: Exp.rep_id(spine.def),
           breadcrumb: "let " ++ name ++ " : _ = ...",
         }]
@@ -871,7 +875,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (Pat.term_of(spine.pat)) {
       | Asc(inner_pat, _ty) when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) =>
         [{
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "let " ++ name ++ " : _ = _ ... in ...",
         }]
@@ -882,7 +886,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchName(name)]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         {
-          focused: spine.whole,
+          focused: FocusExp(spine.whole),
           focused_id: Exp.rep_id(spine.whole),
           breadcrumb: "let " ++ name,
         },
@@ -894,7 +898,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* let _ = * : slot pattern, focus on def */
     | [MatchSlot, MatchDelimiter("="), MatchFocus] => [
         {
-          focused: spine.def,
+          focused: FocusExp(spine.def),
           focused_id: Exp.rep_id(spine.def),
           breadcrumb: "let _ = ...",
         },
@@ -903,7 +907,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* let _ ... in * : slot pattern, focus on body */
     | [MatchSlot, MatchEllipsis, MatchKeyword("in"), MatchFocus] => [
         {
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "let _ ... in ...",
         },
@@ -918,7 +922,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* if * : focus on condition */
     | [MatchFocus] => [
         {
-          focused: spine.cond,
+          focused: FocusExp(spine.cond),
           focused_id: Exp.rep_id(spine.cond),
           breadcrumb: "if ...",
         },
@@ -927,7 +931,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* if _ then * : focus on then branch */
     | [MatchSlot, MatchKeyword("then"), MatchFocus] => [
         {
-          focused: spine.then_,
+          focused: FocusExp(spine.then_),
           focused_id: Exp.rep_id(spine.then_),
           breadcrumb: "if _ then ...",
         },
@@ -936,7 +940,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* if ... else * : focus on else branch */
     | [MatchEllipsis, MatchKeyword("else"), MatchFocus] => [
         {
-          focused: spine.else_,
+          focused: FocusExp(spine.else_),
           focused_id: Exp.rep_id(spine.else_),
           breadcrumb: "if ... else ...",
         },
@@ -951,7 +955,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         MatchFocus,
       ] => [
         {
-          focused: spine.else_,
+          focused: FocusExp(spine.else_),
           focused_id: Exp.rep_id(spine.else_),
           breadcrumb: "if _ then _ else ...",
         },
@@ -972,7 +976,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* case * : focus on scrutinee */
     | [MatchFocus] => [
         {
-          focused: scrut,
+          focused: FocusExp(scrut),
           focused_id: Exp.rep_id(scrut),
           breadcrumb: "case ...",
         },
@@ -1008,7 +1012,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
            switch (pat_name(pat)) {
            | Some(n) when String.equal(n, name) =>
              Some({
-               focused: body,
+               focused: FocusExp(body),
                focused_id: Exp.rep_id(body),
                breadcrumb: "| " ++ name ++ " => ...",
              })
@@ -1018,13 +1022,13 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
              | Ap({term: Constructor(cname, _), _}, _)
                  when String.equal(cname, name) =>
                Some({
-                 focused: body,
+                 focused: FocusExp(body),
                  focused_id: Exp.rep_id(body),
                  breadcrumb: "| " ++ name ++ "(...) => ...",
                })
              | Constructor(cname, _) when String.equal(cname, name) =>
                Some({
-                 focused: body,
+                 focused: FocusExp(body),
                  focused_id: Exp.rep_id(body),
                  breadcrumb: "| " ++ name ++ " => ...",
                })
@@ -1066,7 +1070,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
              | None => "_"
              };
            {
-             focused: body,
+             focused: FocusExp(body),
              focused_id: Exp.rep_id(body),
              breadcrumb: "| " ++ name ++ " => ...",
            };
@@ -1125,7 +1129,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* module M : bare name match, return whole module expression */
     | [MatchName(name)] when name_matches(name) => [
         {
-          focused: whole,
+          focused: FocusExp(whole),
           focused_id: Exp.rep_id(whole),
           breadcrumb: "module " ++ name,
         },
@@ -1135,7 +1139,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
         when name_matches(name) => [
         {
-          focused: def,
+          focused: FocusExp(def),
           focused_id: Exp.rep_id(def),
           breadcrumb: "module " ++ name ++ " = ...",
         },
@@ -1152,7 +1156,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (body_opt) {
       | Some(body) => [
           {
-            focused: body,
+            focused: FocusExp(body),
             focused_id: Exp.rep_id(body),
             breadcrumb: "module " ++ name ++ " ... in ...",
           },
@@ -1171,7 +1175,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* module _ = * : wildcard name, focus on def */
     | [MatchSlot, MatchDelimiter("="), MatchFocus] => [
         {
-          focused: def,
+          focused: FocusExp(def),
           focused_id: Exp.rep_id(def),
           breadcrumb: "module " ++ name_str ++ " = ...",
         },
@@ -1186,7 +1190,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (body_opt) {
       | Some(body) => [
           {
-            focused: body,
+            focused: FocusExp(body),
             focused_id: Exp.rep_id(body),
             breadcrumb: "module " ++ name_str ++ " ... in ...",
           },
@@ -1204,7 +1208,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* module * : focus on whole module expression */
     | [MatchFocus] => [
         {
-          focused: whole,
+          focused: FocusExp(whole),
           focused_id: Exp.rep_id(whole),
           breadcrumb: "module " ++ name_str,
         },
@@ -1215,9 +1219,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   }
 
   /* Walk after "type" keyword.
-     type T = <typedef> in <body>
-     Note: <typedef> is a Typ.t, not an Exp.t, so `type T = *` can't focus on
-     the type definition directly. Use `type T _... in *` for the body. */
+     type T = <typedef> in <body> */
   and walk_after_type_kw = (tpat: TPat.t, whole: Exp.t, steps: sem_selector) => {
     let name_opt = tpat_name(tpat);
     let name_matches = (n) =>
@@ -1227,16 +1229,33 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | TyAlias(_, _, body) => Some(body)
       | _ => None
       };
+    let tdef_opt =
+      switch (Exp.term_of(whole)) {
+      | TyAlias(_, tdef, _) => Some(tdef)
+      | _ => None
+      };
     let name_str = Option.value(~default="_", name_opt);
     /* Helper: handle steps after the name has been matched/consumed */
     let walk_after_name = (remaining: sem_selector) =>
       switch (remaining) {
+      /* type T = * : focus on type definition */
+      | [MatchDelimiter("="), MatchFocus] =>
+        switch (tdef_opt) {
+        | Some(tdef) => [
+            {
+              focused: FocusTyp(tdef),
+              focused_id: Typ.rep_id(tdef),
+              breadcrumb: "type " ++ name_str ++ " = ...",
+            },
+          ]
+        | None => []
+        }
       /* type T _... in * : skip def, focus on body */
       | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
         switch (body_opt) {
         | Some(body) => [
             {
-              focused: body,
+              focused: FocusExp(body),
               focused_id: Exp.rep_id(body),
               breadcrumb: "type " ++ name_str ++ " ... in ...",
             },
@@ -1255,7 +1274,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* type T : bare name match, return whole type alias expression */
     | [MatchName(name)] when name_matches(name) => [
         {
-          focused: whole,
+          focused: FocusExp(whole),
           focused_id: Exp.rep_id(whole),
           breadcrumb: "type " ++ name,
         },
@@ -1274,7 +1293,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (body_opt) {
       | Some(body) => [
           {
-            focused: body,
+            focused: FocusExp(body),
             focused_id: Exp.rep_id(body),
             breadcrumb: "type " ++ name_str ++ " ... in ...",
           },
@@ -1291,7 +1310,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* type * : focus on whole type alias expression */
     | [MatchFocus] => [
         {
-          focused: whole,
+          focused: FocusExp(whole),
           focused_id: Exp.rep_id(whole),
           breadcrumb: "type " ++ name_str,
         },
@@ -1308,7 +1327,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
        we can't return a Pat as Exp, so focus on whole fun) */
     | [MatchFocus] => [
         {
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "fun ... -> ...",
         },
@@ -1317,7 +1336,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* fun _ -> * : skip pattern, focus on body */
     | [MatchSlot, MatchDelimiter("->"), MatchFocus] => [
         {
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "fun _ -> ...",
         },
@@ -1330,7 +1349,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* fun ... -> * : skip pattern via ellipsis, focus on body */
     | [MatchEllipsis, MatchDelimiter("->"), MatchFocus] => [
         {
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "fun ... -> ...",
         },
@@ -1344,7 +1363,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchName(name), MatchDelimiter("->"), MatchFocus]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         {
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "fun " ++ name ++ " -> ...",
         },
@@ -1364,7 +1383,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* test * : focus on the test body */
     | [MatchFocus] => [
         {
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "test ...",
         },
@@ -1374,7 +1393,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchSlot, MatchKeyword("end")]
     | [MatchEllipsis, MatchKeyword("end")] => [
         {
-          focused: spine.whole,
+          focused: FocusExp(spine.whole),
           focused_id: Exp.rep_id(spine.whole),
           breadcrumb: "test _ end",
         },
@@ -1384,7 +1403,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchSlot, MatchFocus]
     | [MatchEllipsis, MatchFocus] => [
         {
-          focused: spine.body,
+          focused: FocusExp(spine.body),
           focused_id: Exp.rep_id(spine.body),
           breadcrumb: "test ...",
         },
@@ -1412,7 +1431,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         switch (items) {
         | [item, ..._] => [
             {
-              focused: item,
+              focused: FocusExp(item),
               focused_id: Exp.rep_id(item),
               breadcrumb: "",
             },
@@ -1425,7 +1444,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         switch (List.rev(items)) {
         | [last, ..._] => [
             {
-              focused: last,
+              focused: FocusExp(last),
               focused_id: Exp.rep_id(last),
               breadcrumb: "",
             },
@@ -1699,8 +1718,8 @@ let diagnose_no_match =
           let probe = prefix @ [MatchFocus];
           let matches = resolve_sem(probe, root);
           switch (matches) {
-          | [{focused, _}, ..._] => focused
-          | [] => root
+          | [{focused: FocusExp(e), _}, ..._] => e
+          | _ => root
           };
         } else {
           root;
@@ -1724,8 +1743,8 @@ let diagnose_no_match =
           let probe = prefix @ [MatchFocus];
           let matches = resolve_sem(probe, root);
           switch (matches) {
-          | [{focused, _}, ..._] => focused
-          | [] => root
+          | [{focused: FocusExp(e), _}, ..._] => e
+          | _ => root
           };
         } else {
           root;
@@ -1786,12 +1805,14 @@ let query_unique =
   };
 };
 
-/* Print a match result's focused expression as text */
+/* Print a match result's focused expression/pattern/type as text */
 let print_match = (m: match_result): string => {
+  let settings = ExpToSegment.Settings.of_core(~inline=true, CoreSettings.on);
   let segment =
-    ExpToSegment.exp_to_segment(
-      ~settings=ExpToSegment.Settings.of_core(~inline=true, CoreSettings.on),
-      m.focused,
-    );
+    switch (m.focused) {
+    | FocusExp(e) => ExpToSegment.exp_to_segment(~settings, e)
+    | FocusPat(p) => ExpToSegment.pat_to_segment(~settings, p)
+    | FocusTyp(t) => ExpToSegment.typ_to_segment(~settings, t)
+    };
   Printer.of_segment(~holes="?", segment);
 };

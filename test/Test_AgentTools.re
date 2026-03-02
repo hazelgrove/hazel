@@ -1425,6 +1425,21 @@ let selector_tests = (
       ~sel="let x = *",
       ~expected="42",
     ),
+    /* === FocusTyp tests === */
+    /* let x : * focuses on the type annotation itself */
+    sel_test(
+      ~name="let x : * (focus type annotation)",
+      ~code="let x : Int = 42 in x",
+      ~sel="let x : *",
+      ~expected="Int",
+    ),
+    /* type T = * focuses on the type definition */
+    sel_test(
+      ~name="type T = * (focus type def)",
+      ~code="type T = Int in let x : T = 42 in x",
+      ~sel="type T = *",
+      ~expected="Int",
+    ),
     /* === List spine tests === */
     sel_test(
       ~name="[ * ... ] first",
