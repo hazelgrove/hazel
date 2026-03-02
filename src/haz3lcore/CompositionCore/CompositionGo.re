@@ -878,15 +878,25 @@ module Local = {
             Ok((new_z, None));
           }
         | FocusMod(_) =>
-          /* Module items don't have a simple replace_mod_by_id yet.
-             For now, try parsing as expression (module body). */
-          switch (TermEdit.parse_exp(code)) {
-          | None => parse_err(code ++ " (as module)")
-          | Some(new_exp) =>
-            let new_term =
-              TermEdit.replace_exp_by_id(focused_id, _ => new_exp, term);
-            let new_z = TermEdit.term_to_zipper(new_term);
-            Ok((new_z, None));
+          switch (
+            TermEdit.find_module_containing_item(focused_id, term)
+          ) {
+          | None =>
+            Error(
+              Action.Failure.Composition_action_failure(
+                "Module item not found for id",
+              ),
+            )
+          | Some((module_id, items, idx)) =>
+            switch (TermEdit.exp_to_mod_item(code)) {
+            | None => parse_err(code ++ " (as module item)")
+            | Some(new_item) =>
+              let new_items = TermEdit.replace_item(items, idx, new_item);
+              let new_term =
+                TermEdit.replace_module_items(module_id, new_items, term);
+              let new_z = TermEdit.term_to_zipper(new_term);
+              Ok((new_z, None));
+            }
           }
         };
       };
@@ -898,10 +908,18 @@ module Local = {
       | Ok({focused, focused_id, _}) =>
         let new_term =
           switch (focused) {
-          | FocusExp(_)
-          | FocusMod(_) =>
+          | FocusExp(_) =>
             let hole = Exp.fresh(EmptyHole);
             TermEdit.replace_exp_by_id(focused_id, _ => hole, term);
+          | FocusMod(_) =>
+            switch (
+              TermEdit.find_module_containing_item(focused_id, term)
+            ) {
+            | None => term
+            | Some((module_id, items, idx)) =>
+              let new_items = TermEdit.delete_item(items, idx);
+              TermEdit.replace_module_items(module_id, new_items, term);
+            }
           | FocusPat(_) =>
             let hole = Pat.fresh(EmptyHole);
             TermEdit.replace_pat_by_id(focused_id, hole, term);

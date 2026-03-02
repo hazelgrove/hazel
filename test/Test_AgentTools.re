@@ -3371,6 +3371,20 @@ let selector_edit_tests = (
       SelectorUpdate("M/x = *", "42"),
       "module M = { let x = 42; let y = 2 } in M.x",
     ),
+    /* SelectorUpdate: FocusMod — replace whole module item */
+    edit_test(
+      "SelectorUpdate: whole module item (FocusMod)",
+      "module M = { let x = 1; let y = 2 } in M.y",
+      SelectorUpdate("M/x", "let z = 99"),
+      "module M = { let z = 99; let y = 2 } in M.y",
+    ),
+    /* SelectorDelete: FocusMod — remove module item entirely */
+    edit_test(
+      "SelectorDelete: module item removal (FocusMod)",
+      "module M = { let x = 1; let y = 2 } in M.y",
+      SelectorDelete("M/x"),
+      "module M = { let y = 2 } in M.y",
+    ),
     /* SelectorUpdate: cross-sort (FocusTyp) */
     edit_test(
       "SelectorUpdate: type annotation Int -> Bool",
