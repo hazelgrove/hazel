@@ -1693,7 +1693,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                 ids,
                 rs,
               )
-              |> List.flatten
+              |> List.fold_left((@), [])
             )
             @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
           ],

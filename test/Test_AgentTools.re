@@ -1895,7 +1895,7 @@ let selector_edit_tests = (
       "SelectorUpdate: case arm body",
       "let r = case x | A => 1 | B => 2 end in r",
       SelectorUpdate("\\... | B => *", "99"),
-      "let r = case x | A => 1| B => 99 end in r",
+      "let r = case x | A => 1 | B => 99 end in r",
     ),
     edit_test(
       "SelectorUpdate: module member def",
