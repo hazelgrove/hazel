@@ -238,6 +238,8 @@ module Local = {
     | ReadAction(GetStatics(path)) => "get_statics(\"" ++ path ++ "\")"
     | ReadAction(GetContext(path)) => "get_context(\"" ++ path ++ "\")"
     | ReadAction(Select(selector)) => "select(\"" ++ selector ++ "\")"
+    | ReadAction(GetCanonical(selector)) =>
+      "get_canonical(\"" ++ selector ++ "\")"
     | ReadAction(GetCompleteness) => "get_completeness()"
     | EditorAction(Insert(After, path, code)) =>
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"

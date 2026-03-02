@@ -14,6 +14,7 @@ type read_action =
   | GetStatics(Action.Structural.path) /* Return type info at path */
   | GetContext(Action.Structural.path) /* Return in-scope bindings at path */
   | Select(string) /* Return focused syntax via selector language */
+  | GetCanonical(string) /* Return canonical (numeric + named) selectors for node */
   | GetCompleteness; /* Report unfilled holes in the program */
 
 [@deriving (show({with_path: false}), sexp, yojson)]

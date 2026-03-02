@@ -2999,6 +2999,39 @@ let selector_edit_tests = (
   ],
 );
 
+/* === GetCanonical Read Action Tests === */
+
+let canonical_read_tests = (
+  "AgentTools.GetCanonical",
+  [
+    test_case("get_canonical for named binding", `Quick, () => {
+      let result =
+        run_read_action("let x = 42 in x + 1", GetCanonical("x = *"));
+      check(string, "canonical", "numeric: #1 *\nnamed: x = *", result);
+    }),
+    test_case("get_canonical for nested def", `Quick, () => {
+      let result =
+        run_read_action(
+          "let x = 1 + 2 in x",
+          GetCanonical("x = #0"),
+        );
+      check(string, "canonical", "numeric: #1 #0 *\nnamed: x = #0 *", result);
+    }),
+    test_case("get_canonical error for bad selector", `Quick, () => {
+      let z = mk_zipper("let x = 42 in x");
+      switch (
+        CompositionGo.Public.read_dispatch(
+          ~action=GetCanonical("nonexistent = *"),
+          ~z,
+        )
+      ) {
+      | Error(_) => () /* expected */
+      | Ok(s) => Alcotest.fail("Expected error, got: " ++ s)
+      };
+    }),
+  ],
+);
+
 /* === Completeness Tests === */
 
 let expect_completeness = (code: string, expected: string) =>
@@ -3958,6 +3991,7 @@ let tests = [
   seq_node_map_tests,
   selector_tests,
   canonical_tests,
+  canonical_read_tests,
   selector_edit_tests,
   completeness_tests,
   complex_program_tests,

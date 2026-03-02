@@ -993,6 +993,25 @@ module Local = {
         let results = matches |> List.map(Selector.print_match);
         Ok(String.concat("\n", results));
       };
+    | GetCanonical(selector_str) =>
+      let term = MakeTerm.from_zip_for_sem(z).term;
+      switch (Selector.query_unique(selector_str, term)) {
+      | Error(e) =>
+        Error(Composition_action_failure("Selector error: " ++ e))
+      | Ok(m) =>
+        let id = m.focused_id;
+        let num =
+          switch (Selector.canonical_numeric(id, term)) {
+          | Some(path) => Selector.deparse(path)
+          | None => "(not found)"
+          };
+        let named =
+          switch (Selector.canonical_named(id, term)) {
+          | Some(path) => Selector.deparse(path)
+          | None => "(not found)"
+          };
+        Ok("numeric: " ++ num ++ "\nnamed: " ++ named);
+      };
     | GetCompleteness =>
       let (exp_holes, pat_holes, typ_holes) = PerformUtils.count_holes(z);
       let total = exp_holes + pat_holes + typ_holes;
@@ -1158,6 +1177,7 @@ module Local = {
             };
           Ok(result);
         | Select(_)
+        | GetCanonical(_)
         | GetCompleteness => assert(false) /* handled above */
         }
       }
