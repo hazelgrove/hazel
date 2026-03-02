@@ -43,7 +43,8 @@ type token =
   | RParen /* ) */
   | Chain(list(string), bool) /* A/B/C - binder chain; bool = trailing slash */
   | Name(string) /* bare name */
-  | NameIndex(string, int); /* x#0, x#1 - indexed name for shadowed bindings */
+  | NameIndex(string, int) /* x#0, x#1 - indexed name for shadowed bindings */
+  | Index(int); /* #0, #1 - child index */
 
 /* A parsed selector is a list of tokens */
 type selector = list(token);
@@ -61,7 +62,8 @@ type sem_step =
   | MatchName(string) /* match a binder/identifier name */
   | MatchNameIndex(string, int) /* match nth binder with given name (0-based) */
   | DescendInto /* descend into matched subtree */
-  | EnterBinderDef(string); /* find binder by name, enter its def */
+  | EnterBinderDef(string) /* find binder by name, enter its def */
+  | ChildIndex(int); /* descend into nth structural child */
 
 type sem_selector = list(sem_step);
 
@@ -130,13 +132,19 @@ let tokenize = (input: string): list(token) => {
         | segs => Chain(segs, trailing_slash)
         };
       | s when String.contains(s, '#') =>
-        /* name#N syntax for indexed disambiguation */
         let parts = String.split_on_char('#', s);
         switch (parts) {
+        /* #N syntax for child index (bare # prefix, no name) */
+        | ["", idx_str] =>
+          switch (int_of_string_opt(idx_str)) {
+          | Some(idx) => Index(idx)
+          | None => Name(s)
+          }
+        /* name#N syntax for indexed disambiguation */
         | [name, idx_str] when String.length(name) > 0 =>
           switch (int_of_string_opt(idx_str)) {
           | Some(idx) => NameIndex(name, idx)
-          | None => Name(s) /* fallback if not a number */
+          | None => Name(s)
           }
         | _ => Name(s)
         };
@@ -195,6 +203,7 @@ let elaborate = (sel: selector): sem_selector => {
         };
       chain_steps @ go(rest);
     | [NameIndex(name, idx), ...rest] => [MatchNameIndex(name, idx), ...go(rest)]
+    | [Index(n), ...rest] => [ChildIndex(n), ...go(rest)]
     | [Name(s), ...rest] => [MatchName(s), ...go(rest)]
     };
   let steps = go(sel);
@@ -532,6 +541,118 @@ type fun_spine = {
 type test_spine = {
   body: Exp.t,
   whole: Exp.t,
+};
+
+/* === Child indexing === */
+
+/* Helper: select from a fixed list of focus_target children */
+let nth_of = (n: int, children: list(focus_target)): option(focus_target) =>
+  List.nth_opt(children, n);
+
+/* Get the nth structural child of an expression.
+   Children are numbered left-to-right as in source syntax.
+   Metadata fields (env, direction, provenance) are skipped.
+   Match rules are virtual pairs handled by walk's ChildIndex case. */
+let nth_child_exp = (n: int, e: Exp.t): option(focus_target) => {
+  let exp = e' => FocusExp(e');
+  let pat = p => FocusPat(p);
+  let typ = t => FocusTyp(t);
+  let mod_ = m => FocusMod(m);
+  switch (Exp.term_of(e)) {
+  /* 0 children */
+  | Invalid(_) | EmptyHole | Deferral(_) | Undefined | Atom(_)
+  | Constructor(_, _) | Var(_) | BuiltinFun(_) | Label(_)
+  | ExplicitNonlabel | LivelitName(_) | MultiHole(_) => None
+
+  /* 1 Exp child */
+  | DynamicErrorHole(e1, _) | UnOp(_, e1) | Test(e1)
+  | Parens(e1) | Projector(_, e1) | Closure(_, e1)
+  | ProofObject(e1) | Filter(_, e1) | TypFun(_, e1, _) =>
+    nth_of(n, [exp(e1)])
+
+  /* 2 Exp children */
+  | BinOp(_, e1, e2) | Seq(e1, e2) | Cons(e1, e2)
+  | ListConcat(e1, e2) | Dot(e1, e2) | TupLabel(e1, e2)
+  | TupleExtension(e1, e2) | HintedTest(e1, e2) | Ap(_, e1, e2) =>
+    nth_of(n, [exp(e1), exp(e2)])
+
+  /* Pat, Exp */
+  | Fun(p, body, _, _) | FixF(p, body, _) | Forall(p, body) =>
+    nth_of(n, [pat(p), exp(body)])
+
+  /* Exp, Typ */
+  | Asc(e1, t) | TypAp(e1, t) => nth_of(n, [exp(e1), typ(t)])
+  /* Typ, Exp */
+  | Use(t, body) => nth_of(n, [typ(t), exp(body)])
+
+  /* Pat, Exp, Exp */
+  | Let(p, def, body) | Theorem(p, def, body) =>
+    nth_of(n, [pat(p), exp(def), exp(body)])
+  /* 3 Exp children */
+  | If(e1, e2, e3) => nth_of(n, [exp(e1), exp(e2), exp(e3)])
+  /* Typ, Exp (TPat/MPat skipped) */
+  | TyAlias(_, t, body) => nth_of(n, [typ(t), exp(body)])
+  | ModuleExp(_, def, body) => nth_of(n, [exp(def), exp(body)])
+
+  /* Variable-length */
+  | Tuple(items) | ListLit(items) =>
+    List.nth_opt(items, n) |> Option.map(exp)
+  | DeferredAp(fn, args) =>
+    nth_of(n, [exp(fn), ...List.map(exp, args)])
+  /* Match: #0=scrut. Rule pairs are virtual nodes handled in walk. */
+  | Match(scrut, _) => nth_of(n, [exp(scrut)])
+  /* Module items */
+  | Module(items) =>
+    List.nth_opt(items, n) |> Option.map(mod_)
+  };
+};
+
+/* Get the nth child of a pattern */
+let nth_child_pat = (n: int, p: Pat.t): option(focus_target) => {
+  let pat = p => FocusPat(p);
+  let typ = t => FocusTyp(t);
+  switch (Pat.term_of(p)) {
+  | Invalid(_) | EmptyHole | Wild | Atom(_) | Constructor(_, _)
+  | Var(_) | Label(_) | ExplicitNonlabel | MultiHole(_) => None
+  | Parens(p1) | Projector(_, p1) => nth_of(n, [pat(p1)])
+  | Cons(p1, p2) | TupLabel(p1, p2) | Ap(p1, p2) =>
+    nth_of(n, [pat(p1), pat(p2)])
+  | Asc(p1, t) => nth_of(n, [pat(p1), typ(t)])
+  | Tuple(items) | ListLit(items) =>
+    List.nth_opt(items, n) |> Option.map(pat)
+  };
+};
+
+/* Get the nth child of a type */
+let nth_child_typ = (n: int, t: Typ.t): option(focus_target) => {
+  let typ = t => FocusTyp(t);
+  let exp = e => FocusExp(e);
+  switch (Typ.term_of(t)) {
+  | Unknown(_) | Atom(_) | Var(_) | Label(_) | ExplicitNonlabel
+  | Sum(_) | Sig(_) => None
+  | List(t1) | Parens(t1) | Projector(_, t1)
+  | Rec(_, t1) | Poly(_, t1) => nth_of(n, [typ(t1)])
+  | Arrow(t1, t2) | TupLabel(t1, t2)
+  | ProdProjection(t1, t2) | ProdExtension(t1, t2) =>
+    nth_of(n, [typ(t1), typ(t2)])
+  | ProofOf(e) => nth_of(n, [exp(e)])
+  | Prod(items) =>
+    List.nth_opt(items, n) |> Option.map(typ)
+  };
+};
+
+/* Get the nth child of a module item */
+let nth_child_mod = (n: int, m: Mod.t): option(focus_target) => {
+  let exp = e => FocusExp(e);
+  let pat = p => FocusPat(p);
+  let typ = t => FocusTyp(t);
+  switch (m.term) {
+  | Invalid(_) | EmptyHole | MultiHole(_) => None
+  | ModLet(p, def) => nth_of(n, [pat(p), exp(def)])
+  | ModType(_, t) => nth_of(n, [typ(t)])
+  | ModuleMod(_, def) => nth_of(n, [exp(def)])
+  | ModExp(e) => nth_of(n, [exp(e)])
+  };
 };
 
 /* Resolve an elaborated semantic selector against an expression */
@@ -880,6 +1001,45 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       /* Slot: skip one position. In most contexts this is
          consumed by spine walkers. For top-level, skip. */
       walk(rest, current)
+
+    /* ChildIndex: descend into the nth structural child */
+    | [ChildIndex(n), ...rest] =>
+      /* Special case: Match rule pairs. #N (N>=1) enters rule N-1,
+         then the next ChildIndex picks pat (#0) or body (#1). */
+      switch (Exp.term_of(current)) {
+      | Match(_, rules) when n >= 1 =>
+        switch (List.nth_opt(rules, n - 1)) {
+        | Some((pat, body)) =>
+          switch (rest) {
+          | [ChildIndex(0), ...rest2] => walk_pat(rest2, pat)
+          | [ChildIndex(1), ...rest2] => walk(rest2, body)
+          | [MatchFocus] => [
+              {
+                focused: FocusExp(body),
+                focused_id: Exp.rep_id(body),
+                breadcrumb: "rule " ++ string_of_int(n - 1),
+              },
+            ]
+          | [] => [
+              {
+                focused: FocusExp(body),
+                focused_id: Exp.rep_id(body),
+                breadcrumb: "rule " ++ string_of_int(n - 1),
+              },
+            ]
+          | _ => []
+          }
+        | None => []
+        }
+      | _ =>
+        switch (nth_child_exp(n, current)) {
+        | Some(FocusExp(e)) => walk(rest, e)
+        | Some(FocusPat(p)) => walk_pat(rest, p)
+        | Some(FocusTyp(t)) => walk_typ(rest, t)
+        | Some(FocusMod(m)) => walk_mod(rest, m)
+        | None => []
+        }
+      }
 
     | _ => [] /* unhandled pattern */
     }
@@ -1654,6 +1814,72 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       (items: list(Exp.t), whole: Exp.t, steps: sem_selector) =>
     walk_seq_spine(items, whole, steps)
 
+  /* === Cross-sort walkers for ChildIndex traversal === */
+
+  /* Walk selector steps against a pattern node */
+  and walk_pat = (steps: sem_selector, current: Pat.t): list(match_result) =>
+    switch (steps) {
+    | [] | [MatchFocus] => [
+        {
+          focused: FocusPat(current),
+          focused_id: Pat.rep_id(current),
+          breadcrumb: "",
+        },
+      ]
+    | [MatchFocus, ...rest] => walk_pat(rest, current)
+    | [ChildIndex(n), ...rest] =>
+      switch (nth_child_pat(n, current)) {
+      | Some(FocusPat(p)) => walk_pat(rest, p)
+      | Some(FocusTyp(t)) => walk_typ(rest, t)
+      | Some(FocusExp(e)) => walk(rest, e)
+      | Some(FocusMod(_)) | None => []
+      }
+    | _ => []
+    }
+
+  /* Walk selector steps against a type node */
+  and walk_typ = (steps: sem_selector, current: Typ.t): list(match_result) =>
+    switch (steps) {
+    | [] | [MatchFocus] => [
+        {
+          focused: FocusTyp(current),
+          focused_id: Typ.rep_id(current),
+          breadcrumb: "",
+        },
+      ]
+    | [MatchFocus, ...rest] => walk_typ(rest, current)
+    | [ChildIndex(n), ...rest] =>
+      switch (nth_child_typ(n, current)) {
+      | Some(FocusTyp(t)) => walk_typ(rest, t)
+      | Some(FocusPat(p)) => walk_pat(rest, p)
+      | Some(FocusExp(e)) => walk(rest, e)
+      | Some(FocusMod(_)) | None => []
+      }
+    | _ => []
+    }
+
+  /* Walk selector steps against a module item */
+  and walk_mod = (steps: sem_selector, current: Mod.t): list(match_result) =>
+    switch (steps) {
+    | [] | [MatchFocus] => [
+        {
+          focused: FocusMod(current),
+          focused_id: Mod.rep_id(current),
+          breadcrumb: "",
+        },
+      ]
+    | [MatchFocus, ...rest] => walk_mod(rest, current)
+    | [ChildIndex(n), ...rest] =>
+      switch (nth_child_mod(n, current)) {
+      | Some(FocusExp(e)) => walk(rest, e)
+      | Some(FocusPat(p)) => walk_pat(rest, p)
+      | Some(FocusTyp(t)) => walk_typ(rest, t)
+      | Some(FocusMod(m)) => walk_mod(rest, m)
+      | None => []
+      }
+    | _ => []
+    }
+
   /* Find the Let/ModuleExp node for a given binder name */
   and find_let_node = (name: string, e: Exp.t): option(Exp.t) =>
     switch (Exp.term_of(e)) {
@@ -1805,6 +2031,7 @@ let step_to_string = (step: sem_step): string =>
   | MatchDelimiter(d) => d
   | EnterBinderDef(s) => s ++ "/"
   | DescendInto => "\\..."
+  | ChildIndex(n) => "#" ++ string_of_int(n)
   };
 
 /* Format a prefix of sem_selector steps as a readable string */

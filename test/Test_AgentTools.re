@@ -2039,6 +2039,237 @@ let selector_tests = (
       ~sel="A/ \\... module B",
       ~expected="module B = { let x = 42 }",
     ),
+    /* === ChildIndex: numeric child addressing === */
+
+    /* Let: #0=pat, #1=def, #2=body */
+    sel_test(
+      ~name="#1 on let = def",
+      ~code="let x = 42 in x + 1",
+      ~sel="#1",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="#2 on let = body",
+      ~code="let x = 42 in x + 1",
+      ~sel="#2",
+      ~expected="x + 1",
+    ),
+    sel_test_rendered(
+      ~name="#0 on let = pat",
+      ~code="let x = 42 in x + 1",
+      ~sel="#0",
+      ~expected="x",
+    ),
+
+    /* BinOp: #0=left, #1=right */
+    sel_test(
+      ~name="x = #0 (left of binop)",
+      ~code="let x = 1 + 2 in x",
+      ~sel="x = #0",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="x = #1 (right of binop)",
+      ~code="let x = 1 + 2 in x",
+      ~sel="x = #1",
+      ~expected="2",
+    ),
+
+    /* Deep traversal: #1 #0 #0 */
+    sel_test(
+      ~name="#1 #0 (nested: left of inner binop)",
+      ~code="let x = (1 + 2) + 3 in x",
+      ~sel="x = #0 #0",
+      ~expected="1 + 2",
+    ),
+    sel_test(
+      ~name="x = #0 #0 #0 (deep: left operand of inner +)",
+      ~code="let x = (1 + 2) + 3 in x",
+      ~sel="x = #0 #0 #0",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="x = #0 #0 #1 (deep: right operand of inner +)",
+      ~code="let x = (1 + 2) + 3 in x",
+      ~sel="x = #0 #0 #1",
+      ~expected="2",
+    ),
+
+    /* Parens: #0 enters parens */
+    sel_test(
+      ~name="x = #0 (enters parens)",
+      ~code="let x = (42) in x",
+      ~sel="x = #0",
+      ~expected="42",
+    ),
+
+    /* If: #0=cond, #1=then, #2=else */
+    sel_test(
+      ~name="#0 on if = cond",
+      ~code="if true then 1 else 0",
+      ~sel="#0",
+      ~expected="true",
+    ),
+    sel_test(
+      ~name="#1 on if = then",
+      ~code="if true then 1 else 0",
+      ~sel="#1",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="#2 on if = else",
+      ~code="if true then 1 else 0",
+      ~sel="#2",
+      ~expected="0",
+    ),
+
+    /* Cross-sort: Pat → Typ via Asc */
+    sel_test_rendered(
+      ~name="#0 #1 (pat Asc → type annotation)",
+      ~code="let x : Int = 42 in x",
+      ~sel="#0 #1",
+      ~expected="Int",
+    ),
+    sel_test_rendered(
+      ~name="#0 #0 (pat Asc → inner pat)",
+      ~code="let x : Int = 42 in x",
+      ~sel="#0 #0",
+      ~expected="x",
+    ),
+
+    /* Cross-sort: Exp → Typ via Asc expression.
+       (42 : Int) parses as Parens(Asc(42, Int)): #0 enters Parens, #1 gets type */
+    sel_test_rendered(
+      ~name="x = #0 #1 (Asc expr → type)",
+      ~code="let x = (42 : Int) in x",
+      ~sel="x = #0 #1",
+      ~expected="Int",
+    ),
+
+    /* Tuple: (1, 2, 3) parses as Parens(Tuple(...)). #0 enters Parens,
+       then #0/#1/#2 select tuple elements. */
+    sel_test(
+      ~name="x = #0 #0 (tuple first via Parens)",
+      ~code="let x = (1, 2, 3) in x",
+      ~sel="x = #0 #0",
+      ~expected="1",
+    ),
+    sel_test(
+      ~name="x = #0 #2 (tuple third via Parens)",
+      ~code="let x = (1, 2, 3) in x",
+      ~sel="x = #0 #2",
+      ~expected="3",
+    ),
+
+    /* ListLit: #0, #1, #2 = elements (direct, no extra nesting) */
+    sel_test(
+      ~name="x = #0 (list first)",
+      ~code="let x = [10, 20, 30] in x",
+      ~sel="x = #0",
+      ~expected="10",
+    ),
+    sel_test(
+      ~name="x = #2 (list third)",
+      ~code="let x = [10, 20, 30] in x",
+      ~sel="x = #2",
+      ~expected="30",
+    ),
+
+    /* Match: #0=scrut, #1=(rule0 pair), #2=(rule1 pair) */
+    sel_test(
+      ~name="case #0 (scrutinee)",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#0",
+      ~expected="x",
+    ),
+    sel_test_rendered(
+      ~name="case #1 #0 (rule 0 pat)",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#1 #0",
+      ~expected="A",
+    ),
+    sel_test(
+      ~name="case #1 #1 (rule 0 body)",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#1 #1",
+      ~expected="1",
+    ),
+    sel_test_rendered(
+      ~name="case #2 #0 (rule 1 pat)",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#2 #0",
+      ~expected="B",
+    ),
+    sel_test(
+      ~name="case #2 #1 (rule 1 body)",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#2 #1",
+      ~expected="2",
+    ),
+
+    /* Fun: #0=pat, #1=body */
+    sel_test_rendered(
+      ~name="fun #0 (pat)",
+      ~code="fun x -> x + 1",
+      ~sel="#0",
+      ~expected="x",
+    ),
+    sel_test(
+      ~name="fun #1 (body)",
+      ~code="fun x -> x + 1",
+      ~sel="#1",
+      ~expected="x + 1",
+    ),
+
+    /* Module: #0, #1 = items */
+    sel_test_rendered(
+      ~name="M/ #0 (first module item)",
+      ~code="let m = { let x = 1; let y = 2 } in m",
+      ~sel="m = #0",
+      ~expected="let x = 1",
+    ),
+    sel_test_rendered(
+      ~name="M/ #1 (second module item)",
+      ~code="let m = { let x = 1; let y = 2 } in m",
+      ~sel="m = #1",
+      ~expected="let y = 2",
+    ),
+
+    /* ModItem child: #0 on ModLet = pat, #1 = def */
+    sel_test(
+      ~name="M/ #0 #1 (first item def)",
+      ~code="let m = { let x = 42; let y = 99 } in m",
+      ~sel="m = #0 #1",
+      ~expected="42",
+    ),
+    sel_test_rendered(
+      ~name="M/ #0 #0 (first item pat)",
+      ~code="let m = { let x = 42; let y = 99 } in m",
+      ~sel="m = #0 #0",
+      ~expected="x",
+    ),
+
+    /* Mixing named + index: use name to navigate, index for anonymous parts */
+    sel_test(
+      ~name="named + index: x = #0 (left of +)",
+      ~code="let x = 10 + 20 in let y = 30 in x + y",
+      ~sel="x = #0",
+      ~expected="10",
+    ),
+    sel_test(
+      ~name="named + index: x = #1 (right of +)",
+      ~code="let x = 10 + 20 in let y = 30 in x + y",
+      ~sel="x = #1",
+      ~expected="20",
+    ),
+
+    /* Out-of-range index: should produce error */
+    test_case("#5 out of range", `Quick, () => {
+      let result = selector_query_unique("let x = 42 in x", "#5");
+      check(bool, "starts with ERROR", true,
+        String.length(result) >= 5
+        && String.sub(result, 0, 5) == "ERROR");
+    }),
   ],
 );
 
