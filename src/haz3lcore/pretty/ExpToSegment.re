@@ -2502,6 +2502,11 @@ let pat_to_segment = (~settings: Settings.t, pat: Pat.t): Segment.t => {
   p |> PrettySegment.select;
 };
 
+let mod_to_segment = (~settings: Settings.t, item: Mod.t): Segment.t => {
+  let p = mod_to_pretty(~settings, item);
+  p |> PrettySegment.select;
+};
+
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
   let any =

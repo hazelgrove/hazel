@@ -41,7 +41,7 @@ type token =
   | RBracket /* ] */
   | LParen /* ( */
   | RParen /* ) */
-  | Chain(list(string)) /* A/B/C - binder chain */
+  | Chain(list(string), bool) /* A/B/C - binder chain; bool = trailing slash */
   | Name(string) /* bare name */
   | NameIndex(string, int); /* x#0, x#1 - indexed name for shadowed bindings */
 
@@ -70,7 +70,8 @@ type sem_selector = list(sem_step);
 type focus_target =
   | FocusExp(Exp.t)
   | FocusPat(Pat.t)
-  | FocusTyp(Typ.t);
+  | FocusTyp(Typ.t)
+  | FocusMod(Mod.t);
 
 type match_result = {
   focused: focus_target,
@@ -118,13 +119,15 @@ let tokenize = (input: string): list(token) => {
       | "(" => LParen
       | ")" => RParen
       | s when String.contains(s, '/') =>
+        let len = String.length(s);
+        let trailing_slash = len > 0 && s.[len - 1] == '/';
         let segments =
           s
           |> String.split_on_char('/')
           |> List.filter(seg => String.length(seg) > 0);
         switch (segments) {
-        | [single] => Name(single)
-        | segs => Chain(segs)
+        | [single] when !trailing_slash => Name(single)
+        | segs => Chain(segs, trailing_slash)
         };
       | s when String.contains(s, '#') =>
         /* name#N syntax for indexed disambiguation */
@@ -176,20 +179,33 @@ let elaborate = (sel: selector): sem_selector => {
     | [RBracket, ...rest] => [MatchDelimiter("]"), ...go(rest)]
     | [LParen, ...rest] => [MatchDelimiter("("), ...go(rest)]
     | [RParen, ...rest] => [MatchDelimiter(")"), ...go(rest)]
-    | [Chain(segments), ...rest] =>
-      /* A/B/C expands to: EnterBinderDef(A), EnterBinderDef(B), MatchName(C) */
+    | [Chain(segments, trailing_slash), ...rest] =>
+      /* A/B/C  (no trailing slash): EnterBinderDef(A), EnterBinderDef(B), MatchName(C)
+         A/B/C/ (trailing slash):    EnterBinderDef(A), EnterBinderDef(B), EnterBinderDef(C) */
       let chain_steps =
-        switch (List.rev(segments)) {
-        | [] => []
-        | [last, ...rev_init] =>
-          let init = List.rev(rev_init);
-          List.map(s => EnterBinderDef(s), init) @ [MatchName(last)];
+        if (trailing_slash) {
+          List.map(s => EnterBinderDef(s), segments);
+        } else {
+          switch (List.rev(segments)) {
+          | [] => []
+          | [last, ...rev_init] =>
+            let init = List.rev(rev_init);
+            List.map(s => EnterBinderDef(s), init) @ [MatchName(last)];
+          };
         };
       chain_steps @ go(rest);
     | [NameIndex(name, idx), ...rest] => [MatchNameIndex(name, idx), ...go(rest)]
     | [Name(s), ...rest] => [MatchName(s), ...go(rest)]
     };
-  go(sel);
+  let steps = go(sel);
+  /* Implicit star: if no MatchFocus in the selector, append one.
+     This means selectors like `A/B/C/` or `let x` produce a result
+     without requiring an explicit `*`. */
+  if (List.exists(s => s == MatchFocus, steps)) {
+    steps;
+  } else {
+    steps @ [MatchFocus];
+  };
 };
 
 /* === Resolution === */
@@ -693,30 +709,57 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* module keyword */
     | [MatchKeyword("module"), ...rest] =>
       switch (Exp.term_of(current)) {
-      | ModuleExp(mpat, def, _body) =>
+      | ModuleExp(mpat, def, body) =>
         switch (mpat_name(mpat)) {
         | Some(_name) =>
-          walk_after_module_kw(mpat_name(mpat), def, current, rest)
+          walk_after_module_kw(mpat_name(mpat), def, current, Some(body), None, rest)
         | None => []
         }
-      | Let(pat, def, _body) =>
+      | Let(pat, def, body) =>
         switch (Exp.term_of(def)) {
         | Module(_) =>
           switch (pat_name(pat)) {
           | Some(_) =>
-            walk_after_module_kw(pat_name(pat), def, current, rest)
+            walk_after_module_kw(pat_name(pat), def, current, Some(body), None, rest)
           | None => []
           }
         | _ => []
         }
+      | Module(items) =>
+        /* Match ModuleMod items inside a module body */
+        List.concat_map(
+          (item: Mod.t) =>
+            switch (item.term) {
+            | ModuleMod(mpat, def) =>
+              switch (mpat_name(mpat)) {
+              | Some(_) =>
+                walk_after_module_kw(
+                  mpat_name(mpat), def, current, None, Some(item), rest)
+              | None => []
+              }
+            | _ => []
+            },
+          items,
+        )
       | _ => []
       }
 
     /* type keyword */
     | [MatchKeyword("type"), ...rest] =>
       switch (Exp.term_of(current)) {
-      | TyAlias(tpat, _tdef, _body) =>
-        walk_after_type_kw(tpat, current, rest)
+      | TyAlias(tpat, tdef, body) =>
+        walk_after_type_kw(tpat, current, Some(body), Some(tdef), None, rest)
+      | Module(items) =>
+        /* Match ModType items inside a module body */
+        List.concat_map(
+          (item: Mod.t) =>
+            switch (item.term) {
+            | ModType(tpat, tdef) =>
+              walk_after_type_kw(tpat, current, None, Some(tdef), Some(item), rest)
+            | _ => []
+            },
+          items,
+        )
       | _ => []
       }
 
@@ -1107,33 +1150,44 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | _ => []
     }
 
-  /* Walk after "module" keyword */
+  /* Walk after "module" keyword.
+     body_opt is passed explicitly so this works for both top-level
+     ModuleExp/Let (which have bodies) and ModuleMod inside Module
+     items (which don't — body_opt=None).
+     mod_item_opt: when matching inside Module(items), the Mod.t item
+     is passed so bare-name match can return FocusMod. */
   and walk_after_module_kw =
       (
         name_opt: option(string),
         def: Exp.t,
         whole: Exp.t,
+        body_opt: option(Exp.t),
+        mod_item_opt: option(Mod.t),
         steps: sem_selector,
       ) => {
     let name_str = Option.value(~default="_", name_opt);
     let name_matches = (n) =>
       Option.equal(String.equal, name_opt, Some(n));
-    /* Extract body from whole expression for in-body navigation */
-    let body_opt =
-      switch (Exp.term_of(whole)) {
-      | ModuleExp(_, _, body) => Some(body)
-      | Let(_, _, body) => Some(body)
-      | _ => None
-      };
     switch (steps) {
-    /* module M : bare name match, return whole module expression */
-    | [MatchName(name)] when name_matches(name) => [
-        {
-          focused: FocusExp(whole),
-          focused_id: Exp.rep_id(whole),
-          breadcrumb: "module " ++ name,
-        },
-      ]
+    /* module M : bare name match. For module items, return FocusMod;
+       for top-level module expressions, return FocusExp(whole). */
+    | [MatchName(name)] when name_matches(name) =>
+      switch (mod_item_opt) {
+      | Some(item) => [
+          {
+            focused: FocusMod(item),
+            focused_id: Mod.rep_id(item),
+            breadcrumb: "module " ++ name,
+          },
+        ]
+      | None => [
+          {
+            focused: FocusExp(whole),
+            focused_id: Exp.rep_id(whole),
+            breadcrumb: "module " ++ name,
+          },
+        ]
+      }
 
     /* module M = * : focus on module def */
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
@@ -1170,6 +1224,32 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (body_opt) {
       | Some(body) => walk(rest, body)
       | None => []
+      }
+
+    /* module M <more> : match by name, continue.
+       If rest is just [MatchFocus] and we have a mod item, return FocusMod.
+       Otherwise continue walking. */
+    | [MatchName(name), MatchFocus] when name_matches(name) =>
+      switch (mod_item_opt) {
+      | Some(item) => [
+          {
+            focused: FocusMod(item),
+            focused_id: Mod.rep_id(item),
+            breadcrumb: "module " ++ name,
+          },
+        ]
+      | None => [
+          {
+            focused: FocusExp(whole),
+            focused_id: Exp.rep_id(whole),
+            breadcrumb: "module " ++ name,
+          },
+        ]
+      }
+    | [MatchName(name), ...rest] when name_matches(name) =>
+      switch (body_opt) {
+      | Some(body) => walk(rest, body)
+      | None => walk(rest, def)
       }
 
     /* module _ = * : wildcard name, focus on def */
@@ -1219,21 +1299,22 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   }
 
   /* Walk after "type" keyword.
-     type T = <typedef> in <body> */
-  and walk_after_type_kw = (tpat: TPat.t, whole: Exp.t, steps: sem_selector) => {
+     type T = <typedef> in <body>
+     body_opt and tdef_opt are passed explicitly so this works for both
+     top-level TyAlias (which has body) and ModType inside Module items
+     (which has no body — body_opt=None). */
+  and walk_after_type_kw =
+      (
+        tpat: TPat.t,
+        whole: Exp.t,
+        body_opt: option(Exp.t),
+        tdef_opt: option(Typ.t),
+        mod_item_opt: option(Mod.t),
+        steps: sem_selector,
+      ) => {
     let name_opt = tpat_name(tpat);
     let name_matches = (n) =>
       Option.equal(String.equal, name_opt, Some(n));
-    let body_opt =
-      switch (Exp.term_of(whole)) {
-      | TyAlias(_, _, body) => Some(body)
-      | _ => None
-      };
-    let tdef_opt =
-      switch (Exp.term_of(whole)) {
-      | TyAlias(_, tdef, _) => Some(tdef)
-      | _ => None
-      };
     let name_str = Option.value(~default="_", name_opt);
     /* Helper: handle steps after the name has been matched/consumed */
     let walk_after_name = (remaining: sem_selector) =>
@@ -1270,15 +1351,31 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         }
       | other => walk(other, whole)
       };
+    /* For bare-name match, return FocusMod when inside a module item */
+    let focus_whole_or_mod = () =>
+      switch (mod_item_opt) {
+      | Some(item) => [
+          {
+            focused: FocusMod(item),
+            focused_id: Mod.rep_id(item),
+            breadcrumb: "type " ++ name_str,
+          },
+        ]
+      | None => [
+          {
+            focused: FocusExp(whole),
+            focused_id: Exp.rep_id(whole),
+            breadcrumb: "type " ++ name_str,
+          },
+        ]
+      };
     switch (steps) {
-    /* type T : bare name match, return whole type alias expression */
-    | [MatchName(name)] when name_matches(name) => [
-        {
-          focused: FocusExp(whole),
-          focused_id: Exp.rep_id(whole),
-          breadcrumb: "type " ++ name,
-        },
-      ]
+    /* type T : bare name match */
+    | [MatchName(name)] when name_matches(name) =>
+      focus_whole_or_mod()
+    /* type T * : bare name + implicit star */
+    | [MatchName(name), MatchFocus] when name_matches(name) =>
+      focus_whole_or_mod()
 
     /* type T <more> : match by name, continue */
     | [MatchName(name), ...rest] when name_matches(name) =>
@@ -1389,9 +1486,12 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         },
       ]
 
-    /* test _ end : match slot, then end keyword → whole test */
+    /* test _ end [*] : match slot, then end keyword → whole test
+       The MatchFocus variant handles the implicit star rule. */
     | [MatchSlot, MatchKeyword("end")]
-    | [MatchEllipsis, MatchKeyword("end")] => [
+    | [MatchEllipsis, MatchKeyword("end")]
+    | [MatchSlot, MatchKeyword("end"), MatchFocus]
+    | [MatchEllipsis, MatchKeyword("end"), MatchFocus] => [
         {
           focused: FocusExp(spine.whole),
           focused_id: Exp.rep_id(spine.whole),
@@ -1813,6 +1913,7 @@ let print_match = (m: match_result): string => {
     | FocusExp(e) => ExpToSegment.exp_to_segment(~settings, e)
     | FocusPat(p) => ExpToSegment.pat_to_segment(~settings, p)
     | FocusTyp(t) => ExpToSegment.typ_to_segment(~settings, t)
+    | FocusMod(item) => ExpToSegment.mod_to_segment(~settings, item)
     };
   Printer.of_segment(~holes="?", segment);
 };

@@ -1864,6 +1864,121 @@ let selector_tests = (
         Alcotest.fail("Insert failed: " ++ Action.Failure.show(err))
       }
     }),
+    /* === Chain trailing-slash semantics === */
+    /* a/ (trailing slash, single segment) = enter a's def */
+    sel_test(
+      ~name="a/ * (trailing slash enters def)",
+      ~code="let a = 42 in a + 1",
+      ~sel="a/ *",
+      ~expected="42",
+    ),
+    /* a (no trailing slash) = whole binding */
+    sel_test_rendered(
+      ~name="a (no slash = whole binding)",
+      ~code="let a = 42 in a + 1",
+      ~sel="a",
+      ~expected="let a = 42 in a + 1",
+    ),
+    /* A/B/C/ enters all defs */
+    sel_test(
+      ~name="A/B/C/ * (trailing slash on chain)",
+      ~code="let a = { let b = { let c = 99 } } in a.b.c",
+      ~sel="a/b/c/ *",
+      ~expected="99",
+    ),
+    /* A/B/C without trailing slash: inside Module(items), there's no
+       whole "let c" expression node (ModLet is an item, not Exp).
+       So MatchName falls back to find_binder_in_exp → returns the def. */
+    sel_test(
+      ~name="A/B/C (no slash, module context = def)",
+      ~code="let a = { let b = { let c = 99 } } in a.b.c",
+      ~sel="a/b/c",
+      ~expected="99",
+    ),
+    /* But at top level, bare name DOES return whole let expression */
+    sel_test_rendered(
+      ~name="a (no slash, top-level = whole let)",
+      ~code="let a = 42 in let b = 99 in a + b",
+      ~sel="b",
+      ~expected="let b = 99 in a + b",
+    ),
+    /* Trailing slash + continuation */
+    sel_test(
+      ~name="m/ \\... let x = * (trailing slash + descend)",
+      ~code="let m = { let x = 42; let y = 99 } in m.x",
+      ~sel="m/ \\... let x = *",
+      ~expected="42",
+    ),
+    /* Implicit star rule: no * in selector means * appended */
+    sel_test_rendered(
+      ~name="let x (implicit star = whole binding)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let x",
+      ~expected="let x = 42 in x + 1",
+    ),
+    sel_test(
+      ~name="let x = (implicit star on def)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let x =",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="a/b/ (implicit star on chain trailing slash)",
+      ~code="let a = { let b = 42 } in a.b",
+      ~sel="a/b/",
+      ~expected="42",
+    ),
+    /* Spaced chain segments: A/ B/ C should equal A/B/C */
+    sel_test(
+      ~name="A/ B/ C/ * (spaced chain = same as compact)",
+      ~code="let a = { let b = { let c = 99 } } in a.b.c",
+      ~sel="a/ b/ c/ *",
+      ~expected="99",
+    ),
+    /* * prefix before keyword: focus on whole matched subtree */
+    sel_test_rendered(
+      ~name="* let x (focus whole let)",
+      ~code="let x = 42 in x + 1",
+      ~sel="* let x",
+      ~expected="let x = 42 in x + 1",
+    ),
+    sel_test_rendered(
+      ~name="\\... * let y (descend + focus whole let)",
+      ~code="let x = (let y = 99 in y) in x",
+      ~sel="\\... * let y",
+      ~expected="let y = 99 in y",
+    ),
+    /* === Module-internal keyword matching === */
+    /* module keyword matches ModuleMod inside Module items */
+    sel_test(
+      ~name="module B = * inside module items",
+      ~code=
+        "module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
+      ~sel="A/ \\... module B = *",
+      ~expected="{ let x = 42 }",
+    ),
+    /* type keyword matches ModType inside Module items */
+    sel_test(
+      ~name="type T = * inside module items",
+      ~code="module M = { type T = Int; let x = 1 } in M.x",
+      ~sel="M/ \\... type T = *",
+      ~expected="Int",
+    ),
+    /* module B = * inside module items → focuses on B's def */
+    sel_test(
+      ~name="module B = * inside module items",
+      ~code=
+        "module A = { module B = { let x = 42 } } in A.B.x",
+      ~sel="A/ \\... module B = *",
+      ~expected="{ let x = 42 }",
+    ),
+    /* type T inside module items: returns the ModType item as FocusMod */
+    sel_test_rendered(
+      ~name="type T (bare) inside module items",
+      ~code="module M = { type T = Int; let x = 1 } in M.x",
+      ~sel="M/ \\... type T",
+      ~expected="type T = Int",
+    ),
   ],
 );
 
