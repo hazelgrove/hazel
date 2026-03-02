@@ -38,6 +38,9 @@ let id_a = Id.mk();
 let id_b = Id.mk();
 let id_c = Id.mk();
 let id_d = Id.mk();
+let id_e = Id.mk();
+let id_f = Id.mk();
+let id_g = Id.mk();
 
 /* Make a minimal sample with the given call stack */
 let mk_sample =
@@ -773,6 +776,237 @@ let intent_preservation_tests = [
   ),
 ];
 
+/* Three-level intent preservation tests.
+ *
+ * Scenario: fun xs -> map(fun x -> map(fun y -> ..., inner), xs)
+ * called once. Three levels of call stacks:
+ *   Top: [F]           (inside f call)
+ *   Mid: [Mk, F]       (inside kth outer-map iteration)
+ *   Inner: [Nj, Mk, F] (inside jth inner-map iteration under Mk)
+ *
+ * The bug: navigating inner→mid→top preserves both inner (Nj) and
+ * mid (Mk) info in the cursor stack. But when the mid-level probe
+ * re-renders at the top level, only the two-level mechanism was used:
+ * full match ([Nj,Mk,F] ≠ [Mk,F]) and trimmed match ([F] ≠ [Mk,F])
+ * both fail, falling to "any related" which picks M0 instead of Mk.
+ * The fix adds an intermediate depth match tier. */
+let three_level_tests = [
+  test_case(
+    "three-level: mid probe finds correct sample from full cursor stack",
+    `Quick,
+    () => {
+      let f_frame = frame(id_a);
+      let m0 = frame(id_b);
+      let m1 = frame(id_c);
+      let m2 = frame(id_d);
+      let n0 = frame(id_e);
+      let mid_samples = [
+        mk_sample(~seq=0, [m0, f_frame]),
+        mk_sample(~seq=1, [m1, f_frame]),
+        mk_sample(~seq=2, [m2, f_frame]),
+      ];
+      /* Cursor at top level with inner+mid info preserved:
+       * [N0, M1, F] at index=0 (viewing top level) */
+      let cursor = mk_cursor_at_index(~index=0, [n0, m1, f_frame]);
+      let result =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          mid_samples,
+        );
+      check(
+        bool,
+        "should find M1 at index 1 via intermediate match (not M0 at 0)",
+        true,
+        result == Some(1),
+      );
+    },
+  ),
+  test_case(
+    "three-level: inner probe still found via full match",
+    `Quick,
+    () => {
+      let f_frame = frame(id_a);
+      let m1 = frame(id_c);
+      let n0 = frame(id_e);
+      let n1 = frame(id_f);
+      let inner_samples = [
+        mk_sample(~seq=0, [n0, m1, f_frame]),
+        mk_sample(~seq=1, [n1, m1, f_frame]),
+      ];
+      /* Cursor stack = [N0, M1, F] at index=0 (top level) */
+      let cursor = mk_cursor_at_index(~index=0, [n0, m1, f_frame]);
+      let result =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      /* Full match: [N0, M1, F] == [N0, M1, F] → finds index 0 */
+      check(
+        bool,
+        "should find N0 at index 0 via full-stack match",
+        true,
+        result == Some(0),
+      );
+    },
+  ),
+  test_case(
+    "three-level: top probe unaffected by deeper info",
+    `Quick,
+    () => {
+      let f_frame = frame(id_a);
+      let f_frame2 = frame(id_b);
+      let m1 = frame(id_c);
+      let n0 = frame(id_e);
+      let top_samples = [
+        mk_sample(~seq=0, [f_frame]),
+        mk_sample(~seq=1, [f_frame2]),
+      ];
+      /* Cursor stack = [N0, M1, F] at index=0 */
+      let cursor = mk_cursor_at_index(~index=0, [n0, m1, f_frame]);
+      let result =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor,
+          top_samples,
+        );
+      /* Intermediate: [F] is suffix of [N0,M1,F] → picks F at index 0 */
+      check(bool, "should find F at index 0", true, result == Some(0));
+    },
+  ),
+  test_case(
+    "three-level: closest_to_cursor picks correct mid sample",
+    `Quick,
+    () => {
+      /* This tests the capture path (resolve_pending_probe_cursor).
+       * When navigating from inner to mid, closest_to_cursor should
+       * pick the mid sample in the same call branch. */
+      let f_frame = frame(id_a);
+      let m0 = frame(id_b);
+      let m1 = frame(id_c);
+      let m2 = frame(id_d);
+      let n0 = frame(id_e);
+      let mid_samples = [
+        mk_sample(~seq=0, [m0, f_frame]),
+        mk_sample(~seq=1, [m1, f_frame]),
+        mk_sample(~seq=2, [m2, f_frame]),
+      ];
+      /* Cursor at inner level: [N0, M1, F] */
+      let cursor = mk_cursor_at_index(~index=2, [n0, m1, f_frame]);
+      let result =
+        Sample.Selection.closest_to_cursor(~ap_id=None, ~cursor, mid_samples);
+      switch (result) {
+      | Some(s) =>
+        check(int, "should pick M1 (seq=1), not M0 (seq=0)", 1, s.seq)
+      | None => fail("expected Some sample")
+      };
+    },
+  ),
+  test_case(
+    "three-level: capture preserves full stack through three levels",
+    `Quick,
+    () => {
+      /* Simulates the full navigation: inner→mid→top.
+       * Each step uses capture's is_suffix_of to preserve deeper info.
+       * After reaching top, cursor should retain all three levels. */
+      let f_frame = frame(id_a);
+      let m1 = frame(id_c);
+      let n0 = frame(id_e);
+      /* Start: cursor at inner level */
+      let cursor_inner: Sample.Cursor.t = {
+        call_stack: [n0, m1, f_frame],
+        index: 2,
+        pinned_stack: None,
+        indicated_call: None,
+        time: None,
+        seq: 0,
+        step_range: None,
+        pending_focus: None,
+      };
+      /* Step 1: navigate to mid level. capture with [M1, F] */
+      let mid_data: Sample.Capture.t = {
+        call_stack: [m1, f_frame],
+        time: 0.,
+        seq: 0,
+        step_start: 0,
+        step_end: 0,
+      };
+      let is_suffix =
+        Util.ListUtil.is_suffix_of(
+          ~eq=Sample.equal_stack_frame,
+          mid_data.call_stack,
+          cursor_inner.call_stack,
+        );
+      check(bool, "[M1,F] is suffix of [N0,M1,F]", true, is_suffix);
+      /* capture keeps deeper stack, lowers index */
+      let cursor_mid: Sample.Cursor.t = {
+        ...cursor_inner,
+        call_stack: is_suffix ? cursor_inner.call_stack : mid_data.call_stack,
+        index: List.length(mid_data.call_stack) - 1,
+      };
+      check(int, "index should be 1 (mid level)", 1, cursor_mid.index);
+      check(
+        int,
+        "stack should still be length 3",
+        3,
+        List.length(cursor_mid.call_stack),
+      );
+      /* Step 2: navigate to top level. capture with [F] */
+      let top_data: Sample.Capture.t = {
+        call_stack: [f_frame],
+        time: 0.,
+        seq: 0,
+        step_start: 0,
+        step_end: 0,
+      };
+      let is_suffix2 =
+        Util.ListUtil.is_suffix_of(
+          ~eq=Sample.equal_stack_frame,
+          top_data.call_stack,
+          cursor_mid.call_stack,
+        );
+      check(bool, "[F] is suffix of [N0,M1,F]", true, is_suffix2);
+      let cursor_top: Sample.Cursor.t = {
+        ...cursor_mid,
+        call_stack: is_suffix2 ? cursor_mid.call_stack : top_data.call_stack,
+        index: List.length(top_data.call_stack) - 1,
+      };
+      check(int, "index should be 0 (top level)", 0, cursor_top.index);
+      check(
+        int,
+        "stack should still be length 3",
+        3,
+        List.length(cursor_top.call_stack),
+      );
+      /* Now verify mid probe can recover M1 from this cursor */
+      let m0 = frame(id_b);
+      let m2 = frame(id_d);
+      let mid_samples = [
+        mk_sample(~seq=0, [m0, f_frame]),
+        mk_sample(~seq=1, [m1, f_frame]),
+        mk_sample(~seq=2, [m2, f_frame]),
+      ];
+      let result =
+        Sample.Selection.first_related_index(
+          ~trimmed=true,
+          ~ap_id=None,
+          cursor_top,
+          mid_samples,
+        );
+      check(
+        bool,
+        "mid probe should find M1 at index 1",
+        true,
+        result == Some(1),
+      );
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -784,5 +1018,6 @@ let tests = (
     closest_tests,
     empty_status_tests,
     intent_preservation_tests,
+    three_level_tests,
   ]),
 );
