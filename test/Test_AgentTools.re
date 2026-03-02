@@ -3411,6 +3411,19 @@ let selector_edit_tests = (
       SelectorDelete("let x : *"),
       "let x : ? = 42 in x",
     ),
+    /* SelectorUpdate/Delete: cross-sort (FocusPat) */
+    edit_test(
+      "SelectorUpdate: pattern via #0",
+      "let x = 42 in x",
+      SelectorUpdate("#0", "y"),
+      "let y = 42 in x",
+    ),
+    edit_test(
+      "SelectorDelete: pattern via #0 -> hole",
+      "let x = 42 in x",
+      SelectorDelete("#0"),
+      "let ? = 42 in x",
+    ),
     /* Error cases */
     test_case("SelectorUpdate: no match", `Quick, () => {
       switch (
