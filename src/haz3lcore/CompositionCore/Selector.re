@@ -851,14 +851,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* let keyword: try all lets in the chain */
     | [MatchKeyword("let"), MatchNameIndex(name, idx), ...after_name] =>
       /* Indexed: find the nth let spine with matching name.
-         LAYERING NOTE: This intercepts indexed names at the walk dispatch
-         level rather than inside walk_let_spine. The cleaner approach would
-         be to pass an index parameter through to spine walkers, but that
-         would require adding ~idx:option(int) to walk_let_spine,
-         walk_fun_spine, walk_after_module_kw, and walk_after_type_kw plus
-         their name-matching branches. Current approach is contained here
-         (~12 lines) and only affects let keyword. Generalize if/when
-         indexing is needed for fun/module/type binders. */
+         Same pattern used for module#N and type#N below. */
       let matching_spines =
         find_all_lets(current)
         |> List.filter((spine: let_spine) =>
@@ -894,6 +887,21 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (Exp.term_of(current)) {
       | Match(scrut, rules) => walk_case_spine(current, scrut, rules, rest)
       | _ => []
+      }
+
+    /* module keyword: indexed disambiguation for shadowed module binders */
+    | [MatchKeyword("module"), MatchNameIndex(name, idx), ...after_name] =>
+      let matching =
+        find_all_modules(current)
+        |> List.filter(((name_opt, _, _, _, _)) =>
+             Option.equal(String.equal, name_opt, Some(name))
+           );
+      switch (List.nth_opt(matching, idx)) {
+      | Some((name_opt, def, whole, body_opt, mod_item_opt)) =>
+        walk_after_module_kw(
+          name_opt, def, whole, body_opt, mod_item_opt,
+          [MatchName(name), ...after_name])
+      | None => []
       }
 
     /* module keyword */
@@ -932,6 +940,21 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
           items,
         )
       | _ => []
+      }
+
+    /* type keyword: indexed disambiguation for shadowed type binders */
+    | [MatchKeyword("type"), MatchNameIndex(name, idx), ...after_name] =>
+      let matching =
+        find_all_types(current)
+        |> List.filter(((tpat, _, _, _, _)) =>
+             Option.equal(String.equal, tpat_name(tpat), Some(name))
+           );
+      switch (List.nth_opt(matching, idx)) {
+      | Some((tpat, whole, body_opt, tdef_opt, mod_item_opt)) =>
+        walk_after_type_kw(
+          tpat, whole, body_opt, tdef_opt, mod_item_opt,
+          [MatchName(name), ...after_name])
+      | None => []
       }
 
     /* type keyword */
@@ -1931,6 +1954,62 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
                 body: Exp.fresh(EmptyHole),
                 whole: Exp.fresh(Let(pat, def, Exp.fresh(EmptyHole))),
               },
+            ]
+          | _ => []
+          },
+        items,
+      )
+    | _ => []
+    }
+
+  /* Find all module-like binders in an expression chain.
+     Returns tuples matching walk_after_module_kw's parameters. */
+  and find_all_modules = (e: Exp.t)
+      : list((option(string), Exp.t, Exp.t, option(Exp.t), option(Mod.t))) =>
+    switch (Exp.term_of(e)) {
+    | ModuleExp(mpat, def, body) => [
+        (mpat_name(mpat), def, e, Some(body), None),
+        ...find_all_modules(body),
+      ]
+    | Let(pat, def, body) =>
+      switch (Exp.term_of(def)) {
+      | Module(_) => [
+          (pat_name(pat), def, e, Some(body), None),
+          ...find_all_modules(body),
+        ]
+      | _ => find_all_modules(body)
+      }
+    | TyAlias(_, _, body) => find_all_modules(body)
+    | Module(items) =>
+      List.concat_map(
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModuleMod(mpat, def) => [
+              (mpat_name(mpat), def, e, None, Some(item)),
+            ]
+          | _ => []
+          },
+        items,
+      )
+    | _ => []
+    }
+
+  /* Find all type-alias-like binders in an expression chain.
+     Returns tuples matching walk_after_type_kw's parameters. */
+  and find_all_types = (e: Exp.t)
+      : list((TPat.t, Exp.t, option(Exp.t), option(Typ.t), option(Mod.t))) =>
+    switch (Exp.term_of(e)) {
+    | TyAlias(tpat, tdef, body) => [
+        (tpat, e, Some(body), Some(tdef), None),
+        ...find_all_types(body),
+      ]
+    | Let(_, _, body) | ModuleExp(_, _, body) => find_all_types(body)
+    | Module(items) =>
+      List.concat_map(
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModType(tpat, tdef) => [
+              (tpat, e, None, Some(tdef), Some(item)),
             ]
           | _ => []
           },

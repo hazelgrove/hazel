@@ -367,6 +367,28 @@ let x = 1 in let x = 2 in x
 | `let x#1 = *` | `2` | with let keyword |
 | `x#5 = *` | ERROR: "2 binding(s) named 'x'" | out-of-range diagnostic |
 
+### Module and type indexing
+
+Indexing works for `module` and `type` keywords too:
+
+```
+module M = { let x = 1 } in module M = { let y = 2 } in M.y
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `module M#0 = *` | `{ let x = 1 }` | first module named M |
+| `module M#1 = *` | `{ let y = 2 }` | second module named M |
+
+```
+type T = Int in type T = Bool in 42
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `type T#0 = *` | `Int` | first type named T |
+| `type T#1 = *` | `Bool` | second type named T |
+
 ---
 
 ## 12. The Implicit Star Rule

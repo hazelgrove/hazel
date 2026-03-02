@@ -2039,6 +2039,35 @@ let selector_tests = (
       ~sel="A/ \\... module B",
       ~expected="module B = { let x = 42 }",
     ),
+    /* === Indexing for non-let binders === */
+
+    /* module#N: disambiguate shadowed module binders */
+    sel_test(
+      ~name="module M#0 = * (first module)",
+      ~code="module M = { let x = 1 } in module M = { let y = 2 } in M.y",
+      ~sel="module M#0 = *",
+      ~expected="{ let x = 1 }",
+    ),
+    sel_test(
+      ~name="module M#1 = * (second module)",
+      ~code="module M = { let x = 1 } in module M = { let y = 2 } in M.y",
+      ~sel="module M#1 = *",
+      ~expected="{ let y = 2 }",
+    ),
+    /* type#N: disambiguate shadowed type binders */
+    sel_test_rendered(
+      ~name="type T#0 = * (first type)",
+      ~code="type T = Int in type T = Bool in 42",
+      ~sel="type T#0 = *",
+      ~expected="Int",
+    ),
+    sel_test_rendered(
+      ~name="type T#1 = * (second type)",
+      ~code="type T = Int in type T = Bool in 42",
+      ~sel="type T#1 = *",
+      ~expected="Bool",
+    ),
+
     /* === ChildIndex: numeric child addressing === */
 
     /* Let: #0=pat, #1=def, #2=body */
