@@ -2770,6 +2770,74 @@ let canonical_tests = (
         };
       };
     }),
+
+    /* === MVU app: canonical roundtrips on a realistic program === */
+
+    /* Helper: verify both canonical forms roundtrip for a given selector */
+    test_case("mvu: init def roundtrip", `Quick, () => {
+      let root = mk_term(app_program);
+      switch (Selector.query_unique("App/init = *", root)) {
+      | Error(e) => fail("sel: " ++ e)
+      | Ok(m) =>
+        /* Numeric roundtrip */
+        switch (Selector.canonical_numeric(m.focused_id, root)) {
+        | None => fail("numeric None")
+        | Some(np) =>
+          let ns = Selector.deparse(np);
+          switch (Selector.query_unique(ns, root)) {
+          | Error(e) => fail("num roundtrip: " ++ e ++ " (" ++ ns ++ ")")
+          | Ok(m2) => check(bool, "num ID", true, m.focused_id == m2.focused_id)
+          };
+        };
+        /* Named roundtrip */
+        switch (Selector.canonical_named(m.focused_id, root)) {
+        | None => fail("named None")
+        | Some(nmp) =>
+          let nms = Selector.deparse(nmp);
+          switch (Selector.query_unique(nms, root)) {
+          | Error(e) => fail("named roundtrip: " ++ e ++ " (" ++ nms ++ ")")
+          | Ok(m2) => check(bool, "named ID", true, m.focused_id == m2.focused_id)
+          };
+        };
+      };
+    }),
+    canonical_roundtrip(
+      ~name="mvu: update case scrut",
+      ~code=app_program,
+      ~sel="App/update \\... case *",
+    ),
+    canonical_roundtrip(
+      ~name="mvu: Inc arm body",
+      ~code=app_program,
+      ~sel="App/update \\... | Inc => *",
+    ),
+    canonical_roundtrip(
+      ~name="mvu: Dec arm body",
+      ~code=app_program,
+      ~sel="App/update \\... | Dec => *",
+    ),
+    canonical_roundtrip(
+      ~name="mvu: Reset arm body",
+      ~code=app_program,
+      ~sel="App/update \\... | Reset => *",
+    ),
+    canonical_roundtrip(
+      ~name="mvu: view label def",
+      ~code=app_program,
+      ~sel="App/view \\... let label = *",
+    ),
+    canonical_roundtrip(
+      ~name="mvu: result def",
+      ~code=app_program,
+      ~sel="result = *",
+    ),
+    /* ChildIndex on MVU: module items */
+    sel_test(
+      ~name="mvu: App = #0 #1 (init def)",
+      ~code=app_program,
+      ~sel="App = #0 #1",
+      ~expected="0",
+    ),
   ],
 );
 
