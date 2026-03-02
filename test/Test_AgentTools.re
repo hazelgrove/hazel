@@ -1979,6 +1979,60 @@ let selector_tests = (
       ~sel="M/ \\... type T",
       ~expected="type T = Int",
     ),
+    /* === Implicit star with various forms === */
+    /* let x = (no *) → implicit * makes it focus on def */
+    sel_test(
+      ~name="let x = (implicit star on = position)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let x =",
+      ~expected="42",
+    ),
+    /* \... fun _ -> (implicit star on ->) */
+    sel_test(
+      ~name="\\... fun _ -> (implicit star)",
+      ~code="let f = fun x -> x + 1 in f",
+      ~sel="let f = \\... fun _ ->",
+      ~expected="x + 1",
+    ),
+    /* type T = (implicit star) */
+    sel_test(
+      ~name="type T = (implicit star)",
+      ~code="type T = Int in let x : T = 42 in x",
+      ~sel="type T =",
+      ~expected="Int",
+    ),
+    /* === Composition: chain + descend + if === */
+    sel_test(
+      ~name="M/f \\... if _ then * (chain+descend+if)",
+      ~code=
+        "module M = { "
+        ++ "let f = fun x -> if x > 0 then x + 1 else x - 1 "
+        ++ "} in M.f(5)",
+      ~sel="M/f \\... if _ then *",
+      ~expected="x + 1",
+    ),
+    /* === Bare name in module context → def === */
+    sel_test(
+      ~name="m/x (bare name in module = def)",
+      ~code="let m = { let x = 42; let y = 99 } in m.x",
+      ~sel="m/x",
+      ~expected="42",
+    ),
+    /* === Chain equivalence: compact vs spaced === */
+    test_case("spaced chain = compact chain", `Quick, () => {
+      let code = "let a = { let b = { let c = 99 } } in a.b.c";
+      let compact = selector_query_unique(code, "a/b/c/ *");
+      let spaced = selector_query_unique(code, "a/ b/ c/ *");
+      check(string, "same result", compact, spaced);
+    }),
+    /* === FocusMod: module B bare name inside module items === */
+    sel_test_rendered(
+      ~name="module B (bare) inside module = FocusMod",
+      ~code=
+        "module A = { module B = { let x = 42 } } in A.B.x",
+      ~sel="A/ \\... module B",
+      ~expected="module B = { let x = 42 }",
+    ),
   ],
 );
 

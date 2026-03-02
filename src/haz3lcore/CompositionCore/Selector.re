@@ -668,7 +668,15 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
     /* let keyword: try all lets in the chain */
     | [MatchKeyword("let"), MatchNameIndex(name, idx), ...after_name] =>
-      /* Indexed: find the nth let spine with matching name */
+      /* Indexed: find the nth let spine with matching name.
+         LAYERING NOTE: This intercepts indexed names at the walk dispatch
+         level rather than inside walk_let_spine. The cleaner approach would
+         be to pass an index parameter through to spine walkers, but that
+         would require adding ~idx:option(int) to walk_let_spine,
+         walk_fun_spine, walk_after_module_kw, and walk_after_type_kw plus
+         their name-matching branches. Current approach is contained here
+         (~12 lines) and only affects let keyword. Generalize if/when
+         indexing is needed for fun/module/type binders. */
       let matching_spines =
         find_all_lets(current)
         |> List.filter((spine: let_spine) =>
