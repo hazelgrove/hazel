@@ -1886,14 +1886,13 @@ let selector_tests = (
       ~sel="a/b/c/ *",
       ~expected="99",
     ),
-    /* A/B/C without trailing slash: inside Module(items), there's no
-       whole "let c" expression node (ModLet is an item, not Exp).
-       So MatchName falls back to find_binder_in_exp → returns the def. */
-    sel_test(
-      ~name="A/B/C (no slash, module context = def)",
+    /* A/B/C without trailing slash: inside Module(items), bare name
+       returns FocusMod — the whole ModLet item, not just the def. */
+    sel_test_rendered(
+      ~name="A/B/C (no slash, module context = FocusMod)",
       ~code="let a = { let b = { let c = 99 } } in a.b.c",
       ~sel="a/b/c",
-      ~expected="99",
+      ~expected="let c = 99",
     ),
     /* But at top level, bare name DOES return whole let expression */
     sel_test_rendered(
@@ -2011,11 +2010,18 @@ let selector_tests = (
       ~sel="M/f \\... if _ then *",
       ~expected="x + 1",
     ),
-    /* === Bare name in module context → def === */
-    sel_test(
-      ~name="m/x (bare name in module = def)",
+    /* === Bare name in module context → FocusMod === */
+    sel_test_rendered(
+      ~name="m/x (bare name in module = FocusMod)",
       ~code="let m = { let x = 42; let y = 99 } in m.x",
       ~sel="m/x",
+      ~expected="let x = 42",
+    ),
+    /* Trailing slash still enters the def (not FocusMod) */
+    sel_test(
+      ~name="m/x/ (trailing slash = def, not FocusMod)",
+      ~code="let m = { let x = 42; let y = 99 } in m.x",
+      ~sel="m/x/",
       ~expected="42",
     ),
     /* === Chain equivalence: compact vs spaced === */

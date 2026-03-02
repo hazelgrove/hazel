@@ -281,6 +281,47 @@ let rec find_binder_in_exp =
   | _ => None
   };
 
+/* Find a Mod.t item by name inside Module(items), walking through
+   Let/ModuleExp/TyAlias chains to reach the module. Returns the
+   Mod.t item itself (ModLet, ModuleMod, or ModType) so callers
+   can return FocusMod. */
+let rec find_mod_item_by_name =
+        (name: string, e: Exp.t): option(Mod.t) =>
+  switch (Exp.term_of(e)) {
+  | Let(_, _, body) => find_mod_item_by_name(name, body)
+  | ModuleExp(_, _, body) => find_mod_item_by_name(name, body)
+  | TyAlias(_, _, body) => find_mod_item_by_name(name, body)
+  | Module(items) =>
+    List.fold_left(
+      (acc, item: Mod.t) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          switch (item.term) {
+          | ModLet(pat, _) =>
+            switch (pat_name(pat)) {
+            | Some(n) when String.equal(n, name) => Some(item)
+            | _ => None
+            }
+          | ModuleMod(mpat, _) =>
+            switch (mpat_name(mpat)) {
+            | Some(n) when String.equal(n, name) => Some(item)
+            | _ => None
+            }
+          | ModType(tpat, _) =>
+            switch (tpat_name(tpat)) {
+            | Some(n) when String.equal(n, name) => Some(item)
+            | _ => None
+            }
+          | _ => None
+          }
+        },
+      None,
+      items,
+    )
+  | _ => None
+  };
+
 /* Find all binders with a given name in an expression chain.
    Returns list of (def, body) pairs in order of appearance (0-indexed). */
 let rec find_all_binders_named =
@@ -532,16 +573,26 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
           },
         ]
       | None =>
-        /* Also check module items */
-        switch (find_binder_in_exp(name, current)) {
-        | Some((def, _)) => [
+        /* Check module items — return FocusMod for the whole item */
+        switch (find_mod_item_by_name(name, current)) {
+        | Some(item) => [
             {
-              focused: FocusExp(def),
-              focused_id: Exp.rep_id(def),
+              focused: FocusMod(item),
+              focused_id: Mod.rep_id(item),
               breadcrumb: name,
             },
           ]
-        | None => []
+        | None =>
+          switch (find_binder_in_exp(name, current)) {
+          | Some((def, _)) => [
+              {
+                focused: FocusExp(def),
+                focused_id: Exp.rep_id(def),
+                breadcrumb: name,
+              },
+            ]
+          | None => []
+          }
         }
       }
 
@@ -590,10 +641,20 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       switch (find_let_node(name, current)) {
       | Some(let_exp) => walk(rest, let_exp)
       | None =>
-        /* Try in module context */
-        switch (find_binder_in_exp(name, current)) {
-        | Some((def, _)) => walk(rest, def)
-        | None => []
+        /* For terminal focus, prefer FocusMod for module items */
+        switch (rest, find_mod_item_by_name(name, current)) {
+        | ([MatchFocus], Some(item)) => [
+            {
+              focused: FocusMod(item),
+              focused_id: Mod.rep_id(item),
+              breadcrumb: name,
+            },
+          ]
+        | _ =>
+          switch (find_binder_in_exp(name, current)) {
+          | Some((def, _)) => walk(rest, def)
+          | None => []
+          }
         }
       }
 
