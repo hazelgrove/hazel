@@ -16,11 +16,11 @@ type Plant = (
 ) in
 
 let fern: Plant = (name = "Fern", icon = "🌿", water = 250) in
-let orchid: Plant = (name = "Orchid", icon = "🌷", water = 180) in
-let cactus: Plant = (name = "Cactus", icon = "🌵", water = 50) in
+let orchid: Plant = (name = "Orchid", icon = "🌸", water = 180) in
+let cactus: Plant = (name = "Cactus", icon = "🍄", water = 50) in
 let rose: Plant = (name = "Rose", icon = "🐛", water = 190) in
-let lily: Plant = (name = "Lily", icon = "🪷", water = 200) in
-let daisy: Plant = (name = "Daisy", icon = "🌼", water = 160) in
+let lily: Plant = (name = "Lily", icon = "☘️", water = 200) in
+let daisy: Plant = (name = "Daisy", icon = "🌱", water = 160) in
 
 type Bed = (
   name = String,
@@ -58,11 +58,11 @@ in
 
 # These tests pass #
 test bed_labels(shade_garden)
-  == ["🌿 Fern: 250ml", "🪷 Lily: 200ml", "🌼 Daisy: 160ml"]
+  == ["🌿 Fern: 250ml", "☘️ Lily: 200ml", "🌱 Daisy: 160ml"]
 end;
 test bed_labels(mixed_bed)
-  == ["🌿 Fern: 250ml", "🌷 Orchid: 180ml",
-      "🪷 Lily: 200ml", "🌵 Cactus: 50ml"]
+  == ["🌿 Fern: 250ml", "🌸 Orchid: 180ml",
+      "☘️ Lily: 200ml", "🍄 Cactus: 50ml"]
 end;
 
 # 1. Turn on auto-probe and click inside `bed_labels`. #
@@ -84,7 +84,7 @@ end;
 
 # This test is FAILING! #
 test bed_labels(sun_terrace)
-  == ["🌷 Orchid: 180ml", "🌵 Cactus: 50ml", "🌹 Rose: 190ml"]
+  == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
 # END #

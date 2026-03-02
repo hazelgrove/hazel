@@ -1,5 +1,5 @@
-# LUNAR GROWTH TRACKER - A Mystical Model Simulation #
-# Plants grow based on lunar energy, each responding differently to moon phases #
+# Lunar Growth Tracker #
+# Plants respond differently to moon phases #
 
 type MoonPhase =
   + New
@@ -12,7 +12,7 @@ type PlantKind =
   + Moonbloom
   + Starfern
   + Duskrose
-  + Evergreen
+  + Ghostvine
 in
 
 type Plant = (
@@ -48,7 +48,7 @@ let defaultAffinity : PlantKind -> MoonPhase =
     | Moonbloom => New
     | Starfern => Full
     | Duskrose => Waxing
-    | Evergreen => New
+    | Ghostvine => New
     end
 in
 
@@ -85,7 +85,7 @@ in
 let growthBonus : (Plant, MoonPhase) -> Int =
   fun (plant, currentPhase) ->
     case plant.kind
-    | Evergreen => 10
+    | Ghostvine => 10
     | Duskrose =>
         if isTransition(currentPhase)
         then 20
@@ -247,18 +247,18 @@ test
   plant.growth == 20
 end;
 
-hint "Evergreen grows steadily regardless of phase"
+hint "Ghostvine grows steadily regardless of phase"
 test
   let gh1 = tend(initModel, [
-    PlantSeed(Evergreen, "Cedar"),
+    PlantSeed(Ghostvine, "Whisper"),
     NightPasses(New)
   ]) in
   let gh2 = tend(initModel, [
-    PlantSeed(Evergreen, "Cedar"),
+    PlantSeed(Ghostvine, "Whisper"),
     NightPasses(Full)
   ]) in
-  let p1 = findPlant(gh1, "Cedar") in
-  let p2 = findPlant(gh2, "Cedar") in
+  let p1 = findPlant(gh1, "Whisper") in
+  let p2 = findPlant(gh2, "Whisper") in
   p1.growth == 10 && p2.growth == 10
 end;
 
@@ -299,7 +299,7 @@ let lunarCycle = tend(initModel, [
   PlantSeed(Moonbloom, "Luna"),
   PlantSeed(Starfern, "Stella"),
   PlantSeed(Duskrose, "Twilight"),
-  PlantSeed(Evergreen, "Cedar"),
+  PlantSeed(Ghostvine, "Cedar"),
   NightPasses(New),
   NightPasses(Waxing),
   NightPasses(Full),

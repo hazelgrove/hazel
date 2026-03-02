@@ -10,13 +10,13 @@ A harvest ledger system for a night garden themed farming game. Tracks quality s
 
 ### Domain
 
-A harvest festival under the stars. Farmers record harvests of magical night crops (Moonmelon, Starfruit, Nightberry, Duskwheat) at different quality tiers (Bronze, Silver, Gold, Starlight). Consecutive harvests of the same quality build a streak bonus.
+A harvest festival under the stars. Farmers record harvests of magical night crops (Moonmelon, Nightshade, Glowpumpkin, Starfruit, Duskwheat) at different quality tiers (Bronze, Silver, Gold, Starlight). Consecutive harvests of the same quality build a streak bonus.
 
 ### Data Model
 
 ```
 Quality = Bronze | Silver | Gold | Starlight
-Crop = Moonmelon | Starfruit | Nightberry | Duskwheat
+Crop = Moonmelon | Nightshade | Glowpumpkin | Starfruit | Duskwheat
 
 Harvest = { crop: Crop, quality: Quality, quantity: Int }
 
@@ -35,7 +35,7 @@ Action = RecordHarvest(Harvest) | ClaimBonus | CloseDay
 ```
 harvestValue = cropValue * qualityMultiplier * quantity
 
-Crop values: Duskwheat=10, Moonmelon=15, Starfruit=20, Nightberry=25
+Crop values: Duskwheat=10, Glowpumpkin=12, Moonmelon=15, Nightshade=20, Starfruit=20
 Quality multipliers: Bronze=1, Silver=2, Gold=3, Starlight=5
 ```
 

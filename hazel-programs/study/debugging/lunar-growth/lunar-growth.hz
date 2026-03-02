@@ -1,5 +1,5 @@
-# LUNAR GROWTH TRACKER - A Mystical Model Simulation #
-# Plants grow based on lunar energy, each responding differently to moon phases #
+# Lunar Growth Tracker #
+# Plants respond differently to moon phases #
 
 # Moon phases cycle through the night sky #
 type MoonPhase =
@@ -14,7 +14,7 @@ type PlantKind =
   + Moonbloom   # Thrives in darkness, loves New moon #
   + Starfern    # Basks in radiance, loves Full moon #
   + Duskrose    # Prefers transitions, loves Waxing/Waning #
-  + Evergreen   # Steady grower, unaffected by phases #
+  + Ghostvine   # Hardy creeper, unaffected by phases #
 in
 
 # A plant in the greenhouse #
@@ -55,7 +55,7 @@ let defaultAffinity : PlantKind -> MoonPhase =
     | Moonbloom => New
     | Starfern => Full
     | Duskrose => Waxing
-    | Evergreen => New  # Doesn't matter for Evergreen #
+    | Ghostvine => New  # Doesn't matter for Ghostvine #
     end
 in
 
@@ -97,11 +97,11 @@ in
 # +10 bonus if phase matches affinity #
 # -5 penalty if phase is opposite to affinity #
 # Duskrose gets bonus for any transition phase #
-# Evergreen always gets base growth #
+# Ghostvine always gets base growth #
 let growthBonus : (Plant, MoonPhase) -> Int =
   fun (plant, currentPhase) ->
     case plant.kind
-    | Evergreen => 10  # Always grows steadily #
+    | Ghostvine => 10  # Always grows steadily #
     | Duskrose =>
         if isTransition(currentPhase)
         then 20  # Loves transition phases #
@@ -304,19 +304,19 @@ test
   plant.growth == 5  # Tolerates extremes #
 end;
 
-# Evergreen behavior #
-hint "Evergreen grows steadily regardless of phase"
+# Ghostvine behavior #
+hint "Ghostvine grows steadily regardless of phase"
 test
   let gh1 = tend(initModel, [
-    PlantSeed(Evergreen, "Constant"),
+    PlantSeed(Ghostvine, "Whisper"),
     NightPasses(New)
   ]) in
   let gh2 = tend(initModel, [
-    PlantSeed(Evergreen, "Constant"),
+    PlantSeed(Ghostvine, "Whisper"),
     NightPasses(Full)
   ]) in
-  let p1 = findPlant(gh1, "Constant") in
-  let p2 = findPlant(gh2, "Constant") in
+  let p1 = findPlant(gh1, "Whisper") in
+  let p2 = findPlant(gh2, "Whisper") in
   p1.growth == 10 && p2.growth == 10
 end;
 
@@ -395,7 +395,7 @@ let lunarCycle = tend(initModel, [
   PlantSeed(Moonbloom, "Luna"),
   PlantSeed(Starfern, "Stella"),
   PlantSeed(Duskrose, "Twilight"),
-  PlantSeed(Evergreen, "Cedar"),
+  PlantSeed(Ghostvine, "Cedar"),
   NightPasses(New),
   NightPasses(Waxing),
   NightPasses(Full),

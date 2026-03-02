@@ -1,7 +1,6 @@
-# TIC-TAC-TOE #
-# Classic 3x3 game with cats vs dogs #
+# Tic-Tac-Toe #
 
-type Cell = + Empty + X + O in
+type Cell = + Empty + Sprout + Shroom in
 
 type Board = [Cell] in
 
@@ -44,16 +43,16 @@ in
 let playerCell : Player -> Cell =
   fun p ->
     case p
-    | PlayerX => X
-    | PlayerO => O
+    | PlayerX => Sprout
+    | PlayerO => Shroom
     end
 in
 
 let threeInRow : (Cell, Cell, Cell) -> Option =
   fun (a, b, c) ->
     case (a, b, c)
-    | (X, X, X) => Some(X)
-    | (O, O, O) => Some(O)
+    | (Sprout, Sprout, Sprout) => Some(Sprout)
+    | (Shroom, Shroom, Shroom) => Some(Shroom)
     | _ => None
     end
 in
@@ -93,8 +92,8 @@ in
 let cellToPlayer : Cell -> Player =
   fun c ->
     case c
-    | X => PlayerX
-    | O => PlayerO
+    | Sprout => PlayerX
+    | Shroom => PlayerO
     | Empty => PlayerX
     end
 in

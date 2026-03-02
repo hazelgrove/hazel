@@ -19,8 +19,9 @@ Each watering advances all planted crops by one stage. Only crops that have reac
 
 - **Moonmelon** - Silvery melon that ripens under starlight
 - **Nightshade** - Purple bloom with magical properties
-- **Starwheat** - Golden grain that sparkles at dusk
+- **Starfruit** - Shaped like stars, tangy
 - **Glowpumpkin** - Orange and luminescent
+- **Duskwheat** - Golden stalks, hearty grain
 
 ### Actions
 

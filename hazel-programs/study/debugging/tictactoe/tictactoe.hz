@@ -1,7 +1,6 @@
-# TIC-TAC-TOE #
-# Classic 3x3 game with cats vs dogs #
+# Tic-Tac-Toe #
 
-type Cell = + Empty + X + O in
+type Cell = + Empty + Sprout + Shroom in
 
 type Board = [Cell] in  # 9 cells, row-major: [0,1,2,3,4,5,6,7,8] #
 
@@ -48,8 +47,8 @@ in
 let playerCell : Player -> Cell =
   fun p ->
     case p
-    | PlayerX => X
-    | PlayerO => O
+    | PlayerX => Sprout
+    | PlayerO => Shroom
     end
 in
 
@@ -57,8 +56,8 @@ in
 let threeInRow : (Cell, Cell, Cell) -> Option =
   fun (a, b, c) ->
     case (a, b, c)
-    | (X, X, X) => Some(X)
-    | (O, O, O) => Some(O)
+    | (Sprout, Sprout, Sprout) => Some(Sprout)
+    | (Shroom, Shroom, Shroom) => Some(Shroom)
     | _ => None
     end
 in
@@ -105,8 +104,8 @@ in
 let cellToPlayer : Cell -> Player =
   fun c ->
     case c
-    | X => PlayerX
-    | O => PlayerO
+    | Sprout => PlayerX
+    | Shroom => PlayerO
     | Empty => PlayerX  # shouldn't happen #
     end
 in
@@ -179,7 +178,7 @@ end;
 hint "move places correct marker"
 test
   let m = move(init, 0) in
-  getCell(m.board, 0) == X
+  getCell(m.board, 0) == Sprout
 end;
 
 hint "turn alternates after move"
@@ -188,16 +187,16 @@ test
   m.turn == PlayerO
 end;
 
-hint "O places O marker"
+hint "Shroom places Shroom marker"
 test
   let m = play(init, [0, 4]) in
-  getCell(m.board, 4) == O
+  getCell(m.board, 4) == Shroom
 end;
 
 hint "invalid move on occupied cell"
 test
   let m = play(init, [0, 0]) in  # X plays 0, O tries 0 #
-  getCell(m.board, 0) == X &&    # Still X, not O #
+  getCell(m.board, 0) == Sprout &&    # Still Sprout, not Shroom #
   m.turn == PlayerO              # Still O's turn #
 end;
 

@@ -1,5 +1,5 @@
-# NIGHT GARDEN NUTRIENT TRACKER #
-# A mystical soil management system for sustainable moon farming #
+# Night Garden Nutrient Tracker #
+# Soil management for the night garden #
 
 # Soil nutrients are measured 0-100 #
 # N = Nitrogen, P = Phosphorus, K = Potassium #
@@ -11,10 +11,10 @@ type Soil = (
 
 # Crops of the night garden #
 type Crop =
-  + Nightbeans      # Nitrogen fixer - restores N when harvested #
-  + Mooncorn        # Heavy feeder - depletes N significantly #
-  + Startomatoes    # Balanced - moderate use of all nutrients #
-  + TwilightClover  # Cover crop - restores N when turned under #
+  + Duskwheat      # Nitrogen fixer - restores N when harvested #
+  + Moonmelon        # Heavy feeder - depletes N significantly #
+  + Starfruit    # Balanced - moderate use of all nutrients #
+  + Nightshade  # Cover crop - restores N when turned under #
 in
 
 # A garden plot tracks soil, current crop (if any), and season #
@@ -54,10 +54,10 @@ let initModel : Model = (
 let plantingCost : (Soil, Crop) -> Soil =
   fun (s, crop) ->
     case crop
-    | Nightbeans => (n = s.n, p = clamp(s.p - 5), k = clamp(s.k - 5))
-    | Mooncorn => (n = clamp(s.n - 5), p = clamp(s.p - 5), k = clamp(s.k - 5))
-    | Startomatoes => (n = clamp(s.n - 5), p = clamp(s.p - 5), k = clamp(s.k - 5))
-    | TwilightClover => (n = s.n, p = clamp(s.p - 3), k = clamp(s.k - 3))
+    | Duskwheat => (n = s.n, p = clamp(s.p - 5), k = clamp(s.k - 5))
+    | Moonmelon => (n = clamp(s.n - 5), p = clamp(s.p - 5), k = clamp(s.k - 5))
+    | Starfruit => (n = clamp(s.n - 5), p = clamp(s.p - 5), k = clamp(s.k - 5))
+    | Nightshade => (n = s.n, p = clamp(s.p - 3), k = clamp(s.k - 3))
     end
 in
 
@@ -65,13 +65,13 @@ in
 let harvestEffect : (Soil, Crop) -> Soil =
   fun (s, crop) ->
     case crop
-    | Nightbeans =>
+    | Duskwheat =>
         (n = clamp(s.n + 15), p = clamp(s.p - 10), k = clamp(s.k - 10))
-    | Mooncorn =>
+    | Moonmelon =>
         (n = clamp(s.n - 30), p = clamp(s.p - 10), k = clamp(s.k - 15))
-    | Startomatoes =>
+    | Starfruit =>
         (n = clamp(s.n - 15), p = clamp(s.p - 15), k = clamp(s.k - 15))
-    | TwilightClover =>
+    | Nightshade =>
         (n = s.n, p = clamp(s.p + 20), k = clamp(s.k - 5))
     end
 in
@@ -137,25 +137,25 @@ in
 
 hint "planting sets the current crop"
 test
-  let p = update(initModel, Plant(Mooncorn)) in
-  p.crop == Some(Mooncorn)
+  let p = update(initModel, Plant(Moonmelon)) in
+  p.crop == Some(Moonmelon)
 end;
 
 hint "cannot plant when crop already growing"
 test
-  let p = farm(initModel, [Plant(Mooncorn), Plant(Startomatoes)]) in
-  p.crop == Some(Mooncorn)
+  let p = farm(initModel, [Plant(Moonmelon), Plant(Starfruit)]) in
+  p.crop == Some(Moonmelon)
 end;
 
 hint "planting has small nutrient cost"
 test
-  let p = update(initModel, Plant(Startomatoes)) in
+  let p = update(initModel, Plant(Starfruit)) in
   p.soil.n < initModel.soil.n
 end;
 
 hint "harvesting clears the crop"
 test
-  let p = farm(initModel, [Plant(Mooncorn), Harvest]) in
+  let p = farm(initModel, [Plant(Moonmelon), Harvest]) in
   p.crop == None
 end;
 
@@ -165,37 +165,37 @@ test
   p == initModel
 end;
 
-hint "mooncorn depletes nitrogen heavily"
+hint "moonmelon depletes nitrogen heavily"
 test
-  let p = farm(initModel, [Plant(Mooncorn), Harvest]) in
+  let p = farm(initModel, [Plant(Moonmelon), Harvest]) in
   p.soil.n < initModel.soil.n - 20
 end;
 
-hint "nightbeans restore nitrogen"
+hint "duskwheat restores nitrogen"
 test
   let depleted = (
     soil = (n = 30, p = 50, k = 50),
     crop = None,
     season = 1
   ) in
-  let p = farm(depleted, [Plant(Nightbeans), Harvest]) in
+  let p = farm(depleted, [Plant(Duskwheat), Harvest]) in
   p.soil.n > depleted.soil.n
 end;
 
-hint "twilight clover restores nitrogen significantly"
+hint "nightshade restores nitrogen significantly"
 test
   let depleted = (
     soil = (n = 30, p = 60, k = 60),
     crop = None,
     season = 1
   ) in
-  let p = farm(depleted, [Plant(TwilightClover), Harvest]) in
+  let p = farm(depleted, [Plant(Nightshade), Harvest]) in
   p.soil.n >= 45
 end;
 
-hint "startomatoes deplete all nutrients moderately"
+hint "starfruit depletes all nutrients moderately"
 test
-  let p = farm(initModel, [Plant(Startomatoes), Harvest]) in
+  let p = farm(initModel, [Plant(Starfruit), Harvest]) in
   p.soil.n < initModel.soil.n &&
   p.soil.p < initModel.soil.p &&
   p.soil.k < initModel.soil.k
@@ -228,19 +228,19 @@ test
   p.soil.n < initModel.soil.n
 end;
 
-hint "mooncorn then clover rotation restores nitrogen"
+hint "moonmelon then nightshade rotation restores nitrogen"
 test
   let start = (soil = (n = 60, p = 60, k = 60), crop = None, season = 1) in
-  let afterMooncorn = farm(start, [Plant(Mooncorn), Harvest]) in
-  let afterClover = farm(afterMooncorn, [Plant(TwilightClover), Harvest]) in
-  afterClover.soil.n > afterMooncorn.soil.n &&
+  let afterMoonmelon = farm(start, [Plant(Moonmelon), Harvest]) in
+  let afterClover = farm(afterMoonmelon, [Plant(Nightshade), Harvest]) in
+  afterClover.soil.n > afterMoonmelon.soil.n &&
   afterClover.soil.n >= 40
 end;
 
 hint "nutrients cannot go below 0"
 test
   let poor = (soil = (n = 10, p = 10, k = 10), crop = None, season = 1) in
-  let p = farm(poor, [Plant(Mooncorn), Harvest]) in
+  let p = farm(poor, [Plant(Moonmelon), Harvest]) in
   p.soil.n >= 0 && p.soil.p >= 0 && p.soil.k >= 0
 end;
 
@@ -253,14 +253,14 @@ end;
 
 # Full season demo #
 farm(initModel, [
-  Plant(Mooncorn),
+  Plant(Moonmelon),
   SeasonChange,
   Harvest,
-  Plant(TwilightClover),
+  Plant(Nightshade),
   SeasonChange,
   Harvest,
   Compost,
-  Plant(Nightbeans),
+  Plant(Duskwheat),
   SeasonChange,
   Harvest
 ])

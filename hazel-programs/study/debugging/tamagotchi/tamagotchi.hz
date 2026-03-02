@@ -1,21 +1,21 @@
-# HAUNTED TOASTER - A Tamagotchi-style Virtual Pet #
-# Your pet is a possessed kitchen appliance with feelings #
+# Garden Spirit #
+# A small spirit that tends your garden #
 
 type Stat = Int in  # 0-100 range #
 
 type Stats = (
-  hunger = Stat,     # 0 = starving, 100 = stuffed #
+  hunger = Stat,     # 0 = starving, 100 = full #
   happiness = Stat,  # 0 = miserable, 100 = ecstatic #
   energy = Stat,     # 0 = exhausted, 100 = hyperactive #
-  health = Stat      # 0 = broken, 100 = pristine #
+  health = Stat      # 0 = fading, 100 = vibrant #
 ) in
 
 type Evolution =
-  + BabyToaster      # Just possessed, learning the ropes #
-  + TeenToaster      # Moody, unpredictable #
-  + AdultToaster     # Mature, stable #
-  + GoldenToaster    # Legendary, well-cared-for #
-  + RustyToaster     # Neglected, cranky #
+  + Seedling      # Newly sprouted #
+  + Sprout      # Growing, unpredictable #
+  + Bloom     # In full bloom #
+  + Elder    # Ancient and wise #
+  + Wilted     # Neglected, withering #
 in
 
 type Personality =
@@ -44,7 +44,7 @@ type Action =
   + Feed              # Reduces hunger, slight energy boost #
   + Play              # Increases happiness, costs energy #
   + Sleep             # Restores energy, slight health boost #
-  + Repair            # Fixes health issues #
+  + Mend            # Fixes health issues #
   + TimeTick          # Time passes, stats decay #
 in
 
@@ -56,7 +56,7 @@ let clamp : Int -> Int =
     else x
 in
 
-# Initial state: a fresh baby toaster #
+# Initial state #
 let init: Model = (
   stats = (
     hunger = 50,
@@ -64,7 +64,7 @@ let init: Model = (
     energy = 50,
     health = 100
   ),
-  evolution = BabyToaster,
+  evolution = Seedling,
   personality = Balanced,
   memory = (
     timesFed = 0,
@@ -113,11 +113,11 @@ let calcEvolution : (Int, Memory) -> Evolution =
   fun (age, m) ->
     let careScore = m.timesFed + m.timesPlayed + m.timesSlept in
     let neglectScore = m.timesNeglected in
-    if age < 10 then BabyToaster
-    else if age < 25 then TeenToaster
-    else if careScore > neglectScore * 3 then GoldenToaster
-    else if neglectScore > careScore then RustyToaster
-    else AdultToaster
+    if age < 10 then Seedling
+    else if age < 25 then Sprout
+    else if careScore > neglectScore * 3 then Elder
+    else if neglectScore > careScore then Wilted
+    else Bloom
 in
 
 # Check if stats indicate neglect (any stat critically low) #
@@ -133,7 +133,7 @@ let updateMemory : (Memory, Action, Stats) -> Memory =
     | Feed => (m.timesFed + 1, m.timesPlayed, m.timesSlept, m.timesNeglected)
     | Play => (m.timesFed, m.timesPlayed + 1, m.timesSlept, m.timesNeglected)
     | Sleep => (m.timesFed, m.timesPlayed, m.timesSlept + 1, m.timesNeglected)
-    | Repair => m
+    | Mend => m
     | TimeTick =>
         if isNeglected(stats)
         then (m.timesFed, m.timesPlayed, m.timesSlept, m.timesNeglected + 1)
@@ -183,10 +183,10 @@ let applyAction : (Stats, Action, Personality) -> Stats =
           energy = clamp(s.energy + 40 + bonus),
           health = clamp(s.health + 5)
         )
-    | Repair =>
+    | Mend =>
         (
           hunger = s.hunger,
-          happiness = clamp(s.happiness - 10),  # Repairs are uncomfortable #
+          happiness = clamp(s.happiness - 10),  # Mending is uncomfortable #
           energy = s.energy,
           health = clamp(s.health + 35 + bonus)
         )
@@ -258,7 +258,7 @@ hint "playing when exhausted is less effective"
 test
   let exhausted = (
     stats = (hunger = 50, happiness = 30, energy = 10, health = 80),
-    evolution = BabyToaster,
+    evolution = Seedling,
     personality = Balanced,
     memory = init.memory,
     age = 0
@@ -273,7 +273,7 @@ hint "sleeping restores energy"
 test
   let tired = (
     stats = (hunger = 50, happiness = 50, energy = 30, health = 80),
-    evolution = BabyToaster,
+    evolution = Seedling,
     personality = Balanced,
     memory = init.memory,
     age = 0
@@ -288,23 +288,23 @@ test
   m.stats.health > init.stats.health || m.stats.health == 100
 end;
 
-# Repair tests #
-hint "repair increases health"
+# Mend tests #
+hint "mend increases health"
 test
   let damaged = (
     stats = (hunger = 50, happiness = 50, energy = 50, health = 40),
-    evolution = BabyToaster,
+    evolution = Seedling,
     personality = Balanced,
     memory = init.memory,
     age = 0
   ) in
-  let m = update(damaged, Repair) in
+  let m = update(damaged, Mend) in
   m.stats.health == 75
 end;
 
-hint "repair is uncomfortable (decreases happiness)"
+hint "mend is uncomfortable (decreases happiness)"
 test
-  let m = update(init, Repair) in
+  let m = update(init, Mend) in
   m.stats.happiness < init.stats.happiness
 end;
 
@@ -325,21 +325,21 @@ hint "hunger affects happiness decay rate"
 test
   let hungry = (
     stats = (hunger = 20, happiness = 50, energy = 50, health = 80),
-    evolution = BabyToaster,
+    evolution = Seedling,
     personality = Balanced,
     memory = init.memory,
     age = 0
   ) in
   let full = (
     stats = (hunger = 80, happiness = 50, energy = 50, health = 80),
-    evolution = BabyToaster,
+    evolution = Seedling,
     personality = Balanced,
     memory = init.memory,
     age = 0
   ) in
   let hungryAfter = update(hungry, TimeTick) in
   let fullAfter = update(full, TimeTick) in
-  # Hungry toaster loses more happiness #
+  # Hungry spirit loses more happiness #
   hungryAfter.stats.happiness < fullAfter.stats.happiness
 end;
 
@@ -347,7 +347,7 @@ hint "exhaustion hurts health"
 test
   let exhausted = (
     stats = (hunger = 50, happiness = 50, energy = 15, health = 50),
-    evolution = BabyToaster,
+    evolution = Seedling,
     personality = Balanced,
     memory = init.memory,
     age = 0
@@ -357,18 +357,18 @@ test
 end;
 
 # Evolution tests #
-hint "starts as baby toaster"
+hint "starts as seedling"
 test
-  init.evolution == BabyToaster
+  init.evolution == Seedling
 end;
 
-hint "evolves to teen after age 10"
+hint "evolves to sprout after age 10"
 test
   let m = do(init, timePasses(10)) in
-  m.evolution == TeenToaster
+  m.evolution == Sprout
 end;
 
-hint "well-cared-for toaster becomes golden"
+hint "well-cared-for spirit becomes elder"
 test
   # Must interleave care with time to avoid neglect #
   # Need age >= 25 and careScore > neglectScore * 3 #
@@ -387,7 +387,7 @@ test
     Feed, Play, Sleep, TimeTick, TimeTick, TimeTick
   ]) in
   # age = 25, careScore = 27 (10 feed + 8 play + 9 sleep), neglectScore = 0 #
-  wellCared.evolution == GoldenToaster
+  wellCared.evolution == Elder
 end;
 
 # Memory tests #
@@ -418,7 +418,7 @@ hint "stats cannot go below 0"
 test
   let dying = (
     stats = (hunger = 5, happiness = 5, energy = 5, health = 5),
-    evolution = RustyToaster,
+    evolution = Wilted,
     personality = Grumpy,
     memory = init.memory,
     age = 30
@@ -432,7 +432,7 @@ hint "stats cannot exceed 100"
 test
   let healthy = (
     stats = (hunger = 90, happiness = 90, energy = 90, health = 95),
-    evolution = GoldenToaster,
+    evolution = Elder,
     personality = Cheerful,
     memory = (timesFed = 10, timesPlayed = 10, timesSlept = 10, timesNeglected = 0),
     age = 30
@@ -446,14 +446,14 @@ hint "cheerful personality gives bonus to actions"
 test
   let cheerfulModel = (
     stats = (hunger = 50, happiness = 50, energy = 50, health = 50),
-    evolution = AdultToaster,
+    evolution = Bloom,
     personality = Cheerful,
     memory = init.memory,
     age = 25
   ) in
   let grumpyModel = (
     stats = (hunger = 50, happiness = 50, energy = 50, health = 50),
-    evolution = AdultToaster,
+    evolution = Bloom,
     personality = Grumpy,
     memory = init.memory,
     age = 25
@@ -471,11 +471,11 @@ test
   m.stats.health >= init.stats.health - 5
 end;
 
-hint "neglect leads to rusty evolution"
+hint "neglect leads to wilted evolution"
 test
   # Just let time pass without care #
   let neglected = do(init, timePasses(30)) in
-  neglected.evolution == RustyToaster
+  neglected.evolution == Wilted
 end;
 
 hint "age increases with time ticks"
@@ -486,7 +486,7 @@ end;
 
 hint "age does not increase with other actions"
 test
-  let m = do(init, [Feed, Play, Sleep, Repair]) in
+  let m = do(init, [Feed, Play, Sleep, Mend]) in
   m.age == 0
 end;
 
@@ -501,5 +501,5 @@ do(init, [
   # Day 4 #
   Feed, Play, Play, Sleep, TimeTick, TimeTick,
   # Day 5 #
-  Feed, Repair, Sleep, TimeTick, TimeTick
+  Feed, Mend, Sleep, TimeTick, TimeTick
 ])

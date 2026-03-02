@@ -3,4853 +3,4853 @@ let out : string * Haz3lcore.PersistentSegment.t =
     {
       segment =
         "((Secondary((id \
-         a00f251d-9624-4352-8a5b-b4ea8309e9c0)(content(Comment\"# HAUNTED \
-         TOASTER - A Tamagotchi-style Virtual Pet #\"))))(Secondary((id \
-         b9860f1c-ce57-4659-9960-13c2b8012dd1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b3fb1472-0ebf-4bf6-8c93-15ff71abcff7)(content(Comment\"# Your pet is \
-         a possessed kitchen appliance with feelings #\"))))(Secondary((id \
-         78e0b2d9-267d-49b0-bd93-c6ede028806d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c2b93111-87e2-4b69-a677-442dc897e917)(content(Whitespace\"\\n\"))))(Tile((id \
-         57877a59-3cf5-44f5-9ed4-fb115aca7de7)(label(type = in))(mold((out \
+         234e0f30-d177-4f84-9daa-a23797a180ac)(content(Comment\"# Garden \
+         Spirit #\"))))(Secondary((id \
+         11dd6ced-e441-44f7-a5b3-d5ac751d0c26)(content(Whitespace\"\\n\"))))(Secondary((id \
+         4c2c1636-1247-4fc6-82e4-73c00645ae16)(content(Comment\"# A small \
+         spirit that tends your garden #\"))))(Secondary((id \
+         89c8c8e3-306e-4484-9d8c-17c7523c8ae4)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a90ace67-01c0-4aa5-80ff-8e85d64447ae)(content(Whitespace\"\\n\"))))(Tile((id \
+         6d4ec97a-7e95-4326-9680-75c109b2fc52)(label(type = in))(mold((out \
          Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         4b20b76b-d73f-414c-a2ba-7321b05f501d)(content(Whitespace\" \
+         564dfdda-b750-47fe-ba2e-28a8bb9b1a9c)(content(Whitespace\" \
          \"))))(Tile((id \
-         9b482368-fa98-43de-8ad0-130d67924ad5)(label(Stat))(mold((out \
+         40c67c1d-ec27-4d97-bf5b-d77fd1c645f2)(label(Stat))(mold((out \
          TPat)(in_())(nibs(((shape Convex)(sort TPat))((shape Convex)(sort \
          TPat))))))(shards(0))(children())))(Secondary((id \
-         1bda80c6-6036-4501-a4f0-72f93f0a0b1d)(content(Whitespace\" \
+         e80b2dc0-9383-45e1-916e-6d6dab5ee8e1)(content(Whitespace\" \
          \")))))((Secondary((id \
-         ab984528-d7fe-47ca-a046-e19a36c8918a)(content(Whitespace\" \
+         98b40ad8-0018-44d8-a5b6-10bd10f2ac88)(content(Whitespace\" \
          \"))))(Tile((id \
-         4fb74d0e-1d19-45b3-a6b2-ac86b7185d12)(label(Int))(mold((out \
+         7176d1b7-c290-455a-9289-bb7bbd0666c6)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         d99005ee-1e3e-4f96-b165-44b83684e1cd)(content(Whitespace\" \
+         8cb1d900-c731-4df1-8d2e-3042932dd410)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         89d1de56-0d0c-4024-885c-1f8d356534cd)(content(Whitespace\" \
+         ece5d553-0fcc-4776-902b-f39fedfb4e16)(content(Whitespace\" \
          \"))))(Secondary((id \
-         4d4687e1-167d-44b0-a7d3-8dd1a2af681b)(content(Whitespace\" \
+         05de1c97-c075-4b3c-b600-5da33b18c888)(content(Whitespace\" \
          \"))))(Secondary((id \
-         d7650e80-7901-4e5a-a435-f17c98e5b495)(content(Comment\"# 0-100 range \
+         b0202cf4-9a18-4e18-8f1b-83533226819d)(content(Comment\"# 0-100 range \
          #\"))))(Secondary((id \
-         5adbcc22-5afc-48f4-bc58-746b3b51590c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c234244a-dd6b-4528-b3ac-1e6b04ca2ed7)(content(Whitespace\"\\n\"))))(Tile((id \
-         ed6a09f2-d45e-4db2-aa2f-5fd218c4d76d)(label(type = in))(mold((out \
+         1a6ad5d5-ecb1-40ac-876a-3f5c0f67c2db)(content(Whitespace\"\\n\"))))(Secondary((id \
+         aa4ebf2e-3b12-4c3c-b4a6-6992dde7e02a)(content(Whitespace\"\\n\"))))(Tile((id \
+         de992889-1b33-4ac5-a684-d1255cac35a0)(label(type = in))(mold((out \
          Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         774647a0-9206-4fb6-83b3-c9201f49b711)(content(Whitespace\" \
+         0b11c26e-fc50-4b87-8f8d-f7986d08cad8)(content(Whitespace\" \
          \"))))(Tile((id \
-         783869ee-32c2-4405-b140-ea41ab385d71)(label(Stats))(mold((out \
+         2945e555-adbb-41c7-a94d-2cdf67db75b2)(label(Stats))(mold((out \
          TPat)(in_())(nibs(((shape Convex)(sort TPat))((shape Convex)(sort \
          TPat))))))(shards(0))(children())))(Secondary((id \
-         ec12133b-da3b-461d-b303-07d135c46e7a)(content(Whitespace\" \
+         f2ad9655-eff3-4a17-9ad9-8a7b304a414d)(content(Whitespace\" \
          \")))))((Secondary((id \
-         d358efd4-cc56-412a-8b0b-c564a8acf8a8)(content(Whitespace\" \
+         5f730060-5c01-42f9-941f-97b378c68e13)(content(Whitespace\" \
          \"))))(Tile((id \
-         74d19e58-095e-417a-8222-f5491f5b52a4)(label(\"(\"\")\"))(mold((out \
+         f3e9c1ef-00f4-45ca-bab7-b591943e6aed)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Secondary((id \
-         dc86d95a-47d6-454c-927f-36d47f7992b2)(content(Whitespace\"\\n\"))))(Tile((id \
-         9bb92c80-ff7d-4512-9fa1-57c205d81534)(label(hunger))(mold((out \
+         a6628b98-ca57-4b14-bdf5-a7a9c6deeb2f)(content(Whitespace\"\\n\"))))(Tile((id \
+         4d16090a-ee1f-42e3-99da-64b725beb491)(label(hunger))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         ec853c30-46ce-4dfc-bbe5-930d8a0ed913)(content(Whitespace\" \
+         2595dda7-f8f7-44af-aaf4-275dba28c98e)(content(Whitespace\" \
          \"))))(Tile((id \
-         1a331253-b193-4367-9769-4539bfb047cf)(label(=))(mold((out \
+         90d2f9ad-2182-48ce-b0f7-812876bafd86)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         2594618c-c209-44aa-b0cd-06860d194cc4)(content(Whitespace\" \
+         1552c927-fe20-4b7b-aed8-b30bfb97c903)(content(Whitespace\" \
          \"))))(Tile((id \
-         be69d880-91d2-4f23-9b9e-9989c656c9cf)(label(Stat))(mold((out \
+         6dd41406-f973-4db3-8a33-464ea700811b)(label(Stat))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         49f5b3fa-694c-40ad-bd6b-cb9cb2d9ea80)(label(,))(mold((out \
+         e67b769c-cea7-4e48-9096-fe1f234075d1)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         689f0d27-4cf9-47af-8330-dc731e5fb839)(content(Whitespace\" \
+         e6b25e37-1708-41f8-a2b2-42104f42c159)(content(Whitespace\" \
          \"))))(Secondary((id \
-         b6c51a93-64e6-4365-b8c2-3f61a5ba1875)(content(Whitespace\" \
+         aab6dbab-9648-48a9-be75-5e177bced8a9)(content(Whitespace\" \
          \"))))(Secondary((id \
-         edb03d93-45d9-4184-b6fe-d707371a34dc)(content(Whitespace\" \
+         66b80718-f739-4d32-9ce2-8c20819451a9)(content(Whitespace\" \
          \"))))(Secondary((id \
-         49b03e54-a2f1-424b-b0ee-4dbe9feaf4ab)(content(Whitespace\" \
+         02e56479-b3b1-44af-9933-653deea140aa)(content(Whitespace\" \
          \"))))(Secondary((id \
-         48422c9f-1c7e-4b9b-b838-b793f8cb9795)(content(Whitespace\" \
+         9c412927-7d22-4991-b08d-cf1cf24f2c6a)(content(Whitespace\" \
          \"))))(Secondary((id \
-         33c2284f-8ada-4e75-a49e-792d4dcf8967)(content(Comment\"# 0 = \
-         starving, 100 = stuffed #\"))))(Secondary((id \
-         3815360d-b869-4d53-9998-469409ad4c42)(content(Whitespace\"\\n\"))))(Tile((id \
-         e0e016f2-8676-4896-b26d-45b5800a7e12)(label(happiness))(mold((out \
+         c856f4d6-16f2-4f30-afc3-68aa8c3ea2de)(content(Comment\"# 0 = \
+         starving, 100 = full #\"))))(Secondary((id \
+         abd61d98-ccba-4860-ac08-bc91d4cc698d)(content(Whitespace\"\\n\"))))(Tile((id \
+         b2d07bb8-5732-4b13-ba98-540d7f5bd802)(label(happiness))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         ba0b0464-686a-409c-b6ec-90a1d94223b7)(content(Whitespace\" \
+         63031888-7260-43a8-b974-94f768a9deb8)(content(Whitespace\" \
          \"))))(Tile((id \
-         0c3672af-38c3-4f75-add5-7b3a3a9dbf22)(label(=))(mold((out \
+         4e226994-ec36-404a-9044-462e7fe3a7cd)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         ac8b941d-c13e-459e-9ee4-c1aa56c99609)(content(Whitespace\" \
+         df635548-0d6e-4652-af9d-d9972697a2ba)(content(Whitespace\" \
          \"))))(Tile((id \
-         ca32b04f-7152-402f-a131-4e3c09672122)(label(Stat))(mold((out \
+         93d19ea3-55e5-4b67-b46a-62dcd40dd2f6)(label(Stat))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         f0c61736-6f25-486d-8aa8-396ad896ea35)(label(,))(mold((out \
+         87631381-7d1a-481e-bf91-3880daa6463b)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         f8f7f58f-6b44-44a3-a006-66cb5c0ea85a)(content(Whitespace\" \
+         19b86509-a34a-4410-82d0-36d1ee4238af)(content(Whitespace\" \
          \"))))(Secondary((id \
-         e507ebd9-4b47-43eb-b38e-227ae102f802)(content(Whitespace\" \
+         16a53d34-b2aa-4286-b5df-2dc24112628c)(content(Whitespace\" \
          \"))))(Secondary((id \
-         f53ddfef-e00c-4af0-93a2-91156d28ac78)(content(Comment\"# 0 = \
+         792211ed-084c-4e20-8af2-19def1c444b7)(content(Comment\"# 0 = \
          miserable, 100 = ecstatic #\"))))(Secondary((id \
-         3a224532-c68d-4462-9842-6ad183b190cd)(content(Whitespace\"\\n\"))))(Tile((id \
-         34110c77-2d5e-4802-8bd5-1c31f42fb842)(label(energy))(mold((out \
+         bc7a7c0b-41f0-4e92-92a4-2d9384fb7208)(content(Whitespace\"\\n\"))))(Tile((id \
+         f07ab21d-a980-4707-9899-8d2d072efd6b)(label(energy))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         a60ba2f9-240b-429b-9ff7-7e859d1451ce)(content(Whitespace\" \
+         83c4f428-3eec-4b59-8c73-09843ce3eda6)(content(Whitespace\" \
          \"))))(Tile((id \
-         8016f7ac-3133-405d-a5a2-cbd779c97ecb)(label(=))(mold((out \
+         0789973d-5fbe-4374-ba45-aaa968581d81)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         7ba783c1-7b4c-43c4-96f9-2c1c46f5ad90)(content(Whitespace\" \
+         92511e58-a3ff-436f-931d-0c5af0a4b8be)(content(Whitespace\" \
          \"))))(Tile((id \
-         6cffcf21-4222-4beb-8cd9-28fc67db657b)(label(Stat))(mold((out \
+         314ab7f4-c77c-4825-a687-ff3201029333)(label(Stat))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         9de820e0-58c1-44cf-9354-06174f2fa418)(label(,))(mold((out \
+         61addd17-eb71-4e85-9e01-836676881a62)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         8576d1b1-c0e6-4c8d-8e46-41e0e287d5ea)(content(Whitespace\" \
+         b5df3c87-3562-43aa-bb6f-9906ac6fd3f2)(content(Whitespace\" \
          \"))))(Secondary((id \
-         25509459-e9a2-4f1b-b19e-5e2e974f62c4)(content(Whitespace\" \
+         98c0e70f-4b50-4299-b5e8-bcce8da03e1b)(content(Whitespace\" \
          \"))))(Secondary((id \
-         6c874b28-93e6-4224-8ba0-97f6aaa9bee1)(content(Whitespace\" \
+         7ffde2bf-cc8c-4b70-bc70-74f6d15af802)(content(Whitespace\" \
          \"))))(Secondary((id \
-         6a0844a3-3904-4597-aca8-60833000e238)(content(Whitespace\" \
+         6f5383cb-5655-4ebf-8e2b-31b0a85153d5)(content(Whitespace\" \
          \"))))(Secondary((id \
-         6c6320ec-db90-4eb0-8b69-3872bd696b5d)(content(Whitespace\" \
+         51ac5da7-7bbb-462d-b661-e449d3cfff97)(content(Whitespace\" \
          \"))))(Secondary((id \
-         4261225b-3371-4478-a7c4-9857729f1ebd)(content(Comment\"# 0 = \
+         d4a2faa2-e787-49ee-affd-c82dd88cbff8)(content(Comment\"# 0 = \
          exhausted, 100 = hyperactive #\"))))(Secondary((id \
-         3f86f337-1d42-45c9-b31b-02d75ed4549e)(content(Whitespace\"\\n\"))))(Tile((id \
-         25c77145-6748-4409-b9be-df934b8d72d6)(label(health))(mold((out \
+         4c721d33-4d12-42ca-8c21-4097fe9c410e)(content(Whitespace\"\\n\"))))(Tile((id \
+         b0d987eb-45d2-4146-93a3-cdc49df5e78c)(label(health))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         c8660d3d-7f18-4836-90d2-ce8c3033baba)(content(Whitespace\" \
+         9cf48c5f-33e4-4724-8644-a3ee52c5c4f0)(content(Whitespace\" \
          \"))))(Tile((id \
-         9079758a-e3ba-4309-bfcb-0f9a5bb7b913)(label(=))(mold((out \
+         5fa495f9-1081-49ec-b0e0-2f5f3f58090c)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         0c73d9a0-eb20-4f71-8877-20bb1e8c2935)(content(Whitespace\" \
+         e905ecb2-5a71-46b0-a254-7373ac6bd834)(content(Whitespace\" \
          \"))))(Tile((id \
-         23d21e0a-c606-4fd7-b9f0-608582528d32)(label(Stat))(mold((out \
+         1243f492-c78b-421a-b54b-42eed43a3531)(label(Stat))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         8fd1c479-cf7b-4890-84b6-4c0a95f4d9e9)(content(Whitespace\" \
+         b2dac400-5a5b-4669-b10b-555faba0005e)(content(Whitespace\" \
          \"))))(Secondary((id \
-         2989e711-e3d0-4a48-9cc6-270f428a9ae3)(content(Whitespace\" \
+         f29da9bb-f303-4845-a2b9-c89c5912ddd0)(content(Whitespace\" \
          \"))))(Secondary((id \
-         4188a2d7-10c1-4646-ac00-9e1416aa3a43)(content(Whitespace\" \
+         3c256971-0309-4c8b-b7aa-b0fba1a32636)(content(Whitespace\" \
          \"))))(Secondary((id \
-         7864b176-c7a0-46b3-adae-6f11f176a3fd)(content(Whitespace\" \
+         20841a6b-eda6-49f5-849b-f833e91695f7)(content(Whitespace\" \
          \"))))(Secondary((id \
-         75bf5708-b85f-44a8-9db1-90983478b7e2)(content(Whitespace\" \
+         06fd4c13-a7bc-4f49-af30-6b09023649aa)(content(Whitespace\" \
          \"))))(Secondary((id \
-         b2015830-af8a-4d11-a3be-c9f7fb0b66fe)(content(Whitespace\" \
+         497eef0d-497a-43f4-a864-ec37f3606332)(content(Whitespace\" \
          \"))))(Secondary((id \
-         cdbc592a-e946-4f84-87df-f5762d513a16)(content(Comment\"# 0 = broken, \
-         100 = pristine #\"))))(Secondary((id \
-         d00e0072-4061-4754-9414-490f1a1b06b2)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         1c383bd9-9f88-4872-9002-f0024cc3aefa)(content(Whitespace\" \
+         07dd0e48-77bb-4eed-beff-a1f1a6c74a27)(content(Comment\"# 0 = fading, \
+         100 = vibrant #\"))))(Secondary((id \
+         d3bd217c-28af-4b36-845c-8d0c5f3a190c)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         34c1d770-4808-4c1f-9f25-bcb9c32f44d3)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         c31c920a-3260-408f-8299-172def58c79c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ccd4527c-f775-4347-a32a-578288d7cda3)(content(Whitespace\"\\n\"))))(Tile((id \
-         60a17437-9d97-4f33-9e16-04dbcb7bf797)(label(type = in))(mold((out \
+         25b42ef4-2481-4bd9-bea7-ce836a1a722b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         040f8575-6bf6-4a6f-8789-7cd4eb722960)(content(Whitespace\"\\n\"))))(Tile((id \
+         f3fd949f-ad41-4146-bfb2-a5d16c8b66fd)(label(type = in))(mold((out \
          Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         cf8293a6-0517-45ad-bf85-2d2e9a47dae4)(content(Whitespace\" \
+         be5af953-b7b1-4d4f-87fd-9b138575a2ef)(content(Whitespace\" \
          \"))))(Tile((id \
-         6c0babe2-cdcc-477f-b211-6fefdefdffd2)(label(Evolution))(mold((out \
+         6531aaeb-fabc-41cd-b5d9-44a1ed8527be)(label(Evolution))(mold((out \
          TPat)(in_())(nibs(((shape Convex)(sort TPat))((shape Convex)(sort \
          TPat))))))(shards(0))(children())))(Secondary((id \
-         34b4c2dd-53a2-4479-a3c6-07b4905127a5)(content(Whitespace\" \
+         ad2da287-3b2b-4a62-a8d4-562cc06d5439)(content(Whitespace\" \
          \")))))((Secondary((id \
-         8eeee856-9b34-46d1-8d9d-7e93061eff89)(content(Whitespace\"\\n\"))))(Tile((id \
-         3b6996d5-0d87-4bef-8e8b-ce7b8c14acea)(label(+))(mold((out \
+         961a177a-09a3-496b-aad6-98b266fee7f9)(content(Whitespace\"\\n\"))))(Tile((id \
+         c3b01dfd-5c45-4a1d-bc4f-f3507c76b8f3)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape(Concave 33))(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         618054db-a129-4ce5-83c3-34702d63f26f)(content(Whitespace\" \
+         95929877-de14-4d04-ae7b-1306b49d182f)(content(Whitespace\" \
          \"))))(Tile((id \
-         ce140b7b-45a9-41f9-ab3d-7d6327d7dc63)(label(BabyToaster))(mold((out \
+         870a33f4-cd66-4459-b5f8-d5d1c94c3592)(label(Seedling))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         e9511530-a021-4fd7-9d17-f098cc948ec7)(content(Whitespace\" \
+         3ba97ca5-4bb8-474c-8ed1-74376d7e05b5)(content(Whitespace\" \
          \"))))(Secondary((id \
-         2c4620cb-2f0d-4693-a4a4-c3212bb63824)(content(Whitespace\" \
+         83bf5408-55f5-4aa6-9c8a-228f318c1924)(content(Whitespace\" \
          \"))))(Secondary((id \
-         26a8e8d9-1393-4eb0-ac64-bc4b5b0e334c)(content(Whitespace\" \
+         be864888-4407-4bd7-b67e-07fa93f08fa1)(content(Whitespace\" \
          \"))))(Secondary((id \
-         497c16df-1afb-4d0d-b0ed-46fdcdf7601b)(content(Whitespace\" \
+         672212f7-2195-4034-ae72-e060ea0861f8)(content(Whitespace\" \
          \"))))(Secondary((id \
-         210bf614-4f29-4740-9f02-ec9d9ab0fe9e)(content(Whitespace\" \
+         6326e643-1d0b-4d85-88b6-dfc396bda0e3)(content(Whitespace\" \
          \"))))(Secondary((id \
-         1dcc4078-c5f0-452d-b2ad-c9074597e33f)(content(Whitespace\" \
+         0d1d27df-2a65-49b5-8137-9269c8002a19)(content(Whitespace\" \
          \"))))(Secondary((id \
-         07296f2b-09aa-4e15-9cf2-1d75f79dfcca)(content(Comment\"# Just \
-         possessed, learning the ropes #\"))))(Secondary((id \
-         19e71f39-302b-42a5-9879-197b3e53dfab)(content(Whitespace\"\\n\"))))(Tile((id \
-         87c3f4c0-d0fd-490b-8fc4-bc57c747722d)(label(+))(mold((out \
+         91b1cda1-f297-4581-9397-4bed17964371)(content(Comment\"# Newly \
+         sprouted #\"))))(Secondary((id \
+         1e735de3-1035-4e25-9350-4366f9e8cac7)(content(Whitespace\"\\n\"))))(Tile((id \
+         e2faa7c1-36fc-4265-83f1-4fd71ea348b7)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         26910353-4271-40d3-b900-5c2318c785f5)(content(Whitespace\" \
+         eba77502-5edd-4974-b68b-1c6154f8973b)(content(Whitespace\" \
          \"))))(Tile((id \
-         f3584ec8-7952-4d7c-a993-41f68e8ed791)(label(TeenToaster))(mold((out \
+         347f980a-5edd-42d7-ae40-2b60483cfad5)(label(Sprout))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         c4e90ac5-1d0d-40df-9556-0c871aad95a5)(content(Whitespace\" \
+         0a877ab2-cb2c-4df4-a177-9626b1a3e2a5)(content(Whitespace\" \
          \"))))(Secondary((id \
-         3070904f-fb1d-4534-8a8d-d21319565d4e)(content(Whitespace\" \
+         ed99b838-0113-46c9-a746-ae24e51dc4bf)(content(Whitespace\" \
          \"))))(Secondary((id \
-         294c7898-c0f7-478b-9b80-c44a37716c21)(content(Whitespace\" \
+         9fc9dbff-9925-4cf2-89ff-79ef1dd8c1b9)(content(Whitespace\" \
          \"))))(Secondary((id \
-         eb3bd5a4-9fce-4403-bf56-519e9f0471c2)(content(Whitespace\" \
+         0c342791-deb9-4870-ad01-508dff278da7)(content(Whitespace\" \
          \"))))(Secondary((id \
-         deefe9e0-ff02-4938-b463-94f494a0218d)(content(Whitespace\" \
+         19c675c2-82e1-4e22-8b94-92d80c65ef43)(content(Whitespace\" \
          \"))))(Secondary((id \
-         39e71922-d780-4f1b-b9c3-b859efffb28d)(content(Whitespace\" \
+         ae263285-6b8b-4d7b-afb3-4e28e631702b)(content(Whitespace\" \
          \"))))(Secondary((id \
-         0fb9af33-c95b-41fc-b4bd-54bbf0c631db)(content(Comment\"# Moody, \
+         f5b35287-83d9-42a9-9c6a-d102249952c3)(content(Comment\"# Growing, \
          unpredictable #\"))))(Secondary((id \
-         d98b4ece-1735-44dc-a202-9cb963a2f094)(content(Whitespace\"\\n\"))))(Tile((id \
-         3ed2de34-95f5-45b6-8450-753344b3e7f9)(label(+))(mold((out \
+         56b62332-0437-4669-be3d-e862af0abdb8)(content(Whitespace\"\\n\"))))(Tile((id \
+         d6418368-bb68-48a7-8c9a-fe396925edd0)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         0795f6ff-3866-4531-896f-828af588c512)(content(Whitespace\" \
+         02034b02-9218-4028-ac5b-00377021c4b4)(content(Whitespace\" \
          \"))))(Tile((id \
-         2be396f8-4c9a-4459-946d-16a60c6c9880)(label(AdultToaster))(mold((out \
+         541799e4-ca87-4312-87e2-5af04c8bd723)(label(Bloom))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         55a46eab-bf9c-4d3e-8692-3349c834214f)(content(Whitespace\" \
+         13b12eba-a4b9-4a68-b331-32a764c9b4dc)(content(Whitespace\" \
          \"))))(Secondary((id \
-         51a5f257-9003-4249-ac1c-612a7cfb27b2)(content(Whitespace\" \
+         2fe9213f-85c3-49fe-a47f-b6a5a07db71a)(content(Whitespace\" \
          \"))))(Secondary((id \
-         417f3f2d-d23e-4a3b-b2e7-198d63a0de79)(content(Whitespace\" \
+         722787d1-a4f2-440d-a5cd-b0580ababf12)(content(Whitespace\" \
          \"))))(Secondary((id \
-         8453e80a-cabc-422f-bdf4-8852e5752f4b)(content(Whitespace\" \
+         838d82c0-1b63-439e-a2ae-7576c05777d2)(content(Whitespace\" \
          \"))))(Secondary((id \
-         beda5cfb-cce1-4a53-96ad-ba8d828dd739)(content(Whitespace\" \
+         7e40c2be-0f83-498a-a8f8-d381c2eff9a5)(content(Whitespace\" \
          \"))))(Secondary((id \
-         601271e3-55a9-4d9b-a358-84c05e50ced7)(content(Comment\"# Mature, \
-         stable #\"))))(Secondary((id \
-         8d51de64-0e7b-4ac1-91d3-7b3a91d59235)(content(Whitespace\"\\n\"))))(Tile((id \
-         44ef6596-7a66-4468-842d-148d369c3ce4)(label(+))(mold((out \
+         82f78b5c-82a7-425b-8a7f-e72d3fe1abef)(content(Comment\"# In full \
+         bloom #\"))))(Secondary((id \
+         8d714ea6-4aea-4811-855e-2a8bb3a2901c)(content(Whitespace\"\\n\"))))(Tile((id \
+         a91ea05d-5663-4260-8122-1ce09f707b20)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         2c47a813-d759-48e2-9cf9-c2baf9b50ed2)(content(Whitespace\" \
+         9202471d-ec3c-41d2-955b-7d0aef33244d)(content(Whitespace\" \
          \"))))(Tile((id \
-         2471c3d9-bc5c-4f6f-8dd7-af5727379732)(label(GoldenToaster))(mold((out \
+         88ece10e-22c0-42ef-8ba2-d0ed37886f37)(label(Elder))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         5e05fe24-4937-47d9-9d6c-56cccc2af50f)(content(Whitespace\" \
+         cfa81544-8de7-4742-995b-35eee1c344de)(content(Whitespace\" \
          \"))))(Secondary((id \
-         a2a3971b-5ae8-422e-9ade-7a1a8ee4dd57)(content(Whitespace\" \
+         568e675e-b22f-4cb5-8046-b2cbf0274812)(content(Whitespace\" \
          \"))))(Secondary((id \
-         6d868d3e-6bf9-46ae-9b86-45af34e4d478)(content(Whitespace\" \
+         d27e025a-a991-4e93-8827-d6af3a76cd57)(content(Whitespace\" \
          \"))))(Secondary((id \
-         6e4aae36-3b2f-4dd2-b5c7-3c90d7060285)(content(Whitespace\" \
+         a9f4e12b-07f6-4006-b3b5-babd08098b90)(content(Whitespace\" \
          \"))))(Secondary((id \
-         7bc384e1-bb68-4ce4-bb5e-8ab23f39289c)(content(Comment\"# Legendary, \
-         well-cared-for #\"))))(Secondary((id \
-         f33bad72-1f22-4dc6-a651-6dbfc951ec09)(content(Whitespace\"\\n\"))))(Tile((id \
-         61680ab4-764d-4a77-8bef-8fb31bc9846b)(label(+))(mold((out \
+         5a385796-8d1b-455f-aa42-e5d2c6187e79)(content(Comment\"# Ancient and \
+         wise #\"))))(Secondary((id \
+         697f06d1-469f-4e31-8b01-17ea15b5b16b)(content(Whitespace\"\\n\"))))(Tile((id \
+         f709b513-0703-4137-af35-70eb751872ca)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         0c68ec07-5364-4132-9279-a90d75280573)(content(Whitespace\" \
+         c2daeb50-5960-4682-ad34-75c914d5d4a2)(content(Whitespace\" \
          \"))))(Tile((id \
-         f16c42b5-5b4f-48aa-9460-98dac94762d2)(label(RustyToaster))(mold((out \
+         1856ea78-563f-4353-8d50-3440036378c6)(label(Wilted))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         d77f6619-5105-4a3a-99fa-3f9f1430bfe1)(content(Whitespace\" \
+         3fe6beef-66e1-4ee7-80e2-e054e75954cb)(content(Whitespace\" \
          \"))))(Secondary((id \
-         bd2e6a01-7a45-4c78-ae8e-d0b8e2924425)(content(Whitespace\" \
+         fadce1cc-b723-437f-9eb1-b79665d62056)(content(Whitespace\" \
          \"))))(Secondary((id \
-         e2d5073e-9f11-4980-a5db-11b7af5f9cc8)(content(Whitespace\" \
+         1d4c7dfe-42d3-4132-8ad0-d64b9b0d64ce)(content(Whitespace\" \
          \"))))(Secondary((id \
-         3d117a88-9f29-48b6-8796-f5c5725801ce)(content(Whitespace\" \
+         1e9b4e79-9e32-40b0-bf9d-89c2d0130c93)(content(Whitespace\" \
          \"))))(Secondary((id \
-         44317b4a-0cb5-4ed0-b2d1-01e8909a8dd6)(content(Whitespace\" \
+         dbfce096-a8fe-4ce2-aebe-6a5ba6418aae)(content(Whitespace\" \
          \"))))(Secondary((id \
-         bce86675-c308-4332-9d59-add65959a400)(content(Comment\"# Neglected, \
-         cranky #\"))))(Secondary((id \
-         0973ece0-e571-4c06-aaa4-f7898ac91131)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         14957d92-4f04-45f6-9031-f263fc3bba3c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         1e7a0118-9e37-4502-8c47-ea0322bc8c1a)(content(Whitespace\"\\n\"))))(Tile((id \
-         5b67e2d3-fddc-40bb-bc3b-77e14436bbad)(label(type = in))(mold((out \
+         95a680d1-42d6-44d1-930e-4b8daa4b3933)(content(Comment\"# Neglected, \
+         withering #\"))))(Secondary((id \
+         2625e856-4be1-4505-94dd-be4e3f332e20)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         69a547ab-6b84-4527-82cf-421d397b9075)(content(Whitespace\"\\n\"))))(Secondary((id \
+         37fb2509-8364-4bcb-89fe-be3b0bb0ec46)(content(Whitespace\"\\n\"))))(Tile((id \
+         6aace935-4de3-4b9c-91f6-065781c17aa7)(label(type = in))(mold((out \
          Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         34e6bd3d-0257-477e-ac80-e1898bf39535)(content(Whitespace\" \
+         aab387a1-f475-48fa-ba2f-6a5326ec700b)(content(Whitespace\" \
          \"))))(Tile((id \
-         9e26c70b-8a0b-4b01-88bf-f3b51cfe77a3)(label(Personality))(mold((out \
+         7ad34028-8ba4-4ed5-ad6e-2f2dc963a981)(label(Personality))(mold((out \
          TPat)(in_())(nibs(((shape Convex)(sort TPat))((shape Convex)(sort \
          TPat))))))(shards(0))(children())))(Secondary((id \
-         4ed53036-8d03-4ebe-8f52-3e5371e29a2d)(content(Whitespace\" \
+         065bd7d5-27e4-430d-8725-6260dfbac926)(content(Whitespace\" \
          \")))))((Secondary((id \
-         5b69c53e-f3c1-4130-ab0f-2040c26dcc78)(content(Whitespace\"\\n\"))))(Tile((id \
-         aa5e6347-48a9-431d-b7e0-7e8e0c4e9673)(label(+))(mold((out \
+         25b25bbf-dcb0-4d86-bfd0-90771c506df4)(content(Whitespace\"\\n\"))))(Tile((id \
+         3b6da3e5-8118-4091-9eb0-8291c9eae77b)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape(Concave 33))(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         841375b2-929a-4909-9763-f1ad8a02b5e2)(content(Whitespace\" \
+         dbf907a3-f49b-4dc1-a9e6-4462b84a0381)(content(Whitespace\" \
          \"))))(Tile((id \
-         758b6245-c8ec-40e7-8a47-869134560d09)(label(Cheerful))(mold((out \
+         ae178729-088d-4466-a7a3-0385db9a392f)(label(Cheerful))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         90f6cbb1-7199-4a32-940b-66f965128b3b)(content(Whitespace\"\\n\"))))(Tile((id \
-         872cde8f-d22d-423f-86bc-26df44d0b440)(label(+))(mold((out \
+         51eb4286-92a6-45a9-ba5d-09f8991238e6)(content(Whitespace\"\\n\"))))(Tile((id \
+         c63868d4-0279-4fce-aad3-ac38aa695a98)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         085672cf-2dcc-4a6e-a01b-3e46e620b8ee)(content(Whitespace\" \
+         f4e62c0f-9f4a-4cdf-8c2f-eef313b203bc)(content(Whitespace\" \
          \"))))(Tile((id \
-         440a426b-0627-4b76-8f7c-d55196fc943e)(label(Grumpy))(mold((out \
+         1e02df7f-a04a-49f6-b9f7-47d98567ee04)(label(Grumpy))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         b52f2b69-3821-4768-8391-878a21bcb1c0)(content(Whitespace\"\\n\"))))(Tile((id \
-         e57b442d-ca21-44e2-8f9e-5f3e401bbc4e)(label(+))(mold((out \
+         aa6bb4c7-b175-41b2-8f75-82c55d5196b7)(content(Whitespace\"\\n\"))))(Tile((id \
+         d76e9f2f-994f-4a77-bc94-3fa54a2d534b)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         4810eef7-223a-4ac5-8510-a06b507abccc)(content(Whitespace\" \
+         071da2b4-167b-44a0-95bf-3d4f80403306)(content(Whitespace\" \
          \"))))(Tile((id \
-         f5bb350c-a7db-464d-ba33-9121c784fa9e)(label(Anxious))(mold((out \
+         d0b5a50d-9276-48cd-a1b3-7ea390cb4bd5)(label(Anxious))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         b235e202-9a12-43ee-9099-de5ea7dac51b)(content(Whitespace\"\\n\"))))(Tile((id \
-         673b925a-ac01-4639-99d2-44bf5a9009dc)(label(+))(mold((out \
+         b595cc36-66a4-411a-8dec-3df57f53dbc2)(content(Whitespace\"\\n\"))))(Tile((id \
+         779babc4-b93e-4310-9f75-c1fc84862018)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         81b435e7-f457-4db1-89a7-f0acb20730de)(content(Whitespace\" \
+         16dca256-182a-4041-92be-ec89b22c4d64)(content(Whitespace\" \
          \"))))(Tile((id \
-         b6ee62c1-99f9-47e1-a037-4372eb510e97)(label(Balanced))(mold((out \
+         09429837-e0df-4f7c-be93-740a7434320c)(label(Balanced))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         5cc88efe-55d6-47d7-890d-9c0ba8c89ca7)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         e77d4858-464b-4d15-a548-f9ca01d4a515)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b67d8be7-4495-434d-ab31-033edf966c45)(content(Whitespace\"\\n\"))))(Tile((id \
-         c4a40ab6-d74d-444b-88e1-29d4d63bdcb2)(label(type = in))(mold((out \
+         7caa5e8d-8924-4630-812f-e3522a2e54a0)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         845c9d20-0e37-46b4-94ff-bc1183506b2b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         22f7524b-f645-48e5-839b-69e279ed857d)(content(Whitespace\"\\n\"))))(Tile((id \
+         f8de4039-c46d-4a7a-bbc3-e6dac96cc294)(label(type = in))(mold((out \
          Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         014ced1d-9bb2-4d6a-bfc8-32c474d92b3d)(content(Whitespace\" \
+         dfbe0731-776f-47a6-8fab-0388ffa438ef)(content(Whitespace\" \
          \"))))(Tile((id \
-         3edfdd52-3e06-4400-a8c8-d5255e5b7c5b)(label(Memory))(mold((out \
+         3f5728f7-a74c-4e20-afda-66a934b754c2)(label(Memory))(mold((out \
          TPat)(in_())(nibs(((shape Convex)(sort TPat))((shape Convex)(sort \
          TPat))))))(shards(0))(children())))(Secondary((id \
-         6638cfa5-5d08-4494-973a-0b08865c4750)(content(Whitespace\" \
+         5c3cdb81-c8e3-4784-bdfb-7dff58a11960)(content(Whitespace\" \
          \")))))((Secondary((id \
-         d908876f-811e-44ef-81be-46979b88a65b)(content(Whitespace\" \
+         14d4d7aa-fe8c-46c9-b780-fe41471af5c0)(content(Whitespace\" \
          \"))))(Tile((id \
-         c95aadfe-6be2-4dea-9e7c-fcb43225abad)(label(\"(\"\")\"))(mold((out \
+         8258fa16-3bac-44f1-82cd-8d146e97a91b)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Secondary((id \
-         2df9c260-1b3f-43f2-85dd-a8f02f0078fc)(content(Whitespace\"\\n\"))))(Tile((id \
-         8d96e33a-a9c0-4f9e-9039-0a537c2f0b89)(label(timesFed))(mold((out \
+         e755052a-7c10-45d6-b76a-b4f018ad42ed)(content(Whitespace\"\\n\"))))(Tile((id \
+         63177f53-abdb-4da0-86b2-c8b0576e28f7)(label(timesFed))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         2acd82ab-5cb0-4a13-a505-8b9c4cc31957)(content(Whitespace\" \
+         76896855-24aa-499a-9059-6c0c37098728)(content(Whitespace\" \
          \"))))(Tile((id \
-         0af3cc32-6ee8-412b-910e-31cd3d4274a2)(label(=))(mold((out \
+         8b330493-ce46-456c-bd44-b637434657dd)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         9cf5f9e9-3c8c-4a6e-b0a8-04a63dd6c3f8)(content(Whitespace\" \
+         ce86cfba-c88c-4fd3-aaad-967b798a7226)(content(Whitespace\" \
          \"))))(Tile((id \
-         a02cc402-226e-425a-b7f3-9f43b9431c6f)(label(Int))(mold((out \
+         abd90050-54eb-4635-9c1d-48ed77ed5baa)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         9ac81f81-04f3-486a-849a-cc29c131ade7)(label(,))(mold((out \
+         90ad3ef5-4c90-4758-bc08-3766f7ffce31)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         d1afe5a2-3233-4700-9c2c-8f283599a840)(content(Whitespace\"\\n\"))))(Tile((id \
-         3c12673d-9fb8-49ce-aa02-4ed1d63b8756)(label(timesPlayed))(mold((out \
+         03ca0238-74d7-4704-996d-09439e32e5cf)(content(Whitespace\"\\n\"))))(Tile((id \
+         a12d1c77-b599-48e8-8ff3-16a233700397)(label(timesPlayed))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         5c64af72-6997-463f-a643-cd37ee18ad1d)(content(Whitespace\" \
+         ad236b0e-c42b-4549-8a46-09ae18d9636c)(content(Whitespace\" \
          \"))))(Tile((id \
-         447c38ed-facb-4fd9-b286-fb940bd86344)(label(=))(mold((out \
+         3a53c4f4-346b-4006-8325-bfc90056e6a7)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         f0dad854-80e0-43e9-bdd3-78662436f63a)(content(Whitespace\" \
+         89b63795-9618-4829-8502-b9a5bacac33b)(content(Whitespace\" \
          \"))))(Tile((id \
-         b150d34d-94b1-43fc-8cbb-66f4e17b19d9)(label(Int))(mold((out \
+         8d3ac783-3518-4079-99ce-ac7c52bd6cb4)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         65a9c021-1aae-4d3f-8561-ed9e0cbf9382)(label(,))(mold((out \
+         2975b939-b7f1-45ed-85aa-7ef2a7decf23)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         a3f942f1-ce83-4fdf-b782-9d8ab0b64a56)(content(Whitespace\"\\n\"))))(Tile((id \
-         da56c1e0-3dc9-4de5-8af9-df7684c2fae7)(label(timesSlept))(mold((out \
+         f44b41f5-e164-4a5d-8053-45e653a7c2ed)(content(Whitespace\"\\n\"))))(Tile((id \
+         35010e67-8f78-4b3e-a268-c715bf3c3396)(label(timesSlept))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         68aafe09-8c9e-4746-8995-aa9cf32f19ab)(content(Whitespace\" \
+         bcabfd3c-01a8-4860-ab5c-60fd016c97fe)(content(Whitespace\" \
          \"))))(Tile((id \
-         17d4d36b-8d15-4f93-a639-bbd77164cb92)(label(=))(mold((out \
+         0b322117-02d6-4675-be2b-085f35a61bfb)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         1dd9a557-1e3b-405b-b5f9-25eb02f06c75)(content(Whitespace\" \
+         1661ef7c-ae5d-4fbc-bdfd-7b90f7395c69)(content(Whitespace\" \
          \"))))(Tile((id \
-         9f38e18c-3429-4260-b101-3cdad9ff63e2)(label(Int))(mold((out \
+         e80297ce-cc34-4ee7-8d5c-591db4a33fc7)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         53672cdd-cc62-425d-94de-1dfb74b9b508)(label(,))(mold((out \
+         2bcfc77f-258a-4cff-bf0d-9ca7b1cdbb84)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         53fb73ac-8380-4bb9-a1ed-5a8a0077afc5)(content(Whitespace\"\\n\"))))(Tile((id \
-         c8fbcc30-ad75-464e-a36d-877c2630e5eb)(label(timesNeglected))(mold((out \
+         fe0c59c0-9d9c-4c19-b0b0-126506a15c78)(content(Whitespace\"\\n\"))))(Tile((id \
+         7fc03036-598a-4ff4-a09f-c2d437f424ae)(label(timesNeglected))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         3f93e940-706f-4ae5-b3e2-a112790eac54)(content(Whitespace\" \
+         76d5a477-e1e2-49f2-9427-55ab45a092f1)(content(Whitespace\" \
          \"))))(Tile((id \
-         bc767c47-9663-4419-9a7e-7f23186e132c)(label(=))(mold((out \
+         0223eb64-d3ca-4a57-aec2-6bc332c88cda)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         2e383c2f-74a7-4ef8-ab5d-4d2005eeb066)(content(Whitespace\" \
+         a9cc5e8b-9c58-4442-8e44-cc67e4b0d8e6)(content(Whitespace\" \
          \"))))(Tile((id \
-         aad7b864-8b24-4827-a722-5dff4d3fd826)(label(Int))(mold((out \
+         23be432f-2597-47a3-97c6-c929d7635e93)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         217c71c2-82d0-4b7d-9e77-2e207e49aa50)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         3c68549d-03d1-409e-9001-f63218fe6641)(content(Whitespace\" \
+         2b307869-4072-4fba-97b1-0c1faef289b6)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         60b016c9-3c1d-43ca-853a-71851097c158)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         e375db50-71a2-4b0b-8b4f-9ec684cb6a7d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b5e290c7-40b3-4c23-aa69-d7b2dd53624e)(content(Whitespace\"\\n\"))))(Tile((id \
-         a2c81dac-ea0c-444d-adef-10ce67227075)(label(type = in))(mold((out \
+         e5df9055-3bcb-493d-96bd-c2b070d364ac)(content(Whitespace\"\\n\"))))(Secondary((id \
+         2b06ac7f-58d4-46d2-80b0-6ba468555b47)(content(Whitespace\"\\n\"))))(Tile((id \
+         b7133849-71b7-431c-b59a-efb6cba0a2b3)(label(type = in))(mold((out \
          Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         64f80a4d-00fd-4d11-8ad7-cbae2f83d343)(content(Whitespace\" \
+         477420b4-b6f5-4dfd-b6a1-6d0467266b3c)(content(Whitespace\" \
          \"))))(Tile((id \
-         63ec90dd-602e-43b7-ab42-49eba7de11b6)(label(Model))(mold((out \
+         02ca2049-2288-4c80-ab18-156420a12b93)(label(Model))(mold((out \
          TPat)(in_())(nibs(((shape Convex)(sort TPat))((shape Convex)(sort \
          TPat))))))(shards(0))(children())))(Secondary((id \
-         81ea617a-a1a5-4445-8ae5-462206c1eeb5)(content(Whitespace\" \
+         caf8d22d-4d77-4118-84b9-8a6a14efebe5)(content(Whitespace\" \
          \")))))((Secondary((id \
-         7ebc0e28-8563-483f-9a19-87d77027f396)(content(Whitespace\" \
+         688906cf-805e-42ff-a968-dd88b724bdac)(content(Whitespace\" \
          \"))))(Tile((id \
-         6d2164bb-3129-4dec-b1eb-d18880e2c311)(label(\"(\"\")\"))(mold((out \
+         543ce5c0-2927-4e03-b45d-ba3db8f9e8c7)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Secondary((id \
-         3a3c22db-855f-439f-b18b-afdaf4769460)(content(Whitespace\"\\n\"))))(Tile((id \
-         af9dc370-59a4-4a6c-8e43-b8d0497d80b3)(label(stats))(mold((out \
+         7c68072e-1310-4258-9dab-5ef380bad5ad)(content(Whitespace\"\\n\"))))(Tile((id \
+         b6114875-05c2-46c1-9e6d-3e3bc6e24c80)(label(stats))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         2a323096-53b8-461e-9692-b8fa74b574ed)(content(Whitespace\" \
+         6cf443e0-c082-4127-8024-f9948e7fc717)(content(Whitespace\" \
          \"))))(Tile((id \
-         75edab2c-fa2e-4b27-99a8-5bb28e82d675)(label(=))(mold((out \
+         589d6998-5fb5-462c-b44d-4e4b8277c0b9)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         41063812-7f56-45b0-8129-2a14a95297ae)(content(Whitespace\" \
+         1c21151c-b7a1-4f21-a50a-63b24db3c065)(content(Whitespace\" \
          \"))))(Tile((id \
-         c3decd80-1cee-4307-a998-3b8bca6508ad)(label(Stats))(mold((out \
+         a3c1288b-6955-4f0e-a761-62c491d20d75)(label(Stats))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         4e4b8849-04bf-4957-8ae7-7c98ef0c2278)(label(,))(mold((out \
+         fc77ae2a-634c-491d-9129-043fd1267c3d)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         928863d2-ba6e-43b7-8e64-6212ea801d50)(content(Whitespace\"\\n\"))))(Tile((id \
-         e7c7aee3-ffb5-47c9-b3a1-bf20b6e5fa0a)(label(evolution))(mold((out \
+         68880275-5e85-47ce-bd89-278f2aaa1806)(content(Whitespace\"\\n\"))))(Tile((id \
+         cc929cda-e6a5-4939-822c-0c8f48e540a4)(label(evolution))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         b99e17ea-e8c7-4dbc-bf9a-f2604e0b734a)(content(Whitespace\" \
+         ecad58fa-a17f-4034-9049-e39d11512599)(content(Whitespace\" \
          \"))))(Tile((id \
-         804fdf2a-85b4-4b60-82c4-df099237a7c0)(label(=))(mold((out \
+         68d01c24-5a75-4ab9-88df-f5ea6ba62d87)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         0f007f2e-edc3-4d98-abaa-26aa377abb5f)(content(Whitespace\" \
+         a0a44c1e-11fa-4fbe-85bb-a4587d3f2d9e)(content(Whitespace\" \
          \"))))(Tile((id \
-         fe2a140e-83bb-4ff4-9f92-224ca4b5cc36)(label(Evolution))(mold((out \
+         574d067f-85a3-4eef-aa28-65a811158ade)(label(Evolution))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         0e99f8b2-3418-4736-b506-42a1ef6a4753)(label(,))(mold((out \
+         a0df1253-ca85-49fc-9504-5c089fb510d4)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         40f3a779-8d15-436e-aa8a-fb4cbe0738b6)(content(Whitespace\"\\n\"))))(Tile((id \
-         2f641b3d-66ca-4707-a3d4-ee8d12f68765)(label(personality))(mold((out \
+         e3228cc0-9a4b-4adb-9981-186acd796b23)(content(Whitespace\"\\n\"))))(Tile((id \
+         1e2d8587-5b51-47ba-ad67-7c8c08497255)(label(personality))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         4c40e986-08a1-4d60-b55f-ea37c50f2aef)(content(Whitespace\" \
+         93bb097b-70ad-46d2-86f7-ec0f32402f40)(content(Whitespace\" \
          \"))))(Tile((id \
-         2572c2e3-29a3-4b0f-a9ac-935288155abe)(label(=))(mold((out \
+         66565d0c-7139-4b05-ae83-ad7556a3787b)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         410b1ba5-4728-4229-8bd4-07a2dfe1e7a4)(content(Whitespace\" \
+         6d1101dc-0d7a-4144-9e62-9a0a29085639)(content(Whitespace\" \
          \"))))(Tile((id \
-         5a45dce2-a064-4912-9d6a-f30667d5dfd7)(label(Personality))(mold((out \
+         f51f7ccb-4752-427b-9a16-b6e4afd03ef1)(label(Personality))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         df23275b-e47d-4c81-9314-964de99f6650)(label(,))(mold((out \
+         19659b05-f95d-4931-b37f-370a17ad4792)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         e3144eb3-4d8c-4eea-8141-0c325b65be38)(content(Whitespace\"\\n\"))))(Tile((id \
-         722d058a-a7cc-4689-906d-cafc6bc935d9)(label(memory))(mold((out \
+         93558d3f-27bb-451b-b027-8970844a62d2)(content(Whitespace\"\\n\"))))(Tile((id \
+         8efe3c0b-b85d-4c98-ba0d-bcedb9076890)(label(memory))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         0ec7ed28-904c-4b31-87b8-33154f13f14e)(content(Whitespace\" \
+         b7c1488d-fb75-4d10-a074-1fde50b2f133)(content(Whitespace\" \
          \"))))(Tile((id \
-         d3e591ca-3c35-435e-a8fc-130eace80593)(label(=))(mold((out \
+         928e872e-718e-47d8-81d0-2fb12b9fdaa9)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         3056bdc0-3290-49b5-b370-a8982ce32d0d)(content(Whitespace\" \
+         a93c593b-00b4-4c48-9df1-37aa39f5cd53)(content(Whitespace\" \
          \"))))(Tile((id \
-         8c5732d4-2b37-4c71-841b-517dcec42dcd)(label(Memory))(mold((out \
+         5a66ad5a-b4d7-4246-a884-db7351627cca)(label(Memory))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         4099d60b-cc05-440e-a359-2fbe6bfbf299)(label(,))(mold((out \
+         a6fe02bc-ab03-49e9-93f8-45aeb75e9775)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         99036d1f-0cfc-47c4-bdbf-f48b64b6e2b2)(content(Whitespace\"\\n\"))))(Tile((id \
-         f15ade45-3461-4611-b812-2eaa276dd660)(label(age))(mold((out \
+         35eb65dd-1636-49e9-85be-ddaf57119222)(content(Whitespace\"\\n\"))))(Tile((id \
+         4f15d41c-cfcb-4743-941f-bf6b78656660)(label(age))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         1db81ad5-f616-4f25-b46c-6ade73ea5a63)(content(Whitespace\" \
+         3fa841ab-b1fd-4154-9dd0-fdb973842640)(content(Whitespace\" \
          \"))))(Tile((id \
-         337b9387-4bc8-4627-9978-77f005733ab9)(label(=))(mold((out \
+         ae9d9155-5b78-4735-b63b-8ea9ab2c9df3)(label(=))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 39))(sort Typ))((shape(Concave \
          39))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         dc815dac-b8b3-41af-a0b0-1987f1c44cf3)(content(Whitespace\" \
+         2ec7b945-52e7-4523-93f1-e6d77b078b6f)(content(Whitespace\" \
          \"))))(Tile((id \
-         81156e25-aae4-4d5e-b741-c80a99b2d41f)(label(Int))(mold((out \
+         70848f08-b57a-4cb6-a898-e8657128a0d7)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         369fcc7a-5d17-4fc5-8d72-82b45448ab67)(content(Whitespace\" \
+         1fc8aac4-e908-48e9-b7f1-731d110312fa)(content(Whitespace\" \
          \"))))(Secondary((id \
-         c0c8ce3a-dea4-41f0-a36a-a1d748969616)(content(Whitespace\" \
+         97005620-84b0-452b-a3c8-fe42e957c150)(content(Whitespace\" \
          \"))))(Secondary((id \
-         9c309ea2-49a5-4a79-b235-2c6e5496ee50)(content(Whitespace\" \
+         a3ff68f8-d71f-4e4a-b9ab-22c11798911c)(content(Whitespace\" \
          \"))))(Secondary((id \
-         46ecc36d-1368-4207-b386-df7bf8155aed)(content(Whitespace\" \
+         ede2f4d9-9e10-4475-8078-a5c42ddfb6bd)(content(Whitespace\" \
          \"))))(Secondary((id \
-         503a9d38-701f-4257-b3a2-1b6d4055ae4e)(content(Whitespace\" \
+         a56108cf-730b-4b46-8bed-aad35d49aa96)(content(Whitespace\" \
          \"))))(Secondary((id \
-         872baeb1-d306-4ad5-ab9b-013b35289031)(content(Whitespace\" \
+         a5fd2e61-8d92-4984-b0dd-90df83fb0342)(content(Whitespace\" \
          \"))))(Secondary((id \
-         a725fa08-a67f-44bc-94d6-6ab7bfb87800)(content(Whitespace\" \
+         c7b88150-c423-4bce-8009-be3d995b61c4)(content(Whitespace\" \
          \"))))(Secondary((id \
-         96557e25-5dd1-4db4-92ea-fc6a0b4a12a9)(content(Whitespace\" \
+         8960f1b6-75af-470e-b916-4b8875f95146)(content(Whitespace\" \
          \"))))(Secondary((id \
-         fbb63f9a-c72c-4a82-b74e-8c6fad2316da)(content(Whitespace\" \
+         fe05cb73-6498-4c01-964e-d893325465b1)(content(Whitespace\" \
          \"))))(Secondary((id \
-         af72a198-00ef-402f-889b-bf910fc4c0c8)(content(Whitespace\" \
+         bfc7dad4-dbc4-4293-b268-18f599a37fee)(content(Whitespace\" \
          \"))))(Secondary((id \
-         51b794d9-7d38-4451-ac69-f49d6024768b)(content(Whitespace\" \
+         8f45c214-c327-4bea-aa96-498dd6a5a070)(content(Whitespace\" \
          \"))))(Secondary((id \
-         adc0771a-3d23-4dcd-baa1-5818cab9cc98)(content(Comment\"# Time ticks \
+         c58902c7-2377-4a2d-8295-b7448e8c33ab)(content(Comment\"# Time ticks \
          elapsed #\"))))(Secondary((id \
-         ac5dbe24-3002-4ac9-a15f-4562812cdf4d)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         eb27c287-ce61-4430-8af0-1f1fe6c2837c)(content(Whitespace\" \
+         e9d98a47-a2f0-4848-9653-255ed1f194c2)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         17a058f6-c485-4136-b114-d47a9a527c46)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         33b13d09-6538-4825-9e10-9a36a314b36a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7db6a2a8-1bc7-4c02-b37b-e4e1277ed8e6)(content(Whitespace\"\\n\"))))(Tile((id \
-         bf71662d-dc33-47be-ada6-8e480dcc39ce)(label(type = in))(mold((out \
+         12e2579e-f210-44be-a30f-cf614d62b0f0)(content(Whitespace\"\\n\"))))(Secondary((id \
+         17fec81d-0136-4c57-bbf6-d596e9af4ce7)(content(Whitespace\"\\n\"))))(Tile((id \
+         2367a78f-11ab-4579-abd3-b8208df9ee86)(label(type = in))(mold((out \
          Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         a0e3931c-1c4f-4967-acef-50be2a707e3b)(content(Whitespace\" \
+         94e60c46-0ae8-42f0-8f4f-4de545a92a8a)(content(Whitespace\" \
          \"))))(Tile((id \
-         4e4626eb-d905-438c-b428-a8937f18fb9e)(label(Action))(mold((out \
+         f2fc03ff-2914-41d7-b78f-e93837559f05)(label(Action))(mold((out \
          TPat)(in_())(nibs(((shape Convex)(sort TPat))((shape Convex)(sort \
          TPat))))))(shards(0))(children())))(Secondary((id \
-         f196f123-ed36-46ae-b428-b10eaf2af901)(content(Whitespace\" \
+         4b6836b1-2d57-4932-9a96-9d622a7c1b66)(content(Whitespace\" \
          \")))))((Secondary((id \
-         01a53214-183d-404a-ae18-9d5bcae6d778)(content(Whitespace\"\\n\"))))(Tile((id \
-         32814b43-aa10-489e-93e3-8e676f216baa)(label(+))(mold((out \
+         8c1e8652-2511-44e0-8d45-40dcdc13117d)(content(Whitespace\"\\n\"))))(Tile((id \
+         561da69d-5562-4cd4-94a6-a40f50851d4e)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape(Concave 33))(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         315abae6-f586-42b2-bb92-b7d6999878e2)(content(Whitespace\" \
+         b4a118cf-8b64-4f67-a650-e94419c8dc5d)(content(Whitespace\" \
          \"))))(Tile((id \
-         9bad232e-a35c-42df-a6d3-9d05f86d2d2c)(label(Feed))(mold((out \
+         aeaf12c2-b3e7-421c-9c04-e582d55aa56e)(label(Feed))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         c294f30a-09b9-4a0a-a5bb-5a090372cd56)(content(Whitespace\" \
+         92798992-d619-44e9-8231-01400a2a0a1e)(content(Whitespace\" \
          \"))))(Secondary((id \
-         92525e53-68a0-4dd6-9ce1-70f9480e36ff)(content(Whitespace\" \
+         9bf724a2-7a99-4825-b46c-6a4042cbaf98)(content(Whitespace\" \
          \"))))(Secondary((id \
-         7e3ec075-1166-438d-89ba-d37941677faa)(content(Whitespace\" \
+         eb406e9a-f96e-4f3e-9fec-8f04f7213d9f)(content(Whitespace\" \
          \"))))(Secondary((id \
-         06967b48-0444-4472-b8c1-3afc6adfd72b)(content(Whitespace\" \
+         e85fdbd2-cc10-40c4-bc4e-8ff765edf052)(content(Whitespace\" \
          \"))))(Secondary((id \
-         23704d57-a324-40e5-9222-baa9342cc54a)(content(Whitespace\" \
+         dc400176-e7b3-4ab6-b04c-29e7dc054be7)(content(Whitespace\" \
          \"))))(Secondary((id \
-         78b7ce94-16cc-4224-b57f-eb568b8eb6b2)(content(Whitespace\" \
+         5c7aaba2-2bb7-44a8-ac1b-9ca83c67f305)(content(Whitespace\" \
          \"))))(Secondary((id \
-         68c9b901-c067-431e-8e81-ea41f1b1fa35)(content(Whitespace\" \
+         50056627-d04b-41c6-a9a0-235284236170)(content(Whitespace\" \
          \"))))(Secondary((id \
-         855d05bb-0880-45d2-8e5c-95a5d8791a53)(content(Whitespace\" \
+         ad3f460d-037d-4a59-802a-a2240a31e26e)(content(Whitespace\" \
          \"))))(Secondary((id \
-         595221be-25c6-4960-8a9c-b4cb23cf85e9)(content(Whitespace\" \
+         39d6ca90-14be-4d20-ae57-8c87c10c8b0c)(content(Whitespace\" \
          \"))))(Secondary((id \
-         18db068a-1107-4123-9f13-cd8bd9eaf1f0)(content(Whitespace\" \
+         7050508d-d052-472c-8408-a0303f1d9a10)(content(Whitespace\" \
          \"))))(Secondary((id \
-         e19f73f7-13ab-493f-a624-1195109c7354)(content(Whitespace\" \
+         64163cac-eda4-4155-a9e6-c847c709147c)(content(Whitespace\" \
          \"))))(Secondary((id \
-         8d4dfb3a-cd85-4f78-a916-c00f3693bab9)(content(Whitespace\" \
+         65c27b20-a88b-4ba0-be31-49ba17a86ff9)(content(Whitespace\" \
          \"))))(Secondary((id \
-         e0bd910e-b406-4d40-b4b2-d7d760dbefb8)(content(Whitespace\" \
+         6a23c76f-6b21-421e-ba5a-8db47c5b8c24)(content(Whitespace\" \
          \"))))(Secondary((id \
-         a3ce52a3-56d1-40a8-87b3-bf298508527b)(content(Whitespace\" \
+         d0913c68-7282-41ff-9a20-b69fc4d4dffd)(content(Whitespace\" \
          \"))))(Secondary((id \
-         7cf6a803-acad-45c9-9730-bed4c39ac5b4)(content(Comment\"# Reduces \
+         abfc5815-1d23-47bb-b023-ed56cab74500)(content(Comment\"# Reduces \
          hunger, slight energy boost #\"))))(Secondary((id \
-         13e9e1d3-a711-42fc-9dca-3043538d0a34)(content(Whitespace\"\\n\"))))(Tile((id \
-         8f4fa288-d841-4b9b-8c34-63fe0203ec5f)(label(+))(mold((out \
+         a88363cc-5b10-4b7c-9555-24ef840dcc85)(content(Whitespace\"\\n\"))))(Tile((id \
+         34012b89-4005-4702-b1a6-c92bc56d387d)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         0477e36d-a792-4ae2-8856-e7d957d9c3f3)(content(Whitespace\" \
+         5cd94fcc-de7b-430f-8779-4e6dcd295039)(content(Whitespace\" \
          \"))))(Tile((id \
-         0646d4d2-5c5e-4bc6-9aa1-0566c237f1f7)(label(Play))(mold((out \
+         0c68636e-571d-4f1f-8cc8-aa0b0ce80ee2)(label(Play))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         a9755012-da06-4012-920a-b837f33d0a5b)(content(Whitespace\" \
+         2a5e749a-f62c-475b-a411-afb020f3937a)(content(Whitespace\" \
          \"))))(Secondary((id \
-         4078e74d-7578-4422-bf2b-4243460d6d3e)(content(Whitespace\" \
+         7dd856fa-a5da-4319-a5a1-c3bcf06ee689)(content(Whitespace\" \
          \"))))(Secondary((id \
-         4431795b-ab7d-4bb7-9363-5b2f89941fd2)(content(Whitespace\" \
+         f856da90-1acf-43f2-8e95-eea80c2e5bea)(content(Whitespace\" \
          \"))))(Secondary((id \
-         c5556e7a-95f3-4164-95d6-8424a717fa23)(content(Whitespace\" \
+         ce8f431f-a6d4-4bf2-bc06-93bd15c1b36c)(content(Whitespace\" \
          \"))))(Secondary((id \
-         e4ed6b9e-0ca6-4dbc-9283-d5cb6a93afa9)(content(Whitespace\" \
+         f38834fb-66b1-4819-a2d1-d76b96f34f83)(content(Whitespace\" \
          \"))))(Secondary((id \
-         ce4bdf97-5cdb-456c-96c2-5843ff9c65a4)(content(Whitespace\" \
+         a7ae6af9-41d0-4f60-9c6f-26587d918a5a)(content(Whitespace\" \
          \"))))(Secondary((id \
-         793a5cd2-326d-48fe-858b-8d2b096cb9ec)(content(Whitespace\" \
+         ea89413d-0334-4301-aa6a-b0491e5c17f3)(content(Whitespace\" \
          \"))))(Secondary((id \
-         d900e1e3-21d2-47ba-82df-20910b2e4c50)(content(Whitespace\" \
+         8f2eb163-da7f-4097-a406-1f4ca459cdb6)(content(Whitespace\" \
          \"))))(Secondary((id \
-         8ec2abdf-6d39-409f-bd59-87668a32ce06)(content(Whitespace\" \
+         29ad8c75-61c9-47fb-839a-3acdc99859b0)(content(Whitespace\" \
          \"))))(Secondary((id \
-         9cd70035-c42a-4251-a37f-02fe4fdd19ac)(content(Whitespace\" \
+         191cc034-aea9-4031-9f17-d7d7e96b5464)(content(Whitespace\" \
          \"))))(Secondary((id \
-         aa06ac41-983a-4d9b-bd39-1f1b53fec26e)(content(Whitespace\" \
+         63d6f7a3-a4b1-4274-84c0-72de97b3dbcd)(content(Whitespace\" \
          \"))))(Secondary((id \
-         a0487041-4388-468d-9d77-f952365fb63c)(content(Whitespace\" \
+         7e39c883-b7ae-47fd-8b2a-c2c4dbae4a6d)(content(Whitespace\" \
          \"))))(Secondary((id \
-         ea233dff-8936-46d0-8c3c-51eeabe07319)(content(Whitespace\" \
+         ae37790b-4a05-4c76-9746-645979fd9252)(content(Whitespace\" \
          \"))))(Secondary((id \
-         3f96a7c0-1734-4c3f-9de2-f30e2ae301c3)(content(Whitespace\" \
+         afb4226f-908d-4ad9-8e26-806beef165b3)(content(Whitespace\" \
          \"))))(Secondary((id \
-         acee37cf-7b3d-4043-a756-258073488d07)(content(Comment\"# Increases \
+         ea5428aa-940a-4189-a703-774f716bac7d)(content(Comment\"# Increases \
          happiness, costs energy #\"))))(Secondary((id \
-         208b2ff0-59c0-4105-af4c-e022a1f4b293)(content(Whitespace\"\\n\"))))(Tile((id \
-         b89c1557-fdbd-46ee-a1bf-df57b0f66d88)(label(+))(mold((out \
+         99e2bde2-2945-43d3-8a9f-75c1e0c6d279)(content(Whitespace\"\\n\"))))(Tile((id \
+         0460ccfc-5556-487f-8541-fadee9291329)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         ae7f8907-4abb-4b21-8a24-087436a51b26)(content(Whitespace\" \
+         084880cf-e146-4931-bc9a-d1f8e091f330)(content(Whitespace\" \
          \"))))(Tile((id \
-         602253df-334d-4ddf-908e-2c52e13efa96)(label(Sleep))(mold((out \
+         0837f62a-d330-44ab-b221-d23ed4e033e0)(label(Sleep))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         11ea2cf1-2d6b-4ab9-8067-ede6346f08c1)(content(Whitespace\" \
+         5378d391-2c0e-4a58-aa6b-444185198563)(content(Whitespace\" \
          \"))))(Secondary((id \
-         221b228e-854f-43c0-be4d-ad2cdd214ae9)(content(Whitespace\" \
+         f6620cb9-6fb8-4808-adf8-d405f9f3fd63)(content(Whitespace\" \
          \"))))(Secondary((id \
-         f95ba86b-f7c1-4a80-bed6-6a362bcc86c1)(content(Whitespace\" \
+         e3d0c106-c858-47d4-ad32-7ce245e89edf)(content(Whitespace\" \
          \"))))(Secondary((id \
-         66e8fb03-6347-40f9-97b7-9f7e581da9c4)(content(Whitespace\" \
+         e94bd739-eac1-4f6d-b612-5e80c00a0366)(content(Whitespace\" \
          \"))))(Secondary((id \
-         b26e87fe-5a9d-4920-a882-321ffb246078)(content(Whitespace\" \
+         2bbbc70d-779d-4e03-80f6-2c23453525cf)(content(Whitespace\" \
          \"))))(Secondary((id \
-         66b05b41-fe72-4fb0-be06-67168ac6a454)(content(Whitespace\" \
+         6c293579-3ce0-45a1-a92b-14f1ec463073)(content(Whitespace\" \
          \"))))(Secondary((id \
-         fd0a918a-62d0-452c-9193-0a6d99263e4f)(content(Whitespace\" \
+         48fefecd-c757-4ed8-b6ec-894e0e77cd56)(content(Whitespace\" \
          \"))))(Secondary((id \
-         5939db41-2452-453e-851a-665df29718cb)(content(Whitespace\" \
+         685ddd3f-4185-4c41-a0bc-12db29f79857)(content(Whitespace\" \
          \"))))(Secondary((id \
-         7fc27bc5-43d5-4955-80b8-05b62a52dab8)(content(Whitespace\" \
+         b99f1675-23fe-4a72-ba4b-c26db6352894)(content(Whitespace\" \
          \"))))(Secondary((id \
-         d9dad3a6-7d68-4230-a427-16f99aa2ee0e)(content(Whitespace\" \
+         6f0d64d8-d890-426f-8402-02f47f59ca23)(content(Whitespace\" \
          \"))))(Secondary((id \
-         dd1e87c0-7c9f-4850-822d-866de1714457)(content(Whitespace\" \
+         d39bc9e4-843f-4932-8c39-5f4e47eccb3b)(content(Whitespace\" \
          \"))))(Secondary((id \
-         9fd0d098-de2d-45bc-bd52-e03bc573e6dc)(content(Whitespace\" \
+         1e1c791e-b29e-4b7b-b307-f2217abf4a1b)(content(Whitespace\" \
          \"))))(Secondary((id \
-         c124c5ab-37cf-4e56-833b-38c271798936)(content(Whitespace\" \
+         7bb73f35-af7e-4d82-bee0-3cd0cc219b81)(content(Whitespace\" \
          \"))))(Secondary((id \
-         5e83f485-94c9-4295-bb6c-8a9ca63c91f9)(content(Comment\"# Restores \
+         4b8e999f-b0b4-4bc9-83e2-a42de0018f36)(content(Comment\"# Restores \
          energy, slight health boost #\"))))(Secondary((id \
-         44b1504f-7bc5-4264-8e31-5044ef299980)(content(Whitespace\"\\n\"))))(Tile((id \
-         6dae4837-eb08-4727-bf61-a55fbb0f1694)(label(+))(mold((out \
+         e8b2fa56-e786-4f40-b3b5-cffeb54186ef)(content(Whitespace\"\\n\"))))(Tile((id \
+         88caf86a-2ee2-472c-b42b-71671d5be07c)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         9f3785bf-7d44-4c71-abd6-3d25efb771f8)(content(Whitespace\" \
+         0ac3101c-b05c-420d-82ff-c0f8e95cf7c3)(content(Whitespace\" \
          \"))))(Tile((id \
-         b5a1617a-8ce6-445e-8115-a363936ae799)(label(Repair))(mold((out \
+         e2028746-24ca-45e4-89e8-e3efd748d805)(label(Mend))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         b0ac23e4-99c2-4ef2-91f0-bcd9c289feae)(content(Whitespace\" \
+         55c4d45d-d038-49d2-911d-b90ee2fb273a)(content(Whitespace\" \
          \"))))(Secondary((id \
-         f716b72f-6d92-4bab-8074-09c32a742ac1)(content(Whitespace\" \
+         50174255-4e21-4cbd-ae33-9d47ebc9ad19)(content(Whitespace\" \
          \"))))(Secondary((id \
-         94c3be67-35e4-45e2-9fad-1ddd145113a4)(content(Whitespace\" \
+         0de7d59a-a200-4596-90b0-53e25b9cf5ba)(content(Whitespace\" \
          \"))))(Secondary((id \
-         e7ffded4-94cc-47af-9cd5-b6bba2ebbc3e)(content(Whitespace\" \
+         06ac6318-35a7-4ae5-adc7-6433065ad9c0)(content(Whitespace\" \
          \"))))(Secondary((id \
-         c88d7560-1b7e-45ca-a256-054c5cfdf4ba)(content(Whitespace\" \
+         d32cbfba-1541-4c2c-a8df-01c3de513dc1)(content(Whitespace\" \
          \"))))(Secondary((id \
-         a61fd8b1-279a-4bf3-850f-76b8eeb6b199)(content(Whitespace\" \
+         011ac250-fa03-41e1-a2e5-2f9eb9bb8459)(content(Whitespace\" \
          \"))))(Secondary((id \
-         f538c388-7471-4c48-8fe2-9c1e459f646e)(content(Whitespace\" \
+         3bf24052-e934-4b6b-8fd2-7d12d1edeb41)(content(Whitespace\" \
          \"))))(Secondary((id \
-         f9568fb8-5ab5-46ad-b314-b7b948bf62ca)(content(Whitespace\" \
+         3fabd9fd-7abe-4d95-8e33-a9f720706bdf)(content(Whitespace\" \
          \"))))(Secondary((id \
-         9a2e5918-8695-48c2-9a3a-623e57bee628)(content(Whitespace\" \
+         ad73241c-a3ac-40a9-ba73-c377553f6152)(content(Whitespace\" \
          \"))))(Secondary((id \
-         2777f105-3e2c-4333-9bd2-caf9e08cbe8a)(content(Whitespace\" \
+         6b7d699a-9d76-4735-9c4f-7ef0ab148cdc)(content(Whitespace\" \
          \"))))(Secondary((id \
-         9db86400-dcc2-4ab6-9338-f36526338699)(content(Whitespace\" \
+         fa42767f-f7fb-4308-af53-34ea5d391397)(content(Whitespace\" \
          \"))))(Secondary((id \
-         0ed155e3-25d5-4695-9263-f6b468e5619c)(content(Whitespace\" \
+         a06f28ae-41cb-47c6-a150-59c3b6a78183)(content(Whitespace\" \
          \"))))(Secondary((id \
-         fcde8ab2-b454-493d-8a1a-54769fd2059c)(content(Comment\"# Fixes health \
+         ea60b62a-65af-4004-a9de-62e3f1ab378c)(content(Comment\"# Fixes health \
          issues #\"))))(Secondary((id \
-         b613dcd4-fd17-457d-879a-d2dc1eca2349)(content(Whitespace\"\\n\"))))(Tile((id \
-         b41aca1e-b6b5-4c95-a1bd-dd7e31de26b3)(label(+))(mold((out \
+         6d52ec27-53dd-42cd-9142-24a1c919e4be)(content(Whitespace\"\\n\"))))(Tile((id \
+         5d0ba598-6480-40b5-836b-643d16635108)(label(+))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 12))(sort Typ))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         4ffa6e8d-d53a-4307-8c9f-d50b7ee6c117)(content(Whitespace\" \
+         5ffbba93-6459-459a-84b4-7fb483a3c017)(content(Whitespace\" \
          \"))))(Tile((id \
-         050c2fca-5c91-4944-aa6a-0dfcd44c5e49)(label(TimeTick))(mold((out \
+         333a575e-75bf-48c1-bf1c-94804133a1ab)(label(TimeTick))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         3a1f16f0-6fe6-4537-badb-196f05035213)(content(Whitespace\" \
+         3fdd0d0c-6636-4679-a258-c91f5478227e)(content(Whitespace\" \
          \"))))(Secondary((id \
-         2bde15ce-bb28-47f5-a0fb-f5d5bb892a08)(content(Whitespace\" \
+         9dded77f-50bd-4311-a7cc-73c9c818c50e)(content(Whitespace\" \
          \"))))(Secondary((id \
-         b21ecdee-7cf9-4662-be4c-dcc3fe334c47)(content(Whitespace\" \
+         1a8af5ff-ad9b-4ce2-af4a-c82184931656)(content(Whitespace\" \
          \"))))(Secondary((id \
-         029fbc62-a898-488c-9379-3e47680f89ec)(content(Whitespace\" \
+         053f137b-de66-41ae-9dd4-0b87219cf47a)(content(Whitespace\" \
          \"))))(Secondary((id \
-         b1864f24-a2c5-4a3e-9df9-f467f79f6215)(content(Whitespace\" \
+         ff9f55f7-b575-4b92-a5ed-d5a893aee20f)(content(Whitespace\" \
          \"))))(Secondary((id \
-         f11a877c-129c-48b6-b7fa-faf3781eef7d)(content(Whitespace\" \
+         0c12a8bf-2a07-4ab3-a1f6-cb5e1414416b)(content(Whitespace\" \
          \"))))(Secondary((id \
-         baafdfb5-956e-40ac-81f5-4efaa3a4ceef)(content(Whitespace\" \
+         20191b6c-df84-4bb0-a5a8-72db45f242d2)(content(Whitespace\" \
          \"))))(Secondary((id \
-         c34318c2-6a86-4880-934a-8ffb1391b4dd)(content(Whitespace\" \
+         027f48fa-594a-41c8-9742-adbc7c10519d)(content(Whitespace\" \
          \"))))(Secondary((id \
-         f0de8419-1f99-42c4-8c07-c795eed09317)(content(Whitespace\" \
+         eb141ce9-d420-4443-8511-d6c4279e296d)(content(Whitespace\" \
          \"))))(Secondary((id \
-         a2e98c65-b7cf-45fa-b565-a3423f9b9081)(content(Whitespace\" \
+         1b97505a-54f5-4838-ace0-bf78ffa64ba1)(content(Whitespace\" \
          \"))))(Secondary((id \
-         116012fc-5099-48ff-91d5-9290a406d3c5)(content(Comment\"# Time passes, \
+         ae9af550-289c-4559-82f8-33d15218120a)(content(Comment\"# Time passes, \
          stats decay #\"))))(Secondary((id \
-         c28f7418-9cd5-48b0-ae1f-28c534150a31)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         7791127d-640d-4f72-a92e-b231b3c6add6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         63160f23-5364-4f84-92d0-996274754219)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b40e98fe-dcf5-41e8-bad7-a4ba4df6239c)(content(Comment\"# Utility: \
+         9c82357d-0748-436a-bae8-223fbf12e6bf)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         e5ec4619-1519-424f-8042-2082996a5fd5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5ed15308-0374-4b39-8dac-dc30eaa8cc23)(content(Whitespace\"\\n\"))))(Secondary((id \
+         b55cf8dc-18bf-4861-b8b2-349bbd4c9a91)(content(Comment\"# Utility: \
          clamp value between 0 and 100 #\"))))(Secondary((id \
-         322e7ffa-21af-4305-8223-dfaa7cd03edc)(content(Whitespace\"\\n\"))))(Tile((id \
-         a6e9d97a-8686-4c1b-8308-0b7f6cbdf959)(label(let = in))(mold((out \
+         59fd181b-5ec4-4422-9372-992355c9b2a9)(content(Whitespace\"\\n\"))))(Tile((id \
+         4e45b148-a2d0-49d5-b49c-c7afef9b4e1c)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         4bc5ed80-f861-47a8-81e3-c8bb8e70ec6a)(content(Whitespace\" \
+         eb43007d-4b74-47b2-95e3-43c72da81c4f)(content(Whitespace\" \
          \"))))(Tile((id \
-         48252c42-0ee2-413c-b477-6276884a5e5c)(label(clamp))(mold((out \
+         fba3f2c2-4b39-43a3-a305-79d03d8e8bba)(label(clamp))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         af7a4685-ccca-4af1-bb08-b27c7bd2298a)(content(Whitespace\" \
+         a884dec6-8ed8-4137-bbf1-5a7dd80a885d)(content(Whitespace\" \
          \"))))(Tile((id \
-         598f007a-5e3d-4cc2-bcbd-8334ba1e99b3)(label(:))(mold((out \
+         4a09cdbd-80c1-430a-b07e-c2cf7ce07fee)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         eb2778fa-b4ea-4b9b-9fc5-ed7a072b62dd)(content(Whitespace\" \
+         131a7be5-34d2-4fba-8d58-8ccc55d5a762)(content(Whitespace\" \
          \"))))(Tile((id \
-         57385733-ce4f-4163-a4b6-3bca68de06cf)(label(Int))(mold((out \
+         a24b198e-06d8-4540-8d79-60009064a12c)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         6c051341-496d-42bb-b6b4-b8c551dfe4be)(content(Whitespace\" \
+         55fe7f84-bfb4-49de-9e6e-dd02ccd4fafc)(content(Whitespace\" \
          \"))))(Tile((id \
-         5aa1271b-b1dd-4807-822e-5b9d44b701f2)(label(->))(mold((out \
+         85eba8b5-d6a0-44db-8898-0d063a2b480c)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         04e4a1a3-6a21-4796-a3ed-504b6b1083e3)(content(Whitespace\" \
+         e73bb15f-5bf1-4325-98ae-d3660075deb5)(content(Whitespace\" \
          \"))))(Tile((id \
-         5e8be73d-c3c2-411e-9953-972363cad2a1)(label(Int))(mold((out \
+         419197f6-1ddd-4d00-917f-160e58326f91)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         cb8f0bc4-8748-4068-bd93-059a28a7c653)(content(Whitespace\" \
+         f7487f84-5b3f-4f79-a84d-4b2514c1791b)(content(Whitespace\" \
          \")))))((Secondary((id \
-         68155725-b6f8-4107-9539-9beb364d0eda)(content(Whitespace\"\\n\"))))(Tile((id \
-         c5b015fb-2048-496c-a352-0a6aa5d23fd1)(label(fun ->))(mold((out \
+         97a80a20-0825-4fe0-983e-d301e67f7998)(content(Whitespace\"\\n\"))))(Tile((id \
+         fbecffcc-0494-4225-b0ab-cd3fa592ed31)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         8b58fc48-b053-4b99-8814-c0debbc0642d)(content(Whitespace\" \
+         19b1cd76-ba17-409f-85c4-97abb099ad74)(content(Whitespace\" \
          \"))))(Tile((id \
-         75668245-1572-4501-97a2-897523d08e7e)(label(x))(mold((out \
+         e3266c6a-cd10-4f3a-8814-546e5644a7e2)(label(x))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         54e23d3a-ee02-44bc-a83b-33a12532964f)(content(Whitespace\" \
+         843dd8ca-7be9-4b3b-a203-2d7270c1dd01)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         3099d344-f2b6-4923-8ba4-bcaa56a9a75c)(content(Whitespace\"\\n\"))))(Tile((id \
-         9314c88a-bdd7-4194-9cee-aaf16319973a)(label(if then else))(mold((out \
+         def64299-fa2e-44ab-884b-617112387a96)(content(Whitespace\"\\n\"))))(Tile((id \
+         abc13959-a593-452a-9c6e-d8d57478dfae)(label(if then else))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         026768c4-70c4-4762-8b4e-c1c63e2ade2c)(content(Whitespace\" \
+         fc243f19-f828-4efe-93ca-781065ec8a41)(content(Whitespace\" \
          \"))))(Tile((id \
-         35732a76-9bb9-4094-9dbc-6d803e6e279a)(label(x))(mold((out \
+         448df238-e5fa-45b9-bf28-8109cd65313f)(label(x))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f155044e-ad15-432e-8d41-697abee83daf)(content(Whitespace\" \
+         c85a48e2-6f45-42d7-8b37-5cd550a85665)(content(Whitespace\" \
          \"))))(Tile((id \
-         d74ec650-fef5-4e2c-94cb-9236647f119c)(label(<))(mold((out \
+         6fb03f37-6438-4e58-9a1c-38d9adb0616f)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         14fee4e1-7fe6-456e-82b6-c24290242674)(content(Whitespace\" \
+         9484f924-9f2f-4c54-a938-4144e735971a)(content(Whitespace\" \
          \"))))(Tile((id \
-         00a417df-7c27-4d86-9dff-9b8642a3b7e3)(label(0))(mold((out \
+         9f1a4781-d507-4bdc-b7f4-18691aeeb4ee)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         1867e753-d558-43ca-a9eb-34e8685ae458)(content(Whitespace\" \
+         0dd58361-8d03-4fbb-b7e6-19b142c66257)(content(Whitespace\" \
          \")))))((Secondary((id \
-         5e951306-f683-4cd9-b681-f1ecf96536c2)(content(Whitespace\" \
+         b99bcc53-8436-4276-b8f8-8bd8ec794f1b)(content(Whitespace\" \
          \"))))(Tile((id \
-         99e1354a-a1cf-42f8-9187-3e071f33045f)(label(0))(mold((out \
+         edb5446e-8fad-4ea0-8916-17c1883093f1)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         a223c306-dc93-4572-946c-01477e3df9b6)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         cdb8fc6a-50a2-428e-880e-da1d83bccdee)(content(Whitespace\" \
-         \"))))(Tile((id e85922dc-6331-428a-baa6-2d3145462a9c)(label(if then \
+         49523347-4a55-4b3f-aa5d-e2319d475487)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         ff897441-6e6c-4f65-b4b9-ff23aa01ed5f)(content(Whitespace\" \
+         \"))))(Tile((id 23623336-df05-4330-86e2-99cf4568628c)(label(if then \
          else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 36))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id \
-         25c0de52-562a-4f47-bd03-ba7016ef9ec2)(content(Whitespace\" \
+         6b11ad7e-e8fd-4ca8-87c2-f05204a86372)(content(Whitespace\" \
          \"))))(Tile((id \
-         4e510bd0-eaab-4b18-9a71-b142db55e0db)(label(x))(mold((out \
+         e3b46584-fa2c-4b86-bbdb-a58ca4d9aee0)(label(x))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         ca1355e1-b3a9-45e3-9d86-e2b9c1b8d40f)(content(Whitespace\" \
+         5975a0e2-488f-440f-b7a5-bb9b923f8c23)(content(Whitespace\" \
          \"))))(Tile((id \
-         fcf91f3f-43b4-485a-be4b-a60d74ed8b2f)(label(>))(mold((out \
+         22328b03-36b6-46f1-9a8c-19e9e76c68ff)(label(>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         889397bb-595f-4f54-8ede-410941cf2b94)(content(Whitespace\" \
+         e0ec4412-9bf7-430d-9e73-342951d282d0)(content(Whitespace\" \
          \"))))(Tile((id \
-         4e43c98f-a2fd-468e-9b12-844324c80033)(label(100))(mold((out \
+         661809eb-8948-4977-8945-296c16a68152)(label(100))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         8829840d-66f5-4af8-bfea-87bc53c4decf)(content(Whitespace\" \
+         264201d1-987e-443d-9380-5ea6629f9ef0)(content(Whitespace\" \
          \")))))((Secondary((id \
-         fa981d1c-d0e7-417a-a978-501d8fb1545a)(content(Whitespace\" \
+         7f5c5901-e702-4e00-b2a5-31d551f55eba)(content(Whitespace\" \
          \"))))(Tile((id \
-         c94aebd4-04b9-486a-9b49-ece99e784d44)(label(100))(mold((out \
+         28c7666c-f907-447f-90fb-eb8f712b6e98)(label(100))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         d0dffeeb-793f-4ad6-9d34-7777490c2cc0)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         5823b087-81d7-401e-95c1-7b48abda16bd)(content(Whitespace\" \
+         d70d212b-bec1-4072-b21c-a598f6f73130)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         deb9814a-c381-4fb7-9e7a-6fab187140eb)(content(Whitespace\" \
          \"))))(Tile((id \
-         4cdfd4b7-8e5f-4ed5-af32-75de3ff653e7)(label(x))(mold((out \
+         eb72d3ce-5764-40c4-aec5-92e680c1a686)(label(x))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         05623741-f2c8-493d-8b72-36322058b159)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         adf25349-ee04-4069-9ec6-a511fea46daa)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9b291bba-39c1-4983-ada2-d767e957eb91)(content(Whitespace\"\\n\"))))(Secondary((id \
-         34098c0a-11ef-4c82-ba9f-d8518f84c147)(content(Comment\"# Initial \
-         state: a fresh baby toaster #\"))))(Secondary((id \
-         aa909cb6-26bf-4ea3-8100-dc10be5cf3d2)(content(Whitespace\"\\n\"))))(Tile((id \
-         865c90d6-46b8-45cf-a548-20ef999af662)(label(let = in))(mold((out \
+         87f2c48f-14f7-4eaa-8453-7ddeaf0eef32)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         5d10ad06-78c9-4a4b-9628-4e98d5cc78ff)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7f81d48f-d615-4daf-97ac-1eb6b8ad999c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7a27f9ea-a72a-4a16-8e67-77aa4e5049ba)(content(Comment\"# Initial \
+         state #\"))))(Secondary((id \
+         338dd9a8-6859-4ed5-ae2b-0e4a3b693234)(content(Whitespace\"\\n\"))))(Tile((id \
+         b1094c7a-b12d-4881-b60c-23fa2a555569)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         2896f387-d61f-43e5-b71d-6b4d4c1d8ad7)(content(Whitespace\" \
+         3b2ca881-084d-490a-a2c0-25a8fec980f3)(content(Whitespace\" \
          \"))))(Tile((id \
-         0a64a8f1-5a5a-48f5-a29c-2f10df715c00)(label(init))(mold((out \
+         b220dcab-9fd2-49ef-8568-715429c7f210)(label(init))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         379597df-a284-4ecd-ab53-ca982affc5a1)(label(:))(mold((out \
+         0aace5aa-3df0-43c2-bd60-bb6a6c250e11)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         e5e8389c-a7b9-4204-b4ab-3bd999ac5a8d)(content(Whitespace\" \
+         cd3d23c5-ecaf-4a94-9c50-c5ec2cab63c9)(content(Whitespace\" \
          \"))))(Tile((id \
-         c0966a50-e13d-4e2c-bb0f-315cbc435276)(label(Model))(mold((out \
+         af534165-ac6f-408d-9e96-c7d345663da5)(label(Model))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         8eb7b851-de30-418e-8e37-7b3dfca372b0)(content(Whitespace\" \
+         0dfcd590-744e-4953-a5c3-4a5afd052d32)(content(Whitespace\" \
          \")))))((Secondary((id \
-         28dc5afc-8044-4dde-8579-a025eaed8640)(content(Whitespace\" \
+         6ae499ca-a35c-4650-9dfc-a3196c8e005e)(content(Whitespace\" \
          \"))))(Tile((id \
-         734a0355-5be2-4b17-9c67-4489140dc2e5)(label(\"(\"\")\"))(mold((out \
+         5b9dea4f-64e6-4ee3-8d21-48c9256be4ce)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         b6a3bba0-4035-439a-9c42-5eedd1723408)(content(Whitespace\"\\n\"))))(Tile((id \
-         8794d283-9813-4c32-94e5-01f0f3e315ca)(label(stats))(mold((out \
+         14217610-63a2-43a4-b97d-0941db9f898b)(content(Whitespace\"\\n\"))))(Tile((id \
+         7b9d530f-b35c-4b13-8be5-06b583e6502d)(label(stats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         76933088-605a-44c8-8554-161e3f5c2e31)(content(Whitespace\" \
+         39147bab-d8fe-4ef2-b0b7-543e5ef8302c)(content(Whitespace\" \
          \"))))(Tile((id \
-         90e4a435-f378-411f-bf1f-4f5b6da897b8)(label(=))(mold((out \
+         e8507fe4-d559-4e96-971e-ece3fec20731)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         83319f92-2850-4585-85b6-06990879a565)(content(Whitespace\" \
+         3b3c1063-2a0e-42ff-8da6-7f9c864dd635)(content(Whitespace\" \
          \"))))(Tile((id \
-         70311e36-0a12-4399-aa4b-a8fe6b5cedac)(label(\"(\"\")\"))(mold((out \
+         12c80976-c37f-473f-8519-8010900c2ddd)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         94a91864-ea4a-4d0b-998f-829f872846a9)(content(Whitespace\"\\n\"))))(Tile((id \
-         3d39dfcd-cb7e-477b-aac6-7e6ef169fe2e)(label(hunger))(mold((out \
+         edf3bb18-0842-425e-afee-b681d82b08e7)(content(Whitespace\"\\n\"))))(Tile((id \
+         4eb961b7-96be-449e-b489-66067649e325)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         dfc494ca-f35e-401c-be4e-5cca9b526e6a)(content(Whitespace\" \
+         3a554be8-4238-4b56-b2e0-5465aa022239)(content(Whitespace\" \
          \"))))(Tile((id \
-         1a84904e-2fe1-46c5-ab4e-4aff8cc18147)(label(=))(mold((out \
+         532854fb-6006-4400-8e53-5cff88f9e827)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         dfde9baf-0385-4000-b5d3-4fc65bb7533e)(content(Whitespace\" \
+         0e9688ad-f7b1-47ab-b031-39abfdff7979)(content(Whitespace\" \
          \"))))(Tile((id \
-         134fe4f6-52bf-4b45-9f9b-369c79ef1593)(label(50))(mold((out \
+         b157a074-df0d-4d4f-8851-9a9f997743a8)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         d55c7ae8-db46-486a-b219-a653a6895a0c)(label(,))(mold((out \
+         15bdfa09-bdc4-4fcb-be4a-c478c03fe7ea)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e0c23c03-b24d-4854-bceb-3294db842352)(content(Whitespace\"\\n\"))))(Tile((id \
-         217b3f1e-2cb8-4032-bf9c-77b06c83ca52)(label(happiness))(mold((out \
+         4fbc3693-b7b6-4d35-86cd-8d001344e52b)(content(Whitespace\"\\n\"))))(Tile((id \
+         16b2c71f-b87c-45cc-b92a-a9d696a21bde)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         af68cdbc-f3a9-4d47-a1da-d73a37809423)(content(Whitespace\" \
+         41c4d74e-1352-4a8d-9819-d145be0e9a61)(content(Whitespace\" \
          \"))))(Tile((id \
-         5d0282f8-63d2-4dda-8293-c1f93034e0cd)(label(=))(mold((out \
+         f83453ac-8077-4c04-a9ab-1156dc184132)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         1dd1e50b-6cbc-44a7-b69f-1c45447a9608)(content(Whitespace\" \
+         2ff601f2-f94f-4300-9957-579a275b98e4)(content(Whitespace\" \
          \"))))(Tile((id \
-         bf204fbc-811d-4fe0-82c8-af38fcf34ac8)(label(50))(mold((out \
+         fdcebe6e-3ed7-4433-9099-ed4a4c556855)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c009cb5a-d3c4-46c6-93f4-640e3686ff19)(label(,))(mold((out \
+         8a0a987d-434e-4e0a-9052-15f9cb6beee9)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         07d2058d-bc5e-40f1-86b2-0ed8b73b2280)(content(Whitespace\"\\n\"))))(Tile((id \
-         81f8ad99-d9a6-44b3-92f9-47106aafa907)(label(energy))(mold((out \
+         a243ca19-9149-4890-b358-52455a5e5dcd)(content(Whitespace\"\\n\"))))(Tile((id \
+         c6751313-4489-4f07-b207-fb4a14c71721)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         d39dc8af-be7b-49e8-bb82-638722b1fc70)(content(Whitespace\" \
+         7fa73134-bf1e-41c2-a48e-e89a4d176fcd)(content(Whitespace\" \
          \"))))(Tile((id \
-         cf42244b-b31c-489f-bc1a-a8b281578135)(label(=))(mold((out \
+         a56f14b6-e733-41be-8657-8d35ca2e5966)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         36d09bc5-b6d2-4ad9-8449-7f02e0cea66a)(content(Whitespace\" \
+         46e67480-304d-46c4-9717-d1393e8549b4)(content(Whitespace\" \
          \"))))(Tile((id \
-         ad5e2eb8-48b4-400e-84a6-c28379e2a798)(label(50))(mold((out \
+         a91aa0d8-f68d-4eca-ae51-2538526532fa)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         2e605ba6-3020-4aad-8cb5-550635b059cb)(label(,))(mold((out \
+         17411bf6-96f0-4271-89be-23ad084218d9)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e911ad82-022c-45ec-a9b7-2235fb7b2853)(content(Whitespace\"\\n\"))))(Tile((id \
-         3aa3b08d-c97a-41fe-9b6e-9d201aa62f99)(label(health))(mold((out \
+         e0d414f9-9710-4907-b1cf-76041c79d9c3)(content(Whitespace\"\\n\"))))(Tile((id \
+         ce13790b-bc25-4307-b67b-88f1e08748c2)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         8f00ef79-e017-4b0e-9242-3215d1a3db55)(content(Whitespace\" \
+         21a252a2-ec5b-42d3-8c22-fd23ba6c2f17)(content(Whitespace\" \
          \"))))(Tile((id \
-         35b7820b-f19c-471b-8350-83f617f6da39)(label(=))(mold((out \
+         88a94119-e9c3-46cf-8e93-4f45d71a7532)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         604fd7a5-b862-4fb6-aac3-7eccd24252e4)(content(Whitespace\" \
+         ce19fe15-518e-4b34-9588-51d6517f7bea)(content(Whitespace\" \
          \"))))(Tile((id \
-         41446a25-5b18-4a56-82a9-b9f7895237f2)(label(100))(mold((out \
+         e31e9267-6a6b-4187-9f67-09e0b65a593f)(label(100))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         befa1681-3d97-441e-a9ef-3b6316354902)(content(Whitespace\"\\n\")))))))))(Tile((id \
-         03abb059-9888-4605-8cb4-47cbd39ea540)(label(,))(mold((out \
+         d423195e-95fb-4b37-a32c-f032b6536147)(content(Whitespace\"\\n\")))))))))(Tile((id \
+         ef4f7c8e-2b9e-4b3a-9843-c7330932d86f)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         733352a3-3e34-4cc7-9d1e-ea81eeb03bf1)(content(Whitespace\"\\n\"))))(Tile((id \
-         74f95f14-5c1f-44aa-a073-8a565950827e)(label(evolution))(mold((out \
+         2b6eff9b-e242-406b-996e-06f82a81b20d)(content(Whitespace\"\\n\"))))(Tile((id \
+         a8666411-a6f0-496c-be6f-1e3b0f948f5a)(label(evolution))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         19c708d8-c10c-415b-b600-469564f8c335)(content(Whitespace\" \
+         97abb684-90bb-4603-ba0c-49a84b320dbb)(content(Whitespace\" \
          \"))))(Tile((id \
-         eed104b3-4590-499c-82b2-4683f2da86e3)(label(=))(mold((out \
+         956d0691-7c9a-4d0e-a85b-21a9cf3fe62d)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         2ec52e2f-a57d-4543-b035-a97b4ec15365)(content(Whitespace\" \
+         419cea4c-95a1-42aa-94f2-452649dd8f31)(content(Whitespace\" \
          \"))))(Tile((id \
-         c0b8b3e1-1007-4bfd-a80d-13f784e607dd)(label(BabyToaster))(mold((out \
+         bf84cbec-6e6f-4020-8984-8776b8b421f4)(label(Seedling))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         e788d179-620a-468a-a6c1-b5e6b535b2b7)(label(,))(mold((out \
+         f7401e2d-99ed-4cb7-a8f4-6afcbec63853)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         25260c29-bd7c-4656-8deb-654d90a0f1c4)(content(Whitespace\"\\n\"))))(Tile((id \
-         04547379-701c-44d8-9791-37a83d1072d2)(label(personality))(mold((out \
+         f40ed5ed-4cfa-494d-8a61-11970fb76dfd)(content(Whitespace\"\\n\"))))(Tile((id \
+         397c2da7-5bc7-4c02-a515-e8c87c323200)(label(personality))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         60a3aee0-5bd8-4d0d-9269-113f1a4b09d7)(content(Whitespace\" \
+         9a6b47bc-3747-457c-b942-dbb81d55ad73)(content(Whitespace\" \
          \"))))(Tile((id \
-         3a7e178a-1a6b-462e-af8e-797d82c8dbb2)(label(=))(mold((out \
+         1b1b9916-acb2-4677-ae12-708d70f62309)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         bfe325f0-3660-4db1-baff-d0c4ba46ec14)(content(Whitespace\" \
+         daab5ebb-e82c-46d7-ba54-81a400315116)(content(Whitespace\" \
          \"))))(Tile((id \
-         7035ce0e-1f61-44fc-8a87-5325fb967efa)(label(Balanced))(mold((out \
+         2ce478fd-0920-4588-8b60-e686c8ce4a03)(label(Balanced))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f61dbd83-f411-4bc0-a615-bc17414e2c49)(label(,))(mold((out \
+         96d032c0-52d9-4af4-ab21-35056306ae0b)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         1fe4bf0a-773a-435e-9c7b-1510463a4700)(content(Whitespace\"\\n\"))))(Tile((id \
-         0aa4f990-4ec7-45a6-85fa-04e2d4bdef18)(label(memory))(mold((out \
+         f9015be7-6b2e-4142-8218-1b3517235faf)(content(Whitespace\"\\n\"))))(Tile((id \
+         3819a8ae-b1bd-4a12-b684-dcb9ca5c101f)(label(memory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         7a796e2e-fdf1-4e77-ab8c-1ab40079c6a3)(content(Whitespace\" \
+         3b74dfde-2bea-41ae-b781-e24dfdce3d3e)(content(Whitespace\" \
          \"))))(Tile((id \
-         f92a7ce6-c74a-4cde-ac54-c871c5fbf6f8)(label(=))(mold((out \
+         7fe0dc34-4f7f-431c-bc21-b307bd775613)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         4a10c026-ff49-49be-811b-2358ac827dca)(content(Whitespace\" \
+         6306e25f-9dd4-4e9f-9945-daba8f3b71f0)(content(Whitespace\" \
          \"))))(Tile((id \
-         9e3bb5c5-a387-4f05-9864-c48d49d81b44)(label(\"(\"\")\"))(mold((out \
+         f1d44d55-ffee-4827-ad4e-74d60ada07f4)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         dd6c4a6a-6a04-44a0-86e3-a2509196a3cb)(content(Whitespace\"\\n\"))))(Tile((id \
-         6c719373-c4f7-44d6-90eb-4605b0731520)(label(timesFed))(mold((out \
+         d4049529-e9e8-4816-9fb5-c8657a98c136)(content(Whitespace\"\\n\"))))(Tile((id \
+         6452102f-3982-42c7-8c42-7c4fa7e0c544)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         56288ca5-5888-4976-b6fa-22da7b6086ef)(content(Whitespace\" \
+         aebdb93b-7c22-4367-bf81-441701d5d990)(content(Whitespace\" \
          \"))))(Tile((id \
-         625a83dc-3ffa-4743-a03e-fa4d90050544)(label(=))(mold((out \
+         973ab690-b0eb-445a-aa28-723f990236aa)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         386684ec-9508-40af-a063-45de6bc89dc0)(content(Whitespace\" \
+         6614bb61-ea33-4f7c-bd8c-772b67f4ca0d)(content(Whitespace\" \
          \"))))(Tile((id \
-         68a909fe-7288-4322-bf95-f12aba0734f9)(label(0))(mold((out \
+         94afbe27-4b74-44a3-a190-5cbf235d9f8f)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7f4e7dc4-3e20-42c8-91aa-115609e1d828)(label(,))(mold((out \
+         4cfc23e5-6d3b-4a65-8d34-c9f4fcaa3fee)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e6f73737-898d-4ba7-ab34-8b4b44d8d0f2)(content(Whitespace\"\\n\"))))(Tile((id \
-         436450d3-c4d0-46e5-80ed-0cb910a4caa2)(label(timesPlayed))(mold((out \
+         cd21cf26-af2e-40d0-ba77-78cd39f2af3e)(content(Whitespace\"\\n\"))))(Tile((id \
+         e0fa64fe-64a6-4aae-9e90-2aaa19f6492b)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         c220dc34-0087-4588-adf6-26b8f0a6419a)(content(Whitespace\" \
+         078bc1b8-e299-41e7-b1c1-aebbd809927a)(content(Whitespace\" \
          \"))))(Tile((id \
-         8e51b7fd-1097-46b4-902c-d64d51eca570)(label(=))(mold((out \
+         577bafbb-356e-4c7a-a7a7-41a82ede4460)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         a1765027-974c-493a-94a8-477ef8a171ff)(content(Whitespace\" \
+         c2c7c7a8-aec9-4d77-a704-35068db57077)(content(Whitespace\" \
          \"))))(Tile((id \
-         3b34528c-3f95-4ef0-b9e0-a1bb5d6a7e0e)(label(0))(mold((out \
+         50e0ea1e-d347-475d-86d5-07bbebed297e)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         d23fbc2b-7654-45b3-a9a2-0b9187e41f8b)(label(,))(mold((out \
+         37f499a3-faec-46b1-aecd-d2ef348b1f20)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         bee912e3-551c-4e32-b065-c99a28047b6a)(content(Whitespace\"\\n\"))))(Tile((id \
-         033cc6bc-b703-4b3a-bed5-df1753eb0ff7)(label(timesSlept))(mold((out \
+         6610d471-8248-4f6b-842b-bb1ef8334b55)(content(Whitespace\"\\n\"))))(Tile((id \
+         a0141396-3557-4a8d-a8f5-ee1b2d07b39f)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         2b2dd03b-09fc-4b28-8661-397879a1ac6d)(content(Whitespace\" \
+         1d1607d4-c403-477a-b5d9-2c069a784e26)(content(Whitespace\" \
          \"))))(Tile((id \
-         6a97ecfa-4082-479e-b5fa-2142635641c0)(label(=))(mold((out \
+         e4cd240a-c078-42ca-9357-546e19ea23b7)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         2a24512e-a16e-45c3-b042-fd0367de03ee)(content(Whitespace\" \
+         eb183e98-38ae-42af-b42d-2dac61ff8cab)(content(Whitespace\" \
          \"))))(Tile((id \
-         24ec38fa-afeb-461f-87c1-0d08ec9c01b7)(label(0))(mold((out \
+         747ff85e-c689-4680-a14d-1a353265c8b0)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         550b50fa-eb5b-4c8e-974b-0eb1f2a8afc3)(label(,))(mold((out \
+         74fa1028-62ae-4cb1-b48b-5a9e9b8015e4)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d9cdf533-c631-4a0c-a7c1-ff87ad1924be)(content(Whitespace\"\\n\"))))(Tile((id \
-         5494cd59-4c06-4f29-a213-f5c4404f1db0)(label(timesNeglected))(mold((out \
+         bc3a91f8-3160-4051-a9b2-47a80536ae26)(content(Whitespace\"\\n\"))))(Tile((id \
+         9fa541c6-1262-4187-9a55-c157892c2d47)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         ff7b0b90-0f9a-4ee8-845b-d26c160c7134)(content(Whitespace\" \
+         066bf281-c009-44ac-bca8-3ceab23266e8)(content(Whitespace\" \
          \"))))(Tile((id \
-         b1f9d1bc-6c0b-4ac1-bc1f-9b59e4311e75)(label(=))(mold((out \
+         ad77f376-741e-41cf-a9fd-75141740855a)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         91ef2ede-2ab3-4bd8-8a4a-8f2fb978f2e8)(content(Whitespace\" \
+         533e240b-90ec-4840-93b5-0bca9b96c134)(content(Whitespace\" \
          \"))))(Tile((id \
-         ced8cfd6-5ad1-41b5-8694-4ab12b79b9ff)(label(0))(mold((out \
+         66c697a8-fe4a-4dbf-b767-cc0fa7008159)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         20ee80af-3e69-49d4-bad5-034be7360202)(content(Whitespace\"\\n\")))))))))(Tile((id \
-         4c6ee67f-51c7-4779-9026-f7caffbceb3b)(label(,))(mold((out \
+         3f42853e-41db-4951-984b-61364f21caa0)(content(Whitespace\"\\n\")))))))))(Tile((id \
+         c7f92beb-903c-4c88-9662-85ecb77d3b37)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         45f7da39-117a-4303-856f-1ce5f17055a2)(content(Whitespace\"\\n\"))))(Tile((id \
-         7e8dc605-8b3e-4020-8473-5e56e702aa66)(label(age))(mold((out \
+         176af6bb-44b3-48ed-85a7-8e427f9200f5)(content(Whitespace\"\\n\"))))(Tile((id \
+         962682f8-59e0-4474-858d-87afc0872fc9)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         08cc31a3-608c-47a9-b194-6c5571d4735a)(content(Whitespace\" \
+         b712ef4c-7a2e-40fb-94c2-a9c5cfe88a3b)(content(Whitespace\" \
          \"))))(Tile((id \
-         4f71a8ea-a97b-4ad3-9b11-5cef7f6344d7)(label(=))(mold((out \
+         d674f277-77d6-42b2-bf90-2da1c20072d0)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         22345aad-0ac2-43e3-b03c-3023a428d9a7)(content(Whitespace\" \
+         f14ff43e-8fef-4946-acd3-eebece42a148)(content(Whitespace\" \
          \"))))(Tile((id \
-         a3005dc4-4f07-45c1-b565-3d2117d1df92)(label(0))(mold((out \
+         8bcd93e5-1b84-449e-b7ff-7bbffea4bb83)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f5b305fc-f9a3-483d-bfe5-71e60e24591d)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         ea7921df-a47b-476d-8306-3883f198ab76)(content(Whitespace\" \
+         74920a7a-2fa7-4eff-a4de-e00b31fc77b9)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         ac1940d5-e455-4f47-a50b-b12531b37508)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         633d6feb-4ebc-4d79-a357-43696ad54b0d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         12b7c147-4ef9-41ee-87d8-8337af67daed)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7ef3c374-a2ba-43e5-b379-85f5e8af6152)(content(Comment\"# Calculate \
+         69690506-350e-4835-889a-ae914ca11cd6)(content(Whitespace\"\\n\"))))(Secondary((id \
+         451f0d4f-0c3b-4131-bbc2-552aa859fd6f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f49e668f-8af5-4d6f-8062-92978a17c582)(content(Comment\"# Calculate \
          stat decay based on current stats and interactions \
          #\"))))(Secondary((id \
-         3d817220-6f69-444d-a227-63d0f91492d3)(content(Whitespace\"\\n\"))))(Tile((id \
-         180012fe-c32e-49c4-9220-daa7d973aa53)(label(let = in))(mold((out \
+         b588cd00-3684-4dff-8748-959f670a1d7f)(content(Whitespace\"\\n\"))))(Tile((id \
+         33d2c653-173f-4a2d-8e16-c3a6ce5eca3d)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         167d80d8-9faf-4d05-bc1e-864088ac512a)(content(Whitespace\" \
+         0154ffed-804b-4803-beee-4507bec64cd1)(content(Whitespace\" \
          \"))))(Tile((id \
-         7e169fbc-d579-4eb0-a8a0-691847603772)(label(decayStats))(mold((out \
+         8766d10c-1ca0-4df4-8702-664a35184515)(label(decayStats))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         f55a73d5-674a-45aa-a471-c9a5c28c9773)(content(Whitespace\" \
+         37bb3ae0-b935-4416-b1f1-d1bd4482b431)(content(Whitespace\" \
          \"))))(Tile((id \
-         021e333a-4242-4656-85e3-b1963484a985)(label(:))(mold((out \
+         c434f3fd-6235-415d-9baf-cbb1645cf255)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         4d976ca2-6a1f-4908-b3ea-20ac9d234d46)(content(Whitespace\" \
+         b7e32d39-3d52-4cbf-bab1-29c8981b7ae8)(content(Whitespace\" \
          \"))))(Tile((id \
-         9de33efa-3f8f-42ca-824c-d59799b352a7)(label(Stats))(mold((out \
+         e184549c-990d-4fae-9062-9ebc705bb002)(label(Stats))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         0df365f7-c41d-43be-a42f-aaec6e1873f7)(content(Whitespace\" \
+         5e8b6067-9333-4217-91f7-98e586273492)(content(Whitespace\" \
          \"))))(Tile((id \
-         d2e3be73-c7a7-465c-aacd-0aeb1c364ace)(label(->))(mold((out \
+         a4fdf8c5-6388-4e6b-a719-74c93f8e1b88)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         5e4f5428-4db8-436b-9480-66267386b4fd)(content(Whitespace\" \
+         d6f3f51b-bb81-44dc-b28b-3c51f8c9e628)(content(Whitespace\" \
          \"))))(Tile((id \
-         f6f385aa-9543-45a5-91e6-d72c2e874ea1)(label(Stats))(mold((out \
+         e1f20d5b-259e-4728-bec2-a1fda051e3c2)(label(Stats))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         653a8fa3-c6f0-443c-aeb8-9353c1a0f866)(content(Whitespace\" \
+         08329051-7c43-4265-8a55-7d723a32dd92)(content(Whitespace\" \
          \")))))((Secondary((id \
-         76a20ccc-a401-4408-b5ad-69dfd866cd63)(content(Whitespace\"\\n\"))))(Tile((id \
-         67bc7b4c-dc29-4e41-8d5b-6de66f7c5b78)(label(fun ->))(mold((out \
+         6369bf29-835c-4311-ac92-bc0466cbd64a)(content(Whitespace\"\\n\"))))(Tile((id \
+         5c3c9327-956d-4cb3-9eeb-6d671646f851)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         1a26244c-388c-438c-8cab-df67c1dc36e1)(content(Whitespace\" \
+         fd6e81a6-2ec1-48e8-bedf-00c342195bb7)(content(Whitespace\" \
          \"))))(Tile((id \
-         cdf35ba2-b471-4967-93cb-8aaee8cf68f5)(label(s))(mold((out \
+         5d71c982-e89a-4d70-b387-bae13c9288fa)(label(s))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         eed70f87-5116-4d1a-a8b2-779ae8995833)(content(Whitespace\" \
+         12f069c4-fd09-4080-af77-da2bc5718735)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         c26579e2-2f09-46a1-9e34-a658767aad34)(content(Whitespace\"\\n\"))))(Tile((id \
-         bf8e3c11-db64-4a64-a724-f67b35113260)(label(let = in))(mold((out \
+         e257e251-8d38-4fa2-9e97-9580bceb1a85)(content(Whitespace\"\\n\"))))(Tile((id \
+         cbc6cba4-3adb-4695-9b70-6b0868fb79db)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         a8fd6842-f4b2-4e3d-b194-21ea6dded264)(content(Whitespace\" \
+         3b33b24a-84d6-4d60-bd62-4e79c1327abe)(content(Whitespace\" \
          \"))))(Tile((id \
-         cef816eb-948e-4dab-aa56-33dcf292c1f9)(label(hungerDecay))(mold((out \
+         6a923a05-46fa-4078-b37f-090fb462bb5c)(label(hungerDecay))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         fac03469-d126-46ea-b74b-2c6151306ef1)(content(Whitespace\" \
+         ed6d5494-867d-4f85-9834-a1888c9eaeba)(content(Whitespace\" \
          \")))))((Secondary((id \
-         c87b71a0-995d-446b-b858-235fb367bc6f)(content(Whitespace\" \
+         aa08131f-79c8-46ca-9510-60be0a5d7891)(content(Whitespace\" \
          \"))))(Tile((id \
-         0605306e-5dc7-41ac-8c92-9c938b62ea9b)(label(5))(mold((out \
+         f2bf7904-3530-48ea-9551-ec377b556cc7)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         857200a6-2fcb-4510-b169-a72de69c3ad4)(content(Whitespace\" \
+         0c33e0ab-2fb7-4c2e-8d47-f84dd24ad327)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         5bc19838-4473-4135-abe0-9c5860eeef73)(content(Whitespace\"\\n\"))))(Tile((id \
-         09e42927-2b75-42f9-b8f5-984ad9db25de)(label(let = in))(mold((out \
+         b8c0a0ea-a373-4d74-80c3-3138088b5530)(content(Whitespace\"\\n\"))))(Tile((id \
+         39c27b49-9aea-40c9-a4c1-9bb912cc4c91)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         0a464890-e70a-4366-9633-d199be8b7e5a)(content(Whitespace\" \
+         0b155da7-7519-4582-9dbf-89286ca4b251)(content(Whitespace\" \
          \"))))(Tile((id \
-         65e71fb3-37df-4d19-beb9-d3e99c598f38)(label(happinessDecay))(mold((out \
+         02663b54-42d8-4f28-bdce-ee2b76cc5e10)(label(happinessDecay))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         e1e67fed-e8f2-4b50-8a01-eae3d1943478)(content(Whitespace\" \
+         96e6abe2-be2c-4c7b-9dc4-0a7855216007)(content(Whitespace\" \
          \")))))((Secondary((id \
-         2f362d63-ead5-42db-bc55-0f0fa2b2f57b)(content(Whitespace\"\\n\"))))(Tile((id \
-         78f39dce-8836-46c9-a961-6bc24e63ef86)(label(if then else))(mold((out \
+         a3b31408-5eb7-4c63-9384-cb179d6fbf61)(content(Whitespace\"\\n\"))))(Tile((id \
+         0a20bbbc-a1cc-447a-b345-a2f2357c6666)(label(if then else))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         03cc6d0a-134c-4af4-82f4-40499dfd505b)(content(Whitespace\" \
+         de151264-0032-4414-8f36-d2207f157585)(content(Whitespace\" \
          \"))))(Tile((id \
-         9ca041be-915d-47f6-94b5-9517c40f4f36)(label(s))(mold((out \
+         3fb1f954-cf11-4514-a276-760575ae7810)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         fe2f880b-f0dc-4340-b37b-9b100d499621)(label(.))(mold((out \
+         52b47e01-26de-445b-b831-4aab3445783e)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         25b13f54-7422-4784-ada7-4a8451d6709f)(label(hunger))(mold((out \
+         0d91bed4-5111-4a32-8c7c-80e866df7a9b)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b81a85c9-10ce-4e2a-9def-f5755de749e2)(content(Whitespace\" \
+         62e27310-4d1d-4513-ac93-5b5d1df3d5e4)(content(Whitespace\" \
          \"))))(Tile((id \
-         7884e6fd-c0e1-4557-9dcc-46e9fca9841b)(label(<))(mold((out \
+         de25913c-e10a-4487-b2f4-d132a121faee)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         62f24f03-892e-4f33-8c4d-149606367217)(content(Whitespace\" \
+         fa91ba15-2da3-462d-8de0-4f7d409a1b3c)(content(Whitespace\" \
          \"))))(Tile((id \
-         70458920-7025-4615-87fd-23c059d2cbc4)(label(30))(mold((out \
+         1dbd662e-6947-42e6-8359-5faa3e8f755e)(label(30))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         607364dc-983e-49cc-a2e6-ef03f20eb633)(content(Whitespace\" \
+         c0298ddd-4c3c-40c8-a8f1-77c11b0e99ab)(content(Whitespace\" \
          \")))))((Secondary((id \
-         e5c9fcbd-64da-4bfc-a252-babf925dfbba)(content(Whitespace\" \
+         9b57636d-1283-4118-bd84-5128acc60aa6)(content(Whitespace\" \
          \"))))(Tile((id \
-         229ec81a-9c97-43d3-be4e-83fb1f56cc2f)(label(8))(mold((out \
+         4d181bfa-07e0-4be6-bc71-4d8dbc3fb6d8)(label(8))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         87687f97-6df0-481f-9701-431badab8ec5)(content(Whitespace\" \
+         e9967d92-1de7-4056-a227-269aab8bff8a)(content(Whitespace\" \
          \"))))(Secondary((id \
-         dbeea4b2-0ed1-4f96-9144-e4501fb06836)(content(Whitespace\" \
+         145518b3-7961-4574-b99d-0978b595116b)(content(Whitespace\" \
          \"))))(Secondary((id \
-         3fb32201-c9a7-4adb-8142-c0d6c2b987a4)(content(Comment\"# Hungry makes \
+         d0bc8b1c-fede-48f4-be72-47af51bbfb40)(content(Comment\"# Hungry makes \
          mood worse #\"))))(Secondary((id \
-         237fedf8-98d1-43a7-833e-b5bfa1705842)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         2b3004f0-b40d-4b17-96c4-63f8bb43c7dc)(content(Whitespace\" \
+         70a34744-86a1-4647-8b89-f41aec474657)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         f01b9844-290e-4d63-9494-ae282239b3f4)(content(Whitespace\" \
          \"))))(Tile((id \
-         2b017e6f-0149-446a-91cd-11659fafc4e1)(label(3))(mold((out \
+         778f8fb2-963d-4bf0-90f4-bdd35ef1990d)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         ab059de5-832d-43ba-811f-42d0b52715e1)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         a980ed7a-dc82-423a-acd2-09f9165722a7)(content(Whitespace\"\\n\"))))(Tile((id \
-         c65fa423-a21a-44f5-85e3-9a8b6a011871)(label(let = in))(mold((out \
+         b603943b-b733-4ac3-b6a1-ac46ba702ace)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         48e7f6ff-7101-4a28-9040-d41ba8337be3)(content(Whitespace\"\\n\"))))(Tile((id \
+         9bc5f64f-e26a-47b0-ba40-91bd1184b49f)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         9f2948e8-a7dc-4725-897f-e820803fe4b8)(content(Whitespace\" \
+         79df634c-6bc6-4ed6-a710-2047aad6d4b7)(content(Whitespace\" \
          \"))))(Tile((id \
-         07f7bd1a-b98d-453c-b9e5-9edcaa5b277e)(label(energyDecay))(mold((out \
+         de0db127-2fa2-4ba9-b0e7-146e81d503c7)(label(energyDecay))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         0019e49b-a77e-458c-b0c4-91bd7365a629)(content(Whitespace\" \
+         cde4ea9b-93d9-4ac6-bbb9-97866cebcd8a)(content(Whitespace\" \
          \")))))((Secondary((id \
-         cb4a42a0-3b98-436f-b511-655a575b8a98)(content(Whitespace\" \
+         a8e13d14-520c-4ce7-816e-e13e8eaf058d)(content(Whitespace\" \
          \"))))(Tile((id \
-         b67bf9f1-e349-4b49-adb0-93b3496999c3)(label(2))(mold((out \
+         937640f8-ce0f-4144-8afe-6bb54bb01b2c)(label(2))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         0e339e84-16db-4742-8a32-dcbe999f9de5)(content(Whitespace\" \
+         330460f8-ddff-48d8-a61f-f82c21b6f68e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         6102e79c-ca6b-40fe-acc9-e192801e4463)(content(Whitespace\"\\n\"))))(Tile((id \
-         fdb4e4c3-4108-4f23-a72f-6a50617e25ba)(label(let = in))(mold((out \
+         d1fb96a2-817f-4c48-8ee1-4c3ddcd8c92f)(content(Whitespace\"\\n\"))))(Tile((id \
+         6996dfc8-2bf9-4c51-b5ea-e600b518afc1)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         015cd9db-4878-4724-9ce0-eafdd1bbc911)(content(Whitespace\" \
+         6b035b05-839d-43be-9645-1b7cccf29b7c)(content(Whitespace\" \
          \"))))(Tile((id \
-         7df7f9ee-c86d-43e5-a43d-8c47e7495f84)(label(healthDecay))(mold((out \
+         9bb6e055-e050-42d0-b85d-f086bbf4ea14)(label(healthDecay))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         b5cf1730-8a39-4699-93a9-ab9817d62461)(content(Whitespace\" \
+         e9dbda86-6056-4436-86e9-5fc993f22730)(content(Whitespace\" \
          \")))))((Secondary((id \
-         855717c4-a779-4874-8b79-5fb689b8a68c)(content(Whitespace\"\\n\"))))(Tile((id \
-         e33eef8a-b2ff-4879-9649-8f914a625a0b)(label(if then else))(mold((out \
+         04f47946-c927-4fcc-ad60-579bfd368a06)(content(Whitespace\"\\n\"))))(Tile((id \
+         93d41102-f4ce-426a-8ac2-23f0aadc688f)(label(if then else))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         a90d0bfd-2df1-489d-aff6-8686bf01b83c)(content(Whitespace\" \
+         ac2b1463-eb19-4414-a959-e8df05562d4a)(content(Whitespace\" \
          \"))))(Tile((id \
-         b25b8d59-f7ac-4cb5-be15-259f0e1e281b)(label(s))(mold((out \
+         0a25fc66-4ce2-4b8e-b46c-5b69ae9e6099)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         895a8018-470e-4f6b-b94b-4753b380fe45)(label(.))(mold((out \
+         5d6e0296-2e3d-4156-9945-722ee253f0fb)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         689384f2-275d-441b-9fd4-13b8b90658f9)(label(energy))(mold((out \
+         acc9acea-dac1-41be-a909-993e7e8dda1d)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         0a616fd0-a198-47e1-abaf-dd43d79a9126)(content(Whitespace\" \
+         5030c03e-32d8-4707-963c-b6d2b5ae5495)(content(Whitespace\" \
          \"))))(Tile((id \
-         38a6ea20-d888-466d-8035-5b0b66da529e)(label(<))(mold((out \
+         4d2aa403-0082-4dcd-83cd-f6590c6d601b)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e0c7dcd5-b356-467d-9c48-bd72db1529b6)(content(Whitespace\" \
+         972dbde0-d0a6-4725-b18b-b2e34de3d7a7)(content(Whitespace\" \
          \"))))(Tile((id \
-         5825ed0c-f7a9-4d1f-88bb-348219a748f7)(label(20))(mold((out \
+         e376f344-609d-49cf-9fe7-6e356589bd96)(label(20))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         aa1b6f74-4555-4595-bc5c-5d5a3dc6d096)(content(Whitespace\" \
+         33a1a1b0-b174-4371-977f-98ce5498c245)(content(Whitespace\" \
          \")))))((Secondary((id \
-         a6b46a3a-90e5-437b-8df3-28c5d4b32dd7)(content(Whitespace\" \
+         f64d7320-756f-43dc-9a6a-35905cb0ffff)(content(Whitespace\" \
          \"))))(Tile((id \
-         f7d68874-0dab-4139-bf9d-65d19d088f67)(label(5))(mold((out \
+         ba90aa7f-4a45-450e-be0d-f8f1ef7b498f)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         bd992eba-9337-4f91-a38d-ea7331b457c3)(content(Whitespace\" \
+         128c9146-d158-4546-a505-33fecb267125)(content(Whitespace\" \
          \"))))(Secondary((id \
-         2ae76b68-eea7-45a5-bc14-8f301de2834c)(content(Whitespace\" \
+         93d7badc-73ae-49e5-a32e-50efab150c5e)(content(Whitespace\" \
          \"))))(Secondary((id \
-         8a6143f2-2c91-4401-8b5d-0b99159d1ee8)(content(Whitespace\" \
+         6272dc31-6872-4224-8d0b-7c4ed66d3036)(content(Whitespace\" \
          \"))))(Secondary((id \
-         17b367ac-196a-4662-9fc7-a6dc455d04cd)(content(Comment\"# Exhaustion \
+         181cfcdd-b1c0-4ada-82b8-99af20fe113c)(content(Comment\"# Exhaustion \
          hurts health #\"))))(Secondary((id \
-         cb3fc63d-96c0-4785-ba1c-90758205dd9b)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         611bf244-e1af-4025-8dcf-00d9de78df1d)(content(Whitespace\" \
-         \"))))(Tile((id 8d74df89-4cc6-4d9b-ade2-e1c8650423dc)(label(if then \
+         6a6fafc4-d01c-4e77-aa1e-1a4b42fa947b)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         a470afe0-1972-4431-99b9-d75a8490a227)(content(Whitespace\" \
+         \"))))(Tile((id 7d16d9aa-7166-4b44-a063-6252b45f8028)(label(if then \
          else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 36))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id \
-         4635ad7f-0672-43d7-bde7-0f475cd9ffb1)(content(Whitespace\" \
+         34abded1-64b0-4b12-9e55-83bec963732b)(content(Whitespace\" \
          \"))))(Tile((id \
-         9d815ccf-17be-4c67-b512-12e5d2e59231)(label(s))(mold((out \
+         0c7c2742-b07c-4d21-b37b-1e0dc0ff7cce)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         e9178c14-0535-465f-8a6d-bd29da4a7628)(label(.))(mold((out \
+         6f6e321d-4661-403e-8345-7074e28ffb62)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         69464c12-d3d5-4c82-8315-1ab01a01131e)(label(hunger))(mold((out \
+         b66cfda3-8057-44d7-89b5-b6feb2f939cc)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         47eaa81c-bc58-4706-8f65-fc0258bccc53)(content(Whitespace\" \
+         bcc46a28-95ea-442c-be5c-6c150cb008be)(content(Whitespace\" \
          \"))))(Tile((id \
-         fe08e82b-48b1-4505-9aac-4603ed800364)(label(<))(mold((out \
+         5cd31be4-9a03-498d-8770-20a48886bdc3)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         80437b9e-644b-4857-9517-0d77289d5913)(content(Whitespace\" \
+         e25a0c0e-8f19-4e01-a3bd-25801c2b4696)(content(Whitespace\" \
          \"))))(Tile((id \
-         dc6e5792-951a-4836-a918-afa957215356)(label(20))(mold((out \
+         73cf148f-1340-46d3-8303-ed00ce0fb06e)(label(20))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         da212aca-9621-4db6-b62e-6fee55dbbe50)(content(Whitespace\" \
+         904d8172-5664-4cb5-9460-6c6e8dbf09e9)(content(Whitespace\" \
          \")))))((Secondary((id \
-         42e5bffc-556c-49e5-9778-ee33e216a08d)(content(Whitespace\" \
+         14b86b6d-9d1b-4d9d-8346-5cf703173590)(content(Whitespace\" \
          \"))))(Tile((id \
-         e52ac6da-4b66-4fcf-9a8a-b3fbb8c47648)(label(3))(mold((out \
+         fa670051-a8f5-4808-a80a-ca287929cd16)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         822796bc-ed7c-469c-a1a2-b176019801c2)(content(Whitespace\" \
+         3f77af69-7c96-4945-98a1-f81354ddc8fc)(content(Whitespace\" \
          \"))))(Secondary((id \
-         6566829c-0312-4f7b-a0b5-83bb99a5b97a)(content(Whitespace\" \
+         fa71939c-8c76-43f4-9f27-25f7cf2ff1b1)(content(Whitespace\" \
          \"))))(Secondary((id \
-         5e48ab0a-8289-4549-8ed5-db331d4135e4)(content(Comment\"# Starvation \
+         5ac68525-7089-4f29-b2b1-d56fcc7b2b90)(content(Comment\"# Starvation \
          hurts health #\"))))(Secondary((id \
-         6928d762-3fee-4d30-831b-6e83c93c154f)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         023d0416-c0db-4747-86d1-0c602b09c522)(content(Whitespace\" \
+         a691f405-64a2-4590-8418-b98bdf34305b)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         0aa7c3eb-3b42-451a-b87c-1cbc3001df5c)(content(Whitespace\" \
          \"))))(Tile((id \
-         5840b6f1-8478-493d-82bc-351c411a52c8)(label(0))(mold((out \
+         7fea8401-e88f-4e24-831d-9c97f3a6f162)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         e35677de-9ff4-4941-99a4-cd10b062e6ba)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         9b504a10-215c-463d-8868-a8170f0d0f0a)(content(Whitespace\"\\n\"))))(Tile((id \
-         f6c13b71-6354-4775-9b9c-eec9cd6823f2)(label(\"(\"\")\"))(mold((out \
+         44bf7b73-fca7-47a7-9cb4-8a8d59305c34)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         c2c693b5-6d5d-4ea5-9174-adad3a5f85e1)(content(Whitespace\"\\n\"))))(Tile((id \
+         86a4d078-a539-4cd5-9ec4-77b1b67e15de)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         12f871ed-3100-4ec7-84cc-199d751a6dee)(content(Whitespace\"\\n\"))))(Tile((id \
-         57bd6a80-624b-4587-a9da-7b546406f4b6)(label(hunger))(mold((out \
+         8c6b99dd-39b1-4d3c-8b8f-2eee3210f6d0)(content(Whitespace\"\\n\"))))(Tile((id \
+         fd4375fd-9423-4fda-ab61-c2d59cd773df)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         e4874bd7-cb1c-46a5-822b-8a2a98165a46)(content(Whitespace\" \
+         b2071990-3cde-4a7a-878f-a746823575d4)(content(Whitespace\" \
          \"))))(Tile((id \
-         1901b9a6-cf08-4818-bd7d-5d0c7ffd3641)(label(=))(mold((out \
+         95688c17-6dee-4cab-8828-8996c02fd164)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d85e277b-6815-4338-bc40-f301dacf79e3)(content(Whitespace\" \
+         e6372c62-a967-4030-b8bf-a368d7964c93)(content(Whitespace\" \
          \"))))(Tile((id \
-         588a3f01-87d6-4184-8ce6-8ac26dbb6724)(label(clamp))(mold((out \
+         cdc82b29-32c6-454c-8ef8-5a3dec974ebd)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         d9c7ddf1-4e21-468a-8f38-a11ea573383b)(label(\"(\"\")\"))(mold((out \
+         ccd20b11-5d29-4326-93e9-dbc98348dd49)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         d9acdd7c-380e-4cd0-9e19-356cd480279c)(label(s))(mold((out \
+         9c4981ea-8e07-419a-9a6c-943927c02e60)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f631a1d1-b5b1-4e3b-8c87-26b4008edd0d)(label(.))(mold((out \
+         4a9d63a3-c243-41db-af38-4cd4a48476fd)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         eb4c226e-f24f-45db-9bda-f25f55f4440d)(label(hunger))(mold((out \
+         9f0719c0-798c-4aa6-b8f9-93861713527e)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         2e40c9da-8bf6-4294-a24e-0e551894ae34)(content(Whitespace\" \
+         aaf1337d-6e47-4d25-9f30-5f9a1a43f8ff)(content(Whitespace\" \
          \"))))(Tile((id \
-         303d15f7-909f-4f37-89d7-365c8f730572)(label(-))(mold((out \
+         e1b91319-8fd3-4e2e-9260-3649a01dce5e)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6d6b9c1a-a74d-4aea-aed9-d7210f526053)(content(Whitespace\" \
+         64ddaa95-1314-4923-954d-c282215c825f)(content(Whitespace\" \
          \"))))(Tile((id \
-         30ffd570-c48e-441a-b936-270e751d8169)(label(hungerDecay))(mold((out \
+         8988cafe-b3d3-4b49-a93f-61802207770f)(label(hungerDecay))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         92199775-90ee-4cd7-b9d7-04fb30ad4c28)(label(,))(mold((out \
+         e7226ed1-37c3-416b-a42c-5bccfea70929)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         279aee0f-7055-40b1-bcd0-1a4630a9b75b)(content(Whitespace\"\\n\"))))(Tile((id \
-         339e0139-2763-44e8-ad74-53aff81be224)(label(happiness))(mold((out \
+         062536a0-9f60-4920-bd07-0c7bca39e9d9)(content(Whitespace\"\\n\"))))(Tile((id \
+         8ce8829c-15aa-44e0-9763-afa2a750a785)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         a4f61a95-756e-4baa-8e31-188066b5f898)(content(Whitespace\" \
+         7f2c1813-0017-4302-a99e-482daf3f1d00)(content(Whitespace\" \
          \"))))(Tile((id \
-         8363ee64-1c2b-466f-adb2-997f0d956530)(label(=))(mold((out \
+         d4e4c801-7b3f-4aa5-9a81-a2757288cacb)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         f5549ab1-e7e0-4c4d-8cd3-588e791f6db4)(content(Whitespace\" \
+         d5937200-d96e-4159-8c3d-fcecb191f02b)(content(Whitespace\" \
          \"))))(Tile((id \
-         a4b9718c-c4e9-4758-9d38-5980619d8d9a)(label(clamp))(mold((out \
+         fced54b2-a964-44b0-a20e-a71f6bbdc364)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         8239a169-80e2-4d84-acb6-a92b4a38a708)(label(\"(\"\")\"))(mold((out \
+         381eb6bc-6ecd-44a0-9293-e13fc45f5ccd)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         f937acbe-f843-4951-adcf-d948537ade81)(label(s))(mold((out \
+         73af10d5-db71-465b-89ab-abf51a286ce6)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c0e63adf-e2cb-42c2-a8ef-10b19f877741)(label(.))(mold((out \
+         767f5a31-14c0-4c86-8697-6faa0b7a7b96)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         07f720de-1bdf-4faf-b123-7568481cf3bc)(label(happiness))(mold((out \
+         0c085052-b6f7-490a-8ecb-9fc234cdc470)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         86ddac2b-66ac-4711-b883-80200b68f5f9)(content(Whitespace\" \
+         fc569837-0474-446f-b18e-49046c1637ee)(content(Whitespace\" \
          \"))))(Tile((id \
-         90bc370f-35f5-4647-94d1-678ee26a6a8f)(label(-))(mold((out \
+         262b267a-1729-4877-b2e1-ec33fe760e13)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         aecea9ab-2b9e-4643-bbf6-6180a993c66f)(content(Whitespace\" \
+         3b9ad2e0-bc67-4b4f-98ca-71482d3b3412)(content(Whitespace\" \
          \"))))(Tile((id \
-         049431be-1b7b-44e8-8577-28d8042b28bd)(label(happinessDecay))(mold((out \
+         a4490e04-e63b-445c-982d-d53e603afb55)(label(happinessDecay))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         4a8e9f3b-6cd5-4eb3-8025-68c9d598bba1)(label(,))(mold((out \
+         5ed882d5-d385-49d6-b353-43c9eb8cf349)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         48906fb7-4ea1-47e6-8e3b-dda5b115c84f)(content(Whitespace\"\\n\"))))(Tile((id \
-         00af3808-a02f-4573-b5e0-39c0d3155422)(label(energy))(mold((out \
+         39215375-04a7-453b-991d-612e98a946f2)(content(Whitespace\"\\n\"))))(Tile((id \
+         2457d4dc-9728-4748-8fd4-728ca78ef4ea)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         57f393e3-3d23-455c-b35c-2d8cff9322bb)(content(Whitespace\" \
+         e6db1bd4-5e0e-4d56-8f34-0269c856cfd3)(content(Whitespace\" \
          \"))))(Tile((id \
-         01113420-1a44-45d9-ac93-65959408b6aa)(label(=))(mold((out \
+         7a74ebec-84d4-4b49-812b-7d451b5a8842)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         f351f90c-b33f-4c82-9915-0fc6611629fb)(content(Whitespace\" \
+         5eb5869c-38be-45ac-ade3-7968def40b0e)(content(Whitespace\" \
          \"))))(Tile((id \
-         99b83b51-8f58-45cc-826c-18e5c012db67)(label(clamp))(mold((out \
+         2e58314b-b83b-45f8-b052-35a19226a37b)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         05703d97-3a1a-4b12-a7cb-6db9bc6476e8)(label(\"(\"\")\"))(mold((out \
+         0c111144-8132-46eb-b99e-2be3cfb88531)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         96b7f294-92e4-4031-9459-9d8019c850e4)(label(s))(mold((out \
+         997215cf-cb62-46e4-b7f2-a8184b849580)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c2841484-d9ee-4ace-aae9-840cdb20c197)(label(.))(mold((out \
+         a5396e60-259c-436b-8894-fbdc4338e160)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         ea90f4a4-4829-4334-aff3-c1142750e2e6)(label(energy))(mold((out \
+         8e845a6e-6a11-45cb-99d8-0f47b4bfcb9e)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f6f92bd9-e155-42af-bc61-cd6a5f6701f5)(content(Whitespace\" \
+         ea92d8fc-87ab-4603-ba9d-675508734f54)(content(Whitespace\" \
          \"))))(Tile((id \
-         71a3020e-bf24-487a-b708-098c8cecb32e)(label(-))(mold((out \
+         4142d8cf-3028-4f38-ad2d-b1741ae0eb47)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         546cff3e-db0c-4fda-b240-0a1647b2540c)(content(Whitespace\" \
+         b79f7998-d29f-4c57-abe3-e90a41bb8089)(content(Whitespace\" \
          \"))))(Tile((id \
-         ccad77bf-2e79-4b19-b119-5232d92a4be6)(label(energyDecay))(mold((out \
+         ab4709e6-4acc-485d-91c3-e95e08f9f515)(label(energyDecay))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         a4bee4e3-7362-417a-af02-969abf7d97d0)(label(,))(mold((out \
+         81d677f6-cef3-4e01-9bfe-149481dc296e)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         523deb8e-0550-4f67-ab36-80d8babf247c)(content(Whitespace\"\\n\"))))(Tile((id \
-         65a46587-6d30-4ecb-9f00-f31086a4c432)(label(health))(mold((out \
+         b19d038f-0c4b-4ddc-b0cc-ce0041a4b83d)(content(Whitespace\"\\n\"))))(Tile((id \
+         43587972-2dc0-4c12-a857-9673d7e12db1)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         922c6e50-79c9-4f87-b0bc-40ae7213282c)(content(Whitespace\" \
+         d97d0105-e3fe-472d-bcef-e09e257adc70)(content(Whitespace\" \
          \"))))(Tile((id \
-         27b90ec3-5765-4fc5-adc4-a74b7b96e066)(label(=))(mold((out \
+         4c6dc57c-b9d9-4f19-94b3-77d49190eb3a)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         244496c0-1c49-4143-b6fe-73fcadc8d230)(content(Whitespace\" \
+         2875e450-5f22-450e-91f5-fe0c761adc84)(content(Whitespace\" \
          \"))))(Tile((id \
-         0f466d47-33ea-484b-b7d7-fc178b64faef)(label(clamp))(mold((out \
+         e0d8721c-e258-4f99-b326-c5bbfaefe6ea)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         95b29aa0-5f61-496c-816e-fdee3d584dfe)(label(\"(\"\")\"))(mold((out \
+         f60ca3bb-0326-4ac2-b17a-bd8f2a53305b)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         72ce0a13-4cb8-408e-9162-2056ab554297)(label(s))(mold((out \
+         5f5e1b8b-a363-4877-94c5-5f7de733d559)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         df2b0b18-4cb5-46b1-9830-4ade682ff188)(label(.))(mold((out \
+         5a38fb76-0c8b-49d6-9eb5-dba353aadb43)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         8e49c259-0510-4ef1-97af-c4f4dc78a8a9)(label(health))(mold((out \
+         9a3b9a6b-3b4b-49ca-8486-26359f397146)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         95513966-13fe-4b80-a475-89d9e92c5fe9)(content(Whitespace\" \
+         61ff72c9-71dd-494a-aa47-bf67268dd2c0)(content(Whitespace\" \
          \"))))(Tile((id \
-         dc5fdff3-bbdf-4815-b0f6-d37cd511015f)(label(-))(mold((out \
+         3b5ce0f9-b91a-428f-8eea-84e772216f37)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         de38a77c-bed6-47e4-88e2-d1decdd0649f)(content(Whitespace\" \
+         6cebf07f-d34f-42c6-8320-1df11733d9be)(content(Whitespace\" \
          \"))))(Tile((id \
-         21524641-50ca-45b6-8053-c3b9b4d69367)(label(healthDecay))(mold((out \
+         2d5384c7-701c-4345-94e5-0337879bf8f8)(label(healthDecay))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         9b8fd4f1-f666-40d0-9eed-7bad857fd586)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         957da3dd-d410-4733-9e77-25451d5dc199)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         83ccae01-7f09-438b-b9d2-38010d532975)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c304f432-a3c0-4d58-a1ea-27e87275e606)(content(Whitespace\"\\n\"))))(Secondary((id \
-         dbf2a594-1710-4589-8dc9-0b1b17cbea0a)(content(Comment\"# Determine \
+         830a6741-f038-4d85-adf7-bdca488142ed)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         ac55717d-fde0-45e4-b254-ebebef86ea8a)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         e51fe178-ad46-4d42-b283-cc76b8e9c011)(content(Whitespace\"\\n\"))))(Secondary((id \
+         594e9154-5887-46ec-9659-7344a745f9c7)(content(Whitespace\"\\n\"))))(Secondary((id \
+         80dae7d6-037d-4817-abc4-ac21d4c06e57)(content(Comment\"# Determine \
          personality based on memory #\"))))(Secondary((id \
-         d92c1da8-891a-4841-b19e-3e9d5f0ddb44)(content(Whitespace\"\\n\"))))(Tile((id \
-         c84a492a-0c78-47a0-93a7-6166abf2f806)(label(let = in))(mold((out \
+         b9d5f4dd-a835-464a-b0a0-b8951086abc0)(content(Whitespace\"\\n\"))))(Tile((id \
+         6a358acf-dcde-4b17-a4a1-53fcb6e056ad)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         878be3e6-e8e2-4be9-952a-310fc6861c7e)(content(Whitespace\" \
+         833fe4b3-c800-4ec4-aec0-690ed5f2fb52)(content(Whitespace\" \
          \"))))(Tile((id \
-         544d5cb7-69b6-421f-84cf-7a1564a0ce18)(label(calcPersonality))(mold((out \
+         df388352-b40c-49ea-aa3d-ff9b89b282ae)(label(calcPersonality))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         6cb2d819-b126-4d0b-9f60-6becdc8c003e)(content(Whitespace\" \
+         886481a6-c811-49a8-9148-a0e72cab2e5e)(content(Whitespace\" \
          \"))))(Tile((id \
-         fddd7cd8-e0b7-4b77-802e-8ef4a579f02d)(label(:))(mold((out \
+         e51bb9ff-2e6f-47f1-b878-0c9bf1be1c1d)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         affc0a69-dee3-45ac-9ec5-79508ea96887)(content(Whitespace\" \
+         e4c1ebdf-622e-4fef-95ed-e4172a1fabf2)(content(Whitespace\" \
          \"))))(Tile((id \
-         f1d08c89-3c04-4075-83b3-1fee840fc22d)(label(Memory))(mold((out \
+         198c8653-62ca-4af9-bee4-b1664372e5c5)(label(Memory))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         3b7e9ec2-022a-4a21-8712-344823c8761e)(content(Whitespace\" \
+         d0ef4a46-b829-4c18-a333-906ee3b55bd1)(content(Whitespace\" \
          \"))))(Tile((id \
-         2d0cea57-bbbf-426f-a998-033b8bb6fb40)(label(->))(mold((out \
+         fb6856fd-aabc-42a1-adc8-7d226336e06c)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         63a39ab8-fff8-49a2-924f-21585826c24c)(content(Whitespace\" \
+         6fa0bc66-3d9e-428c-9d95-490ae538cf07)(content(Whitespace\" \
          \"))))(Tile((id \
-         0254da13-a8e0-403d-bb2a-f0f2c864ac56)(label(Personality))(mold((out \
+         0d0482af-72d6-4b6c-bb60-918d5223bd90)(label(Personality))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         c48a8bca-fd0d-4ac4-b2e9-95d505cd17cb)(content(Whitespace\" \
+         8694677c-7628-445b-a670-2e5ad762d19b)(content(Whitespace\" \
          \")))))((Secondary((id \
-         4a5ceff0-7f00-4957-94ae-7181ebc1da42)(content(Whitespace\"\\n\"))))(Tile((id \
-         e373c07a-2096-4441-8e99-19f0c8bc4bab)(label(fun ->))(mold((out \
+         9e5dab46-9452-4f4b-8fd1-d2d8dbf6e3e3)(content(Whitespace\"\\n\"))))(Tile((id \
+         3fd7fd89-2a62-4b7a-8708-4b9b91405759)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         07995fe8-4fec-48dd-8cf3-deaa1525694f)(content(Whitespace\" \
+         f3e0afc1-25e8-4070-a701-46ea257bd3c4)(content(Whitespace\" \
          \"))))(Tile((id \
-         e788be7f-7ea4-42e7-afd7-52ec4c289c01)(label(m))(mold((out \
+         8a33ebe8-5cbe-4c9e-9f4f-76b36e12d235)(label(m))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         9ee34620-54cf-4498-87a8-f6074a70d8d9)(content(Whitespace\" \
+         4b06157a-9bc3-4a37-b1ad-42901208f610)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         4042eb1b-8324-42c8-9b9d-85a51b6251b3)(content(Whitespace\"\\n\"))))(Tile((id \
-         e9187253-355d-4d8c-8387-7f3d9aa99078)(label(let = in))(mold((out \
+         90e4481a-fd97-42a8-849a-d8c84497c7c6)(content(Whitespace\"\\n\"))))(Tile((id \
+         127546c3-aef1-44b9-8aba-6419e0c85389)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         d2266c3e-98d9-4284-b5d6-d7893e4b0439)(content(Whitespace\" \
+         c6941f80-c588-462f-8ac9-b772cc127a4b)(content(Whitespace\" \
          \"))))(Tile((id \
-         e76bb901-8c39-4eed-8cef-fa533956a20b)(label(careScore))(mold((out \
+         d30ba51d-badf-4d42-949c-069e008cf877)(label(careScore))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         bcbb3090-dd07-4f69-bac2-88a11d7b5af8)(content(Whitespace\" \
+         0641a54c-085b-429b-9576-1cf9b06b6f43)(content(Whitespace\" \
          \")))))((Secondary((id \
-         b86a4e68-969f-4e05-85e4-930b6717b2e1)(content(Whitespace\" \
+         b87ffeb8-14a6-4086-89bc-a2db0bd05049)(content(Whitespace\" \
          \"))))(Tile((id \
-         6d1f1162-40e9-4bc5-8652-b5f07c6a694c)(label(m))(mold((out \
+         9cadf118-f022-4f58-99d3-c8cb33b7f964)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         cf75168f-0654-4b94-994d-6dbe08061eca)(label(.))(mold((out \
+         e234a38a-a8d3-43b6-a37c-5ab83abc82de)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         93988697-dab2-49b4-9b8b-182d0e32acc7)(label(timesFed))(mold((out \
+         508d8d17-b7fa-43a6-85e4-72bf34b3e2ea)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f9e830bb-893f-46a7-945b-23e7ea4c2962)(content(Whitespace\" \
+         90135965-c07e-461d-94af-7db51ac6c471)(content(Whitespace\" \
          \"))))(Tile((id \
-         845159f4-c801-43a1-9337-6b53d6bca381)(label(+))(mold((out \
+         dff74d11-ca25-4ff6-a291-15215828ed39)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         ee5c9291-5d3f-499d-9901-75ef8f7600b8)(content(Whitespace\" \
+         de8c2b56-92aa-41d6-b034-5ae2d0712d95)(content(Whitespace\" \
          \"))))(Tile((id \
-         2ec56b88-c393-4805-8d0d-8cef7ec58629)(label(m))(mold((out \
+         34e4f4d1-5845-4163-b821-944c6fd6026f)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         90fff213-dd97-420e-b454-da9a8e3c3902)(label(.))(mold((out \
+         5d877794-2010-4cc3-9b08-0648fd932f20)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         3c8141a9-4279-4de5-a8de-e24a419f3090)(label(timesPlayed))(mold((out \
+         dfae37c1-94dc-4864-b2de-fbc7f87edfe8)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         928f8b0c-87a0-496b-b67c-77c073046835)(content(Whitespace\" \
+         bb1e02b5-8e92-45f9-8a5c-1d21da9cf03b)(content(Whitespace\" \
          \"))))(Tile((id \
-         7436f557-1e26-4c6a-98ee-c8a8c14ecd1e)(label(+))(mold((out \
+         fe7cc787-a8a7-47f5-8053-de7c6a5ff85d)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         1e8a7c09-923a-4335-9ba3-6f1de73bc681)(content(Whitespace\" \
+         a9846e60-2214-4d44-ba83-1bf3992abbbc)(content(Whitespace\" \
          \"))))(Tile((id \
-         889bae57-9e90-474a-895b-57c5bbb10672)(label(m))(mold((out \
+         109c80d5-e9d1-4dfc-990c-c9c77ff06f57)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         da3065f2-38f0-487a-a056-f275ce0fe4c1)(label(.))(mold((out \
+         a33827cd-15ef-4c8d-a989-e4a04ed8c32a)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         e7eee05f-5a36-441f-b19f-c3c45663bba4)(label(timesSlept))(mold((out \
+         9552e685-5499-49c1-ae47-79bb7a167a88)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         4b35f1ea-7dce-4133-81aa-557873031856)(content(Whitespace\" \
+         261651ab-761e-4b6d-b393-ca226db41f68)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         a4bcc41f-fdea-4605-847d-97f6a4d60e43)(content(Whitespace\"\\n\"))))(Tile((id \
-         15dfcffa-4e3d-4ab5-91f6-3e434ac8ca81)(label(let = in))(mold((out \
+         05c69b34-b513-42d1-80cb-31ed798b30bb)(content(Whitespace\"\\n\"))))(Tile((id \
+         2207287f-5435-40a1-b439-8c29efd2f2c5)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         bf2d52bb-1de4-4122-8803-56b658395c8f)(content(Whitespace\" \
+         f5634af7-9008-48ee-aa98-88672b91d28a)(content(Whitespace\" \
          \"))))(Tile((id \
-         35eece18-f713-461b-aa29-b5b49a26f589)(label(neglectScore))(mold((out \
+         6925c8a7-56f6-46a5-9c20-6423fd56849c)(label(neglectScore))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         ce50ae9e-40a2-4a4d-8a9d-8e4f3f2b40a9)(content(Whitespace\" \
+         b03d0714-3936-46b6-85b2-4d37d200aa81)(content(Whitespace\" \
          \")))))((Secondary((id \
-         aa82e7b9-0b0d-4a8e-830f-eafa6b07fcda)(content(Whitespace\" \
+         7eb5e5ca-d549-468e-9233-5934b4a11fbc)(content(Whitespace\" \
          \"))))(Tile((id \
-         6c617d7d-0940-414c-86ed-57de3d5698d3)(label(m))(mold((out \
+         1480fcf9-0d58-4537-9598-a18f64bdeb38)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         258f261c-2313-4ef5-a6ea-4025ff1d719c)(label(.))(mold((out \
+         675eaf97-9a34-4346-8a34-677ef9262aa4)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         8fe94c95-7d9d-413e-9951-1c01795e3376)(label(timesNeglected))(mold((out \
+         02c4cbae-8aed-4cc2-89e0-95b5c492d447)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         2f2d6863-e03e-4f5c-8bcc-670222ed7aec)(content(Whitespace\" \
+         3aca8273-e9ab-4a2d-ad44-8bc531773341)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         5c4322d4-f3c0-4a4c-aadd-4f1a9513c4c2)(content(Whitespace\"\\n\"))))(Tile((id \
-         98d7eec6-130c-4e68-a7c9-c21c87982e0b)(label(if then else))(mold((out \
+         156225a8-5d6c-4419-875d-49a9c7562a5b)(content(Whitespace\"\\n\"))))(Tile((id \
+         268c0366-05b5-4ab9-81ea-1512accce47d)(label(if then else))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         d28d966b-72ed-4322-84d8-e052bb81e0eb)(content(Whitespace\" \
+         c7eccc95-7734-4417-bbe1-1c41e8d7fd15)(content(Whitespace\" \
          \"))))(Tile((id \
-         c8b9f8a8-be57-4c38-88ac-df733c5c04da)(label(neglectScore))(mold((out \
+         1af7ea0a-41c8-4f10-86e5-b51378afd78f)(label(neglectScore))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         80be47df-d300-43e0-a0db-3bb48c73bce9)(content(Whitespace\" \
+         9e7c1c2a-e535-4baf-a757-17b026304f3a)(content(Whitespace\" \
          \"))))(Tile((id \
-         de2194f8-c0f3-4d95-894d-176ea1b3e463)(label(>))(mold((out \
+         ff72d99c-6aed-4907-96a7-9bf2c5530fb0)(label(>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         7f03053c-2f42-42ad-b165-acae52027762)(content(Whitespace\" \
+         53400b66-7a5a-4524-8754-66ad9de0761c)(content(Whitespace\" \
          \"))))(Tile((id \
-         c1b55f1d-e543-4dd1-8c2d-e0e01f93eacb)(label(careScore))(mold((out \
+         479f7205-2cbc-4ac8-a660-46a0f7297cfb)(label(careScore))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         990c6427-7571-465b-a8d9-e631cefa725b)(content(Whitespace\" \
+         5caf4d58-6f67-4008-8e36-2305ce1d6e8f)(content(Whitespace\" \
          \")))))((Secondary((id \
-         a0cf1b43-b7d1-4fb5-a25c-910b7c8e058e)(content(Whitespace\" \
+         38a22022-c267-49cc-b974-6ec81b667ea4)(content(Whitespace\" \
          \"))))(Tile((id \
-         e1e17958-dcf2-4aff-be30-ba565d97d6cb)(label(Grumpy))(mold((out \
+         5fd619b6-b500-4e21-beb0-06f52075edbb)(label(Grumpy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         0364cac8-2d30-4fd0-b69c-8616ad5afc3e)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         281594f3-517b-4654-bae1-44d300647f25)(content(Whitespace\" \
-         \"))))(Tile((id b7f682d7-b415-460d-bcc8-5df059d2ec7e)(label(if then \
+         a1861409-db9b-4aba-9156-4abdc3b38644)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         0b3767f9-2fa0-4170-a917-e9ff054a9ad1)(content(Whitespace\" \
+         \"))))(Tile((id 51b49218-b393-49f0-bf70-57ba0834674c)(label(if then \
          else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 36))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id \
-         f8219e2c-9732-4619-994f-45071c72d0d2)(content(Whitespace\" \
+         6045b0d1-30a6-41c3-a62a-5c23d0daa3e6)(content(Whitespace\" \
          \"))))(Tile((id \
-         0d934ee9-ed2a-4b78-b1ec-eb4b552fac37)(label(m))(mold((out \
+         5237aea9-f010-4f4c-a888-17eab9979e45)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         a4aca0b6-8ba7-4a7f-b6de-4e6d5de88f5c)(label(.))(mold((out \
+         d2f8b224-ae58-431b-b9df-ac47047b4b55)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         47f0bf42-1e4b-426b-9091-d163fdd29754)(label(timesPlayed))(mold((out \
+         a782b10e-fad8-4c40-90f4-111e62758eb0)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3b430fd6-9443-4e9b-ad79-b78256e04646)(content(Whitespace\" \
+         759592d8-75a9-4b22-a116-b002d5c63c93)(content(Whitespace\" \
          \"))))(Tile((id \
-         8c8bbc2a-1cc2-4244-955e-47c8af923197)(label(>))(mold((out \
+         4005646f-0d56-46db-b450-471c4cead531)(label(>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         998e394e-6882-4fa1-918f-39e5c8806131)(content(Whitespace\" \
+         b4f78dad-67e6-4fb2-94c5-bd1985b8ac6d)(content(Whitespace\" \
          \"))))(Tile((id \
-         ff389446-8610-4d7c-8769-06fe73bb85fd)(label(m))(mold((out \
+         1f3e7163-4cde-45c3-aa2f-5acb4f1bb042)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         abd2c08c-606a-43cc-a01b-eefb7572d9cc)(label(.))(mold((out \
+         3da9c066-6ed4-494f-a046-5dd49d60bf23)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         0906d973-935a-47ab-aa62-295170f586da)(label(timesFed))(mold((out \
+         b898ecf3-cd38-4d2c-a684-1d000b8013b4)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f80f66f0-7937-4725-8142-6f55aea61771)(content(Whitespace\" \
+         f9299074-86a7-4d0f-94a1-c26ef9c8cead)(content(Whitespace\" \
          \"))))(Tile((id \
-         2002867f-e0c2-42df-ad57-225d58664069)(label(+))(mold((out \
+         50fb5c76-36b4-408d-8852-1f2e51547c5b)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e4d4723e-b1b8-4dae-9cfb-c9dadcefd444)(content(Whitespace\" \
+         ae9aadd0-fcc9-4d10-a0d6-f92bf49454a8)(content(Whitespace\" \
          \"))))(Tile((id \
-         bf6d7b65-c033-4ec5-8f77-8e1afd8d0977)(label(m))(mold((out \
+         9a188cd4-be78-4111-8467-ab0cf5b95958)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         747c5df1-8776-4f6f-b6e5-11973455299b)(label(.))(mold((out \
+         b7f4ee68-8f2e-49d9-876e-f9226609e9c0)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         fb425fbe-27e0-4e8e-8f02-687650b24473)(label(timesSlept))(mold((out \
+         6678dcfb-f5df-4294-8f9a-a07033b05aeb)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         8896b028-b59c-4bc9-b93a-02e46e86194b)(content(Whitespace\" \
+         f4ebe2dc-ec81-48d1-824c-a6cb19a3588e)(content(Whitespace\" \
          \")))))((Secondary((id \
-         84d74239-1579-4373-ab9d-8b00bccb0e3e)(content(Whitespace\" \
+         f714ebc0-1ca1-4284-896a-5a6073c9abec)(content(Whitespace\" \
          \"))))(Tile((id \
-         dc845856-c60f-4d75-a86c-9ac284f17951)(label(Cheerful))(mold((out \
+         3a41cba2-30fd-4cbb-ae8c-b278988d65e6)(label(Cheerful))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         7063fb36-4729-480d-b69e-a9e65e71e0c3)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         2423c0ea-334e-4225-b6d7-d8d67883243f)(content(Whitespace\" \
-         \"))))(Tile((id 0a1ead1a-6bd3-4edc-a7ac-792afea77c2a)(label(if then \
+         ad8ac011-ba1e-40a5-80e5-06f8f409598e)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         992d77e1-9834-44a5-bda4-1ffce75f996f)(content(Whitespace\" \
+         \"))))(Tile((id e2514bcb-8792-400e-aee5-8b18fc36f3c9)(label(if then \
          else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 36))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id \
-         8f81c322-f783-4b14-b1a9-8aea6bb501f0)(content(Whitespace\" \
+         d0092055-a368-4d38-ad52-8a80a11d3505)(content(Whitespace\" \
          \"))))(Tile((id \
-         fcd8ce94-9d1e-4dc4-91f2-178374e5cf8d)(label(m))(mold((out \
+         c2156b46-5e4d-4e32-aa05-e3a2ae8dc3b6)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         74fee1e6-5a00-4210-b9fa-ef824598be24)(label(.))(mold((out \
+         ea7a9ef8-1782-4de4-89e0-7a5efdab06b7)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         dd366453-ce77-406a-ac4a-5ccde4ba1768)(label(timesNeglected))(mold((out \
+         10df697b-7ee3-4c5f-9d5b-50b84fb3e41e)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         c79ebc2d-c800-4272-a8f0-67307468c8ec)(content(Whitespace\" \
+         ba27ccdc-8a31-4f0b-bbf7-b96967239b36)(content(Whitespace\" \
          \"))))(Tile((id \
-         b4abbbe4-da9f-4685-a486-163949ab1ef4)(label(>))(mold((out \
+         eebae7ac-d9f9-4bf0-8e31-ec54006dba1a)(label(>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         7a0601ed-bd54-4fd4-8b95-f1c3b4b5e19e)(content(Whitespace\" \
+         a10dc42c-2191-4df4-8677-1999a55d9996)(content(Whitespace\" \
          \"))))(Tile((id \
-         0ebb4615-37e7-4616-acb2-9a587acf531d)(label(5))(mold((out \
+         00cacc4b-6df4-4753-baa3-3047b2b5e2b2)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         c0acbab4-775e-43e4-b115-c014ac60edc2)(content(Whitespace\" \
+         e61a6a77-4ab5-4d38-abeb-d7a21861c626)(content(Whitespace\" \
          \")))))((Secondary((id \
-         bf9fd509-3739-4d95-8805-0657993a0876)(content(Whitespace\" \
+         40dd04f4-3245-4803-bcda-976b0d70cc7a)(content(Whitespace\" \
          \"))))(Tile((id \
-         aa9a6a1e-c253-43d4-aa07-dec3b17d3243)(label(Anxious))(mold((out \
+         62573285-e405-4ff3-8c49-73da6e91ced0)(label(Anxious))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         2d25891d-1919-4241-bc41-8144c6e55b53)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         1726d964-b723-4cbc-873b-8740320e4ecb)(content(Whitespace\" \
+         76b20a87-5776-4a0e-88bb-0cd2f442b59b)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         081e51c6-0062-4904-8eca-67d63fdb1482)(content(Whitespace\" \
          \"))))(Tile((id \
-         2bb57221-fe0a-40c9-9d65-846401aaecde)(label(Balanced))(mold((out \
+         60f472fc-160a-4fa7-bc84-ae5134b4a64e)(label(Balanced))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         33ec5c0c-dc47-4650-9442-6403a59a86d4)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         f4dc4c06-594f-4a80-af7d-eae364767e30)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9c4b6692-8bf6-4aa6-aa6c-2ad90dd5d449)(content(Whitespace\"\\n\"))))(Secondary((id \
-         73ab2ac2-ecb8-4bf2-adb7-1eb9446bfe0c)(content(Comment\"# Determine \
+         7f716ba3-1799-4471-b839-a7575ed970a1)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         a9029314-e05d-4ee4-bdda-4b5c63cb39d4)(content(Whitespace\"\\n\"))))(Secondary((id \
+         10f51255-3b4c-43f3-9d5c-c5dc1adcda5e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         92a576e8-099a-49fe-b8e9-8c2786dd6f92)(content(Comment\"# Determine \
          evolution based on age and care quality #\"))))(Secondary((id \
-         5fd53c75-f5b5-487b-804c-e71721bfa7ff)(content(Whitespace\"\\n\"))))(Secondary((id \
-         330dc55a-68a0-481c-ac2b-95153397063e)(content(Comment\"# BUG: Uses \
+         e3815ed6-5814-4b20-9147-544e1c8bd73e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         2f26a99d-6ee9-42ad-976a-f4cc64e51acc)(content(Comment\"# BUG: Uses \
          neglectScore > 0 instead of neglectScore > careScore \
          #\"))))(Secondary((id \
-         465d160b-12dd-4090-8ca7-ee8a4da1e788)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b9e23cd8-a4da-4b90-a886-76729f3bfc23)(content(Comment\"# This means \
-         ANY neglect at all prevents Golden/Adult evolution \
+         52be7be6-cd1c-49c1-b597-e462c32329ca)(content(Whitespace\"\\n\"))))(Secondary((id \
+         78822ed5-cb8b-40ab-93db-91f7049571bc)(content(Comment\"# This means \
+         ANY neglect at all prevents Elder/Bloom evolution \
          #\"))))(Secondary((id \
-         6889ce72-5003-44ba-848b-2c19c0652d8a)(content(Whitespace\"\\n\"))))(Tile((id \
-         c782363c-3cc9-416e-a56f-8822a4b32eee)(label(let = in))(mold((out \
+         a10ea8d3-fae4-4f14-b553-2edc721220bc)(content(Whitespace\"\\n\"))))(Tile((id \
+         c429c4e6-64cc-4a38-ae00-6db2bf531719)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         158fb32f-65e7-432c-9475-631037a5f263)(content(Whitespace\" \
+         71a19af0-da40-4010-a1d2-eacd1a804398)(content(Whitespace\" \
          \"))))(Tile((id \
-         68caae6b-8e2c-4fa4-ac05-77c747caeaf7)(label(calcEvolution))(mold((out \
+         1793654e-6021-4b6d-b8ff-6812a4ff493a)(label(calcEvolution))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         c6eb1175-554c-49e2-935a-dd86ea91036f)(content(Whitespace\" \
+         92a5cf0e-64d7-4c05-a5f9-f856e339cd03)(content(Whitespace\" \
          \"))))(Tile((id \
-         d2553243-de0a-451d-926f-2913eb085364)(label(:))(mold((out \
+         3adb4e71-bb0a-4c9b-9c07-58f7aef33099)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         9390dd55-59c1-4e1b-9044-f676d7986f07)(content(Whitespace\" \
+         f88d8373-bcf5-44c2-abe3-da2114005650)(content(Whitespace\" \
          \"))))(Tile((id \
-         12033dc8-ef60-440a-91f2-ebe89ae3efce)(label(\"(\"\")\"))(mold((out \
+         4d0474ca-3397-4d7f-b6c4-81e6b6f37de5)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         20690512-12d9-49f4-84f3-fa63477d3d8d)(label(Int))(mold((out \
+         3d68eab3-ba6a-4c7f-ac56-050fe60e745b)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         86672340-4c28-416a-8fb0-7cf108f3d0a7)(label(,))(mold((out \
+         cd736dba-7479-48ed-bdb6-a3db0ad81059)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         8e83c1b4-65bd-4eb4-abfc-e2891549feba)(content(Whitespace\" \
+         db970a3e-8559-4d0b-a2c0-52850721db2c)(content(Whitespace\" \
          \"))))(Tile((id \
-         0c427c90-5a68-41f6-b942-d564cd5e8f95)(label(Memory))(mold((out \
+         2e1e43a4-2ab5-4353-94ba-c32eb3f6ac29)(label(Memory))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children()))))))))(Secondary((id \
-         d239f7e8-eca7-49f8-99c0-f841f6c64a4e)(content(Whitespace\" \
+         712c99e0-5825-4579-b419-3664f00da4b6)(content(Whitespace\" \
          \"))))(Tile((id \
-         7df50342-d80b-4346-8e01-fcdc1423bece)(label(->))(mold((out \
+         ecae5727-72bc-46fe-8f8b-f27cadec0ba8)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         519327c8-622d-4812-9e02-a235b20a6213)(content(Whitespace\" \
+         d85aa36e-0b7a-465e-ba41-4e3124386c54)(content(Whitespace\" \
          \"))))(Tile((id \
-         25933808-b14e-483e-986c-b888a5f3dde6)(label(Evolution))(mold((out \
+         64e38ec1-a102-470b-ac7a-ea11ff0bde95)(label(Evolution))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         ce166377-368a-4e54-b8a3-7dbf9ace4863)(content(Whitespace\" \
+         0e24b909-c20e-4700-9bab-83e01cc91636)(content(Whitespace\" \
          \")))))((Secondary((id \
-         dd31d156-ebd9-4b42-ad8e-cc608fffdbf1)(content(Whitespace\"\\n\"))))(Tile((id \
-         44d55417-539c-4ffa-840b-2ee4c7c69bd5)(label(fun ->))(mold((out \
+         73e400ab-5945-48e1-a9ba-8f2c2bf9bb01)(content(Whitespace\"\\n\"))))(Tile((id \
+         e6654260-0457-481d-9257-e744b46c6d24)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         522afb99-8cdc-40ba-8296-2063fa9d3dad)(content(Whitespace\" \
+         1012831e-347d-4cae-bc10-e85726df496d)(content(Whitespace\" \
          \"))))(Tile((id \
-         a1dd30bc-4ef8-45ec-ba68-3892795c28eb)(label(\"(\"\")\"))(mold((out \
+         48b4433c-c790-417a-a26f-6939d8cf4e34)(label(\"(\"\")\"))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0 1))(children(((Tile((id \
-         fe0c671c-3857-4524-bfe5-8e84c94db7c8)(label(age))(mold((out \
+         28db6183-9225-4316-8cd3-34223c0eb78e)(label(age))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         16685f28-33b5-4019-9c77-28b74495e234)(label(,))(mold((out \
+         1754eca6-b627-45c2-8cae-d2ed461c0131)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 44))(sort Pat))((shape(Concave \
          44))(sort Pat))))))(shards(0))(children())))(Secondary((id \
-         01945018-20e6-4b1c-8586-7c6d88dc692b)(content(Whitespace\" \
+         69762075-2add-49d1-8c46-eeedb9684b6f)(content(Whitespace\" \
          \"))))(Tile((id \
-         1c063836-d860-4fbe-9d73-a52205c43152)(label(m))(mold((out \
+         e16a2f64-8645-409e-ac7b-08293cfde793)(label(m))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
-         af0020e1-14d1-4eae-afb6-d3f3bfe99cef)(content(Whitespace\" \
+         04b61d4d-84f9-4b4e-984c-119dacc5acfc)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         4f4586c9-0e4b-4d5e-be00-0d9b5a62f22c)(content(Whitespace\"\\n\"))))(Tile((id \
-         0848c013-e26b-4f3a-b416-7c854ab22d10)(label(let = in))(mold((out \
+         fac6cc27-c130-4166-865b-68d9a91e561b)(content(Whitespace\"\\n\"))))(Tile((id \
+         04e8e0f3-b65a-40b9-8e51-a62f3e4a07d1)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         39a5e71f-367e-43f4-a0b6-eba598714a2b)(content(Whitespace\" \
+         144d854f-e7fe-4616-a51c-f96bc77f39ed)(content(Whitespace\" \
          \"))))(Tile((id \
-         a89252d8-33f1-4196-9719-bcb6a0543d22)(label(careScore))(mold((out \
+         337bf756-293c-4b31-bd16-1ca385fccee0)(label(careScore))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         d2809555-2a25-4776-a4f9-496e2bddc65d)(content(Whitespace\" \
+         15eba80e-f9fd-4061-a684-3426ef5e7164)(content(Whitespace\" \
          \")))))((Secondary((id \
-         ed7f3f5a-f487-49d9-bea9-27da9e4b564d)(content(Whitespace\" \
+         a94257fc-8f3f-4315-b044-a8da7e7b9130)(content(Whitespace\" \
          \"))))(Tile((id \
-         6d2e611b-db40-4c04-8c94-531db911f7a0)(label(m))(mold((out \
+         bf2c52b0-1fcf-4e49-8b32-47771d3984f5)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         0ca926e9-4e46-47ce-a4b9-78b6790ecde2)(label(.))(mold((out \
+         d87b755f-c027-4cad-86d1-fa6e2a1627ae)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         8f17773b-9b6f-4e83-9c9b-f674ec085edb)(label(timesFed))(mold((out \
+         939f042a-32a5-44a0-b904-5905b40c1b78)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         4991d120-9ef0-4f3f-b1da-e997064992aa)(content(Whitespace\" \
+         002689cf-1346-4960-be3e-7b9804489d7a)(content(Whitespace\" \
          \"))))(Tile((id \
-         2615d302-7ad8-41dc-9b52-e5a5521cb8a7)(label(+))(mold((out \
+         37bcc321-04f7-4acd-8f22-95556927d1ba)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         91f2fe07-d599-4154-8561-02a8abb83569)(content(Whitespace\" \
+         e2858282-5c20-403b-950e-7faf8055bc14)(content(Whitespace\" \
          \"))))(Tile((id \
-         ae987254-5e8c-4cea-a695-b5122ef78960)(label(m))(mold((out \
+         d9f383a0-4c15-4189-b4dc-e9babb3df5a4)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         0da43a81-9e26-4941-b785-1b08ba902c91)(label(.))(mold((out \
+         09bbe1b8-0cd3-4e8f-9763-c244052548a9)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         57ce658d-2493-42d2-a545-982130ee95fc)(label(timesPlayed))(mold((out \
+         780ee526-a039-4a9d-86fc-6e7dd9506457)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b6866575-3b29-40b0-867d-b26f56c846e3)(content(Whitespace\" \
+         8d73852f-936f-4d77-ac50-1483cc45b8cb)(content(Whitespace\" \
          \"))))(Tile((id \
-         e8b11e20-a229-46e4-a4a4-985e5b7985b4)(label(+))(mold((out \
+         c23ea58b-97db-472a-a3f2-eacf67b44267)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         b7a913b1-2803-4934-a7c1-04aeec332bbb)(content(Whitespace\" \
+         4ac0f6a0-ef60-4f53-bb60-703d42c2e66e)(content(Whitespace\" \
          \"))))(Tile((id \
-         e452ec88-049a-4259-ae4d-b5d0ea77e99d)(label(m))(mold((out \
+         018c76c3-e1e0-450a-afb6-122555b6505e)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         1562bfd6-bf50-41b5-958b-673f073741e3)(label(.))(mold((out \
+         a42a6ac0-ac19-4bbc-b4f7-b443bb8ef990)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         5ad5980f-de4f-4104-8585-cebf0ed42097)(label(timesSlept))(mold((out \
+         21eee7c4-9f3d-4b52-b6f1-021e827d3a09)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         ef1a8a67-a527-49dc-a955-346f0c371cf9)(content(Whitespace\" \
+         eb50232c-873c-4c42-a222-5d7e2db3bc52)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         d94e1e19-fea7-4140-8a49-a57fb48b6624)(content(Whitespace\"\\n\"))))(Tile((id \
-         e2e5ded5-c22b-475f-8157-6942353de84e)(label(let = in))(mold((out \
+         06e5d534-a504-474f-9746-5e358f4f92fd)(content(Whitespace\"\\n\"))))(Tile((id \
+         d1fb30d7-630c-433d-8839-7fa77eadfd68)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         b244708c-d9ba-44e4-8d8d-eca02d0e93c1)(content(Whitespace\" \
+         ecce9d5c-4c0b-4ea8-92d2-d2f247939ced)(content(Whitespace\" \
          \"))))(Tile((id \
-         7b88f4cd-b7ad-47ce-8259-7b80cc364682)(label(neglectScore))(mold((out \
+         a751ccfc-3af2-4c4b-9e47-d5e7c87261f3)(label(neglectScore))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         01701b54-4194-4932-8768-b20b906b72eb)(content(Whitespace\" \
+         2f19be1f-92f7-43b4-9422-4a7f3ad5bd20)(content(Whitespace\" \
          \")))))((Secondary((id \
-         f08df51d-f7c1-46d1-b04b-21661af46bab)(content(Whitespace\" \
+         a2a4f872-9276-4a3d-83b2-e02b71a0f966)(content(Whitespace\" \
          \"))))(Tile((id \
-         f5deef11-3995-4971-920d-4bb93e47c79e)(label(m))(mold((out \
+         cad65128-b93f-4599-b6a5-de51634bc2f8)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         a5e8c931-1490-4b48-868f-231a4ed632c2)(label(.))(mold((out \
+         19d16ea5-b0ba-465d-bdea-e5a15ac974fc)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         5e2c0516-b557-4bd2-a779-08cbe2d0f8c2)(label(timesNeglected))(mold((out \
+         f3e048a6-e58d-48aa-9d81-9cca1049d1c3)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         c445352c-21e1-4058-acad-1de45f9860fe)(content(Whitespace\" \
+         fd8888e7-f2cf-48cc-b33b-976e4974a1e8)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         3956ebce-1802-4ce7-b643-d080742df5eb)(content(Whitespace\"\\n\"))))(Tile((id \
-         344aa6f7-65f1-4e96-9a90-f4c4f51200cb)(label(if then else))(mold((out \
+         582fc821-d094-4be1-b75d-3fdfe49b1a1e)(content(Whitespace\"\\n\"))))(Tile((id \
+         2dd3f75d-fc79-44a8-9817-99e3e7f4e7ff)(label(if then else))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         e256ba75-f6a8-4079-b55e-1b240562a48d)(content(Whitespace\" \
+         67b11ee5-f66f-46be-b62a-9f7e7d3a226e)(content(Whitespace\" \
          \"))))(Tile((id \
-         45bf67d0-a28b-40cc-b3a7-77b4ad60c3d6)(label(age))(mold((out \
+         212e29d5-f3de-4082-b666-99cd0cf11cc0)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         30a98b05-b1ba-401c-b9fb-2f9b259e2576)(content(Whitespace\" \
+         bc02f48f-6a7f-44cb-80a8-b9412511de18)(content(Whitespace\" \
          \"))))(Tile((id \
-         a020f2a0-02bd-44a6-9b31-bd8aea2e74f7)(label(<))(mold((out \
+         bc2d3f6f-4caf-409d-8af3-b60d582ba3ae)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c0e05f8b-c78d-42a4-8304-9cc99ca11e4c)(content(Whitespace\" \
+         8b19d1a4-97df-4f7c-aa49-3ea98a6b42e3)(content(Whitespace\" \
          \"))))(Tile((id \
-         1b57baf9-c7c8-483b-9d08-0e7f4bc2bfc0)(label(10))(mold((out \
+         b5006d9c-3d5a-4936-a2e4-6d0458d359ee)(label(10))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f0a4f190-8f0f-4816-8026-ed0859008192)(content(Whitespace\" \
+         75b636ce-839d-4442-a292-559e8fd82827)(content(Whitespace\" \
          \")))))((Secondary((id \
-         da305ca9-31aa-425a-acf0-a416d2862c09)(content(Whitespace\" \
+         6eaee248-df32-494b-8535-dd8374c47b11)(content(Whitespace\" \
          \"))))(Tile((id \
-         cf82e672-a232-4c2a-8a61-0582dc2a8cd6)(label(BabyToaster))(mold((out \
+         ad0a603e-e1f9-40d5-8a5c-dc32ea4cde58)(label(Seedling))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         02cde9f0-d2f1-4396-857a-0d834e75e489)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         0cdda654-6611-42b1-b9ea-4282e8a02a1a)(content(Whitespace\" \
-         \"))))(Tile((id 6038f31f-aa10-44d3-b6c3-70e4b48e733a)(label(if then \
+         f3d83fcb-642a-49fc-bc94-34683cc89cfe)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         3d9d6c1e-81a7-4040-9f6e-26904ba2d18f)(content(Whitespace\" \
+         \"))))(Tile((id 94406f0d-8f89-4695-936a-e8019bd104e8)(label(if then \
          else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 36))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id \
-         40e18c41-a94a-4a5d-b15e-8d98e027e6f1)(content(Whitespace\" \
+         e71113e5-91b2-4e34-a492-5a96b9e26a37)(content(Whitespace\" \
          \"))))(Tile((id \
-         263e8cf4-4160-40a7-901b-9b8841cf4eb9)(label(age))(mold((out \
+         a1a2bf25-6922-4153-b150-578f2994dfbf)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         e417912a-b1ee-4ef8-997f-98b30c714e37)(content(Whitespace\" \
+         a4898186-3e4f-459c-af10-67815941068d)(content(Whitespace\" \
          \"))))(Tile((id \
-         64a28cca-65af-4306-a1d4-0ccbf5e46e94)(label(<))(mold((out \
+         0898c793-9d3d-4744-bea0-7f3131ffa7dc)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         033240cf-3cff-43a7-99dd-a00ae45c59f8)(content(Whitespace\" \
+         b19425a0-3dba-4030-8708-a1c7a4cbde98)(content(Whitespace\" \
          \"))))(Tile((id \
-         c0f3a447-801a-4bcf-b379-9a769a2db63e)(label(25))(mold((out \
+         218f198a-c391-40e2-a2b4-6cfdfa0bef1c)(label(25))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         434122fb-8001-456f-a6d6-5017fc40ce59)(content(Whitespace\" \
+         8bd2f4d1-485b-4aab-ae5a-f82cff786682)(content(Whitespace\" \
          \")))))((Secondary((id \
-         ca618da1-32af-4fc2-b7c6-ff3587f37173)(content(Whitespace\" \
+         2bc83199-1fad-4c58-a918-707c6728fd05)(content(Whitespace\" \
          \"))))(Tile((id \
-         32e4a2f3-9ce4-4b15-99bb-507624743f7a)(label(TeenToaster))(mold((out \
+         d7b06f1f-3fc2-4da3-9441-efadd345b096)(label(Sprout))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         d2681c8c-945e-425e-bbff-23551f112cf4)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         1bed5f6f-ad0c-405f-8f06-fe801ab0de97)(content(Whitespace\" \
-         \"))))(Tile((id 8fe3f29f-9140-4a8f-bdeb-e0b32a99cd11)(label(if then \
+         6f318e84-9338-4393-bbee-cbcd1097ee5b)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         02d18521-0f33-4b1f-9a54-f13486e6a6a1)(content(Whitespace\" \
+         \"))))(Tile((id 2aaed33e-87b8-4075-a887-591e95e8bd04)(label(if then \
          else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 36))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id \
-         8b6c9f43-25a4-4d45-afc8-04a6bfa24fc3)(content(Whitespace\" \
+         7ff77c1e-85ff-456a-9482-5d981c5ac8fc)(content(Whitespace\" \
          \"))))(Tile((id \
-         d5e0dd7c-224b-4486-92b5-48cb4a5aaa66)(label(careScore))(mold((out \
+         c1aa4146-19b9-4299-a0f7-338667b29d34)(label(careScore))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         ab84d34d-0946-4bd5-99d0-ded8963b8937)(content(Whitespace\" \
+         f2fc18ed-ec42-4c66-9f01-eca70742c19e)(content(Whitespace\" \
          \"))))(Tile((id \
-         469854a4-b18f-4c7f-a80f-b262c81ab9f9)(label(>))(mold((out \
+         30c74e3b-5217-4eeb-85ed-5c0972c07b63)(label(>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c55f839c-e8da-4da5-ae89-fcc33c6a1af7)(content(Whitespace\" \
+         9b667b73-5eaf-4cca-980b-f6e9a900bb7d)(content(Whitespace\" \
          \"))))(Tile((id \
-         c0f2590a-34fd-42f7-b623-a853010709f7)(label(neglectScore))(mold((out \
+         b71ef941-7c65-43a4-b4fe-ce1b365ee884)(label(neglectScore))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         59fb3574-5454-42e0-b8bb-72a0a0cce905)(content(Whitespace\" \
+         22f30e38-b66f-4815-b87c-7ae33d88d883)(content(Whitespace\" \
          \"))))(Tile((id \
-         fedef926-3a23-4de5-866d-afd982957f98)(label(*))(mold((out \
+         083e6db8-3be5-4f45-9df0-8ca3165c19a8)(label(*))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 27))(sort Exp))((shape(Concave \
          27))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         4629c9d0-254b-4c18-ad14-5081700442c1)(content(Whitespace\" \
+         c29b3c25-c7df-4c09-bd34-11347714d8ae)(content(Whitespace\" \
          \"))))(Tile((id \
-         cebb14a6-ebc7-4848-ae5b-2678fc5ab218)(label(3))(mold((out \
+         93a7ac47-d65d-4cd9-9011-f68ff583ee32)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b5e172b9-65a0-4617-a1d9-96f30cff7fff)(content(Whitespace\" \
+         a077c690-338a-45a5-a407-758bf4065dda)(content(Whitespace\" \
          \")))))((Secondary((id \
-         402be307-3b22-4553-bf06-d586751c091e)(content(Whitespace\" \
+         75953dfe-6af4-4b95-8e91-33e5a729802a)(content(Whitespace\" \
          \"))))(Tile((id \
-         cbc22cb4-4971-4bfb-8375-97791d277f74)(label(GoldenToaster))(mold((out \
+         a481f0b5-2d36-49aa-bd4e-bf8ed8c02c4f)(label(Elder))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         e0da71b4-1cac-462a-9a7c-2dd67657ef1d)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         d08f4290-ae3f-4cd9-8b56-8dcf95aa36da)(content(Whitespace\" \
-         \"))))(Tile((id 3b75b43a-da7f-446c-8929-7e0b76bbe9fd)(label(if then \
+         5645d883-83a3-44be-880e-28213dc8bfdc)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         0dcb6ff9-fd85-4402-8640-eb48c468efd8)(content(Whitespace\" \
+         \"))))(Tile((id c888d288-6166-43c8-9250-c98fa4bc1f4b)(label(if then \
          else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 36))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id \
-         6778d11a-2929-45aa-97a8-a4ffa73d5815)(content(Whitespace\" \
+         55df178a-f9ca-47b9-90de-2b9df225ca24)(content(Whitespace\" \
          \"))))(Tile((id \
-         5a90c061-01a2-4e1c-839f-ac259b51e41f)(label(neglectScore))(mold((out \
+         183b7f2e-00df-4dd1-b4f3-a092bf691a22)(label(neglectScore))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         e18ed15b-bbc3-4412-9f52-468784a79ebd)(content(Whitespace\" \
+         ac5cb87d-e458-40f8-a5f6-946aae7b5b06)(content(Whitespace\" \
          \"))))(Tile((id \
-         493088cb-1ba6-409d-bced-5e98df9d3302)(label(>))(mold((out \
+         c75cb73d-ba98-45c4-a0e9-ecfcbf8b9562)(label(>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         bfa11cf3-c493-4187-af62-ed820e8c714a)(content(Whitespace\" \
+         03690f6e-ce6c-4403-9b96-46a13c795f2e)(content(Whitespace\" \
          \"))))(Tile((id \
-         8ba87fc0-7e70-494b-b5eb-51f92e459548)(label(0))(mold((out \
+         ddd58c70-7fdf-4bcd-8a4b-f3109e9cb822)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         01c37a40-1845-46c5-b63c-def51ce12d0b)(content(Whitespace\" \
+         071793b8-f37d-4cc2-aa27-95dfe1c23dcc)(content(Whitespace\" \
          \")))))((Secondary((id \
-         c977d1ee-d0ab-4b26-a1fb-16739c7a5f03)(content(Whitespace\" \
+         96104ac5-64c2-49e7-b55a-03433e441bc0)(content(Whitespace\" \
          \"))))(Tile((id \
-         cff57b96-95a5-4542-82c0-b800e36a04c7)(label(RustyToaster))(mold((out \
+         b6bf3e14-78bb-4f19-8e26-e5fb25b2bd8a)(label(Wilted))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3049ad0b-869c-44b5-8841-a72f6c793d77)(content(Whitespace\" \
+         04fccb35-4962-41f5-abed-e2877a16f7b0)(content(Whitespace\" \
          \"))))(Secondary((id \
-         0f53ded6-12d5-4544-a5bd-6067e691846b)(content(Whitespace\" \
+         7aa5a2bf-800b-43be-98c1-1e9b3026cda0)(content(Whitespace\" \
          \"))))(Secondary((id \
-         54345b53-492a-4d86-b8bf-d1fd2b97c63e)(content(Comment\"# BUG: should \
+         04c1cc93-3570-4dd1-bf74-f0fd392a94f4)(content(Comment\"# BUG: should \
          be neglectScore > careScore #\"))))(Secondary((id \
-         ac966341-0914-481e-8733-479dcdc2bb7b)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         d313b636-01cb-4dbe-b439-5a15fd4a40f5)(content(Whitespace\" \
+         0259584d-0168-46f0-89f4-925ab282f14c)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         96fc2d88-8f00-4092-a11d-4ca016ca28dd)(content(Whitespace\" \
          \"))))(Tile((id \
-         1b9baf29-ad0c-4a69-87d4-4c1b8c858648)(label(AdultToaster))(mold((out \
+         a3268d5f-0000-4d5d-877f-66860e629a1f)(label(Bloom))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         05b7f33f-21c1-4fb0-ad37-ba14ce4aa6ec)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         3b387d02-3475-40fd-b0f0-c77279c5b6d4)(content(Whitespace\"\\n\"))))(Secondary((id \
-         cde95260-8b90-4536-899e-dc231ae7fbb0)(content(Whitespace\"\\n\"))))(Secondary((id \
-         555c81ec-5bc6-4130-85cd-97c131b6af22)(content(Comment\"# Check if \
+         ab172698-205e-4143-b620-05e81036eb7d)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         9e5f3996-f71c-44f7-aaf0-4ac444510dcf)(content(Whitespace\"\\n\"))))(Secondary((id \
+         341dfaea-3ee5-449a-aaaa-e79e0f4b15d5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f291b5af-dd31-4c7c-b01d-690a5b121689)(content(Comment\"# Check if \
          stats indicate neglect (any stat critically low) \
          #\"))))(Secondary((id \
-         e74a2a1b-c103-4cba-a82f-afe3ccf4d280)(content(Whitespace\"\\n\"))))(Tile((id \
-         2112c47c-0888-46a3-9b4d-9e65cb5cb606)(label(let = in))(mold((out \
+         f4454e4d-0726-4494-920d-978221a8ec86)(content(Whitespace\"\\n\"))))(Tile((id \
+         a8231935-cfc9-43ba-8330-02ed2a0a1442)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         75170f8c-95c8-40e2-9ba9-0d7c59b96233)(content(Whitespace\" \
+         794b1477-e50b-4a44-8b31-25f1c8d4c276)(content(Whitespace\" \
          \"))))(Tile((id \
-         3153929c-b42e-4e55-a033-1b0e9ae4bc3a)(label(isNeglected))(mold((out \
+         6468298b-1cc7-4d37-9baf-60c6c2c62809)(label(isNeglected))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         98cef3ab-52df-4f29-acef-7e1ada0e4612)(content(Whitespace\" \
+         c68511ce-bd22-4999-80e8-771f809c2746)(content(Whitespace\" \
          \"))))(Tile((id \
-         235fee29-eefd-437c-aa07-aa1103ecc4b0)(label(:))(mold((out \
+         1cef5608-85cd-4d2f-963d-28a034eb8acf)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         97e3fb76-2bc6-4d4f-8379-06f030ba51f8)(content(Whitespace\" \
+         b2fce30e-0436-47cd-b370-5d1dfee50206)(content(Whitespace\" \
          \"))))(Tile((id \
-         1c883fe8-913f-428a-89e2-724e9d45ba7e)(label(Stats))(mold((out \
+         62b6716c-2ccb-4e3a-aa46-5e9ab8d9aac9)(label(Stats))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         e731c2fb-f6b8-4857-bcc4-33d107d04cac)(content(Whitespace\" \
+         370caa7a-7d9e-454b-a2f4-82d198bf7439)(content(Whitespace\" \
          \"))))(Tile((id \
-         ac90871c-ac5e-4eea-a8f6-14307d586f32)(label(->))(mold((out \
+         46dc2d2f-a1e5-4ee9-a6c3-781998a90224)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         40ee8211-562f-4f02-aef9-540b22f1def3)(content(Whitespace\" \
+         122b3a72-6e2d-41a3-a040-2cf9f83d3fae)(content(Whitespace\" \
          \"))))(Tile((id \
-         443fa067-41be-4ecf-a8ce-9ac5709b5ec5)(label(Bool))(mold((out \
+         c02f4b20-a355-4386-8f24-382512fafa88)(label(Bool))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         eeb9a450-85b5-453b-a2cd-aed309a9d119)(content(Whitespace\" \
+         dd12c733-8b2a-43c5-b487-6663367af6e0)(content(Whitespace\" \
          \")))))((Secondary((id \
-         c924ffac-5672-4d65-a0df-8227be55a1bd)(content(Whitespace\"\\n\"))))(Tile((id \
-         9ae5260e-10fb-4095-b129-45251eb86019)(label(fun ->))(mold((out \
+         9f4aecb9-9e01-44b6-9d85-f7ffde544afd)(content(Whitespace\"\\n\"))))(Tile((id \
+         2d3f6169-34a8-4e67-a0b1-7759ba10c55d)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         36dd84fe-eed1-47e9-ab91-188c38713c87)(content(Whitespace\" \
+         bce413f5-f782-43fe-bf2f-8af6b0a507ab)(content(Whitespace\" \
          \"))))(Tile((id \
-         8b69b3d0-3426-425b-a6bd-aa9563284520)(label(s))(mold((out \
+         fd814892-d1e9-497e-b7cf-3c076354cd25)(label(s))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         42a2700f-6afd-47ce-b8c1-5689aeba3e39)(content(Whitespace\" \
+         39f5dec1-500e-4c2c-935f-1d89125e9f3c)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         3987e9f6-c635-4201-a4d4-55cf52c56987)(content(Whitespace\"\\n\"))))(Tile((id \
-         996ad63c-279b-42f7-926b-f7c0d5b60236)(label(s))(mold((out \
+         3f616146-6bfc-43d7-bf51-ed854bb329b9)(content(Whitespace\"\\n\"))))(Tile((id \
+         75f30a77-76b4-48a9-84bb-898de12700d0)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         48a63895-d213-4773-8312-e3b109d3eac3)(label(.))(mold((out \
+         ac83d541-c23a-4290-86a0-0913d2d008fb)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         2f9de0be-ecb2-4230-a433-c8a126813096)(label(hunger))(mold((out \
+         517b7f89-d136-4f4d-99a8-ce1be9906a05)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3e664603-31d9-4389-8031-7bf4abe5eec4)(content(Whitespace\" \
+         6ed51a47-e315-48cb-8663-ce4367560a12)(content(Whitespace\" \
          \"))))(Tile((id \
-         796152ac-9276-452a-9bdc-40241ecbeab7)(label(<))(mold((out \
+         07a16fe4-ae65-4848-8c98-dfc6de4bc222)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         9ce6b148-9b4c-432f-8822-5df878750c8c)(content(Whitespace\" \
+         36a24509-e636-473c-bb52-15a020e3e54c)(content(Whitespace\" \
          \"))))(Tile((id \
-         61039e09-3165-428f-9f00-bee0dbc498fc)(label(15))(mold((out \
+         eb3ab3d6-fb49-41e3-9cc7-f32bc96720db)(label(15))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         670975b6-89c1-473e-beec-3a512b627ea9)(content(Whitespace\" \
+         c2c9d5d8-5843-4699-8c78-3abafb6bb0a3)(content(Whitespace\" \
          \"))))(Tile((id \
-         4d717d88-a98c-414e-ac34-b75b710be9f8)(label(||))(mold((out \
+         327705ba-ed2b-41b4-92b7-f4ff312abb95)(label(||))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 33))(sort Exp))((shape(Concave \
          33))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6e24059e-cfc2-4d77-9160-52c7729ea358)(content(Whitespace\" \
+         99113d06-1f2c-4537-91aa-8d3287fa5114)(content(Whitespace\" \
          \"))))(Tile((id \
-         6b3e0ea2-b894-4d56-b347-05480a078df9)(label(s))(mold((out \
+         6ef88b7f-d75f-4bd7-95c6-7d6ae4ed52ac)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7dd79c24-0698-45e9-8b7f-143ac137973e)(label(.))(mold((out \
+         aa897f7e-35de-4184-8199-4393e9bfb9d5)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         d2929c19-55d4-45f2-b399-ced5654c712e)(label(happiness))(mold((out \
+         4d87ee80-e373-4a80-b176-7f2eebc5cdfa)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         6b1d7221-a672-4d34-a831-32e2138f765b)(content(Whitespace\" \
+         9ca48538-d165-45f6-b35f-2e718035d8e5)(content(Whitespace\" \
          \"))))(Tile((id \
-         e893a6ee-1c79-4995-b272-c7d7418b0f3d)(label(<))(mold((out \
+         48b8143f-8dfa-4d42-8640-7d79abdcba2c)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         3b48d3da-25f8-41dc-9056-78fdc382cf43)(content(Whitespace\" \
+         36c502d1-61fc-4000-9506-202dde7c9a9c)(content(Whitespace\" \
          \"))))(Tile((id \
-         3f61bf59-a252-4556-b7dd-4ab667a86c9c)(label(15))(mold((out \
+         85357464-6338-4b72-91f8-b3322fe0bb35)(label(15))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         8cedb51d-0126-49c4-ac85-737a37437ddb)(content(Whitespace\" \
+         ab358367-4377-4d91-ad62-b6f313e36f34)(content(Whitespace\" \
          \"))))(Tile((id \
-         53a30940-3dc8-44e3-9d71-c827c1104fe9)(label(||))(mold((out \
+         52997a81-2468-4889-ade4-27101fa8e19f)(label(||))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 33))(sort Exp))((shape(Concave \
          33))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c046747b-d351-475f-bf94-648ddd2fd3c1)(content(Whitespace\" \
+         9049f189-9d71-4a64-b01c-fe2daa26cbc9)(content(Whitespace\" \
          \"))))(Tile((id \
-         2526460f-080f-4d35-b422-573a3831cc78)(label(s))(mold((out \
+         852d3841-4148-41be-a3d0-6c52afa4cb7b)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         db955333-fb50-4123-a3c4-cb56a7b2d922)(label(.))(mold((out \
+         e19a46b8-df85-4202-91f4-0c68288aa515)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         bf22eb9e-083d-4d14-ac58-fe58b342d2a0)(label(energy))(mold((out \
+         6ab81b27-d2e1-4a04-89cb-a236511229e8)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         6cd84f7a-4c27-4d3c-b072-6ddb84b01c5a)(content(Whitespace\" \
+         a2a91a80-80cd-4b43-8394-4961bc551f19)(content(Whitespace\" \
          \"))))(Tile((id \
-         18b2ca90-a5e0-4350-8968-c01f21539abe)(label(<))(mold((out \
+         851fd669-4a0b-4af6-8320-1a174752808e)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         40256e17-75bf-44e1-8bd7-d774b6b40fed)(content(Whitespace\" \
+         befe1b7d-ec44-4718-8765-38703e5c5597)(content(Whitespace\" \
          \"))))(Tile((id \
-         b0f63313-ae87-4171-8d5f-e260f863a2b9)(label(10))(mold((out \
+         c8d8d555-b8e1-4415-a261-06fef74f7a11)(label(10))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         e0f36fd8-d2c7-414b-a18d-5f506735198d)(content(Whitespace\" \
+         c2ae133a-ef77-40b0-afaf-2fce4b8107a2)(content(Whitespace\" \
          \"))))(Tile((id \
-         d9032ecb-5527-422f-a807-30e305253629)(label(||))(mold((out \
+         313aea15-49a4-4f5e-a538-37613950a97f)(label(||))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 33))(sort Exp))((shape(Concave \
          33))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d6b71e5b-e19a-48b9-9cd2-dc071443b469)(content(Whitespace\" \
+         03a4cb60-f9ec-4a44-a99d-715082d95a2d)(content(Whitespace\" \
          \"))))(Tile((id \
-         8216f733-c930-42ad-a591-d32be149be50)(label(s))(mold((out \
+         9c7c53b8-a382-4bc7-95d3-17acc11c5f33)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         812fb856-c31f-4907-b26c-6054467e762e)(label(.))(mold((out \
+         44c5b911-e08e-4f65-9e79-19c59e9da503)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         a3b149f6-4cbb-495d-9244-43ee96fd2c7d)(label(health))(mold((out \
+         91971664-be1b-40f3-972e-4065cfe5e663)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         029d8a62-5a83-479a-ad5f-173c2befeb68)(content(Whitespace\" \
+         64928afd-4e66-49af-adf3-17205a15d753)(content(Whitespace\" \
          \"))))(Tile((id \
-         01c7859a-a197-4c9a-a9d8-31bdcf9fff37)(label(<))(mold((out \
+         35d02517-c715-4821-b297-bed751e5f736)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         da8f0db2-b20c-4bf5-ae73-d874ebe869ac)(content(Whitespace\" \
+         1998201e-3b8e-4515-bd0e-657e495bbc32)(content(Whitespace\" \
          \"))))(Tile((id \
-         f58c3c06-96fa-4fbc-9559-da66d160454c)(label(20))(mold((out \
+         4632dd7d-2781-436e-a1fd-3a048dcc4a34)(label(20))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         7dec8a2b-08ad-4824-8706-ab82d3538296)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         a7c3e6b0-1063-4495-8dd6-d9d4987e7ab7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         a68a2ce7-6b1f-4567-a704-a4b5dfef33c8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         eb4a924f-dc0a-4f33-a43c-422a939ffce6)(content(Comment\"# Update \
+         c9560c15-3302-4eeb-b813-ea6fdfb21b9e)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         657e1ea5-5821-434c-b74d-5e6ab6817869)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c20a0bea-ac9c-4f57-997a-16b222816563)(content(Whitespace\"\\n\"))))(Secondary((id \
+         8f9c1f8e-ddef-4387-a234-78527d1577be)(content(Comment\"# Update \
          memory based on action #\"))))(Secondary((id \
-         1f013376-cca7-4dc2-9610-a053003d9927)(content(Whitespace\"\\n\"))))(Tile((id \
-         0253b463-b999-42ca-bf18-9d36fdf39d86)(label(let = in))(mold((out \
+         0fb3d6c5-2282-40cf-95a1-a80572dd73be)(content(Whitespace\"\\n\"))))(Tile((id \
+         a6d0f1a8-ac50-4618-b0d7-8ebed38d3cc3)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         25042f99-acf7-47f6-80c4-96fc98753f2e)(content(Whitespace\" \
+         cebced08-11ab-47ca-b542-1311a7c4cbb8)(content(Whitespace\" \
          \"))))(Tile((id \
-         751e07f6-e6f7-4187-965f-ac4a8131fd26)(label(updateMemory))(mold((out \
+         a087a33c-0699-488a-aa6d-2fe0e720d630)(label(updateMemory))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         18a58591-cc0a-4668-91c7-cd18f1800602)(content(Whitespace\" \
+         6f0ef350-ae4e-4354-867a-3bb95a63426b)(content(Whitespace\" \
          \"))))(Tile((id \
-         92ea3e8b-6aaf-464a-b1d2-ec641745b07c)(label(:))(mold((out \
+         c93a9332-ccfa-405b-aa1c-4526e68b9809)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         13dd8e3a-21e0-459d-ae21-c922bce22b02)(content(Whitespace\" \
+         ea97a679-42c3-4481-85c5-7284339c86ab)(content(Whitespace\" \
          \"))))(Tile((id \
-         56ca6c50-9709-4a24-a9be-3f7ee16268a1)(label(\"(\"\")\"))(mold((out \
+         1f3939ac-0dd1-4991-b1a2-218a70f7e952)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         719bc21a-2475-49b3-83fb-ba36cefcebe7)(label(Memory))(mold((out \
+         ff85055c-e157-40aa-8e19-2099e4efa0f8)(label(Memory))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         a1a696bc-ef84-4827-8de0-d18a4945da2b)(label(,))(mold((out \
+         fe78637b-2544-41ba-a220-35639f140a4a)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         826388e0-19c9-4fe8-8512-c4c2a2aa0ca0)(content(Whitespace\" \
+         edab75d2-824e-4a8c-8390-db99d2ebd5ff)(content(Whitespace\" \
          \"))))(Tile((id \
-         f7765d07-02a7-4373-bf79-d602a4a6462e)(label(Action))(mold((out \
+         c2784a5b-7e91-40bf-80b5-bd7883c6d78f)(label(Action))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         41031fef-db41-4f79-8b8c-0247882d67e5)(label(,))(mold((out \
+         b48a2949-ee7c-4d0e-9f44-21d0d225217c)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         b25e1a99-2669-426d-935c-9db55213fd37)(content(Whitespace\" \
+         17d71003-accf-41d9-8dbc-5c9e33d157b9)(content(Whitespace\" \
          \"))))(Tile((id \
-         e2815e7a-134f-46b3-8f7f-a300e64609f7)(label(Stats))(mold((out \
+         84ce17f9-4bc5-4e78-8a35-1aa7160556cd)(label(Stats))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children()))))))))(Secondary((id \
-         4022cf6f-2376-4ae9-8ba4-fa46072ac900)(content(Whitespace\" \
+         f826579e-4a34-4e32-9b08-5e743153d0d4)(content(Whitespace\" \
          \"))))(Tile((id \
-         549aa03d-b79b-44e6-8ed5-9820847b1192)(label(->))(mold((out \
+         df69b5ac-586b-45c5-8da8-e280ef02e941)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         e31f0fa3-f41c-4439-aa06-de40a66e8e98)(content(Whitespace\" \
+         908dd5b5-8183-4ae5-8fb5-d5681ff2a498)(content(Whitespace\" \
          \"))))(Tile((id \
-         8c5c57a8-7302-4b73-af4c-ed26241ffc76)(label(Memory))(mold((out \
+         d5de13bb-8096-42a6-b8d9-0f281019e1d2)(label(Memory))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         690e924b-cf24-4905-8ace-c3da49889e04)(content(Whitespace\" \
+         5801b813-0aec-4943-b360-71013c238445)(content(Whitespace\" \
          \")))))((Secondary((id \
-         e9fcb47f-d8d6-4642-945b-1568b42bbe87)(content(Whitespace\"\\n\"))))(Tile((id \
-         ac60b447-5215-448a-919d-761cbb278d07)(label(fun ->))(mold((out \
+         4ff3e85e-1b45-40d3-b42d-70ed22077b36)(content(Whitespace\"\\n\"))))(Tile((id \
+         885fa2d0-206b-4910-a1c9-dd00e8e4ced2)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         915d161a-4d8b-4bc2-9172-ccd17138dd28)(content(Whitespace\" \
+         25c169ad-b18d-4513-8a4f-0a900a86721d)(content(Whitespace\" \
          \"))))(Tile((id \
-         bd51c40d-e87c-4e4e-bf56-7db38cc558f7)(label(\"(\"\")\"))(mold((out \
+         3f65ee92-f039-47dc-a929-0d70f6422859)(label(\"(\"\")\"))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0 1))(children(((Tile((id \
-         3dc16ecd-34b0-455b-890a-396c8cab0d55)(label(m))(mold((out \
+         63cfeff3-1149-4800-b633-85005cfb02e4)(label(m))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         bff3130a-1a78-49ee-9722-a890b90571cf)(label(,))(mold((out \
+         5346b3d0-71d6-463c-a4b2-0ea75e1bff2b)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 44))(sort Pat))((shape(Concave \
          44))(sort Pat))))))(shards(0))(children())))(Secondary((id \
-         155f4969-5447-4a81-bf7e-49aa09da4a4a)(content(Whitespace\" \
+         2d2b9e67-5fc5-497b-90f3-c24c9b0852d6)(content(Whitespace\" \
          \"))))(Tile((id \
-         9379a513-3640-42bc-b943-b5dc605980d4)(label(action))(mold((out \
+         860e373f-10f6-4069-9200-ea5676f2e490)(label(action))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         4eab805f-2f61-4e27-823f-18efba0f7d35)(label(,))(mold((out \
+         20d48746-4941-4d3e-9de5-fa1ca341f858)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 44))(sort Pat))((shape(Concave \
          44))(sort Pat))))))(shards(0))(children())))(Secondary((id \
-         b00d2134-1997-4739-8627-fa985906d6cf)(content(Whitespace\" \
+         8a4bf3dd-e8ea-4342-b018-28741738df1e)(content(Whitespace\" \
          \"))))(Tile((id \
-         cbef608c-3734-43e5-84b5-a466c7d6beee)(label(stats))(mold((out \
+         4785ff01-d70b-4324-b54c-8ad8b243504f)(label(stats))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
-         bd6b9fb5-ad00-4f5a-b653-63e83bd2e3a8)(content(Whitespace\" \
+         25f36a8c-1210-4053-a12f-ccada9ffa0ee)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         e1e578e2-63b4-48c3-bcaa-eac960a45bd2)(content(Whitespace\"\\n\"))))(Tile((id \
-         45dfe0a4-bc9b-48f7-9f4b-4761b64c8b19)(label(case end))(mold((out \
+         9cbd1197-539d-4bb5-a2b9-dc14ebaef670)(content(Whitespace\"\\n\"))))(Tile((id \
+         59bdb758-f9d5-47fd-b763-4a4345c0e139)(label(case end))(mold((out \
          Exp)(in_(Rul))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         6a7547cd-c743-4a8b-89e0-03b931b16554)(content(Whitespace\" \
+         cd678288-5b28-4795-8839-371fea2e5aad)(content(Whitespace\" \
          \"))))(Tile((id \
-         6a79dff3-3b71-430c-9a5e-3cb1838a0bb4)(label(action))(mold((out \
+         176e0791-aa88-485d-86d6-2d5cfaffd96b)(label(action))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         bb55d55a-225e-4eed-87ba-f4d79151ab54)(content(Whitespace\"\\n\"))))(Tile((id \
-         2be9163f-7cfe-43b6-a68a-9d2c9343799b)(label(| =>))(mold((out \
+         13d1d6b2-99cd-4799-aef8-a160d2591b4f)(content(Whitespace\"\\n\"))))(Tile((id \
+         252cd5fe-a1c6-42a8-ba90-2b9873827a55)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         6f33bedf-0a7a-4d82-855d-e0fee98a2165)(content(Whitespace\" \
+         13bf0668-a4a3-44cf-b5f1-b223d825fd9d)(content(Whitespace\" \
          \"))))(Tile((id \
-         8f08e07e-c939-4693-bbd7-da7d154efbad)(label(Feed))(mold((out \
+         edf25db7-e9dd-449f-abb0-af73abf04610)(label(Feed))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         4af4f1d1-8f61-4a7a-9035-f151706af08e)(content(Whitespace\" \
+         a085a567-ee48-4c44-8af2-d1e2c3e9c360)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         7fff405e-9520-47ff-936d-b16e94921e8b)(content(Whitespace\" \
+         65510aab-c278-475c-9877-8dd8a525d3ce)(content(Whitespace\" \
          \"))))(Tile((id \
-         4386d9a0-fc4b-44e5-8e3a-a8a2f226eb86)(label(\"(\"\")\"))(mold((out \
+         3088727b-e606-49bc-9c5d-77e73d3faf73)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         dde79c97-f482-4318-b90c-a5f9511e38da)(label(m))(mold((out \
+         502234b7-e7c1-4dff-a793-eee3209139e5)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f735f43a-14fc-42c6-b8b9-377ffe1e200a)(label(.))(mold((out \
+         8932111a-67fd-43ca-9e28-267e68f018c2)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         ae6b2d01-9e31-49ba-b6bf-f3f6ca9ce235)(label(timesFed))(mold((out \
+         084727b9-c5f2-4503-81ec-b4ad4b536aca)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         78a47e63-7858-49b8-a5b5-e4644ab417ca)(content(Whitespace\" \
+         fa1e336b-3d2f-4ec7-af8d-faa179fb6394)(content(Whitespace\" \
          \"))))(Tile((id \
-         c3ed7c5e-188d-4d16-b953-b8b5cfb6e8ef)(label(+))(mold((out \
+         ae40c7e9-8b71-4bf3-a018-d03289d63f87)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         726b86d3-aa46-4699-a3d0-9ef02b5a8671)(content(Whitespace\" \
+         938c687d-4206-4c49-b667-003df2041e6c)(content(Whitespace\" \
          \"))))(Tile((id \
-         8bd7b977-7d56-4b47-bc9f-84cc91201224)(label(1))(mold((out \
+         1ba8c5f4-6a49-44a9-8efb-f48ed83aabe6)(label(1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         34c1b2cf-54f1-4fc7-a81b-757ef39993a8)(label(,))(mold((out \
+         aac015fd-e0a4-4553-8ee3-8cd6ce1ffd8f)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         9728ab7a-0e7a-4ff8-91df-14fadbb480d8)(content(Whitespace\" \
+         03830905-fe84-47ec-b506-ca16ff53da05)(content(Whitespace\" \
          \"))))(Tile((id \
-         0ed2ce92-c643-41ea-9637-c2ae85aee4d3)(label(m))(mold((out \
+         d8e8eddc-92a1-4762-afa1-fa9d8cda7505)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         1f4b6260-433e-4f7c-81ec-1bf826412eef)(label(.))(mold((out \
+         7cad2ac0-494c-4585-85d8-e9bfb513574f)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         1b708478-26d7-44fc-8abd-969d3f80b929)(label(timesPlayed))(mold((out \
+         0857d183-ca48-4363-a9c2-379fad6d8d43)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         cc5f18f4-0c8f-48b0-a5bd-30067608f01e)(label(,))(mold((out \
+         7b4f69fa-e65f-47f9-9128-5ba7ce318db0)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         957fab48-d384-427a-8108-da6ea872de48)(content(Whitespace\" \
+         3ac64b2e-7952-4a00-bac7-6e8d50aaa644)(content(Whitespace\" \
          \"))))(Tile((id \
-         4db87047-f991-4b00-a1c0-332f588a9e66)(label(m))(mold((out \
+         04e05def-476f-42da-aba6-84e36a4d6f87)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         9636232a-e13c-46b2-ba55-15faf14de3f9)(label(.))(mold((out \
+         85affca3-90ef-41d4-9101-6ca38a16b2b3)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         2c635c13-8ab8-44c8-85e0-41e9f9b43972)(label(timesSlept))(mold((out \
+         642fa601-dfdb-45a4-ae5a-c3e9a15cecc2)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         88c1e396-d4f1-4191-9010-1d0c10785cea)(label(,))(mold((out \
+         53f00f0d-0ef8-4698-a494-961cabe59bc1)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e119cb8f-13f0-444f-b5f7-2d067c508a7b)(content(Whitespace\" \
+         38941dc0-7fd0-4083-a679-7e37c3405395)(content(Whitespace\" \
          \"))))(Tile((id \
-         26b7b9e4-95b8-4352-8f91-458e25042fe6)(label(m))(mold((out \
+         c22ec484-8ab6-4acc-a130-9b449c0aa3fa)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         8766adb8-6665-431e-9a39-b65643202149)(label(.))(mold((out \
+         7cce256a-2177-405e-90d3-25c502c88036)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         acf81389-a66b-4fca-916e-a0a1349147bc)(label(timesNeglected))(mold((out \
+         192c441e-e596-4ac2-a232-135a2d155767)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         84ba203d-990a-4365-bb41-4fe06a377563)(content(Whitespace\"\\n\"))))(Tile((id \
-         6df6d88f-621a-408b-bb86-80fd3fad308f)(label(| =>))(mold((out \
+         743adc9b-ff31-4268-8394-ca94410a658c)(content(Whitespace\"\\n\"))))(Tile((id \
+         dfdecae9-ec3a-4d91-8c8d-54ffca46584b)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         facde616-5210-4cb9-82c6-7fe7482a25f2)(content(Whitespace\" \
+         396ca81b-ff7b-4172-81df-a062505536ff)(content(Whitespace\" \
          \"))))(Tile((id \
-         0839372f-2cfd-4a8e-a3a7-8cec8e0e2cb8)(label(Play))(mold((out \
+         74d143db-ed03-4fd4-a84b-d0a4e4e0e764)(label(Play))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         b99217ba-3928-4c37-9358-de51cd2fa51d)(content(Whitespace\" \
+         a8b2f445-3d81-4781-b7a0-455e44d4e34b)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         9b4840db-b8a7-4c28-a9a9-309740e0c916)(content(Whitespace\" \
+         93365dc4-462d-4c5c-b879-59a4f03fc82e)(content(Whitespace\" \
          \"))))(Tile((id \
-         1e85b084-7d20-414f-b5d3-e6b78be01894)(label(\"(\"\")\"))(mold((out \
+         e6a33776-7e42-48e7-bfc0-a2c063fa8063)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         6039c10e-57e2-41b2-bced-b841f195fa89)(label(m))(mold((out \
+         fe7a5846-bd0f-4aae-885b-36f7d0204f4f)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7f1c2f36-2f61-46b6-a214-fd4973bd8b0c)(label(.))(mold((out \
+         ec005bb9-c90b-4103-aed2-7f2b7742b399)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         65e8ec1c-5453-4747-9fa0-3737387cdbeb)(label(timesFed))(mold((out \
+         dfabff50-e449-4859-a05b-520cca26fe8d)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         5eb28fc7-0471-4bbf-bbe3-133919882867)(label(,))(mold((out \
+         313bca12-0273-48c7-8eac-b978c471b080)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         1cf0cdc8-dc3d-416b-89d7-21439a9ef794)(content(Whitespace\" \
+         e094405f-7d4a-4fe8-9011-968b31a62a8b)(content(Whitespace\" \
          \"))))(Tile((id \
-         dffd58ad-c764-4b3e-8f18-054e47c3eeec)(label(m))(mold((out \
+         b6e4d770-01a6-4857-9220-7b1b1325fce4)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         0b141c13-8b2e-4522-89c7-09f3aace89ec)(label(.))(mold((out \
+         45c64ff7-eba9-4e44-82eb-19351f02b00c)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         0646579a-8393-41c4-8787-3094028ae428)(label(timesPlayed))(mold((out \
+         810dd09e-2cff-43bf-bfff-1dfa2406cc46)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         54df5eba-d664-47a7-b472-6b01b56ec4cc)(content(Whitespace\" \
+         d66afcda-ca0c-4e9b-b2c6-6e91c6b29c0d)(content(Whitespace\" \
          \"))))(Tile((id \
-         786a21c7-02f9-401b-b72d-6659ff7e7ade)(label(+))(mold((out \
+         02672cd1-c036-4c97-810b-1f9118e633d8)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6119eceb-439a-4820-b6e3-c39d5048d51e)(content(Whitespace\" \
+         7f2651cc-8b30-4991-a9a7-e80a78fc2630)(content(Whitespace\" \
          \"))))(Tile((id \
-         0408d3cc-dd11-41fa-b87e-698c4c2ee784)(label(1))(mold((out \
+         fc28cecb-893a-4cb3-b48e-18c2c1eb5a6f)(label(1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         4a71cd76-3da7-4729-b3f8-08a89e43b92b)(label(,))(mold((out \
+         9c18cc37-9107-4fe6-a1c0-48dfe3fc49e5)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d08c536e-8b45-4561-bbcc-cfc1ef6cbeec)(content(Whitespace\" \
+         89699b5d-415b-49a5-8954-b20620f843e4)(content(Whitespace\" \
          \"))))(Tile((id \
-         f8a14a5a-2cd3-4a9a-879b-6efa2b681672)(label(m))(mold((out \
+         8209ac65-0dbe-4f9f-9211-a00780322000)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         06a9b005-0862-475e-a8fb-ba538ea59f37)(label(.))(mold((out \
+         7ae8d172-a59b-4030-bf9c-3755c684db51)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         374ae417-1d30-44b6-858e-3d7751981adf)(label(timesSlept))(mold((out \
+         8b72e987-5966-4006-bd55-b1b7300dba04)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         cef3b2be-633d-4dde-99f6-a6fd8a98e8c3)(label(,))(mold((out \
+         b5cac2f4-0ae3-49f2-8cca-529d408d0f22)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         334b6d3a-f83c-4c36-b27f-649dcb3e501a)(content(Whitespace\" \
+         11d2a064-d20e-4d38-9d4a-a4fa114f1122)(content(Whitespace\" \
          \"))))(Tile((id \
-         7ec443bd-e7bb-4274-8402-7a641fc00773)(label(m))(mold((out \
+         bded4f3b-134b-4762-9316-2272faf0bebf)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         01d13f7c-7593-40e3-9e1d-3ba422c76215)(label(.))(mold((out \
+         114db1f4-99a2-440a-b7fa-fcfb7875f093)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         3e150c80-d5bc-4b7e-82e0-3504b10128b9)(label(timesNeglected))(mold((out \
+         92e8a2c7-8c5a-4cd7-8e7d-8ce737d964c1)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         9fe6e6f0-9793-460c-ab98-f78687390874)(content(Whitespace\"\\n\"))))(Tile((id \
-         c1bceff3-97a4-49f0-8808-46dffad47412)(label(| =>))(mold((out \
+         12c36c69-55a6-4484-ae21-8ff1934b9f4d)(content(Whitespace\"\\n\"))))(Tile((id \
+         d480284c-f664-46b0-aa9e-d897e3a0e2f1)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         8f8da322-a270-4dce-937c-b16aa4184430)(content(Whitespace\" \
+         79b800fe-4faa-4649-b7c4-7402e8787d3c)(content(Whitespace\" \
          \"))))(Tile((id \
-         2806d77d-cc3b-4397-922e-35e4f3e6866d)(label(Sleep))(mold((out \
+         8f648c1f-360b-494b-8401-4966a82c1e8a)(label(Sleep))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         17385a8e-f8a7-4e14-a19c-27473e308696)(content(Whitespace\" \
+         e0e50986-b7d3-4e9b-8581-09a0e67f1d25)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         32130b8f-7c1b-4520-9ce9-2ad03dbdf4c3)(content(Whitespace\" \
+         6560101b-3996-4516-97d8-7b829d2f68c7)(content(Whitespace\" \
          \"))))(Tile((id \
-         987fc0ee-c931-4968-ac12-58bc87f5ecd2)(label(\"(\"\")\"))(mold((out \
+         85c5edec-71bc-4b7d-817a-f59caf0ed4a5)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         66dcdca8-2132-40d6-a84e-c4bbbde5c7d9)(label(m))(mold((out \
+         bbf13af0-d288-4e0c-9c97-8fecec6abfbd)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         1a982179-8c3f-492b-8140-4247567b21ed)(label(.))(mold((out \
+         6f2aad82-84b2-4c75-9ba0-1860a1faf072)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         2f7de018-8c5e-4392-a941-4df64bb40ed7)(label(timesFed))(mold((out \
+         7a85ce4b-f5e1-434f-afdd-ee29118eb846)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         67cc79cd-8b82-411a-8d6b-9c2edaa9cdcb)(label(,))(mold((out \
+         95a02855-4413-4bf4-a02d-1e3a3322ae1a)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         f808e243-3793-4fd6-94fc-e7b3960cad82)(content(Whitespace\" \
+         7fbbb634-e6bf-4f58-becd-879c83468c62)(content(Whitespace\" \
          \"))))(Tile((id \
-         887fa747-3e40-4e81-8b88-d0df14f03f2b)(label(m))(mold((out \
+         d0203821-a80f-4a6b-a03a-7b3a6d933448)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         2e42b5de-ebaa-403d-9f51-23bee231a762)(label(.))(mold((out \
+         83fdfc35-760f-4d5c-9780-7413317221b3)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         7058785a-7151-43fe-bd54-82ac53766910)(label(timesPlayed))(mold((out \
+         eb571d0d-1b1e-436c-b6be-e0cede5147a6)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         e5e369e2-5ae8-409c-a917-cc2bd388fb9a)(label(,))(mold((out \
+         e80d47eb-972c-4639-9361-ea13e7c5bf35)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c9795af1-8ea6-4ff0-b0b3-0936fc86766d)(content(Whitespace\" \
+         919d9fc4-be14-44c1-ac06-dd1cc01d784f)(content(Whitespace\" \
          \"))))(Tile((id \
-         5b39386b-a098-4235-ba24-c408d3bb482f)(label(m))(mold((out \
+         f0211f01-c33f-4992-a007-4c9848540fe3)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         d0456a7b-8afb-46fb-bb66-7f37b96b95b6)(label(.))(mold((out \
+         b430c2fa-f08b-4a5f-8af1-7174d547a88b)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         3e080a0c-7d21-4e2a-bf7d-fdd12050d264)(label(timesSlept))(mold((out \
+         a5b91711-ec44-4709-b689-ec81b9987af5)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         628b47e9-417d-42dd-b3b0-981efe504919)(content(Whitespace\" \
+         0449c643-05cc-442a-95d3-c1b2e3092396)(content(Whitespace\" \
          \"))))(Tile((id \
-         920c8448-2108-4490-82b7-52711ecc2e97)(label(+))(mold((out \
+         19a8cb4c-c9cc-4ef6-bb4b-be2ff672f78b)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         67965c61-ef09-4367-99fa-4e91454a7c69)(content(Whitespace\" \
+         c5cc4eca-12f8-4824-b645-957c62a0b94d)(content(Whitespace\" \
          \"))))(Tile((id \
-         d0b44c1a-bd8e-471c-a6f7-d5b52428cbbd)(label(1))(mold((out \
+         66a477df-b678-4b36-9ff6-5325d49e8616)(label(1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f55ead3d-59ce-4209-a880-89b9f7b01733)(label(,))(mold((out \
+         e3b2c8d7-e700-45c7-bdcc-6ff6118d4300)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         a6c1df1d-278d-46cc-b0c7-1828e4419a1a)(content(Whitespace\" \
+         f535c8dc-b2a5-4f3a-8aeb-f751705568b6)(content(Whitespace\" \
          \"))))(Tile((id \
-         b8787ea0-2882-453d-aac7-0d0eb2f6b037)(label(m))(mold((out \
+         85c97557-e581-46ee-a60a-e55ac47a911c)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         a3c4bf7a-1da4-4cb1-8fad-c27948234a69)(label(.))(mold((out \
+         0c4a1895-9971-40b5-a918-efa5ca277095)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         a8a1a9f8-7c7a-48f5-b427-dcfc77ece4bb)(label(timesNeglected))(mold((out \
+         bb27295f-591d-48d0-8208-61f2c9df5a94)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         4d5a7b32-b44e-4e10-b7c4-2c329b3ba98c)(content(Whitespace\"\\n\"))))(Tile((id \
-         229bcd5a-fc5f-4b04-afcc-991f74c69561)(label(| =>))(mold((out \
+         0920d5c7-39cc-4f8d-a419-c9fde6916f54)(content(Whitespace\"\\n\"))))(Tile((id \
+         f6938a20-ec53-464f-a6a9-83a8265312f3)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         945e16d3-8d2f-4cf3-bbae-35b8bcb70e4d)(content(Whitespace\" \
+         133c5335-5bf1-4538-b973-cf94eed6de7d)(content(Whitespace\" \
          \"))))(Tile((id \
-         5b7c8e25-8417-49b8-8813-31f9fc6e7784)(label(Repair))(mold((out \
+         98bfbae9-f314-47fe-baa8-6a50009a901a)(label(Mend))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         bfc0985d-1aa5-4e07-a438-850d1ea096e7)(content(Whitespace\" \
+         00b5fcdf-50dd-4134-9db9-7f3a117fac65)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         859d27a6-bd39-44b8-bf4b-540a7469559b)(content(Whitespace\" \
+         7beca368-e955-4527-af35-2dbc2ea27766)(content(Whitespace\" \
          \"))))(Tile((id \
-         820329f9-4796-4214-a650-d02925839c67)(label(m))(mold((out \
+         3f69b593-ee53-489c-88d1-431663a0f1dc)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3fc3b6b8-e450-426f-aad0-eca3da088a29)(content(Whitespace\"\\n\"))))(Tile((id \
-         0e174887-5678-4270-ac71-32f4f44136f0)(label(| =>))(mold((out \
+         00284173-e800-4c55-9754-cd89b46a2ee6)(content(Whitespace\"\\n\"))))(Tile((id \
+         c28328a3-c986-46b3-acd4-35e10f70c322)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         ef45b9d2-f104-4d54-9329-2cc0a44f3b3b)(content(Whitespace\" \
+         3fa44fea-d4c6-41fe-9ea6-2a85b49c0df7)(content(Whitespace\" \
          \"))))(Tile((id \
-         98d4aadb-3f40-4163-a223-912db90864de)(label(TimeTick))(mold((out \
+         ea07b862-425c-4cab-9621-269a7e345822)(label(TimeTick))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         865ef126-fac1-4b9d-b1b9-d41df7fffab9)(content(Whitespace\" \
+         c142ad9a-95f0-414c-a390-7eafc38b7cee)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         fcb8ee8f-07a0-4369-bdaf-da28f12c9ffc)(content(Whitespace\"\\n\"))))(Tile((id \
-         79c4c89d-d0f4-4144-a8b8-f8aef3edae61)(label(if then else))(mold((out \
+         c23ec10e-93d2-4685-8420-b18785d8b19c)(content(Whitespace\"\\n\"))))(Tile((id \
+         21892f2e-bba8-4c30-9dce-dd5e373b54cb)(label(if then else))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         2a061ac3-08dd-4d36-a9c2-d87271e22b09)(content(Whitespace\" \
+         835c3e3c-2b05-4e4b-b393-b7abd9171c91)(content(Whitespace\" \
          \"))))(Tile((id \
-         3fdae376-04e4-4734-9481-8ee80f46c760)(label(isNeglected))(mold((out \
+         5b7ca3aa-4a8d-4914-9126-9db893f73c7a)(label(isNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         6016c3eb-f2ef-470c-8ebe-17fbbefa4bde)(label(\"(\"\")\"))(mold((out \
+         615767ab-37e4-4a9b-894b-8b9e0e989944)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         0327e003-d7b9-4832-9b92-91c862b02a04)(label(stats))(mold((out \
+         eedba860-19f9-4c76-8d09-1197c87a5727)(label(stats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         9e6f00aa-d9b7-44f2-9181-81e027f46bbf)(content(Whitespace\"\\n\")))))((Secondary((id \
-         0a7faaf3-dcf9-4c18-a90c-428b5db19d40)(content(Whitespace\" \
+         c2e4d227-37f8-4730-8b82-0908ad13a248)(content(Whitespace\"\\n\")))))((Secondary((id \
+         08a7a50c-1c64-4fb6-bb96-9d2e8f884530)(content(Whitespace\" \
          \"))))(Tile((id \
-         19b32c2d-4747-47d7-ad56-6ed026e358d9)(label(\"(\"\")\"))(mold((out \
+         1eacd73b-97ab-4b26-b30f-83323b796a46)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         16f351e7-e365-4052-b8a9-aec658e10e08)(label(m))(mold((out \
+         c5f962ae-0b9c-41d5-9a55-05f9c0728a2a)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         ad03b889-7449-4213-8d35-b71d896fbfb8)(label(.))(mold((out \
+         553d370d-326d-4ded-be5f-e993ba520827)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         63ab1c57-ba5a-4046-96f1-59e0285feb05)(label(timesFed))(mold((out \
+         523a5234-2cc3-493f-a66d-d2053e1ecaa6)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         107ed598-76bc-41da-8090-aa0fd96c9697)(label(,))(mold((out \
+         f7f0307a-ee75-4ce6-a4ed-bad01be4b4fc)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         56209d87-7497-41d0-9bc0-f806c687804e)(content(Whitespace\" \
+         f6203032-2989-4458-b7c4-67a24b5de349)(content(Whitespace\" \
          \"))))(Tile((id \
-         8512ac46-e6b0-48f4-996b-9561a55848ba)(label(m))(mold((out \
+         b822665c-a436-4fcc-922c-ca0a7909e4f4)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         b11f7db7-d9c7-49a0-8206-4ead7e123bb7)(label(.))(mold((out \
+         63209c01-8f6c-453f-a739-94d4038d071c)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         4f9fb92d-afbc-4daf-aaf0-ba5fd7afa132)(label(timesPlayed))(mold((out \
+         5bf21fa5-709e-40cf-abf4-bb4703ac6f79)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7d4e43d3-5262-4ced-bb50-1ff2630485c0)(label(,))(mold((out \
+         031f9940-0261-4d55-a7bc-951bfbbbe1b5)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         4878a9b4-9484-4fbc-bcbd-9a8420570c2a)(content(Whitespace\" \
+         f90d5b2c-4343-4371-bcf8-60e6a77b83ea)(content(Whitespace\" \
          \"))))(Tile((id \
-         72fde2c7-1903-4de9-9933-6187fbe91244)(label(m))(mold((out \
+         3907aa9c-6a3d-4aff-aa0f-abaa32e9bc1c)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         ae84d650-ccb2-46d0-ae55-480003f5a4c6)(label(.))(mold((out \
+         eeca3cf7-1fa5-4b6c-b226-718ce147e4e8)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         c9100b43-57bb-49f3-8ca8-dbc1dcec382d)(label(timesSlept))(mold((out \
+         d55ddac8-ee16-4b9b-beb7-7eac4509ba2d)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         a4ed4e08-a842-48b8-b6b6-7aa768de6ba0)(label(,))(mold((out \
+         c1a6931b-83ad-44bf-af39-8d3d3e1dba83)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         7edc9412-4b73-44c3-8408-9767858286a9)(content(Whitespace\" \
+         4990ad16-8821-4f3c-9781-aac66de054d5)(content(Whitespace\" \
          \"))))(Tile((id \
-         658e27d5-55ab-4ee0-b57e-bf4c8f5b921e)(label(m))(mold((out \
+         f7dc1651-fd04-4bb4-b8d6-7731fa27e813)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         caa06228-6b34-415c-84b3-8099ac8cc015)(label(.))(mold((out \
+         0664428a-030d-489c-aeb2-45e88d21e91c)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         c29ed4ad-850b-4fab-b626-05a174e919c6)(label(timesNeglected))(mold((out \
+         efb053a8-5d91-468d-a523-eada943a4496)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         5df742df-bdec-4d97-ac9b-6d0b3771cfae)(content(Whitespace\" \
+         5bffd2ba-6725-4842-8154-53998f3b6365)(content(Whitespace\" \
          \"))))(Tile((id \
-         ad9372e1-99f7-4a56-a397-c08f9fc6dcbe)(label(+))(mold((out \
+         ca1b7c37-e545-4482-8c39-609ffb3b5385)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         dab10562-8b07-4eda-9727-350d3f5b5e00)(content(Whitespace\" \
+         d928c7bd-d99a-476a-bd40-5ddb5a17ec9e)(content(Whitespace\" \
          \"))))(Tile((id \
-         a8b58831-633d-48e6-8b49-7c39a9de752a)(label(1))(mold((out \
+         7f0610fa-44bf-4d48-b9a7-a2c96e3f7cad)(label(1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         0311fca2-2c68-4ccc-bb7c-008e66afcbb9)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         7991bdbd-24a5-43b4-b70e-edcc1767b635)(content(Whitespace\" \
+         9b3bcc0a-cd60-41ac-aa00-e1f2ecc49d09)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         4c6b58bd-d0fc-4360-b70e-4cb2b7a98e67)(content(Whitespace\" \
          \"))))(Tile((id \
-         925e9f4a-63ee-43ce-9b28-f3cdb50b221e)(label(m))(mold((out \
+         9e29043c-c3d6-4944-b422-a01d51107e35)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         6578e8fe-d6d2-46ee-96a0-b8262cb5a0fd)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         c979b7e4-8b0b-47bb-9a68-5d61b950e0b4)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         15373431-cc13-4602-9c6f-62feebb1e410)(content(Whitespace\"\\n\"))))(Secondary((id \
-         0d080c7b-41ae-4655-a7ea-9e4571e8fbb7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         dcae1553-972f-4b51-927b-10f60c578365)(content(Comment\"# Apply an \
+         60903593-93a6-45f0-824a-4424dc63ef2c)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         86e6b9ac-4bd0-4269-8297-96dadd8afe3e)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         8f81b4b3-adf5-4a2c-aa6d-935de4e4f3a1)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5376f789-df07-4738-a2fb-ee0ca00b625a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c26498dc-a13d-4cde-b56f-de9b331a4d69)(content(Comment\"# Apply an \
          action to stats #\"))))(Secondary((id \
-         f914c109-f55d-4e28-a406-ca2dc67f1965)(content(Whitespace\"\\n\"))))(Tile((id \
-         a9c624ad-bcf7-4ae1-8472-6843c6f0f0f9)(label(let = in))(mold((out \
+         1da294a3-2533-4de3-8eb1-01f4179ca1a6)(content(Whitespace\"\\n\"))))(Tile((id \
+         8f11d2ca-09a7-45e9-a1a3-18c383004170)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         76a32a77-063a-44fa-9061-e2be507e459c)(content(Whitespace\" \
+         319832ee-6b2b-4393-a383-a851c65e44b7)(content(Whitespace\" \
          \"))))(Tile((id \
-         d8d259fb-d19a-42d6-a5cb-462cb3d1ae69)(label(applyAction))(mold((out \
+         dbea88ac-5b36-4e6c-ace8-428af3b02517)(label(applyAction))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         5fab1321-5eec-48f7-ba1f-ee96550fce56)(content(Whitespace\" \
+         81c1c7a0-a6b7-48a9-aaef-544c513f9af7)(content(Whitespace\" \
          \"))))(Tile((id \
-         9969e72c-f6b3-46c7-ac9e-32d1e9b81bd1)(label(:))(mold((out \
+         edac668d-fdcf-4ba6-a6df-88b43499e2cc)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         d51c46d4-61c1-42d2-9384-5b6953862b84)(content(Whitespace\" \
+         3d1c38bf-19b6-4356-8259-9a7843d36fea)(content(Whitespace\" \
          \"))))(Tile((id \
-         3ad0a6b8-4a72-4a30-b4b3-1c20ab195287)(label(\"(\"\")\"))(mold((out \
+         2a41d445-e363-4c5b-854f-e5e1a42cba81)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         a5222ffb-6fe3-4c15-8a9f-c2ca516e9cc6)(label(Stats))(mold((out \
+         371b729f-127c-4ec8-9665-b5b1c869cd85)(label(Stats))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         30138ea2-ddd5-48a2-afb6-b57045f18ce4)(label(,))(mold((out \
+         1f18c5d2-a098-4b3b-84fd-b48d9ab4b67d)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         41ac44e9-5dad-43b7-b5f1-d98c4accf4f6)(content(Whitespace\" \
+         9a368e6a-5524-42dc-8e02-911dd380a7f6)(content(Whitespace\" \
          \"))))(Tile((id \
-         227a0338-c874-4155-86fb-ca67fce3d41f)(label(Action))(mold((out \
+         5e4f5e5a-acaf-4627-923d-e8b1c061caa6)(label(Action))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         714f77f9-9290-4499-b4ca-40573ca4d02d)(label(,))(mold((out \
+         82b3beff-69e7-4a88-bf4e-bf1bb8d41572)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         ea4f6f4a-63dd-453a-ae97-4f6dd93c41f0)(content(Whitespace\" \
+         966a04ac-6922-4b75-9ed9-ea430cb57ede)(content(Whitespace\" \
          \"))))(Tile((id \
-         a1e4071e-d3e5-4f09-a8c8-355e1e4e08da)(label(Personality))(mold((out \
+         867493fb-078a-4cad-98b2-e5cc9366c855)(label(Personality))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children()))))))))(Secondary((id \
-         7611dd73-1dac-4bca-bc82-df2b41d0cec1)(content(Whitespace\" \
+         089b353c-8b76-40da-b246-2675ab722628)(content(Whitespace\" \
          \"))))(Tile((id \
-         eaf20a0d-20ce-4d6b-a5e4-1cb8da079202)(label(->))(mold((out \
+         577c7369-d88f-4fe5-ba87-9aeba0620a10)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         b8942982-02c0-4e90-a4ec-0e170847285f)(content(Whitespace\" \
+         383032cf-22a9-4271-8127-11c11276ec83)(content(Whitespace\" \
          \"))))(Tile((id \
-         1d065b2c-58b7-45b0-8698-daa43c4c31b9)(label(Stats))(mold((out \
+         dc2d7165-e808-4fc4-b2f5-0d6cbba4c938)(label(Stats))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         c75a2815-f73e-4078-9f43-a75155809eb4)(content(Whitespace\" \
+         6c77ae2c-bcca-4110-85af-54477482faa8)(content(Whitespace\" \
          \")))))((Secondary((id \
-         e04d3ab6-59c6-4662-a9c3-60a182e63300)(content(Whitespace\"\\n\"))))(Tile((id \
-         4cc85169-684d-4310-a258-c33f1c749d20)(label(fun ->))(mold((out \
+         0b9bcec2-2a2c-4991-890d-7aed559cdf0e)(content(Whitespace\"\\n\"))))(Tile((id \
+         c29372b2-ea5e-4154-84c0-d151ad4901cc)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         ed95145a-5f31-4f4f-8bca-e812b1f4394e)(content(Whitespace\" \
+         da29fc8f-31a9-4140-9653-c8946c3237d8)(content(Whitespace\" \
          \"))))(Tile((id \
-         d81d5688-fab9-46f8-940c-d2f92a423b7d)(label(\"(\"\")\"))(mold((out \
+         896fb398-e10d-451e-aaaa-17471fa5f1ea)(label(\"(\"\")\"))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0 1))(children(((Tile((id \
-         f9f31232-1da0-4941-a39e-790e0689342f)(label(s))(mold((out \
+         ff2c44bc-9d44-4dea-b629-1505529ce6ca)(label(s))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         0e0a86a1-cfe5-4bf3-9ee7-55d123a35389)(label(,))(mold((out \
+         9e333127-aeda-47a5-84d3-20e3dafa0ee1)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 44))(sort Pat))((shape(Concave \
          44))(sort Pat))))))(shards(0))(children())))(Secondary((id \
-         d42d5e9a-4734-407b-ba8a-2b92b923d171)(content(Whitespace\" \
+         14f52658-6faf-47dc-9536-3e4f0caa6af0)(content(Whitespace\" \
          \"))))(Tile((id \
-         02517548-3c5c-43db-b95c-45f07e192d37)(label(action))(mold((out \
+         06e775c0-85fd-4941-a2d1-fdf4a02e8af1)(label(action))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         b1ef18d3-df4f-4f3d-ac66-3eadefa234df)(label(,))(mold((out \
+         5db27467-f68c-48d0-8009-98929bc6a00e)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 44))(sort Pat))((shape(Concave \
          44))(sort Pat))))))(shards(0))(children())))(Secondary((id \
-         629eadf4-7dec-4bc9-b051-348b43a48c22)(content(Whitespace\" \
+         299429d9-3ffd-4229-8bea-6df9bd667455)(content(Whitespace\" \
          \"))))(Tile((id \
-         95d98717-694b-4443-9d59-35b9d594f6af)(label(personality))(mold((out \
+         4a48e63d-9af5-473a-a4e5-9dcdef1ce56e)(label(personality))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
-         0fbc759b-7f8e-42df-a061-ad116652bf72)(content(Whitespace\" \
+         380da695-f6d2-4dcb-8cf8-4d3a16cb6df9)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         20a532c2-adb1-4b6e-afb0-827d0cd9650c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         72b4a174-6959-496a-aaca-b0f94dc3b114)(content(Comment\"# Personality \
+         490ac7d4-e8b9-4bdb-8099-d4613892e572)(content(Whitespace\"\\n\"))))(Secondary((id \
+         57353ded-a1cd-4089-af12-038014180297)(content(Comment\"# Personality \
          affects action effectiveness #\"))))(Secondary((id \
-         76c2c7d2-0afb-443d-8fd0-7dd09c1110c8)(content(Whitespace\"\\n\"))))(Tile((id \
-         e285ab62-8c79-48d6-a562-41e7ebfb5940)(label(let = in))(mold((out \
+         89538071-cd8f-446a-99de-23901538fce8)(content(Whitespace\"\\n\"))))(Tile((id \
+         aa8cd151-0013-42b2-98c2-5eeb18636b9d)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         3058351f-3544-4f99-b33c-29587a3acaec)(content(Whitespace\" \
+         a1db701f-676e-474a-abfa-4499c04b0101)(content(Whitespace\" \
          \"))))(Tile((id \
-         fca9ea86-d0bf-47aa-b4cf-65175f35bb70)(label(bonus))(mold((out \
+         9db5c4d5-ff7e-4f58-814f-d1a653beee0b)(label(bonus))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         01da33b4-388f-47ed-a223-e22a97ce1792)(content(Whitespace\" \
+         b49023f2-453e-483a-9fa8-094f0debb0ad)(content(Whitespace\" \
          \")))))((Secondary((id \
-         26e9c430-788d-4c68-a2be-372a115de6c3)(content(Whitespace\" \
-         \"))))(Tile((id 35e4a868-35c9-4d5f-8f08-cda3c6cf7675)(label(case \
+         9935e1c3-163d-4206-96b4-d378912116bf)(content(Whitespace\" \
+         \"))))(Tile((id 81276ecb-4aad-4442-b343-2403627e568f)(label(case \
          end))(mold((out Exp)(in_(Rul))(nibs(((shape Convex)(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         b8e5bb4f-79f0-49e3-9331-13cf5923defc)(content(Whitespace\" \
+         8b74faaa-3773-4188-84c6-3df2b2c715da)(content(Whitespace\" \
          \"))))(Tile((id \
-         2c8e5e2b-a6c5-487c-8e47-93390d20b07c)(label(personality))(mold((out \
+         c556868b-3c73-4fe7-b1ca-0c2f6c14a21a)(label(personality))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         bbfdbf1c-a9f7-42ae-b0b4-ab26fc81e968)(content(Whitespace\"\\n\"))))(Tile((id \
-         eb3b03f7-9031-4722-bc5d-5d0efc63cc12)(label(| =>))(mold((out \
+         e27e0b4a-d732-427f-8def-0f52d40c742a)(content(Whitespace\"\\n\"))))(Tile((id \
+         abeb5b60-4ea4-4843-8460-9599a23c3314)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         a21b80d3-4de4-4cc8-a5f5-deb0635069e2)(content(Whitespace\" \
+         d70a4133-7cc9-4823-9405-d98a9e9431f3)(content(Whitespace\" \
          \"))))(Tile((id \
-         c0793822-7970-4386-b612-d0635e6f38f0)(label(Cheerful))(mold((out \
+         5c2f99b6-5ca7-4228-9cf2-dc50591c5800)(label(Cheerful))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         f3a10a0e-c01a-4c66-a9b4-a79b1e9d1ef2)(content(Whitespace\" \
+         b0fba2c9-2b83-4e0a-8f12-35f280a79fb1)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         bafba025-ec81-4e7f-8920-1696295f4e70)(content(Whitespace\" \
+         f8b56949-6589-4b6f-9a00-a95b99c5f22f)(content(Whitespace\" \
          \"))))(Tile((id \
-         7243544a-d852-43bf-94f0-2e8817e8d981)(label(5))(mold((out \
+         b42bb6ba-16dc-42b6-88fc-3e9019e28f45)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3052c844-b072-4e98-b05c-98a77668b9b7)(content(Whitespace\"\\n\"))))(Tile((id \
-         10dc15d5-e81e-4e56-bdd6-00c47d0ecbf6)(label(| =>))(mold((out \
+         3255e725-11de-47ef-a320-cf1c092c174b)(content(Whitespace\"\\n\"))))(Tile((id \
+         7d3e5cce-e63f-4e8a-bc3a-7e3347a931ce)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         2cd6da7e-3830-41ed-8b00-688c3c74980c)(content(Whitespace\" \
+         8bc0b72f-e2b6-488f-8a4c-65aacc484bb8)(content(Whitespace\" \
          \"))))(Tile((id \
-         9488102b-16a0-45f0-a281-9aa81576c0db)(label(Grumpy))(mold((out \
+         19623e6a-5ce8-47e5-a276-d0c6df5762c6)(label(Grumpy))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         b3350feb-b8f3-46cf-a507-c4f1e5aa1c43)(content(Whitespace\" \
+         99c4fcb2-439a-4236-8139-ac868b09e178)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         5c23b2d5-e06c-4818-9072-0b7f34797385)(content(Whitespace\" \
+         61a46b1a-aee1-4942-9630-2fb3897fba79)(content(Whitespace\" \
          \"))))(Tile((id \
-         1c0be434-f5b4-43d0-8964-e4d0f93ea82d)(label(-))(mold((out \
+         ae796d97-6e2d-47ac-8f8b-9eb230cd14d3)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape(Concave 25))(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         b8acc815-de9e-4c1c-a9f2-1909cd8129b6)(label(5))(mold((out \
+         9bcf0d41-abd5-400a-a6b2-489640155b81)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b4a00c4b-bc75-4c54-8acc-526f160c85cd)(content(Whitespace\"\\n\"))))(Tile((id \
-         b2a08d08-9fc7-40e0-89ff-e3d8651b4004)(label(| =>))(mold((out \
+         1a77d4b4-0627-44d9-95af-1e0caa2b2ebd)(content(Whitespace\"\\n\"))))(Tile((id \
+         133b0fd2-cdbc-4deb-84d4-16ffe10f90eb)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         15edca61-330d-4cdd-9dce-452faa8d3289)(content(Whitespace\" \
+         f1f29da9-ff49-4903-bdb7-7142e47a248f)(content(Whitespace\" \
          \"))))(Tile((id \
-         c994e4b3-91b9-4d7d-bca3-520ac05249b4)(label(Anxious))(mold((out \
+         553cef39-56bd-4862-a79f-145b2166510e)(label(Anxious))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         234296d4-fd17-4035-aaf5-5e14ae6356a4)(content(Whitespace\" \
+         1905021b-c077-4181-bcc3-ddc5a0eb46e4)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         699fc712-771d-4d57-bd05-d40c2dc61c22)(content(Whitespace\" \
+         f6391471-9a1b-4a22-8a9c-bd43f39752f3)(content(Whitespace\" \
          \"))))(Tile((id \
-         7798304e-2127-468f-9e86-97a7d3c81905)(label(-))(mold((out \
+         581eb53c-9f8c-4b92-aa17-0eb5f17c3111)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape(Concave 25))(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         566b6df0-724f-421d-b49c-c519ba463020)(label(2))(mold((out \
+         57f40c81-ea16-4805-9ceb-a172913ce49d)(label(2))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         6a0fa166-a138-491b-8cb4-9be64dd686c2)(content(Whitespace\"\\n\"))))(Tile((id \
-         d429af0f-8938-44b7-857d-74e40b703ad5)(label(| =>))(mold((out \
+         a2f36bc2-fba0-4c36-86a0-4176259f8c39)(content(Whitespace\"\\n\"))))(Tile((id \
+         d40692a5-9c36-48fb-87a4-dd8904bc8e16)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         83dd309a-09ae-41aa-b598-b1337f22ef3e)(content(Whitespace\" \
+         3a23e776-8c78-4cff-b011-a82469c1cf4e)(content(Whitespace\" \
          \"))))(Tile((id \
-         dd8e48bd-9962-4002-a6ea-7d00b020418f)(label(Balanced))(mold((out \
+         b4140aa0-e853-4312-a95b-9827d5dfee76)(label(Balanced))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         8c5e9c96-2600-40b0-9d04-87790fa6eb55)(content(Whitespace\" \
+         d8759233-1d44-491a-aad7-c423bde6fbff)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         cd4f4b33-be1e-468e-9464-7d980e763d9b)(content(Whitespace\" \
+         564a827b-a538-41c8-826d-8363783035cc)(content(Whitespace\" \
          \"))))(Tile((id \
-         dda9cd3c-2860-45a2-97a8-2a26e47b8935)(label(0))(mold((out \
+         9e1a833d-1e8e-4b23-a46c-a54e21c9765b)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         5ac7b8bf-07cd-42da-9589-d6a4b2ca105e)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         eae7205d-b4c8-407d-8844-8512a7fd946d)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         2a4e09c0-17bf-46f7-8124-956d53be8a21)(content(Whitespace\"\\n\"))))(Tile((id \
-         ef1956c8-10b8-4aa6-83d2-638dc8772d2f)(label(case end))(mold((out \
+         c2641533-ed50-4976-a5ac-46c73ce17bc5)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         f36f3ac1-556d-4d3d-acfc-c2a511f1e726)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         ab2fd7c5-0a0f-4e2f-b588-9ad873dbd0c3)(content(Whitespace\"\\n\"))))(Tile((id \
+         5a75b18c-e37b-4232-bf9f-7f273a562a8f)(label(case end))(mold((out \
          Exp)(in_(Rul))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         181867c0-40b5-473a-8a2f-e9719a68aefa)(content(Whitespace\" \
+         b784761f-2bfd-4636-9de4-a097a5a11695)(content(Whitespace\" \
          \"))))(Tile((id \
-         1f1d3b23-62e5-4f3a-a3d9-b0f9469d9ae0)(label(action))(mold((out \
+         e16bc325-c9c6-4749-9784-ac4919bc849c)(label(action))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b6ffbdf3-9a07-4cf4-83fa-a3c3ccd90463)(content(Whitespace\"\\n\"))))(Tile((id \
-         aeabffdd-3ccc-4f8c-89c7-b6b08c34a6d4)(label(| =>))(mold((out \
+         ba76f1c7-d85c-47f9-952f-dd448c303a9c)(content(Whitespace\"\\n\"))))(Tile((id \
+         8b409189-9318-4bab-861d-54e3a72c9602)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         69398d43-5a2e-439d-b0cb-1947f4c06e98)(content(Whitespace\" \
+         e50273c0-af2e-4967-9c97-379587d3bfdd)(content(Whitespace\" \
          \"))))(Tile((id \
-         01f1f3f5-e535-456e-b5f3-9f1d4bf7fb03)(label(Feed))(mold((out \
+         dfd9d856-7f66-4615-9567-96bda9c6e2e8)(label(Feed))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         37b6e792-b5e5-49ee-91a0-13064ce4feb3)(content(Whitespace\" \
+         24e3a2e0-dce6-453b-b897-3df97dfb3f57)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         eccfc934-0ea6-41ff-a97b-805538995957)(content(Whitespace\"\\n\"))))(Tile((id \
-         a712b769-f37a-4c4a-97c6-8316aaaa5368)(label(\"(\"\")\"))(mold((out \
+         59cee12d-1fac-425e-a1e5-bbe8f27ca305)(content(Whitespace\"\\n\"))))(Tile((id \
+         6f6b8533-3bf3-41b2-b07d-8b52adf5297e)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         9cfd808e-c0f0-47b6-971a-c2b8a2de915e)(content(Whitespace\"\\n\"))))(Tile((id \
-         9b41bf0e-d5af-49ab-9862-448f7e4a49b7)(label(hunger))(mold((out \
+         6a239056-a869-4707-baed-ae889def2c7d)(content(Whitespace\"\\n\"))))(Tile((id \
+         337953ce-4933-4718-bb1c-8b4d1a54ccde)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         2efc0353-b19c-457f-a292-233ccbc7c75b)(content(Whitespace\" \
+         27da4cc7-8c8d-4053-a9f1-7d60de35e535)(content(Whitespace\" \
          \"))))(Tile((id \
-         7ff0627e-fffc-40bb-a206-6f6b6d60edf6)(label(=))(mold((out \
+         406ee965-906b-4859-b99f-82b597f5452a)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         4c5479b9-1fac-42fb-bb12-bd35c7b7cdce)(content(Whitespace\" \
+         3d511a4c-473a-4632-96eb-b9a24128c14d)(content(Whitespace\" \
          \"))))(Tile((id \
-         65ad6114-f219-4693-bbfe-5d2b14e79f22)(label(clamp))(mold((out \
+         1391c2b7-3bf3-435f-ab56-c9682540fd05)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c8df3c14-d0c0-4395-b090-4eb33cb05f37)(label(\"(\"\")\"))(mold((out \
+         36c26c5c-d88b-4ad1-956a-724f9522d04e)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         78a02c19-fcb5-41a4-a693-1418d657fc71)(label(s))(mold((out \
+         a19d662d-1865-430b-b8db-ba52a73eb940)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c661cbe8-2b70-484f-9872-b92a5f140392)(label(.))(mold((out \
+         c3f2b13e-3c74-415d-ac87-b0345065f6e3)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         9c9fb1a2-6f03-4112-aa4a-a68f3d6e0ef0)(label(hunger))(mold((out \
+         6a75aee0-e76a-41f9-81ee-f914210f5ee6)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         bb8cfe5b-463f-4a41-bc92-c344ec53d0ab)(content(Whitespace\" \
+         9bae4047-2233-4703-9c5a-7d07b9b01878)(content(Whitespace\" \
          \"))))(Tile((id \
-         42262c5d-f362-48a2-9bb1-81917aaa6edd)(label(+))(mold((out \
+         17d87632-64e6-43dd-b0ba-c2f577dc2a3a)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6589f35a-7da5-471c-a4b2-ac92ad12d4ca)(content(Whitespace\" \
+         cc2a7d95-7515-4b65-86b6-0dd349be51dc)(content(Whitespace\" \
          \"))))(Tile((id \
-         336ec43d-5c4e-42e9-9e22-61505b6d187e)(label(30))(mold((out \
+         03bdae0e-550b-47ca-a726-b5057ca6260e)(label(30))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         c4d6b85e-0bfe-48ba-8a36-3991199931f5)(content(Whitespace\" \
+         1cb7b6c4-b7e8-4fbc-9a2a-59572bb0e60f)(content(Whitespace\" \
          \"))))(Tile((id \
-         18a6205b-0a4e-4ec6-9f11-1dc4a5135af2)(label(+))(mold((out \
+         583638ea-3295-45d9-94c2-4428d0ee4ccf)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         af7b19c2-4694-4349-ab7b-4fd302cdd0fc)(content(Whitespace\" \
+         36623db0-2e92-4d02-8440-b93250f15fc6)(content(Whitespace\" \
          \"))))(Tile((id \
-         96e48b8f-f973-4d81-a7a8-188076b79475)(label(bonus))(mold((out \
+         90f0f521-e480-41c1-8a11-1edb21853750)(label(bonus))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         9425253d-6370-4aa9-8ad0-949187e3f408)(label(,))(mold((out \
+         a4e90a75-b16a-4d7b-8f95-89210e2e2e43)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         692b2d84-27b9-43b4-80ff-3f3db4e7e9af)(content(Whitespace\"\\n\"))))(Tile((id \
-         47c270c5-f19a-4fd8-9604-2468888141a9)(label(happiness))(mold((out \
+         546ea312-3e56-46b8-a3a1-7f6cdd97034d)(content(Whitespace\"\\n\"))))(Tile((id \
+         032d1997-ace9-4962-bd8f-c46915e6062f)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         07c264a2-7364-46d9-a502-71d0b7abb5c1)(content(Whitespace\" \
+         609c607a-1741-4e93-9d4e-0f1cea19905e)(content(Whitespace\" \
          \"))))(Tile((id \
-         dd648e94-ddb1-4f2d-9a32-de0fbdb07977)(label(=))(mold((out \
+         4845115f-e4e4-4fdf-bb75-387c92b03603)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         664a0f16-551c-4309-aff8-5d10b885161e)(content(Whitespace\" \
+         d87a755a-d848-44d3-bbdc-24832c9fdd0c)(content(Whitespace\" \
          \"))))(Tile((id \
-         442b6dea-a458-4080-9a8f-e401baf922f7)(label(clamp))(mold((out \
+         b5b931dd-6c36-4eaa-b83c-22190ed4566c)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         a578106b-019c-4937-9c6c-df2e5a1e244a)(label(\"(\"\")\"))(mold((out \
+         787fefa1-ae72-4b17-89b2-33e46cdfb157)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         f9ead7e2-824b-4588-9e99-774bece7386a)(label(s))(mold((out \
+         1a30d527-9796-466d-8c94-160ce5b2aed6)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         e88e3eef-16aa-45a0-8ad9-fedb07bee57e)(label(.))(mold((out \
+         8f442ef9-bcc3-4709-8a48-4081889e599e)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         c43e70ff-53b8-43a8-a50d-44cf8af1b3b7)(label(happiness))(mold((out \
+         2b470a5b-4a2c-4ead-b4e0-77298d722b4a)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         0283df7e-2d99-4d70-89b4-7baad47bafd9)(content(Whitespace\" \
+         90939671-e815-404d-9eec-a63ba1731f1b)(content(Whitespace\" \
          \"))))(Tile((id \
-         95354cf0-90f5-486b-be7a-0961197a769b)(label(+))(mold((out \
+         b8258e36-c56c-4508-af82-d82f578c2d5f)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         a147dd47-2098-4384-842c-1520f3775501)(content(Whitespace\" \
+         4c9c3bb4-6b2b-48f0-b4c1-84b7bf24d711)(content(Whitespace\" \
          \"))))(Tile((id \
-         dd938640-a457-4dfd-9247-bb659e9ca0fa)(label(5))(mold((out \
+         61001bb9-c027-4157-bcb1-3a096f5c8611)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         47273c54-ea1f-475e-b2f8-ef2d4f31f3c0)(label(,))(mold((out \
+         68bf3e80-f005-49ba-8c29-8aefd203b268)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         ebaa54aa-d83e-4532-999b-7bdf1457ba3e)(content(Whitespace\"\\n\"))))(Tile((id \
-         a950249b-8843-42d4-ba32-29e0c69dad47)(label(energy))(mold((out \
+         9917ecd6-be8c-463f-b255-7f733d0060ce)(content(Whitespace\"\\n\"))))(Tile((id \
+         b91386f9-d145-4850-9fc0-3dab5a62bd0f)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         48762563-4ee0-4b12-982f-4701e0b48938)(content(Whitespace\" \
+         5eeac025-d218-4d5b-91c1-d0050fc19caf)(content(Whitespace\" \
          \"))))(Tile((id \
-         8c9f19c0-a34f-4fb4-8895-5efc2d0d725c)(label(=))(mold((out \
+         4b5b87d4-1f75-4b4b-95bd-5e69366ce7bd)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         b3ae132e-2638-4160-964e-d24f2646a7ea)(content(Whitespace\" \
+         cf55bb18-6d44-434e-9d30-534887a77636)(content(Whitespace\" \
          \"))))(Tile((id \
-         307f6c2d-9d12-48a4-9227-a8c11643ee6d)(label(clamp))(mold((out \
+         ff9f9285-c3b6-469d-a806-8cca744e760f)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         95734af0-a8bc-4b25-9185-b7c7ad97a876)(label(\"(\"\")\"))(mold((out \
+         f26cab9d-360e-45e4-b089-e46e0888962b)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         3898435e-54c2-4963-bb38-0b92d85ceabd)(label(s))(mold((out \
+         3b70d8d5-07ea-4f55-9e2a-f71e7bdcc8c7)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         d427cdc1-e65e-482b-a913-1e5e259974c2)(label(.))(mold((out \
+         b27dbdbc-3e9a-4d16-a77c-f7d019b31d96)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         d9eedd3f-d6c0-4879-ba33-8042186b32ed)(label(energy))(mold((out \
+         2a62d050-5cef-4bbd-a9d1-205ad8daaaf3)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         cb49e08b-51f9-4af4-a24b-b1788a4d4a36)(content(Whitespace\" \
+         bc4ce0ad-6637-4d64-9a80-e56210379d69)(content(Whitespace\" \
          \"))))(Tile((id \
-         6b43a797-2db7-45e6-b83b-a72ea327622e)(label(+))(mold((out \
+         3cb460a5-98d4-431c-b113-1a997f8a6d0a)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         b79ee250-2656-47b8-a13d-8062cbe06683)(content(Whitespace\" \
+         d177273a-d2be-486b-9da6-9864bc3b9c89)(content(Whitespace\" \
          \"))))(Tile((id \
-         b748996e-0311-45ee-bfac-b9093176b16f)(label(10))(mold((out \
+         32a6f2df-e304-45f7-93ab-e0f1bd212efa)(label(10))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         edcf3f2e-fad1-41e1-914c-6f7109fa3d33)(label(,))(mold((out \
+         b3b21f0c-20fc-4420-a8b3-4268d65b1271)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         257038ee-a71c-48cb-b915-13f49b48ed84)(content(Whitespace\"\\n\"))))(Tile((id \
-         32348a2e-13fb-4712-9163-a27e4e7906bd)(label(health))(mold((out \
+         72916a7b-34cc-4871-b02c-a7008b1b776f)(content(Whitespace\"\\n\"))))(Tile((id \
+         ca8d241f-402d-468f-8167-3a6c218591bc)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         e4d8fafd-a4ef-45f8-bf9b-a10728d70800)(content(Whitespace\" \
+         5f152cb9-41e2-441c-b166-568365d2af9c)(content(Whitespace\" \
          \"))))(Tile((id \
-         4826b6d3-8aaf-47cc-8e81-cec28c1b6663)(label(=))(mold((out \
+         50429649-6b08-46b0-978d-8c87b33c77d9)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         899c35b3-2425-4a15-8041-903ac1486247)(content(Whitespace\" \
+         3c23332b-9371-409a-a636-a6620e57312f)(content(Whitespace\" \
          \"))))(Tile((id \
-         8720fc71-41b5-493d-95f7-92d2b9423031)(label(s))(mold((out \
+         2002dc0e-c9c5-42a4-b038-5d0f6d02340d)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         293c8931-d567-471b-a860-4cfa3d4ad273)(label(.))(mold((out \
+         f0fde1ef-6bc3-48d4-aa6e-24a1a1462cea)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         b9f46b0a-e5eb-474f-adad-38661691e9e3)(label(health))(mold((out \
+         2008be27-3245-418b-ba80-d3e70973624f)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f92912dc-68a1-4894-89cc-65ee4069b203)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         90be282c-8a6f-4b70-95da-c7cf5d395f69)(content(Whitespace\"\\n\"))))(Tile((id \
-         fa54e60e-ccf0-48e6-a63e-b4a8183a38f5)(label(| =>))(mold((out \
+         d502352e-b344-46a5-95f3-6c9ed368b200)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         f68e4f71-b7ff-41c9-8110-731587c2ccf2)(content(Whitespace\"\\n\"))))(Tile((id \
+         c466ae97-f730-410e-93a4-b0d7b1b3be74)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         ed3cf066-9cca-4537-acab-9ba1ce5a2d9a)(content(Whitespace\" \
+         fedfcfe7-e600-4b8a-b8f9-61602e2f1a69)(content(Whitespace\" \
          \"))))(Tile((id \
-         7b38f441-7f94-4925-aa73-48c7eabb8622)(label(Play))(mold((out \
+         ca9cd089-e617-4bf2-b10d-6658553f524c)(label(Play))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         8da56768-b96b-40a0-a033-ae1bb81c4171)(content(Whitespace\" \
+         7f12fd12-fe3d-4648-8bf3-faf29b07274e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         a790fa38-7c20-4c14-b0e6-5573b43f9310)(content(Whitespace\"\\n\"))))(Tile((id \
-         85cc46d8-ebd0-4392-9a41-5e42ad92f7ed)(label(if then else))(mold((out \
+         786a9df4-1fef-42cc-b9ee-95e44b41ba0f)(content(Whitespace\"\\n\"))))(Tile((id \
+         11cf3ce1-3cee-4092-80d0-7e567565c0c0)(label(if then else))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         bc8c5556-2789-4f18-8774-507e3527742f)(content(Whitespace\" \
+         31eabdd9-a340-4c80-a032-b9fb09941ef5)(content(Whitespace\" \
          \"))))(Tile((id \
-         1975cbe7-d19f-44ee-8b2e-1994ee3ce6bd)(label(s))(mold((out \
+         3ac45216-d1a3-416c-932f-1966db8f3ff7)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c0dc19a8-7774-48a6-8901-04d952cd50f7)(label(.))(mold((out \
+         7bf3aecb-bff8-4309-aee7-85f93b1041a5)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         c9b1b717-b8e9-405a-9fa0-5b688441681b)(label(energy))(mold((out \
+         3fcbc149-3234-4f7a-b119-053749f217d7)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         98cd3bdd-0f97-4ae0-bc70-1deb5f340fe8)(content(Whitespace\" \
+         7f1eb9ef-2228-4045-a1e4-28c9d91df246)(content(Whitespace\" \
          \"))))(Tile((id \
-         77229e03-f89d-43aa-9296-5cfdcda28977)(label(<))(mold((out \
+         8f9925ba-a4d2-4909-8e3f-ec7aef917957)(label(<))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         7a23f2c1-d77a-45ba-a5f0-5bc8dee39788)(content(Whitespace\" \
+         ff21e471-30f5-4364-aec1-061af15bc67f)(content(Whitespace\" \
          \"))))(Tile((id \
-         96e8ab03-a29e-483d-8a15-7f240a6d2407)(label(20))(mold((out \
+         7f6a53a0-e9e5-4742-8376-0bcfdea01350)(label(20))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         89c9f50c-3e1f-44f7-bdc6-585c78dc733e)(content(Whitespace\"\\n\")))))((Secondary((id \
-         888d4d02-cbc1-494b-8165-23068421cd34)(content(Whitespace\" \
+         eb9cc1fb-8373-4c0e-9378-fd547d6f0210)(content(Whitespace\"\\n\")))))((Secondary((id \
+         ae78ea16-a0fa-4573-b19c-3981dbcd98bb)(content(Whitespace\" \
          \"))))(Secondary((id \
-         ff20eace-a12e-4990-a060-4740ea4afcf0)(content(Comment\"# Too tired to \
+         44973d57-6799-4587-b709-6a65421186c0)(content(Comment\"# Too tired to \
          play effectively #\"))))(Secondary((id \
-         739a95a6-e8e7-45e6-88ec-230e9f580b16)(content(Whitespace\"\\n\"))))(Tile((id \
-         7c3ffd4d-fb97-447a-8130-d4c784639778)(label(\"(\"\")\"))(mold((out \
+         244846b4-7b9f-4bc3-8c6d-b76170142a6f)(content(Whitespace\"\\n\"))))(Tile((id \
+         0940b3e8-7085-46f1-9768-dfe1aa443e73)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         10864caf-f7c3-4d24-9cd6-3191451a0fb3)(content(Whitespace\"\\n\"))))(Tile((id \
-         240b9513-f660-4c90-af5e-276d0691b264)(label(hunger))(mold((out \
+         3385afa0-d8ba-4361-be5e-8f082b496b75)(content(Whitespace\"\\n\"))))(Tile((id \
+         9d830d64-3ee8-49d6-8b5a-8e670ff03cec)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         25b5ddd6-9055-48e2-816f-462b92b66559)(content(Whitespace\" \
+         db72f4ea-6299-4fd6-91e8-d42f1d420291)(content(Whitespace\" \
          \"))))(Tile((id \
-         09e54236-dad2-43dc-8e1b-3a0ff1d608bf)(label(=))(mold((out \
+         0bf8eb21-c756-4c3f-9021-321b413ec4e6)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c51ce28e-289d-4979-84df-2543c5e27e28)(content(Whitespace\" \
+         394211de-9732-4ec7-87c7-275473e76ff9)(content(Whitespace\" \
          \"))))(Tile((id \
-         f6d4fbeb-576b-430e-9c0f-b92d250acfe6)(label(s))(mold((out \
+         1ba5f3a7-dfba-41cb-ae37-15a7fa0d807a)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         60e658b2-adb2-448b-b938-e4a9c574a487)(label(.))(mold((out \
+         c9e3324d-0c4a-4b55-b9cf-4c5ec10c1e2d)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         ed6a4e7f-ef8f-48b4-b980-05f12b5a8ddb)(label(hunger))(mold((out \
+         fef9217e-711c-4be8-a4ec-a69a43880082)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f51e3982-80e8-4f55-8d19-5c9db5f75763)(label(,))(mold((out \
+         de7de4d4-f713-48d2-88d1-1779f840b944)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         01839d21-7c41-419a-b522-bbd3deb57662)(content(Whitespace\"\\n\"))))(Tile((id \
-         842c5751-90ef-4f4d-8a96-e37d2c276413)(label(happiness))(mold((out \
+         4cf66fba-d28c-49eb-8820-818ee7c25690)(content(Whitespace\"\\n\"))))(Tile((id \
+         cd6f8193-b233-4cfb-ba7f-ab869cd6c65d)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         1462bdf1-9829-4018-8952-ee5c2bb951b4)(content(Whitespace\" \
+         a1cefc35-1819-4468-a560-fc933449899d)(content(Whitespace\" \
          \"))))(Tile((id \
-         b45bd7a2-7cee-40ac-8710-12292c63b062)(label(=))(mold((out \
+         8b371a5c-c761-4514-afc3-9c517e2833d7)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         5540f6d4-f779-42f9-868c-329a2d15090b)(content(Whitespace\" \
+         73bee6fa-2558-4dbe-ab6e-b15fdfb3a336)(content(Whitespace\" \
          \"))))(Tile((id \
-         c9a5ee99-021e-4838-b0d2-ae0521a0eddc)(label(clamp))(mold((out \
+         927d28d0-52ad-47e8-b425-c64f95c5cf3c)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         e142e261-3ff0-4f54-a9cf-8e9593cee40b)(label(\"(\"\")\"))(mold((out \
+         6c2e2fbf-5543-41b2-87ae-c4a741539fdc)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         fe25c404-2ccc-4656-8835-eba8d1a4411a)(label(s))(mold((out \
+         8f18958a-c275-4891-8ca0-7e2bc0155bc0)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         1bf61a09-104a-4f94-bc53-2440e2058e51)(label(.))(mold((out \
+         d1adf4ab-2564-4d45-9a24-d755067e335a)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         d2f958a6-6417-4568-bdb4-3069d5f487a1)(label(happiness))(mold((out \
+         a7ba89a3-0c05-4bd1-94b5-49108322fae2)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         a4b1a88e-ec7e-4f2a-ba8f-8d3668b17dab)(content(Whitespace\" \
+         312f85d7-77f4-44bc-bce4-af4786d5ad11)(content(Whitespace\" \
          \"))))(Tile((id \
-         eb76af97-7080-497f-a92a-0c8041127f05)(label(+))(mold((out \
+         3f158fe7-5e35-46b1-b194-95cfd1e5fec8)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d40b7c0d-43ce-407a-8467-5502843d0a7e)(content(Whitespace\" \
+         4eb65134-a37e-445c-9a4a-34435d9b0228)(content(Whitespace\" \
          \"))))(Tile((id \
-         1128fed1-7ea7-4d39-87c2-5b7c6c79c39e)(label(5))(mold((out \
+         74df809e-5d53-42bc-ab22-9ee43697e172)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         bd1b385c-551d-49d6-8b29-2313fa5d1fee)(label(,))(mold((out \
+         af21f62d-e0b1-464b-865b-05b76480aebe)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         27146e4e-dea6-4576-9504-26e0d2047164)(content(Whitespace\"\\n\"))))(Tile((id \
-         2837db60-a72c-42a9-b162-7b8bbdc2c7de)(label(energy))(mold((out \
+         bf6e35ee-109a-47ef-b24e-3232caba942f)(content(Whitespace\"\\n\"))))(Tile((id \
+         f35ce139-52d7-49be-925b-676b8640c4f8)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         771cc159-b0e9-45d1-9f85-afe80e6c3267)(content(Whitespace\" \
+         01ead967-ceb0-422c-9d4b-a21b6bf7c99f)(content(Whitespace\" \
          \"))))(Tile((id \
-         ca8fe653-0e39-4107-8021-b922cbff4128)(label(=))(mold((out \
+         4659b5f4-03c8-46dd-805d-3eec72680936)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         0634fd4e-fc76-48ff-a1e8-2385873c85d7)(content(Whitespace\" \
+         80fc12de-9ae5-4e10-894e-75f42af6c80c)(content(Whitespace\" \
          \"))))(Tile((id \
-         ef927cac-01f5-48a0-834f-67b7c289f170)(label(clamp))(mold((out \
+         66a2ec0a-a76a-4d84-8770-acc1b4a1bd1f)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         e1bc42a7-3668-4841-acb7-58484062cb00)(label(\"(\"\")\"))(mold((out \
+         008bd7fc-8050-4c94-869b-5e2383ccec42)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         00137f47-d3e6-47a0-bb7d-26b2bdd07285)(label(s))(mold((out \
+         4a814c05-ff6b-4429-b844-3d7fc31586dc)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         9f36bc2d-6243-49d8-bd9e-b3990840fba3)(label(.))(mold((out \
+         a2973cd5-611a-4012-b617-8dd89875d27a)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         8214b30e-ee95-48c7-b78c-90761feaaa94)(label(energy))(mold((out \
+         e5cd221d-56b1-4146-ab71-f2376d69d9d5)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         ea7b9dac-b129-4633-8d98-f0c3b6eff944)(content(Whitespace\" \
+         bbbb632a-37bb-49bd-bb6d-bd0cd419b2ad)(content(Whitespace\" \
          \"))))(Tile((id \
-         392848e3-a3cd-4c52-bc23-01e8163b6354)(label(-))(mold((out \
+         fb5d9dcc-2786-4ea3-a2d8-aafb9a604163)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         7699f44a-b9b6-4a20-a8a7-34b8d7bcbe59)(content(Whitespace\" \
+         9358331b-ec1d-4663-8b26-396e4e40a3fd)(content(Whitespace\" \
          \"))))(Tile((id \
-         ef9552c5-628e-40e0-a3e0-6e23d13778ec)(label(5))(mold((out \
+         5787aee3-8d5b-4618-a5e9-b69b082360ac)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         1c26b56f-035c-4590-9203-cd9acdbff426)(label(,))(mold((out \
+         17554317-b304-43e7-9be3-3f50341cbb82)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         dc9365dd-974c-4326-aa1c-447c2acb4f9c)(content(Whitespace\"\\n\"))))(Tile((id \
-         fb5b649f-8a94-493d-8c6a-c7bbfc54c7e6)(label(health))(mold((out \
+         d7a04bf4-0cb0-49d0-b7e1-d41f337be380)(content(Whitespace\"\\n\"))))(Tile((id \
+         b26a98cd-6dc6-40a8-85aa-54b530f57b01)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         db9668ac-b878-423d-b0b4-ec06389216ec)(content(Whitespace\" \
+         e052609c-e3e9-4225-8871-8d29a97ffb21)(content(Whitespace\" \
          \"))))(Tile((id \
-         48420068-daac-45c0-9565-610832c25434)(label(=))(mold((out \
+         77c83824-f8ba-4c04-9ec3-4b23f8bc7192)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         7994f588-8780-40c9-b617-a62c87019e15)(content(Whitespace\" \
+         b9a9faa1-9eb3-4936-9f52-b4e4dff31edb)(content(Whitespace\" \
          \"))))(Tile((id \
-         078fc835-00e1-413c-9727-4d41f84968b3)(label(s))(mold((out \
+         1ab03a9c-8463-44d3-bf1d-90383aa8e8bf)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         b830b12a-baab-422c-b084-a2c34bf173ea)(label(.))(mold((out \
+         69ba4ec3-14ae-404a-8b89-dcc37f6088c6)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         4a99d3ab-2d3f-4a6d-a002-a3fc3d652f52)(label(health))(mold((out \
+         6f95e19e-a896-421a-8356-0924ea016dbb)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         cd1a073f-8eca-4dce-9f43-f1eba9b3a27a)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         ed1e5cf1-7e5a-4824-b206-21998d0c107e)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         3ad62084-d62c-4e79-bb11-dff500cb7a96)(content(Whitespace\"\\n\"))))(Tile((id \
-         d7138fa6-d17d-4462-9df1-5a2cf5d66997)(label(\"(\"\")\"))(mold((out \
+         b3bdd56a-6ea2-444d-b461-945b0fdb125f)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         51753b94-1297-444b-9252-b1c346ea49da)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         3e420c78-0778-41c9-be28-dbe0a413fe7d)(content(Whitespace\"\\n\"))))(Tile((id \
+         08e3779a-c30a-4d88-91f4-d0a40dd8e2f2)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         dde79d5c-5ed8-46c1-b868-ea2ae5f00185)(content(Whitespace\"\\n\"))))(Tile((id \
-         232b90c4-292f-40ba-bff3-7ab729085515)(label(hunger))(mold((out \
+         48d166fb-d8cb-403e-bd1d-34888151188a)(content(Whitespace\"\\n\"))))(Tile((id \
+         d06e9402-0e29-4b47-8870-fd734899cb05)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         46ef7e9d-bc0b-4d00-a87f-3a6b2b8ebe45)(content(Whitespace\" \
+         8f895c4b-40f4-48f5-87f5-89c9b2dbefe9)(content(Whitespace\" \
          \"))))(Tile((id \
-         78e63e40-d8a9-4a4a-a627-cfd26c6b605a)(label(=))(mold((out \
+         87a0b213-ef23-4946-9566-83c678018ea1)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         ac3a1517-464d-492e-999c-b66f172f5473)(content(Whitespace\" \
+         429ffe28-7348-42d1-94b9-4c3154245d99)(content(Whitespace\" \
          \"))))(Tile((id \
-         6faf0891-72ac-4b44-83f6-93b731c2208a)(label(clamp))(mold((out \
+         1e680db4-65c2-42df-9f64-4fdb5fd0b747)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c5cbe917-cc99-4542-b611-017c01998f3f)(label(\"(\"\")\"))(mold((out \
+         77fbdbdd-5c8a-4a62-846f-d7fae731b418)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         56680c7e-b3a4-4e3b-b71c-5ae1935eedee)(label(s))(mold((out \
+         858c4807-b878-48a9-8afb-3ce49fb7ad3f)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         8308f97e-79f8-4876-9d86-01c87e205dbe)(label(.))(mold((out \
+         41a3a01a-f5a4-4fc9-9b56-3d68a3bd881f)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         8556a7b2-998b-49de-a233-c72d6da92aae)(label(hunger))(mold((out \
+         c868a151-37a5-4148-9f41-884b58148c17)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         77c79e00-89d4-464c-bf35-14df8546019f)(content(Whitespace\" \
+         86d5e440-de74-4c0f-b784-c07e5908ceb1)(content(Whitespace\" \
          \"))))(Tile((id \
-         04613e88-62d5-4dcf-a620-274827c002ce)(label(-))(mold((out \
+         07644afd-89c0-4fb3-81ac-7ffc594711f7)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         ae527453-2c38-4eba-b868-65b168da0853)(content(Whitespace\" \
+         80a3409d-2568-43c3-b9ec-dc7086cd5c2d)(content(Whitespace\" \
          \"))))(Tile((id \
-         2435f8c8-44af-40d2-849d-b5b53f1cfbd6)(label(10))(mold((out \
+         13e6f9d3-0cda-45a6-8ed3-7b07430f4231)(label(10))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         59c8eabc-74b3-48ac-bc79-d6cd8271aaf5)(label(,))(mold((out \
+         3128e985-8a14-4ccf-9819-60e90e85fc79)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         598d21f5-6648-48ef-b484-698ce6332a3f)(content(Whitespace\"\\n\"))))(Tile((id \
-         e15a6ca6-222b-4e1a-b017-432eaedae67c)(label(happiness))(mold((out \
+         f4004abe-8998-485e-83ad-7a33df798291)(content(Whitespace\"\\n\"))))(Tile((id \
+         4b2eb8a8-d90f-4ac0-ba80-d00611560277)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3ce534b8-591b-4b18-a57c-96a2e0f45f99)(content(Whitespace\" \
+         da916df5-2ea4-4ddb-8e84-ccb6e0d45827)(content(Whitespace\" \
          \"))))(Tile((id \
-         08cc2cd1-2f0b-437b-95e7-b80a463cd033)(label(=))(mold((out \
+         71448995-c7dd-49f9-abf5-40341fc2b934)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         ae7bcf68-d45e-457c-aba5-78f5a233dbc4)(content(Whitespace\" \
+         6835b272-980a-4960-9b18-cb0adf906569)(content(Whitespace\" \
          \"))))(Tile((id \
-         a18f79c7-5cf5-4c3c-8b2b-70e850bf9e69)(label(clamp))(mold((out \
+         5eb87add-2306-4418-972f-919fc82e163e)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         930ba4a1-5366-4824-9bc9-f810bc068fd5)(label(\"(\"\")\"))(mold((out \
+         9b56642c-ef94-4251-a974-3fcbd6c7cbae)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         28ed2646-c6ba-4ced-86d6-71f44733301f)(label(s))(mold((out \
+         721348c4-9b85-4202-81c0-c728b1c16a9c)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         4020b100-7acd-4e7f-8ff3-c471e5999118)(label(.))(mold((out \
+         ff9f1d8f-8d81-44c9-bff2-853d571261fb)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         fd54d64c-c9cc-4c73-aed3-d868c542c8d8)(label(happiness))(mold((out \
+         92750a83-cf1a-4cde-a15f-24f64309f871)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         05376a48-c00d-4b17-b371-7693a79fb5a3)(content(Whitespace\" \
+         7fc7d058-1573-4258-bd69-7ec3fb3ea5a6)(content(Whitespace\" \
          \"))))(Tile((id \
-         96d0107f-448a-40f1-95fa-2b01a71ef0c1)(label(+))(mold((out \
+         55a2290b-85dc-4833-8a03-70fc104969b0)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         92bb3a05-6377-41c3-8fce-ecfec2397a52)(content(Whitespace\" \
+         092e430e-bc9c-45ba-b337-9c4d1085b5b7)(content(Whitespace\" \
          \"))))(Tile((id \
-         97859eec-bf81-442e-9ee0-1fe40d4ec0dd)(label(25))(mold((out \
+         ca0adc57-a744-4f51-848e-67042f63e29d)(label(25))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         289dd9a0-73c5-4007-bd45-86d19272ddb7)(content(Whitespace\" \
+         121ab76d-895e-41ac-bc3b-94a24d9436c7)(content(Whitespace\" \
          \"))))(Tile((id \
-         68fc850a-f8a0-4dc1-b32f-02fa27d34833)(label(+))(mold((out \
+         c95a80ec-d418-4662-b14a-944fdcd62c01)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         8e4734a8-439a-476e-ac0f-7d95bb9f5234)(content(Whitespace\" \
+         0ec80fa1-df4e-4ac5-bf07-88b2f74b6529)(content(Whitespace\" \
          \"))))(Tile((id \
-         515de3e8-f643-4c31-ac97-84e3c1ae2680)(label(bonus))(mold((out \
+         deaefdd2-613d-4663-b0b1-5d2cdbe112da)(label(bonus))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         6ba10215-eb04-4de4-bd61-cdd6693af36d)(label(,))(mold((out \
+         f7d63039-08f8-4b3d-896c-55b6d7b4a012)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         1569ff1e-dd0f-409a-81af-951d21a6782a)(content(Whitespace\"\\n\"))))(Tile((id \
-         c4cfe966-cee6-4c47-bb35-9c5a0105f4ea)(label(energy))(mold((out \
+         8885b3f2-d882-484f-a048-599a99d97b4a)(content(Whitespace\"\\n\"))))(Tile((id \
+         4f69ed06-766e-43a2-bb02-15da36f13a83)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         59517ea7-3d32-4024-ad8b-0f2054929a5c)(content(Whitespace\" \
+         4a595433-94d0-45a4-ba8d-dcba85186320)(content(Whitespace\" \
          \"))))(Tile((id \
-         59cda136-382a-4503-9ccc-c0ae682f4c64)(label(=))(mold((out \
+         1982b020-51b2-4aee-9470-34463816c976)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         47e0307e-77cf-46cc-aca9-b325583a7606)(content(Whitespace\" \
+         2651e651-bafd-4008-a755-ebb91f2618f4)(content(Whitespace\" \
          \"))))(Tile((id \
-         076b0af2-bba9-4faa-8c6a-4c0e5758285e)(label(clamp))(mold((out \
+         1562cc67-79ca-4ed1-b2ab-a45afa04b5e8)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         93933c7a-2ab4-48dd-b7a2-3ec8c42b402e)(label(\"(\"\")\"))(mold((out \
+         e5337c73-85a9-4e65-9ad3-2e0f9e4eab6e)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         64bf9337-0c4a-4cd1-bfdc-a84f1f39d61e)(label(s))(mold((out \
+         58016c25-8e70-492d-b058-0696090b9472)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         ac0506bd-1d0a-4a66-9cac-e22877270a1b)(label(.))(mold((out \
+         16846bde-08fe-4668-a487-64d42743d582)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         fa812adf-e4b1-4833-a771-4f2546d936ef)(label(energy))(mold((out \
+         493897ad-dadc-4fbd-8d22-88b9607b780f)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b6f01247-fd25-4e63-912f-93fb4214f320)(content(Whitespace\" \
+         4cbe6f73-1380-4d88-a274-a7154ac768bf)(content(Whitespace\" \
          \"))))(Tile((id \
-         f84cc2e7-2492-4885-b0e8-becbb86d294c)(label(-))(mold((out \
+         ae81b6e8-f72b-48cb-be72-b99f798cff80)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c45c276f-a38b-4a5b-a6a6-a38d20d12549)(content(Whitespace\" \
+         b0f81e7a-9652-49a6-9e82-48647b0414c7)(content(Whitespace\" \
          \"))))(Tile((id \
-         2c644549-85b0-4dda-bfb8-88a73c335cbf)(label(15))(mold((out \
+         4c1a59c8-9faa-40e9-9e4a-0024999ea400)(label(15))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         061bab5c-cda3-4655-a191-8b5008255a39)(label(,))(mold((out \
+         6b9c3136-751a-4324-9faf-10c3d46d23ab)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e84d9bc4-01bd-47f7-871e-327365a80b15)(content(Whitespace\"\\n\"))))(Tile((id \
-         605812b7-f39b-49d5-95fa-aa2eb5f6102a)(label(health))(mold((out \
+         b3e5dbda-d10a-4277-a321-6c6a316a6711)(content(Whitespace\"\\n\"))))(Tile((id \
+         46bf7f6f-0c2e-4e62-87f7-4a9cf482273e)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         0567ac66-3be3-4c18-9815-f2d6bd722e33)(content(Whitespace\" \
+         6034b21d-6a5f-4db5-b274-82fc1cc859f2)(content(Whitespace\" \
          \"))))(Tile((id \
-         a18f05ca-68b9-42e8-b5d5-17a28cd51543)(label(=))(mold((out \
+         ff4dd232-53e7-43e5-9b58-d41383f443b5)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         9e0dab48-769a-4dad-87fb-abe055c70391)(content(Whitespace\" \
+         b1831bf4-a63d-4e7a-9c7e-6d63b6e40050)(content(Whitespace\" \
          \"))))(Tile((id \
-         564295ce-51df-4464-a7d9-4f90c2db2928)(label(s))(mold((out \
+         a824468b-e65a-40c3-96ea-7ae6c2408924)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         8478d8f8-0370-4318-8801-e3fa68037501)(label(.))(mold((out \
+         68f8a838-e30f-4745-b283-1b62538c2420)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         b12752ff-b771-4265-8ec2-f7bf6687aed2)(label(health))(mold((out \
+         050ee253-ac6b-4e28-b202-bcb3b31efe10)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b6fd503a-082c-4dd0-83e1-b3e95aee4f43)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         486f3ff6-fff1-44a1-a643-0df27cc35650)(content(Whitespace\"\\n\"))))(Tile((id \
-         ac478384-9d2d-4347-b57b-cd04ffc4f688)(label(| =>))(mold((out \
+         83bbbcf2-4f78-4b17-b256-0dfcb04a3edc)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         fcd395df-8871-453f-a073-4b5b59c0cdfc)(content(Whitespace\"\\n\"))))(Tile((id \
+         f514cc89-be36-4dd3-9075-7fe6ae2c7f0b)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         67b05e14-6974-4f72-acee-e6485e092848)(content(Whitespace\" \
+         dffff319-3414-476b-90ad-8af0c77d5f05)(content(Whitespace\" \
          \"))))(Tile((id \
-         2062425b-9ba8-4695-8924-269772bd22f9)(label(Sleep))(mold((out \
+         14ad2372-83d7-41c3-ad01-574f78d349c3)(label(Sleep))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         50896cab-6fb4-4615-82f9-fdcb051bc3ff)(content(Whitespace\" \
+         d9b15dd4-7083-4334-8607-94e8013b922b)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         2ce4b0a1-d55e-416d-bb31-35e6d51de217)(content(Whitespace\"\\n\"))))(Tile((id \
-         3b7d9579-9941-41cc-b763-4bd05737ad6b)(label(\"(\"\")\"))(mold((out \
+         d6a4d4c4-cfc2-4cfb-8ad3-9779dfa2d791)(content(Whitespace\"\\n\"))))(Tile((id \
+         24515175-c57c-4c85-8740-2ceba363813f)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         69fd7dae-197e-4ec3-a9b4-1022b50c46d4)(content(Whitespace\"\\n\"))))(Tile((id \
-         e20acfeb-7071-40b1-a5c7-0db3e05bd687)(label(hunger))(mold((out \
+         c2f39ecc-66a7-47a1-9199-30bf7c4216f2)(content(Whitespace\"\\n\"))))(Tile((id \
+         022b46b2-b24b-42ea-a28b-c4b47cd0da0e)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         6086007a-4c04-4722-8f0c-73606d176eb3)(content(Whitespace\" \
+         274eae64-1b9a-48d7-9815-22fcabafe155)(content(Whitespace\" \
          \"))))(Tile((id \
-         2ef18de1-59e7-4140-ae5a-8275320b318d)(label(=))(mold((out \
+         dc11cfa2-faa1-4086-a341-b401deffc686)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         92159dec-1d32-4f51-ac16-d6c6939a3119)(content(Whitespace\" \
+         8d9cb636-bb67-4991-b3c8-4ae136bbe287)(content(Whitespace\" \
          \"))))(Tile((id \
-         6f2f55a9-a126-4f45-a479-092df6d8e3e0)(label(clamp))(mold((out \
+         5f4a3c3c-6327-4054-a9e7-e493c35c85ed)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         186f6c4e-6bef-460f-a1f9-5557c3ff2737)(label(\"(\"\")\"))(mold((out \
+         3bbc2db4-5541-42c0-85f8-3b8b87e0ee42)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         c1183890-c0ac-4303-9248-10f41fd44bff)(label(s))(mold((out \
+         11b9fb78-a14c-4dac-a275-24a203448e45)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         29b5bdc0-796f-45cb-a79d-b61669fef877)(label(.))(mold((out \
+         112ae3a1-127d-4d76-97e2-3bc742b53777)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         5a92409b-b770-4a2c-a1ff-2a32eac601d3)(label(hunger))(mold((out \
+         caa8b374-b647-4c0f-af42-30999dc80912)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3c35e1ce-0b77-4946-bc36-5994aa0b3203)(content(Whitespace\" \
+         93269172-2a28-4a2c-b3cf-1bcf84b3e49e)(content(Whitespace\" \
          \"))))(Tile((id \
-         9a46c8a1-8928-47e7-8b2b-766b29701b58)(label(-))(mold((out \
+         0167bc11-530f-47a3-a7a8-5cb3955b48ce)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         711c9ee0-3c29-4c42-b4dc-216489d95e38)(content(Whitespace\" \
+         d57b79cc-afb4-4f1a-89f9-a2f4e12cc5f8)(content(Whitespace\" \
          \"))))(Tile((id \
-         687ea2c7-b411-4e4d-9254-9b0673fcbc0f)(label(5))(mold((out \
+         e8bb342f-1cbf-433e-a9d0-d83c0d59ac4f)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         bbbd8f03-6e7d-446c-8d94-ab232115565a)(label(,))(mold((out \
+         55fb1a71-1e30-499b-b299-1f9c7557f25e)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         264d9570-657c-490c-a478-d49ed2e61915)(content(Whitespace\"\\n\"))))(Tile((id \
-         e23a68ed-0de4-4843-b4f4-cbe07fea730e)(label(happiness))(mold((out \
+         43d767aa-98c1-4b56-8935-73e186e3496a)(content(Whitespace\"\\n\"))))(Tile((id \
+         2ac1fccc-72df-4396-a07f-44fab26ea43a)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         bfb9d521-453e-4a1e-b361-6fa60af87a76)(content(Whitespace\" \
+         3ba05d8d-5b7b-4a4d-8eb3-817d7286bf4d)(content(Whitespace\" \
          \"))))(Tile((id \
-         3e8b3c44-d482-4569-9661-8d2005f7d667)(label(=))(mold((out \
+         d051b4b7-b211-4082-8ad8-2b58da593c67)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         ebb13c0f-cf43-493b-8540-5bd3e6530ea2)(content(Whitespace\" \
+         45b1de75-082b-4991-996a-770a9a348223)(content(Whitespace\" \
          \"))))(Tile((id \
-         6ee1f18d-31cc-4c1a-bda5-255bf9ffac7f)(label(s))(mold((out \
+         0ee2d793-96c8-4237-b47e-53241c065477)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         dbb707a3-d999-4f6c-b688-6981b0dc386d)(label(.))(mold((out \
+         5fd7492e-4796-4966-bfe7-80893e58452b)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         532b71d8-2a2d-4b76-9e94-42c596b82854)(label(happiness))(mold((out \
+         45d5f77d-638f-434a-9617-333582392439)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         900099d9-0d8b-4572-881c-a6bee9a6196e)(label(,))(mold((out \
+         3244a22f-6834-4f9c-9aaf-686013c0edb9)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         709b228b-f83f-4ece-bc07-feb2662fa616)(content(Whitespace\"\\n\"))))(Tile((id \
-         c5d52841-614d-4d3a-8bed-d83fcf579f55)(label(energy))(mold((out \
+         f8fb1953-2395-4a55-b19a-1a4059662dc5)(content(Whitespace\"\\n\"))))(Tile((id \
+         03dd5eec-1134-4440-9fef-37bbf25e4ad9)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b18e51a9-6394-4016-96f4-dcba833569ce)(content(Whitespace\" \
+         11073c28-a0f8-4881-abfc-7293f9872352)(content(Whitespace\" \
          \"))))(Tile((id \
-         ea5535b2-e5ff-4473-9905-9d0892f6a679)(label(=))(mold((out \
+         a7a171b7-0ccc-4331-b83d-36ba2fd5a20a)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         057109fb-842e-4294-97a3-b22d80e75e00)(content(Whitespace\" \
+         e5258b60-f5b8-4d46-b7ba-e98c33568021)(content(Whitespace\" \
          \"))))(Tile((id \
-         97cf5280-1985-4322-aacb-e19b55b03bec)(label(clamp))(mold((out \
+         2078309f-4653-4feb-ae9a-bfb7528149b8)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         5aca9b84-d597-4e1d-890c-b87d6b3eb6ba)(label(\"(\"\")\"))(mold((out \
+         daaf0554-af2f-425c-9a56-2fad6f0aea62)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         d42bf987-731d-490a-9396-c9aff0e85c24)(label(s))(mold((out \
+         f72dbf4d-dd21-4167-9501-ce5a87347449)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         da0462e2-61d2-4cdb-bb5b-caf6f772a9d4)(label(.))(mold((out \
+         bf132343-1fd0-474d-bdef-cdbc5a0d0fae)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         5fd5c6e0-0915-41be-9d53-4e7ddf981101)(label(energy))(mold((out \
+         3cee7178-22cf-4091-8e81-4622510531ea)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         15be3939-eedd-484a-a1e6-6e02221516f7)(content(Whitespace\" \
+         1c920289-9cf7-41d2-8d3a-b555a52010df)(content(Whitespace\" \
          \"))))(Tile((id \
-         94e0bb63-e331-4ffa-9825-a446010b1655)(label(+))(mold((out \
+         0449ca7b-c0b8-430e-850a-10fcf31ed1ae)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         acc93fa9-6d0b-45bf-8c51-51da5d9a0e7a)(content(Whitespace\" \
+         4bbdc27a-7e7f-485d-a6a3-5acf0dc46553)(content(Whitespace\" \
          \"))))(Tile((id \
-         4edf08f4-b4d8-44af-8a8f-844f3ec3e37d)(label(40))(mold((out \
+         fe6f44f6-c861-4623-aea0-f33b2dce9f50)(label(40))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         fb25a1c9-8208-4be7-b1a1-b8eb021c5ecc)(content(Whitespace\" \
+         d01bb12e-979d-4c00-8e2f-cab2a9203f63)(content(Whitespace\" \
          \"))))(Tile((id \
-         7acb4257-5222-4b13-9157-45a14073e428)(label(+))(mold((out \
+         7373fc8d-2208-4530-a403-0366f6da05e1)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d101bdbe-e6ae-46eb-a321-77ad149d86fa)(content(Whitespace\" \
+         1c68c3b2-0543-40b9-bc95-f01df024750b)(content(Whitespace\" \
          \"))))(Tile((id \
-         5014b6a9-6f40-47a5-9a54-614b931fc07b)(label(bonus))(mold((out \
+         3970c944-14ee-4e26-8771-f709fae1bc5d)(label(bonus))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         f7d93a9a-be62-483a-945f-447766abdced)(label(,))(mold((out \
+         245b1211-723c-41af-a734-c484a90c7a78)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         34c9b5b4-b5b0-4fdc-929a-43bf8ab83166)(content(Whitespace\"\\n\"))))(Tile((id \
-         4a2ce91d-2dc4-44c7-b522-ff64df00eaaf)(label(health))(mold((out \
+         acbe03d6-5fed-457c-ad97-0b8f699f50f2)(content(Whitespace\"\\n\"))))(Tile((id \
+         3e7bd4d9-0067-45ed-80e0-3b30a6de65b7)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b96e1406-5cec-42c0-bde7-782ca5c0540b)(content(Whitespace\" \
+         a4bf86c5-e907-44e6-8449-b57dbc96dec6)(content(Whitespace\" \
          \"))))(Tile((id \
-         879e5b6b-85e3-46ea-b594-088e3d8955f8)(label(=))(mold((out \
+         a16ce727-4c40-48f8-9a6d-ada32324c7ba)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         3426992a-3436-4dd4-a1b4-ceb91d364ade)(content(Whitespace\" \
+         126f7353-98b0-46ca-935f-9db2df68d5fe)(content(Whitespace\" \
          \"))))(Tile((id \
-         1aef6974-8cff-4ce9-8e59-5e31fb020c99)(label(clamp))(mold((out \
+         f27f2633-5d28-4823-8388-fae3e6989c3f)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         de9bd298-69d5-44c0-a1cd-57700a0a475d)(label(\"(\"\")\"))(mold((out \
+         48c34a6e-cbc1-4a10-bcbc-f606749c86bd)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         31c216af-1f4d-463d-90da-da57f389bbf5)(label(s))(mold((out \
+         e6c722ea-8850-41b4-905f-04d673890f51)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         342e7783-35f3-4497-8fe3-72e6a94e36b8)(label(.))(mold((out \
+         bb33ab16-88de-4d03-88a4-c9022fbf3eb3)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         2383a2e2-77a2-460f-a7a4-d2eb47fcc495)(label(health))(mold((out \
+         9bfcee70-7a67-445f-b6c4-79101892800d)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         24640227-2e99-4c4f-a3d7-2aa8d231defa)(content(Whitespace\" \
+         eb44b543-4909-41cd-8cfa-b747b4b7c826)(content(Whitespace\" \
          \"))))(Tile((id \
-         bf0bd363-266a-49fa-9275-297481801146)(label(+))(mold((out \
+         d2d8405b-ee4c-4056-b151-7218852ba379)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         3badcc58-ec36-4cb2-b6be-fe99a9268177)(content(Whitespace\" \
+         c4cf6bab-8d63-4610-9f8a-46f75e0800a2)(content(Whitespace\" \
          \"))))(Tile((id \
-         a495eeaa-87ad-45a1-b530-ed6e0cccabe4)(label(5))(mold((out \
+         2e7592d6-bb71-43d8-90e5-ea1ccebd1a09)(label(5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         ec5279cb-94c7-4d98-b746-5534e4c989f7)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         a431101b-942e-44ba-bfa4-7ce5777f9be1)(content(Whitespace\"\\n\"))))(Tile((id \
-         5e8a2dc0-8e52-435c-b7c1-cc821d4da6ff)(label(| =>))(mold((out \
+         dae7795c-5818-4213-8ca4-66cd9e32b652)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         d57e21a5-9fcc-4319-ab7a-60e7377c1e64)(content(Whitespace\"\\n\"))))(Tile((id \
+         80128c81-b6a0-4ca0-96b7-b04ed8ff28f2)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         30ec3f21-c892-4ea4-9597-e2449fce4529)(content(Whitespace\" \
+         7f7510bf-fad5-4427-a467-40a935337a96)(content(Whitespace\" \
          \"))))(Tile((id \
-         c9b7c45e-3b60-40c8-9baf-edd864b2c75b)(label(Repair))(mold((out \
+         b2bf005b-3bbf-4158-b457-b112e61d30ab)(label(Mend))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         89fed7d4-1f43-4e89-a92c-5e82a48cf251)(content(Whitespace\" \
+         10fc2bcf-c949-49b5-ab33-f7e663c8a34f)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         c1bf87cf-936b-4bdd-b7dd-05e11a50567f)(content(Whitespace\"\\n\"))))(Tile((id \
-         04cdd126-ab76-41ef-8da9-90d32ab91b75)(label(\"(\"\")\"))(mold((out \
+         a2983015-3c41-4ba4-9cef-461ff7933aea)(content(Whitespace\"\\n\"))))(Tile((id \
+         3344b6bb-bb41-449c-86ca-d8dfb0262e97)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         01ce01f9-f636-425e-a7d8-66eca634e9c0)(content(Whitespace\"\\n\"))))(Tile((id \
-         dfa4e25e-bd9d-4f26-a1e0-2f90aaaf77f7)(label(hunger))(mold((out \
+         1802d857-a374-4b48-b1d6-c203d75ffb81)(content(Whitespace\"\\n\"))))(Tile((id \
+         536bf605-cb62-4678-bb4a-cc9942ff3f9e)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         5df3f786-86a1-4e8c-a71e-319b6ccbc809)(content(Whitespace\" \
+         56c8a23c-1434-4546-82f8-68cf01e6d613)(content(Whitespace\" \
          \"))))(Tile((id \
-         9864cf5b-633b-4c6b-988e-d19967f3ef63)(label(=))(mold((out \
+         4970d4e6-29be-4941-9da1-3a5725121214)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d52b9c74-7b33-4ba0-a0d4-e099bd7ab21a)(content(Whitespace\" \
+         8ddc2652-a2ff-4bf5-b034-e33bebf6a8b9)(content(Whitespace\" \
          \"))))(Tile((id \
-         2e3d4996-c4b6-46f8-b082-d258b7dae355)(label(s))(mold((out \
+         e39a6b88-dd12-42c2-9742-cc89d55ab827)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f10e653e-1d96-41fe-94a1-3455c0eb833a)(label(.))(mold((out \
+         e05798da-cd12-462d-94c3-864343be802a)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         ea277840-8f54-45bc-a780-cb1f1dee5016)(label(hunger))(mold((out \
+         d599ff0d-adc3-4072-933e-c7c3f7ed0555)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         8cc507f8-ed4e-49bf-818a-5638945f4eb4)(label(,))(mold((out \
+         546e22db-a6b9-478e-89f7-ab4e58b1c50d)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         7186eea3-82d6-40ab-b7f6-394f6eee00ba)(content(Whitespace\"\\n\"))))(Tile((id \
-         6445ff11-a239-4b44-8575-aa03e50a1405)(label(happiness))(mold((out \
+         7fe95aeb-c2f7-4d58-8661-20955e9a0ddd)(content(Whitespace\"\\n\"))))(Tile((id \
+         14415311-2080-4530-9b6d-619b5b692414)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         7fe05b66-44b9-485b-9e49-bbc5cf2f4356)(content(Whitespace\" \
+         20969650-e1b7-465d-8a1d-d654dee5ba23)(content(Whitespace\" \
          \"))))(Tile((id \
-         6c714bcc-2e15-4413-b114-d956dd7707ad)(label(=))(mold((out \
+         493cea2f-1be0-4df3-abbd-d61638e3e237)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         0c5a8059-4de4-4d9e-a1e2-9ed4b1bcea16)(content(Whitespace\" \
+         05d0e559-2f8a-46e0-993a-74cc38edb66c)(content(Whitespace\" \
          \"))))(Tile((id \
-         69bd28d3-b962-4506-9a9d-38b98fcde571)(label(clamp))(mold((out \
+         9d4036ad-67fb-4334-a9dc-c519ccce432a)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         1971b6d0-a473-4d93-8366-d5423f2f13ee)(label(\"(\"\")\"))(mold((out \
+         a9f49764-e71b-4c94-ad69-78fd9b8ebd4c)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         edb9ee15-0908-4058-8780-4dd529590e76)(label(s))(mold((out \
+         4fdb32c2-a456-4f26-9da4-3f79defc4eb2)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c8999f9d-c57f-4d2c-87bc-b48a570dab4b)(label(.))(mold((out \
+         ac67c796-edab-48cd-aad6-8f8756c0201a)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         09e36c5a-56a1-4e87-82f3-7da7bf1b0817)(label(happiness))(mold((out \
+         9aee00e2-31b9-4cc1-a496-3c94fb5cd9ff)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         148e3cfd-2569-43af-a68b-f6be2b12cd0c)(content(Whitespace\" \
+         cb7be430-72b0-4231-b628-960a45b9faf7)(content(Whitespace\" \
          \"))))(Tile((id \
-         fa6ecd17-60cf-4fc8-8bcb-a311c495a33e)(label(-))(mold((out \
+         1abfb5ea-4017-4269-93bd-b31d315a23db)(label(-))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         83650cc3-ba2a-4c51-aeed-6a48569225ad)(content(Whitespace\" \
+         103d7991-d0ca-4517-88da-0454ca378d4f)(content(Whitespace\" \
          \"))))(Tile((id \
-         b44cb184-770c-49e8-8472-b342b1f98381)(label(10))(mold((out \
+         3d5494e0-3075-4aac-8278-ad334c4fecec)(label(10))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         288e5949-fb41-467a-a188-e60cd38abec1)(label(,))(mold((out \
+         a3c1da7a-a31d-4244-a491-4739462020d5)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d6676159-ac6a-4fd0-ad1c-3d493a65b07b)(content(Whitespace\" \
+         4675dcd0-ab50-4ff6-8916-bc647e470fce)(content(Whitespace\" \
          \"))))(Secondary((id \
-         b0e31f95-464b-4ba1-8484-9e913946a6a0)(content(Whitespace\" \
+         1afeeea2-8b02-4ba0-8e65-1c94390a32d9)(content(Whitespace\" \
          \"))))(Secondary((id \
-         ac6116e8-2546-4ee2-8530-67ec97286da2)(content(Comment\"# Repairs are \
+         f02aebc1-bc8e-4e1e-b27c-14b29934a492)(content(Comment\"# Mending is \
          uncomfortable #\"))))(Secondary((id \
-         6c0159eb-c2e9-46fe-a4d4-9dd1d35b9a42)(content(Whitespace\"\\n\"))))(Tile((id \
-         d7d5448a-d3d8-47a3-9a22-f25342cf7a6e)(label(energy))(mold((out \
+         0fadfc67-292c-403d-ab5d-94236276d425)(content(Whitespace\"\\n\"))))(Tile((id \
+         3f84dd60-1679-4e89-a2c7-720fa68ae82a)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         da3d7391-6a98-43d9-b789-09a6bca3c212)(content(Whitespace\" \
+         7fb140a4-c26e-4d69-937a-2ccf215986a5)(content(Whitespace\" \
          \"))))(Tile((id \
-         69b5ef53-49dc-477a-8d58-6880b088a40b)(label(=))(mold((out \
+         996ccea4-a7a3-4629-b868-14bea93612c3)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         110ab41d-c21f-483a-8eb7-4836f9ca193c)(content(Whitespace\" \
+         4cedb5ec-707c-4060-8b19-800b9d55438f)(content(Whitespace\" \
          \"))))(Tile((id \
-         df962398-9cb1-4bcd-bdde-e208052b9fa2)(label(s))(mold((out \
+         e8605fe8-364f-42b4-a58a-daf47020f63d)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         25d57072-b5b2-4bf8-a4a6-ba572cdaab8a)(label(.))(mold((out \
+         df51bd63-c881-4940-b505-afc779333259)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         e07a0c0f-2e87-449c-8d03-f8aa2f917871)(label(energy))(mold((out \
+         825d0b60-c902-4ab4-863c-420c656b9673)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         69cd527f-065f-4294-8462-2692fbf1ec7f)(label(,))(mold((out \
+         94168bbe-a2ae-48da-9cf2-8ff824273792)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         87897623-b142-480e-b346-557f2df7e6af)(content(Whitespace\"\\n\"))))(Tile((id \
-         270793c1-50ae-40bd-a207-d81ee9bf9518)(label(health))(mold((out \
+         9db72619-81be-4f04-88f9-100ca875f208)(content(Whitespace\"\\n\"))))(Tile((id \
+         78e9e7a8-8b88-4c2e-bec3-14ca48e8a74d)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         24cf91b2-64d7-4730-9776-88841893023c)(content(Whitespace\" \
+         ae1aed60-03ca-45ec-b958-b6787e67aa02)(content(Whitespace\" \
          \"))))(Tile((id \
-         af7fdce7-a0a5-450f-a154-5ff39566d441)(label(=))(mold((out \
+         e33cda6e-51c0-4cc8-a0b0-08e3caa3e718)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d2c49756-0b3c-4968-b5b5-13ab38836521)(content(Whitespace\" \
+         cee1db77-0a9d-4890-945f-84ac6aa3cc7a)(content(Whitespace\" \
          \"))))(Tile((id \
-         2934dfe2-2b17-460a-a102-1ae087d02caf)(label(clamp))(mold((out \
+         114106bf-dc21-48a1-ad42-21d7558d52dd)(label(clamp))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f8c7a903-0fd4-4f33-a650-8b68b98f5097)(label(\"(\"\")\"))(mold((out \
+         d38d57bd-98a5-4d75-a225-bc35242c6c09)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         e6fdb394-d70a-45c5-95fe-8d77ea46fb9f)(label(s))(mold((out \
+         5d4b9527-ce3d-4fec-9c54-a8ed556e21cf)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         dda4b0fc-0c80-46c8-9d91-9bef54a5b2f3)(label(.))(mold((out \
+         3dd7fac7-b3ba-4aec-a86d-48c3ceacbb37)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         68cd9241-1b1f-4647-912d-7b73b52d995d)(label(health))(mold((out \
+         9186c797-221c-4edc-8ad0-25155477ff6c)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f4f6e090-5fd0-49af-870d-d852cdeaa252)(content(Whitespace\" \
+         de869bf4-eabe-4e08-a4ac-bb60e9b746e7)(content(Whitespace\" \
          \"))))(Tile((id \
-         e12f5b1f-68c3-4af6-87e3-9cbafba82f6c)(label(+))(mold((out \
+         75b889a7-def8-409a-a9d3-12517a897c8c)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         b41a412e-a9f2-45d2-9b35-b15025e4a460)(content(Whitespace\" \
+         e314f8c6-ba24-4ec1-9383-539bad114985)(content(Whitespace\" \
          \"))))(Tile((id \
-         a159a6e3-872a-4aa5-ae30-89380ce79f65)(label(35))(mold((out \
+         0cb7d5d9-6eb4-4053-a69a-b37c8048b509)(label(35))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         a72bbdf4-9ea7-4401-aad7-613fdcfb9e17)(content(Whitespace\" \
+         9019286b-b9d4-4447-9519-87114c0996be)(content(Whitespace\" \
          \"))))(Tile((id \
-         f7872a74-2637-49af-8be5-cdd2be2bf10e)(label(+))(mold((out \
+         7ac1b5f6-c7e8-4816-8938-51f571bba9a2)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         69770be0-a50c-4aa1-92e5-f111bac9c8b0)(content(Whitespace\" \
+         5d429f82-109f-4268-86e6-877d6cddd96a)(content(Whitespace\" \
          \"))))(Tile((id \
-         3e87bcf3-6ce5-4231-b7e1-c6f81e3a7637)(label(bonus))(mold((out \
+         06d8a0c1-52b2-4008-8063-506f3215c945)(label(bonus))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         f83e050c-ddbe-4569-8b51-795874aa81a7)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         d7262b99-6dea-4a14-9cf1-b568bc04d151)(content(Whitespace\"\\n\"))))(Tile((id \
-         3468d507-9614-4ecd-b8d4-59f1543271bf)(label(| =>))(mold((out \
+         4ae6506d-e40b-44c1-b05f-f84686214e06)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         db45563e-5315-4ebb-a2db-42903570583a)(content(Whitespace\"\\n\"))))(Tile((id \
+         4513d590-b933-4e90-b9e9-6a6541ebb09a)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         27c1a80a-4ca6-4ef1-862c-a7dbb30907fc)(content(Whitespace\" \
+         dd77521c-cbe3-42f4-a241-905ad1c9a077)(content(Whitespace\" \
          \"))))(Tile((id \
-         431f2cac-cffb-4e6c-ae16-d359b2a6ddfa)(label(TimeTick))(mold((out \
+         bb77ee8d-4ebc-4f06-bffc-e783732780e1)(label(TimeTick))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         69c17e2d-132a-4b84-b5b0-64973c910af6)(content(Whitespace\" \
+         b251bddb-7e4b-4a6e-94dc-c92a6dde41b8)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         90804585-7ff8-49c7-a724-5857418274b2)(content(Whitespace\" \
+         556d6735-ac5e-4d7b-a5b1-29482a3be916)(content(Whitespace\" \
          \"))))(Tile((id \
-         dfa83bff-2caa-4dc9-9e67-2b7a92b96cca)(label(decayStats))(mold((out \
+         adbea563-f826-4dcd-aab6-e60898e1f886)(label(decayStats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         b4615411-2240-4db8-80d6-0270d014b603)(label(\"(\"\")\"))(mold((out \
+         cd8937a8-16a4-48ed-b63b-aca228226c40)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         4aa8f331-e966-43cd-8d60-477cc53363d3)(label(s))(mold((out \
+         6814463e-93ab-4534-ba61-899814f7d7ac)(label(s))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         26454c78-89da-492b-a5c4-21d40d525f46)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         dafafdee-b9d5-4d0c-9d1d-ac758afaf104)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         28e49678-3355-4062-8c52-87531c2d5c9f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c820082b-ad6e-4a2c-8fbe-bc869f6c12f2)(content(Whitespace\"\\n\"))))(Secondary((id \
-         21974d37-b1db-4ef8-b3f0-240eb019969c)(content(Comment\"# Main update \
+         f95d95f3-5f6b-4781-80e3-266ab5b95a8a)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         bc1ac554-28ec-4751-aac6-e670a68c6338)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         09418664-f698-4439-be17-6e84626b843e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         4ace0251-ed3b-4cb1-8736-690735adfdf2)(content(Whitespace\"\\n\"))))(Secondary((id \
+         23b58640-f92d-43e3-9a85-f8aee59ef28f)(content(Comment\"# Main update \
          function #\"))))(Secondary((id \
-         4f7764df-f345-4226-a975-6d717734effe)(content(Whitespace\"\\n\"))))(Tile((id \
-         a0af3bb9-b0a2-4025-8194-005370764299)(label(let = in))(mold((out \
+         28dc62a7-df7c-41ae-87b4-36d8497a226e)(content(Whitespace\"\\n\"))))(Tile((id \
+         1e5eaea7-b555-455c-99d7-58f4a7fcd19a)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         9ef6a750-9c40-4e2e-b3e3-5d5b2f30c34b)(content(Whitespace\" \
+         a4b682bf-08f3-496d-8403-4e9e1db89113)(content(Whitespace\" \
          \"))))(Tile((id \
-         b9d712f8-c750-44e2-860a-2c2cc5051deb)(label(update))(mold((out \
+         5468884a-d8bd-4584-aac1-ac069f72a77c)(label(update))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         b1287a74-1a5d-462d-90c9-332104b817ef)(content(Whitespace\" \
+         0ac100da-9d02-4a2e-90b3-01616d0888e3)(content(Whitespace\" \
          \"))))(Tile((id \
-         7577cbd8-bc17-473f-99f7-05089b70ecab)(label(:))(mold((out \
+         db93e8a7-c7db-4577-8b06-9c8fb4efde32)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         2b6cf2c5-986b-42fd-92b3-187cfba621e4)(content(Whitespace\" \
+         524cd4d7-50da-400b-8377-ea14635557aa)(content(Whitespace\" \
          \"))))(Tile((id \
-         7e224c5f-7a0f-4930-8cc5-663b52a0c7a8)(label(\"(\"\")\"))(mold((out \
+         27bc8356-38d2-4fb6-bbae-db88b3546834)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         c4d5ce92-20bf-4d1d-845b-e75dcc9b5f53)(label(Model))(mold((out \
+         b1ebb7de-11d4-44f6-b63d-7dcbc0aa049f)(label(Model))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         56ebf412-65a7-4d5d-b91e-1e7f55dc2a2a)(label(,))(mold((out \
+         317d71be-5a63-42f0-96f5-784c9b70fea0)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         f7a22d48-9c48-4b4c-a90d-65a5311f11e1)(content(Whitespace\" \
+         2c60187c-6533-4538-9beb-796476b84c6f)(content(Whitespace\" \
          \"))))(Tile((id \
-         c1f32fd6-2a38-4131-b671-38050907d61f)(label(Action))(mold((out \
+         e0195d8e-e869-484e-a6ae-d7cd6d8e6f5c)(label(Action))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children()))))))))(Secondary((id \
-         df6d9c6e-702f-48f2-ab5c-fa10f4cb6ee0)(content(Whitespace\" \
+         491f0232-a41b-4c79-b46e-7ce4ddf04da9)(content(Whitespace\" \
          \"))))(Tile((id \
-         e9691ca7-9d17-4a96-84d6-ef22eef75292)(label(->))(mold((out \
+         1f7aecc1-5146-4394-a00f-e47774f8b10f)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         454cda43-6f39-4690-a9d9-3d4c129cf492)(content(Whitespace\" \
+         0955a36d-e10c-46bd-9895-c1f09e01a264)(content(Whitespace\" \
          \"))))(Tile((id \
-         18e20ffe-e1ec-42be-b845-ae3c55f79a94)(label(Model))(mold((out \
+         6149ced0-3bc3-46fb-af32-55733cd77acc)(label(Model))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         0a89c7ee-4280-4715-baf3-b0f25ec3f524)(content(Whitespace\" \
+         c6546607-e1a0-42a6-9421-430732948114)(content(Whitespace\" \
          \")))))((Secondary((id \
-         5e95ef55-fbac-42fc-9c04-20d4e9cbe1cb)(content(Whitespace\"\\n\"))))(Tile((id \
-         264c1958-dc99-4991-b6d1-8c2ba687ca28)(label(fun ->))(mold((out \
+         e317523a-4770-461c-b1b6-519be3ba79cb)(content(Whitespace\"\\n\"))))(Tile((id \
+         8623d523-4b61-4553-955c-b2f9b5196e34)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         9ae986ac-543f-4400-8cfd-e09501704453)(content(Whitespace\" \
+         26e00be0-97df-4345-b148-aa2619a390ea)(content(Whitespace\" \
          \"))))(Tile((id \
-         1eccf009-611d-4672-82fd-0e4abaee659b)(label(\"(\"\")\"))(mold((out \
+         4441d8c9-4b02-4fd5-b9bb-8b1038d51ca9)(label(\"(\"\")\"))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0 1))(children(((Tile((id \
-         032dcfcd-6d6b-41d7-8cc0-1e82e291dd4e)(label(m))(mold((out \
+         93499089-40c5-4824-bd35-cb4f6291f6db)(label(m))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         cff72a1e-20a6-4f1d-aa9c-5bd26839e7fe)(label(,))(mold((out \
+         e1591e71-5512-4453-82d2-57adba56efde)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 44))(sort Pat))((shape(Concave \
          44))(sort Pat))))))(shards(0))(children())))(Secondary((id \
-         6ba832e6-7729-4174-a9ec-ef4c76a80a45)(content(Whitespace\" \
+         c754eab6-42b5-4e78-8d34-69d3f720bd77)(content(Whitespace\" \
          \"))))(Tile((id \
-         de4fb002-7b74-48c3-a418-d94ea958add9)(label(action))(mold((out \
+         27f1a3d7-d1e3-475c-98ff-4b3fb6147b85)(label(action))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
-         de58fbff-8fc3-4bb4-b813-b57a3bf78efe)(content(Whitespace\" \
+         ee92708d-b3cd-431c-a1a7-6d90550901d2)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         a5274608-0630-4272-8998-459787c3a2d5)(content(Whitespace\"\\n\"))))(Tile((id \
-         dc4883b4-78dd-4c35-bdaf-4539831de687)(label(let = in))(mold((out \
+         749dc9bf-7a9d-473d-a437-75a2cb6b0292)(content(Whitespace\"\\n\"))))(Tile((id \
+         06e594bd-c419-4d28-a21c-f1e10337d81b)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         5082b37c-65b6-4578-88cf-b1870f19582a)(content(Whitespace\" \
+         e4dd61f5-3075-4910-8b7c-72cc447dc8ad)(content(Whitespace\" \
          \"))))(Tile((id \
-         d787084e-351c-4b80-8be2-1954fd9c9bd7)(label(newStats))(mold((out \
+         038a4839-9403-43f3-a86b-0d1e0d6d8b4e)(label(newStats))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         4428f13e-dddb-49e1-b7ca-67da9421a59e)(content(Whitespace\" \
+         d86e4394-99d1-453b-9f98-66ae8c5e3702)(content(Whitespace\" \
          \")))))((Secondary((id \
-         b27b10ed-788e-4bc5-be48-3763372a75b9)(content(Whitespace\" \
+         da162f47-736a-4aee-aed7-0cd2b87a8777)(content(Whitespace\" \
          \"))))(Tile((id \
-         c3c9e930-3d74-463c-b854-7a1ce9547741)(label(applyAction))(mold((out \
+         d3d0784b-e30f-48c9-abca-7281451664c8)(label(applyAction))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         12ccbaee-ee00-4938-8b23-a58179b1bbad)(label(\"(\"\")\"))(mold((out \
+         c6546c83-41f3-47c9-b3a7-04446b5fbfe3)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         2565f06a-f754-455f-9e49-c3b3039c7610)(label(m))(mold((out \
+         fccd4aa3-ba93-4618-8874-c49df614ad1d)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         1eeb725b-2506-4b69-951f-a192d65ad556)(label(.))(mold((out \
+         66e4f4f8-3da2-4911-8ec0-05e6375d1470)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         73702441-4ef5-4773-8f5e-3527491989b5)(label(stats))(mold((out \
+         a43b186f-64b9-4bfa-b6f3-62d1186bdd62)(label(stats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         58ab7e6f-3cfd-41dc-a1ae-0cdc06523313)(label(,))(mold((out \
+         12ed382a-bbe6-48a7-91ae-fae24f2f52ef)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         5ea45aae-e2e7-423f-98aa-0fa525a9bfed)(content(Whitespace\" \
+         2725b63b-a90a-49ee-8bc1-6b9e95b106dc)(content(Whitespace\" \
          \"))))(Tile((id \
-         4e0f5efb-cb99-4105-b118-530d034cc16b)(label(action))(mold((out \
+         2712ef94-09bf-4d4b-bce5-0a68d094f0aa)(label(action))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         05bc6fd2-fda9-4f9d-9c21-be4e6c0a23ea)(label(,))(mold((out \
+         9ca9608f-aa60-40f6-a62f-a83aabdbff0c)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         a8efc778-7b30-4376-8de3-dcc08b0324a5)(content(Whitespace\" \
+         19a2454f-0114-43e3-bee5-b90d7d8417a8)(content(Whitespace\" \
          \"))))(Tile((id \
-         5d05a409-0d28-4a51-af5f-90108e93abc2)(label(m))(mold((out \
+         c27f3cf6-8d33-4af1-898b-3a774767cd48)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7df6d4b4-327e-4ce4-923f-48b12e6243ea)(label(.))(mold((out \
+         d11afb32-67a6-4bfb-a00e-786440485c45)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         11b691e2-7992-4481-a89f-6931a4817bb3)(label(personality))(mold((out \
+         7756afe6-fe87-4fa4-831e-d973641f5cbc)(label(personality))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         98658d19-659a-4fab-9d4d-f23ef6eca4f5)(content(Whitespace\" \
+         49bf2f49-38b3-47ac-b1cc-e08b57e6d36e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         51950573-1621-42d8-a776-da4c4dc87283)(content(Whitespace\"\\n\"))))(Tile((id \
-         6d16503b-099d-4059-aa5a-85aafae78364)(label(let = in))(mold((out \
+         e2fe44a1-3656-43d1-86e6-6f37a9ce61ea)(content(Whitespace\"\\n\"))))(Tile((id \
+         a021f4bc-52b9-4b09-a53e-858ebb142c58)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         ac7dfdbf-7d6b-4155-b987-8d97a24b5c9a)(content(Whitespace\" \
+         c0fa866e-f704-4294-b576-f26ace874a40)(content(Whitespace\" \
          \"))))(Tile((id \
-         e85eca63-f084-4e0a-8726-f293a7e6bb90)(label(newMemory))(mold((out \
+         18f4a9c5-78ba-4aae-9919-47d1b5aa6074)(label(newMemory))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         a06b395f-cfec-4d0c-80ed-e3504f9213e1)(content(Whitespace\" \
+         dd702155-1409-4f48-a7cd-4f3f1d72b312)(content(Whitespace\" \
          \")))))((Secondary((id \
-         bdc4d815-69cc-46c5-8f9d-fe04cee70711)(content(Whitespace\" \
+         045e04d1-8b84-440a-bdfe-18cef3a7350e)(content(Whitespace\" \
          \"))))(Tile((id \
-         3e94a36d-5e99-4249-a835-a6610a1c2c71)(label(updateMemory))(mold((out \
+         f5f0a01a-704e-450d-812e-ea3f762076e6)(label(updateMemory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         205eb48d-fffc-484a-b1eb-67911b2b9f15)(label(\"(\"\")\"))(mold((out \
+         a870a986-aa51-40ce-a50a-a6832752b068)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         a876aae5-d5b3-43a7-826e-e69ac39a6175)(label(m))(mold((out \
+         c2dfe200-4f12-4d2f-a5df-0e66d224b739)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         eba73581-94d1-40a6-8765-07f1ccfb1855)(label(.))(mold((out \
+         8f8da5e1-e582-4874-9200-59a97c0e74d2)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         2ed92ce1-9525-48d7-935c-5c3b596919a0)(label(memory))(mold((out \
+         4d182aca-0672-4d86-a32d-286e81fe33b5)(label(memory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         9cfe8e69-3200-4868-b611-d425066c5b24)(label(,))(mold((out \
+         7430bb39-66ee-4429-a426-cc8de7627de9)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         f45c6c7d-fea2-44a3-95ca-5c5fb6a594ab)(content(Whitespace\" \
+         33395938-2d18-4abc-86f8-0821f5fb9f85)(content(Whitespace\" \
          \"))))(Tile((id \
-         d6698007-4b49-4e63-b612-49cd9d2aa2bf)(label(action))(mold((out \
+         4c166092-ddc4-4677-a4dd-809181e47c44)(label(action))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         601fb6ba-704a-4e39-86df-e85006827539)(label(,))(mold((out \
+         d69ca9d2-4525-4fe9-89b7-675431ecf1d8)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         a2d2070d-578d-4827-8fbe-b8b5b29df9b6)(content(Whitespace\" \
+         185242fa-ad3b-4a18-a2bf-fccddae3c28d)(content(Whitespace\" \
          \"))))(Tile((id \
-         4edb0d84-e213-47d8-b1a4-c0662692e7b3)(label(m))(mold((out \
+         98593f94-fc1e-4f42-a315-9fad366ef2f2)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         94f6d84d-b1fa-4567-a6e8-fd9c7f5fb09d)(label(.))(mold((out \
+         5cb5047c-c71e-4775-8ecf-de808c9d5409)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         e33fafcb-fd97-4b8a-b878-5daea7d0349d)(label(stats))(mold((out \
+         f0630648-d74b-4995-93d1-084e93645dd6)(label(stats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         e477f61a-00da-47aa-b7d7-5d77f283910f)(content(Whitespace\" \
+         6a46b130-c7e7-478c-99a1-a793dbbb2488)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         f9359ad7-767d-4a14-af7f-203717e67726)(content(Whitespace\"\\n\"))))(Tile((id \
-         efd6dccc-e111-482a-867c-eebdaf95c22a)(label(let = in))(mold((out \
+         513d7fd2-e792-498b-bc75-6a989247f63b)(content(Whitespace\"\\n\"))))(Tile((id \
+         52d942ca-9fe4-4969-9a70-97ca971c0eea)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         0eb613c4-7231-4c60-87c6-9aee1da8ed4a)(content(Whitespace\" \
+         2253930b-307d-4f55-9c42-a5a5d6d39eb2)(content(Whitespace\" \
          \"))))(Tile((id \
-         f5a2dfeb-3db7-40f1-9f29-2365e4626b60)(label(newAge))(mold((out \
+         76d5a9f9-afb3-4b33-9790-21e27839ffd0)(label(newAge))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         2b2c4169-d9a5-4242-bec8-9e6d4b06eb71)(content(Whitespace\" \
+         159f8b82-3baf-455a-a9a2-2c0dbd83a19e)(content(Whitespace\" \
          \")))))((Secondary((id \
-         6abce6f9-0b30-442d-aac6-0ebf1a65ac03)(content(Whitespace\" \
-         \"))))(Tile((id b3ae1315-1745-4a74-a3a2-c4949e57fdf7)(label(case \
+         67563770-e7b5-4737-b5b5-b62b9401b55c)(content(Whitespace\" \
+         \"))))(Tile((id 72492d5c-0e6d-492e-a264-bc4ef6dda487)(label(case \
          end))(mold((out Exp)(in_(Rul))(nibs(((shape Convex)(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         1d906986-1ba1-4d93-89ee-8613b9e78108)(content(Whitespace\" \
+         1818ff24-8e0c-4beb-a57c-f93f762f754c)(content(Whitespace\" \
          \"))))(Tile((id \
-         c8dd36da-8afb-4521-9ef1-bc287ae214a9)(label(action))(mold((out \
+         157fa111-793e-425e-a587-c63465209550)(label(action))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         cad21dda-61fb-498d-b71f-2c2d8bccbcd7)(content(Whitespace\"\\n\"))))(Tile((id \
-         08bcb15c-a960-4bab-8492-fdd51cbee6f2)(label(| =>))(mold((out \
+         f6e339d3-c988-4b9e-b079-1eaef9c9aa06)(content(Whitespace\"\\n\"))))(Tile((id \
+         c49ca655-30bf-4b8c-aed9-b59182c1caf7)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         abbeb8a0-045a-4709-b3b4-f6353deed1b5)(content(Whitespace\" \
+         004ea9f0-2dd9-4b44-9e81-9cfc85ea4099)(content(Whitespace\" \
          \"))))(Tile((id \
-         199712d4-9484-4abe-bcb9-5074c75ef55f)(label(TimeTick))(mold((out \
+         ccaf2989-485e-428e-88be-bcbef7a8d68c)(label(TimeTick))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         f6acf96e-6a06-4a56-9434-d1d55445c3fc)(content(Whitespace\" \
+         e1cbf5d1-0379-4081-906e-13a5c84f7180)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         1e2c0d1b-7e28-4926-a590-6063440d4779)(content(Whitespace\" \
+         cb23d8db-485d-45da-ac10-cfa399068a8d)(content(Whitespace\" \
          \"))))(Tile((id \
-         47998cef-088e-4f87-9ec6-f501f78857cb)(label(m))(mold((out \
+         0367e8c9-69dc-4983-8590-5929d7aa7df3)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f43d9e15-0c1f-41ee-8e5e-1ebf2a67fa19)(label(.))(mold((out \
+         21d97c28-131c-48f1-ade2-4e063a7e7f25)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         f764a95c-7cb5-4ec3-a07c-4a22d3a4cef7)(label(age))(mold((out \
+         98f057f4-e775-4f48-89cd-8c6c20e6c8da)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         433f0308-4be3-4efe-b9c5-c93738dffa41)(content(Whitespace\" \
+         58834dbc-f572-4e91-af0a-a32456a39c66)(content(Whitespace\" \
          \"))))(Tile((id \
-         e5d963d1-c591-45f2-8aab-22507978274d)(label(+))(mold((out \
+         aee8871e-18a5-4f1f-b085-3b538b3a9c79)(label(+))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
          28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         41316206-438c-497a-80a4-f5d2cacca9b9)(content(Whitespace\" \
+         1f952f66-777a-4581-9eb3-85a409ef932e)(content(Whitespace\" \
          \"))))(Tile((id \
-         6a429d94-d663-45fb-8258-84d6573b4fd0)(label(1))(mold((out \
+         eb853e3e-6658-4381-99a0-99ebab8dcaba)(label(1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         598d0454-698b-4f4f-a8e1-7728eebb25f8)(content(Whitespace\"\\n\"))))(Tile((id \
-         9d74fbec-5823-465e-a0f7-2840aeda5c4d)(label(| =>))(mold((out \
+         b6af7c9a-08cb-4689-9cfa-d09c82b40f73)(content(Whitespace\"\\n\"))))(Tile((id \
+         fa4b04c1-98ef-42dc-9c70-4bf5df72cff8)(label(| =>))(mold((out \
          Rul)(in_(Pat))(nibs(((shape(Concave 46))(sort Exp))((shape(Concave \
          46))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         3f116b28-1d70-4d63-9f8b-30319fe9750c)(content(Whitespace\" \
+         f789370a-7499-4405-babf-795c33b4d33c)(content(Whitespace\" \
          \"))))(Tile((id \
-         f8523d66-7517-417e-a47f-9f05a1671e27)(label(_))(mold((out \
+         ea940eb2-752e-46cf-a7de-79c003c44463)(label(_))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         250b19a5-60b7-4ac7-bf39-5aaf6d65ad7b)(content(Whitespace\" \
+         e7ae85b5-1144-4797-95c1-7f641522582b)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         d5cbbd01-6918-4417-b3f1-3319c41ded16)(content(Whitespace\" \
+         10c0b2b9-df2d-4369-824b-369ef76861ba)(content(Whitespace\" \
          \"))))(Tile((id \
-         6039b2f8-37a0-45be-9904-c5ccf95345ce)(label(m))(mold((out \
+         2f04dd12-c9e5-463f-8e80-939773704b1b)(label(m))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7e2308d1-5249-46ac-bbe9-40d91dd1909a)(label(.))(mold((out \
+         0d4bf8de-4974-4e6b-8c40-94ce72efc550)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         3eed062f-dda7-4823-9845-ddce1af77a0a)(label(age))(mold((out \
+         e6a87013-0343-462f-b93d-f2fd705b5ebf)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         aec15e68-efae-4f2b-989b-3aa5fd489a92)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         15aa6e70-fa67-4abd-9e23-0f2f63679131)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         d07006ce-6cb9-43e5-8a12-6c13449e7fce)(content(Whitespace\"\\n\"))))(Tile((id \
-         d7b814e8-f555-45aa-a3fe-15a5cfaf83b7)(label(\"(\"\")\"))(mold((out \
+         42dad2a6-2746-4de8-8b8a-b5fff0d51af4)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         04bc9b86-13c9-4b15-8762-08db22527f83)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         1f2cf17e-1194-459b-8df2-d8f8217b81f2)(content(Whitespace\"\\n\"))))(Tile((id \
+         32c78f6b-f512-4194-9a97-d606b27a217d)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         8789320e-cd52-47d6-88d3-5db77c633759)(content(Whitespace\"\\n\"))))(Tile((id \
-         696fd4a8-107c-4060-ba07-741336b8b52d)(label(stats))(mold((out \
+         da8a5677-b319-4045-ad06-71f613d3cad8)(content(Whitespace\"\\n\"))))(Tile((id \
+         5a584775-8dcd-41e5-8cce-64cad8998de1)(label(stats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         d9d5be58-dcac-4fde-81d7-57cdfb774b8f)(content(Whitespace\" \
+         67a819ab-727c-4770-8f0d-30204fb5601e)(content(Whitespace\" \
          \"))))(Tile((id \
-         f9cf15cc-bdbf-4e8e-afe2-89dbdae5a725)(label(=))(mold((out \
+         3c548432-7774-4bfa-b28e-d8e4dd65c68e)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         f06dac05-3ae8-4dbf-a227-dc1cb4127b49)(content(Whitespace\" \
+         bd945893-0417-4131-b2d7-0c59c765c7d1)(content(Whitespace\" \
          \"))))(Tile((id \
-         262e7a31-c951-4629-a812-31c9765eaf7a)(label(newStats))(mold((out \
+         2f9d686a-ab8d-4cb0-9b68-572851bc785a)(label(newStats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         5fa112a6-d025-43d5-af51-7c4ec430c2b7)(label(,))(mold((out \
+         4ec53a75-e3ab-4d56-8c12-b10cbdfbce63)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         3741715a-2059-49e1-88bb-481049b523e7)(content(Whitespace\"\\n\"))))(Tile((id \
-         85008c03-3aa9-498c-a4d0-fa48bab7a5f0)(label(evolution))(mold((out \
+         f95cb7b0-905a-4cf2-a579-5dbcd50fb0de)(content(Whitespace\"\\n\"))))(Tile((id \
+         974c662d-2595-4355-8d14-c0aa15cd023c)(label(evolution))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         98a535cd-fbab-48a6-af73-0c10bd587977)(content(Whitespace\" \
+         d8e6feb2-bfe0-4ea9-8cb3-ddea6047b9ff)(content(Whitespace\" \
          \"))))(Tile((id \
-         d2cb8760-a7a7-43a7-bbe6-b62a9eb6572a)(label(=))(mold((out \
+         f914e986-8556-4e22-99a1-ee5ff1570495)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         019af03a-2f12-425d-ad4f-6186d7c69a00)(content(Whitespace\" \
+         98496d0c-d890-4ddb-ab1f-6164ba5e644d)(content(Whitespace\" \
          \"))))(Tile((id \
-         038a67e0-f69c-49ea-b051-258880c09db7)(label(calcEvolution))(mold((out \
+         5cd40d33-2eb8-42b6-b014-d2b5bcc80e4e)(label(calcEvolution))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         3eab5473-9f0f-4174-adbf-a25fc73abd5d)(label(\"(\"\")\"))(mold((out \
+         929fcc31-fe9d-488c-bebf-9b7599fdda7c)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         3f550355-cdc6-45b3-8940-41e9572f74f3)(label(newAge))(mold((out \
+         8f71dae6-aea7-4264-ab87-bd3c6776379f)(label(newAge))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         c97fb32b-35fd-47be-b47e-3fb209caba97)(label(,))(mold((out \
+         1c74405b-afdc-4b58-bed1-ae283545f0f1)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         b22bc426-0fc3-4ae9-a0fb-e277a087d8ab)(content(Whitespace\" \
+         a3177637-d7a4-45a2-8ce9-fb97e5d43fd3)(content(Whitespace\" \
          \"))))(Tile((id \
-         2b4a4bb4-315e-40ca-b369-6c5419ba2cf8)(label(newMemory))(mold((out \
+         d15d10a7-33ab-4160-9fc0-194c94a69172)(label(newMemory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         14eea2a9-fb92-4b2f-afa0-5a98b3c2e4b8)(label(,))(mold((out \
+         a9f2fcb3-de1e-4ae5-a015-02f416768757)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         3ed92dc6-4ab6-4266-b1a4-c43f765a7ccc)(content(Whitespace\"\\n\"))))(Tile((id \
-         f8ef26fc-8e44-48c2-9711-835cfb94dbf3)(label(personality))(mold((out \
+         3c8a8c69-8a9c-44f1-977f-f703457bd894)(content(Whitespace\"\\n\"))))(Tile((id \
+         117e5c25-c9bd-473a-a560-916849ebc8b3)(label(personality))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         39ca958f-2b56-40e6-bf76-b93c93908a6b)(content(Whitespace\" \
+         40c18c2d-78ec-4c10-a063-11859abecdaf)(content(Whitespace\" \
          \"))))(Tile((id \
-         597646db-f58d-4a07-971d-f11afd306148)(label(=))(mold((out \
+         6baf5ea9-9042-4d2b-be2e-128a177bdf82)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         8e00ce06-04c6-4643-831a-e59aa4ce0621)(content(Whitespace\" \
+         2d125089-3959-4817-bf8e-97138f640e4d)(content(Whitespace\" \
          \"))))(Tile((id \
-         7a45b484-8e56-4202-81b1-cf7a80bea05d)(label(calcPersonality))(mold((out \
+         daf050c5-a2c0-43c4-929a-c285e2e02786)(label(calcPersonality))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         ca3ede85-3069-4033-bbbd-094c61ac02b6)(label(\"(\"\")\"))(mold((out \
+         b338c7b0-8cb8-4b8b-b1e0-a69ff19f082c)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         f6d5e968-3442-43cf-8fcf-2c78308f052d)(label(newMemory))(mold((out \
+         37afd740-01f7-4fb0-b9f3-9cca49a80fa8)(label(newMemory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         87bf11b9-93b9-453d-b4e8-1ad9d60ceaea)(label(,))(mold((out \
+         570ca141-a82c-4586-94fc-192d7ee92dbb)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         a00b1434-6ad1-42b8-9aca-d31ed38be25a)(content(Whitespace\"\\n\"))))(Tile((id \
-         9283c9af-bba9-4ef0-87e0-f5e6bf5dc2b0)(label(memory))(mold((out \
+         0c841db0-599b-4561-a7b4-e0242f6a82c3)(content(Whitespace\"\\n\"))))(Tile((id \
+         b8a9d248-34f6-4667-9f9d-ee8a8e83c2f4)(label(memory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         c672beba-58ee-43c0-be39-bee07e28c2b6)(content(Whitespace\" \
+         f282072c-f90a-4256-b67f-8b7dbef898e2)(content(Whitespace\" \
          \"))))(Tile((id \
-         e6718820-94d6-4773-b078-12cf9a2d0cff)(label(=))(mold((out \
+         2f38bf6e-50ff-4789-ad68-b9b267f930fb)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         db77d527-ec9b-43d9-9ddc-3782957be1e6)(content(Whitespace\" \
+         7e05c1c9-3cae-4c63-b408-1f0829b762b5)(content(Whitespace\" \
          \"))))(Tile((id \
-         bd7d55a6-97c8-4d29-92c6-3f6511d9ee7b)(label(newMemory))(mold((out \
+         adc5690a-166a-4906-8192-7fa24586f2e0)(label(newMemory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         a0720dbf-58ab-472d-a7b2-b9065dac41fd)(label(,))(mold((out \
+         03aee6c5-2a0a-43ab-9f6f-af03b289570c)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         501399a2-f7cb-4f92-8362-31c23b850841)(content(Whitespace\"\\n\"))))(Tile((id \
-         87602d20-a63e-4ac8-93ce-8c9edb77cc85)(label(age))(mold((out \
+         28ab526b-38ce-4c3b-bc56-68b933c6a098)(content(Whitespace\"\\n\"))))(Tile((id \
+         10308411-9bc6-46dc-9a0c-6cbc273ed77c)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b423913a-4efb-4ada-baf1-7332c907d7ae)(content(Whitespace\" \
+         2f0cfbb2-4867-458b-ad77-ec0ad95eb078)(content(Whitespace\" \
          \"))))(Tile((id \
-         a51beac4-fcd7-4ac6-a415-2dd7694aae95)(label(=))(mold((out \
+         cfcfd79e-47f0-4872-88f5-8c685f7f3378)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         82b21914-298b-4453-a6ff-22b84f524fed)(content(Whitespace\" \
+         3d2ba034-2ee9-43a6-b84f-65dd6070c297)(content(Whitespace\" \
          \"))))(Tile((id \
-         8be8f3c9-8fab-4cf3-82eb-a18b934f5cf6)(label(newAge))(mold((out \
+         bd44934f-51cb-4df5-8d86-d907a2f8c7c4)(label(newAge))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         923fe9cf-1d44-41f9-a28c-26fc0aa10150)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         dd7f37c2-7672-436a-8e9b-8297ae62444f)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         69cbabf4-3982-4fdd-8e52-4f6f287f6350)(content(Whitespace\"\\n\"))))(Secondary((id \
-         4ca39abf-ef6a-4646-86b8-7e81e42722e5)(content(Whitespace\"\\n\"))))(Secondary((id \
-         4e63266f-7d62-45c1-9424-68a82b6d00e4)(content(Comment\"# Run multiple \
+         12075f81-9764-437a-9757-26efa68f12e2)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         b97b5c9c-3936-4eb1-ae7f-6b13365629e0)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         37a1f812-45df-4438-8e30-7360993e1ce3)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a07a3767-00b1-44d0-ac49-02de5b810615)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d8f611e9-a988-46e0-9e1e-af57a0ee00da)(content(Comment\"# Run multiple \
          actions in sequence #\"))))(Secondary((id \
-         5649d466-56af-4667-aca3-3f785709f390)(content(Whitespace\"\\n\"))))(Tile((id \
-         c3924365-b442-4116-b7f4-3d325d4aa850)(label(let = in))(mold((out \
+         42a992aa-d1b0-4ca1-9ec2-1f2c1a589927)(content(Whitespace\"\\n\"))))(Tile((id \
+         372b5352-1092-450a-915d-152ca092b46d)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         74816e79-9dcc-4380-9062-36884ef81c65)(content(Whitespace\" \
+         5ca716a7-dd53-4758-8a3a-89c0950b7bfb)(content(Whitespace\" \
          \"))))(Tile((id \
-         35d13a77-a85f-4d9f-8280-63f50ba8862f)(label(do))(mold((out \
+         d9df80db-6ac2-412f-9dbc-fa372bd0dd60)(label(do))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         bd7d555e-c849-47b0-a8c6-fda8fe33c040)(content(Whitespace\" \
+         c5f9881a-215f-47a4-bc86-e174f1c0c2d5)(content(Whitespace\" \
          \"))))(Tile((id \
-         52367ec0-ad66-4137-ad40-0cc16f1eb90d)(label(:))(mold((out \
+         7e1c67d0-05a7-4ccb-99f9-e68e77087af7)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         6acabc8b-58c1-4518-b8d6-b3e9cd061d2f)(content(Whitespace\" \
+         03cdf601-51a6-4edf-b065-dc5eede3822f)(content(Whitespace\" \
          \"))))(Tile((id \
-         dc72256f-fcf0-419b-bef6-130aa58b8500)(label(\"(\"\")\"))(mold((out \
+         21ac5276-1dd6-4306-b3ad-e914338044d6)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         2711e5f5-60e3-4fc1-9811-97d631df61f5)(label(Model))(mold((out \
+         68e4e00a-f5fa-4ab0-bd12-1e95f0609c1e)(label(Model))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         c034a281-3b00-4100-a2e0-7f2904158c56)(label(,))(mold((out \
+         1df02852-4fc0-4127-84df-7658c24f1d7a)(label(,))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 44))(sort Typ))((shape(Concave \
          44))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         fd3bdc89-053e-460e-aa0f-871398a87cc6)(content(Whitespace\" \
-         \"))))(Tile((id b6719c76-0c7a-4453-afa2-fecb10fddfbf)(label([ \
+         a73581f4-3169-40d3-b5db-60a37f10d326)(content(Whitespace\" \
+         \"))))(Tile((id 5bac5e80-73a6-4d42-8a30-c4fe9cb16c88)(label([ \
          ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
          Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
-         37bdc722-2bc8-4b14-9fb4-38cebe0474fd)(label(Action))(mold((out \
+         e13a016c-4519-442e-994f-cb8488d26e99)(label(Action))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
-         502de632-dd2d-4e34-9690-61ac3cf45e4e)(content(Whitespace\" \
+         8744457c-d4fe-45c7-9390-374399b2d9cb)(content(Whitespace\" \
          \"))))(Tile((id \
-         e76953eb-e3de-4559-8ff5-f972cef33928)(label(->))(mold((out \
+         71e2b359-71c7-4fb2-9212-ce681afe4715)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         509589ca-1f45-4ff9-8e62-85fa777db797)(content(Whitespace\" \
+         a48518eb-0d3f-4a16-b356-437f1cf4da63)(content(Whitespace\" \
          \"))))(Tile((id \
-         8c3126db-1d14-458f-aa0e-fad66c0a48b7)(label(Model))(mold((out \
+         7c6d683b-f68e-4245-a872-d490119b6189)(label(Model))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         16233094-eba4-4a3a-a911-eea59e17f0fc)(content(Whitespace\" \
+         30ccb2c8-f071-4db5-a6d3-94c9b84db2f4)(content(Whitespace\" \
          \")))))((Secondary((id \
-         174d8c6b-604b-43ec-b59d-e77c59b7ef3d)(content(Whitespace\"\\n\"))))(Tile((id \
-         69627e4c-4df1-422b-8040-33d79ad2c6af)(label(fun ->))(mold((out \
+         752fd081-e645-4dbb-809c-c16f443a3b03)(content(Whitespace\"\\n\"))))(Tile((id \
+         1b91e5be-49d6-4c63-93e0-240f01dcad9c)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         baf41ac2-2b7f-4eeb-965e-7885b7035add)(content(Whitespace\" \
+         2ce0d3d6-556d-4624-88d8-45855c0d2cd3)(content(Whitespace\" \
          \"))))(Tile((id \
-         9e7c88d6-688c-402e-9850-4f1f9dabf8e8)(label(\"(\"\")\"))(mold((out \
+         391829f6-6677-4f9c-ae23-bafb072c11b2)(label(\"(\"\")\"))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0 1))(children(((Tile((id \
-         960c3453-eb53-489f-bb18-0cbfc342681f)(label(model))(mold((out \
+         2dffc654-20f3-43d0-b957-8054831ab851)(label(model))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         1c1a4a53-b661-47b1-86aa-01d00d734879)(label(:))(mold((out \
+         5810dd8a-66dd-47c5-96e4-f3a5818d4da8)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         87f8d2ac-e84f-46c8-b8cd-50b40e4b73bd)(content(Whitespace\" \
+         010ebefd-4064-4c98-9e31-6cbd62a1b1c6)(content(Whitespace\" \
          \"))))(Tile((id \
-         a47054e6-e34c-40a6-a7c5-bc65bdbf6a98)(label(Model))(mold((out \
+         ae388ac7-99d2-49f5-abbd-5890664b7942)(label(Model))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Tile((id \
-         49dda6e1-6110-400a-9219-0a015c093857)(label(,))(mold((out \
+         09bafd8a-57f2-499d-82f5-f97cf81ce28f)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 44))(sort Pat))((shape(Concave \
          44))(sort Pat))))))(shards(0))(children())))(Secondary((id \
-         f9612912-62c4-4b19-8a08-d66e6d59b89f)(content(Whitespace\" \
+         c3ef4dd4-7903-4826-8a06-c25ee3bbfc4c)(content(Whitespace\" \
          \"))))(Tile((id \
-         81f78a50-8ceb-45de-b002-6764cf5fbdd7)(label(actions))(mold((out \
+         ad1139c1-0527-4a8a-b227-68cf40504d92)(label(actions))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         955e811a-f4ca-40fa-97ef-fc09d40f043e)(label(:))(mold((out \
+         3b187d73-3c33-4ff5-a240-22f5db5690a9)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         c5127c62-7700-450e-8074-7a2b35fd0688)(content(Whitespace\" \
-         \"))))(Tile((id 41c00dd4-d1a3-41c3-82a6-8cf3bf4dea1d)(label([ \
+         751043fc-13c4-4a9f-8b9a-f003c63727c0)(content(Whitespace\" \
+         \"))))(Tile((id 28cff833-77e3-420d-81bb-1a16594979b6)(label([ \
          ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
          Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
-         790c3c24-9ab6-43b2-ae09-f6dbdead46dc)(label(Action))(mold((out \
+         6dac53c5-8252-4587-aa75-a93a5a74000d)(label(Action))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
-         29fc0fb6-ff84-4bdc-bed8-0bca2fa7b929)(content(Whitespace\" \
+         487391a5-294a-4506-a143-0eba7b46dea5)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         2efd52e1-4ae6-4df8-b8ce-1e0121df280a)(content(Whitespace\"\\n\"))))(Tile((id \
-         2556169a-e97c-481f-b479-cfdd3e553d60)(label(fold_left))(mold((out \
+         07cff8f7-9172-4792-b7cd-1b405d584315)(content(Whitespace\"\\n\"))))(Tile((id \
+         c2fd6a21-2063-4d60-be89-988e729e32c0)(label(fold_left))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         0078a4b3-01ba-4524-8803-767695dc80c1)(label(\"(\"\")\"))(mold((out \
+         1fd15ec6-1feb-42ff-bfb6-4324755f7fba)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         c501feea-1adf-4391-983f-d71f0c75b8e8)(label(actions))(mold((out \
+         3704bf0a-c126-4d25-a10d-4ed982665009)(label(actions))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7a79ee27-a8fb-4fdb-b179-913a507f77ff)(label(,))(mold((out \
+         717098e8-3faf-477c-9354-000615521d28)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         ebb2bab1-30da-4e7c-b562-93f646348265)(content(Whitespace\" \
+         3fd9e8c2-12df-4088-b86e-a06fed5b33b8)(content(Whitespace\" \
          \"))))(Tile((id \
-         b38b4d9c-f423-4da0-8a8c-dc3fb6b78cce)(label(update))(mold((out \
+         1c891a53-9013-442b-b15e-6d01bcb61e2c)(label(update))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7b5dff5b-0d20-4ce5-9070-0033c45bc233)(label(,))(mold((out \
+         15507d8f-1b83-4d53-b2a9-4cd8c215b326)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         459d6388-3a19-458d-ad2b-7fb9e88af30b)(content(Whitespace\" \
+         3b1d06b2-d019-43b3-bdd8-f59d1fbe8e1e)(content(Whitespace\" \
          \"))))(Tile((id \
-         e1627458-487d-407b-943f-d71befb6a6c8)(label(model))(mold((out \
+         dde7f3ea-b247-4d2a-9924-d3e067badee9)(label(model))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         fa1b30f0-4375-4374-b9e6-cc917234d8e0)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         63794b6f-3904-4f65-bb70-2716f1045538)(content(Whitespace\"\\n\"))))(Secondary((id \
-         123aa1d1-9b63-4682-96b4-8439252b7de8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         16663097-06f9-470e-8ff8-83bf7d0213ec)(content(Comment\"# Generate n \
+         e6baa826-1d7a-463c-8edd-9be854acd1b8)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         1be7f12a-f0b7-4cbc-8224-1e408f8abcc0)(content(Whitespace\"\\n\"))))(Secondary((id \
+         4b080269-aa3e-404b-8392-4f92aa6f6f47)(content(Whitespace\"\\n\"))))(Secondary((id \
+         155cca2a-218f-4de1-98bd-f3a5fc93e0fa)(content(Comment\"# Generate n \
          TimeTicks (range is inclusive, so use n-1) #\"))))(Secondary((id \
-         28f36a40-fedd-4b00-bd09-c02cd80e42b1)(content(Whitespace\"\\n\"))))(Tile((id \
-         df7e66e9-e4a1-4fdf-bbf4-14a38215fd2e)(label(let = in))(mold((out \
+         178f3ee0-25f3-47df-b76b-e9148311a4e3)(content(Whitespace\"\\n\"))))(Tile((id \
+         d542b87d-cd89-4b59-b457-9b7bf0772a01)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         226b2e8d-a022-4139-85f3-04dd9212c60e)(content(Whitespace\" \
+         541f0215-804d-4c24-9f73-b8be61369995)(content(Whitespace\" \
          \"))))(Tile((id \
-         efe912e3-b451-40ae-8e8b-3f003443a39b)(label(timePasses))(mold((out \
+         076607ee-f1d1-4224-88a2-b073660a68a4)(label(timePasses))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         ab6d8101-bacc-4637-a132-5d168a608767)(content(Whitespace\" \
+         a6baaeb5-99fd-446d-aa92-829fb4bffbf6)(content(Whitespace\" \
          \"))))(Tile((id \
-         18bd6f41-a42b-40fe-9f51-e286c1676bf3)(label(:))(mold((out \
+         07ebd5c8-4f79-4594-8da6-70935e53ae0f)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         62f1aa6a-46ab-4a49-abda-f92c372d1e54)(content(Whitespace\" \
+         df49b2d0-7f43-486a-af6f-8337af8c2fcf)(content(Whitespace\" \
          \"))))(Tile((id \
-         bf7bc888-2fa4-4f6d-9368-ab7429263825)(label(Int))(mold((out \
+         07aa7f9f-0b34-4203-9ecd-d3137ef8997b)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))(Secondary((id \
-         a0f5593f-0eb3-472d-b7f3-6686432d3e02)(content(Whitespace\" \
+         2247fa78-37a8-47be-9192-bdd0e00da827)(content(Whitespace\" \
          \"))))(Tile((id \
-         d90a8279-648b-4cc4-999d-aaf518a206c5)(label(->))(mold((out \
+         cc177ad4-e5a8-4e4f-9a6a-bdd2c961dac7)(label(->))(mold((out \
          Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
          13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         47188f1f-59b3-42f7-9047-b112662cd04f)(content(Whitespace\" \
-         \"))))(Tile((id 499fd124-191f-4dc7-85ab-845d286d689b)(label([ \
+         95d7cb85-0374-452a-b678-b59b8a73d0da)(content(Whitespace\" \
+         \"))))(Tile((id 479aaa97-fbc8-4ba8-93f7-e8448366691e)(label([ \
          ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
          Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
-         53104b31-42e3-453a-a593-b6d6fdc1efec)(label(Action))(mold((out \
+         9f02dda9-beaf-422e-95b2-c4355a4284e0)(label(Action))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children()))))))))(Secondary((id \
-         4db74366-f83e-4b8f-b86d-a8b922b5e387)(content(Whitespace\" \
+         ce274698-dc46-4ac8-8d07-ff723b121df9)(content(Whitespace\" \
          \")))))((Secondary((id \
-         978c106e-40bd-447e-a74e-cbd4b5859e54)(content(Whitespace\"\\n\"))))(Tile((id \
-         8699fb15-756b-442a-b6d0-34debd6dfad7)(label(fun ->))(mold((out \
+         4df29d57-853d-40e4-8231-8825505f754e)(content(Whitespace\"\\n\"))))(Tile((id \
+         9c2bb903-d379-4bf0-aefb-548967601129)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         7e8428f4-0ba5-49a0-812a-e6799801064c)(content(Whitespace\" \
+         544d6ef2-f20e-40bc-820d-6d3a6ceb25b5)(content(Whitespace\" \
          \"))))(Tile((id \
-         0dcee025-1dd4-4376-93f1-00b78da0beb9)(label(n))(mold((out \
+         aed28ab0-2e60-4b26-9862-f4a9e539d64f)(label(n))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         26c1bc30-2da4-40ef-b0b1-fcf6ba249d8d)(content(Whitespace\" \
+         cf001bc5-199e-4a5f-8e89-5c8bb1404f75)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         dcd1a041-fdde-42e4-bf7a-9bb1060913c7)(content(Whitespace\"\\n\"))))(Tile((id \
-         5139c180-85f2-4a87-9167-4c567d875a8f)(label(if then else))(mold((out \
+         34d2c3a2-979a-4ef6-baeb-6be3c94e98c1)(content(Whitespace\"\\n\"))))(Tile((id \
+         d811c1d1-31e6-41af-81ab-f878e54952dd)(label(if then else))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         f7ad6246-a1e2-419a-9a0f-0f51a16b3996)(content(Whitespace\" \
+         d98f2fda-4b23-47e8-87d5-ef90e55297fd)(content(Whitespace\" \
          \"))))(Tile((id \
-         95439ace-f137-4c21-bfa3-b443179ab5f0)(label(n))(mold((out \
+         d400be65-5570-4aa9-b975-3e01dce73c5c)(label(n))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         d8afad30-d471-4eb3-8489-c875d93f43de)(content(Whitespace\" \
+         37bef714-bd48-4a68-a835-015c03e19fa4)(content(Whitespace\" \
          \"))))(Tile((id \
-         a0587386-559b-4502-b4fe-cf6252cf6aff)(label(<=))(mold((out \
+         e44d8a64-bfb9-430a-bfe8-b23de31a08a7)(label(<=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         0c6b7cc1-58cf-4915-b0c7-432cc870f7a4)(content(Whitespace\" \
+         c6757c3e-5956-4859-8d17-7c42c2ff9883)(content(Whitespace\" \
          \"))))(Tile((id \
-         11c625d1-f5fb-478f-a9a5-0bf7a3ac4faa)(label(0))(mold((out \
+         de002251-261e-4271-975e-2648a010c68d)(label(0))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         45e9d016-da08-418d-94ed-ed15b18962ee)(content(Whitespace\" \
+         a8619606-b286-4bd2-bee7-c0fbe76bda4b)(content(Whitespace\" \
          \")))))((Secondary((id \
-         2a6bdacf-bc15-4a86-a73d-0a3ead8880e9)(content(Whitespace\" \
+         637682ed-866e-451c-bf33-17fbbd493ed7)(content(Whitespace\" \
          \"))))(Tile((id \
-         876a8ad7-a4d0-46e4-8c7f-f7b12d097a0d)(label([]))(mold((out \
+         907edea1-b068-4dfd-80b3-df3508dcc162)(label([]))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         cceaae92-c8ad-4974-aea8-e0ab1d02bf22)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         3a7848e6-a49d-4e09-8738-8395614391b4)(content(Whitespace\" \
+         53c110a2-b5e4-4985-b831-0d1d306da01c)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         710b515b-97d6-4366-8e4f-10f06cb3da3c)(content(Whitespace\" \
          \"))))(Tile((id \
-         727a9a7f-a056-4cc7-9e00-243a650fe5d8)(label(map))(mold((out \
+         efccdab5-d890-49c4-ab5b-b213d6618f29)(label(map))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         a0091bb0-cb9e-4b4c-ae3f-48a23f381701)(label(\"(\"\")\"))(mold((out \
+         9ebdb8fc-9158-4989-8724-56c26db49a82)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         d0344499-8ce6-4025-b138-fb8a59382f51)(label(range))(mold((out \
+         074af88e-6ab7-4cf7-aebd-54ce265cfbd4)(label(range))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         87eead09-2999-4534-9a82-3400c79e4960)(label(\"(\"\")\"))(mold((out \
+         1da7360f-bc2d-445e-8419-7953029bdf5e)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         4741ee95-deb8-46a1-bfb3-db5ad5af6664)(label(1))(mold((out \
+         9fb476c6-3609-44b7-90bb-a792dbe37679)(label(1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         7fcb0373-68a3-4340-94e2-6814045778c6)(label(,))(mold((out \
+         12915fc5-3f35-44b7-9b00-73cbca780ff3)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         3788e82a-d42a-4f60-967a-4ae9b8d0629e)(content(Whitespace\" \
+         9841ac17-de28-4d42-b434-0f9068ba0550)(content(Whitespace\" \
          \"))))(Tile((id \
-         c366c89c-b646-415f-a300-8380e23859e6)(label(n))(mold((out \
+         34e02fff-5302-446f-80b9-8a86c045c9a1)(label(n))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         28630514-ec4c-43c9-841f-633ea7d7f022)(label(,))(mold((out \
+         fc37dfdb-5237-4239-874d-4a8e60e98415)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         0bf9fbf2-5275-45cf-86a4-50c12df63aa5)(content(Whitespace\" \
-         \"))))(Tile((id e9df9f8c-14a3-46ff-9bec-c0399be3b4fd)(label(fun \
+         21ab7e4d-a9de-47ff-974a-4556c271c7dd)(content(Whitespace\" \
+         \"))))(Tile((id 995b5889-e3f6-4fa2-9f38-9ec8006cbf65)(label(fun \
          ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
-         c188c09d-ed05-4d18-9bb4-3e9d5384d791)(content(Whitespace\" \
+         1d15d10b-bbba-4b53-9ea3-5aac79daf1b1)(content(Whitespace\" \
          \"))))(Tile((id \
-         53d3d5eb-4ca9-47ad-a5b2-c7f8ab7c0c56)(label(_))(mold((out \
+         09e184fd-2051-4946-9f2b-d04a630aab32)(label(_))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         af080868-71cb-40b4-9a8b-cf6880eeb052)(content(Whitespace\" \
+         177c236f-b08f-497d-b657-1a9332b290d1)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         a6b99894-052c-4323-8c66-d766b34ccece)(content(Whitespace\" \
+         12a7f1fc-13ed-4184-a309-e3aa0c541004)(content(Whitespace\" \
          \"))))(Tile((id \
-         b4127893-da62-43e4-a2f2-a1952b16305d)(label(TimeTick))(mold((out \
+         29f5fb4f-d8c3-4259-95df-e7835b0e1699)(label(TimeTick))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         4d622118-9d05-4471-b98e-b6066f1a5c06)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         055db246-a40a-4a54-82e8-e80520739d3d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ffed4bf0-a8af-48a8-9831-cc2d03b0c04f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2168e955-fd3f-4ba2-b76e-2d98bdaf2de5)(content(Comment\"# Test: A \
-         moderately-cared toaster with some neglect should be Adult, not Rusty \
+         c1adb04e-a293-4ad9-8661-d004b254c76e)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         ac03007c-5642-4c77-a39d-af0563425e7d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         69fc9189-e868-433b-aaca-af8179a8e044)(content(Whitespace\"\\n\"))))(Secondary((id \
+         389d6b3a-8ccf-49f7-a8b9-92e6396b70bf)(content(Comment\"# Test: A \
+         moderately-cared spirit with some neglect should be Bloom, not Wilted \
          #\"))))(Secondary((id \
-         f6e975f9-4074-4cb1-b73f-28af369002e8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         22c67d6c-61cb-434c-a393-16627016c63c)(content(Comment\"# \
-         careScore=10, neglectScore=3: not Golden (10 <= 9), not Rusty (3 <= \
-         10), so Adult #\"))))(Secondary((id \
-         5a4c943d-ad25-4dce-970c-18e31c4eb8bd)(content(Whitespace\"\\n\"))))(Tile((id \
-         1eabe22b-f04d-4701-b023-61953fbad9d0)(label(hint test end))(mold((out \
+         7843d791-500e-494e-bc29-5411b60f0a5d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         39f9dbd4-d0ab-47cd-9215-a99f02135786)(content(Comment\"# \
+         careScore=10, neglectScore=3: not Elder (10 <= 9), not Wilted (3 <= \
+         10), so Bloom #\"))))(Secondary((id \
+         bbaa4420-1305-458f-9db4-340bf7dd33ce)(content(Whitespace\"\\n\"))))(Tile((id \
+         6f1932a9-40dc-4ff7-b30c-5aa13827544a)(label(hint test end))(mold((out \
          Exp)(in_(Exp Exp))(nibs(((shape Convex)(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         ccac3827-27dc-45d5-ab83-4d46d11dfc60)(content(Whitespace\" \
+         2c8d20e8-f23b-4401-b3f7-e7159835c316)(content(Whitespace\" \
          \"))))(Tile((id \
-         c39c0ba2-9d8f-4ad8-aa84-ba8ed1192ce3)(label(\"\\\"moderate care with \
-         some neglect becomes adult\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+         fd0e1405-5a5f-4184-8ce3-043d5253f800)(label(\"\\\"moderate care with \
+         some neglect becomes bloom\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
          Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         0d6b121b-a8a6-49bf-8ee1-2ef44b1e1d68)(content(Whitespace\"\\n\")))))((Secondary((id \
-         ac5a8b5e-b68a-4ba6-8a38-7fce36687cca)(content(Whitespace\"\\n\"))))(Tile((id \
-         b47cbc6a-aebe-411f-9ee1-b51b1953bc2c)(label(let = in))(mold((out \
+         df3e3ee9-54c6-4aa1-a79e-3b7baffd0f65)(content(Whitespace\"\\n\")))))((Secondary((id \
+         57790744-ab35-43e8-b6be-d0b2a291555f)(content(Whitespace\"\\n\"))))(Tile((id \
+         d768d60d-68d6-4bf1-aa8d-995d89ba7f8b)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         f0ffbdac-3447-476d-9c4d-819a126cddeb)(content(Whitespace\" \
+         15cf38db-4198-4b8c-8b08-76ed3e20cef8)(content(Whitespace\" \
          \"))))(Tile((id \
-         0a8ffe5f-3e57-47a9-b00d-f25d163c2794)(label(model))(mold((out \
+         8f1b4919-8a83-4587-9660-ddbd91304c86)(label(model))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         4160294d-23e7-4df1-a0db-2946ceef623f)(content(Whitespace\" \
+         06e6898c-0819-4847-a3ad-1c6e047f6df6)(content(Whitespace\" \
          \")))))((Secondary((id \
-         14d97f93-6f05-4291-9ec7-f4c776588d25)(content(Whitespace\" \
+         0783db07-9f03-4a0a-a32d-c8b3b4d9e331)(content(Whitespace\" \
          \"))))(Tile((id \
-         120afeaa-e9e4-4e56-809e-3202f05f6357)(label(\"(\"\")\"))(mold((out \
+         30a533ed-c994-4dd7-b7b1-d212de2e8f17)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         43b10b6f-d426-46c6-8106-5de216b85427)(content(Whitespace\"\\n\"))))(Tile((id \
-         f05463a6-fc13-4e9f-9302-14bd51ca9f01)(label(stats))(mold((out \
+         84cce231-1c62-470a-a6e1-a0c40d67d12e)(content(Whitespace\"\\n\"))))(Tile((id \
+         45c07e11-2540-4827-afcd-f6933416e359)(label(stats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         ec40d025-9ff2-41c9-bd8b-0f7c01b0b02f)(content(Whitespace\" \
+         50b103ef-5dac-4ae4-8d84-b3a2ed15f8fc)(content(Whitespace\" \
          \"))))(Tile((id \
-         5765fc27-65fc-4a4d-9e09-e56bcfcba290)(label(=))(mold((out \
+         0738e76f-d1ea-49a9-a0bf-f714a1dc73a0)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         519f3492-aef1-49ab-bf0c-526bc921f54e)(content(Whitespace\" \
+         a025cd7d-6092-4ae7-a054-6b8807cd4d55)(content(Whitespace\" \
          \"))))(Tile((id \
-         5b6ff040-5d84-4bd3-bfb5-cf47dc1b2a33)(label(\"(\"\")\"))(mold((out \
+         a0529b2f-d929-431b-b034-c9c6fe4406ab)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         3340b11c-3aad-4d1c-9bfe-204273c58607)(label(hunger))(mold((out \
+         a4b585a1-bfe9-45d0-bb0c-cf5e24d31092)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         d51c7fb7-fdb8-423f-8cc9-6cfd829bdce9)(content(Whitespace\" \
+         69e81dda-2f89-4e57-a198-fa7fb0154320)(content(Whitespace\" \
          \"))))(Tile((id \
-         c9273301-e79b-47b0-a58d-4dfe9e3450ad)(label(=))(mold((out \
+         61300a11-a8d4-4ea0-8627-6d736a6943bc)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         9691c291-dc65-4f42-b15f-8f814b3035d0)(content(Whitespace\" \
+         6b55caa3-ec2d-4eac-964f-d4cab9b1e213)(content(Whitespace\" \
          \"))))(Tile((id \
-         814c048a-1974-464d-819d-0294869d701c)(label(50))(mold((out \
+         39d76d04-f29d-4792-9c0b-761bacbd4171)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         0abf68bc-5f70-43fb-8ac9-e4e771d1c1fd)(label(,))(mold((out \
+         a977988f-1815-487c-9858-220e966e59f7)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         9e0a0367-2b3b-4713-93c6-4dbd973b212f)(content(Whitespace\" \
+         3c85d5ec-4926-49a8-b9f9-3e1c17799e7f)(content(Whitespace\" \
          \"))))(Tile((id \
-         3d58a655-4df2-4e4f-9627-b4e68bdfbf4d)(label(happiness))(mold((out \
+         5785ddf2-7981-4477-a629-5d77dc9db31f)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         1545b68b-8748-47a1-b32d-1f9a62558ad2)(content(Whitespace\" \
+         79d51aa6-0826-477c-abe9-40ea02c24a8c)(content(Whitespace\" \
          \"))))(Tile((id \
-         298ff1b3-0fd9-497c-a87d-d9d27971dac9)(label(=))(mold((out \
+         b21d00cb-8981-4038-b4a8-51c2af70dbda)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         698e6d13-9d15-426e-95e1-8655a559e128)(content(Whitespace\" \
+         b29274b5-98d1-4245-9d2b-793084c6ffa4)(content(Whitespace\" \
          \"))))(Tile((id \
-         c4bb8ffa-45b8-4e4e-bbb4-8c2b4550a595)(label(50))(mold((out \
+         b413fb79-7253-4e7a-846d-c8d5e3a8286e)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         62db2b60-62cb-43c8-b48a-903829aaf8e8)(label(,))(mold((out \
+         70b5b746-a21e-4f2f-9fa8-2dfa3d34c98c)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e63c7d1e-65d7-457f-b364-31140ac61039)(content(Whitespace\" \
+         27a457f2-34ff-436a-b61d-9be8a8926cec)(content(Whitespace\" \
          \"))))(Tile((id \
-         d354246b-92d9-489f-8c94-8dcb06019d54)(label(energy))(mold((out \
+         5b797607-9ca2-45a6-b332-24fb68c8159e)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         1f9945b2-d328-4eba-8b36-96159f9a8e61)(content(Whitespace\" \
+         407bc64b-5c53-4526-abf8-968848bf29ef)(content(Whitespace\" \
          \"))))(Tile((id \
-         217b90ef-bff3-4018-b45b-44b8a6dfd551)(label(=))(mold((out \
+         6cdf5670-0b2b-4b7d-8cb8-3c852f1eafea)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         97b709fa-e66a-450c-b1e9-4713ce5da433)(content(Whitespace\" \
+         554b201a-4f5b-425c-a2b2-48b4a243af1d)(content(Whitespace\" \
          \"))))(Tile((id \
-         1a0879e3-d496-4db2-8af3-045aa47fc7af)(label(50))(mold((out \
+         411e2721-d3b6-4828-875e-e12145835702)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         721116d6-707e-416d-9fa8-8709a28128a8)(label(,))(mold((out \
+         eaecb047-3571-4a2d-a27a-43511d608bf4)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         96b078b3-cbad-4972-ae89-97b18e615643)(content(Whitespace\" \
+         58c0e260-bf73-4efc-bb97-2eb8a4c157d6)(content(Whitespace\" \
          \"))))(Tile((id \
-         394876f7-f6e4-4c39-bc69-ba985f91b132)(label(health))(mold((out \
+         4cdcfb06-1a4e-48e3-9aee-061c5c99b09c)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3c890511-940e-465f-9e83-3c2e4bf0af9b)(content(Whitespace\" \
+         fe3535a5-92ce-4020-a175-368f25cb6869)(content(Whitespace\" \
          \"))))(Tile((id \
-         0f8aedf6-0109-4488-adce-a6cfae1b629a)(label(=))(mold((out \
+         0baf3a72-1d78-46f4-a829-3d81c8eeeb9c)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         2408e980-44a8-49b8-9e2b-d7e0da2e40da)(content(Whitespace\" \
+         ef4388e3-5870-45ef-b456-4e085be8f33c)(content(Whitespace\" \
          \"))))(Tile((id \
-         a30ad964-c55f-4a76-8d28-f455c0f2032a)(label(100))(mold((out \
+         d92e8e16-4a07-4474-8dcd-c5c8d298d6ae)(label(100))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         c393b6ae-c018-4774-a97c-5bd353790283)(label(,))(mold((out \
+         76bff059-c2ac-402b-8339-13f611052d91)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c1b40f2c-0f9e-4083-a750-703afa32b9c5)(content(Whitespace\"\\n\"))))(Tile((id \
-         01786d67-2b59-4581-a385-4ed631ce58c3)(label(evolution))(mold((out \
+         a20ed022-2177-4361-afe0-bc6d1cad51d2)(content(Whitespace\"\\n\"))))(Tile((id \
+         41fa8007-30d7-4b3b-ba22-8861fc846a15)(label(evolution))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         ac634d29-5e20-4ded-8026-f2558b1d9cf6)(content(Whitespace\" \
+         82e21f33-449f-43eb-8102-aa9af34c221f)(content(Whitespace\" \
          \"))))(Tile((id \
-         62fc009d-5eb7-421e-8dab-3fb0c428e33b)(label(=))(mold((out \
+         ddb12726-da36-4467-a4d9-03287738309e)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         44a77eb9-159a-4ce7-a5b4-b6552a0002f2)(content(Whitespace\" \
+         8c277c49-f1b7-4175-85b8-fe1591b89c8c)(content(Whitespace\" \
          \"))))(Tile((id \
-         29f41d6d-e84e-423d-9a58-66b289f14db1)(label(BabyToaster))(mold((out \
+         9bbcb5a1-df80-4778-86da-f5e244ede9e1)(label(Seedling))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         91c30ee2-6e9a-4733-bcba-298c2b0a20e5)(label(,))(mold((out \
+         cbb16813-f318-41a0-aef2-fd0fc3d1476c)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         4f12b84a-6dd1-42ea-b709-5cd265a3e4cd)(content(Whitespace\"\\n\"))))(Tile((id \
-         39b9bb0a-e0d8-4425-af8b-435e45b7c639)(label(personality))(mold((out \
+         d7092ca1-2e63-4f5d-b17a-747c5d6662a1)(content(Whitespace\"\\n\"))))(Tile((id \
+         4dfc518f-f22f-4bf6-87ca-4c36e8e9d37a)(label(personality))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         674ef323-47ba-4cf9-a290-b2400c46a4b5)(content(Whitespace\" \
+         858dbd8d-5bc8-494c-9035-34e97d9cc11c)(content(Whitespace\" \
          \"))))(Tile((id \
-         56ce0ae3-b0da-4689-b604-7302e30c8517)(label(=))(mold((out \
+         958a061c-0549-4138-9a31-fd6315b5341f)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         de9edc8f-1a5b-4c94-86d0-90153b572fcb)(content(Whitespace\" \
+         946e86b4-ab21-4126-a096-d138632a1e54)(content(Whitespace\" \
          \"))))(Tile((id \
-         52543a48-6071-438d-9ca6-e73a60db5f24)(label(Balanced))(mold((out \
+         49b44cfe-0cb9-44d9-9fa9-2270f026d888)(label(Balanced))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         30d9b6d3-5ab2-4f5b-a9eb-72b8eb7ffdad)(label(,))(mold((out \
+         3b25a7f0-dda6-46fd-a764-6187bca0b906)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         a1ddd334-f308-4eef-9ec9-6c5e0541d89e)(content(Whitespace\"\\n\"))))(Tile((id \
-         19274525-038a-48c8-8f88-c7d144281eb3)(label(memory))(mold((out \
+         ef2bed6d-bcff-44ee-b427-94c1ffd8e45e)(content(Whitespace\"\\n\"))))(Tile((id \
+         696e91d6-df1d-437d-893a-554685a04f4d)(label(memory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         5a929113-c52d-44d4-8ac4-93bdcccf7ff3)(content(Whitespace\" \
+         4a42b4d1-c20c-46cb-8dfa-6345d403ea8b)(content(Whitespace\" \
          \"))))(Tile((id \
-         4b2ee679-4232-477b-821e-b9d76d450e0e)(label(=))(mold((out \
+         573f3b5b-4887-415f-9ff9-96c5983e6a70)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         1be05bb2-0909-472a-8c4e-dae3bb6a12b8)(content(Whitespace\" \
+         6ff92f26-7b43-4802-b61e-31a8f3430237)(content(Whitespace\" \
          \"))))(Tile((id \
-         74789e1b-4084-4ba9-9806-abeb4893353e)(label(\"(\"\")\"))(mold((out \
+         1fe819e5-a7d0-4136-bfd9-83e32fbc3584)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         0ce16ad0-6311-4e2b-a1db-5efdcc75dfa0)(label(timesFed))(mold((out \
+         e41405de-6423-4cb3-8d9b-39f494f93f7f)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         5cbb131b-0179-441e-b60b-feda2742089b)(content(Whitespace\" \
+         bd4a548a-6cad-40d1-a16a-c27c38f5755c)(content(Whitespace\" \
          \"))))(Tile((id \
-         174d742b-3dc8-4a65-a72c-4f1b5fedc936)(label(=))(mold((out \
+         8b262782-0068-4627-8d6e-953ac76ca723)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         83965fc3-932f-4cea-97e0-5f2cb9e67442)(content(Whitespace\" \
+         38b3ff91-427a-4001-b9fc-a44e231ec4cd)(content(Whitespace\" \
          \"))))(Tile((id \
-         6654d211-834a-4384-8b3b-dd85e954743a)(label(4))(mold((out \
+         aee37789-6c67-4102-9533-bb14636506ec)(label(4))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         1eeba097-0da8-4f5f-bf15-0ab69f933edf)(label(,))(mold((out \
+         ce531130-00e8-4e3c-9269-794d496f5c93)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         8cb72700-0db7-45df-b3af-cd10ef1761e4)(content(Whitespace\" \
+         e1a60562-f1c2-4b07-8387-820b145d4eab)(content(Whitespace\" \
          \"))))(Tile((id \
-         404d68ff-134a-4473-9467-3778efcd0c13)(label(timesPlayed))(mold((out \
+         abccd325-126f-4c6f-98e0-81c04cdce4f7)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         1ff405c2-ff66-4634-aa68-fcfe7912ec6b)(content(Whitespace\" \
+         d6db3b95-c120-4cf8-bfa7-42190a4fb89e)(content(Whitespace\" \
          \"))))(Tile((id \
-         339321a8-72a1-4b0c-b397-f12126ec2301)(label(=))(mold((out \
+         0ed75650-5406-43e7-8540-37210b091a0f)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         a8535b0f-eb53-49be-a092-bb4d3f0668fe)(content(Whitespace\" \
+         e25cf33b-3408-418a-a832-b12bd6e14be4)(content(Whitespace\" \
          \"))))(Tile((id \
-         c7d92400-5139-4731-95aa-a95e9bbf9392)(label(3))(mold((out \
+         cb68799a-bea6-423f-985f-5862409f0d1b)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         6e38d01a-3521-437e-8c6e-0dd2eafbcb26)(label(,))(mold((out \
+         17f08c0c-5a49-4ec0-856e-10d98a34a7d4)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         60cd4829-c017-4e94-88b8-27a20ff69b1e)(content(Whitespace\" \
+         e5c5019f-e8aa-423f-8a7a-3817fd982471)(content(Whitespace\" \
          \"))))(Tile((id \
-         23888766-b0f5-491b-a045-e227ed27e6a8)(label(timesSlept))(mold((out \
+         1f1145ce-bbc0-4eac-ac56-0b7116199d1f)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         8e334274-255d-48d9-ae9d-f83a3ae8b734)(content(Whitespace\" \
+         4f0b01dc-f44b-49e8-9402-cdf07685b281)(content(Whitespace\" \
          \"))))(Tile((id \
-         c79c1cdb-abe7-4ef6-82f9-359302701d06)(label(=))(mold((out \
+         7eefcd7c-2399-40e5-84b5-98be50dc8690)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         57bce6e7-4ee5-4956-905f-ace9a4374f61)(content(Whitespace\" \
+         c5bf1d8c-5fa1-4a1f-bf8f-7759069b2678)(content(Whitespace\" \
          \"))))(Tile((id \
-         b7cc23a7-77ad-4c27-ad3f-405b2afd2122)(label(3))(mold((out \
+         3907f807-9049-4b2d-9ce4-9ee0649c2eda)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         a1ffcf5a-b45d-4217-a1e1-653bb151fee2)(label(,))(mold((out \
+         d9d5eef2-9fe8-46a0-bd3c-bee4d67fd0a8)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         4ff90e89-d4a1-4e94-a46f-96917267f7d3)(content(Whitespace\" \
+         f19b72b6-d2d1-4791-b069-485e82041a78)(content(Whitespace\" \
          \"))))(Tile((id \
-         1eb9aae1-fe0e-43dd-b991-634272344769)(label(timesNeglected))(mold((out \
+         d5a4a4c3-567e-4c5d-8045-23b871f08bae)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f355b4b7-5615-4624-bac5-a183fb7c0520)(content(Whitespace\" \
+         c53257e4-31b9-4283-b1ba-6a7aa5441d18)(content(Whitespace\" \
          \"))))(Tile((id \
-         49016aa1-233d-49e4-86ba-97d55d6200fd)(label(=))(mold((out \
+         20018b46-5c93-4ffb-8eb7-59b89ea5ef40)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         80c1946e-9bac-4a28-acc9-6c5bae203bb1)(content(Whitespace\" \
+         2a9d1f70-defd-42d1-9659-c235ae9f4511)(content(Whitespace\" \
          \"))))(Tile((id \
-         f72200ed-64a9-461d-ae7b-a7a8f8e2a311)(label(3))(mold((out \
+         4ce1e0ba-741d-4d3e-8b8f-5f36b6fd507c)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         faa76d8d-3997-490a-8212-21a3dd2a3c95)(label(,))(mold((out \
+         08e72f3d-9ccf-4cc3-940d-c3a6dac8012a)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         cf70659c-fc72-40b2-ae0b-d577d654fad1)(content(Whitespace\"\\n\"))))(Tile((id \
-         66bb9feb-d8c6-40d7-8eb4-27d41bd63d52)(label(age))(mold((out \
+         cd6219d1-c8e8-4224-84d6-5693ff71d158)(content(Whitespace\"\\n\"))))(Tile((id \
+         f4b568a1-f07a-4d26-8180-00df748681bd)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         7d73dcc0-ba1d-478a-a0b0-4e9e9ce41b2f)(content(Whitespace\" \
+         2200f15f-c2b4-4973-a6f0-7fa64ed4287c)(content(Whitespace\" \
          \"))))(Tile((id \
-         2b2670f3-dc10-41eb-a318-63a0d1950e70)(label(=))(mold((out \
+         fad80321-5e28-4c5d-afc6-755be304d37e)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         533590ca-a3cc-4d77-85fb-1be67feea4e6)(content(Whitespace\" \
+         4a64b5a5-85d3-434b-833c-d001e3bf1d7c)(content(Whitespace\" \
          \"))))(Tile((id \
-         901bb7c3-732e-47ab-8edb-20099caebc76)(label(30))(mold((out \
+         56a69ffa-7574-44ac-a186-d2e6464813da)(label(30))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         58529f80-ea11-454a-bf5d-bef39c222fd0)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         6efbda25-51cf-4ee3-a541-891bddf94062)(content(Whitespace\" \
+         d8dfd37f-1e4e-4886-b280-db1385828241)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         e83b3bf0-f20d-4c46-b184-79ba15f6c6cb)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         6fb4fd28-bb6a-4a30-8119-f062f9550a84)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9dcae4af-fd24-44e0-aa95-ca99a2359837)(content(Comment\"# careScore = \
+         2388184f-7aa1-49bf-b0bd-7d4cd9399fd9)(content(Whitespace\"\\n\"))))(Secondary((id \
+         2887bb7c-e8ec-4907-a7f2-1ae84498d436)(content(Comment\"# careScore = \
          10, neglectScore = 3 #\"))))(Secondary((id \
-         492cdfdb-4cd1-49d2-8635-677238f96dcb)(content(Whitespace\"\\n\"))))(Secondary((id \
-         77a64a68-06d9-4005-a62a-95b7cc346221)(content(Comment\"# 10 > 3*3=9? \
-         Yes -> GoldenToaster? No wait, 10 > 9 is true #\"))))(Secondary((id \
-         92f30020-9c23-4a57-a7c8-996a38a70345)(content(Whitespace\"\\n\"))))(Secondary((id \
-         718bf678-2087-4f29-8432-02da2fd8a4a7)(content(Comment\"# Let me use: \
+         ce333982-13b1-427c-9aed-d12e9335c46b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f272d3b1-d6a7-45b4-8185-a1316cc77367)(content(Comment\"# 10 > 3*3=9? \
+         Yes -> Elder? No wait, 10 > 9 is true #\"))))(Secondary((id \
+         117ea0ec-3af5-41ce-84d1-86d3cd7ad67b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f1f7d73a-9fee-476d-bccd-394102ea6e8a)(content(Comment\"# Let me use: \
          careScore=9, neglectScore=3 #\"))))(Secondary((id \
-         c12178ae-86c8-4da4-8425-7b3a25a9fca0)(content(Whitespace\"\\n\"))))(Secondary((id \
-         24a5cb77-21a1-4f2d-9aa3-681149d66346)(content(Comment\"# 9 > 9? No. 3 \
-         > 9? No. So AdultToaster #\"))))(Secondary((id \
-         c1f65e61-9be2-4c91-8e07-760031821408)(content(Whitespace\"\\n\"))))(Tile((id \
-         831c97a3-9480-4dc6-9520-e5873613a89f)(label(let = in))(mold((out \
+         cb2b2437-8b44-4ceb-8d47-21afa2f3db6e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         122b9933-4f48-40bf-a219-bb954c83f300)(content(Comment\"# 9 > 9? No. 3 \
+         > 9? No. So Bloom #\"))))(Secondary((id \
+         886ed5c6-04d1-4a96-abfa-711bc6bff908)(content(Whitespace\"\\n\"))))(Tile((id \
+         6d0ca8ce-8096-4f28-93c9-f9cc8508a7ac)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         93e828ce-25b5-4e71-9e8a-a97520d861f6)(content(Whitespace\" \
+         8f98896c-0791-4070-8f08-bd5e631e4b73)(content(Whitespace\" \
          \"))))(Tile((id \
-         62766fa4-c27c-4c8a-a6f3-57e7877d38a9)(label(model2))(mold((out \
+         c475a923-c747-4c0c-a668-a8652cc727ed)(label(model2))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         abfd58c5-f1a4-4dd7-81d2-684b7550329f)(content(Whitespace\" \
+         869ba409-e821-44e3-ab97-9c01b2ce698e)(content(Whitespace\" \
          \")))))((Secondary((id \
-         3d44b16e-7a42-496c-b310-f4137f93dd62)(content(Whitespace\" \
+         0acba707-2b9b-42df-aa9c-4f0258c48084)(content(Whitespace\" \
          \"))))(Tile((id \
-         030c6046-2494-4b7b-95ab-f379a66a939b)(label(\"(\"\")\"))(mold((out \
+         30cdc6b7-9480-4e9b-b022-efed188a3b36)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Secondary((id \
-         34e3bd62-eeeb-4486-ae6e-dee23b9fdd05)(content(Whitespace\"\\n\"))))(Tile((id \
-         a5bd5991-cf62-4bb9-8b51-b72fe3159358)(label(stats))(mold((out \
+         c5af653b-16bc-4b8d-81c1-bbb6c736ca6c)(content(Whitespace\"\\n\"))))(Tile((id \
+         74994a20-ec34-4cc6-b8b3-bad1addcad81)(label(stats))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         7a784091-f1a3-47b1-ae73-366cb7bbdb4a)(content(Whitespace\" \
+         d6428ab2-9ee7-4ba9-9b5d-0070bb6a1823)(content(Whitespace\" \
          \"))))(Tile((id \
-         afdd2ccd-3a65-49f3-90e9-028a04a42a34)(label(=))(mold((out \
+         ff0797d7-3e52-4233-860d-b51bfe0d915d)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         9667b37e-e2bc-486f-ba0f-d2a594c20bf2)(content(Whitespace\" \
+         58366c39-b57b-4b00-b2f8-3697da8627a2)(content(Whitespace\" \
          \"))))(Tile((id \
-         32b6d150-e5a5-41a5-b88b-a6518aa082dc)(label(\"(\"\")\"))(mold((out \
+         00f896f0-7280-428f-9b7e-6e0b2d1f8591)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         9c7cc63a-9a68-4234-b958-88f1175096bc)(label(hunger))(mold((out \
+         83d29f3e-bb33-43ba-980d-6bdd8baa482e)(label(hunger))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         3f6ab570-e3d5-4114-9b09-8d673abf2bb9)(content(Whitespace\" \
+         fcce5fb3-6670-49f2-b5af-4e252b7c66cc)(content(Whitespace\" \
          \"))))(Tile((id \
-         535e16ed-53ae-437d-a0e2-72231cccf504)(label(=))(mold((out \
+         23fb04d6-4ac8-40e8-a1f9-0d7183a6156b)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         ef0a2e15-feb8-491f-bd4c-cafcc07d3f2c)(content(Whitespace\" \
+         27bfef28-e6fb-4cc2-85da-97e20ef3ce7d)(content(Whitespace\" \
          \"))))(Tile((id \
-         277d165f-0905-443d-98ab-12d791d769bc)(label(50))(mold((out \
+         0c9469da-f59b-4ed0-8df8-6e47d16165b7)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         374f3ad1-15f3-4813-8c81-d8ae29069cfc)(label(,))(mold((out \
+         01f55b75-cf41-43be-b8b7-d7885b08c60f)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         3436af7e-8f0c-48a3-9d34-1cebc3673036)(content(Whitespace\" \
+         a0e15982-783d-4877-b9de-5213c5d0ea97)(content(Whitespace\" \
          \"))))(Tile((id \
-         5bd25bbe-1949-4ecd-9ef8-68264acae21e)(label(happiness))(mold((out \
+         72a82221-4428-4499-b8a3-a5b896aba4ff)(label(happiness))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b06ac78e-c0a7-44f1-af24-93aef177c951)(content(Whitespace\" \
+         48276a3b-4f77-4de5-93a7-c5b3bd02aac6)(content(Whitespace\" \
          \"))))(Tile((id \
-         e9d74fcf-0d49-41f5-b588-ce2468a43282)(label(=))(mold((out \
+         ca9d56f1-96db-4cdd-93b4-01fcc7a78bc6)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6f6c0df7-823c-47c7-b067-a5e4342d2792)(content(Whitespace\" \
+         4de28682-f3e0-45bc-8551-eb9401315c16)(content(Whitespace\" \
          \"))))(Tile((id \
-         3f0e7c29-4437-4bed-8935-4a184a8c9775)(label(50))(mold((out \
+         a9adb8e6-6ed8-46ca-a87e-af685c64f229)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         dee530da-6888-411d-8c6f-b99cea26fd52)(label(,))(mold((out \
+         4f864983-5a69-4c3d-ad64-c12e5af3a168)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         cd707d76-724f-4a93-80a6-46e8cfec4e0a)(content(Whitespace\" \
+         46839853-e102-42a2-ab56-831a7dab2ad3)(content(Whitespace\" \
          \"))))(Tile((id \
-         aa43f20f-8357-4163-bd7a-67371a0bee5a)(label(energy))(mold((out \
+         177380b8-fd74-4c52-affd-3c6f369a8577)(label(energy))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         a5c48cc0-723a-407d-8261-fe72787f1be1)(content(Whitespace\" \
+         c1a6bd01-f271-47a7-b1d3-4723e665e936)(content(Whitespace\" \
          \"))))(Tile((id \
-         bd3e59da-108d-41ef-a92b-035b4fca9eea)(label(=))(mold((out \
+         9ef444c1-0a86-474d-ae81-260e07494c2e)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         bab2e7e7-acea-4431-9d28-177587d91286)(content(Whitespace\" \
+         56431a43-681c-4fef-a75e-a923d680008d)(content(Whitespace\" \
          \"))))(Tile((id \
-         5aa609b6-3852-45ac-8c06-04b4402a22f5)(label(50))(mold((out \
+         d8fabbc6-8164-41fe-ad53-a33de07d4744)(label(50))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         659fc17d-90bd-4bba-ad45-df605fd40b15)(label(,))(mold((out \
+         55e87a63-f1a6-43a8-956d-d3b5ac15ea0d)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         fe7821ea-5055-468d-89c0-117593881a8f)(content(Whitespace\" \
+         5188e5d7-8b4d-44db-a957-298bbf42ca8b)(content(Whitespace\" \
          \"))))(Tile((id \
-         b29c932a-90af-44fc-99a9-7abe7e5f041b)(label(health))(mold((out \
+         60113daa-a5b9-4ff6-aa26-555cf8b98004)(label(health))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         e399a89b-03ef-40d3-86d6-185ae1d100ed)(content(Whitespace\" \
+         ef634296-74dd-41b3-817d-59871dc4c954)(content(Whitespace\" \
          \"))))(Tile((id \
-         4db1d7cd-8623-43c3-b41c-9a53cd8bea11)(label(=))(mold((out \
+         e8a868e3-8bdf-4d79-bd6e-2e2a1aae4abe)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6fb77486-6678-4bd3-b32f-f2ebd5524185)(content(Whitespace\" \
+         17e18c13-afca-40b2-b3c6-6a6dbedc7d07)(content(Whitespace\" \
          \"))))(Tile((id \
-         6e68ea47-0e16-4b4c-a9e7-a7977f2ef84b)(label(100))(mold((out \
+         87866d69-0060-44df-8414-c37e07f0cfed)(label(100))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         5af06c01-c205-4f9f-ab2a-b6e60b9fcc1a)(label(,))(mold((out \
+         22ed9f24-5cfb-4095-84f7-b25fe60c2523)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         42485d54-ffdc-46ed-904e-1fafb9ac0413)(content(Whitespace\"\\n\"))))(Tile((id \
-         9aaaa488-4550-4cd2-b1f7-f967bd072ad9)(label(evolution))(mold((out \
+         d275b87d-1142-4054-88db-344fa554212c)(content(Whitespace\"\\n\"))))(Tile((id \
+         8a5ccc6e-4329-4e60-ac50-24cbf4030dd0)(label(evolution))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         bc9ce0eb-fe10-4f02-9c1b-74a91aabe299)(content(Whitespace\" \
+         224133f4-c57c-4939-a9ad-4c0a30376bb1)(content(Whitespace\" \
          \"))))(Tile((id \
-         75e60b46-df9c-4eb2-90fb-74f4714cc38d)(label(=))(mold((out \
+         cd2ff40f-bf62-41f5-b500-a0821a7f44cf)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         cbcb2402-0561-4b48-a2e6-bc0bffcb3ad3)(content(Whitespace\" \
+         286b7fa4-b17b-4666-97f3-511f9cf047f3)(content(Whitespace\" \
          \"))))(Tile((id \
-         46263a0f-c9ce-41ba-aa61-cfe40d0a9f4e)(label(BabyToaster))(mold((out \
+         083805a5-2b95-43ed-a782-0dc8649b3fab)(label(Seedling))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         3fdfa604-308c-405b-bc90-d538917bff9a)(label(,))(mold((out \
+         daaa5cd0-daa8-4f28-b2e3-8b078e71350d)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c2468dee-f0b4-441e-a997-e66e6bbe786a)(content(Whitespace\"\\n\"))))(Tile((id \
-         bfe3e77a-1340-4cef-8b49-06f6401b8ea5)(label(personality))(mold((out \
+         34af3eb5-8b5a-408b-896b-e059accd9318)(content(Whitespace\"\\n\"))))(Tile((id \
+         ad82f5b9-d803-48f5-ac90-a66de22e7634)(label(personality))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         83714151-dbbb-406c-9f98-7438ee5c8660)(content(Whitespace\" \
+         493a56b1-1372-4cc9-9091-8cf016312941)(content(Whitespace\" \
          \"))))(Tile((id \
-         1c5ff0b2-a96d-4221-b152-3cb7053fec02)(label(=))(mold((out \
+         bc66a364-468e-40d7-9927-a54f8212d829)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         20583cff-acc1-47f4-8234-358a362f30b4)(content(Whitespace\" \
+         c92be4f6-f2b3-47fe-88bd-27b6a57a8ed6)(content(Whitespace\" \
          \"))))(Tile((id \
-         bd057ab7-6dda-428b-9d3f-682e43f5942e)(label(Balanced))(mold((out \
+         3f9dde47-15ab-42cb-888b-ad69ae750959)(label(Balanced))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         227fc1ee-54c0-4768-b8b1-a1b01ac0c1d5)(label(,))(mold((out \
+         a3bcc7b6-1d27-4fbb-8651-ea05d62f6f97)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         727dadec-300d-48e6-a8e9-24190c051f63)(content(Whitespace\"\\n\"))))(Tile((id \
-         ae68d862-ef2a-43b9-aa3e-f4279b8d2284)(label(memory))(mold((out \
+         28d14f09-7e1a-47b0-a846-c8efa4cf1b07)(content(Whitespace\"\\n\"))))(Tile((id \
+         4cca4445-2ff7-4f80-9bc1-b5e5d9626231)(label(memory))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         77951d5c-c0e9-4b19-b3a9-73467b80b7ba)(content(Whitespace\" \
+         baba747c-4b1a-4611-b99e-88318d94489e)(content(Whitespace\" \
          \"))))(Tile((id \
-         bc72dd73-91f9-47a7-8a4d-a980e2087921)(label(=))(mold((out \
+         7c2a563f-d588-4560-b775-47c03ef71420)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         1e3dc73a-a363-42e9-92db-172bb8e36941)(content(Whitespace\" \
+         8798a916-039f-40de-9929-e27a9b9d8425)(content(Whitespace\" \
          \"))))(Tile((id \
-         94d287df-6be9-4505-b4be-007f5b7c7e3e)(label(\"(\"\")\"))(mold((out \
+         71a9227a-8661-4076-9aa0-a40c1e550ef1)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         75236e25-e5ce-4e95-b6b6-5ad1c9354dcc)(label(timesFed))(mold((out \
+         55f4475d-4a0a-4f6d-b207-204e6d14d166)(label(timesFed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         5a531781-7c20-406b-8d80-ca59d9820068)(content(Whitespace\" \
+         9b3e17b2-ed06-4dc2-9fdf-0edda5491023)(content(Whitespace\" \
          \"))))(Tile((id \
-         0ff492d1-bc61-467b-afdf-fd4d16fc2d9b)(label(=))(mold((out \
+         5d15d209-8d91-4c2c-9a78-1066a0bd71a3)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         eedf9cff-0279-4576-a4a2-8939c8380ae4)(content(Whitespace\" \
+         ba8d145b-40fc-490b-b5ce-4c1e992cab32)(content(Whitespace\" \
          \"))))(Tile((id \
-         8e850ba2-d37c-49e8-a20c-83e801684934)(label(3))(mold((out \
+         d1284f33-df01-4e9b-a844-fd742fa586bf)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         f5f74452-1c6b-443f-8eb2-73b9c6142fdb)(label(,))(mold((out \
+         7a821daa-8691-4778-afe9-92c154b9c568)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6dac4c9a-bd2c-4e73-829b-1f4551205ccd)(content(Whitespace\" \
+         e5d64372-23bf-4015-b33f-1df4d65443c0)(content(Whitespace\" \
          \"))))(Tile((id \
-         436c95e6-b2f5-444c-89b2-c51aca0d1ce9)(label(timesPlayed))(mold((out \
+         73449ca5-20ce-406f-b6ef-b8413ea136d3)(label(timesPlayed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b91dbcbd-9221-47fd-8f0a-a972189b04ba)(content(Whitespace\" \
+         2bb7b8c1-6eb6-4737-bfea-4dbde6e094c1)(content(Whitespace\" \
          \"))))(Tile((id \
-         057bf9c8-0184-4f86-b2e5-9cd794a2e9b9)(label(=))(mold((out \
+         35669924-6144-4654-bf23-06fb86f43e65)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c4399968-87de-4da4-936e-a889d7c53d19)(content(Whitespace\" \
+         577c93da-d506-4341-8de0-6287f415786b)(content(Whitespace\" \
          \"))))(Tile((id \
-         d1f8ac63-3c03-4b5c-b06a-0251489cbf33)(label(3))(mold((out \
+         1fc708b4-0c72-4865-aea1-57a906beab51)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         194a5c31-f405-4584-9fce-96f5ea064f90)(label(,))(mold((out \
+         9356f3a9-afa7-4d96-85e9-8fecc6afe190)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         82e136c2-5be0-4e98-b691-26cad729a676)(content(Whitespace\" \
+         8e297fc2-4e75-42de-bfcf-c619c7384e26)(content(Whitespace\" \
          \"))))(Tile((id \
-         38a1b0ad-0100-4cf8-9e3a-cae4c563ddc2)(label(timesSlept))(mold((out \
+         b4189dbe-e574-4532-970d-5dea1f846094)(label(timesSlept))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         8ee5ddc1-18a9-45c8-a860-53e057325e8b)(content(Whitespace\" \
+         5f1d8375-3a0f-4675-bc0b-ad9577ecf4ea)(content(Whitespace\" \
          \"))))(Tile((id \
-         cfd42dd9-d32f-4f41-81e7-9317dbc216cd)(label(=))(mold((out \
+         a12cace1-5af6-499b-b3c7-46fa0604874f)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         95ef48a2-2bae-414b-a8e1-d14c2eaeed37)(content(Whitespace\" \
+         659d6228-a30a-4763-a3d6-3c8efe40bf63)(content(Whitespace\" \
          \"))))(Tile((id \
-         36c2c6fe-9d0b-4f12-8477-72bdbb97517d)(label(3))(mold((out \
+         9b351636-7684-425c-80ed-7aae79a1c875)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         881ef750-46d2-448a-9768-5776f0925c12)(label(,))(mold((out \
+         f55924bb-44df-4c77-9560-81aab3929a2e)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         8b2703a8-64a5-4922-bd58-a67f7f63e5e4)(content(Whitespace\" \
+         4230a18b-1dbf-42e2-810a-89be498e4358)(content(Whitespace\" \
          \"))))(Tile((id \
-         67268ed9-60bf-4960-99f3-e08509d5f533)(label(timesNeglected))(mold((out \
+         15d27193-1771-4ed6-9d1e-668551c5ee4d)(label(timesNeglected))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         0ab6c1cf-0323-44b9-974d-66559f17f144)(content(Whitespace\" \
+         c04360c7-1f7a-42df-b6d5-5216abf7a1d6)(content(Whitespace\" \
          \"))))(Tile((id \
-         7ebb175e-90a7-470e-82b3-eac77646198a)(label(=))(mold((out \
+         8a319a9c-1a87-42e4-9bf4-872de07bc3df)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e0d4f162-b5a5-42d4-8151-d8f4bf1e2275)(content(Whitespace\" \
+         cd0c6033-5c24-4645-8939-6bbb19bca4d3)(content(Whitespace\" \
          \"))))(Tile((id \
-         055075de-ae41-4dfb-88fb-dd72504ec2f2)(label(3))(mold((out \
+         414a106a-f020-4567-b63e-0e1344060353)(label(3))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
-         99741b9d-9592-4505-9b46-4c1cc1b95c00)(label(,))(mold((out \
+         f2b8edf1-7ec9-46de-8454-9c55fe282d99)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         00af8e13-b4f8-4cd1-9110-dfe4a2af591d)(content(Whitespace\"\\n\"))))(Tile((id \
-         8c8440cc-1dfa-4f6e-85a4-24356ea04b88)(label(age))(mold((out \
+         6543f345-81db-4962-97c3-091cd5f9a2c1)(content(Whitespace\"\\n\"))))(Tile((id \
+         79377f65-53e4-426b-ab71-03ff0f3e6902)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         9192d0ef-a6a8-4533-9975-fb1b6e7b5fc5)(content(Whitespace\" \
+         b683c510-39c9-4831-a832-56f5a5266cca)(content(Whitespace\" \
          \"))))(Tile((id \
-         fc4d8add-448b-4476-b3b6-0d645a4fc406)(label(=))(mold((out \
+         45bad1d4-c8b2-4f3f-976c-80c760853c8c)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c3de9ae5-388f-4d22-b787-c8bf8d0a79a6)(content(Whitespace\" \
+         d4faeae0-1644-4a68-9c06-17fd5b5f4a8b)(content(Whitespace\" \
          \"))))(Tile((id \
-         c4a4b156-4960-4b79-b0a9-8906c279c4fc)(label(30))(mold((out \
+         df8b1955-7480-4607-b0c0-93b149bea4b2)(label(30))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         74aafed1-7a74-4567-ac57-3d33cd7dc624)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         4c558e82-5dfb-422a-ae34-714ef249ae8c)(content(Whitespace\" \
+         c2bcf11d-0047-44c1-a3bd-ddf638890996)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         0bfec108-224e-4292-aecc-cdf0a8ebf246)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         1b83a7e0-eb25-4c09-896a-d7d3339b206a)(content(Whitespace\"\\n\"))))(Tile((id \
-         6c87f281-04ad-4f8b-840e-6b865d96988b)(label(let = in))(mold((out \
+         10a0bbe5-bdbc-46e1-b87a-323c3676471b)(content(Whitespace\"\\n\"))))(Tile((id \
+         194943da-8319-4799-a27c-999b6f596ddd)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         182fef46-b797-4be6-a61d-d4a5782e32c1)(content(Whitespace\" \
+         39ca7623-b78a-4066-a073-8ac80dc02ef2)(content(Whitespace\" \
          \"))))(Tile((id \
-         54941ec5-1655-4ea7-93c3-456e6842fba5)(label(result))(mold((out \
+         d807778f-afe1-4746-80d9-39d41a155ad2)(label(result))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         e3551d6f-74e3-4ec0-af0d-d9be09d78919)(content(Whitespace\" \
+         67be38fa-d352-425f-89e2-45798f18f90c)(content(Whitespace\" \
          \")))))((Secondary((id \
-         0bd90dc5-68bf-4fcc-ba52-a13394fc01df)(content(Whitespace\" \
+         f24a9cc3-324f-4c3d-b183-1fbf6db07663)(content(Whitespace\" \
          \"))))(Tile((id \
-         ac86289c-1502-4ac6-9a02-3a1ff0398639)(label(update))(mold((out \
+         fa8353fd-ec6e-4548-a157-a721bae616cd)(label(update))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         17df8750-732b-48a7-8e4e-9c6d9327b857)(label(\"(\"\")\"))(mold((out \
+         3e2f2545-2e6e-4b79-85cd-38e7c3cabed2)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         bfd345cf-54c9-423a-b340-6222dd38091e)(label(model2))(mold((out \
+         282719e3-86d1-433d-96d3-1d8eaa67c026)(label(model2))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         8b9b48c2-07fb-4ca1-ab3b-ad7834027a02)(label(,))(mold((out \
+         960e3dd4-f112-4544-9915-5844f79d1d0e)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         378fdba0-78bd-4e34-ab40-6a3dad9d2b7c)(content(Whitespace\" \
+         efe02f7d-3b74-47a8-8db7-9a517ff5aa4d)(content(Whitespace\" \
          \"))))(Tile((id \
-         57631f07-53a1-4f8a-a82e-4de07da3a5c1)(label(TimeTick))(mold((out \
+         3d7eaa6c-7248-4847-b0cb-cb4d9e804669)(label(TimeTick))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         9e30eab1-ac87-43a2-baeb-56f80dad3cab)(content(Whitespace\" \
+         209ffec1-1a62-416d-a4b7-a46651adca21)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         d86325cf-66f0-4719-8e7d-b49ec6c03e8b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         cc50d879-3c54-4715-9752-119711c6008c)(content(Comment\"# Correct: \
-         careScore=9, neglectScore=3, 9 > 9? No, 3 > 9? No -> Adult \
+         9d45bf23-27e7-428a-88df-86381b2ad2fb)(content(Whitespace\"\\n\"))))(Secondary((id \
+         eb94bdb0-c6c1-4690-9c9b-9be162d89e83)(content(Comment\"# Correct: \
+         careScore=9, neglectScore=3, 9 > 9? No, 3 > 9? No -> Bloom \
          #\"))))(Secondary((id \
-         8e2db6a6-41c5-4c23-8ec1-46c6e4d07051)(content(Whitespace\"\\n\"))))(Secondary((id \
-         223c4f9a-02b2-4a8a-9ff1-dfdb08d95bd4)(content(Comment\"# Buggy: 9 > \
-         9? No, 3 > 0? Yes -> Rusty! #\"))))(Secondary((id \
-         c72bfe47-b87c-4f7f-b59f-3a2062b84540)(content(Whitespace\"\\n\"))))(Tile((id \
-         c6562daf-ead8-4a91-8db4-1755d8bb765f)(label(result))(mold((out \
+         616a0f62-55b3-4579-85d4-566170025b63)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5ad5bd98-505e-40d8-b707-afaec85e74c1)(content(Comment\"# Buggy: 9 > \
+         9? No, 3 > 0? Yes -> Wilted! #\"))))(Secondary((id \
+         1be916c2-aeb4-4acc-a970-32a81baf77c8)(content(Whitespace\"\\n\"))))(Tile((id \
+         fa8c4940-9b8b-42f5-a0a1-4f33100c61cc)(label(result))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         73e3a148-cce4-487e-8eb5-b43d56cf9fbf)(label(.))(mold((out \
+         70be6c2f-7264-4c52-9937-9301ef75d509)(label(.))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         41f43b58-00f5-4a51-8f56-3437ec8c35e7)(label(evolution))(mold((out \
+         4186f424-9918-421c-98d8-dc27f4d65a96)(label(evolution))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         f7f6c226-56b3-4604-bf04-14e46aa5a777)(content(Whitespace\" \
+         05c1ef09-842d-421c-a547-d088c635e345)(content(Whitespace\" \
          \"))))(Tile((id \
-         88c87ee8-493e-4e31-ab0f-fb519d0989ae)(label(==))(mold((out \
+         7d56d4fa-8d8c-492c-9f77-54d287db9415)(label(==))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         c117f403-b4f1-4105-96d8-640e1d58259b)(content(Whitespace\" \
+         72d77b26-657e-408d-ad53-7f2d9c7acbc5)(content(Whitespace\" \
          \"))))(Tile((id \
-         71c7926a-5549-4a54-887b-50c2a9c0b6e4)(label(AdultToaster))(mold((out \
+         bd7525ee-bdae-4b0b-95aa-887c02ba4339)(label(Bloom))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         53743e92-bc02-4fc7-8ca0-2f37794826c6)(content(Whitespace\"\\n\")))))))))(Tile((id \
-         935a2c74-8d0f-4d8e-8dd7-a3389b3bebdf)(label(\";\"))(mold((out \
+         550b2b22-15be-42f3-bcda-981d527f7867)(content(Whitespace\"\\n\")))))))))(Tile((id \
+         b193953f-a802-4067-b31a-2754a1b430e7)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave \
          35))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         96c8a75f-b3cf-472b-a76f-580a0dc0062d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         29ba1fb7-73ca-48fa-98dc-7271decb2fac)(content(Whitespace\"\\n\"))))(Secondary((id \
-         da3c1d9e-49d8-4a3f-9552-8432985b1fa2)(content(Comment\"# Demo run \
+         1e06748d-b8f0-4d21-9305-99c70736a989)(content(Whitespace\"\\n\"))))(Secondary((id \
+         cf74e9b0-ebf4-443c-b275-7c35cd771229)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c6de30e2-ea4e-474f-b8e2-e0efb7117c63)(content(Comment\"# Demo run \
          #\"))))(Secondary((id \
-         7a1c61de-7015-442e-b961-fe86e87895f0)(content(Whitespace\"\\n\"))))(Tile((id \
-         a9e1ac5b-59c1-4f13-9e3e-1abd7c849f7c)(label(do))(mold((out \
+         6c09b8bf-6f83-423d-8875-3c7f1c0aad7d)(content(Whitespace\"\\n\"))))(Tile((id \
+         f17d0a6b-8016-48a2-95a1-7832fb7c0980)(label(do))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         3f57208c-6ba7-421b-a9a1-70a1b27a9447)(label(\"(\"\")\"))(mold((out \
+         025601e4-ee64-4d0e-96fd-bd78689ad505)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         cf82e97e-775c-4933-bc96-92f6bb1fcb6c)(label(init))(mold((out \
+         cc82ae7b-b304-4feb-9393-916c69fe93d4)(label(init))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         87c6da2b-cafc-44a6-81c3-11c476b5be48)(label(,))(mold((out \
+         bce62db7-6da5-4735-90f4-2b55a8c3fbdb)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         8d19e5dc-c948-4441-8487-bb81b2393e0d)(content(Whitespace\" \
-         \"))))(Tile((id d08563f5-5dc0-4871-9911-634f1ce76952)(label([ \
+         92387590-6726-4adc-9283-8c5e3e0586e8)(content(Whitespace\" \
+         \"))))(Tile((id 910e791c-cd25-4c0c-88a9-f69aaebbdf20)(label([ \
          ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         3fa0a2b7-40dd-47d8-92e2-fc5b7d43085e)(label(Feed))(mold((out \
+         1a4d0fea-377b-4493-83a8-45c3932b1fbf)(label(Feed))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         d418e790-25f1-4fa2-91aa-1f4ab1518c51)(label(,))(mold((out \
+         456fd27b-b4bd-4f5b-819e-43b09096861f)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         d328ff03-538b-4338-a926-a4fdb9168859)(content(Whitespace\" \
+         3fc9f128-4b3b-42ef-a7e2-3d13ed0fdc26)(content(Whitespace\" \
          \"))))(Tile((id \
-         310d6ae3-9406-42a5-bbd9-3c96e2fba64a)(label(Play))(mold((out \
+         be5e9c65-7b1c-46af-bb03-b4376482db15)(label(Play))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         2dbdcbfe-ead4-4dd3-97a6-d767d0166b02)(label(,))(mold((out \
+         8557e5b6-6c64-437c-8f7a-d1a8b56534b9)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         e521b4cb-6479-4fac-8850-6319f8e70c9c)(content(Whitespace\" \
+         fd838637-7457-4707-9657-0bc6321e20e5)(content(Whitespace\" \
          \"))))(Tile((id \
-         81efe0aa-a451-4277-9d93-a40c38e7e33b)(label(Sleep))(mold((out \
+         ea8bb92f-2a1f-4b1e-a50e-17091fa9852e)(label(Sleep))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         01ccc1db-032f-4f87-b4ef-e04efe3eb96d)(label(,))(mold((out \
+         e07faa3c-5242-4f2b-a4f8-7fc188c23e8e)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         451fd40a-4dcb-4b4f-9aaf-5bc68b53dba3)(content(Whitespace\" \
+         e7d8b8a0-28a7-4b80-bc38-e4a99d0129b8)(content(Whitespace\" \
          \"))))(Tile((id \
-         912e4063-0e4e-4439-9513-371e699ce8c5)(label(TimeTick))(mold((out \
+         55b3922b-6f8b-4e97-aa90-11aecdcd5984)(label(TimeTick))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         51096e6c-65ad-476b-a8f7-9379d68b187a)(label(,))(mold((out \
+         d343066b-a9cf-4cd7-b4f5-36f9a306e652)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6cfd9d38-26a5-434f-86da-1f6c9d0daab1)(content(Whitespace\" \
+         9e4d5325-3d4a-4549-95cf-e4725970c3cd)(content(Whitespace\" \
          \"))))(Tile((id \
-         76eaa825-da98-4985-bab5-6105f60b20a9)(label(TimeTick))(mold((out \
+         42bad690-7755-4e37-a36e-967c7d78039b)(label(TimeTick))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
-         a77aa4d6-2a15-4f47-a0ba-670baa2c161f)(content(Whitespace\"\\n\")))))";
+         c5247cad-532b-4d26-ab63-a3d401cc8823)(content(Whitespace\"\\n\")))))";
       backup_text =
-        "# HAUNTED TOASTER - A Tamagotchi-style Virtual Pet #\n\
-         # Your pet is a possessed kitchen appliance with feelings #\n\n\
+        "# Garden Spirit #\n\
+         # A small spirit that tends your garden #\n\n\
          type Stat = Int in  # 0-100 range #\n\n\
          type Stats = (\n\
-         hunger = Stat,     # 0 = starving, 100 = stuffed #\n\
+         hunger = Stat,     # 0 = starving, 100 = full #\n\
          happiness = Stat,  # 0 = miserable, 100 = ecstatic #\n\
          energy = Stat,     # 0 = exhausted, 100 = hyperactive #\n\
-         health = Stat      # 0 = broken, 100 = pristine #\n\
+         health = Stat      # 0 = fading, 100 = vibrant #\n\
          ) in\n\n\
          type Evolution =\n\
-         + BabyToaster      # Just possessed, learning the ropes #\n\
-         + TeenToaster      # Moody, unpredictable #\n\
-         + AdultToaster     # Mature, stable #\n\
-         + GoldenToaster    # Legendary, well-cared-for #\n\
-         + RustyToaster     # Neglected, cranky #\n\
+         + Seedling      # Newly sprouted #\n\
+         + Sprout      # Growing, unpredictable #\n\
+         + Bloom     # In full bloom #\n\
+         + Elder    # Ancient and wise #\n\
+         + Wilted     # Neglected, withering #\n\
          in\n\n\
          type Personality =\n\
          + Cheerful\n\
@@ -4874,7 +4874,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          + Feed              # Reduces hunger, slight energy boost #\n\
          + Play              # Increases happiness, costs energy #\n\
          + Sleep             # Restores energy, slight health boost #\n\
-         + Repair            # Fixes health issues #\n\
+         + Mend            # Fixes health issues #\n\
          + TimeTick          # Time passes, stats decay #\n\
          in\n\n\
          # Utility: clamp value between 0 and 100 #\n\
@@ -4884,7 +4884,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          else if x > 100 then 100\n\
          else x\n\
          in\n\n\
-         # Initial state: a fresh baby toaster #\n\
+         # Initial state #\n\
          let init: Model = (\n\
          stats = (\n\
          hunger = 50,\n\
@@ -4892,7 +4892,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          energy = 50,\n\
          health = 100\n\
          ),\n\
-         evolution = BabyToaster,\n\
+         evolution = Seedling,\n\
          personality = Balanced,\n\
          memory = (\n\
          timesFed = 0,\n\
@@ -4935,17 +4935,17 @@ let out : string * Haz3lcore.PersistentSegment.t =
          in\n\n\
          # Determine evolution based on age and care quality #\n\
          # BUG: Uses neglectScore > 0 instead of neglectScore > careScore #\n\
-         # This means ANY neglect at all prevents Golden/Adult evolution #\n\
+         # This means ANY neglect at all prevents Elder/Bloom evolution #\n\
          let calcEvolution : (Int, Memory) -> Evolution =\n\
          fun (age, m) ->\n\
          let careScore = m.timesFed + m.timesPlayed + m.timesSlept in\n\
          let neglectScore = m.timesNeglected in\n\
-         if age < 10 then BabyToaster\n\
-         else if age < 25 then TeenToaster\n\
-         else if careScore > neglectScore * 3 then GoldenToaster\n\
-         else if neglectScore > 0 then RustyToaster  # BUG: should be \
-         neglectScore > careScore #\n\
-         else AdultToaster\n\
+         if age < 10 then Seedling\n\
+         else if age < 25 then Sprout\n\
+         else if careScore > neglectScore * 3 then Elder\n\
+         else if neglectScore > 0 then Wilted  # BUG: should be neglectScore > \
+         careScore #\n\
+         else Bloom\n\
          in\n\n\
          # Check if stats indicate neglect (any stat critically low) #\n\
          let isNeglected : Stats -> Bool =\n\
@@ -4962,7 +4962,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          m.timesNeglected)\n\
          | Sleep => (m.timesFed, m.timesPlayed, m.timesSlept + 1, \
          m.timesNeglected)\n\
-         | Repair => m\n\
+         | Mend => m\n\
          | TimeTick =>\n\
          if isNeglected(stats)\n\
          then (m.timesFed, m.timesPlayed, m.timesSlept, m.timesNeglected + 1)\n\
@@ -5011,10 +5011,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          energy = clamp(s.energy + 40 + bonus),\n\
          health = clamp(s.health + 5)\n\
          )\n\
-         | Repair =>\n\
+         | Mend =>\n\
          (\n\
          hunger = s.hunger,\n\
-         happiness = clamp(s.happiness - 10),  # Repairs are uncomfortable #\n\
+         happiness = clamp(s.happiness - 10),  # Mending is uncomfortable #\n\
          energy = s.energy,\n\
          health = clamp(s.health + 35 + bonus)\n\
          )\n\
@@ -5050,36 +5050,36 @@ let out : string * Haz3lcore.PersistentSegment.t =
          if n <= 0 then []\n\
          else map(range(1, n), fun _ -> TimeTick)\n\
          in\n\n\
-         # Test: A moderately-cared toaster with some neglect should be Adult, \
-         not Rusty #\n\
-         # careScore=10, neglectScore=3: not Golden (10 <= 9), not Rusty (3 <= \
-         10), so Adult #\n\
-         hint \"moderate care with some neglect becomes adult\"\n\
+         # Test: A moderately-cared spirit with some neglect should be Bloom, \
+         not Wilted #\n\
+         # careScore=10, neglectScore=3: not Elder (10 <= 9), not Wilted (3 <= \
+         10), so Bloom #\n\
+         hint \"moderate care with some neglect becomes bloom\"\n\
          test\n\
          let model = (\n\
          stats = (hunger = 50, happiness = 50, energy = 50, health = 100),\n\
-         evolution = BabyToaster,\n\
+         evolution = Seedling,\n\
          personality = Balanced,\n\
          memory = (timesFed = 4, timesPlayed = 3, timesSlept = 3, \
          timesNeglected = 3),\n\
          age = 30\n\
          ) in\n\
          # careScore = 10, neglectScore = 3 #\n\
-         # 10 > 3*3=9? Yes -> GoldenToaster? No wait, 10 > 9 is true #\n\
+         # 10 > 3*3=9? Yes -> Elder? No wait, 10 > 9 is true #\n\
          # Let me use: careScore=9, neglectScore=3 #\n\
-         # 9 > 9? No. 3 > 9? No. So AdultToaster #\n\
+         # 9 > 9? No. 3 > 9? No. So Bloom #\n\
          let model2 = (\n\
          stats = (hunger = 50, happiness = 50, energy = 50, health = 100),\n\
-         evolution = BabyToaster,\n\
+         evolution = Seedling,\n\
          personality = Balanced,\n\
          memory = (timesFed = 3, timesPlayed = 3, timesSlept = 3, \
          timesNeglected = 3),\n\
          age = 30\n\
          ) in\n\
          let result = update(model2, TimeTick) in\n\
-         # Correct: careScore=9, neglectScore=3, 9 > 9? No, 3 > 9? No -> Adult #\n\
-         # Buggy: 9 > 9? No, 3 > 0? Yes -> Rusty! #\n\
-         result.evolution == AdultToaster\n\
+         # Correct: careScore=9, neglectScore=3, 9 > 9? No, 3 > 9? No -> Bloom #\n\
+         # Buggy: 9 > 9? No, 3 > 0? Yes -> Wilted! #\n\
+         result.evolution == Bloom\n\
          end;\n\n\
          # Demo run #\n\
          do(init, [Feed, Play, Sleep, TimeTick, TimeTick])\n";

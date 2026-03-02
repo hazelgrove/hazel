@@ -1,6 +1,5 @@
-# NIGHT GARDEN HARVEST LEDGER #
-# Track your harvest festival under the stars! #
-# Consecutive harvests of the same quality build streak bonuses #
+# Night Garden Harvest Ledger #
+# Track harvests and streak bonuses #
 
 # Quality tiers from the moonlit fields #
 type Quality =
@@ -14,7 +13,8 @@ in
 type Crop =
   + Moonmelon   # Glows faintly, sweet taste #
   + Starfruit   # Shaped like stars, tangy #
-  + Nightberry  # Deep purple, magical properties #
+  + Nightshade  # Purple bloom, magical properties #
+  + Glowpumpkin # Orange and luminescent #
   + Duskwheat   # Golden stalks, hearty grain #
 in
 
@@ -46,7 +46,8 @@ let cropValue : Crop -> Int =
     case c
     | Moonmelon => 15
     | Starfruit => 20
-    | Nightberry => 25
+    | Nightshade => 20
+    | Glowpumpkin => 12
     | Duskwheat => 10
     end
 in
@@ -168,9 +169,9 @@ end;
 
 hint "starlight quality gives 5x value"
 test
-  let h = (crop = Nightberry, quality = Starlight, quantity = 1) in
+  let h = (crop = Nightshade, quality = Starlight, quantity = 1) in
   let ledger = update(initModel, RecordHarvest(h)) in
-  ledger.totalValue == 125
+  ledger.totalValue == 100
 end;
 
 # Streak bonus tests #
@@ -186,7 +187,7 @@ hint "streak bonus accumulates with consecutive same-quality harvests"
 test
   let h1 = (crop = Moonmelon, quality = Silver, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Silver, quantity = 1) in
-  let h3 = (crop = Nightberry, quality = Silver, quantity = 1) in
+  let h3 = (crop = Nightshade, quality = Silver, quantity = 1) in
   let ledger = run(initModel, [
     RecordHarvest(h1),
     RecordHarvest(h2),
@@ -207,7 +208,7 @@ hint "streak resets then can build again"
 test
   let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let h3 = (crop = Nightberry, quality = Gold, quantity = 1) in
+  let h3 = (crop = Nightshade, quality = Gold, quantity = 1) in
   let ledger = run(initModel, [
     RecordHarvest(h1),
     RecordHarvest(h2),
@@ -251,9 +252,9 @@ test
 end;
 
 # Crop value tests #
-hint "nightberry has highest base value"
+hint "starfruit/nightshade have highest base value"
 test
-  let h1 = (crop = Nightberry, quality = Bronze, quantity = 1) in
+  let h1 = (crop = Nightshade, quality = Bronze, quantity = 1) in
   let h2 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
   let ledger1 = update(initModel, RecordHarvest(h1)) in
   let ledger2 = update(initModel, RecordHarvest(h2)) in
@@ -284,7 +285,7 @@ test
     RecordHarvest((crop = Duskwheat, quality = Bronze, quantity = 3)),
     RecordHarvest((crop = Moonmelon, quality = Bronze, quantity = 2)),
     RecordHarvest((crop = Starfruit, quality = Gold, quantity = 1)),
-    RecordHarvest((crop = Nightberry, quality = Gold, quantity = 1)),
+    RecordHarvest((crop = Nightshade, quality = Gold, quantity = 1)),
     ClaimBonus,
     CloseDay
   ]) in
@@ -296,6 +297,6 @@ end;
 run(initModel, [
   RecordHarvest((crop = Moonmelon, quality = Silver, quantity = 2)),
   RecordHarvest((crop = Starfruit, quality = Silver, quantity = 1)),
-  RecordHarvest((crop = Nightberry, quality = Gold, quantity = 1)),
+  RecordHarvest((crop = Nightshade, quality = Gold, quantity = 1)),
   ClaimBonus
 ])

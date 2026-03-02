@@ -1,5 +1,5 @@
-# COMPANION PLANTING GRID - A Night Garden Simulation #
-# Plants sense their neighbors under the moonlight #
+# Companion Planting Grid #
+# Plants affect their neighbors #
 
 type Crop = String in
 type Row = Int in
@@ -50,12 +50,12 @@ let companionEffect : (Crop, Crop) -> Effect =
   fun (crop1, crop2) ->
     if crop1 == "" || crop2 == "" then Neutral
     else if crop1 == crop2 then Neutral
-    else if (crop1 == "tomato" && crop2 == "basil") ||
-            (crop1 == "basil" && crop2 == "tomato") then Beneficial
-    else if (crop1 == "carrot" && crop2 == "corn") ||
-            (crop1 == "corn" && crop2 == "carrot") then Beneficial
-    else if (crop1 == "tomato" && crop2 == "carrot") ||
-            (crop1 == "carrot" && crop2 == "tomato") then Harmful
+    else if (crop1 == "🌱" && crop2 == "🌿") ||
+            (crop1 == "🌿" && crop2 == "🌱") then Beneficial
+    else if (crop1 == "🍄" && crop2 == "☘️") ||
+            (crop1 == "☘️" && crop2 == "🍄") then Beneficial
+    else if (crop1 == "🌱" && crop2 == "🍄") ||
+            (crop1 == "🍄" && crop2 == "🌱") then Harmful
     else Neutral
 in
 
@@ -139,8 +139,8 @@ in
 
 let init : Model = (
   field = emptyField,
-  currentSeed = "tomato",
-  seedInventory = ["tomato", "basil", "carrot", "corn", "sunflower"]
+  currentSeed = "🌱",
+  seedInventory = ["🌱", "🌿", "🍄", "☘️", "🌸"]
 ) in
 
 let update : (Model, Action) -> Model =
@@ -214,7 +214,7 @@ in
 hint "can plant a crop"
 test
   let m = update(init, PlantCrop(0, 0)) in
-  cropAt(m, 0, 0) == "tomato"
+  cropAt(m, 0, 0) == "🌱"
 end;
 
 hint "new crop starts at base health"
@@ -226,13 +226,13 @@ end;
 hint "cannot plant on occupied cell"
 test
   let m = garden(init, [PlantCrop(0, 0), SelectSeed(1), PlantCrop(0, 0)]) in
-  cropAt(m, 0, 0) == "tomato"
+  cropAt(m, 0, 0) == "🌱"
 end;
 
 hint "select different seed"
 test
   let m = garden(init, [SelectSeed(1), PlantCrop(0, 0)]) in
-  cropAt(m, 0, 0) == "basil"
+  cropAt(m, 0, 0) == "🌿"
 end;
 
 hint "can harvest a crop"
@@ -247,17 +247,17 @@ test
   healthAt(m, 0, 0) == 0
 end;
 
-hint "tomato and basil are companions"
+hint "🌱 and 🌿 are companions"
 test
-  companionEffect("tomato", "basil") == Beneficial
+  companionEffect("🌱", "🌿") == Beneficial
 end;
 
-hint "carrot and corn are companions"
+hint "🍄 and ☘️ are companions"
 test
-  companionEffect("carrot", "corn") == Beneficial
+  companionEffect("🍄", "☘️") == Beneficial
 end;
 
-hint "tomato next to basil gains health"
+hint "🌱 next to 🌿 gains health"
 test
   let m = garden(init, [
     PlantCrop(0, 0),
@@ -268,7 +268,7 @@ test
   healthAt(m, 0, 0) > 50
 end;
 
-hint "basil next to tomato gains health"
+hint "🌿 next to 🌱 gains health"
 test
   let m = garden(init, [
     PlantCrop(0, 0),
@@ -279,12 +279,12 @@ test
   healthAt(m, 0, 1) > 50
 end;
 
-hint "tomato and carrot are rivals"
+hint "🌱 and 🍄 are rivals"
 test
-  companionEffect("tomato", "carrot") == Harmful
+  companionEffect("🌱", "🍄") == Harmful
 end;
 
-hint "tomato next to carrot loses health"
+hint "🌱 next to 🍄 loses health"
 test
   let m = garden(init, [
     PlantCrop(1, 1),
@@ -297,12 +297,12 @@ end;
 
 hint "same crop has no effect"
 test
-  companionEffect("tomato", "tomato") == Neutral
+  companionEffect("🌱", "🌱") == Neutral
 end;
 
 hint "unrelated crops are neutral"
 test
-  companionEffect("sunflower", "corn") == Neutral
+  companionEffect("🌸", "☘️") == Neutral
 end;
 
 hint "multiple companions stack benefits"

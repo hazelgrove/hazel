@@ -33,19 +33,19 @@ let moonleaf: Plant = (
 
 let starbloom: Plant = (
   name = "Starbloom Orchid",
-  icon = "🌷",
+  icon = "🌸",
   base_water = 180
 ) in
 
 let thornveil: Plant = (
   name = "Thornveil Cactus",
-  icon = "🌵",
+  icon = "🍄",
   base_water = 50
 ) in
 
 let dewcup: Plant = (
   name = "Dewcup Lily",
-  icon = "🪷",
+  icon = "☘️",
   base_water = 200
 ) in
 

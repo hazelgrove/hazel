@@ -13,11 +13,11 @@ type Plant = (
 ) in
 
 let fern: Plant = (name = "Fern", icon = "🌿", water = 250) in
-let orchid: Plant = (name = "Orchid", icon = "🌷", water = 180) in
-let cactus: Plant = (name = "Cactus", icon = "🌵", water = 50) in
+let orchid: Plant = (name = "Orchid", icon = "🌸", water = 180) in
+let cactus: Plant = (name = "Cactus", icon = "🍄", water = 50) in
 let rose: Plant = (name = "Rose", icon = "🐛", water = 190) in
-let lily: Plant = (name = "Lily", icon = "🪷", water = 200) in
-let daisy: Plant = (name = "Daisy", icon = "🌼", water = 160) in
+let lily: Plant = (name = "Lily", icon = "☘️", water = 200) in
+let daisy: Plant = (name = "Daisy", icon = "🌱", water = 160) in
 
 # =================== EXERCISE 1 =================== #
 # Pin from a test call site #
@@ -35,13 +35,13 @@ in
 
 test make_label(fern, 7) == "🌿 Fern: 1750ml/7d" end;
 test make_label(fern, 14) == "🌿 Fern: 3500ml/14d" end;
-test make_label(orchid, 5) == "🌷 Orchid: 900ml/5d" end;
-test make_label(orchid, 10) == "🌷 Orchid: 1800ml/10d" end;
-test make_label(cactus, 7) == "🌵 Cactus: 350ml/7d" end;
-test make_label(cactus, 14) == "🌵 Cactus: 700ml/14d" end;
-test make_label(lily, 7) == "🪷 Lily: 1400ml/7d" end;
-test make_label(lily, 3) == "🪷 Lily: 600ml/3d" end;
-test make_label(daisy, 7) == "🌼 Daisy: 1120ml/7d" end;
+test make_label(orchid, 5) == "🌸 Orchid: 900ml/5d" end;
+test make_label(orchid, 10) == "🌸 Orchid: 1800ml/10d" end;
+test make_label(cactus, 7) == "🍄 Cactus: 350ml/7d" end;
+test make_label(cactus, 14) == "🍄 Cactus: 700ml/14d" end;
+test make_label(lily, 7) == "☘️ Lily: 1400ml/7d" end;
+test make_label(lily, 3) == "☘️ Lily: 600ml/3d" end;
+test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
 
 # 1. Turn on auto-probe, click inside `make_label`. #
 #    10 calls — each expression has 10 samples! #
@@ -95,11 +95,11 @@ let bed_labels: Bed -> [String] =
 in
 
 test bed_labels(shade_garden)
-  == ["🌿 Fern: 250ml", "🪷 Lily: 200ml", "🌼 Daisy: 160ml"]
+  == ["🌿 Fern: 250ml", "☘️ Lily: 200ml", "🌱 Daisy: 160ml"]
 end;
 test bed_labels(mixed_bed)
-  == ["🌿 Fern: 250ml", "🌷 Orchid: 180ml",
-      "🪷 Lily: 200ml", "🌵 Cactus: 50ml"]
+  == ["🌿 Fern: 250ml", "🌸 Orchid: 180ml",
+      "☘️ Lily: 200ml", "🍄 Cactus: 50ml"]
 end;
 
 # 1. Click inside `bed_labels`. The map callback has #
@@ -115,7 +115,7 @@ end;
 
 # This test is FAILING! #
 test bed_labels(sun_terrace)
-  == ["🌷 Orchid: 180ml", "🌵 Cactus: 50ml", "🌹 Rose: 190ml"]
+  == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
 # END OF PART 4 #

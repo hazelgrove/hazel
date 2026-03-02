@@ -13,10 +13,10 @@ type Plant = (
 ) in
 
 let fern: Plant = (name = "Fern", icon = "🌿", water = 250) in
-let orchid: Plant = (name = "Orchid", icon = "🌷", water = 180) in
-let cactus: Plant = (name = "Cactus", icon = "🌵", water = 50) in
-let lily: Plant = (name = "Lily", icon = "🪷", water = 200) in
-let daisy: Plant = (name = "Daisy", icon = "🌼", water = 160) in
+let orchid: Plant = (name = "Orchid", icon = "🌸", water = 180) in
+let cactus: Plant = (name = "Cactus", icon = "🍄", water = 50) in
+let lily: Plant = (name = "Lily", icon = "☘️", water = 200) in
+let daisy: Plant = (name = "Daisy", icon = "🌱", water = 160) in
 
 # weekly_total computes the total weekly water for a garden. #
 # First it maps each plant's daily water to weekly (x7), #

@@ -7,9 +7,9 @@
 
 let running_sum = fun nums ->
   let (_, result) = fold_left(nums,
-    fun ((total, acc), x) ->
+    fun ((total, acc), x) -> (
       let new_total = total + x in
-      (new_total, append(acc, [new_total])),
+      (new_total, append(acc, [new_total]))),
     (0, [])
   ) in
   result

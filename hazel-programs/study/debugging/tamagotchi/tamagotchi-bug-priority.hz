@@ -1,21 +1,21 @@
-# HAUNTED TOASTER - A Tamagotchi-style Virtual Pet #
-# Your pet is a possessed kitchen appliance with feelings #
+# Garden Spirit #
+# A small spirit that tends your garden #
 
 type Stat = Int in  # 0-100 range #
 
 type Stats = (
-  hunger = Stat,     # 0 = starving, 100 = stuffed #
+  hunger = Stat,     # 0 = starving, 100 = full #
   happiness = Stat,  # 0 = miserable, 100 = ecstatic #
   energy = Stat,     # 0 = exhausted, 100 = hyperactive #
-  health = Stat      # 0 = broken, 100 = pristine #
+  health = Stat      # 0 = fading, 100 = vibrant #
 ) in
 
 type Evolution =
-  + BabyToaster      # Just possessed, learning the ropes #
-  + TeenToaster      # Moody, unpredictable #
-  + AdultToaster     # Mature, stable #
-  + GoldenToaster    # Legendary, well-cared-for #
-  + RustyToaster     # Neglected, cranky #
+  + Seedling      # Newly sprouted #
+  + Sprout      # Growing, unpredictable #
+  + Bloom     # In full bloom #
+  + Elder    # Ancient and wise #
+  + Wilted     # Neglected, withering #
 in
 
 type Personality =
@@ -44,7 +44,7 @@ type Action =
   + Feed              # Reduces hunger, slight energy boost #
   + Play              # Increases happiness, costs energy #
   + Sleep             # Restores energy, slight health boost #
-  + Repair            # Fixes health issues #
+  + Mend            # Fixes health issues #
   + TimeTick          # Time passes, stats decay #
 in
 
@@ -56,7 +56,7 @@ let clamp : Int -> Int =
     else x
 in
 
-# Initial state: a fresh baby toaster #
+# Initial state #
 let init: Model = (
   stats = (
     hunger = 50,
@@ -64,7 +64,7 @@ let init: Model = (
     energy = 50,
     health = 100
   ),
-  evolution = BabyToaster,
+  evolution = Seedling,
   personality = Balanced,
   memory = (
     timesFed = 0,
@@ -110,16 +110,16 @@ in
 
 # Determine evolution based on age and care quality #
 # BUG: Uses neglectScore > 0 instead of neglectScore > careScore #
-# This means ANY neglect at all prevents Golden/Adult evolution #
+# This means ANY neglect at all prevents Elder/Bloom evolution #
 let calcEvolution : (Int, Memory) -> Evolution =
   fun (age, m) ->
     let careScore = m.timesFed + m.timesPlayed + m.timesSlept in
     let neglectScore = m.timesNeglected in
-    if age < 10 then BabyToaster
-    else if age < 25 then TeenToaster
-    else if careScore > neglectScore * 3 then GoldenToaster
-    else if neglectScore > 0 then RustyToaster  # BUG: should be neglectScore > careScore #
-    else AdultToaster
+    if age < 10 then Seedling
+    else if age < 25 then Sprout
+    else if careScore > neglectScore * 3 then Elder
+    else if neglectScore > 0 then Wilted  # BUG: should be neglectScore > careScore #
+    else Bloom
 in
 
 # Check if stats indicate neglect (any stat critically low) #
@@ -135,7 +135,7 @@ let updateMemory : (Memory, Action, Stats) -> Memory =
     | Feed => (m.timesFed + 1, m.timesPlayed, m.timesSlept, m.timesNeglected)
     | Play => (m.timesFed, m.timesPlayed + 1, m.timesSlept, m.timesNeglected)
     | Sleep => (m.timesFed, m.timesPlayed, m.timesSlept + 1, m.timesNeglected)
-    | Repair => m
+    | Mend => m
     | TimeTick =>
         if isNeglected(stats)
         then (m.timesFed, m.timesPlayed, m.timesSlept, m.timesNeglected + 1)
@@ -185,10 +185,10 @@ let applyAction : (Stats, Action, Personality) -> Stats =
           energy = clamp(s.energy + 40 + bonus),
           health = clamp(s.health + 5)
         )
-    | Repair =>
+    | Mend =>
         (
           hunger = s.hunger,
-          happiness = clamp(s.happiness - 10),  # Repairs are uncomfortable #
+          happiness = clamp(s.happiness - 10),  # Mending is uncomfortable #
           energy = s.energy,
           health = clamp(s.health + 35 + bonus)
         )
@@ -228,32 +228,32 @@ let timePasses : Int -> [Action] =
     else map(range(1, n), fun _ -> TimeTick)
 in
 
-# Test: A moderately-cared toaster with some neglect should be Adult, not Rusty #
-# careScore=10, neglectScore=3: not Golden (10 <= 9), not Rusty (3 <= 10), so Adult #
-hint "moderate care with some neglect becomes adult"
+# Test: A moderately-cared spirit with some neglect should be Bloom, not Wilted #
+# careScore=10, neglectScore=3: not Elder (10 <= 9), not Wilted (3 <= 10), so Bloom #
+hint "moderate care with some neglect becomes bloom"
 test
   let model = (
     stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
-    evolution = BabyToaster,
+    evolution = Seedling,
     personality = Balanced,
     memory = (timesFed = 4, timesPlayed = 3, timesSlept = 3, timesNeglected = 3),
     age = 30
   ) in
   # careScore = 10, neglectScore = 3 #
-  # 10 > 3*3=9? Yes -> GoldenToaster? No wait, 10 > 9 is true #
+  # 10 > 3*3=9? Yes -> Elder? No wait, 10 > 9 is true #
   # Let me use: careScore=9, neglectScore=3 #
-  # 9 > 9? No. 3 > 9? No. So AdultToaster #
+  # 9 > 9? No. 3 > 9? No. So Bloom #
   let model2 = (
     stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
-    evolution = BabyToaster,
+    evolution = Seedling,
     personality = Balanced,
     memory = (timesFed = 3, timesPlayed = 3, timesSlept = 3, timesNeglected = 3),
     age = 30
   ) in
   let result = update(model2, TimeTick) in
-  # Correct: careScore=9, neglectScore=3, 9 > 9? No, 3 > 9? No -> Adult #
-  # Buggy: 9 > 9? No, 3 > 0? Yes -> Rusty! #
-  result.evolution == AdultToaster
+  # Correct: careScore=9, neglectScore=3, 9 > 9? No, 3 > 9? No -> Bloom #
+  # Buggy: 9 > 9? No, 3 > 0? Yes -> Wilted! #
+  result.evolution == Bloom
 end;
 
 # Demo run #

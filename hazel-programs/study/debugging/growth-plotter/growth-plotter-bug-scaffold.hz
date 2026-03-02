@@ -1,5 +1,5 @@
-# MOONLIT FIELD PLOTTER - Growth Stage Tracker #
-# Watch crops advance through their lifecycle under the gentle glow of moonlight #
+# Moonlit Field Plotter #
+# Crops advance through growth stages #
 
 # Growth stages that crops progress through #
 # Each stage represents a phase in the plant's lifecycle #
@@ -15,8 +15,9 @@ in
 type CropKind =
   + Moonmelon      # Silvery melon that ripens under starlight #
   + Nightshade     # Purple bloom with magical properties #
-  + Starwheat      # Golden grain that sparkles at dusk #
+  + Starfruit      # Shaped like stars, tangy #
   + Glowpumpkin    # Orange and luminescent #
+  + Duskwheat      # Golden stalks, hearty grain #
 in
 
 # A cell can be empty or contain a planted crop #
@@ -372,7 +373,7 @@ let gardenDemo = run(initModel, [
   PlantCrop(0, 0),
   SelectSeed(Nightshade),
   PlantCrop(0, 1),
-  SelectSeed(Starwheat),
+  SelectSeed(Starfruit),
   PlantCrop(1, 0),
   SelectSeed(Glowpumpkin),
   PlantCrop(1, 1),

@@ -1,21 +1,21 @@
-# HAUNTED TOASTER - A Tamagotchi-style Virtual Pet #
-# Your pet is a possessed kitchen appliance with feelings #
+# Garden Spirit #
+# A small spirit that tends your garden #
 
 type Stat = Int in  # 0-100 range #
 
 type Stats = (
-  hunger = Stat,     # 0 = starving, 100 = stuffed #
+  hunger = Stat,     # 0 = starving, 100 = full #
   happiness = Stat,  # 0 = miserable, 100 = ecstatic #
   energy = Stat,     # 0 = exhausted, 100 = hyperactive #
-  health = Stat      # 0 = broken, 100 = pristine #
+  health = Stat      # 0 = fading, 100 = vibrant #
 ) in
 
 type Evolution =
-  + BabyToaster      # Just possessed, learning the ropes #
-  + TeenToaster      # Moody, unpredictable #
-  + AdultToaster     # Mature, stable #
-  + GoldenToaster    # Legendary, well-cared-for #
-  + RustyToaster     # Neglected, cranky #
+  + Seedling      # Newly sprouted #
+  + Sprout      # Growing, unpredictable #
+  + Bloom     # In full bloom #
+  + Elder    # Ancient and wise #
+  + Wilted     # Neglected, withering #
 in
 
 type Personality =
@@ -44,7 +44,7 @@ type Action =
   + Feed              # Reduces hunger, slight energy boost #
   + Play              # Increases happiness, costs energy #
   + Sleep             # Restores energy, slight health boost #
-  + Repair            # Fixes health issues #
+  + Mend            # Fixes health issues #
   + TimeTick          # Time passes, stats decay #
 in
 
@@ -56,7 +56,7 @@ let clamp : Int -> Int =
     else x
 in
 
-# Initial state: a fresh baby toaster #
+# Initial state #
 let init: Model = (
   stats = (
     hunger = 50,
@@ -64,7 +64,7 @@ let init: Model = (
     energy = 50,
     health = 100
   ),
-  evolution = BabyToaster,
+  evolution = Seedling,
   personality = Balanced,
   memory = (
     timesFed = 0,
@@ -113,11 +113,11 @@ let calcEvolution : (Int, Memory) -> Evolution =
   fun (age, m) ->
     let careScore = m.timesFed + m.timesPlayed + m.timesSlept in
     let neglectScore = m.timesNeglected in
-    if age < 10 then BabyToaster
-    else if age < 25 then TeenToaster
-    else if careScore > neglectScore * 3 then GoldenToaster
-    else if neglectScore > careScore then RustyToaster
-    else AdultToaster
+    if age < 10 then Seedling
+    else if age < 25 then Sprout
+    else if careScore > neglectScore * 3 then Elder
+    else if neglectScore > careScore then Wilted
+    else Bloom
 in
 
 # Check if stats indicate neglect (any stat critically low) #
@@ -133,7 +133,7 @@ let updateMemory : (Memory, Action, Stats) -> Memory =
     | Feed => (m.timesFed + 1, m.timesPlayed, m.timesSlept, m.timesNeglected)
     | Play => (m.timesFed, m.timesPlayed + 1, m.timesSlept, m.timesNeglected)
     | Sleep => (m.timesFed, m.timesPlayed, m.timesSlept + 1, m.timesNeglected)
-    | Repair => m
+    | Mend => m
     | TimeTick =>
         if isNeglected(stats)
         then (m.timesFed, m.timesPlayed, m.timesSlept, m.timesNeglected + 1)
@@ -143,7 +143,7 @@ in
 
 # Apply an action to stats #
 # BUG: Sleep uses (- bonus) instead of (+ bonus) for energy #
-# Cheerful toasters get LESS energy from sleep, grumpy get MORE #
+# Cheerful spirits get LESS energy from sleep, grumpy get MORE #
 let applyAction : (Stats, Action, Personality) -> Stats =
   fun (s, action, personality) ->
     # Personality affects action effectiveness #
@@ -185,10 +185,10 @@ let applyAction : (Stats, Action, Personality) -> Stats =
           energy = clamp(s.energy + 40 - bonus),  # BUG: should be + bonus #
           health = clamp(s.health + 5)
         )
-    | Repair =>
+    | Mend =>
         (
           hunger = s.hunger,
-          happiness = clamp(s.happiness - 10),  # Repairs are uncomfortable #
+          happiness = clamp(s.happiness - 10),  # Mending is uncomfortable #
           energy = s.energy,
           health = clamp(s.health + 35 + bonus)
         )
@@ -228,19 +228,19 @@ let timePasses : Int -> [Action] =
     else map(range(1, n), fun _ -> TimeTick)
 in
 
-# Test: Cheerful toaster should get MORE energy from sleep than grumpy #
-hint "cheerful toaster gets more energy from sleep"
+# Test: Cheerful spirit should get MORE energy from sleep than grumpy #
+hint "cheerful spirit gets more energy from sleep"
 test
   let cheerfulModel = (
     stats = (hunger = 50, happiness = 50, energy = 30, health = 50),
-    evolution = AdultToaster,
+    evolution = Bloom,
     personality = Cheerful,
     memory = (timesFed = 5, timesPlayed = 10, timesSlept = 2, timesNeglected = 0),
     age = 25
   ) in
   let grumpyModel = (
     stats = (hunger = 50, happiness = 50, energy = 30, health = 50),
-    evolution = AdultToaster,
+    evolution = Bloom,
     personality = Grumpy,
     memory = (timesFed = 2, timesPlayed = 2, timesSlept = 2, timesNeglected = 10),
     age = 25

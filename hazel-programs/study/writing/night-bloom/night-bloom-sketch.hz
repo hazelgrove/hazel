@@ -1,11 +1,11 @@
 # NIGHT BLOOM FILTER TASK                        #
 #                                                #
 # A plant catalog has entries like:              #
-#   "Starbloom [night] 200ml"                    #
-#   "Sunfern [day] 150ml"                        #
+#   "Moonbloom [night] 200ml"                    #
+#   "Duskrose [day] 150ml"                        #
 #                                                #
 # Filter to night-blooming plants and extract    #
-# just their names: ["Starbloom", "Moonvine"]    #
+# just their names: ["Moonbloom", "Starfern"]    #
 #                                                #
 # Steps:                                         #
 #   1. is_night: check if entry contains "night" #
@@ -26,10 +26,10 @@
 # actually matches -- regex can be surprising!   #
 
 let entries = [
-  "Starbloom [night] 200ml",
-  "Sunfern [day] 150ml",
-  "Moonvine [night] 175ml",
-  "Thornrose [day] 100ml"
+  "Moonbloom [night] 200ml",
+  "Duskrose [day] 150ml",
+  "Starfern [night] 175ml",
+  "Ghostvine [day] 100ml"
 ] in
 
 # Check if entry is a night-blooming plant #
@@ -56,10 +56,10 @@ let night_names =
 
 in
 
-test night_names == ["Starbloom", "Moonvine"] end;
+test night_names == ["Moonbloom", "Starfern"] end;
 
-test is_night("Starbloom [night] 200ml") == true end;
+test is_night("Moonbloom [night] 200ml") == true end;
 
-test is_night("Sunfern [day] 150ml") == false end;
+test is_night("Duskrose [day] 150ml") == false end;
 
-test extract_name("Moonvine [night] 175ml") == "Moonvine" end
+test extract_name("Starfern [night] 175ml") == "Starfern" end

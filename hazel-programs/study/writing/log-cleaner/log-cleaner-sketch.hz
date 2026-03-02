@@ -1,4 +1,4 @@
-# MOONPHASE LOG CLEANER TASK                      #
+# Moonphase Log Cleaner                            #
 #                                                  #
 # Garden keepers record observations in a messy    #
 # log with emoji markers, inconsistent dashes,     #
@@ -6,12 +6,12 @@
 # standardize each log entry.                      #
 #                                                  #
 # Raw entries look like:                           #
-#   "  🌕 Full Moon -- clear skies, planted moonvine  "  #
-#   "🌑  New Moon--cloudy,   harvested starbloom"  #
+#   "  🌕 Full Moon -- clear skies, planted moonbloom  "  #
+#   "🌑  New Moon--cloudy,   harvested starfern"  #
 #                                                  #
 # Cleaned entries should look like:                #
-#   "Full Moon: clear skies, planted moonvine"     #
-#   "New Moon: cloudy, harvested starbloom"         #
+#   "Full Moon: clear skies, planted moonbloom"     #
+#   "New Moon: cloudy, harvested starfern"         #
 #                                                  #
 # Steps:                                           #
 #   1. Trim leading/trailing whitespace            #
@@ -42,18 +42,18 @@ let clean_entry: String -> String = fun entry ->
 in
 
 test
-  clean_entry("  🌕 Full Moon -- clear skies, planted moonvine  ")
-  == "Full Moon: clear skies, planted moonvine"
+  clean_entry("  🌕 Full Moon -- clear skies, planted moonbloom  ")
+  == "Full Moon: clear skies, planted moonbloom"
 end;
 
 test
-  clean_entry("🌑  New Moon--cloudy,   harvested starbloom")
-  == "New Moon: cloudy, harvested starbloom"
+  clean_entry("🌑  New Moon--cloudy,   harvested starfern")
+  == "New Moon: cloudy, harvested starfern"
 end;
 
 test
-  clean_entry("  🌓 Half Moon -- light rain, pruned thornrose  ")
-  == "Half Moon: light rain, pruned thornrose"
+  clean_entry("  🌓 Half Moon -- light rain, pruned duskrose  ")
+  == "Half Moon: light rain, pruned duskrose"
 end;
 
 test

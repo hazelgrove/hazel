@@ -1,4 +1,4 @@
-# MOONPHASE LOG CLEANER - SOLUTION #
+# Moonphase Log Cleaner - Solution #
 
 let clean_entry: String -> String = fun entry ->
   let s = string_trim(entry) in
@@ -9,18 +9,18 @@ let clean_entry: String -> String = fun entry ->
 in
 
 test
-  clean_entry("  🌕 Full Moon -- clear skies, planted moonvine  ")
-  == "Full Moon: clear skies, planted moonvine"
+  clean_entry("  🌕 Full Moon -- clear skies, planted moonbloom  ")
+  == "Full Moon: clear skies, planted moonbloom"
 end;
 
 test
-  clean_entry("🌑  New Moon--cloudy,   harvested starbloom")
-  == "New Moon: cloudy, harvested starbloom"
+  clean_entry("🌑  New Moon--cloudy,   harvested starfern")
+  == "New Moon: cloudy, harvested starfern"
 end;
 
 test
-  clean_entry("  🌓 Half Moon -- light rain, pruned thornrose  ")
-  == "Half Moon: light rain, pruned thornrose"
+  clean_entry("  🌓 Half Moon -- light rain, pruned duskrose  ")
+  == "Half Moon: light rain, pruned duskrose"
 end;
 
 test

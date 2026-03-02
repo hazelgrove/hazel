@@ -1,5 +1,5 @@
-# CROP PLOTTER WITH SOIL TYPES - A Night Garden Field Planner #
-# Each cell has both a crop and a soil type for richer farming simulation #
+# Crop Plotter with Soil Types #
+# Each cell has a crop and a soil type #
 
 type Crop = String in  # Plant emoji or "" for empty #
 type Row = Int in
@@ -44,7 +44,7 @@ let init: Model = (
     [(crop = "", soil = Clay),  (crop = "", soil = Rich),  (crop = "", soil = Loamy)]
   ],
   currentSeed = "🌱",
-  seedInventory = ["🌱", "🌻", "🥕", "🌽", "🍅"]
+  seedInventory = ["🌱", "🌿", "🍄", "☘️", "🌸"]
 ) in
 
 # Set a specific cell in the field #
@@ -231,14 +231,14 @@ end;
 hint "select seed changes current seed"
 test
   let m = update(init, SelectSeed(2)) in
-  m.currentSeed == "🥕"
+  m.currentSeed == "🍄"
 end;
 
 hint "plant with different seed"
 test
   let m = do(init, [SelectSeed(1), PlantCrop(0, 1)]) in
   let cell = getCell(m.field, 0, 1) in
-  cell.crop == "🌻" && cell.soil == Sandy
+  cell.crop == "🌿" && cell.soil == Sandy
 end;
 
 hint "multiple plants preserve their soils"
@@ -290,7 +290,7 @@ test
   let c00 = getCell(m.field, 0, 0) in
   let c11 = getCell(m.field, 1, 1) in
   let c22 = getCell(m.field, 2, 2) in
-  c00.crop == "🌽" && c11.crop == "🍅" && c22.crop == "🥕"
+  c00.crop == "☘️" && c11.crop == "🌸" && c22.crop == "🍄"
 end;
 
 hint "till multiple cells"

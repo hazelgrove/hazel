@@ -1,5 +1,5 @@
 # Crop Plotter #
-# A simple tool for planning your moonlit grove #
+# Plant your grove #
 
 type Plant = String in
 type Grove = [[Plant]] in

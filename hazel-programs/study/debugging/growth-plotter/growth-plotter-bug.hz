@@ -1,5 +1,5 @@
-# MOONLIT FIELD PLOTTER - Growth Stage Tracker #
-# Watch crops advance through their lifecycle under the gentle glow of moonlight #
+# Moonlit Field Plotter #
+# Crops advance through growth stages #
 
 type GrowthStage =
   + Seed
@@ -12,8 +12,9 @@ in
 type CropKind =
   + Moonmelon
   + Nightshade
-  + Starwheat
+  + Starfruit
   + Glowpumpkin
+  + Duskwheat
 in
 
 type Cell =
@@ -333,7 +334,7 @@ let gardenDemo = run(initModel, [
   PlantCrop(0, 0),
   SelectSeed(Nightshade),
   PlantCrop(0, 1),
-  SelectSeed(Starwheat),
+  SelectSeed(Starfruit),
   PlantCrop(1, 0),
   SelectSeed(Glowpumpkin),
   PlantCrop(1, 1),

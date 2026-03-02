@@ -1,8 +1,7 @@
-# COMPANION PLANTING GRID - A Night Garden Simulation #
-# Plants sense their neighbors under the moonlight #
-# Companions help each other grow; rivals struggle side by side #
+# Companion Planting Grid #
+# Plants affect their neighbors #
 
-# A crop is represented by its name #
+# A crop is represented by its emoji #
 type Crop = String in
 type Row = Int in
 type Col = Int in
@@ -59,20 +58,20 @@ let makeCell : Crop -> Cell =
 in
 
 # Determine the companion effect between two crops #
-# Tomato and Basil are companions (Beneficial) #
-# Carrot and Corn are companions (Beneficial) #
-# Tomato and Carrot are rivals (Harmful) #
+# 🌱 and 🌿 are companions (Beneficial) #
+# 🍄 and ☘️ are companions (Beneficial) #
+# 🌱 and 🍄 are rivals (Harmful) #
 # Everything else is Neutral #
 let companionEffect : (Crop, Crop) -> Effect =
   fun (crop1, crop2) ->
     if crop1 == "" || crop2 == "" then Neutral
     else if crop1 == crop2 then Neutral
-    else if (crop1 == "tomato" && crop2 == "basil") ||
-            (crop1 == "basil" && crop2 == "tomato") then Beneficial
-    else if (crop1 == "carrot" && crop2 == "corn") ||
-            (crop1 == "corn" && crop2 == "carrot") then Beneficial
-    else if (crop1 == "tomato" && crop2 == "carrot") ||
-            (crop1 == "carrot" && crop2 == "tomato") then Harmful
+    else if (crop1 == "🌱" && crop2 == "🌿") ||
+            (crop1 == "🌿" && crop2 == "🌱") then Beneficial
+    else if (crop1 == "🍄" && crop2 == "☘️") ||
+            (crop1 == "☘️" && crop2 == "🍄") then Beneficial
+    else if (crop1 == "🌱" && crop2 == "🍄") ||
+            (crop1 == "🍄" && crop2 == "🌱") then Harmful
     else Neutral
 in
 
@@ -172,8 +171,8 @@ in
 # Initial model state #
 let init : Model = (
   field = emptyField,
-  currentSeed = "tomato",
-  seedInventory = ["tomato", "basil", "carrot", "corn", "sunflower"]
+  currentSeed = "🌱",
+  seedInventory = ["🌱", "🌿", "🍄", "☘️", "🌸"]
 ) in
 
 # Apply an action to the model #
@@ -252,7 +251,7 @@ in
 hint "can plant a crop"
 test
   let m = update(init, PlantCrop(0, 0)) in
-  cropAt(m, 0, 0) == "tomato"
+  cropAt(m, 0, 0) == "🌱"
 end;
 
 hint "new crop starts at base health"
@@ -264,14 +263,14 @@ end;
 hint "cannot plant on occupied cell"
 test
   let m = garden(init, [PlantCrop(0, 0), SelectSeed(1), PlantCrop(0, 0)]) in
-  cropAt(m, 0, 0) == "tomato"
+  cropAt(m, 0, 0) == "🌱"
 end;
 
 # Seed selection #
 hint "select different seed"
 test
   let m = garden(init, [SelectSeed(1), PlantCrop(0, 0)]) in
-  cropAt(m, 0, 0) == "basil"
+  cropAt(m, 0, 0) == "🌿"
 end;
 
 # Harvesting #
@@ -288,50 +287,50 @@ test
 end;
 
 # Companion effects - Beneficial #
-hint "tomato and basil are companions"
+hint "🌱 and 🌿 are companions"
 test
-  companionEffect("tomato", "basil") == Beneficial
+  companionEffect("🌱", "🌿") == Beneficial
 end;
 
-hint "carrot and corn are companions"
+hint "🍄 and ☘️ are companions"
 test
-  companionEffect("carrot", "corn") == Beneficial
+  companionEffect("🍄", "☘️") == Beneficial
 end;
 
-hint "tomato next to basil gains health"
+hint "🌱 next to 🌿 gains health"
 test
   let m = garden(init, [
-    PlantCrop(0, 0),              # tomato at (0,0) #
+    PlantCrop(0, 0),              # 🌱 at (0,0) #
     SelectSeed(1),
-    PlantCrop(0, 1),              # basil at (0,1) #
+    PlantCrop(0, 1),              # 🌿 at (0,1) #
     CalculateHealth
   ]) in
   healthAt(m, 0, 0) > 50
 end;
 
-hint "basil next to tomato gains health"
+hint "🌿 next to 🌱 gains health"
 test
   let m = garden(init, [
-    PlantCrop(0, 0),              # tomato #
+    PlantCrop(0, 0),              # 🌱 #
     SelectSeed(1),
-    PlantCrop(0, 1),              # basil #
+    PlantCrop(0, 1),              # 🌿 #
     CalculateHealth
   ]) in
   healthAt(m, 0, 1) > 50
 end;
 
 # Companion effects - Harmful #
-hint "tomato and carrot are rivals"
+hint "🌱 and 🍄 are rivals"
 test
-  companionEffect("tomato", "carrot") == Harmful
+  companionEffect("🌱", "🍄") == Harmful
 end;
 
-hint "tomato next to carrot loses health"
+hint "🌱 next to 🍄 loses health"
 test
   let m = garden(init, [
-    PlantCrop(1, 1),              # tomato at center #
+    PlantCrop(1, 1),              # 🌱 at center #
     SelectSeed(2),
-    PlantCrop(1, 0),              # carrot to the left #
+    PlantCrop(1, 0),              # 🍄 to the left #
     CalculateHealth
   ]) in
   healthAt(m, 1, 1) < 50
@@ -340,22 +339,22 @@ end;
 # Neutral effects #
 hint "same crop has no effect"
 test
-  companionEffect("tomato", "tomato") == Neutral
+  companionEffect("🌱", "🌱") == Neutral
 end;
 
 hint "unrelated crops are neutral"
 test
-  companionEffect("sunflower", "corn") == Neutral
+  companionEffect("🌸", "☘️") == Neutral
 end;
 
 # Multiple neighbors #
 hint "multiple companions stack benefits"
 test
   let m = garden(init, [
-    PlantCrop(1, 1),              # tomato in center #
+    PlantCrop(1, 1),              # 🌱 in center #
     SelectSeed(1),
-    PlantCrop(0, 1),              # basil above #
-    PlantCrop(1, 0),              # basil left #
+    PlantCrop(0, 1),              # 🌿 above #
+    PlantCrop(1, 0),              # 🌿 left #
     CalculateHealth
   ]) in
   healthAt(m, 1, 1) == 70         # 50 + 10 + 10 #
@@ -364,11 +363,11 @@ end;
 hint "mixed neighbors balance out"
 test
   let m = garden(init, [
-    PlantCrop(1, 1),              # tomato in center #
+    PlantCrop(1, 1),              # 🌱 in center #
     SelectSeed(1),
-    PlantCrop(0, 1),              # basil above: +10 #
+    PlantCrop(0, 1),              # 🌿 above: +10 #
     SelectSeed(2),
-    PlantCrop(1, 0),              # carrot left: -10 #
+    PlantCrop(1, 0),              # 🍄 left: -10 #
     CalculateHealth
   ]) in
   healthAt(m, 1, 1) == 50         # 50 + 10 - 10 = 50 #
@@ -376,16 +375,16 @@ end;
 
 # Demo: A companion garden under moonlight #
 let moonGarden = garden(init, [
-  # Plant tomato in center #
+  # Plant 🌱 in center #
   PlantCrop(1, 1),
-  # Surround with basil companions #
+  # Surround with 🌿 companions #
   SelectSeed(1),
   PlantCrop(0, 1),
   PlantCrop(1, 0),
-  # Add some corn #
+  # Add some ☘️ #
   SelectSeed(3),
   PlantCrop(2, 2),
-  # Carrot next to corn for companionship #
+  # 🍄 next to ☘️ for companionship #
   SelectSeed(2),
   PlantCrop(2, 1),
   # Calculate how they affect each other #

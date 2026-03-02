@@ -1,8 +1,7 @@
 # HARVEST STREAK EXTENSION - SOLUTION #
 
 # Night Garden Harvest Ledger #
-# Track your harvest festival under the stars! #
-# Consecutive harvests of the same quality build streak bonuses #
+# Track harvests and streak bonuses #
 
 # Quality tiers from the moonlit fields #
 type Quality =
@@ -16,8 +15,9 @@ in
 type Crop =
   + Moonmelon   # Glows faintly, sweet taste #
   + Starfruit   # Shaped like stars, tangy #
-  + Nightberry  # Deep purple, magical properties #
+  + Nightshade  # Purple bloom, magical properties #
   + Duskwheat   # Golden stalks, hearty grain #
+  + Glowpumpkin # Orange and luminescent #
 in
 
 # A single harvest from the garden #
@@ -49,8 +49,9 @@ let cropValue : Crop -> Int =
     case c
     | Moonmelon => 15
     | Starfruit => 20
-    | Nightberry => 25
+    | Nightshade => 20
     | Duskwheat => 10
+    | Glowpumpkin => 12
     end
 in
 
@@ -210,7 +211,7 @@ test
   # Three same-quality harvests build streakBonus to 10 #
   let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let h3 = (crop = Nightberry, quality = Gold, quantity = 1) in
+  let h3 = (crop = Nightshade, quality = Gold, quantity = 1) in
   let ledger = run(initModel, [
     RecordHarvest(h1),
     RecordHarvest(h2),
@@ -218,8 +219,8 @@ test
     PremiumSale
   ]) in
   # streakBonus was 10, multiplier = 2, payout = 20 #
-  # h1: 15*3=45, h2: 20*3+5=65, h3: 25*3+10=85, PremiumSale: +20 #
-  ledger.totalValue == 45 + 65 + 85 + 20
+  # h1: 15*3=45, h2: 20*3+5=65, h3: 20*3+10=70, PremiumSale: +20 #
+  ledger.totalValue == 45 + 65 + 70 + 20
 end;
 
 # PremiumSale resets streak after claiming #
@@ -227,7 +228,7 @@ hint "PremiumSale resets streak to zero"
 test
   let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
   let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let h3 = (crop = Nightberry, quality = Gold, quantity = 1) in
+  let h3 = (crop = Nightshade, quality = Gold, quantity = 1) in
   let ledger = run(initModel, [
     RecordHarvest(h1),
     RecordHarvest(h2),
@@ -251,7 +252,7 @@ end;
 
 # Demo: Premium sale harvest day #
 run(initModel, [
-  RecordHarvest((crop = Nightberry, quality = Gold, quantity = 1)),
+  RecordHarvest((crop = Nightshade, quality = Gold, quantity = 1)),
   RecordHarvest((crop = Starfruit, quality = Gold, quantity = 1)),
   RecordHarvest((crop = Moonmelon, quality = Gold, quantity = 1)),
   PremiumSale
