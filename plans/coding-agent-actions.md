@@ -51,11 +51,6 @@ Both systems coexist. Selectors are the primary interface for new work.
   `/` (Divide) conflicts with chain syntax. Use `#0`/`#1` as workaround.
   Fix: new surface characters or context-sensitive disambiguation.
 
-- **FocusMod SelectorUpdate fallback**: When a selector focuses on a `Mod.t`
-  item, SelectorUpdate parses replacement code as an expression (no
-  `replace_mod_by_id`). Implement `replace_mod_by_id` in TermEdit for proper
-  module item replacement.
-
 - **SelectorInsert permissiveness**: The binding fallback wraps any expression
   in a Let, even for nonsensical positions (inside BinOp operand). Consider
   strict mode that refuses unless target is in a sequence-like position.
@@ -91,12 +86,14 @@ Both systems coexist. Selectors are the primary interface for new work.
 ### Functionality compromises
 
 1. **AutoFormat `should_add_space` change is global**: Modified to always add
-   spaces around `:` and `::`. Only affects AutoFormat mode (web UI uses
-   PreserveExact). Could surface edge cases in CLI `format` command.
+   spaces around `:` and `::`. Only affects AutoFormat mode (CLI `format`).
+   TermEdit now uses PreserveExact for round-trips, so this only matters for
+   the CLI format command, not agent edits.
 
-2. **Whitespace for new terms is heuristic, not contextual**: AutoFormat uses
-   `should_add_space` regardless of surrounding formatting style. Correct but
-   potentially style-inconsistent.
+2. ~~**Whitespace for new terms is heuristic, not contextual**~~: Resolved —
+   TermEdit now uses PreserveExact with `leading_secondary_of`/
+   `trailing_secondary_of` helpers that extract effective whitespace from
+   compound forms (BinOp, Seq, etc. where whitespace lives on leaves).
 
 3. **Module item insertion whitespace is hardcoded**: Always adds single space
    before new items. Multi-line modules would ideally get newline separation.
@@ -133,7 +130,7 @@ Both systems coexist. Selectors are the primary interface for new work.
 
 ## Test Suite
 
-**352+ tests** (all passing). Run with:
+**374 tests** (all passing). Run with:
 ```bash
 cd /Users/andrewblinn/.claude-worktrees/hazel/coding-agent-actions
 dune build
@@ -152,8 +149,11 @@ node --stack-size=16000 _build/default/test/haz3ltest.bc.js test 'GetCanonical' 
 - Selector language: tokenization, elaboration, resolution, binder chains, descent,
   focus, shadowed names, indexing, module/type indexing, child index, cross-sort,
   BinOp spines, canonical generation (numeric + named), deparse, diagnostics
-- Selector edits: SelectorUpdate (including cross-sort Pat/Typ/Mod),
-  SelectorDelete (cross-sort holes), SelectorInsertBefore/After (module items, bindings)
+- Selector edits: SelectorUpdate (cross-sort Pat/Typ, FocusMod whole-item
+  replacement), SelectorDelete (cross-sort holes, FocusMod item removal),
+  SelectorInsertBefore/After (module items, bindings)
+- Whitespace: PreserveExact round-trip, leading/trailing secondary extraction
+  from compound forms, line break preservation across edits
 - Error handling: parse errors, static warnings, dispatch error reporting
 
 ---

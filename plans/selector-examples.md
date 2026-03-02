@@ -331,6 +331,22 @@ term, not an expression. This lets you point at `let x = 42` or
 `type T = Int` as standalone items, which is important for edit
 operations like replacing a let with a type definition.
 
+FocusMod selectors are produced by bare name or keyword matches that
+terminate at a module item: `M/x`, `A/ \... module B`, `A/ \... type T`.
+Selectors that go deeper (like `M/x = *`) return FocusExp of the sub-part.
+
+#### FocusMod edit operations
+
+```
+module M = { let x = 1; let y = 2 } in M.y
+```
+
+| Action | Code | Result |
+|--------|------|--------|
+| `SelectorUpdate("M/x", "let z = 99")` | replace whole item | `module M = { let z = 99; let y = 2 } in M.y` |
+| `SelectorDelete("M/x")` | remove item entirely | `module M = { let y = 2 } in M.y` |
+| `SelectorUpdate("M/x = *", "42")` | update def only (FocusExp) | `module M = { let x = 42; let y = 2 } in M.y` |
+
 ---
 
 ## 10. Descendant Search
@@ -388,6 +404,40 @@ let x = 1 in let x = 2 in x
 | `x#1 _... in *` | `x` | body of second x |
 | `let x#1 = *` | `2` | with let keyword |
 | `x#5 = *` | ERROR: "2 binding(s) named 'x'" | out-of-range diagnostic |
+
+### Multi-match without indexing
+
+Without `#N`, selectors like `x = *` match **all** shadowed bindings:
+
+```
+let a = 4 in let a = 4 in let a = 4 in a
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `a = *` | `4`, `4`, `4` | all 3 bindings (multi-match) |
+| `a _... in *` | 3 results | all 3 bodies |
+| `let a = *` | `4`, `4`, `4` | same with keyword |
+
+For single-match edit actions (`SelectorUpdate`, `SelectorDelete`), use
+`query_unique` which requires exactly one match. Use `a#0 = *` to target
+a specific one.
+
+### Chain resolution through shadows
+
+Chains (`a/a`) try **all** binders named `a`, continuing resolution in each:
+
+```
+let a = 4 in let a = (let a = 0 in 4) in let a = 4 in a
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `a/a = *` | `0` | finds inner `a` inside second `a`'s def |
+
+The chain `a/a` elaborates to `[EnterBinderDef("a"), MatchName("a")]`.
+It enters each `a`'s definition looking for a nested binding also named `a`.
+Only the second `a` (whose def is `let a = 0 in 4`) has one.
 
 ### Module and type indexing
 
@@ -933,13 +983,7 @@ For deeper targets inside operands, falls back to numeric `#N` addressing.
    to address operands of these operators. Fix: new surface characters or
    context-sensitive disambiguation.
 
-2. **FocusMod SelectorUpdate falls back to expression parsing**: When a
-   selector focuses on a `Mod.t` item (e.g., `\... module B`), SelectorUpdate
-   parses the replacement code as an expression since there's no
-   `replace_mod_by_id` yet. Works for simple cases but may not handle all
-   module item forms correctly.
-
-3. **SelectorInsert is permissive**: The binding fallback (step 5 in the
+2. **SelectorInsert is permissive**: The binding fallback (step 5 in the
    insertion cascade) will wrap any expression in a Let, even for nonsensical
    positions like inside a BinOp operand. The agent is responsible for using
    sensible selectors. Consider adding a strict mode that refuses to insert
@@ -973,4 +1017,4 @@ For deeper targets inside operands, falls back to numeric `#N` addressing.
 - `ExpToSegment.re` — pretty-printing (mod_to_segment, pat_to_segment, typ_to_segment)
 - `ToolJsonDefinitions/EditTools.re` — JSON tool defs for edit tools
 - `ToolJsonDefinitions/ReadTools.re` — JSON tool defs for read tools
-- `Test_AgentTools.re` — 352+ tests
+- `Test_AgentTools.re` — 374 tests
