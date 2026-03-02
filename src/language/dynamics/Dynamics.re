@@ -28,7 +28,7 @@ module Info = {
     );
   };
 
-  /* Same full-then-trimmed priority chain as
+  /* Same full-then-intermediate-then-trimmed priority chain as
    * Sample.Selection.first_related_index (see that function's comment). */
   let first_cursor_sample = (ap_id: option(Id.t), di: t): option(Sample.t) => {
     let find_full =
@@ -46,17 +46,46 @@ module Info = {
     switch (find_full) {
     | Some(_) as result => result
     | None =>
-      List.find_opt(
-        sample =>
-          Sample.Cursor.relation(
-            ~trimmed=true,
-            ~ap_id,
-            di.sample_cursor,
-            sample,
-          ).
-            is_call_cursor,
-        di.samples,
-      )
+      /* Intermediate: sample whose stack is a suffix of the full cursor
+       * stack. Handles 3+ nesting levels. */
+      let cursor_len = List.length(di.sample_cursor.call_stack);
+      let intermediate =
+        List.fold_left(
+          (best: option((Sample.t, int)), sample: Sample.t) => {
+            let slen = List.length(sample.call_stack);
+            if (slen < cursor_len
+                && ListUtil.is_suffix_of(
+                     ~eq=Sample.equal_stack_frame,
+                     sample.call_stack,
+                     di.sample_cursor.call_stack,
+                   )) {
+              switch (best) {
+              | Some((_, best_len)) when best_len >= slen => best
+              | _ => Some((sample, slen))
+              };
+            } else {
+              best;
+            };
+          },
+          None,
+          di.samples,
+        )
+        |> Option.map(fst);
+      switch (intermediate) {
+      | Some(_) as result => result
+      | None =>
+        List.find_opt(
+          sample =>
+            Sample.Cursor.relation(
+              ~trimmed=true,
+              ~ap_id,
+              di.sample_cursor,
+              sample,
+            ).
+              is_call_cursor,
+          di.samples,
+        )
+      };
     };
   };
 };

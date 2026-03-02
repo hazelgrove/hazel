@@ -552,17 +552,20 @@ module Selection = {
    *
    * Priority chain when trimmed=true:
    *   1. Full-stack exact match (untrimmed) — intent preservation
-   *   2. Trimmed-stack exact match — shallower probe matching
-   *   3. Direct callee of indicated call
-   *   4. Any related sample (Above/Below/Same)
+   *   2. Intermediate depth match — sample whose stack is a suffix of the
+   *      cursor's full stack (handles 3+ nesting levels)
+   *   3. Trimmed-stack exact match — shallower probe matching
+   *   4. Direct callee of indicated call
+   *   5. Any related sample (Above/Below/Same)
    *
-   * Step 1 is the "read side" of intent preservation (see module comment).
-   * The cursor may retain a deeper call_stack than index indicates, e.g.
-   * [inner_1, outer_0] at index=0. Trying the full stack first finds
-   * inner_1 specifically; without it, all inner samples under outer_0
-   * are equally related and the first one wins (resetting the selection).
-   * Step 2 handles probes at the cursor's effective level (e.g. an outer
-   * probe that needs to match [outer_0] from trimmed stack). */
+   * Steps 1-2 are the "read side" of intent preservation (see module
+   * comment). The cursor may retain a deeper call_stack than index
+   * indicates. E.g. with cursor stack [inner, mid, outer] at index=0:
+   *   - Step 1 finds a sample matching the full stack (deepest level)
+   *   - Step 2 finds [mid, outer] as a suffix (intermediate level)
+   *   - Step 3 finds [outer] via the trimmed stack (effective level)
+   * Without step 2, a mid-level probe would see all mid samples as
+   * equally related to [outer] and reset to the first one. */
   let first_related_index =
       (
         ~trimmed: bool,
@@ -588,17 +591,49 @@ module Selection = {
       } else {
         None;
       };
+    /* Intermediate depth: find the sample whose call_stack is a proper
+     * suffix of the cursor's full stack (longer than trimmed, shorter
+     * than full). Among matches, prefer the longest (most specific). */
+    let intermediate_match =
+      if (trimmed) {
+        let cursor_len = List.length(cursor.call_stack);
+        let best_idx = ref(None);
+        let best_len = ref(0);
+        List.iteri(
+          (i, sample: t) => {
+            let slen = List.length(sample.call_stack);
+            if (slen > best_len^
+                && slen < cursor_len
+                && ListUtil.is_suffix_of(
+                     ~eq=equal_stack_frame,
+                     sample.call_stack,
+                     cursor.call_stack,
+                   )) {
+              best_idx := Some(i);
+              best_len := slen;
+            };
+          },
+          samples,
+        );
+        best_idx^;
+      } else {
+        None;
+      };
     switch (full_match) {
     | Some(_) as result => result
     | None =>
-      switch (find(rel => rel.is_call_cursor)) {
+      switch (intermediate_match) {
       | Some(_) as result => result
       | None =>
-        switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+        switch (find(rel => rel.is_call_cursor)) {
         | Some(_) as result => result
         | None =>
-          let indirect = find(rel => rel.is_below_indicated_call != None);
-          indirect == None ? find(Cursor.is_related) : indirect;
+          switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+          | Some(_) as result => result
+          | None =>
+            let indirect = find(rel => rel.is_below_indicated_call != None);
+            indirect == None ? find(Cursor.is_related) : indirect;
+          }
         }
       }
     };
@@ -625,26 +660,49 @@ module Selection = {
     )
     |> Option.map(fst);
 
-  /* Find sample closest to cursor-related position */
+  /* Find sample closest to cursor-related position.
+   * Used by resolve_pending_probe_cursor (ArrowUp/Down navigation).
+   * Prefers samples whose call stack is a suffix of the cursor's full
+   * stack, which preserves call context across multiple nesting depths. */
   let closest_to_cursor =
       (~ap_id: option(Id.t), ~cursor: Cursor.t, samples: list(t))
       : option(t) =>
     switch (samples) {
     | [] => None
     | [first, ..._] =>
-      switch (first_related_index(~trimmed=false, ~ap_id, cursor, samples)) {
-      | Some(idx) => List.nth_opt(samples, idx)
-      | None =>
-        switch (
-          best_suffix_match(
-            ~cursor_stack=Cursor.trimmed_stack(cursor),
-            samples,
+      /* 1. Best suffix match against full cursor stack. Accept only if
+       *    the sample's stack is truly a suffix (not just partial overlap). */
+      let suffix_result =
+        best_suffix_match(~cursor_stack=cursor.call_stack, samples);
+      let is_true_suffix =
+        switch (suffix_result) {
+        | Some(s) =>
+          ListUtil.is_suffix_of(
+            ~eq=equal_stack_frame,
+            s.call_stack,
+            cursor.call_stack,
           )
-        ) {
-        | Some(_) as result => result
-        | None => Some(first)
-        }
-      }
+        | None => false
+        };
+      if (is_true_suffix) {
+        suffix_result;
+      } else {
+        /* 2. Fall back to first related sample */
+        switch (first_related_index(~trimmed=false, ~ap_id, cursor, samples)) {
+        | Some(idx) => List.nth_opt(samples, idx)
+        | None =>
+          /* 3. Heuristic suffix match with trimmed stack */
+          switch (
+            best_suffix_match(
+              ~cursor_stack=Cursor.trimmed_stack(cursor),
+              samples,
+            )
+          ) {
+          | Some(_) as result => result
+          | None => Some(first)
+          }
+        };
+      };
     };
 
   /* Check if two samples belong to the same function call */
