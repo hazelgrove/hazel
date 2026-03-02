@@ -593,7 +593,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
  */
 
 /* Step into from a specific sample, using the sample's call_stack
-   instead of the current sample_cursor's trimmed_stack. This ensures
+   instead of the current sample_cursor's effective_stack. This ensures
    we maintain the exact execution context of the selected sample. */
 let step_into_call_stack =
     (
@@ -853,11 +853,11 @@ let resolve_pending_probe_cursor =
       );
     switch (first_with_samples) {
     | Some((_id, samples)) =>
-      /* Use closest_to_cursor to pick the best sample based on current cursor,
-       * rather than just the first sample. This preserves user's selection
-       * when adding new probes. */
+      /* Use most_aligned_sample to pick the best sample based on current
+       * cursor, rather than just the first sample. This preserves user's
+       * selection when adding new probes. */
       let selected =
-        Sample.Selection.closest_to_cursor(
+        Sample.Selection.most_aligned_sample(
           ~ap_id=None,
           ~cursor=z.refractors.sample_cursor,
           samples,

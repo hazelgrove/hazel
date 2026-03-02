@@ -181,8 +181,7 @@ let select_samples =
       )
     };
   let first_idx =
-    Sample.Selection.first_related_index(
-      ~trimmed=true,
+    Sample.Selection.most_aligned_index(
       ~ap_id,
       dynamics.sample_cursor,
       samples,
@@ -909,7 +908,7 @@ let mv_least_distant_sample = (ctx: probe_ctx, _evt): Effect.t(unit) => {
       dynamics.samples,
     );
   switch (
-    Sample.Selection.closest_to_cursor(
+    Sample.Selection.most_aligned_sample(
       ~ap_id,
       ~cursor=dynamics.sample_cursor,
       samples,
@@ -984,8 +983,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
       dynamics.samples,
     );
   let cursor_idx =
-    Sample.Selection.first_related_index(
-      ~trimmed=true,
+    Sample.Selection.most_aligned_index(
       ~ap_id,
       dynamics.sample_cursor,
       samples,
@@ -1084,7 +1082,7 @@ let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
 };
 
 let indicated_sample = (ctx: probe_ctx): option(Sample.t) =>
-  Dynamics.Info.first_cursor_sample(ctx.ap_id, ctx.dynamics);
+  Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics);
 
 let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   let {ap_id, parent, _} = ctx;
@@ -1208,8 +1206,7 @@ let offside_view =
       );
     let num_total = List.length(filtered_samples);
     let is_cursor_aligned =
-      Sample.Selection.first_related_index(
-        ~trimmed=true,
+      Sample.Selection.most_aligned_index(
         ~ap_id,
         dynamics.sample_cursor,
         filtered_samples,
