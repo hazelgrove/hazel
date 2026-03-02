@@ -714,3 +714,280 @@ let insert_before: API.Json.t =
       ]),
     ),
   ]);
+
+/* === Selector-based edit tools === */
+
+let selector_update_description = {|
+Description:
+Replaces the focused subtree matched by a selector expression with new code.
+Selectors are pattern-based expressions that address any part of the AST.
+The selector must contain exactly one `*` (focus marker) indicating which subtree to replace.
+The replacement code is parsed according to the sort of the focused node (expression, pattern, or type).
+
+Parameters:
+selector: string — selector expression with exactly one `*` focus
+code: string — replacement code
+
+Example(s):
+Given the program:
+```
+let x = 42 in x + 1
+```
+Calling selector_update(selector="let x = *", code="99") results in:
+```
+let x = 99 in x + 1
+```
+
+Given the program:
+```
+let f = fun x -> if x > 0 then x else 0 in f 5
+```
+Calling selector_update(selector="\... if _... else *", code="1") results in:
+```
+let f = fun x -> if x > 0 then x else 1 in f 5
+```
+
+Cross-sort example — updating a type annotation:
+Given: `let x : Int = 42 in x`
+Calling selector_update(selector="let x : *", code="Bool") results in:
+```
+let x : Bool = 42 in x
+```
+|};
+
+let selector_update: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("selector_update")),
+        ("description", `String(selector_update_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "selector",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Selector expression with a * focus (e.g. \"let x = *\", \"\\... if _... else *\").",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The replacement code for the focused subtree."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("selector"), `String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let selector_delete_description = {|
+Description:
+Replaces the focused subtree matched by a selector expression with a hole.
+The hole type matches the sort of the focused node: expression hole (?), pattern hole, or type hole.
+
+Parameters:
+selector: string — selector expression with exactly one `*` focus
+
+Example(s):
+Given the program:
+```
+let x = 42 in x + 1
+```
+Calling selector_delete(selector="let x = *") results in:
+```
+let x = ? in x + 1
+```
+|};
+
+let selector_delete: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("selector_delete")),
+        ("description", `String(selector_delete_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "selector",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Selector expression with a * focus (e.g. \"let x = *\", \"if _... else *\").",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("selector")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let selector_insert_after_description = {|
+Description:
+Inserts code after the anchor matched by a selector expression.
+The `*` in the selector marks the anchor point (the existing binding/item), and
+new code is inserted immediately after it.
+Works with let-bindings, module items, list elements, tuple elements, and case arms.
+
+Parameters:
+selector: string — selector expression with `*` marking the anchor
+code: string — code to insert after the anchor
+
+Example(s):
+Given the program:
+```
+let x = 1 in x + 1
+```
+Calling selector_insert_after(selector="* let x", code="let y = 2") results in:
+```
+let x = 1 in let y = 2 in x + 1
+```
+|};
+
+let selector_insert_after: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("selector_insert_after")),
+        ("description", `String(selector_insert_after_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "selector",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Selector expression with * marking the insertion anchor.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The code to insert after the anchor."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("selector"), `String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let selector_insert_before_description = {|
+Description:
+Inserts code before the anchor matched by a selector expression.
+The `*` in the selector marks the anchor point (the existing binding/item), and
+new code is inserted immediately before it.
+Works with let-bindings, module items, list elements, tuple elements, and case arms.
+
+Parameters:
+selector: string — selector expression with `*` marking the anchor
+code: string — code to insert before the anchor
+
+Example(s):
+Given the program:
+```
+let x = 1 in x + 1
+```
+Calling selector_insert_before(selector="* let x", code="let y = 2") results in:
+```
+let y = 2 in let x = 1 in x + 1
+```
+|};
+
+let selector_insert_before: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("selector_insert_before")),
+        ("description", `String(selector_insert_before_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "selector",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Selector expression with * marking the insertion anchor.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The code to insert before the anchor."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("selector"), `String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);

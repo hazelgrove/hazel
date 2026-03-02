@@ -263,6 +263,76 @@ let select: API.Json.t =
     ),
   ]);
 
+let get_canonical_description = {|
+Description:
+Returns canonical selector paths for the node matched by a selector expression.
+Returns two forms:
+- numeric: a pure child-index path (#0, #1, etc.) from the root to the target node
+- named: a human-readable path using names, keywords, and operators where possible
+
+This is useful for discovering stable, unambiguous selectors for any node in the program.
+
+Parameters:
+selector: string — a selector expression to locate the target node
+
+Example(s):
+Given the program:
+```
+let x = 1 + 2 in x
+```
+Calling get_canonical(selector="let x = *") returns:
+```
+numeric: #0
+named: x = *
+```
+
+Given:
+```
+let f = fun x -> x + 1 in f 5
+```
+Calling get_canonical(selector="\... fun *") returns:
+```
+numeric: #0 #0
+named: f = \... fun *
+```
+|};
+
+let get_canonical: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("get_canonical")),
+        ("description", `String(get_canonical_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "selector",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Selector expression to locate the target node (e.g. \"let x = *\", \"\\... if *\").",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("selector")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
 let get_completeness_description = {|
 Description:
 Reports whether the program has any unfilled holes.

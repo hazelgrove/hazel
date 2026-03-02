@@ -23,10 +23,15 @@ module Local = {
     EditTools.update_type_annotation,
     EditTools.insert_after,
     EditTools.insert_before,
+    EditTools.selector_update,
+    EditTools.selector_delete,
+    EditTools.selector_insert_after,
+    EditTools.selector_insert_before,
     ReadTools.get_syntax,
     ReadTools.get_statics,
     ReadTools.get_context,
     ReadTools.select,
+    ReadTools.get_canonical,
     ReadTools.get_completeness,
     WorkbenchTools.create_new_task,
     WorkbenchTools.set_active_task,
@@ -144,6 +149,33 @@ module Local = {
             | "get_context" =>
               ReadAction(GetContext(get_string(args, "path")))
             | "select" => ReadAction(Select(get_string(args, "selector")))
+            | "get_canonical" =>
+              ReadAction(GetCanonical(get_string(args, "selector")))
+            | "selector_update" =>
+              EditorAction(
+                SelectorUpdate(
+                  get_string(args, "selector"),
+                  get_string(args, "code"),
+                ),
+              )
+            | "selector_delete" =>
+              EditorAction(
+                SelectorDelete(get_string(args, "selector")),
+              )
+            | "selector_insert_after" =>
+              EditorAction(
+                SelectorInsertAfter(
+                  get_string(args, "selector"),
+                  get_string(args, "code"),
+                ),
+              )
+            | "selector_insert_before" =>
+              EditorAction(
+                SelectorInsertBefore(
+                  get_string(args, "selector"),
+                  get_string(args, "code"),
+                ),
+              )
             | "get_completeness" => ReadAction(GetCompleteness)
             | "create_new_task" =>
               WorkbenchAction(
