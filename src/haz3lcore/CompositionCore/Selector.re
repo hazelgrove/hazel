@@ -1329,6 +1329,24 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
          Continue searching through the body for lets after the module. */
       find_all_lets(body)
     | TyAlias(_, _, body) => find_all_lets(body)
+    | Module(items) =>
+      /* Surface ModLet items as let_spines so `let x = *` finds them.
+         Synthesize EmptyHole body since ModLet has no body. */
+      List.concat_map(
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModLet(pat, def) => [
+              {
+                pat,
+                def,
+                body: Exp.fresh(EmptyHole),
+                whole: Exp.fresh(Let(pat, def, Exp.fresh(EmptyHole))),
+              },
+            ]
+          | _ => []
+          },
+        items,
+      )
     | _ => []
     }
 
@@ -1373,6 +1391,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
             switch (item.term) {
             | ModLet(_, def) => descend_all(def, remaining)
             | ModExp(e) => descend_all(e, remaining)
+            | ModuleMod(_, def) => descend_all(def, remaining)
             | _ => []
             },
           items,

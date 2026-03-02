@@ -1554,6 +1554,34 @@ let selector_tests = (
       ~sel="\\... let y = *",
       ~expected="M.x + 1",
     ),
+    /* === ModLet descent: \... let x = * finds ModLet inside Module === */
+    sel_test(
+      ~name="descend let inside module items",
+      ~code="module M = { let x = 42; let y = 99 } in M.x",
+      ~sel="\\... let x = *",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="descend let y inside module items",
+      ~code="module M = { let x = 42; let y = 99 } in M.x",
+      ~sel="\\... let y = *",
+      ~expected="99",
+    ),
+    /* find_all_lets via chain sugar enters def then descends */
+    sel_test(
+      ~name="chain then descend let inside module",
+      ~code="let m = { let a = 1; let b = 2 } in m.a",
+      ~sel="m = \\... let a = *",
+      ~expected="1",
+    ),
+    /* descend_all recurses into ModuleMod defs */
+    sel_test(
+      ~name="descend into nested ModuleMod def",
+      ~code=
+        "module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
+      ~sel="\\... let x = *",
+      ~expected="42",
+    ),
     /* === Module/type spine uniformity === */
     /* module _ = * : wildcard module name */
     sel_test(
