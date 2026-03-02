@@ -3023,6 +3023,19 @@ let selector_edit_tests = (
       SelectorUpdate("M/x = *", "42"),
       "module M = { let x = 42; let y = 2 } in M.x",
     ),
+    /* SelectorUpdate: cross-sort (FocusTyp) */
+    edit_test(
+      "SelectorUpdate: type annotation Int -> Bool",
+      "let x : Int = 42 in x",
+      SelectorUpdate("let x : *", "Bool"),
+      "let x : Bool = 42 in x",
+    ),
+    edit_test(
+      "SelectorUpdate: type def in type alias",
+      "type T = Int in let x : T = 42 in x",
+      SelectorUpdate("type T = *", "Bool"),
+      "type T = Bool in let x : T = 42 in x",
+    ),
     /* SelectorDelete: replace focused subtree with hole */
     edit_test(
       "SelectorDelete: let def -> hole",

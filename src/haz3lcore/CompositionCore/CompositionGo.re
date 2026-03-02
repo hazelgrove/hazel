@@ -843,20 +843,53 @@ module Local = {
       switch (Selector.query_unique(selector, term)) {
       | Error(msg) =>
         Error(Action.Failure.Composition_action_failure(msg))
-      | Ok({focused_id, _}) =>
-        switch (TermEdit.parse_exp(code)) {
-        | None =>
+      | Ok({focused, focused_id, _}) =>
+        let parse_err = msg =>
           Error(
             Action.Failure.Composition_action_failure(
-              "Failed to parse replacement code: " ++ code,
+              "Failed to parse replacement code: " ++ msg,
             ),
-          )
-        | Some(new_exp) =>
-          let new_term =
-            TermEdit.replace_exp_by_id(focused_id, _ => new_exp, term);
-          let new_z = TermEdit.term_to_zipper(new_term);
-          Ok((new_z, None));
-        }
+          );
+        switch (focused) {
+        | FocusExp(_) =>
+          switch (TermEdit.parse_exp(code)) {
+          | None => parse_err(code)
+          | Some(new_exp) =>
+            let new_term =
+              TermEdit.replace_exp_by_id(focused_id, _ => new_exp, term);
+            let new_z = TermEdit.term_to_zipper(new_term);
+            Ok((new_z, None));
+          }
+        | FocusPat(_) =>
+          switch (TermEdit.parse_pat(code)) {
+          | None => parse_err(code ++ " (as pattern)")
+          | Some(new_pat) =>
+            let new_term =
+              TermEdit.replace_pat_by_id(focused_id, new_pat, term);
+            let new_z = TermEdit.term_to_zipper(new_term);
+            Ok((new_z, None));
+          }
+        | FocusTyp(_) =>
+          switch (TermEdit.parse_typ(code)) {
+          | None => parse_err(code ++ " (as type)")
+          | Some(new_typ) =>
+            let new_term =
+              TermEdit.replace_typ_by_id(focused_id, new_typ, term);
+            let new_z = TermEdit.term_to_zipper(new_term);
+            Ok((new_z, None));
+          }
+        | FocusMod(_) =>
+          /* Module items don't have a simple replace_mod_by_id yet.
+             For now, try parsing as expression (module body). */
+          switch (TermEdit.parse_exp(code)) {
+          | None => parse_err(code ++ " (as module)")
+          | Some(new_exp) =>
+            let new_term =
+              TermEdit.replace_exp_by_id(focused_id, _ => new_exp, term);
+            let new_z = TermEdit.term_to_zipper(new_term);
+            Ok((new_z, None));
+          }
+        };
       };
 
     | SelectorDelete(selector) =>
