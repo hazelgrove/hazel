@@ -3043,6 +3043,12 @@ let selector_edit_tests = (
       SelectorDelete("let x = *"),
       "let x = ? in x + 1",
     ),
+    edit_test(
+      "SelectorDelete: type annotation -> type hole",
+      "let x : Int = 42 in x",
+      SelectorDelete("let x : *"),
+      "let x : ? = 42 in x",
+    ),
     /* Error cases */
     test_case("SelectorUpdate: no match", `Quick, () => {
       switch (run_agent_action("let x = 1 in x", SelectorUpdate("let y = *", "2"))) {

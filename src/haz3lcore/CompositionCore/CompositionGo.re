@@ -897,10 +897,19 @@ module Local = {
       switch (Selector.query_unique(selector, term)) {
       | Error(msg) =>
         Error(Action.Failure.Composition_action_failure(msg))
-      | Ok({focused_id, _}) =>
-        let hole = Exp.fresh(EmptyHole);
+      | Ok({focused, focused_id, _}) =>
         let new_term =
-          TermEdit.replace_exp_by_id(focused_id, _ => hole, term);
+          switch (focused) {
+          | FocusExp(_) | FocusMod(_) =>
+            let hole = Exp.fresh(EmptyHole);
+            TermEdit.replace_exp_by_id(focused_id, _ => hole, term);
+          | FocusPat(_) =>
+            let hole = Pat.fresh(EmptyHole);
+            TermEdit.replace_pat_by_id(focused_id, hole, term);
+          | FocusTyp(_) =>
+            let hole = Typ.fresh(Unknown(Hole(EmptyHole)));
+            TermEdit.replace_typ_by_id(focused_id, hole, term);
+          };
         let new_z = TermEdit.term_to_zipper(new_term);
         Ok((new_z, None));
       };
