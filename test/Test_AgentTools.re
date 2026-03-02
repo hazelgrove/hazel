@@ -2273,6 +2273,302 @@ let selector_tests = (
   ],
 );
 
+/* === Canonical Numeric + Deparse Tests === */
+
+/* Helper: parse code, resolve a selector to get a node, generate canonical
+   path for that node, verify the deparsed path matches expected string */
+let canonical_test = (~name, ~code, ~sel, ~expected_path) =>
+  test_case(name, `Quick, () => {
+    let root = mk_term(code);
+    /* Resolve the selector to get the target node ID */
+    switch (Selector.query_unique(sel, root)) {
+    | Error(e) => fail(name ++ ": selector failed: " ++ e)
+    | Ok(m) =>
+      /* Generate canonical numeric path */
+      switch (Selector.canonical_numeric(m.focused_id, root)) {
+      | None => fail(name ++ ": canonical_numeric returned None")
+      | Some(path) =>
+        let deparsed = Selector.deparse(path);
+        check(string, name ++ " path", expected_path, deparsed);
+        /* Roundtrip: resolve the canonical path, verify same ID */
+        switch (Selector.query_unique(deparsed, root)) {
+        | Error(e) =>
+          fail(name ++ ": roundtrip resolve failed: " ++ e)
+        | Ok(m2) =>
+          check(bool, name ++ " roundtrip ID",
+            true, m.focused_id == m2.focused_id)
+        };
+      }
+    };
+  });
+
+/* Helper: roundtrip only — verify canonical path resolves to same node */
+let canonical_roundtrip = (~name, ~code, ~sel) =>
+  test_case(name, `Quick, () => {
+    let root = mk_term(code);
+    switch (Selector.query_unique(sel, root)) {
+    | Error(e) => fail(name ++ ": selector failed: " ++ e)
+    | Ok(m) =>
+      switch (Selector.canonical_numeric(m.focused_id, root)) {
+      | None => fail(name ++ ": canonical_numeric returned None")
+      | Some(path) =>
+        let deparsed = Selector.deparse(path);
+        switch (Selector.query_unique(deparsed, root)) {
+        | Error(e) =>
+          fail(name ++ ": roundtrip failed: " ++ e ++ " (path: " ++ deparsed ++ ")")
+        | Ok(m2) =>
+          check(bool, name ++ " roundtrip",
+            true, m.focused_id == m2.focused_id)
+        };
+      }
+    };
+  });
+
+let canonical_tests = (
+  "AgentTools.Canonical",
+  [
+    /* === Canonical numeric path generation === */
+
+    /* Root node: empty path */
+    canonical_test(
+      ~name="root = self",
+      ~code="42",
+      ~sel="*",
+      ~expected_path="*",
+    ),
+
+    /* Let children */
+    canonical_test(
+      ~name="let def",
+      ~code="let x = 42 in x",
+      ~sel="x = *",
+      ~expected_path="#1 *",
+    ),
+    canonical_test(
+      ~name="let body",
+      ~code="let x = 42 in x + 1",
+      ~sel="#2",
+      ~expected_path="#2 *",
+    ),
+    canonical_roundtrip(
+      ~name="let pat roundtrip",
+      ~code="let x = 42 in x",
+      ~sel="#0",
+    ),
+
+    /* BinOp children */
+    canonical_test(
+      ~name="binop left",
+      ~code="let x = 1 + 2 in x",
+      ~sel="x = #0",
+      ~expected_path="#1 #0 *",
+    ),
+    canonical_test(
+      ~name="binop right",
+      ~code="let x = 1 + 2 in x",
+      ~sel="x = #1",
+      ~expected_path="#1 #1 *",
+    ),
+
+    /* Deep nested */
+    canonical_test(
+      ~name="deep left-left",
+      ~code="let x = (1 + 2) + 3 in x",
+      ~sel="x = #0 #0 #0",
+      ~expected_path="#1 #0 #0 #0 *",
+    ),
+    canonical_test(
+      ~name="deep left-right",
+      ~code="let x = (1 + 2) + 3 in x",
+      ~sel="x = #0 #0 #1",
+      ~expected_path="#1 #0 #0 #1 *",
+    ),
+
+    /* If */
+    canonical_test(
+      ~name="if cond",
+      ~code="if true then 1 else 0",
+      ~sel="if *",
+      ~expected_path="#0 *",
+    ),
+    canonical_test(
+      ~name="if then",
+      ~code="if true then 1 else 0",
+      ~sel="if _ then *",
+      ~expected_path="#1 *",
+    ),
+    canonical_test(
+      ~name="if else",
+      ~code="if true then 1 else 0",
+      ~sel="if _... else *",
+      ~expected_path="#2 *",
+    ),
+
+    /* Cross-sort: Pat */
+    canonical_roundtrip(
+      ~name="pat in let",
+      ~code="let x = 42 in x",
+      ~sel="#0",
+    ),
+    /* Cross-sort: Typ via pat Asc */
+    canonical_roundtrip(
+      ~name="type annotation",
+      ~code="let x : Int = 42 in x",
+      ~sel="#0 #1",
+    ),
+
+    /* Tuple elements (via Parens) */
+    canonical_test(
+      ~name="tuple first",
+      ~code="let x = (1, 2, 3) in x",
+      ~sel="x = #0 #0",
+      ~expected_path="#1 #0 #0 *",
+    ),
+    canonical_test(
+      ~name="tuple third",
+      ~code="let x = (1, 2, 3) in x",
+      ~sel="x = #0 #2",
+      ~expected_path="#1 #0 #2 *",
+    ),
+
+    /* List elements */
+    canonical_test(
+      ~name="list first",
+      ~code="let x = [10, 20, 30] in x",
+      ~sel="x = #0",
+      ~expected_path="#1 #0 *",
+    ),
+    canonical_test(
+      ~name="list third",
+      ~code="let x = [10, 20, 30] in x",
+      ~sel="x = #2",
+      ~expected_path="#1 #2 *",
+    ),
+
+    /* Match: scrutinee and rule pairs */
+    canonical_test(
+      ~name="match scrut",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="case *",
+      ~expected_path="#0 *",
+    ),
+    canonical_roundtrip(
+      ~name="match rule0 pat",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#1 #0",
+    ),
+    canonical_test(
+      ~name="match rule0 body",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#1 #1",
+      ~expected_path="#1 #1 *",
+    ),
+    canonical_roundtrip(
+      ~name="match rule1 pat",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#2 #0",
+    ),
+    canonical_test(
+      ~name="match rule1 body",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="#2 #1",
+      ~expected_path="#2 #1 *",
+    ),
+
+    /* Fun */
+    canonical_roundtrip(
+      ~name="fun pat",
+      ~code="fun x -> x + 1",
+      ~sel="#0",
+    ),
+    canonical_test(
+      ~name="fun body",
+      ~code="fun x -> x + 1",
+      ~sel="#1",
+      ~expected_path="#1 *",
+    ),
+
+    /* Module items */
+    canonical_roundtrip(
+      ~name="module item 0",
+      ~code="let m = { let x = 1; let y = 2 } in m",
+      ~sel="m = #0",
+    ),
+    canonical_roundtrip(
+      ~name="module item 1",
+      ~code="let m = { let x = 1; let y = 2 } in m",
+      ~sel="m = #1",
+    ),
+
+    /* ModItem children */
+    canonical_roundtrip(
+      ~name="mod item pat",
+      ~code="let m = { let x = 42 } in m",
+      ~sel="m = #0 #0",
+    ),
+    canonical_test(
+      ~name="mod item def",
+      ~code="let m = { let x = 42 } in m",
+      ~sel="m = #0 #1",
+      ~expected_path="#1 #0 #1 *",
+    ),
+
+    /* Nested let chain */
+    canonical_test(
+      ~name="nested let: inner def",
+      ~code="let x = 1 in let y = 2 in x + y",
+      ~sel="y = *",
+      ~expected_path="#2 #1 *",
+    ),
+    canonical_test(
+      ~name="nested let: inner body",
+      ~code="let x = 1 in let y = 2 in x + y",
+      ~sel="#2 #2",
+      ~expected_path="#2 #2 *",
+    ),
+
+    /* Seq */
+    canonical_test(
+      ~name="seq first",
+      ~code="1; 2",
+      ~sel="#0",
+      ~expected_path="#0 *",
+    ),
+    canonical_test(
+      ~name="seq second",
+      ~code="1; 2",
+      ~sel="#1",
+      ~expected_path="#1 *",
+    ),
+
+    /* === Deparse tests === */
+
+    test_case("deparse: numeric path", `Quick, () => {
+      open Selector;
+      let path = [ChildIndex(1), ChildIndex(0), MatchFocus];
+      check(string, "deparse", "#1 #0 *", deparse(path));
+    }),
+    test_case("deparse: just focus", `Quick, () => {
+      check(string, "deparse", "*", Selector.deparse([Selector.MatchFocus]));
+    }),
+    test_case("deparse: named steps", `Quick, () => {
+      open Selector;
+      let path = [MatchKeyword("let"), MatchName("x"), MatchDelimiter("="), MatchFocus];
+      check(string, "deparse", "let x = *", deparse(path));
+    }),
+    test_case("deparse: descend + name", `Quick, () => {
+      open Selector;
+      let path = [DescendInto, MatchKeyword("let"), MatchName("y"), MatchDelimiter("="), MatchFocus];
+      check(string, "deparse", "\\... let y = *", deparse(path));
+    }),
+    test_case("deparse: name index", `Quick, () => {
+      open Selector;
+      let path = [MatchKeyword("let"), MatchNameIndex("x", 1), MatchDelimiter("="), MatchFocus];
+      check(string, "deparse", "let x#1 = *", deparse(path));
+    }),
+  ],
+);
+
 /* === Selector Edit Tests === */
 
 let selector_edit_tests = (
@@ -3340,6 +3636,7 @@ let tests = [
   composition_view_print_tests,
   seq_node_map_tests,
   selector_tests,
+  canonical_tests,
   selector_edit_tests,
   completeness_tests,
   complex_program_tests,

@@ -2213,3 +2213,233 @@ let print_match = (m: match_result): string => {
     };
   Printer.of_segment(~holes="?", segment);
 };
+
+/* === Canonical numeric path generation ===
+   Given a target node ID and a root expression, produce the unique
+   ChildIndex path (list of child indices) to that node via DFS.
+   Mirrors the child enumeration in nth_child_exp/pat/typ/mod. */
+
+let rec find_in_exp = (target: Id.t, e: Exp.t): option(list(int)) =>
+  if (Exp.rep_id(e) == target) {
+    Some([]);
+  } else {
+    /* Build list of (index, focus_target) for all children */
+    let children =
+      switch (Exp.term_of(e)) {
+      /* 0 children */
+      | Invalid(_) | EmptyHole | Deferral(_) | Undefined | Atom(_)
+      | Constructor(_, _) | Var(_) | BuiltinFun(_) | Label(_)
+      | ExplicitNonlabel | LivelitName(_) | MultiHole(_) => []
+
+      /* 1 Exp child */
+      | DynamicErrorHole(e1, _) | UnOp(_, e1) | Test(e1)
+      | Parens(e1) | Projector(_, e1) | Closure(_, e1)
+      | ProofObject(e1) | Filter(_, e1) | TypFun(_, e1, _) =>
+        [(0, FocusExp(e1))]
+
+      /* 2 Exp children */
+      | BinOp(_, e1, e2) | Seq(e1, e2) | Cons(e1, e2)
+      | ListConcat(e1, e2) | Dot(e1, e2) | TupLabel(e1, e2)
+      | TupleExtension(e1, e2) | HintedTest(e1, e2) | Ap(_, e1, e2) =>
+        [(0, FocusExp(e1)), (1, FocusExp(e2))]
+
+      /* Pat, Exp */
+      | Fun(p, body, _, _) | FixF(p, body, _) | Forall(p, body) =>
+        [(0, FocusPat(p)), (1, FocusExp(body))]
+
+      /* Exp, Typ */
+      | Asc(e1, t) | TypAp(e1, t) =>
+        [(0, FocusExp(e1)), (1, FocusTyp(t))]
+      /* Typ, Exp */
+      | Use(t, body) => [(0, FocusTyp(t)), (1, FocusExp(body))]
+
+      /* Pat, Exp, Exp */
+      | Let(p, def, body) | Theorem(p, def, body) =>
+        [(0, FocusPat(p)), (1, FocusExp(def)), (2, FocusExp(body))]
+      /* 3 Exp children */
+      | If(e1, e2, e3) =>
+        [(0, FocusExp(e1)), (1, FocusExp(e2)), (2, FocusExp(e3))]
+      /* Typ, Exp (TPat/MPat skipped) */
+      | TyAlias(_, t, body) => [(0, FocusTyp(t)), (1, FocusExp(body))]
+      | ModuleExp(_, def, body) =>
+        [(0, FocusExp(def)), (1, FocusExp(body))]
+
+      /* Variable-length */
+      | Tuple(items) | ListLit(items) =>
+        List.mapi((i, e') => (i, FocusExp(e')), items)
+      | DeferredAp(fn, args) =>
+        [(0, FocusExp(fn)), ...List.mapi((i, a) => (i + 1, FocusExp(a)), args)]
+      /* Match: #0=scrut, then virtual rule pairs at #1, #2, ... */
+      | Match(scrut, rules) =>
+        let scrut_child = [(0, FocusExp(scrut))];
+        let rule_children =
+          List.mapi(
+            (i, (pat, body)) => (i + 1, (pat, body)),
+            rules,
+          );
+        /* Search scrut as normal child, rules handled below */
+        ignore(rule_children);
+        scrut_child;
+      /* Module items */
+      | Module(items) =>
+        List.mapi((i, m) => (i, FocusMod(m)), items)
+      };
+    /* Search normal children */
+    let found =
+      List.fold_left(
+        (acc, (i, child)) =>
+          switch (acc) {
+          | Some(_) => acc
+          | None => search_child(target, i, child)
+          },
+        None,
+        children,
+      );
+    /* For Match, also search rule pairs */
+    switch (found) {
+    | Some(_) => found
+    | None =>
+      switch (Exp.term_of(e)) {
+      | Match(_, rules) => search_rules(target, rules, 0)
+      | _ => None
+      }
+    };
+  }
+
+and search_child =
+    (target: Id.t, i: int, child: focus_target): option(list(int)) => {
+  let result =
+    switch (child) {
+    | FocusExp(e) => find_in_exp(target, e)
+    | FocusPat(p) => find_in_pat(target, p)
+    | FocusTyp(t) => find_in_typ(target, t)
+    | FocusMod(m) => find_in_mod(target, m)
+    };
+  Option.map(path => [i, ...path], result);
+}
+
+and search_rules =
+    (target: Id.t, rules: list((Pat.t, Exp.t)), idx: int)
+    : option(list(int)) =>
+  switch (rules) {
+  | [] => None
+  | [(pat, body), ...rest] =>
+    /* Rule pair at index idx+1, pat=#0, body=#1 within */
+    let rule_idx = idx + 1;
+    switch (find_in_pat(target, pat)) {
+    | Some(path) => Some([rule_idx, 0, ...path])
+    | None =>
+      switch (find_in_exp(target, body)) {
+      | Some(path) => Some([rule_idx, 1, ...path])
+      | None => search_rules(target, rest, idx + 1)
+      }
+    };
+  }
+
+and find_in_pat = (target: Id.t, p: Pat.t): option(list(int)) =>
+  if (Pat.rep_id(p) == target) {
+    Some([]);
+  } else {
+    let children =
+      switch (Pat.term_of(p)) {
+      | Invalid(_) | EmptyHole | Wild | Atom(_) | Constructor(_, _)
+      | Var(_) | Label(_) | ExplicitNonlabel | MultiHole(_) => []
+      | Parens(p1) | Projector(_, p1) => [(0, FocusPat(p1))]
+      | Cons(p1, p2) | TupLabel(p1, p2) | Ap(p1, p2) =>
+        [(0, FocusPat(p1)), (1, FocusPat(p2))]
+      | Asc(p1, t) => [(0, FocusPat(p1)), (1, FocusTyp(t))]
+      | Tuple(items) | ListLit(items) =>
+        List.mapi((i, p') => (i, FocusPat(p')), items)
+      };
+    List.fold_left(
+      (acc, (i, child)) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None => search_child(target, i, child)
+        },
+      None,
+      children,
+    );
+  }
+
+and find_in_typ = (target: Id.t, t: Typ.t): option(list(int)) =>
+  if (Typ.rep_id(t) == target) {
+    Some([]);
+  } else {
+    let children =
+      switch (Typ.term_of(t)) {
+      | Unknown(_) | Atom(_) | Var(_) | Label(_) | ExplicitNonlabel
+      | Sum(_) | Sig(_) => []
+      | List(t1) | Parens(t1) | Projector(_, t1)
+      | Rec(_, t1) | Poly(_, t1) => [(0, FocusTyp(t1))]
+      | Arrow(t1, t2) | TupLabel(t1, t2)
+      | ProdProjection(t1, t2) | ProdExtension(t1, t2) =>
+        [(0, FocusTyp(t1)), (1, FocusTyp(t2))]
+      | ProofOf(e) => [(0, FocusExp(e))]
+      | Prod(items) =>
+        List.mapi((i, t') => (i, FocusTyp(t')), items)
+      };
+    List.fold_left(
+      (acc, (i, child)) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None => search_child(target, i, child)
+        },
+      None,
+      children,
+    );
+  }
+
+and find_in_mod = (target: Id.t, m: Mod.t): option(list(int)) =>
+  if (Mod.rep_id(m) == target) {
+    Some([]);
+  } else {
+    let children =
+      switch (m.term) {
+      | Invalid(_) | EmptyHole | MultiHole(_) => []
+      | ModLet(p, def) => [(0, FocusPat(p)), (1, FocusExp(def))]
+      | ModType(_, t) => [(0, FocusTyp(t))]
+      | ModuleMod(_, def) => [(0, FocusExp(def))]
+      | ModExp(e) => [(0, FocusExp(e))]
+      };
+    List.fold_left(
+      (acc, (i, child)) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None => search_child(target, i, child)
+        },
+      None,
+      children,
+    );
+  };
+
+/* Convert a numeric index path to a sem_selector */
+let canonical_numeric = (target: Id.t, root: Exp.t): option(sem_selector) =>
+  find_in_exp(target, root)
+  |> Option.map(indices =>
+       List.map(i => ChildIndex(i), indices) @ [MatchFocus]
+     );
+
+/* Deparse: convert a sem_selector back to surface syntax string */
+let deparse = (steps: sem_selector): string => {
+  let step_str =
+    List.map(
+      step =>
+        switch (step) {
+        | MatchFocus => "*"
+        | MatchSlot => "_"
+        | MatchEllipsis => "_..."
+        | MatchKeyword(kw) => kw
+        | MatchDelimiter(d) => d
+        | MatchName(n) => n
+        | MatchNameIndex(n, i) => n ++ "#" ++ string_of_int(i)
+        | ChildIndex(n) => "#" ++ string_of_int(n)
+        | EnterBinderDef(_) => ""
+        | DescendInto => "\\..."
+        },
+      steps,
+    );
+  /* Filter empty strings from EnterBinderDef, join with spaces */
+  let parts = List.filter(s => s != "", step_str);
+  String.concat(" ", parts);
+};
