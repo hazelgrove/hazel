@@ -204,28 +204,27 @@ Chains: consecutive `EnterBinderDef` steps can be collapsed:
 3. Implicit star elision: omit trailing `*` if it would be auto-appended
 4. Tests: roundtrip — deparse then parse, verify same sem_selector
 
-## Open Questions
+## Resolved Questions
 
-1. **Parens transparency**: Should `#0` on `Parens(e)` return `e` (skip
-   the parens) or the Parens node itself? Current `walk` is transparent
-   for Parens. For canonical generation, we probably want to skip Parens
-   to keep paths short, but then the Parens node itself is unaddressable
-   by numeric path. Maybe: `#0` enters Parens, but canonical generation
-   skips Parens when building paths.
+1. **Parens transparency**: RESOLVED — `#0` on `Parens(e)` returns `e`
+   (enters parens). Parens has exactly one child. Named canonical skips
+   Parens transparently when building paths.
 
-2. **Match rule flattening**: `#1`=rule0_pat, `#2`=rule0_body vs
-   `#1 #0`=rule0_pat, `#1 #1`=rule0_body. Flattened is terser but
-   the grouping is less obvious. Nested is more logical but longer.
-   Leaning toward flat (consistent with how spine walkers work).
+2. **Match rule grouping**: RESOLVED — pairs, not flattening.
+   `#1 #0`=rule0_pat, `#1 #1`=rule0_body. Match rules are virtual
+   paired nodes at indices 1, 2, 3, ... (index 0 is scrutinee).
 
-3. **BinOp operator matching**: For Layer 2 (named), should we emit
-   the operator as a delimiter? E.g., `x = #0 + *` for the right
-   operand of `+`. This requires BinOp spine walkers (not yet built).
-   Can defer — use `#0 #1` for now.
+3. **BinOp operator matching**: DEFERRED — named canonical uses
+   `#0`/`#1` for BinOp operands. BinOp spine walkers not yet built.
 
-4. **Star placement**: The user's examples suggest inline `*` in the
-   middle of patterns (`x = * + _`). This is a distinct feature from
-   canonical generation — it's about making the selector grammar more
-   expressive. Canonical generation can use terminal `*` exclusively
-   and still work. Inline `*` is an ergonomic enhancement for
-   human-authored selectors.
+4. **Star placement**: DEFERRED — canonical generation uses terminal `*`
+   exclusively. Inline `*` (e.g., `x = * + _`) is a separate ergonomic
+   feature for human-authored selectors.
+
+## Implementation Status
+
+- **Phase 1**: ChildIndex resolution — DONE (nth_child_exp/pat/typ/mod, cross-sort walkers)
+- **Phase 2**: Numeric canonical generation — DONE (find_in_exp/pat/typ/mod DFS, canonical_numeric)
+- **Phase 3**: Named canonical generation — DONE (named_in_exp with keyword addressing)
+- **Phase 4**: Deparse — DONE (sem_selector → surface string)
+- **Tests**: 49 canonical tests (32 numeric, 5 deparse, 12 named)

@@ -18,6 +18,7 @@ Delimiters:   =  :  ->  =>  |  [  ]  (  )
 
 Names:        x  foo  MyModule  (bare identifiers)
 Indexing:     x#0  x#1  (nth binder named x, 0-based)
+Child index:  #0  #1  #2  (nth structural child of current node)
 Chains:       A/B/C  A/B/C/  (binder navigation sugar)
 
 Implicit star: if no * appears, one is appended at the end.
@@ -494,6 +495,231 @@ module M = { let x = 1; let y = 2 } in M.x
 
 ---
 
+## 16. Child Index — Structural Addressing
+
+`#N` descends into the Nth structural child of the current node.
+Children are numbered left-to-right as they appear in source syntax.
+Metadata fields (env, direction, provenance) are skipped.
+
+### Child ordering
+
+| Form | Children |
+|------|----------|
+| `Let(pat, def, body)` | `#0`=pat, `#1`=def, `#2`=body |
+| `Fun(pat, body, _, _)` | `#0`=pat, `#1`=body |
+| `If(cond, then, else)` | `#0`=cond, `#1`=then, `#2`=else |
+| `BinOp(op, e1, e2)` | `#0`=e1, `#1`=e2 |
+| `Asc(e, typ)` | `#0`=e, `#1`=typ |
+| `Tuple(items)` / `ListLit(items)` | `#0`=item0, `#1`=item1, ... |
+| `Match(scrut, rules)` | `#0`=scrut, `#1`=rule0, `#2`=rule1, ... |
+| `Module(items)` | `#0`=item0, `#1`=item1, ... |
+| `Parens(e)` | `#0`=e |
+| `ModLet(pat, def)` | `#0`=pat, `#1`=def |
+
+Match rules are virtual pairs: `#1` enters rule 0, then `#0`=pat, `#1`=body.
+
+### Examples
+
+```
+let x = (1 + 2) + 3 in x
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `#0` | `x` | pat (cross-sort: FocusPat) |
+| `#1` | `(1 + 2) + 3` | def |
+| `#2` | `x` | body |
+| `x = #0` | `1 + 2` | left operand (enters Parens) |
+| `x = #1` | `3` | right operand |
+| `x = #0 #0 #0` | `1` | deep: left of inner + |
+| `x = #0 #0 #1` | `2` | deep: right of inner + |
+
+### Cross-sort navigation
+
+`#N` can cross sort boundaries. A Pat or Typ child is entered seamlessly:
+
+```
+let x : Int = 42 in x
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `#0` | `x : Int` | pat (FocusPat, includes Asc) |
+| `#0 #0` | `x` | inner pat before annotation (FocusPat) |
+| `#0 #1` | `Int` | type annotation (FocusTyp) |
+
+### Match rule pairs
+
+```
+case x | A => 1 | B => 2 end
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `#0` | `x` | scrutinee |
+| `#1 #0` | `A` | rule 0 pat (FocusPat) |
+| `#1 #1` | `1` | rule 0 body |
+| `#2 #0` | `B` | rule 1 pat (FocusPat) |
+| `#2 #1` | `2` | rule 1 body |
+
+### Module items
+
+```
+let m = { let x = 42; let y = 99 } in m
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `m = #0` | `let x = 42` | first item (FocusMod) |
+| `m = #1` | `let y = 99` | second item (FocusMod) |
+| `m = #0 #0` | `x` | first item's pat (FocusPat) |
+| `m = #0 #1` | `42` | first item's def |
+
+### Mixing named + index
+
+Named selectors navigate to a binding, then `#N` drills into anonymous
+substructure:
+
+```
+let x = 10 + 20 in let y = 30 in x + y
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `x = #0` | `10` | left operand of x's def |
+| `x = #1` | `20` | right operand of x's def |
+
+---
+
+## 17. Canonical Selectors — Addressing Any Node
+
+Two functions generate selectors that uniquely identify any node in the AST,
+given its ID:
+
+### Numeric canonical (`canonical_numeric`)
+
+Pure `#N` path from root. Universal, stable, terse. Every step is a
+`ChildIndex`, terminated by `MatchFocus`.
+
+```
+let x = (1 + 2) + 3 in x
+
+Node "1":     #1 #0 #0 #0 *
+Node "2":     #1 #0 #0 #1 *
+Node "1 + 2": #1 #0 #0 *
+Node "3":     #1 #1 *
+Node "x":     #2 *
+```
+
+### Named canonical (`canonical_named`)
+
+Prefers names and keywords over indices. Falls back to `#N` only for
+anonymous subexpressions.
+
+```
+let x = (1 + 2) + 3 in x
+
+Node "1":      x = #0 #0 *     (name + index inside BinOp)
+Node "2":      x = #0 #1 *
+Node "1 + 2":  x = #0 *        (name + index inside Parens)
+Node "42" in "let x = 42":  x = *   (just the name!)
+```
+
+### If / Match / Fun examples
+
+```
+if true then 1 else 0
+
+Numeric "true":   #0 *
+Named "true":     if *
+Numeric "1":      #1 *
+Named "1":        if _ then *
+Numeric "0":      #2 *
+Named "0":        if _... else *
+```
+
+```
+case x | A => 1 | B => 2 end
+
+Numeric "A":  #1 #0 *
+Named "A":    | _... A *       (constructor name)
+Numeric "2":  #2 #1 *
+Named "2":    | _... B => *
+```
+
+### Shadowed names
+
+Named canonical uses `x#N` when names are shadowed:
+
+```
+let x = 1 in let x = 2 in x
+
+Named "1":  x#0 = *
+Named "2":  x#1 = *
+```
+
+### Deparse (`deparse`)
+
+Converts any `sem_selector` back to surface syntax:
+
+```reason
+deparse([ChildIndex(1), ChildIndex(0), MatchFocus]) → "#1 #0 *"
+deparse([MatchKeyword("let"), MatchName("x"), MatchDelimiter("="), MatchFocus]) → "let x = *"
+deparse([DescendInto, MatchKeyword("let"), MatchName("y"), MatchDelimiter("="), MatchFocus]) → "\\... let y = *"
+deparse([MatchKeyword("let"), MatchNameIndex("x", 1), MatchDelimiter("="), MatchFocus]) → "let x#1 = *"
+```
+
+### Roundtrip guarantee
+
+For any node in a well-formed program:
+1. `canonical_numeric(id, root)` produces a selector
+2. Resolving that selector returns the same node ID
+3. Same guarantee holds for `canonical_named`
+
+---
+
+## 18. Composition: The MVU Application
+
+A realistic program that exercises most selector features:
+
+```
+module App = {
+  let init = 0;
+  let update = fun msg -> case msg | Inc => msg + 1 | Dec => msg - 1 | Reset => 0 end;
+  let view = fun model -> let label = model + 1 in label
+} in
+let result = App.update(App.init) in result
+```
+
+### Named selectors
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `App/init = *` | `0` | chain into module member |
+| `App/update \... case *` | `msg` | chain + descend + case scrutinee |
+| `App/update \... \| Inc => *` | `msg + 1` | chain + descend + named arm |
+| `App/update \... \| Dec => *` | `msg - 1` | named arm |
+| `App/update \... \| Reset => *` | `0` | named arm |
+| `App/update \... \| _ => *` | 3 matches | all arms |
+| `App/view \... let label = *` | `model + 1` | chain + descend + nested let |
+| `module App = *` | `{ let init = 0; ... }` | whole module def |
+| `App _... in *` | `let result = ...` | body after module |
+| `\... * let result` | `let result = ... in result` | descend + focus whole let |
+| `result = *` | `App.update(App.init)` | top-level let |
+| `\... fun _ -> *` | 2+ matches | all function bodies |
+
+### Numeric child-index selectors
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `App = #0` | `let init = 0` | first module item (FocusMod) |
+| `App = #1` | `let update = fun msg -> ...` | second module item |
+| `App = #2` | `let view = fun model -> ...` | third module item |
+| `App = #0 #1` | `0` | init's def (ModLet child #1) |
+| `App = #1 #1 #1 #0` | `msg` | update's fun body → case scrutinee |
+
+---
+
 ## Future Directions
 
 ### Wildcard keyword `_` in keyword position
@@ -505,34 +731,24 @@ A/B/C  ≈  _ A = \... _ B = \... * _ C
 ```
 
 where `_` in keyword position matches `let`, `module`, `type`, etc.
-This would let the longhand selector language have the same generality
-as chains. Currently `EnterBinderDef` is already keyword-agnostic
-internally, so chains have this power but the longhand doesn't.
 
-### FocusMod for bare names inside modules
+### BinOp spine walkers
 
-Currently, bare `MatchName("x")` inside a `Module(items)` falls back
-to returning the def (since `find_let_node` doesn't find ModLet items).
-With `FocusMod`, this could return the whole `ModLet(pat, def)` item.
-Requires threading `Mod.t` items through `find_binder_in_exp`.
+Named canonicals for binary operators (e.g., `x = * + _` for the left
+operand of `+`). Requires BinOp-aware spine walkers.
 
-### Canonical unique selectors
+### Inline `*` in BinOp context
 
-Given any node ID in the syntax tree, automatically construct the
-shortest unambiguous selector that points to it. This requires
-positional/structural addressing for unnamed subexpressions (e.g.,
-`1 + 2` inside `let x = 1 + 2 in x`). May need new selector
-operators like "nth child" for binary operators.
+Currently `*` as focus is always terminal. Inline use like `x = * + _`
+would capture the left operand — disambiguated from multiplication by
+syntactic context (bare `*` vs `* + _`).
 
 ### Multi-variable selectors
 
 Multiple focus variables (`*a`, `*b`, `*c`) for extracting several
-subexpressions in one pass. Would enable pattern-matching style
-queries.
+subexpressions in one pass.
 
 ### Indexing for non-let binders
 
 Currently `x#N` only works for let bindings. Could extend to
 `fun x#1 -> *` (nth fun with parameter x) or `module M#1 = *`.
-Would require generalizing the interception pattern currently used
-for `MatchKeyword("let") + MatchNameIndex`.
