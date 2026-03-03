@@ -207,26 +207,32 @@ let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
     container##.scrollTop := int_of_float(target);
   };
 
+/* Scroll vertically so that el_rect is visible within the container,
+ * with a 10% margin. Only adjusts scrollTop, never scrollLeft. */
+let scroll_vertically_into_view =
+    (container: Js.t(Dom_html.element), el: Js.t(Dom_html.element)) => {
+  let el_rect = el##getBoundingClientRect;
+  let container_rect = container##getBoundingClientRect;
+  let margin_ratio = 0.10;
+  let margin_px =
+    Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
+  let top_gap = el_rect##.top -. (container_rect##.top +. margin_px);
+  if (top_gap < 0.) {
+    adjust_scroll(container, top_gap);
+  } else {
+    let bottom_gap =
+      el_rect##.bottom -. (container_rect##.bottom -. margin_px);
+    if (bottom_gap > 0.) {
+      adjust_scroll(container, bottom_gap);
+    };
+  };
+};
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
     switch (find_scroll_container(caret_elem)) {
-    | Some(container) =>
-      let caret_rect = caret_elem##getBoundingClientRect;
-      let container_rect = container##getBoundingClientRect;
-      let margin_ratio = 0.10;
-      let margin_px =
-        Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
-      let top_gap = caret_rect##.top -. (container_rect##.top +. margin_px);
-      if (top_gap < 0.) {
-        adjust_scroll(container, top_gap);
-      } else {
-        let bottom_gap =
-          caret_rect##.bottom -. (container_rect##.bottom -. margin_px);
-        if (bottom_gap > 0.) {
-          adjust_scroll(container, bottom_gap);
-        };
-      };
+    | Some(container) => scroll_vertically_into_view(container, caret_elem)
     | None =>
       caret_elem##scrollIntoView(
         Js.Unsafe.obj([|
@@ -478,10 +484,14 @@ let navigate_probes =
     };
   switch (find_target(current_idx^ + offset)) {
   | Some(el) =>
-    el##focus;
-    el##scrollIntoView(
-      Js.Unsafe.obj([|("block", Js.Unsafe.inject(Js.string("nearest")))|]),
+    el##focus(
+      Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
     );
+    switch (find_scroll_container(Js.Unsafe.coerce(el))) {
+    | Some(container) =>
+      scroll_vertically_into_view(container, Js.Unsafe.coerce(el))
+    | None => ()
+    };
     /* Extract the full probe Id from data-probe-id attribute */
     let probe_id_str =
       el##getAttribute(Js.string("data-probe-id")) |> Js.Opt.to_option;
