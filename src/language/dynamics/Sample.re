@@ -298,11 +298,12 @@ module Window = {
  * sample whose stack is a suffix of the current stack, we KEEP the deeper
  * stack but lower the index. This preserves the deeper selection info.
  *
- * Read side (Selection.most_aligned_index): Find the sample whose call
- * stack is a suffix of cursor.call_stack, preferring the longest match.
- * This single suffix scan handles all depths — the sample on the cursor's
- * call path at the appropriate depth. Fallback tiers (indicated_call,
- * any related) use the effective_stack for depth-relative comparisons.
+ * Read side (Selection.most_aligned_index): Two-tier suffix scan.
+ * First, find the sample whose call stack is a suffix of effective_stack
+ * (respects the user's active depth). If no match (the probe lives at a
+ * different nesting level), try the full call_stack (recovers preserved
+ * intent). Fallback tiers (indicated_call, any related) use effective_stack
+ * for depth-relative comparisons.
  *
  * See also: Dynamics.Info.most_aligned_sample (same suffix logic). */
 module Cursor = {
@@ -550,23 +551,30 @@ module Selection = {
 
   /* Find index of the sample most aligned with the cursor's call path.
    *
-   * "Most aligned" = the sample whose call stack is a suffix of
-   * cursor.call_stack, preferring the longest suffix (most specific).
-   * This single principle handles intent preservation at any number
-   * of nesting levels. See plans/dynamic-cursor-conservatism.md.
+   * The cursor stores (call_stack, index) where call_stack may be deeper
+   * than index indicates. effective_stack is the portion at the active
+   * depth (index+1 elements from the outer end); the full call_stack
+   * retains deeper selections for intent preservation.
+   *
+   * These answer two different questions:
+   *   effective_stack → "what is the user currently looking at?"
+   *   full call_stack  → "what was the user looking at here before?"
    *
    * Tiers:
-   *   1. Suffix match — find the sample whose call stack is a suffix of
-   *      the cursor's full call_stack, preferring the longest match.
-   *      Handles all depths in one scan.
-   *   2. Direct callee of indicated call (step-into).
-   *   3. Any related sample (Above/Below/Same relative to effective stack).
+   *   1a. Suffix match against effective_stack — respects the user's
+   *       active depth selection. Handles same-probe navigation (e.g.
+   *       arrow between recursive depths) and cross-probe consistency.
+   *   1b. Suffix match against full call_stack — recovers preserved
+   *       intent when returning to a probe at a different nesting level.
+   *       Only reached when 1a finds nothing (the probe's samples are
+   *       all deeper or shallower than the effective depth).
+   *   2.  Direct callee of indicated call (step-into).
+   *   3.  Any related sample (Above/Below/Same relative to effective stack).
    */
   let most_aligned_index =
       (~ap_id: option(Id.t), cursor: Cursor.t, samples: list(t))
       : option(int) => {
-    /* Tier 1: suffix match against full cursor stack */
-    let suffix_match =
+    let suffix_scan = (stack: call_stack): option(int) =>
       List.fold_left(
         (best: option((int, int)), (i, sample: t)) => {
           let slen = List.length(sample.call_stack);
@@ -575,7 +583,7 @@ module Selection = {
               && ListUtil.is_suffix_of(
                    ~eq=equal_stack_frame,
                    sample.call_stack,
-                   cursor.call_stack,
+                   stack,
                  )) {
             Some((i, slen));
           } else {
@@ -586,6 +594,15 @@ module Selection = {
         List.mapi((i, s) => (i, s), samples),
       )
       |> Option.map(fst);
+    /* Tier 1a: suffix match against effective stack (current intent) */
+    let eff = Cursor.effective_stack(cursor);
+    let effective_match = suffix_scan(eff);
+    /* Tier 1b: suffix match against full stack (historical intent) */
+    let full_match =
+      switch (effective_match) {
+      | Some(_) => effective_match
+      | None => suffix_scan(cursor.call_stack)
+      };
     /* Fallback tiers use effective stack (depth-relative comparisons) */
     let find = (predicate: Cursor.relation => bool): option(int) =>
       List.find_index(
@@ -593,7 +610,7 @@ module Selection = {
           predicate(Cursor.relation(~trimmed=true, ~ap_id, cursor, sample)),
         samples,
       );
-    switch (suffix_match) {
+    switch (full_match) {
     | Some(_) as result => result
     | None =>
       switch (find(rel => rel.is_call_cursor)) {
