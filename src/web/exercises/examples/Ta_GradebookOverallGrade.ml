@@ -235,6 +235,8 @@ let exercise : Tutorial.spec =
                              "f68aea29-a799-4466-a6ff-fda5e3e189bf");
                       content = Whitespace "\n";
                     };
+                ],
+                [
                   Tile
                     {
                       id =
@@ -253,8 +255,6 @@ let exercise : Tutorial.spec =
                       shards = [ 0 ];
                       children = [];
                     };
-                ],
-                [
                   Secondary
                     {
                       id =
@@ -6600,15 +6600,11 @@ let exercise : Tutorial.spec =
                     ] ) );
               ];
           };
-        caret = Outer;
+        caret = Inner 4;
         refractors =
           {
             manuals =
               [
-                ( Option.get
-                    (Haz3lcore.Id.of_string
-                       "bb616ffd-5a87-4c51-98c4-3649b810dba4"),
-                  { kind = Probe; model = "((active_renderer()))" } );
                 ( Option.get
                     (Haz3lcore.Id.of_string
                        "90ca120f-de9d-4351-ae37-bb2c469c7225"),
