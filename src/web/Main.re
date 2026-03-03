@@ -136,6 +136,17 @@ let start = {
       ~callback=
         app_inject
         |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
+             let _: unit =
+               Js.Unsafe.meth_call(
+                 Dom_html.document##.documentElement##.style,
+                 "setProperty",
+                 [|
+                   Js.Unsafe.inject(Js.string("--row-height-px")),
+                   Js.Unsafe.inject(
+                     Js.string(Printf.sprintf("%fpx", rect.height)),
+                   ),
+                 |],
+               );
              i(
                Page.Update.Globals(
                  SetFontMetrics({
@@ -143,7 +154,7 @@ let start = {
                    col_width: rect.width,
                  }),
                ),
-             )
+             );
            }),
     );
 

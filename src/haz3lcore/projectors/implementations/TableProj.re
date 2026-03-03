@@ -3,6 +3,8 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 
+open Js_of_ocaml;
+
 let max_column_length = 12;
 
 let rec extract_labeled_tuple_entries =
@@ -127,15 +129,207 @@ let table =
     ],
   );
 
+/* Resize constants and helpers */
+let min_width_blocks = 20;
+let min_height_blocks = 1;
+
+let col_width = () => 10.0;
+let row_height = () => 10.0;
+
+let clamp_width_blocks = (blocks: int): int => max(min_width_blocks, blocks);
+let clamp_height_blocks = (blocks: int): int =>
+  max(min_height_blocks, blocks);
+
+let compute_default_size = (any: Any.t): option((int, int)) =>
+  switch (table_of(any)) {
+  | None => None
+  | Some((header, rows)) =>
+    let max_header_length =
+      header |> List.map(String.length) |> List.fold_left((+), 0);
+    let max_row_length =
+      rows
+      |> List.map(row =>
+           row
+           |> List.map(e =>
+                Abbreviate.abbreviate_exp(~available=max_column_length, e)
+                |> snd
+              )
+           |> List.fold_left((+), 0, _)
+         )
+      |> List.fold_left(max, 0, _);
+    let max_length = max(max_header_length, max_row_length);
+    let num_rows = List.length(rows);
+    let num_cols = List.length(header);
+    let width = 4 + max_length * 1 + num_cols * 2;
+    let height = min(num_rows, 10);
+    Some((clamp_width_blocks(width), clamp_height_blocks(height)));
+  };
+
+/* ResizeState: mutable refs for active drag state */
+module ResizeState = {
+  type t = {
+    pointer_id: int,
+    capture_target: Js.t(Dom_html.element),
+    start_client_x: float,
+    start_client_y: float,
+    start_width_blocks: int,
+    start_height_blocks: int,
+  };
+
+  let active: ref(option(t)) = ref(None);
+  let last_sent: ref(option((int, int))) = ref(None);
+  let dispatch: ref(option((int, int) => Effect.t(unit))) = ref(None);
+
+  let reset = (): unit => {
+    active := None;
+    last_sent := None;
+    dispatch := None;
+  };
+};
+
+let resize_pointermove = (event: Js.t(Dom_html.pointerEvent)) => {
+  switch (ResizeState.active^, ResizeState.dispatch^) {
+  | (Some(state), Some(dispatch)) when state.pointer_id == event##.pointerId =>
+    let delta_x = float_of_int(event##.clientX) -. state.start_client_x;
+    let delta_y = float_of_int(event##.clientY) -. state.start_client_y;
+    let start_width_f = float_of_int(state.start_width_blocks);
+    let start_height_f = float_of_int(state.start_height_blocks);
+    let desired_width = start_width_f +. delta_x /. col_width();
+    let desired_height = start_height_f +. delta_y /. row_height();
+    let new_width_blocks =
+      if (desired_width >= start_width_f) {
+        int_of_float(Float.ceil(desired_width));
+      } else {
+        int_of_float(Float.floor(desired_width));
+      };
+    let new_height_blocks =
+      if (desired_height >= start_height_f) {
+        int_of_float(Float.ceil(desired_height));
+      } else {
+        int_of_float(Float.floor(desired_height));
+      };
+    let clamped_width = clamp_width_blocks(new_width_blocks);
+    let clamped_height = clamp_height_blocks(new_height_blocks);
+    let pair = (clamped_width, clamped_height);
+    if (ResizeState.last_sent^ == Some(pair)) {
+      Effect.Ignore;
+    } else {
+      ResizeState.last_sent := Some(pair);
+      Effect.Many([
+        dispatch(clamped_width, clamped_height),
+        Effect.Stop_propagation,
+        Effect.Prevent_default,
+      ]);
+    };
+  | _ => Effect.Ignore
+  };
+};
+
+let finish_resize = (event: Js.t(Dom_html.pointerEvent)): Effect.t(unit) => {
+  switch (ResizeState.active^) {
+  | Some(state) when state.pointer_id == event##.pointerId =>
+    if (JsUtil.hasPointerCapture(state.capture_target, state.pointer_id)) {
+      JsUtil.releasePointerCapture(state.capture_target, state.pointer_id);
+    };
+    ResizeState.reset();
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+  | _ => Effect.Ignore
+  };
+};
+
+let resize_listeners_attached = ref(false);
+
+let setup_resize_listeners = (): unit =>
+  if (! resize_listeners_attached^) {
+    resize_listeners_attached := true;
+    let dom_event_target: Js.t(Dom_html.eventTarget) =
+      Js.Unsafe.coerce(Dom_html.document);
+    let _ =
+      Dom_html.addEventListener(
+        dom_event_target,
+        Dom_html.Event.make("pointermove"),
+        Dom.full_handler((_, event) => {
+          Virtual_dom.Vdom.Effect.Expert.handle(
+            event,
+            resize_pointermove(event),
+          );
+          Js._false;
+        }),
+        Js._false,
+      );
+    let _ =
+      Dom_html.addEventListener(
+        dom_event_target,
+        Dom_html.Event.make("pointerup"),
+        Dom.full_handler((_, event) => {
+          Virtual_dom.Vdom.Effect.Expert.handle(event, finish_resize(event));
+          Js._false;
+        }),
+        Js._false,
+      );
+    ();
+  };
+
+let resize_pointerdown =
+    (
+      ~dispatch: (int, int) => Effect.t(unit),
+      ~width_blocks: int,
+      ~height_blocks: int,
+      event: Js.t(Dom_html.pointerEvent),
+    ) =>
+  if (!Js.to_bool(event##.metaKey)) {
+    ResizeState.reset();
+    Effect.Ignore;
+  } else {
+    setup_resize_listeners();
+    let target = Js.Opt.get(event##.currentTarget, () => failwith("resize"));
+    let element: Js.t(Dom_html.element) = Js.Unsafe.coerce(target);
+    JsUtil.setPointerCapture(element, event##.pointerId);
+    ResizeState.dispatch := Some(dispatch);
+    ResizeState.active :=
+      Some({
+        pointer_id: event##.pointerId,
+        capture_target: element,
+        start_client_x: float_of_int(event##.clientX),
+        start_client_y: float_of_int(event##.clientY),
+        start_width_blocks: width_blocks,
+        start_height_blocks: height_blocks,
+      });
+    ResizeState.last_sent := None;
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+  };
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
+  type model = {
+    width_blocks: int,
+    height_blocks: int,
+  };
+  let default_model = {
+    width_blocks: 40,
+    height_blocks: 10,
+  };
+  let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
+    switch (model_of_sexp(sexp)) {
+    | exception _ => default_model
+    | m => m
+    };
+  let model_of_yojson = (json: Yojson.Safe.t): model =>
+    switch (model_of_yojson(json)) {
+    | exception _ => default_model
+    | m => m
+    };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+  type action =
+    | ResizeTo(int, int);
 
   let init = (any: Any.t) =>
-    switch (table_of(any)) {
-    | Some(_) => Some()
+    switch (compute_default_size(any)) {
+    | Some((w, h)) =>
+      Some({
+        width_blocks: w,
+        height_blocks: h,
+      })
     | None => None
     };
 
@@ -145,39 +339,36 @@ module M: Projector = {
       keyboard: None,
     };
   let dynamics = false;
-  let placeholder = (_, info) =>
+  let placeholder = (model, info) =>
     switch (get(info)) {
     | None =>
       ProjectorCore.Shape.{
         vertical: Inline,
         horizontal: 3,
       }
-    | Some((header, rows)) =>
-      let max_header_length =
-        header |> List.map(String.length) |> List.fold_left((+), 0);
-      let max_row_length =
-        rows
-        |> List.map(row =>
-             row
-             |> List.map(e =>
-                  Abbreviate.abbreviate_exp(~available=max_column_length, e)
-                  |> snd
-                )
-             |> List.fold_left((+), 0, _)
-           )
-        |> List.fold_left(max, 0, _);
-      let max_length = max(max_header_length, max_row_length);
-
-      let num_rows = List.length(rows);
-      let num_cols = List.length(header);
+    | Some(_) =>
       ProjectorCore.Shape.{
-        vertical: Block(min(num_rows, 10)),
-        horizontal: 4 + max_length * 1 + num_cols * 2,
+        vertical: Block(model.height_blocks),
+        horizontal: model.width_blocks,
+      }
+    };
+  let update = (_model, info, action) =>
+    switch (action) {
+    | ResizeTo(w, h) =>
+      let max_h =
+        switch (get(info)) {
+        | None => h
+        | Some((_, rows)) => List.length(rows)
+        };
+      {
+        width_blocks: clamp_width_blocks(w),
+        height_blocks: clamp_height_blocks(min(h, max_h)),
       };
     };
-  let update = (model, _, _) => model;
 
-  let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
+  let view =
+      ({model, info, local, parent, view_seg, _}: View.args(model, action))
+      : View.t =>
     switch (get(info)) {
     | None =>
       View.mk(
@@ -192,11 +383,26 @@ module M: Projector = {
         ),
       )
     | Some(data) =>
+      let dispatch = (w, h) => local(ResizeTo(w, h));
+      let handle =
+        Node.div(
+          ~attrs=[
+            Attr.classes(["table-resize-handle"]),
+            Attr.on_pointerdown(
+              resize_pointerdown(
+                ~dispatch,
+                ~width_blocks=model.width_blocks,
+                ~height_blocks=model.height_blocks,
+              ),
+            ),
+          ],
+          [],
+        );
       View.mk(
         Node.div(
           ~attrs=[Attr.classes(["table-inner"])],
-          [table(info, ~view_seg, ~parent, data)],
+          [table(info, ~view_seg, ~parent, data), handle],
         ),
-      )
+      );
     };
 };
