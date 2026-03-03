@@ -2,7 +2,12 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, list(string)));
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = {menu_state};
+type drag_state = option((int, option(int)));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type m = {
+  menu_state,
+  drag_state,
+};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | CloseMenu
@@ -15,7 +20,10 @@ type a =
   | GroupByColumn(string)
   | FilterGreaterThan(string)
   | FilterLessThan(string)
-  | FilterEquals(string);
+  | FilterEquals(string)
+  | DragStart(int)
+  | DragOver(int)
+  | DragEnd;
 type v = (list(option(string)), list(list(Language.Exp.t))); /* (headers, rows) */
 
 include

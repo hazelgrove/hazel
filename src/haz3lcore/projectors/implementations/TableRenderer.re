@@ -11,7 +11,12 @@ type v = (list(option(string)), list(list(Exp.t))); /* (headers, rows) */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, list(string)));
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = {menu_state};
+type drag_state = option((int, option(int))); /* (source_idx, hover_target_idx) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type m = {
+  menu_state,
+  drag_state,
+};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | CloseMenu
@@ -24,7 +29,10 @@ type a =
   | GroupByColumn(string)
   | FilterGreaterThan(string)
   | FilterLessThan(string)
-  | FilterEquals(string);
+  | FilterEquals(string)
+  | DragStart(int)
+  | DragOver(int)
+  | DragEnd;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -58,6 +66,7 @@ let icon_button = (~tooltip="", icon_text, action) =>
   Node.div(
     ~attrs=[
       Attr.classes(["icon", "closure-nav-button"]),
+      Attr.on_pointerdown(_ => Effect.Stop_propagation),
       Attr.on_click(action),
       Attr.title(tooltip),
     ],
@@ -114,7 +123,10 @@ let parse = (_sort: Sort.t, exp: Exp.t) => {
 };
 
 /* Initialize table model from parsed value */
-let init = (_: v) => {menu_state: None};
+let init = (_: v) => {
+  menu_state: None,
+  drag_state: None,
+};
 
 /* Type utilities for column operations */
 let get_column_type_from_ty = (ty: Typ.t, column: string) => {
@@ -459,56 +471,39 @@ let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
      );
 };
 
-let can_move_column =
-    (columns_opt: option(list(string)), column: string, left: bool) =>
-  switch (columns_opt) {
-  | Some(columns) =>
-    switch (List.find_index(x => x == column, columns)) {
-    | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
-    | None => false
-    }
-  | None => false
-  };
-
-let move_column =
-    (info: info, dyn_type: option(Typ.t), column: string, left: bool)
+let reorder_columns =
+    (info: info, dyn_type: option(Typ.t), src_idx: int, dst_idx: int)
     : option(Base.segment) => {
   let columns_opt = Option.bind(dyn_type, get_columns);
   switch (columns_opt) {
   | Some(columns) =>
-    let idx_opt = List.find_index(x => x == column, columns);
-    switch (idx_opt) {
-    | Some(idx) =>
-      let new_idx = left ? idx - 1 : idx + 1;
-      if (new_idx < 0 || new_idx >= List.length(columns)) {
-        None;
-      } else {
-        let new_columns =
-          List.mapi(
-            (i, x) =>
-              if (i == idx) {
-                List.nth(columns, new_idx);
-              } else if (i == new_idx) {
-                List.nth(columns, idx);
-              } else {
-                x;
-              },
-            columns,
-          );
-        IdTagged.FreshGrammar.Exp.(
-          apply_rowwise_transformation(
-            info,
-            ap(
-              Forward,
-              var("select_labels"),
-              tuple([deferral(InAp)] @ List.map(label, new_columns)),
-            ),
-          )
+    if (src_idx < 0
+        || src_idx >= List.length(columns)
+        || dst_idx < 0
+        || dst_idx >= List.length(columns)
+        || src_idx == dst_idx) {
+      None;
+    } else {
+      let col = List.nth(columns, src_idx);
+      let without_src = List.filteri((i, _) => i != src_idx, columns);
+      let new_columns =
+        List.concat([
+          ListUtil.take(dst_idx, without_src),
+          [col],
+          ListUtil.remove_first_n(dst_idx, without_src),
+        ]);
+      IdTagged.FreshGrammar.Exp.(
+        apply_rowwise_transformation(
+          info,
+          ap(
+            Forward,
+            var("select_labels"),
+            tuple([deferral(InAp)] @ List.map(label, new_columns)),
+          ),
         )
-        |> Option.some;
-      };
-    | None => None
-    };
+      )
+      |> Option.some;
+    }
   | None => None
   };
 };
@@ -680,10 +675,6 @@ let build_column_menu =
     ) => {
   let column_type =
     dyn_type |> Option.bind(_, ty => get_column_type_from_ty(ty, h));
-  let columns_opt = dyn_type |> Option.bind(_, get_columns);
-  let can_move_left = can_move_column(columns_opt, h, true);
-  let can_move_right = can_move_column(columns_opt, h, false);
-
   // If we're in a submenu, show that submenu
   switch (menu_path) {
   | ["Filter"] =>
@@ -832,58 +823,6 @@ let build_column_menu =
           },
       }),
     ]
-  | ["Move"] =>
-    [
-      Action({
-        text: "← Back",
-        tooltip: "",
-        action: () => local(ShowSubmenu([])),
-      }),
-    ]
-    @ (
-      can_move_left
-        ? [
-          Action({
-            text: "Move Left",
-            tooltip: "Move this column one position to the left",
-            action: () =>
-              Effect.Many([
-                local(CloseMenu),
-                parent(
-                  SetSyntax(
-                    OptUtil.get_or_fail(
-                      "move left failed",
-                      move_column(info, dyn_type, h, true),
-                    ),
-                  ),
-                ),
-              ]),
-          }),
-        ]
-        : []
-    )
-    @ (
-      can_move_right
-        ? [
-          Action({
-            text: "Move Right",
-            tooltip: "Move this column one position to the right",
-            action: () =>
-              Effect.Many([
-                local(CloseMenu),
-                parent(
-                  SetSyntax(
-                    OptUtil.get_or_fail(
-                      "move right failed",
-                      move_column(info, dyn_type, h, false),
-                    ),
-                  ),
-                ),
-              ]),
-          }),
-        ]
-        : []
-    )
   | [] =>
     /* Group 1: Structural, frequently used actions */
     let structural_items = [
@@ -959,19 +898,7 @@ let build_column_menu =
       }),
     ];
 
-    let move_submenu =
-      can_move_left || can_move_right
-        ? [
-          Action({
-            text: "Move →",
-            tooltip: "Reorder this column's position",
-            action: () => local(ShowSubmenu(["Move"])),
-          }),
-        ]
-        : [];
-
-    let data_items =
-      sort_submenu @ filter_submenu @ transform_submenu @ move_submenu;
+    let data_items = sort_submenu @ filter_submenu @ transform_submenu;
 
     /* Group 3: Option-type actions */
     let option_items =
@@ -1072,13 +999,78 @@ let render =
             content
             @ [
               Node.div(
-                ~attrs=[Attr.classes(["column-menu"])],
+                ~attrs=[
+                  Attr.classes(["column-menu"]),
+                  Attr.on_pointerdown(_ => Effect.Stop_propagation),
+                ],
                 menu_content,
               ),
             ];
           | _ => content
           };
-        Node.th(full_content);
+
+        let drag_classes =
+          switch (model.drag_state) {
+          | Some((src, _)) when src == i => ["drag-source"]
+          | Some((_, Some(tgt))) when tgt == i => ["drag-over"]
+          | _ => []
+          };
+
+        let drag_attrs =
+          if (!is_readonly && has_name) {
+            [
+              Attr.classes(["drag-handle"]),
+              Attr.on_pointerdown(_ => {
+                switch (model.menu_state) {
+                | Some((j, _)) when j == i =>
+                  /* Menu is open on this column; don't start drag */
+                  Effect.Stop_propagation
+                | _ =>
+                  Effect.Many([
+                    Effect.Stop_propagation,
+                    local(DragStart(i)),
+                  ])
+                }
+              }),
+              Attr.on_pointerup(_ => {
+                switch (model.drag_state) {
+                | Some((src_idx, Some(tgt_idx))) when src_idx != tgt_idx =>
+                  let dyn_type = get_dynamic_type(exp);
+                  switch (reorder_columns(info, dyn_type, src_idx, tgt_idx)) {
+                  | Some(segment) =>
+                    Effect.Many([
+                      local(DragEnd),
+                      parent(SetSyntax(segment)),
+                    ])
+                  | None => local(DragEnd)
+                  };
+                | Some(_) => local(DragEnd)
+                | None => Effect.Ignore
+                }
+              }),
+            ];
+          } else {
+            [];
+          };
+
+        /* Wrap content in a draggable div inside the <th>, since
+           <th> elements don't support HTML5 drag-and-drop natively */
+        let wrapped_content =
+          if (!is_readonly && has_name) {
+            [Node.div(~attrs=drag_attrs, full_content)];
+          } else {
+            full_content;
+          };
+
+        let th_attrs =
+          [Attr.classes(drag_classes)]
+          @ (
+            switch (model.drag_state) {
+            | Some(_) => [Attr.on_mouseenter(_ => local(DragOver(i)))]
+            | None => []
+            }
+          );
+        Node.th(~attrs=th_attrs, wrapped_content);
       },
       headers,
     );
@@ -1107,8 +1099,16 @@ let render =
       header_cells;
     };
 
+  let table_attrs =
+    [Attr.classes(["table"])]
+    @ (
+      switch (model.drag_state) {
+      | Some(_) => [Attr.on_pointerup(_ => local(DragEnd))]
+      | None => []
+      }
+    );
   Node.table(
-    ~attrs=[Attr.classes(["table"])],
+    ~attrs=table_attrs,
     [
       Node.thead([Node.tr(header_cells)]),
       Node.tbody(
@@ -1137,15 +1137,41 @@ let render =
 let update: (model, action) => model =
   (model, action) => {
     switch (action) {
-    | CloseMenu => {menu_state: None}
-    | ShowMenu(i) when Some(i) == Option.map(fst, model.menu_state) => {
+    | CloseMenu => {
+        ...model,
         menu_state: None,
       }
-    | ShowMenu(i) => {menu_state: Some((i, []))}
+    | ShowMenu(i) when Some(i) == Option.map(fst, model.menu_state) => {
+        ...model,
+        menu_state: None,
+      }
+    | ShowMenu(i) => {
+        ...model,
+        menu_state: Some((i, [])),
+      }
     | ShowSubmenu(path) =>
       switch (model.menu_state) {
-      | Some((col, _)) => {menu_state: Some((col, path))}
+      | Some((col, _)) => {
+          ...model,
+          menu_state: Some((col, path)),
+        }
       | None => model
+      }
+    | DragStart(i) => {
+        menu_state: None,
+        drag_state: Some((i, None)),
+      }
+    | DragOver(i) =>
+      switch (model.drag_state) {
+      | Some((src, _)) => {
+          ...model,
+          drag_state: Some((src, Some(i))),
+        }
+      | None => model
+      }
+    | DragEnd => {
+        ...model,
+        drag_state: None,
       }
     | _ => model /* Other actions do not affect the menu state */
     };

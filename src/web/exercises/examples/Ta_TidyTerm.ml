@@ -11,8 +11,8 @@ let exercise : Tutorial.spec =
        column, replacing it with 2 new columns:\n\
        ```hazelnostatics\n\
        ^^table([\n\
-       (column=semester, `type`=Semester),\n\
        (column=year, `type`=Int)\n\
+       (column=semester, `type`=Semester),\n\
        ])\n\
        ```\n\n\
        `Semester` is a sum type defined in the prelude: `type Semester = Fall \

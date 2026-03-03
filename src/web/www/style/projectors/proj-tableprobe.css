@@ -173,3 +173,21 @@
 .table th.add-column-header:hover {
     opacity: 1;
 }
+
+/* Drag-and-drop column reordering (pointer-event based) */
+.modal .table th .drag-handle {
+    cursor: grab;
+    user-select: none;
+}
+
+.modal .table th .drag-handle:active {
+    cursor: grabbing;
+}
+
+.modal .table th.drag-source {
+    opacity: 0.4;
+}
+
+.modal .table th.drag-over {
+    box-shadow: inset 3px 0 0 var(--BR4);
+}
