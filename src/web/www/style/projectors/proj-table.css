@@ -56,12 +56,18 @@ table.table {
     height: 100%;
     width: 100%;
     overflow: visible;
-    box-sizing: content-box;
+    box-sizing: border-box;
+    padding-bottom: 2px;
+
     display: flex;
     flex-direction: initial;
     justify-content: initial;
     align-items: initial;
     gap: initial;
+}
+
+.table tbody tr:last-child td {
+    height: calc(var(--line-height) * 1em - 2px);
 }
 
 .projector.table > .table-inner {
