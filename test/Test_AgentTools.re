@@ -1199,97 +1199,97 @@ let selector_tests = (
   [
     /* Let spine */
     sel_test(
-      ~name="let x = *",
+      ~name="let x = %",
       ~code="let x = 42 in x",
-      ~sel="let x = *",
+      ~sel="let x = %",
       ~expected="42",
     ),
     sel_test(
-      ~name="let x _... in *",
+      ~name="let x _... in %",
       ~code="let x = 42 in x + 1",
-      ~sel="let x _... in *",
+      ~sel="let x _... in %",
       ~expected="x + 1",
     ),
     sel_test(
-      ~name="let b = * nested",
+      ~name="let b = % nested",
       ~code="let a = 1 in let b = 2 in a + b",
-      ~sel="let b = *",
+      ~sel="let b = %",
       ~expected="2",
     ),
     /* Binder chain */
     sel_test(
-      ~name="m/x = *",
+      ~name="m/x = %",
       ~code="let m = { let x = 42 } in m.x",
-      ~sel="m/x = *",
+      ~sel="m/x = %",
       ~expected="42",
     ),
     /* If spine */
-    sel_test(~name="if *", ~code=if_program, ~sel="if *", ~expected="true"),
+    sel_test(~name="if %", ~code=if_program, ~sel="if %", ~expected="true"),
     sel_test(
-      ~name="if _ then *",
+      ~name="if _ then %",
       ~code=if_program,
-      ~sel="if _ then *",
+      ~sel="if _ then %",
       ~expected="1",
     ),
     sel_test(
-      ~name="if _... else *",
+      ~name="if _... else %",
       ~code=if_program,
-      ~sel="if _... else *",
+      ~sel="if _... else %",
       ~expected="0",
     ),
     /* Descendant search */
     sel_test(
       ~name="descend if then",
       ~code=let_fun_if,
-      ~sel="let f = \\... if _ then *",
+      ~sel="let f = \\... if _ then %",
       ~expected="x",
     ),
     /* Case/match spine */
     sel_test(
-      ~name="case *",
+      ~name="case %",
       ~code=case_program,
-      ~sel="case *",
+      ~sel="case %",
       ~expected="x",
     ),
     sel_test(
-      ~name="| B => *",
+      ~name="| B => %",
       ~code=case_program,
-      ~sel="| B => *",
+      ~sel="| B => %",
       ~expected="2",
     ),
     /* Wildcard arm matching: | _ => * matches any single arm body */
     test_case(
-      "| _ => * matches all arm bodies",
+      "| _ => % matches all arm bodies",
       `Quick,
       () => {
-        let results = selector_query(case_program, "| _ => *");
+        let results = selector_query(case_program, "| _ => %");
         check(int, "match count", 2, List.length(results));
       },
     ),
     sel_test(
-      ~name="| _ => * (3 arms)",
+      ~name="| _ => % (3 arms)",
       ~code="case x | A => 1 | B => 2 | C => 3 end",
-      ~sel="case _... | C => *",
+      ~sel="case _... | C => %",
       ~expected="3",
     ),
     /* Wildcard arm with continuation: | _ => <walk> */
     test_case(
-      "\\... | _ => * returns all arm bodies via descend",
+      "\\... | _ => % returns all arm bodies via descend",
       `Quick,
       () => {
         let results =
           selector_query(
             "let f = fun x -> case x | A => 1 | B => 2 end in f 0",
-            "\\... | _ => *",
+            "\\... | _ => %",
           );
         check(int, "match count", 2, List.length(results));
       },
     ),
     /* Ellipsis in arms: | _... <name> => * */
     sel_test(
-      ~name="| _... Decrement => *",
+      ~name="| _... Decrement => %",
       ~code=case_msg,
-      ~sel="| _... Decrement => *",
+      ~sel="| _... Decrement => %",
       ~expected="count - 1",
     ),
     /* No match */
@@ -1297,7 +1297,7 @@ let selector_tests = (
       "no match returns error",
       `Quick,
       () => {
-        let result = selector_query_unique("let x = 1 in x", "let y = *");
+        let result = selector_query_unique("let x = 1 in x", "let y = %");
         check(
           bool,
           "starts with ERROR",
@@ -1312,7 +1312,7 @@ let selector_tests = (
       `Quick,
       () => {
         let results =
-          selector_query("let a = 1 in let b = 2 in a + b", "let _ = *");
+          selector_query("let a = 1 in let b = 2 in a + b", "let _ = %");
         check(int, "match count", 2, List.length(results));
       },
     ),
@@ -1320,19 +1320,19 @@ let selector_tests = (
     read_test(
       "Select def",
       "let x = 42 in x + 1",
-      Select("let x = *"),
+      Select("let x = %"),
       "42",
     ),
     read_test(
       "Select descend",
       let_fun_if,
-      Select("let f = \\... if _... else *"),
+      Select("let f = \\... if _... else %"),
       "0",
     ),
     read_test(
       "Select chain",
       "let m = { let x = 42 } in m.x",
-      Select("m/x = *"),
+      Select("m/x = %"),
       "42",
     ),
     test_case(
@@ -1342,7 +1342,7 @@ let selector_tests = (
         let result =
           run_read_action(
             "let a = 1 in let b = 2 in a + b",
-            Select("let _ = *"),
+            Select("let _ = %"),
           );
         let lines =
           result
@@ -1353,22 +1353,22 @@ let selector_tests = (
     ),
     /* Spec examples */
     sel_test(
-      ~name="spec: descend if *",
+      ~name="spec: descend if %",
       ~code=let_fun_if,
-      ~sel="let f = \\... if *",
+      ~sel="let f = \\... if %",
       ~expected="x > 0",
     ),
     sel_test(
-      ~name="spec: descend if _ then *",
+      ~name="spec: descend if _ then %",
       ~code=let_fun_if,
-      ~sel="let f = \\... if _ then *",
+      ~sel="let f = \\... if _ then %",
       ~expected="x",
     ),
     test_case(
-      "spec: * let f",
+      "spec: % let f",
       `Quick,
       () => {
-        let result = selector_query_unique(let_fun_if, "* let f");
+        let result = selector_query_unique(let_fun_if, "% let f");
         check(
           bool,
           "not error",
@@ -1379,66 +1379,66 @@ let selector_tests = (
     ),
     /* Case arms */
     sel_test(
-      ~name="spec: | Increment => *",
+      ~name="spec: | Increment => %",
       ~code=case_msg,
-      ~sel="| Increment => *",
+      ~sel="| Increment => %",
       ~expected="count + 1",
     ),
     sel_test(
-      ~name="spec: | Decrement => *",
+      ~name="spec: | Decrement => %",
       ~code=case_msg,
-      ~sel="| Decrement => *",
+      ~sel="| Decrement => %",
       ~expected="count - 1",
     ),
     /* Module items */
     sel_test(
-      ~name="spec: m/x = *",
+      ~name="spec: m/x = %",
       ~code="let m = { let x = 1; let y = 2 } in m.x",
-      ~sel="m/x = *",
+      ~sel="m/x = %",
       ~expected="1",
     ),
     sel_test(
-      ~name="spec: m/y = *",
+      ~name="spec: m/y = %",
       ~code="let m = { let x = 1; let y = 2 } in m.y",
-      ~sel="m/y = *",
+      ~sel="m/y = %",
       ~expected="2",
     ),
     /* Nested binder chains */
     sel_test(
-      ~name="spec: a/b/y = *",
+      ~name="spec: a/b/y = %",
       ~code="let a = { let x = 1; let b = { let y = 42 } } in a.b.y",
-      ~sel="a/b/y = *",
+      ~sel="a/b/y = %",
       ~expected="42",
     ),
     /* Bare name */
     sel_test(
-      ~name="y = * bare",
+      ~name="y = % bare",
       ~code="let x = 42 in let y = 99 in x + y",
-      ~sel="y = *",
+      ~sel="y = %",
       ~expected="99",
     ),
     /* Body selection */
     sel_test(
-      ~name="x _... in *",
+      ~name="x _... in %",
       ~code="let x = 42 in let y = 99 in x + y",
-      ~sel="x _... in *",
+      ~sel="x _... in %",
       ~expected="let y = 99 in x + y",
     ),
     /* === Descend-to-find nested binder === */
     sel_test(
-      ~name="\\... let b = * (nested in def)",
+      ~name="\\... let b = % (nested in def)",
       ~code="let a = (let b = 42 in b) in a",
-      ~sel="\\... let b = *",
+      ~sel="\\... let b = %",
       ~expected="42",
     ),
     test_case(
-      "let b = * (NOT found at root)",
+      "let b = % (NOT found at root)",
       `Quick,
       () => {
         let result =
           selector_query_unique(
             "let a = (let b = 42 in b) in a",
-            "let b = *",
+            "let b = %",
           );
         /* Verify base error + diagnostics */
         check(
@@ -1463,114 +1463,114 @@ let selector_tests = (
     ),
     /* === Fun spine tests === */
     sel_test(
-      ~name="fun _ -> *",
+      ~name="fun _ -> %",
       ~code="let f = fun x -> x + 1 in f",
-      ~sel="let f = \\... fun _ -> *",
+      ~sel="let f = \\... fun _ -> %",
       ~expected="x + 1",
     ),
     sel_test(
-      ~name="fun x -> *",
+      ~name="fun x -> %",
       ~code="let f = fun x -> x + 1 in f",
-      ~sel="let f = \\... fun x -> *",
+      ~sel="let f = \\... fun x -> %",
       ~expected="x + 1",
     ),
     sel_test(
-      ~name="fun ... -> *",
+      ~name="fun ... -> %",
       ~code="let f = fun x -> x + 1 in f",
-      ~sel="let f = \\... fun _... -> *",
+      ~sel="let f = \\... fun _... -> %",
       ~expected="x + 1",
     ),
     sel_test(
       ~name="descend fun then if",
       ~code="let f = fun x -> if x > 0 then x else 0 in f",
-      ~sel="let f = \\... fun _ -> \\... if _... else *",
+      ~sel="let f = \\... fun _ -> \\... if _... else %",
       ~expected="0",
     ),
     /* === Test keyword tests === */
     sel_test(
-      ~name="test *",
+      ~name="test %",
       ~code="let x = 1 in test x == 1 end; x",
-      ~sel="\\... test *",
+      ~sel="\\... test %",
       ~expected="x == 1",
     ),
     /* === Colon (type annotation) tests === */
     sel_test(
-      ~name="let x : _ = * (annotated)",
+      ~name="let x : _ = % (annotated)",
       ~code="let x : Int = 42 in x",
-      ~sel="let x : _ = *",
+      ~sel="let x : _ = %",
       ~expected="42",
     ),
     sel_test(
-      ~name="let x = * (annotated, no colon in selector)",
+      ~name="let x = % (annotated, no colon in selector)",
       ~code="let x : Int = 42 in x",
-      ~sel="let x = *",
+      ~sel="let x = %",
       ~expected="42",
     ),
     /* === FocusTyp tests === */
     /* let x : * focuses on the type annotation itself */
     sel_test(
-      ~name="let x : * (focus type annotation)",
+      ~name="let x : % (focus type annotation)",
       ~code="let x : Int = 42 in x",
-      ~sel="let x : *",
+      ~sel="let x : %",
       ~expected="Int",
     ),
-    /* type T = * focuses on the type definition */
+    /* type T = % focuses on the type definition */
     sel_test(
-      ~name="type T = * (focus type def)",
+      ~name="type T = % (focus type def)",
       ~code="type T = Int in let x : T = 42 in x",
-      ~sel="type T = *",
+      ~sel="type T = %",
       ~expected="Int",
     ),
     /* === List spine tests === */
     sel_test(
-      ~name="[ * ... ] first",
+      ~name="[ % ... ] first",
       ~code="let xs = [1, 2, 3] in xs",
-      ~sel="let xs = \\... [ *",
+      ~sel="let xs = \\... [ %",
       ~expected="1",
     ),
     sel_test(
-      ~name="[ ... * ] last",
+      ~name="[ ... % ] last",
       ~code="let xs = [1, 2, 3] in xs",
-      ~sel="let xs = \\... [ _... *",
+      ~sel="let xs = \\... [ _... %",
       ~expected="3",
     ),
     sel_test(
-      ~name="[ _ * ... ] second",
+      ~name="[ _ % ... ] second",
       ~code="let xs = [1, 2, 3] in xs",
-      ~sel="let xs = \\... [ _ *",
+      ~sel="let xs = \\... [ _ %",
       ~expected="2",
     ),
     /* === Tuple spine tests === */
     sel_test(
-      ~name="( * first",
+      ~name="( % first",
       ~code="let t = (1, 2, 3) in t",
-      ~sel="let t = \\... ( *",
+      ~sel="let t = \\... ( %",
       ~expected="1",
     ),
     sel_test(
-      ~name="( _... * last",
+      ~name="( _... % last",
       ~code="let t = (1, 2, 3) in t",
-      ~sel="let t = \\... ( _... *",
+      ~sel="let t = \\... ( _... %",
       ~expected="3",
     ),
     sel_test(
-      ~name="( _ * second",
+      ~name="( _ % second",
       ~code="let t = (1, 2, 3) in t",
-      ~sel="let t = \\... ( _ *",
+      ~sel="let t = \\... ( _ %",
       ~expected="2",
     ),
     sel_test(
-      ~name="( _ _ * third",
+      ~name="( _ _ % third",
       ~code="let t = (1, 2, 3) in t",
-      ~sel="let t = \\... ( _ _ *",
+      ~sel="let t = \\... ( _ _ %",
       ~expected="3",
     ),
     /* === Focus-before-keyword tests === */
     test_case(
-      "* let x selects whole let",
+      "% let x selects whole let",
       `Quick,
       () => {
-        let result = selector_query_unique("let x = 42 in x + 1", "* let x");
+        let result = selector_query_unique("let x = 42 in x + 1", "% let x");
         /* Should return the entire let expression, not an error */
         check(
           bool,
@@ -1582,12 +1582,12 @@ let selector_tests = (
       },
     ),
     test_case(
-      "* fun matches whole fun",
+      "% fun matches whole fun",
       `Quick,
       () => {
         let code = "let f = fun x -> x + 1 in f";
         let result =
-          selector_query_unique(code, "let f = \\... * fun _ -> *");
+          selector_query_unique(code, "let f = \\... % fun _ -> %");
         /* The first * focuses, the second is in the fun spine */
         check(
           bool,
@@ -1599,99 +1599,99 @@ let selector_tests = (
     ),
     /* === Module expression (ModuleExp) tests === */
     sel_test(
-      ~name="module M chain M/x = *",
+      ~name="module M chain M/x = %",
       ~code="module M = { let x = 42; let y = 99 } in M.x",
-      ~sel="M/x = *",
+      ~sel="M/x = %",
       ~expected="42",
     ),
     sel_test(
-      ~name="module M chain M/y = *",
+      ~name="module M chain M/y = %",
       ~code="module M = { let x = 42; let y = 99 } in M.y",
-      ~sel="M/y = *",
+      ~sel="M/y = %",
       ~expected="99",
     ),
     sel_test(
-      ~name="module M = * (def)",
+      ~name="module M = % (def)",
       ~code="module M = { let x = 1 } in M.x",
-      ~sel="module M = *",
+      ~sel="module M = %",
       ~expected="{ let x = 1 }",
     ),
     sel_test(
-      ~name="module M body (M _... in *)",
+      ~name="module M body (M _... in %)",
       ~code="module M = { let x = 1 } in M.x",
-      ~sel="M _... in *",
+      ~sel="M _... in %",
       ~expected="M.x",
     ),
     sel_test(
-      ~name="module nested: A/B/x = *",
+      ~name="module nested: A/B/x = %",
       ~code="module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
-      ~sel="A/B/x = *",
+      ~sel="A/B/x = %",
       ~expected="42",
     ),
     /* Descend through regular let chain should find unique match */
     sel_test(
       ~name="descend let chain unique",
       ~code="let x = 1 in let y = x + 1 in y",
-      ~sel="\\... let y = *",
+      ~sel="\\... let y = %",
       ~expected="x + 1",
     ),
     /* Descend through ModuleExp body to find a let */
     sel_test(
       ~name="descend through module body",
       ~code="module M = { let x = 1 } in let y = M.x + 1 in y",
-      ~sel="\\... let y = *",
+      ~sel="\\... let y = %",
       ~expected="M.x + 1",
     ),
     /* === ModLet descent: \... let x = * finds ModLet inside Module === */
     sel_test(
       ~name="descend let inside module items",
       ~code="module M = { let x = 42; let y = 99 } in M.x",
-      ~sel="\\... let x = *",
+      ~sel="\\... let x = %",
       ~expected="42",
     ),
     sel_test(
       ~name="descend let y inside module items",
       ~code="module M = { let x = 42; let y = 99 } in M.x",
-      ~sel="\\... let y = *",
+      ~sel="\\... let y = %",
       ~expected="99",
     ),
     /* find_all_lets via chain sugar enters def then descends */
     sel_test(
       ~name="chain then descend let inside module",
       ~code="let m = { let a = 1; let b = 2 } in m.a",
-      ~sel="m = \\... let a = *",
+      ~sel="m = \\... let a = %",
       ~expected="1",
     ),
     /* descend_all recurses into ModuleMod defs */
     sel_test(
       ~name="descend into nested ModuleMod def",
       ~code="module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
-      ~sel="\\... let x = *",
+      ~sel="\\... let x = %",
       ~expected="42",
     ),
     /* === Name indexing for shadowed bindings === */
     sel_test(
-      ~name="x#0 = * (first binding)",
+      ~name="x#0 = % (first binding)",
       ~code="let x = 1 in let x = 2 in x",
-      ~sel="x#0 = *",
+      ~sel="x#0 = %",
       ~expected="1",
     ),
     sel_test(
-      ~name="x#1 = * (second binding)",
+      ~name="x#1 = % (second binding)",
       ~code="let x = 1 in let x = 2 in x",
-      ~sel="x#1 = *",
+      ~sel="x#1 = %",
       ~expected="2",
     ),
     sel_test(
-      ~name="x#0 _... in * (first body)",
+      ~name="x#0 _... in % (first body)",
       ~code="let x = 1 in let x = 2 in x",
-      ~sel="x#0 _... in *",
+      ~sel="x#0 _... in %",
       ~expected="let x = 2 in x",
     ),
     sel_test(
-      ~name="x#1 _... in * (second body)",
+      ~name="x#1 _... in % (second body)",
       ~code="let x = 1 in let x = 2 in x",
-      ~sel="x#1 _... in *",
+      ~sel="x#1 _... in %",
       ~expected="x",
     ),
     /* Out-of-range index diagnostic */
@@ -1700,7 +1700,7 @@ let selector_tests = (
       `Quick,
       () => {
         let result =
-          selector_query_unique("let x = 1 in let x = 2 in x", "x#5 = *");
+          selector_query_unique("let x = 1 in let x = 2 in x", "x#5 = %");
         check(bool, "has error prefix", true, str_contains(result, "ERROR"));
         check(
           bool,
@@ -1712,32 +1712,32 @@ let selector_tests = (
     ),
     /* Index with let keyword */
     sel_test(
-      ~name="let x#0 = * with let keyword",
+      ~name="let x#0 = % with let keyword",
       ~code="let x = 10 in let x = 20 in x",
-      ~sel="let x#1 = *",
+      ~sel="let x#1 = %",
       ~expected="20",
     ),
     /* === Shadowed bindings: multi-match with bare name (a = *) === */
     test_case(
-      "a = * matches all shadowed bindings",
+      "a = % matches all shadowed bindings",
       `Quick,
       () => {
         let results =
           selector_query(
             "let a = 4 in let a = 4 in let a = 4 in a",
-            "a = *",
+            "a = %",
           );
         check(int, "match count", 3, List.length(results));
       },
     ),
     test_case(
-      "a ... in * matches all shadowed bodies",
+      "a ... in % matches all shadowed bodies",
       `Quick,
       () => {
         let results =
           selector_query(
             "let a = 4 in let a = 4 in let a = 4 in a",
-            "a _... in *",
+            "a _... in %",
           );
         check(int, "match count", 3, List.length(results));
       },
@@ -1750,7 +1750,7 @@ let selector_tests = (
         let results =
           selector_query(
             "let a = 4 in let a = (let a = 0 in 4) in let a = 4 in a",
-            "a/a = *",
+            "a/a = %",
           );
         check(int, "match count", 1, List.length(results));
         check(string, "value", "0", List.hd(results));
@@ -1763,7 +1763,7 @@ let selector_tests = (
         let results =
           selector_query(
             "let a = (let b = 42 in b) in a",
-            "a/b = *",
+            "a/b = %",
           );
         check(int, "match count", 1, List.length(results));
         check(string, "value", "42", List.hd(results));
@@ -1776,7 +1776,7 @@ let selector_tests = (
         let results =
           selector_query(
             "let a = (let a = (let a = 99 in a) in a) in a",
-            "a/a/a = *",
+            "a/a/a = %",
           );
         check(int, "match count", 1, List.length(results));
         check(string, "value", "99", List.hd(results));
@@ -1785,84 +1785,84 @@ let selector_tests = (
     /* === Module/type spine uniformity === */
     /* module _ = * : wildcard module name */
     sel_test(
-      ~name="module _ = * (wildcard name)",
+      ~name="module _ = % (wildcard name)",
       ~code="module M = { let x = 1 } in M.x",
-      ~sel="module _ = *",
+      ~sel="module _ = %",
       ~expected="{ let x = 1 }",
     ),
     /* module M _... in * : focus on module body */
     sel_test(
-      ~name="module M _... in *",
+      ~name="module M _... in %",
       ~code="module M = { let x = 1 } in M.x",
-      ~sel="module M _... in *",
+      ~sel="module M _... in %",
       ~expected="M.x",
     ),
     /* module _... in * : wildcard name, skip to body */
     sel_test(
-      ~name="module _... in *",
+      ~name="module _... in %",
       ~code="module M = { let x = 1 } in M.x",
-      ~sel="module _... in *",
+      ~sel="module _... in %",
       ~expected="M.x",
     ),
     /* type T _... in * : skip type def, focus on body */
     sel_test(
-      ~name="type T _... in *",
+      ~name="type T _... in %",
       ~code="type T = Int in let x : T = 42 in x",
-      ~sel="type T _... in *",
+      ~sel="type T _... in %",
       ~expected="let x = 42 in x",
     ),
     /* * module M : whole-binding focus */
     sel_test_rendered(
-      ~name="* module M (whole binding)",
+      ~name="% module M (whole binding)",
       ~code="module M = { let x = 1 } in M.x",
-      ~sel="* module M",
+      ~sel="% module M",
       ~expected="module M = { let x = 1 } in M.x",
     ),
     /* === Compositionality tests on realistic program === */
     /* Binder chains into module members */
     sel_test(
-      ~name="app: App/init = *",
+      ~name="app: App/init = %",
       ~code=app_program,
-      ~sel="App/init = *",
+      ~sel="App/init = %",
       ~expected="0",
     ),
     /* Chain + descend + case scrutinee */
     sel_test(
-      ~name="app: App/update \\... case *",
+      ~name="app: App/update \\... case %",
       ~code=app_program,
-      ~sel="App/update \\... case *",
+      ~sel="App/update \\... case %",
       ~expected="msg",
     ),
     /* Chain + descend + named arm */
     sel_test(
-      ~name="app: App/update \\... | Inc => *",
+      ~name="app: App/update \\... | Inc => %",
       ~code=app_program,
-      ~sel="App/update \\... | Inc => *",
+      ~sel="App/update \\... | Inc => %",
       ~expected="msg + 1",
     ),
     /* Chain + descend + wildcard arm: returns ALL arm bodies */
     test_case(
-      "app: App/update \\... | _ => * (all arms)",
+      "app: App/update \\... | _ => % (all arms)",
       `Quick,
       () => {
         let results =
-          selector_query(app_program, "App/update \\... | _ => *");
+          selector_query(app_program, "App/update \\... | _ => %");
         check(int, "match count", 3, List.length(results));
       },
     ),
     /* Chain + descend + nested let */
     sel_test(
-      ~name="app: App/view \\... let label = *",
+      ~name="app: App/view \\... let label = %",
       ~code=app_program,
-      ~sel="App/view \\... let label = *",
+      ~sel="App/view \\... let label = %",
       ~expected="model + 1",
     ),
     /* Descend finds all function bodies */
     test_case(
-      "app: \\... fun _ -> * (all funs)",
+      "app: \\... fun _ -> % (all funs)",
       `Quick,
       () => {
-        let results = selector_query(app_program, "\\... fun _ -> *");
+        let results = selector_query(app_program, "\\... fun _ -> %");
         check(
           bool,
           "at least 2 fun bodies",
@@ -1873,10 +1873,10 @@ let selector_tests = (
     ),
     /* Module def — check starts with expected prefix */
     test_case(
-      "app: module App = * (def)",
+      "app: module App = % (def)",
       `Quick,
       () => {
-        let result = selector_query_unique(app_program, "module App = *");
+        let result = selector_query_unique(app_program, "module App = %");
         check(
           bool,
           "starts with { let init",
@@ -1888,10 +1888,10 @@ let selector_tests = (
     ),
     /* Module body (after in) */
     test_case(
-      "app: App _... in * (body)",
+      "app: App _... in % (body)",
       `Quick,
       () => {
-        let result = selector_query_unique(app_program, "App _... in *");
+        let result = selector_query_unique(app_program, "App _... in %");
         check(
           bool,
           "starts with let result",
@@ -1903,10 +1903,10 @@ let selector_tests = (
     ),
     /* Whole-binding focus */
     test_case(
-      "app: \\... * let result",
+      "app: \\... % let result",
       `Quick,
       () => {
-        let result = selector_query_unique(app_program, "\\... * let result");
+        let result = selector_query_unique(app_program, "\\... % let result");
         check(
           bool,
           "starts with let result",
@@ -1924,9 +1924,9 @@ let selector_tests = (
       ~expected="test 1 + 1 == 2 end",
     ),
     sel_test(
-      ~name="test _ * (slot then focus)",
+      ~name="test _ % (slot then focus)",
       ~code="let x = 1 in test x == 1 end",
-      ~sel="\\... test _ *",
+      ~sel="\\... test _ %",
       ~expected="x == 1",
     ),
     /* === Diagnostic tests === */
@@ -1938,7 +1938,7 @@ let selector_tests = (
         let result =
           selector_query_unique(
             "let foo = 1 in let bar = 2 in foo + bar",
-            "let baz = *",
+            "let baz = %",
           );
         check(bool, "is error", true, str_contains(result, "ERROR:"));
         check(
@@ -1960,7 +1960,7 @@ let selector_tests = (
       "diag: name not found, no suggestion",
       `Quick,
       () => {
-        let result = selector_query_unique("let x = 1 in x", "let zzzzz = *");
+        let result = selector_query_unique("let x = 1 in x", "let zzzzz = %");
         check(bool, "is error", true, str_contains(result, "ERROR:"));
         check(
           bool,
@@ -1981,7 +1981,7 @@ let selector_tests = (
       "diag: keyword mismatch",
       `Quick,
       () => {
-        let result = selector_query_unique("let x = 1 in x", "if *");
+        let result = selector_query_unique("let x = 1 in x", "if %");
         check(bool, "is error", true, str_contains(result, "ERROR:"));
         check(
           bool,
@@ -1999,7 +1999,7 @@ let selector_tests = (
         let result =
           selector_query_unique(
             "module App = { let x = 1 } in App.x",
-            "Apl/x = *",
+            "Apl/x = %",
           );
         check(bool, "is error", true, str_contains(result, "ERROR:"));
         check(
@@ -2018,7 +2018,7 @@ let selector_tests = (
         let result =
           selector_query_unique(
             "let alpha = 1 in let beta = 2 in alpha + beta",
-            "let gamma = *",
+            "let gamma = %",
           );
         check(bool, "is error", true, str_contains(result, "ERROR:"));
         check(
@@ -2043,7 +2043,7 @@ let selector_tests = (
         let result =
           selector_query_unique(
             "module M = { let x = 1; let y = 2 } in M.x",
-            "M/z = *",
+            "M/z = %",
           );
         check(bool, "is error", true, str_contains(result, "ERROR:"));
         check(
@@ -2064,8 +2064,8 @@ let selector_tests = (
           "let f = fun x -> case x | A => 1 | B => 2 end in "
           ++ "let g = fun y -> case y | C => 3 | D => 4 end in "
           ++ "f(g(0))";
-        let single = selector_query(code, "\\... | _ => *");
-        let double = selector_query(code, "\\... \\... | _ => *");
+        let single = selector_query(code, "\\... | _ => %");
+        let double = selector_query(code, "\\... \\... | _ => %");
         check(int, "same count", List.length(single), List.length(double));
       },
     ),
@@ -2078,7 +2078,7 @@ let selector_tests = (
           "module M = { "
           ++ "let f = fun x -> if x > 0 then x + 1 else x - 1 "
           ++ "} in M.f(5)";
-        let result = selector_query_unique(code, "M/f \\... if _... else *");
+        let result = selector_query_unique(code, "M/f \\... if _... else %");
         check(string, "else branch", "x - 1", result);
       },
     ),
@@ -2089,15 +2089,15 @@ let selector_tests = (
       () => {
         let code = "let x = 1 in x + 1";
         switch (
-          run_agent_action(code, SelectorInsertAfter("* let x", "let y = 2"))
+          run_agent_action(code, SelectorInsertAfter("% let x", "let y = 2"))
         ) {
         | Ok(new_z) =>
           let new_term = MakeTerm.from_zip_for_sem(new_z).term;
           /* Verify the inserted binding exists */
-          let y_results = Selector.query("let y = *", new_term);
+          let y_results = Selector.query("let y = %", new_term);
           check(int, "y binding found", 1, List.length(y_results));
           /* Verify original still exists */
-          let x_results = Selector.query("let x = *", new_term);
+          let x_results = Selector.query("let x = %", new_term);
           check(int, "x binding still there", 1, List.length(x_results));
         | Error(err) =>
           Alcotest.fail("Insert failed: " ++ Action.Failure.show(err))
@@ -2107,9 +2107,9 @@ let selector_tests = (
     /* === Chain trailing-slash semantics === */
     /* a/ (trailing slash, single segment) = enter a's def */
     sel_test(
-      ~name="a/ * (trailing slash enters def)",
+      ~name="a/ % (trailing slash enters def)",
       ~code="let a = 42 in a + 1",
-      ~sel="a/ *",
+      ~sel="a/ %",
       ~expected="42",
     ),
     /* a (no trailing slash) = whole binding */
@@ -2121,9 +2121,9 @@ let selector_tests = (
     ),
     /* A/B/C/ enters all defs */
     sel_test(
-      ~name="A/B/C/ * (trailing slash on chain)",
+      ~name="A/B/C/ % (trailing slash on chain)",
       ~code="let a = { let b = { let c = 99 } } in a.b.c",
-      ~sel="a/b/c/ *",
+      ~sel="a/b/c/ %",
       ~expected="99",
     ),
     /* A/B/C without trailing slash: inside Module(items), bare name
@@ -2143,9 +2143,9 @@ let selector_tests = (
     ),
     /* Trailing slash + continuation */
     sel_test(
-      ~name="m/ \\... let x = * (trailing slash + descend)",
+      ~name="m/ \\... let x = % (trailing slash + descend)",
       ~code="let m = { let x = 42; let y = 99 } in m.x",
-      ~sel="m/ \\... let x = *",
+      ~sel="m/ \\... let x = %",
       ~expected="42",
     ),
     /* Implicit star rule: no * in selector means * appended */
@@ -2169,44 +2169,44 @@ let selector_tests = (
     ),
     /* Spaced chain segments: A/ B/ C should equal A/B/C */
     sel_test(
-      ~name="A/ B/ C/ * (spaced chain = same as compact)",
+      ~name="A/ B/ C/ % (spaced chain = same as compact)",
       ~code="let a = { let b = { let c = 99 } } in a.b.c",
-      ~sel="a/ b/ c/ *",
+      ~sel="a/ b/ c/ %",
       ~expected="99",
     ),
     /* * prefix before keyword: focus on whole matched subtree */
     sel_test_rendered(
-      ~name="* let x (focus whole let)",
+      ~name="% let x (focus whole let)",
       ~code="let x = 42 in x + 1",
-      ~sel="* let x",
+      ~sel="% let x",
       ~expected="let x = 42 in x + 1",
     ),
     sel_test_rendered(
-      ~name="\\... * let y (descend + focus whole let)",
+      ~name="\\... % let y (descend + focus whole let)",
       ~code="let x = (let y = 99 in y) in x",
-      ~sel="\\... * let y",
+      ~sel="\\... % let y",
       ~expected="let y = 99 in y",
     ),
     /* === Module-internal keyword matching === */
     /* module keyword matches ModuleMod inside Module items */
     sel_test(
-      ~name="module B = * inside module items",
+      ~name="module B = % inside module items",
       ~code="module A = { let z = 0; module B = { let x = 42 } } in A.B.x",
-      ~sel="A/ \\... module B = *",
+      ~sel="A/ \\... module B = %",
       ~expected="{ let x = 42 }",
     ),
     /* type keyword matches ModType inside Module items */
     sel_test(
-      ~name="type T = * inside module items",
+      ~name="type T = % inside module items",
       ~code="module M = { type T = Int; let x = 1 } in M.x",
-      ~sel="M/ \\... type T = *",
+      ~sel="M/ \\... type T = %",
       ~expected="Int",
     ),
     /* module B = * inside module items → focuses on B's def */
     sel_test(
-      ~name="module B = * inside module items",
+      ~name="module B = % inside module items",
       ~code="module A = { module B = { let x = 42 } } in A.B.x",
-      ~sel="A/ \\... module B = *",
+      ~sel="A/ \\... module B = %",
       ~expected="{ let x = 42 }",
     ),
     /* type T inside module items: returns the ModType item as FocusMod */
@@ -2240,12 +2240,12 @@ let selector_tests = (
     ),
     /* === Composition: chain + descend + if === */
     sel_test(
-      ~name="M/f \\... if _ then * (chain+descend+if)",
+      ~name="M/f \\... if _ then % (chain+descend+if)",
       ~code=
         "module M = { "
         ++ "let f = fun x -> if x > 0 then x + 1 else x - 1 "
         ++ "} in M.f(5)",
-      ~sel="M/f \\... if _ then *",
+      ~sel="M/f \\... if _ then %",
       ~expected="x + 1",
     ),
     /* === Bare name in module context → FocusMod === */
@@ -2268,8 +2268,8 @@ let selector_tests = (
       `Quick,
       () => {
         let code = "let a = { let b = { let c = 99 } } in a.b.c";
-        let compact = selector_query_unique(code, "a/b/c/ *");
-        let spaced = selector_query_unique(code, "a/ b/ c/ *");
+        let compact = selector_query_unique(code, "a/b/c/ %");
+        let spaced = selector_query_unique(code, "a/ b/ c/ %");
         check(string, "same result", compact, spaced);
       },
     ),
@@ -2283,28 +2283,28 @@ let selector_tests = (
     /* === Indexing for non-let binders === */
     /* module#N: disambiguate shadowed module binders */
     sel_test(
-      ~name="module M#0 = * (first module)",
+      ~name="module M#0 = % (first module)",
       ~code="module M = { let x = 1 } in module M = { let y = 2 } in M.y",
-      ~sel="module M#0 = *",
+      ~sel="module M#0 = %",
       ~expected="{ let x = 1 }",
     ),
     sel_test(
-      ~name="module M#1 = * (second module)",
+      ~name="module M#1 = % (second module)",
       ~code="module M = { let x = 1 } in module M = { let y = 2 } in M.y",
-      ~sel="module M#1 = *",
+      ~sel="module M#1 = %",
       ~expected="{ let y = 2 }",
     ),
     /* type#N: disambiguate shadowed type binders */
     sel_test_rendered(
-      ~name="type T#0 = * (first type)",
+      ~name="type T#0 = % (first type)",
       ~code="type T = Int in type T = Bool in 42",
-      ~sel="type T#0 = *",
+      ~sel="type T#0 = %",
       ~expected="Int",
     ),
     sel_test_rendered(
-      ~name="type T#1 = * (second type)",
+      ~name="type T#1 = % (second type)",
       ~code="type T = Int in type T = Bool in 42",
-      ~sel="type T#1 = *",
+      ~sel="type T#1 = %",
       ~expected="Bool",
     ),
     /* === ChildIndex: numeric child addressing === */
@@ -2532,15 +2532,15 @@ let selector_tests = (
     ),
     /* BinOp spine */
     sel_test(
-      ~name="_ + * (right operand)",
+      ~name="_ + % (right operand)",
       ~code="let x = 1 + 2 in x",
-      ~sel="x = _ + *",
+      ~sel="x = _ + %",
       ~expected="2",
     ),
     sel_test(
-      ~name="* + _ (left operand)",
+      ~name="% + _ (left operand)",
       ~code="let x = 1 + 2 in x",
-      ~sel="x = * + _",
+      ~sel="x = % + _",
       ~expected="1",
     ),
     sel_test(
@@ -2550,39 +2550,39 @@ let selector_tests = (
       ~expected="1 + 2",
     ),
     sel_test(
-      ~name="_ - * (subtraction right)",
+      ~name="_ - % (subtraction right)",
       ~code="let x = 10 - 3 in x",
-      ~sel="x = _ - *",
+      ~sel="x = _ - %",
       ~expected="3",
     ),
     sel_test(
-      ~name="_ && * (boolean and)",
+      ~name="_ && % (boolean and)",
       ~code="let x = true && false in x",
-      ~sel="x = _ && *",
+      ~sel="x = _ && %",
       ~expected="false",
     ),
     sel_test(
-      ~name="_ == * (equality right)",
+      ~name="_ == % (equality right)",
       ~code="let x = 1 == 2 in x",
-      ~sel="x = _ == *",
+      ~sel="x = _ == %",
       ~expected="2",
     ),
     sel_test(
-      ~name="_ ++ * (string concat)",
+      ~name="_ ++ % (string concat)",
       ~code={|let x = "a" ++ "b" in x|},
-      ~sel="x = _ ++ *",
+      ~sel="x = _ ++ %",
       ~expected={|"b"|},
     ),
     sel_test(
-      ~name="_ :: * (cons right)",
+      ~name="_ :: % (cons right)",
       ~code="let x = 1 :: [2, 3] in x",
-      ~sel="x = _ :: *",
+      ~sel="x = _ :: %",
       ~expected="[2, 3]",
     ),
     sel_test(
-      ~name="* :: _ (cons left)",
+      ~name="% :: _ (cons left)",
       ~code="let x = 1 :: [2, 3] in x",
-      ~sel="x = * :: _",
+      ~sel="x = % :: _",
       ~expected="1",
     ),
   ],
@@ -2669,21 +2669,21 @@ let canonical_tests = (
     canonical_test(
       ~name="root = self",
       ~code="42",
-      ~sel="*",
-      ~expected_path="*",
+      ~sel="%",
+      ~expected_path="%",
     ),
     /* Let children */
     canonical_test(
       ~name="let def",
       ~code="let x = 42 in x",
-      ~sel="x = *",
-      ~expected_path="#1 *",
+      ~sel="x = %",
+      ~expected_path="#1 %",
     ),
     canonical_test(
       ~name="let body",
       ~code="let x = 42 in x + 1",
       ~sel="#2",
-      ~expected_path="#2 *",
+      ~expected_path="#2 %",
     ),
     canonical_roundtrip(
       ~name="let pat roundtrip",
@@ -2695,45 +2695,45 @@ let canonical_tests = (
       ~name="binop left",
       ~code="let x = 1 + 2 in x",
       ~sel="x = #0",
-      ~expected_path="#1 #0 *",
+      ~expected_path="#1 #0 %",
     ),
     canonical_test(
       ~name="binop right",
       ~code="let x = 1 + 2 in x",
       ~sel="x = #1",
-      ~expected_path="#1 #1 *",
+      ~expected_path="#1 #1 %",
     ),
     /* Deep nested */
     canonical_test(
       ~name="deep left-left",
       ~code="let x = (1 + 2) + 3 in x",
       ~sel="x = #0 #0 #0",
-      ~expected_path="#1 #0 #0 #0 *",
+      ~expected_path="#1 #0 #0 #0 %",
     ),
     canonical_test(
       ~name="deep left-right",
       ~code="let x = (1 + 2) + 3 in x",
       ~sel="x = #0 #0 #1",
-      ~expected_path="#1 #0 #0 #1 *",
+      ~expected_path="#1 #0 #0 #1 %",
     ),
     /* If */
     canonical_test(
       ~name="if cond",
       ~code="if true then 1 else 0",
-      ~sel="if *",
-      ~expected_path="#0 *",
+      ~sel="if %",
+      ~expected_path="#0 %",
     ),
     canonical_test(
       ~name="if then",
       ~code="if true then 1 else 0",
-      ~sel="if _ then *",
-      ~expected_path="#1 *",
+      ~sel="if _ then %",
+      ~expected_path="#1 %",
     ),
     canonical_test(
       ~name="if else",
       ~code="if true then 1 else 0",
-      ~sel="if _... else *",
-      ~expected_path="#2 *",
+      ~sel="if _... else %",
+      ~expected_path="#2 %",
     ),
     /* Cross-sort: Pat */
     canonical_roundtrip(
@@ -2752,33 +2752,33 @@ let canonical_tests = (
       ~name="tuple first",
       ~code="let x = (1, 2, 3) in x",
       ~sel="x = #0 #0",
-      ~expected_path="#1 #0 #0 *",
+      ~expected_path="#1 #0 #0 %",
     ),
     canonical_test(
       ~name="tuple third",
       ~code="let x = (1, 2, 3) in x",
       ~sel="x = #0 #2",
-      ~expected_path="#1 #0 #2 *",
+      ~expected_path="#1 #0 #2 %",
     ),
     /* List elements */
     canonical_test(
       ~name="list first",
       ~code="let x = [10, 20, 30] in x",
       ~sel="x = #0",
-      ~expected_path="#1 #0 *",
+      ~expected_path="#1 #0 %",
     ),
     canonical_test(
       ~name="list third",
       ~code="let x = [10, 20, 30] in x",
       ~sel="x = #2",
-      ~expected_path="#1 #2 *",
+      ~expected_path="#1 #2 %",
     ),
     /* Match: scrutinee and rule pairs */
     canonical_test(
       ~name="match scrut",
       ~code="case x | A => 1 | B => 2 end",
-      ~sel="case *",
-      ~expected_path="#0 *",
+      ~sel="case %",
+      ~expected_path="#0 %",
     ),
     canonical_roundtrip(
       ~name="match rule0 pat",
@@ -2789,7 +2789,7 @@ let canonical_tests = (
       ~name="match rule0 body",
       ~code="case x | A => 1 | B => 2 end",
       ~sel="#1 #1",
-      ~expected_path="#1 #1 *",
+      ~expected_path="#1 #1 %",
     ),
     canonical_roundtrip(
       ~name="match rule1 pat",
@@ -2800,7 +2800,7 @@ let canonical_tests = (
       ~name="match rule1 body",
       ~code="case x | A => 1 | B => 2 end",
       ~sel="#2 #1",
-      ~expected_path="#2 #1 *",
+      ~expected_path="#2 #1 %",
     ),
     /* Fun */
     canonical_roundtrip(~name="fun pat", ~code="fun x -> x + 1", ~sel="#0"),
@@ -2808,7 +2808,7 @@ let canonical_tests = (
       ~name="fun body",
       ~code="fun x -> x + 1",
       ~sel="#1",
-      ~expected_path="#1 *",
+      ~expected_path="#1 %",
     ),
     /* Module items */
     canonical_roundtrip(
@@ -2831,33 +2831,33 @@ let canonical_tests = (
       ~name="mod item def",
       ~code="let m = { let x = 42 } in m",
       ~sel="m = #0 #1",
-      ~expected_path="#1 #0 #1 *",
+      ~expected_path="#1 #0 #1 %",
     ),
     /* Nested let chain */
     canonical_test(
       ~name="nested let: inner def",
       ~code="let x = 1 in let y = 2 in x + y",
-      ~sel="y = *",
-      ~expected_path="#2 #1 *",
+      ~sel="y = %",
+      ~expected_path="#2 #1 %",
     ),
     canonical_test(
       ~name="nested let: inner body",
       ~code="let x = 1 in let y = 2 in x + y",
       ~sel="#2 #2",
-      ~expected_path="#2 #2 *",
+      ~expected_path="#2 #2 %",
     ),
     /* Seq */
     canonical_test(
       ~name="seq first",
       ~code="1; 2",
       ~sel="#0",
-      ~expected_path="#0 *",
+      ~expected_path="#0 %",
     ),
     canonical_test(
       ~name="seq second",
       ~code="1; 2",
       ~sel="#1",
-      ~expected_path="#1 *",
+      ~expected_path="#1 %",
     ),
     /* === Deparse tests === */
     test_case(
@@ -2866,11 +2866,11 @@ let canonical_tests = (
       () => {
         open Selector;
         let path = [ChildIndex(1), ChildIndex(0), MatchFocus];
-        check(string, "deparse", "#1 #0 *", deparse(path));
+        check(string, "deparse", "#1 #0 %", deparse(path));
       },
     ),
     test_case("deparse: just focus", `Quick, () => {
-      check(string, "deparse", "*", Selector.deparse([Selector.MatchFocus]))
+      check(string, "deparse", "%", Selector.deparse([Selector.MatchFocus]))
     }),
     test_case(
       "deparse: named steps",
@@ -2883,7 +2883,7 @@ let canonical_tests = (
           MatchDelimiter("="),
           MatchFocus,
         ];
-        check(string, "deparse", "let x = *", deparse(path));
+        check(string, "deparse", "let x = %", deparse(path));
       },
     ),
     test_case(
@@ -2898,7 +2898,7 @@ let canonical_tests = (
           MatchDelimiter("="),
           MatchFocus,
         ];
-        check(string, "deparse", "\\... let y = *", deparse(path));
+        check(string, "deparse", "\\... let y = %", deparse(path));
       },
     ),
     test_case(
@@ -2912,7 +2912,7 @@ let canonical_tests = (
           MatchDelimiter("="),
           MatchFocus,
         ];
-        check(string, "deparse", "let x#1 = *", deparse(path));
+        check(string, "deparse", "let x#1 = %", deparse(path));
       },
     ),
     test_case(
@@ -2927,7 +2927,7 @@ let canonical_tests = (
           MatchDelimiter("="),
           MatchFocus,
         ];
-        check(string, "deparse", "A/B/x = *", deparse(path));
+        check(string, "deparse", "A/B/x = %", deparse(path));
       },
     ),
     test_case(
@@ -2943,7 +2943,7 @@ let canonical_tests = (
           MatchDelimiter("="),
           MatchFocus,
         ];
-        check(string, "deparse", "A/B/ let y = *", deparse(path));
+        check(string, "deparse", "A/B/ let y = %", deparse(path));
       },
     ),
     test_case(
@@ -2957,7 +2957,7 @@ let canonical_tests = (
           MatchDelimiter("="),
           MatchFocus,
         ];
-        check(string, "deparse", "M/x = *", deparse(path));
+        check(string, "deparse", "M/x = %", deparse(path));
       },
     ),
     test_case(
@@ -2966,7 +2966,7 @@ let canonical_tests = (
       () => {
         open Selector;
         let path = [EnterBinderDef("M"), MatchFocus];
-        check(string, "deparse", "M/ *", deparse(path));
+        check(string, "deparse", "M/ %", deparse(path));
       },
     ),
     /* === Named canonical path generation === */
@@ -2978,14 +2978,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("let x = 42 in x");
-        switch (Selector.query_unique("x = *", root)) {
+        switch (Selector.query_unique("x = %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "x = *", s);
+            check(string, "named path", "x = %", s);
             /* Roundtrip */
             switch (Selector.query_unique(s, root)) {
             | Error(e) => fail("roundtrip: " ++ e)
@@ -3002,14 +3002,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("let x = 1 in let y = 2 in x + y");
-        switch (Selector.query_unique("y = *", root)) {
+        switch (Selector.query_unique("y = %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "y = *", s);
+            check(string, "named path", "y = %", s);
           }
         };
       },
@@ -3020,14 +3020,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("if true then 1 else 0");
-        switch (Selector.query_unique("if *", root)) {
+        switch (Selector.query_unique("if %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "if *", s);
+            check(string, "named path", "if %", s);
           }
         };
       },
@@ -3037,14 +3037,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("if true then 1 else 0");
-        switch (Selector.query_unique("if _ then *", root)) {
+        switch (Selector.query_unique("if _ then %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "if _ then *", s);
+            check(string, "named path", "if _ then %", s);
           }
         };
       },
@@ -3054,14 +3054,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("if true then 1 else 0");
-        switch (Selector.query_unique("if _... else *", root)) {
+        switch (Selector.query_unique("if _... else %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "if _... else *", s);
+            check(string, "named path", "if _... else %", s);
           }
         };
       },
@@ -3080,7 +3080,7 @@ let canonical_tests = (
           | Some(path) =>
             let s = Selector.deparse(path);
             /* Fun body is x+1, accessible via f = fun _ -> * */
-            check(string, "named path", "f = fun _ -> *", s);
+            check(string, "named path", "f = fun _ -> %", s);
           }
         };
       },
@@ -3098,7 +3098,7 @@ let canonical_tests = (
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "x = * + _", s);
+            check(string, "named path", "x = % + _", s);
           }
         };
       },
@@ -3116,7 +3116,7 @@ let canonical_tests = (
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "x = _ + *", s);
+            check(string, "named path", "x = _ + %", s);
             /* Roundtrip */
             switch (Selector.query_unique(s, root)) {
             | Error(e) => fail("roundtrip: " ++ e)
@@ -3140,7 +3140,7 @@ let canonical_tests = (
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "x = * :: _", s);
+            check(string, "named path", "x = % :: _", s);
             switch (Selector.query_unique(s, root)) {
             | Error(e) => fail("roundtrip: " ++ e)
             | Ok(m2) =>
@@ -3156,14 +3156,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("case x | A => 1 | B => 2 end");
-        switch (Selector.query_unique("case *", root)) {
+        switch (Selector.query_unique("case %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "case *", s);
+            check(string, "named path", "case %", s);
           }
         };
       },
@@ -3173,14 +3173,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("case x | A => 1 | B => 2 end");
-        switch (Selector.query_unique("| B => *", root)) {
+        switch (Selector.query_unique("| B => %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "| _... B => *", s);
+            check(string, "named path", "| _... B => %", s);
           }
         };
       },
@@ -3191,14 +3191,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("let x = 1 in let x = 2 in x");
-        switch (Selector.query_unique("x#1 = *", root)) {
+        switch (Selector.query_unique("x#1 = %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "x#1 = *", s);
+            check(string, "named path", "x#1 = %", s);
           }
         };
       },
@@ -3209,14 +3209,14 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("let x = 1 in let y = 2 in x + y");
-        switch (Selector.query_unique("x = *", root)) {
+        switch (Selector.query_unique("x = %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           switch (Selector.canonical_named(m.focused_id, root)) {
           | None => fail("named returned None")
           | Some(path) =>
             let s = Selector.deparse(path);
-            check(string, "named path", "x = *", s);
+            check(string, "named path", "x = %", s);
             /* Roundtrip */
             switch (Selector.query_unique(s, root)) {
             | Error(e) => fail("roundtrip: " ++ e)
@@ -3233,7 +3233,7 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term("let x = 42 in x + 1");
-        switch (Selector.query_unique("x = *", root)) {
+        switch (Selector.query_unique("x = %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           let id = m.focused_id;
@@ -3251,8 +3251,8 @@ let canonical_tests = (
             | (Ok(m1), Ok(m2)) =>
               check(bool, "same ID", true, m1.focused_id == m2.focused_id);
               /* Named should be more readable */
-              check(string, "numeric", "#1 *", ns);
-              check(string, "named", "x = *", nms);
+              check(string, "numeric", "#1 %", ns);
+              check(string, "named", "x = %", nms);
             | _ => fail("roundtrip failed")
             };
           | _ => fail("generation failed")
@@ -3267,7 +3267,7 @@ let canonical_tests = (
       `Quick,
       () => {
         let root = mk_term(app_program);
-        switch (Selector.query_unique("App/init = *", root)) {
+        switch (Selector.query_unique("App/init = %", root)) {
         | Error(e) => fail("sel: " ++ e)
         | Ok(m) =>
           /* Numeric roundtrip */
@@ -3298,32 +3298,32 @@ let canonical_tests = (
     canonical_roundtrip(
       ~name="mvu: update case scrut",
       ~code=app_program,
-      ~sel="App/update \\... case *",
+      ~sel="App/update \\... case %",
     ),
     canonical_roundtrip(
       ~name="mvu: Inc arm body",
       ~code=app_program,
-      ~sel="App/update \\... | Inc => *",
+      ~sel="App/update \\... | Inc => %",
     ),
     canonical_roundtrip(
       ~name="mvu: Dec arm body",
       ~code=app_program,
-      ~sel="App/update \\... | Dec => *",
+      ~sel="App/update \\... | Dec => %",
     ),
     canonical_roundtrip(
       ~name="mvu: Reset arm body",
       ~code=app_program,
-      ~sel="App/update \\... | Reset => *",
+      ~sel="App/update \\... | Reset => %",
     ),
     canonical_roundtrip(
       ~name="mvu: view label def",
       ~code=app_program,
-      ~sel="App/view \\... let label = *",
+      ~sel="App/view \\... let label = %",
     ),
     canonical_roundtrip(
       ~name="mvu: result def",
       ~code=app_program,
-      ~sel="result = *",
+      ~sel="result = %",
     ),
     /* ChildIndex on MVU: module items */
     sel_test(
@@ -3342,33 +3342,33 @@ let selector_edit_tests = (
   [
     /* SelectorUpdate: replace the focused subtree with new code */
     edit_test(
-      "SelectorUpdate: let x = * -> 99",
+      "SelectorUpdate: let x = % -> 99",
       "let x = 42 in x + 1",
-      SelectorUpdate("let x = *", "99"),
+      SelectorUpdate("let x = %", "99"),
       "let x = 99 in x + 1",
     ),
     edit_test(
       "SelectorUpdate: if else branch",
       "if true then 1 else 0",
-      SelectorUpdate("if _... else *", "42"),
+      SelectorUpdate("if _... else %", "42"),
       "if true then 1 else 42",
     ),
     edit_test(
       "SelectorUpdate: nested via descend",
       "let f = fun x -> if x > 0 then x else 0 in f 5",
-      SelectorUpdate("\\... if _... else *", "1"),
+      SelectorUpdate("\\... if _... else %", "1"),
       "let f = fun x -> if x > 0 then x else 1 in f 5",
     ),
     edit_test(
       "SelectorUpdate: case arm body",
       "let r = case x | A => 1 | B => 2 end in r",
-      SelectorUpdate("\\... | B => *", "99"),
+      SelectorUpdate("\\... | B => %", "99"),
       "let r = case x | A => 1 | B => 99 end in r",
     ),
     edit_test(
       "SelectorUpdate: module member def",
       "module M = { let x = 1; let y = 2 } in M.x",
-      SelectorUpdate("M/x = *", "42"),
+      SelectorUpdate("M/x = %", "42"),
       "module M = { let x = 42; let y = 2 } in M.x",
     ),
     /* SelectorUpdate: FocusMod — replace whole module item */
@@ -3389,26 +3389,26 @@ let selector_edit_tests = (
     edit_test(
       "SelectorUpdate: type annotation Int -> Bool",
       "let x : Int = 42 in x",
-      SelectorUpdate("let x : *", "Bool"),
+      SelectorUpdate("let x : %", "Bool"),
       "let x : Bool = 42 in x",
     ),
     edit_test(
       "SelectorUpdate: type def in type alias",
       "type T = Int in let x : T = 42 in x",
-      SelectorUpdate("type T = *", "Bool"),
+      SelectorUpdate("type T = %", "Bool"),
       "type T = Bool in let x : T = 42 in x",
     ),
     /* SelectorDelete: replace focused subtree with hole */
     edit_test(
       "SelectorDelete: let def -> hole",
       "let x = 42 in x + 1",
-      SelectorDelete("let x = *"),
+      SelectorDelete("let x = %"),
       "let x = ? in x + 1",
     ),
     edit_test(
       "SelectorDelete: type annotation -> type hole",
       "let x : Int = 42 in x",
-      SelectorDelete("let x : *"),
+      SelectorDelete("let x : %"),
       "let x : ? = 42 in x",
     ),
     /* SelectorUpdate/Delete: cross-sort (FocusPat) */
@@ -3427,7 +3427,7 @@ let selector_edit_tests = (
     /* Error cases */
     test_case("SelectorUpdate: no match", `Quick, () => {
       switch (
-        run_agent_action("let x = 1 in x", SelectorUpdate("let y = *", "2"))
+        run_agent_action("let x = 1 in x", SelectorUpdate("let y = %", "2"))
       ) {
       | Ok(_) => Alcotest.fail("Expected failure: no match")
       | Error(Action.Failure.Composition_action_failure(msg)) =>
@@ -3445,7 +3445,7 @@ let selector_edit_tests = (
       switch (
         run_agent_action(
           "let a = 1 in let b = 2 in a + b",
-          SelectorUpdate("let _ = *", "0"),
+          SelectorUpdate("let _ = %", "0"),
         )
       ) {
       | Ok(_) => Alcotest.fail("Expected failure: ambiguous")
@@ -3465,21 +3465,21 @@ let selector_edit_tests = (
     edit_test(
       "SelectorInsertAfter: let after anchor",
       "let x = 1 in x + 1",
-      SelectorInsertAfter("* let x", "let y = 2"),
+      SelectorInsertAfter("% let x", "let y = 2"),
       "let x = 1 in let y = 2 in x + 1",
     ),
     /* InsertBefore: insert let binding before anchor */
     edit_test(
       "SelectorInsertBefore: let before anchor",
       "let x = 1 in x + 1",
-      SelectorInsertBefore("* let x", "let y = 2"),
+      SelectorInsertBefore("% let x", "let y = 2"),
       "let y = 2 in let x = 1 in x + 1",
     ),
     /* InsertAfter in module: insert after a module item */
     edit_test(
       "SelectorInsertAfter: module item",
       "module M = { let x = 1 } in M.x",
-      SelectorInsertAfter("M/x = *", "let y = 2"),
+      SelectorInsertAfter("M/x = %", "let y = 2"),
       /* Space before ; is from original item's stored after-secondary
          (was space before } in original code). Cosmetic artifact of
          PreserveExact preserving positional whitespace. */
@@ -3489,7 +3489,7 @@ let selector_edit_tests = (
     edit_test(
       "SelectorInsertBefore: module item",
       "module M = { let x = 1 } in M.x",
-      SelectorInsertBefore("M/x = *", "let y = 0"),
+      SelectorInsertBefore("M/x = %", "let y = 0"),
       "module M = { let y = 0; let x = 1 } in M.x",
     ),
     /* Error: selector no match */
@@ -3497,7 +3497,7 @@ let selector_edit_tests = (
       switch (
         run_agent_action(
           "let x = 1 in x",
-          SelectorInsertAfter("* let z", "let y = 2"),
+          SelectorInsertAfter("% let z", "let y = 2"),
         )
       ) {
       | Ok(_) => Alcotest.fail("Expected failure: no match")
@@ -3542,13 +3542,13 @@ let whitespace_tests = (
     edit_test(
       "selector_update preserves line breaks in def",
       "let x = 1\nin let y = 2\nin x + y",
-      SelectorUpdate("x = *", "99"),
+      SelectorUpdate("x = %", "99"),
       "let x = 99\nin let y = 2\nin x + y",
     ),
     edit_test(
       "selector_update preserves line breaks in body",
       "let x = 1\nin let y = 2\nin x + y",
-      SelectorUpdate("\\... y = *", "20"),
+      SelectorUpdate("\\... y = %", "20"),
       "let x = 1\nin let y = 20\nin x + y",
     ),
     edit_test(
@@ -3566,7 +3566,7 @@ let whitespace_tests = (
     edit_test(
       "selector_delete preserves line breaks",
       "let x = 1\nin let y = 2\nin x + y",
-      SelectorDelete("x = *"),
+      SelectorDelete("x = %"),
       "let x = ?\nin let y = 2\nin x + y",
     ),
     /* --- New bindings get appropriate line breaks --- */
@@ -3585,13 +3585,13 @@ let whitespace_tests = (
     edit_test(
       "selector_insert_after with line breaks",
       "let x = 1\nin x + 1",
-      SelectorInsertAfter("* let x", "let y = 2"),
+      SelectorInsertAfter("% let x", "let y = 2"),
       "let x = 1\nin let y = 2\nin x + 1",
     ),
     edit_test(
       "selector_insert_before with line breaks",
       "let x = 1\nin x + 1",
-      SelectorInsertBefore("* let x", "let y = 2"),
+      SelectorInsertBefore("% let x", "let y = 2"),
       "let y = 2\nin let x = 1\nin x + 1",
     ),
     /* --- Pattern/type updates preserve line breaks --- */
@@ -3605,7 +3605,7 @@ let whitespace_tests = (
     edit_test(
       "selector_update in case arm preserves breaks",
       "let r = case x\n| A => 1\n| B => 2\nend\nin r",
-      SelectorUpdate("\\... | B => *", "99"),
+      SelectorUpdate("\\... | B => %", "99"),
       "let r = case x\n| A => 1\n| B => 99\nend\nin r",
     ),
   ],
@@ -3621,8 +3621,8 @@ let canonical_read_tests = (
       `Quick,
       () => {
         let result =
-          run_read_action("let x = 42 in x + 1", GetCanonical("x = *"));
-        check(string, "canonical", "numeric: #1 *\nnamed: x = *", result);
+          run_read_action("let x = 42 in x + 1", GetCanonical("x = %"));
+        check(string, "canonical", "numeric: #1 %\nnamed: x = %", result);
       },
     ),
     test_case(
@@ -3634,7 +3634,7 @@ let canonical_read_tests = (
         check(
           string,
           "canonical",
-          "numeric: #1 #0 *\nnamed: x = * + _",
+          "numeric: #1 #0 %\nnamed: x = % + _",
           result,
         );
       },
@@ -3646,7 +3646,7 @@ let canonical_read_tests = (
         let z = mk_zipper("let x = 42 in x");
         switch (
           CompositionGo.Public.read_dispatch(
-            ~action=GetCanonical("nonexistent = *"),
+            ~action=GetCanonical("nonexistent = %"),
             ~z,
           )
         ) {
@@ -3754,7 +3754,7 @@ let complex_program_tests = (
         let result =
           selector_query_unique(
             sum_type_program,
-            "name_of = \\... | Green => *",
+            "name_of = \\... | Green => %",
           );
         check_rendered("green arm", "\"green\"", result);
       },
@@ -3831,7 +3831,7 @@ let complex_program_tests = (
       () => {
         let code = "let f = fun x -> if x > 0 then x else 0 - x in f(5)";
         let result =
-          selector_query_unique(code, "let f = \\... if _... else *");
+          selector_query_unique(code, "let f = \\... if _... else %");
         check_rendered("else branch", "0 - x", result);
       },
     ),

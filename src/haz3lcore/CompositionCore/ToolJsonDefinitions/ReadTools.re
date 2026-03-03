@@ -201,18 +201,18 @@ Core operators:
 - `_` matches one syntactic slot
 - `_...` matches zero or more slots along the current spine
 - `\...` (backslash-dots) is descendant search — match P, then find Q inside
-- `*` marks the focused subtree to return
+- `%` marks the focused subtree to return
 
 Common patterns:
-- `let x = *` — select x's definition
-- `let x _... in *` — select x's body
-- `if *` — select the if condition
-- `if _ then *` — select the then branch
-- `if _... else *` — select the else branch
-- `| Foo => *` — select arm body for constructor Foo
-- `case *` — select the scrutinee
-- `* let x` — select the whole let-binding expression
-- `A/B/x = *` — binder chain: navigate into A's def, then B's, select x's def
+- `let x = %` — select x's definition
+- `let x _... in %` — select x's body
+- `if %` — select the if condition
+- `if _ then %` — select the then branch
+- `if _... else %` — select the else branch
+- `| Foo => %` — select arm body for constructor Foo
+- `case %` — select the scrutinee
+- `% let x` — select the whole let-binding expression
+- `A/B/x = %` — binder chain: navigate into A's def, then B's, select x's def
 
 Parameters:
 selector: string — the selector expression
@@ -222,9 +222,9 @@ Given:
 ```
 let f = fun x -> if x > 0 then x else 0 in f 5
 ```
-- select(selector="let f = \... if *") returns: "x > 0"
-- select(selector="let f = \... if _ then *") returns: "x"
-- select(selector="let f = \... if _... else *") returns: "0"
+- select(selector="let f = \... if %") returns: "x > 0"
+- select(selector="let f = \... if _ then %") returns: "x"
+- select(selector="let f = \... if _... else %") returns: "0"
 |};
 
 let select: API.Json.t =
@@ -249,7 +249,7 @@ let select: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Selector expression (e.g. \"let x = *\", \"if _... else *\", \"A/B/x = *\").",
+                        "Selector expression (e.g. \"let x = %\", \"if _... else %\", \"A/B/x = %\").",
                       ),
                     ),
                   ]),
@@ -280,20 +280,20 @@ Given the program:
 ```
 let x = 1 + 2 in x
 ```
-Calling get_canonical(selector="let x = *") returns:
+Calling get_canonical(selector="let x = %") returns:
 ```
 numeric: #0
-named: x = *
+named: x = %
 ```
 
 Given:
 ```
 let f = fun x -> x + 1 in f 5
 ```
-Calling get_canonical(selector="\... fun *") returns:
+Calling get_canonical(selector="\... fun %") returns:
 ```
 numeric: #0 #0
-named: f = \... fun *
+named: f = \... fun %
 ```
 |};
 
@@ -319,7 +319,7 @@ let get_canonical: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Selector expression to locate the target node (e.g. \"let x = *\", \"\\... if *\").",
+                        "Selector expression to locate the target node (e.g. \"let x = %\", \"\\... if %\").",
                       ),
                     ),
                   ]),

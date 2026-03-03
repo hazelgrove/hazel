@@ -7,7 +7,7 @@ open Language;
       - `_`    : matches one syntactic slot
       - `_...` : matches zero or more slots along current spine
       - `⋱`/`\...` : descendant search (match P, then find Q inside)
-      - `*`    : focus marker (selects the next syntactic unit)
+      - `%`    : focus marker (selects the next syntactic unit)
 
       Binder-chain sugar:
       - `A/B/C` : navigate into binder A's def, then B's def, then resolve C
@@ -19,7 +19,7 @@ open Language;
 type token =
   | Slot /* _ */
   | Ellipsis /* _... or … */
-  | Focus /* * */
+  | Focus /* % */
   | Descend /* ⋱ or \... */
   | KW_let
   | KW_fun
@@ -111,8 +111,8 @@ let mk_mod = (~bc="", m: Mod.t): match_result => {
 /* === Tokenizer / Parser === */
 
 /* Known binary operator symbols for selector matching.
-   NOTE: * (multiplication) and / (division) are omitted due to conflicts
-   with focus (*) and chain (/) syntax. Will revisit later. */
+   NOTE: / (division) is omitted due to conflict with chain (/) syntax.
+   * (multiplication) can now be used since focus uses %. Will revisit later. */
 let is_binop_token = (s: string): bool =>
   switch (s) {
   | "+"
@@ -156,7 +156,7 @@ let tokenize = (input: string): list(token) => {
       | "_..."
       | "..."
       | "…" => Ellipsis /* … UTF-8 */
-      | "*" => Focus
+      | "%" => Focus
       | "\\..."
       | "⋱" => Descend /* ⋱ UTF-8 */
       | "let" => KW_let
@@ -271,9 +271,9 @@ let elaborate = (sel: selector): sem_selector => {
     | [Name(s), ...rest] => [MatchName(s), ...go(rest)]
     };
   let steps = go(sel);
-  /* Implicit star: if no MatchFocus in the selector, append one.
+  /* Implicit focus: if no MatchFocus in the selector, append one.
      This means selectors like `A/B/C/` or `let x` produce a result
-     without requiring an explicit `*`. */
+     without requiring an explicit `%`. */
   if (List.exists(s => s == MatchFocus, steps)) {
     steps;
   } else {
@@ -778,10 +778,10 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* Focus: return the current expression as match */
     | [MatchFocus] => [mk_exp(current)]
 
-    /* Focus + binop: * op _ focuses the left operand */
+    /* Focus + binop: % op _ focuses the left operand */
     | [MatchFocus, MatchDelimiter(op), MatchSlot] when is_binop_token(op) =>
       switch (match_binop(op, current)) {
-      | Some((e1, _e2)) => [mk_exp(~bc="* " ++ op ++ " _", e1)]
+      | Some((e1, _e2)) => [mk_exp(~bc="% " ++ op ++ " _", e1)]
       | None => []
       }
 
@@ -811,7 +811,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         }
       }
 
-    /* name = * : select the definition of all binders named `name` */
+    /* name = % : select the definition of all binders named `name` */
     | [MatchName(name), MatchDelimiter("="), MatchFocus] =>
       find_all_binders_named(name, current)
       |> List.map(((def, _body)) => mk_exp(~bc=name ++ " = ...", def))
@@ -821,7 +821,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       find_all_binders_named(name, current)
       |> List.concat_map(((def, _body)) => walk(rest, def))
 
-    /* name ... in * : select the body of all binders named `name` */
+    /* name ... in % : select the body of all binders named `name` */
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
       find_all_binders_named(name, current)
       |> List.map(((_def, body)) => mk_exp(~bc=name ++ " ... in ...", body))
@@ -1129,17 +1129,17 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
     /* BinOp: pattern with operator delimiter matches a binary operation.
        Handles full left-op-right patterns to correctly focus either side.
-       NOTE: * (multiplication) and / (division) are not supported as operators
-       due to conflicts with focus (*) and chain (/) syntax. */
+       NOTE: / (division) is not supported as an operator
+       due to conflict with chain (/) syntax. */
 
-    /* _ op * : focus right operand */
+    /* _ op % : focus right operand */
     | [MatchSlot, MatchDelimiter(op), MatchFocus] when is_binop_token(op) =>
       switch (match_binop(op, current)) {
-      | Some((_e1, e2)) => [mk_exp(~bc="_ " ++ op ++ " *", e2)]
+      | Some((_e1, e2)) => [mk_exp(~bc="_ " ++ op ++ " %", e2)]
       | None => []
       }
 
-    /* _ op _ : focus whole BinOp (with or without trailing implicit star) */
+    /* _ op _ : focus whole BinOp (with or without trailing implicit focus) */
     | [MatchSlot, MatchDelimiter(op), MatchSlot]
     | [MatchSlot, MatchDelimiter(op), MatchSlot, MatchFocus]
         when is_binop_token(op) =>
@@ -1215,24 +1215,24 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [] => [mk_exp(spine.whole)]
     | [MatchFocus] => [mk_exp(spine.whole)]
 
-    /* let <name> = * : focus on definition */
+    /* let <name> = % : focus on definition */
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         mk_exp(~bc="let " ++ name ++ " = ...", spine.def),
       ]
 
-    /* let <name> = * ... : focus on definition, continue */
+    /* let <name> = % ... : focus on definition, continue */
     | [MatchName(name), MatchDelimiter("="), MatchFocus, ...rest]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.def)
 
-    /* let <name> ... in * : focus on body */
+    /* let <name> ... in % : focus on body */
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), MatchFocus]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         mk_exp(~bc="let " ++ name ++ " ... in ...", spine.body),
       ]
 
-    /* let <name> ... in * <more> : focus on body, continue */
+    /* let <name> ... in % <more> : focus on body, continue */
     | [
         MatchName(name),
         MatchEllipsis,
@@ -1253,10 +1253,10 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.body)
 
-    /* Colon patterns: let <name> : * selects type annotation.
+    /* Colon patterns: let <name> : % selects type annotation.
        In Hazel, `let x : T = def in body` parses as Let(Asc(pat, typ), def, body). */
 
-    /* let <name> : * : focus on the type annotation */
+    /* let <name> : % : focus on the type annotation */
     | [MatchName(name), MatchDelimiter(":"), MatchFocus] =>
       switch (Pat.term_of(spine.pat)) {
       | Asc(inner_pat, ty)
@@ -1266,7 +1266,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | _ => []
       }
 
-    /* let <name> : _ = * : skip type annotation, focus on def */
+    /* let <name> : _ = % : skip type annotation, focus on def */
     | [
         MatchName(name),
         MatchDelimiter(":"),
@@ -1279,14 +1279,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
           when Option.equal(String.equal, Pat.is_var(inner_pat), Some(name)) => [
           mk_exp(~bc="let " ++ name ++ " : _ = ...", spine.def),
         ]
-      /* Also handle non-Asc patterns — name : _ = * just skips to def */
+      /* Also handle non-Asc patterns — name : _ = % just skips to def */
       | _ when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
           mk_exp(~bc="let " ++ name ++ " : _ = ...", spine.def),
         ]
       | _ => []
       }
 
-    /* let <name> : _ = _ ... in * : skip annotation and def, focus on body */
+    /* let <name> : _ = _ ... in % : skip annotation and def, focus on body */
     | [
         MatchName(name),
         MatchDelimiter(":"),
@@ -1314,12 +1314,12 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
       walk(rest, spine.whole)
 
-    /* let _ = * : slot pattern, focus on def */
+    /* let _ = % : slot pattern, focus on def */
     | [MatchSlot, MatchDelimiter("="), MatchFocus] => [
         mk_exp(~bc="let _ = ...", spine.def),
       ]
 
-    /* let _ ... in * : slot pattern, focus on body */
+    /* let _ ... in % : slot pattern, focus on body */
     | [MatchSlot, MatchEllipsis, MatchKeyword("in"), MatchFocus] => [
         mk_exp(~bc="let _ ... in ...", spine.body),
       ]
@@ -1330,20 +1330,20 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   /* Walk an if spine after "if" keyword */
   and walk_if_spine = (spine: if_spine, steps: sem_selector) =>
     switch (steps) {
-    /* if * : focus on condition */
+    /* if % : focus on condition */
     | [MatchFocus] => [mk_exp(~bc="if ...", spine.cond)]
 
-    /* if _ then * : focus on then branch */
+    /* if _ then % : focus on then branch */
     | [MatchSlot, MatchKeyword("then"), MatchFocus] => [
         mk_exp(~bc="if _ then ...", spine.then_),
       ]
 
-    /* if ... else * : focus on else branch */
+    /* if ... else % : focus on else branch */
     | [MatchEllipsis, MatchKeyword("else"), MatchFocus] => [
         mk_exp(~bc="if ... else ...", spine.else_),
       ]
 
-    /* if _ then _ else * : focus on else branch */
+    /* if _ then _ else % : focus on else branch */
     | [
         MatchSlot,
         MatchKeyword("then"),
@@ -1366,14 +1366,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         steps: sem_selector,
       ) =>
     switch (steps) {
-    /* case * : focus on scrutinee */
+    /* case % : focus on scrutinee */
     | [MatchFocus] => [mk_exp(~bc="case ...", scrut)]
 
-    /* case ... | <ctor> => * : find arm by constructor, focus on body */
+    /* case ... | <ctor> => % : find arm by constructor, focus on body */
     | [MatchEllipsis, MatchDelimiter("|"), ...rest] =>
       walk_pipe_in_rules(rules, rest)
 
-    /* case _ | <ctor> => * : skip scrutinee, find arm */
+    /* case _ | <ctor> => % : skip scrutinee, find arm */
     | [MatchSlot, MatchDelimiter("|"), ...rest] =>
       walk_pipe_in_rules(rules, rest)
 
@@ -1392,7 +1392,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   and walk_pipe_in_rules =
       (rules: list((Pat.t, Exp.t)), steps: sem_selector) =>
     switch (steps) {
-    /* | <name> => * : find arm by constructor name */
+    /* | <name> => % : find arm by constructor name */
     | [MatchName(name), MatchDelimiter("=>"), MatchFocus] =>
       rules
       |> List.filter_map(((pat, body)) =>
@@ -1435,7 +1435,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
            };
          })
 
-    /* | _ => * : wildcard, match any single arm body */
+    /* | _ => % : wildcard, match any single arm body */
     | [MatchSlot, MatchDelimiter("=>"), MatchFocus] =>
       rules
       |> List.map(((pat, body)) => {
@@ -1504,7 +1504,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => [mk_exp(~bc="module " ++ name, whole)]
       }
 
-    /* module M = * : focus on module def */
+    /* module M = % : focus on module def */
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
         when name_matches(name) => [
         mk_exp(~bc="module " ++ name ++ " = ...", def),
@@ -1515,7 +1515,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         when name_matches(name) =>
       walk(rest, def)
 
-    /* module M _... in * : skip def, focus on body */
+    /* module M _... in % : skip def, focus on body */
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), MatchFocus]
         when name_matches(name) =>
       switch (body_opt) {
@@ -1545,7 +1545,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => walk(rest, def)
       }
 
-    /* module _ = * : wildcard name, focus on def */
+    /* module _ = % : wildcard name, focus on def */
     | [MatchSlot, MatchDelimiter("="), MatchFocus] => [
         mk_exp(~bc="module " ++ name_str ++ " = ...", def),
       ]
@@ -1553,7 +1553,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* module _ = <more> : wildcard name, continue into def */
     | [MatchSlot, MatchDelimiter("="), ...rest] => walk(rest, def)
 
-    /* module _... in * : skip name and def, focus on body */
+    /* module _... in % : skip name and def, focus on body */
     | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
       switch (body_opt) {
       | Some(body) => [
@@ -1569,7 +1569,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => []
       }
 
-    /* module * : focus on whole module expression */
+    /* module % : focus on whole module expression */
     | [MatchFocus] => [mk_exp(~bc="module " ++ name_str, whole)]
 
     | _ => []
@@ -1596,13 +1596,13 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* Helper: handle steps after the name has been matched/consumed */
     let walk_after_name = (remaining: sem_selector) =>
       switch (remaining) {
-      /* type T = * : focus on type definition */
+      /* type T = % : focus on type definition */
       | [MatchDelimiter("="), MatchFocus] =>
         switch (tdef_opt) {
         | Some(tdef) => [mk_typ(~bc="type " ++ name_str ++ " = ...", tdef)]
         | None => []
         }
-      /* type T _... in * : skip def, focus on body */
+      /* type T _... in % : skip def, focus on body */
       | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
         switch (body_opt) {
         | Some(body) => [
@@ -1627,7 +1627,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     switch (steps) {
     /* type T : bare name match */
     | [MatchName(name)] when name_matches(name) => focus_whole_or_mod()
-    /* type T * : bare name + implicit star */
+    /* type T % : bare name + implicit percent */
     | [MatchName(name), MatchFocus] when name_matches(name) =>
       focus_whole_or_mod()
 
@@ -1638,7 +1638,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* type _ <more> : wildcard name */
     | [MatchSlot, ...rest] => walk_after_name(rest)
 
-    /* type _... in * : skip name and def */
+    /* type _... in % : skip name and def */
     | [MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
       switch (body_opt) {
       | Some(body) => [
@@ -1653,7 +1653,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => []
       }
 
-    /* type * : focus on whole type alias expression */
+    /* type % : focus on whole type alias expression */
     | [MatchFocus] => [mk_exp(~bc="type " ++ name_str, whole)]
 
     | _ => []
@@ -1663,11 +1663,11 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   /* Walk a fun spine after "fun" keyword */
   and walk_fun_spine = (spine: fun_spine, steps: sem_selector) =>
     switch (steps) {
-    /* fun * : focus on the pattern (as an expression context — actually
+    /* fun % : focus on the pattern (as an expression context — actually
        we can't return a Pat as Exp, so focus on whole fun) */
     | [MatchFocus] => [mk_exp(~bc="fun ... -> ...", spine.body)]
 
-    /* fun _ -> * : skip pattern, focus on body */
+    /* fun _ -> % : skip pattern, focus on body */
     | [MatchSlot, MatchDelimiter("->"), MatchFocus] => [
         mk_exp(~bc="fun _ -> ...", spine.body),
       ]
@@ -1675,7 +1675,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* fun _ -> <more> : skip pattern, continue in body */
     | [MatchSlot, MatchDelimiter("->"), ...rest] => walk(rest, spine.body)
 
-    /* fun ... -> * : skip pattern via ellipsis, focus on body */
+    /* fun ... -> % : skip pattern via ellipsis, focus on body */
     | [MatchEllipsis, MatchDelimiter("->"), MatchFocus] => [
         mk_exp(~bc="fun ... -> ...", spine.body),
       ]
@@ -1684,7 +1684,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchEllipsis, MatchDelimiter("->"), ...rest] =>
       walk(rest, spine.body)
 
-    /* fun <name> -> * : match pattern by name, focus on body */
+    /* fun <name> -> % : match pattern by name, focus on body */
     | [MatchName(name), MatchDelimiter("->"), MatchFocus]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
         mk_exp(~bc="fun " ++ name ++ " -> ...", spine.body),
@@ -1701,11 +1701,11 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   /* Walk a test spine after "test" keyword */
   and walk_test_spine = (spine: test_spine, steps: sem_selector) =>
     switch (steps) {
-    /* test * : focus on the test body */
+    /* test % : focus on the test body */
     | [MatchFocus] => [mk_exp(~bc="test ...", spine.body)]
 
-    /* test _ end [*] : match slot, then end keyword → whole test
-       The MatchFocus variant handles the implicit star rule. */
+    /* test _ end [%] : match slot, then end keyword → whole test
+       The MatchFocus variant handles the implicit focus rule. */
     | [MatchSlot, MatchKeyword("end")]
     | [MatchEllipsis, MatchKeyword("end")]
     | [MatchSlot, MatchKeyword("end"), MatchFocus]
@@ -1713,7 +1713,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         mk_exp(~bc="test _ end", spine.whole),
       ]
 
-    /* test _ * : match slot, then focus on body */
+    /* test _ % : match slot, then focus on body */
     | [MatchSlot, MatchFocus]
     | [MatchEllipsis, MatchFocus] => [mk_exp(~bc="test ...", spine.body)]
 
@@ -1731,7 +1731,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   and walk_binop_spine =
       (_left: Exp.t, right: Exp.t, whole: Exp.t, steps: sem_selector) =>
     switch (steps) {
-    /* op * : focus right operand */
+    /* op % : focus right operand */
     | [MatchFocus] => [mk_exp(~bc="... op ...", right)]
     /* op _ : focus whole (slot consumes right, implicit star on whole) */
     | [MatchSlot]
@@ -1891,7 +1891,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       find_all_lets(body)
     | TyAlias(_, _, body) => find_all_lets(body)
     | Module(items) =>
-      /* Surface ModLet items as let_spines so `let x = *` finds them.
+      /* Surface ModLet items as let_spines so `let x = %` finds them.
          Synthesize EmptyHole body since ModLet has no body. */
       List.concat_map(
         (item: Mod.t) =>
@@ -2053,7 +2053,7 @@ let query = (selector_str: string, root: Exp.t): list(match_result) => {
 /* Format a semantic selector step as a readable string */
 let step_to_string = (step: sem_step): string =>
   switch (step) {
-  | MatchFocus => "*"
+  | MatchFocus => "%"
   | MatchSlot => "_"
   | MatchEllipsis => "_..."
   | MatchName(s) => s
@@ -2876,7 +2876,7 @@ let deparse = (steps: sem_selector): string => {
     | [step, ...rest] =>
       let s =
         switch (step) {
-        | MatchFocus => "*"
+        | MatchFocus => "%"
         | MatchSlot => "_"
         | MatchEllipsis => "_..."
         | MatchKeyword(kw) => kw

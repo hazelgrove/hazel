@@ -4,7 +4,7 @@ The selector language is a **concise, surface-oriented pattern language** for
 addressing Hazel syntax in a coding agent. Selectors are best understood as
 **partial pattern matching against syntax**: each selector reads as the opening
 delimiters of a Hazel form — the keywords and landmarks that identify it —
-with `_`/`_...` for wildcards and `*` for capture.
+with `_`/`_...` for wildcards and `%` for capture.
 
 Every Hazel form has a sequence of opening delimiters that form a linear prefix:
 - `let <pat> = <def> in <body>` — prefix: `let`, `=`, `in`
@@ -13,7 +13,7 @@ Every Hazel form has a sequence of opening delimiters that form a linear prefix:
 - `case <scrut> | <pat> => <body> ... end` — prefix: `case`, `|`, `=>`, `end`
 
 A selector matches a prefix of this delimiter sequence, with `_` for "skip one
-slot", `_...` for "skip to the next landmark", and `*` for "capture this slot".
+slot", `_...` for "skip to the next landmark", and `%` for "capture this slot".
 You never need closing delimiters because the opening delimiters already uniquely
 identify the form and which slot you're targeting.
 
@@ -29,7 +29,7 @@ The composition pattern is: `context \... keyword spine-pattern`.
 Operators:
   _       slot — matches one syntactic position
   _...    ellipsis — matches zero or more positions along a spine
-  *       focus — "this is the thing I'm pointing at"
+  %       focus — "this is the thing I'm pointing at"
   \...    descend — search all descendants recursively
 
 Keywords:     let  fun  if  then  else  case  end  module  type  in  test
@@ -41,22 +41,22 @@ Indexing:     x#0  x#1  (nth binder named x, 0-based)
 Child index:  #0  #1  #2  (nth structural child of current node)
 Chains:       A/B/C  A/B/C/  (binder navigation sugar)
 
-Implicit star: if no * appears, one is appended at the end.
+Implicit focus: if no % appears, one is appended at the end.
 ```
 
 ## Semantics at a Glance
 
 | Selector | Elaboration | Points at |
 |----------|-------------|-----------|
-| `let x = *` | MatchKeyword("let"), MatchName("x"), MatchDelimiter("="), MatchFocus | x's definition (RHS of =) |
-| `let x` | MatchKeyword("let"), MatchName("x"), [implicit *] | whole `let x = ... in ...` |
-| `x = *` | MatchName("x"), MatchDelimiter("="), MatchFocus | x's definition |
-| `x` | MatchName("x"), [implicit *] | whole binding containing x |
-| `x/` | EnterBinderDef("x"), [implicit *] | x's definition |
-| `A/B/C` | EnterBinderDef(A), EnterBinderDef(B), MatchName(C) , [implicit *] | whole binding of C inside B inside A |
-| `A/B/C/` | EnterBinderDef(A), EnterBinderDef(B), EnterBinderDef(C), [implicit *] | C's definition |
-| `_ + *` | MatchSlot, MatchDelimiter("+"), MatchFocus | right operand of + |
-| `* + _` | MatchFocus, MatchDelimiter("+"), MatchSlot | left operand of + |
+| `let x = %` | MatchKeyword("let"), MatchName("x"), MatchDelimiter("="), MatchFocus | x's definition (RHS of =) |
+| `let x` | MatchKeyword("let"), MatchName("x"), [implicit %] | whole `let x = ... in ...` |
+| `x = %` | MatchName("x"), MatchDelimiter("="), MatchFocus | x's definition |
+| `x` | MatchName("x"), [implicit %] | whole binding containing x |
+| `x/` | EnterBinderDef("x"), [implicit %] | x's definition |
+| `A/B/C` | EnterBinderDef(A), EnterBinderDef(B), MatchName(C) , [implicit %] | whole binding of C inside B inside A |
+| `A/B/C/` | EnterBinderDef(A), EnterBinderDef(B), EnterBinderDef(C), [implicit %] | C's definition |
+| `_ + %` | MatchSlot, MatchDelimiter("+"), MatchFocus | right operand of + |
+| `% + _` | MatchFocus, MatchDelimiter("+"), MatchSlot | left operand of + |
 
 ---
 
@@ -70,13 +70,13 @@ let x = 42 in x + 1
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `let x = *` | `42` | definition of x |
-| `let x _... in *` | `x + 1` | body after x |
-| `let x` | `let x = 42 in x + 1` | whole let expression (implicit *) |
-| `x = *` | `42` | same as `let x = *` but without keyword |
+| `let x = %` | `42` | definition of x |
+| `let x _... in %` | `x + 1` | body after x |
+| `let x` | `let x = 42 in x + 1` | whole let expression (implicit %) |
+| `x = %` | `42` | same as `let x = %` but without keyword |
 | `x` | `let x = 42 in x + 1` | bare name → whole binding |
 | `x/` | `42` | trailing slash → enter def |
-| `* let x` | `let x = 42 in x + 1` | * prefix → focus on what follows |
+| `% let x` | `let x = 42 in x + 1` | % prefix → focus on what follows |
 
 ### Let chains
 
@@ -86,11 +86,11 @@ let a = 1 in let b = 2 in a + b
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `let a = *` | `1` | first let |
-| `let b = *` | `2` | second let |
-| `let _ = *` | `1`, `2` | wildcard: matches BOTH lets |
-| `a _... in *` | `let b = 2 in a + b` | body of a |
-| `b _... in *` | `a + b` | body of b |
+| `let a = %` | `1` | first let |
+| `let b = %` | `2` | second let |
+| `let _ = %` | `1`, `2` | wildcard: matches BOTH lets |
+| `a _... in %` | `let b = 2 in a + b` | body of a |
+| `b _... in %` | `a + b` | body of b |
 
 ---
 
@@ -104,9 +104,9 @@ let x : Int = 42 in x
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `let x = *` | `42` | definition (annotation is transparent) |
-| `let x : *` | `Int` | **FocusTyp** — the type annotation |
-| `let x : _ = *` | `42` | skip annotation, focus on def |
+| `let x = %` | `42` | definition (annotation is transparent) |
+| `let x : %` | `Int` | **FocusTyp** — the type annotation |
+| `let x : _ = %` | `42` | skip annotation, focus on def |
 
 ### Type alias
 
@@ -116,8 +116,8 @@ type T = Int in let x : T = 42 in x
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `type T = *` | `Int` | **FocusTyp** — the type definition |
-| `type T _... in *` | `let x = 42 in x` | body after type alias |
+| `type T = %` | `Int` | **FocusTyp** — the type definition |
+| `type T _... in %` | `let x = 42 in x` | body after type alias |
 | `type T` | `type T = Int in ...` | whole type alias expression |
 
 ---
@@ -132,10 +132,10 @@ let f = fun x -> x + 1 in f 5
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `let f = *` | `fun x -> x + 1` | f's definition |
-| `f/ \... fun _ -> *` | `x + 1` | enter f, descend, match fun body |
-| `f/ \... fun x -> *` | `x + 1` | same, naming the parameter |
-| `f/ \... fun _... -> *` | `x + 1` | ellipsis skips multi-param patterns |
+| `let f = %` | `fun x -> x + 1` | f's definition |
+| `f/ \... fun _ -> %` | `x + 1` | enter f, descend, match fun body |
+| `f/ \... fun x -> %` | `x + 1` | same, naming the parameter |
+| `f/ \... fun _... -> %` | `x + 1` | ellipsis skips multi-param patterns |
 
 ---
 
@@ -149,9 +149,9 @@ if true then 1 else 0
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `if *` | `true` | scrutinee |
-| `if _ then *` | `1` | then branch |
-| `if _... else *` | `0` | else branch |
+| `if %` | `true` | scrutinee |
+| `if _ then %` | `1` | then branch |
+| `if _... else %` | `0` | else branch |
 
 ### Nested in a function
 
@@ -161,9 +161,9 @@ let f = fun x -> if x > 0 then x else 0 in f 5
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `let f = \... if *` | `x > 0` | descend into f's def, find if condition |
-| `let f = \... if _ then *` | `x` | then branch |
-| `let f = \... if _... else *` | `0` | else branch |
+| `let f = \... if %` | `x > 0` | descend into f's def, find if condition |
+| `let f = \... if _ then %` | `x` | then branch |
+| `let f = \... if _... else %` | `0` | else branch |
 
 ---
 
@@ -177,11 +177,11 @@ case msg | Increment => count + 1 | Decrement => count - 1 end
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `case *` | `msg` | scrutinee |
-| `\| Increment => *` | `count + 1` | named arm body |
-| `\| Decrement => *` | `count - 1` | named arm body |
-| `\| _ => *` | `count + 1`, `count - 1` | wildcard: ALL arm bodies |
-| `case _... \| Decrement => *` | `count - 1` | ellipsis skips to named arm |
+| `case %` | `msg` | scrutinee |
+| `\| Increment => %` | `count + 1` | named arm body |
+| `\| Decrement => %` | `count - 1` | named arm body |
+| `\| _ => %` | `count + 1`, `count - 1` | wildcard: ALL arm bodies |
+| `case _... \| Decrement => %` | `count - 1` | ellipsis skips to named arm |
 
 Note: `|` is written as `\|` in shell contexts to avoid pipe interpretation,
 but in the selector language itself it's just `|`.
@@ -198,9 +198,9 @@ let xs = [1, 2, 3] in xs
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `xs/ \... [ *` | `1` | first element |
-| `xs/ \... [ _ *` | `2` | second element |
-| `xs/ \... [ _... *` | `3` | last element |
+| `xs/ \... [ %` | `1` | first element |
+| `xs/ \... [ _ %` | `2` | second element |
+| `xs/ \... [ _... %` | `3` | last element |
 
 ### Tuple
 
@@ -210,10 +210,10 @@ let t = (1, 2, 3) in t
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `t/ \... ( *` | `1` | first element |
-| `t/ \... ( _ *` | `2` | second element |
-| `t/ \... ( _ _ *` | `3` | third element |
-| `t/ \... ( _... *` | `3` | last element (ellipsis) |
+| `t/ \... ( %` | `1` | first element |
+| `t/ \... ( _ %` | `2` | second element |
+| `t/ \... ( _ _ %` | `3` | third element |
+| `t/ \... ( _... %` | `3` | last element (ellipsis) |
 
 ---
 
@@ -227,7 +227,7 @@ let x = 1 in test x == 1 end; x
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `\... test *` | `x == 1` | test body |
+| `\... test %` | `x == 1` | test body |
 | `\... test _... end` | `test x == 1 end` | whole test expression |
 
 ---
@@ -244,8 +244,8 @@ let m = { let x = 42; let y = 99 } in m.x
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `m/x = *` | `42` | enter m, focus on x's def |
-| `m/y = *` | `99` | enter m, focus on y's def |
+| `m/x = %` | `42` | enter m, focus on x's def |
+| `m/y = %` | `99` | enter m, focus on y's def |
 | `m/x` | `42` | bare name in module context → def |
 | `m/x/` | `42` | trailing slash → also def (same in this case) |
 
@@ -254,8 +254,8 @@ let m = { let x = 42; let y = 99 } in m.x
 The chain `A/B/C` is sugar for navigating through definitions:
 
 ```
-A/B/C   ≈  let A = \... let B = \... * let C
-A/B/C/  ≈  let A = \... let B = \... let C = *
+A/B/C   ≈  let A = \... let B = \... % let C
+A/B/C/  ≈  let A = \... let B = \... let C = %
 ```
 
 - No trailing slash: last name is a **MatchName** → whole binding
@@ -273,9 +273,9 @@ let a = { let x = 1; let b = { let y = 42 } } in a.b.y
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `a/b/y = *` | `42` | three levels deep |
-| `a/x = *` | `1` | sibling member |
-| `a/b/ \... let y = *` | `42` | enter a, enter b, descend for let y |
+| `a/b/y = %` | `42` | three levels deep |
+| `a/x = %` | `1` | sibling member |
+| `a/b/ \... let y = %` | `42` | enter a, enter b, descend for let y |
 
 ### Spaced chains
 
@@ -299,11 +299,11 @@ module M = { let x = 1 } in M.x
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `module M = *` | `{ let x = 1 }` | module def |
-| `module M _... in *` | `M.x` | body after module |
+| `module M = %` | `{ let x = 1 }` | module def |
+| `module M _... in %` | `M.x` | body after module |
 | `module M` | `module M = { let x = 1 } in M.x` | whole module expression |
-| `module _ = *` | `{ let x = 1 }` | wildcard module name |
-| `M/x = *` | `1` | chain into module member |
+| `module _ = %` | `{ let x = 1 }` | wildcard module name |
+| `M/x = %` | `1` | chain into module member |
 
 ### Module-internal keywords
 
@@ -315,13 +315,13 @@ module A = { let z = 0; module B = { let x = 42 }; type T = Int } in A.B.x
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `A/ \... module B = *` | `{ let x = 42 }` | ModuleMod inside Module items |
-| `A/ \... type T = *` | `Int` | ModType inside Module items |
+| `A/ \... module B = %` | `{ let x = 42 }` | ModuleMod inside Module items |
+| `A/ \... type T = %` | `Int` | ModType inside Module items |
 | `A/ \... module B` | `module B = { let x = 42 }` | **FocusMod** — the whole Mod.t item |
 | `A/ \... type T` | `type T = Int` | **FocusMod** — the whole Mod.t item |
-| `A/B/x = *` | `42` | chain through nested module |
-| `\... let z = *` | `0` | descend finds ModLet items |
-| `\... let x = *` | `42` | descend finds ModLet inside nested module |
+| `A/B/x = %` | `42` | chain through nested module |
+| `\... let z = %` | `0` | descend finds ModLet items |
+| `\... let x = %` | `42` | descend finds ModLet inside nested module |
 
 ### FocusMod: Pointing at Module Items
 
@@ -333,7 +333,7 @@ operations like replacing a let with a type definition.
 
 FocusMod selectors are produced by bare name or keyword matches that
 terminate at a module item: `M/x`, `A/ \... module B`, `A/ \... type T`.
-Selectors that go deeper (like `M/x = *`) return FocusExp of the sub-part.
+Selectors that go deeper (like `M/x = %`) return FocusExp of the sub-part.
 
 #### FocusMod edit operations
 
@@ -345,7 +345,7 @@ module M = { let x = 1; let y = 2 } in M.y
 |--------|------|--------|
 | `SelectorUpdate("M/x", "let z = 99")` | replace whole item | `module M = { let z = 99; let y = 2 } in M.y` |
 | `SelectorDelete("M/x")` | remove item entirely | `module M = { let y = 2 } in M.y` |
-| `SelectorUpdate("M/x = *", "42")` | update def only (FocusExp) | `module M = { let x = 42; let y = 2 } in M.y` |
+| `SelectorUpdate("M/x = %", "42")` | update def only (FocusExp) | `module M = { let x = 42; let y = 2 } in M.y` |
 
 ---
 
@@ -361,9 +361,9 @@ let a = (let b = 42 in b) in a
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `let b = *` | ERROR | b is not at the top level |
-| `\... let b = *` | `42` | descend finds b inside a's def |
-| `a = \... let b = *` | `42` | enter a, then descend |
+| `let b = %` | ERROR | b is not at the top level |
+| `\... let b = %` | `42` | descend finds b inside a's def |
+| `a = \... let b = %` | `42` | enter a, then descend |
 
 ### Multiple matches
 
@@ -374,10 +374,10 @@ let g = fun y -> case y | C => 3 | D => 4 end in f(g(0))
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `\... \| _ => *` | `1`, `2`, `3`, `4` | all arm bodies everywhere |
-| `f/ \... \| _ => *` | `1`, `2` | only inside f |
-| `g/ \... \| _ => *` | `3`, `4` | only inside g |
-| `\... fun _ -> *` | two results | all function bodies |
+| `\... \| _ => %` | `1`, `2`, `3`, `4` | all arm bodies everywhere |
+| `f/ \... \| _ => %` | `1`, `2` | only inside f |
+| `g/ \... \| _ => %` | `3`, `4` | only inside g |
+| `\... fun _ -> %` | two results | all function bodies |
 
 ### Double descent is idempotent
 
@@ -398,16 +398,16 @@ let x = 1 in let x = 2 in x
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `x#0 = *` | `1` | first binding |
-| `x#1 = *` | `2` | second binding |
-| `x#0 _... in *` | `let x = 2 in x` | body of first x |
-| `x#1 _... in *` | `x` | body of second x |
-| `let x#1 = *` | `2` | with let keyword |
-| `x#5 = *` | ERROR: "2 binding(s) named 'x'" | out-of-range diagnostic |
+| `x#0 = %` | `1` | first binding |
+| `x#1 = %` | `2` | second binding |
+| `x#0 _... in %` | `let x = 2 in x` | body of first x |
+| `x#1 _... in %` | `x` | body of second x |
+| `let x#1 = %` | `2` | with let keyword |
+| `x#5 = %` | ERROR: "2 binding(s) named 'x'" | out-of-range diagnostic |
 
 ### Multi-match without indexing
 
-Without `#N`, selectors like `x = *` match **all** shadowed bindings:
+Without `#N`, selectors like `x = %` match **all** shadowed bindings:
 
 ```
 let a = 4 in let a = 4 in let a = 4 in a
@@ -415,12 +415,12 @@ let a = 4 in let a = 4 in let a = 4 in a
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `a = *` | `4`, `4`, `4` | all 3 bindings (multi-match) |
-| `a _... in *` | 3 results | all 3 bodies |
-| `let a = *` | `4`, `4`, `4` | same with keyword |
+| `a = %` | `4`, `4`, `4` | all 3 bindings (multi-match) |
+| `a _... in %` | 3 results | all 3 bodies |
+| `let a = %` | `4`, `4`, `4` | same with keyword |
 
 For single-match edit actions (`SelectorUpdate`, `SelectorDelete`), use
-`query_unique` which requires exactly one match. Use `a#0 = *` to target
+`query_unique` which requires exactly one match. Use `a#0 = %` to target
 a specific one.
 
 ### Chain resolution through shadows
@@ -433,7 +433,7 @@ let a = 4 in let a = (let a = 0 in 4) in let a = 4 in a
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `a/a = *` | `0` | finds inner `a` inside second `a`'s def |
+| `a/a = %` | `0` | finds inner `a` inside second `a`'s def |
 
 The chain `a/a` elaborates to `[EnterBinderDef("a"), MatchName("a")]`.
 It enters each `a`'s definition looking for a nested binding also named `a`.
@@ -449,8 +449,8 @@ module M = { let x = 1 } in module M = { let y = 2 } in M.y
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `module M#0 = *` | `{ let x = 1 }` | first module named M |
-| `module M#1 = *` | `{ let y = 2 }` | second module named M |
+| `module M#0 = %` | `{ let x = 1 }` | first module named M |
+| `module M#1 = %` | `{ let y = 2 }` | second module named M |
 
 ```
 type T = Int in type T = Bool in 42
@@ -458,37 +458,37 @@ type T = Int in type T = Bool in 42
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `type T#0 = *` | `Int` | first type named T |
-| `type T#1 = *` | `Bool` | second type named T |
+| `type T#0 = %` | `Int` | first type named T |
+| `type T#1 = %` | `Bool` | second type named T |
 
 ---
 
-## 12. The Implicit Star Rule
+## 12. The Implicit Focus Rule
 
-If no `*` appears in the selector, one is appended at the end. This means
+If no `%` appears in the selector, one is appended at the end. This means
 selectors that "end" at a binding naturally focus on it:
 
-| Selector | With implicit star | Result |
+| Selector | With implicit focus | Result |
 |----------|-------------------|--------|
-| `let x` | `let x *` | whole let expression |
-| `let x =` | `let x = *` | x's definition |
-| `a/b/` | `a/b/ *` | b's definition |
-| `a/b` | `a/b *` | whole binding of b |
-| `type T =` | `type T = *` | type definition |
-| `\... fun _ ->` | `\... fun _ -> *` | function body |
+| `let x` | `let x %` | whole let expression |
+| `let x =` | `let x = %` | x's definition |
+| `a/b/` | `a/b/ %` | b's definition |
+| `a/b` | `a/b %` | whole binding of b |
+| `type T =` | `type T = %` | type definition |
+| `\... fun _ ->` | `\... fun _ -> %` | function body |
 
-The implicit star does **not** apply when a `*` is already present:
+The implicit focus does **not** apply when a `%` is already present:
 
 ```
-* let x = ...        ← * focuses on whole let, = and ... continue
-let f = \... * fun   ← * focuses on the fun expression
+% let x = ...        ← % focuses on whole let, = and ... continue
+let f = \... % fun   ← % focuses on the fun expression
 ```
 
 ---
 
-## 13. The * Prefix: Focus-Before-Keyword
+## 13. The % Prefix: Focus-Before-Keyword
 
-Placing `*` before a keyword focuses on the **whole matched form**
+Placing `%` before a keyword focuses on the **whole matched form**
 rather than a subpart:
 
 ### Program
@@ -499,8 +499,8 @@ let x = 42 in x + 1
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `* let x` | `let x = 42 in x + 1` | focus on whole let |
-| `let x = *` | `42` | focus on def |
+| `% let x` | `let x = 42 in x + 1` | focus on whole let |
+| `let x = %` | `42` | focus on def |
 
 ### With descent
 
@@ -510,8 +510,8 @@ let x = (let y = 99 in y) in x
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `\... * let y` | `let y = 99 in y` | descend, focus on whole inner let |
-| `\... let y = *` | `99` | descend, focus on def |
+| `\... % let y` | `let y = 99 in y` | descend, focus on whole inner let |
+| `\... let y = %` | `99` | descend, focus on def |
 
 ---
 
@@ -532,15 +532,15 @@ let result = App.update(App.init) in result
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `App/init = *` | `0` | chain into module member |
-| `App/update \... case *` | `msg` | chain + descend + case scrutinee |
-| `App/update \... \| Inc => *` | `msg + 1` | chain + descend + named arm |
-| `App/update \... \| _ => *` | 3 matches | chain + descend + all arms |
-| `App/view \... let label = *` | `model + 1` | chain + descend + nested let |
-| `module App = *` | `{ let init = 0; ... }` | whole module def |
-| `App _... in *` | `let result = ...` | body after module |
-| `\... * let result` | `let result = ... in result` | descend + focus whole let |
-| `\... fun _ -> *` | 2+ matches | all function bodies |
+| `App/init = %` | `0` | chain into module member |
+| `App/update \... case %` | `msg` | chain + descend + case scrutinee |
+| `App/update \... \| Inc => %` | `msg + 1` | chain + descend + named arm |
+| `App/update \... \| _ => %` | 3 matches | chain + descend + all arms |
+| `App/view \... let label = %` | `model + 1` | chain + descend + nested let |
+| `module App = %` | `{ let init = 0; ... }` | whole module def |
+| `App _... in %` | `let result = ...` | body after module |
+| `\... % let result` | `let result = ... in result` | descend + focus whole let |
+| `\... fun _ -> %` | 2+ matches | all function bodies |
 
 ### Chain + Descend + Spine
 
@@ -552,10 +552,10 @@ module M = {
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `M/f \... if *` | `x > 0` | chain + descend + if condition |
-| `M/f \... if _ then *` | `x + 1` | chain + descend + then branch |
-| `M/f \... if _... else *` | `x - 1` | chain + descend + else branch |
-| `M/f \... fun _ -> *` | `if x > 0 then ...` | chain + descend + fun body |
+| `M/f \... if %` | `x > 0` | chain + descend + if condition |
+| `M/f \... if _ then %` | `x + 1` | chain + descend + then branch |
+| `M/f \... if _... else %` | `x - 1` | chain + descend + else branch |
+| `M/f \... fun _ -> %` | `if x > 0 then ...` | chain + descend + fun body |
 
 ---
 
@@ -575,9 +575,9 @@ let foo = 1 in let bar = 2 in foo + bar
 
 | Selector | Error |
 |----------|-------|
-| `let baz = *` | Matched up to: let / Failed at: baz / Did you mean: bar / Available names: foo, bar |
-| `if *` | Failed at first step: if |
-| `let zzzzz = *` | Failed at: zzzzz / Available names: foo, bar (no suggestion — too different) |
+| `let baz = %` | Matched up to: let / Failed at: baz / Did you mean: bar / Available names: foo, bar |
+| `if %` | Failed at first step: if |
+| `let zzzzz = %` | Failed at: zzzzz / Available names: foo, bar (no suggestion — too different) |
 
 ```
 module M = { let x = 1; let y = 2 } in M.x
@@ -585,7 +585,7 @@ module M = { let x = 1; let y = 2 } in M.x
 
 | Selector | Error |
 |----------|-------|
-| `M/z = *` | Failed at: z / Available names: x, y |
+| `M/z = %` | Failed at: z / Available names: x, y |
 
 ---
 
@@ -698,11 +698,11 @@ Pure `#N` path from root. Universal, stable, terse. Every step is a
 ```
 let x = (1 + 2) + 3 in x
 
-Node "1":     #1 #0 #0 #0 *
-Node "2":     #1 #0 #0 #1 *
-Node "1 + 2": #1 #0 #0 *
-Node "3":     #1 #1 *
-Node "x":     #2 *
+Node "1":     #1 #0 #0 #0 %
+Node "2":     #1 #0 #0 #1 %
+Node "1 + 2": #1 #0 #0 %
+Node "3":     #1 #1 %
+Node "x":     #2 %
 ```
 
 ### Named canonical (`canonical_named`)
@@ -713,10 +713,10 @@ anonymous subexpressions.
 ```
 let x = (1 + 2) + 3 in x
 
-Node "1":      x = #0 #0 *     (name + index inside BinOp)
-Node "2":      x = #0 #1 *
-Node "1 + 2":  x = #0 *        (name + index inside Parens)
-Node "42" in "let x = 42":  x = *   (just the name!)
+Node "1":      x = #0 #0 %     (name + index inside BinOp)
+Node "2":      x = #0 #1 %
+Node "1 + 2":  x = #0 %        (name + index inside Parens)
+Node "42" in "let x = 42":  x = %   (just the name!)
 ```
 
 ### If / Match / Fun examples
@@ -724,21 +724,21 @@ Node "42" in "let x = 42":  x = *   (just the name!)
 ```
 if true then 1 else 0
 
-Numeric "true":   #0 *
-Named "true":     if *
-Numeric "1":      #1 *
-Named "1":        if _ then *
-Numeric "0":      #2 *
-Named "0":        if _... else *
+Numeric "true":   #0 %
+Named "true":     if %
+Numeric "1":      #1 %
+Named "1":        if _ then %
+Numeric "0":      #2 %
+Named "0":        if _... else %
 ```
 
 ```
 case x | A => 1 | B => 2 end
 
-Numeric "A":  #1 #0 *
-Named "A":    | _... A *       (constructor name)
-Numeric "2":  #2 #1 *
-Named "2":    | _... B => *
+Numeric "A":  #1 #0 %
+Named "A":    | _... A %       (constructor name)
+Numeric "2":  #2 #1 %
+Named "2":    | _... B => %
 ```
 
 ### Shadowed names
@@ -748,8 +748,8 @@ Named canonical uses `x#N` when names are shadowed:
 ```
 let x = 1 in let x = 2 in x
 
-Named "1":  x#0 = *
-Named "2":  x#1 = *
+Named "1":  x#0 = %
+Named "2":  x#1 = %
 ```
 
 ### Deparse (`deparse`)
@@ -757,10 +757,10 @@ Named "2":  x#1 = *
 Converts any `sem_selector` back to surface syntax:
 
 ```reason
-deparse([ChildIndex(1), ChildIndex(0), MatchFocus]) → "#1 #0 *"
-deparse([MatchKeyword("let"), MatchName("x"), MatchDelimiter("="), MatchFocus]) → "let x = *"
-deparse([DescendInto, MatchKeyword("let"), MatchName("y"), MatchDelimiter("="), MatchFocus]) → "\\... let y = *"
-deparse([MatchKeyword("let"), MatchNameIndex("x", 1), MatchDelimiter("="), MatchFocus]) → "let x#1 = *"
+deparse([ChildIndex(1), ChildIndex(0), MatchFocus]) → "#1 #0 %"
+deparse([MatchKeyword("let"), MatchName("x"), MatchDelimiter("="), MatchFocus]) → "let x = %"
+deparse([DescendInto, MatchKeyword("let"), MatchName("y"), MatchDelimiter("="), MatchFocus]) → "\\... let y = %"
+deparse([MatchKeyword("let"), MatchNameIndex("x", 1), MatchDelimiter("="), MatchFocus]) → "let x#1 = %"
 ```
 
 ### Roundtrip guarantee
@@ -789,18 +789,18 @@ let result = App.update(App.init) in result
 
 | Selector | Result | Notes |
 |----------|--------|-------|
-| `App/init = *` | `0` | chain into module member |
-| `App/update \... case *` | `msg` | chain + descend + case scrutinee |
-| `App/update \... \| Inc => *` | `msg + 1` | chain + descend + named arm |
-| `App/update \... \| Dec => *` | `msg - 1` | named arm |
-| `App/update \... \| Reset => *` | `0` | named arm |
-| `App/update \... \| _ => *` | 3 matches | all arms |
-| `App/view \... let label = *` | `model + 1` | chain + descend + nested let |
-| `module App = *` | `{ let init = 0; ... }` | whole module def |
-| `App _... in *` | `let result = ...` | body after module |
-| `\... * let result` | `let result = ... in result` | descend + focus whole let |
-| `result = *` | `App.update(App.init)` | top-level let |
-| `\... fun _ -> *` | 2+ matches | all function bodies |
+| `App/init = %` | `0` | chain into module member |
+| `App/update \... case %` | `msg` | chain + descend + case scrutinee |
+| `App/update \... \| Inc => %` | `msg + 1` | chain + descend + named arm |
+| `App/update \... \| Dec => %` | `msg - 1` | named arm |
+| `App/update \... \| Reset => %` | `0` | named arm |
+| `App/update \... \| _ => %` | 3 matches | all arms |
+| `App/view \... let label = %` | `model + 1` | chain + descend + nested let |
+| `module App = %` | `{ let init = 0; ... }` | whole module def |
+| `App _... in %` | `let result = ...` | body after module |
+| `\... % let result` | `let result = ... in result` | descend + focus whole let |
+| `result = %` | `App.update(App.init)` | top-level let |
+| `\... fun _ -> %` | 2+ matches | all function bodies |
 
 ### Numeric child-index selectors
 
@@ -845,11 +845,11 @@ that node occupies to determine how to insert.
 ```
 Program: let x = 1 in x + 1
 
-SelectorInsertAfter("* let x", "let y = 2")
+SelectorInsertAfter("% let x", "let y = 2")
 → let x = 1 in let y = 2 in x + 1
   (new let is spliced into x's body)
 
-SelectorInsertBefore("* let x", "let y = 2")
+SelectorInsertBefore("% let x", "let y = 2")
 → let y = 2 in let x = 1 in x + 1
   (new let wraps the target)
 ```
@@ -859,10 +859,10 @@ SelectorInsertBefore("* let x", "let y = 2")
 ```
 Program: module M = { let x = 1 } in M.x
 
-SelectorInsertAfter("M/x = *", "let y = 2")
+SelectorInsertAfter("M/x = %", "let y = 2")
 → module M = { let x = 1; let y = 2 } in M.x
 
-SelectorInsertBefore("M/x = *", "let y = 0")
+SelectorInsertBefore("M/x = %", "let y = 0")
 → module M = { let y = 0; let x = 1 } in M.x
 ```
 
@@ -911,7 +911,7 @@ Currently using option 1. May want to revisit.
 **SelectorInsert for case arms via selector syntax:**
 
 The current test suite uses the path system (`Insert(After, "f/|B", "C => 3")`)
-for case arm insertion. Wiring `SelectorInsertAfter("| B => *", "C => 3")`
+for case arm insertion. Wiring `SelectorInsertAfter("| B => %", "C => 3")`
 through the selector system would require the `is_case_arm` check to work
 with selector-resolved IDs. This should already work since both resolve to
 the same `focused_id`, but needs testing.
@@ -926,17 +926,18 @@ operand positions. Supported operators: `+`, `-`, `**`, `<`, `<=`, `>`,
 `*.`, `**.`, `/.`, `<.`, `<=.`, `>.`, `>=.`, `==.`, `!=.`).
 
 **NOTE**: `*` (multiplication) and `/` (division) are NOT supported as
-operator tokens — `*` conflicts with focus syntax and `/` with chain syntax.
-Use `#0` / `#1` (child index) to address operands of these operators.
+operator tokens — `*` was the old focus character (now `%`) and `/` conflicts
+with chain syntax. `*` support could be added now that focus uses `%`, but
+hasn't been yet. Use `#0` / `#1` (child index) to address operands of these operators.
 
 ### Basic patterns
 
 ```
 Given:   let x = 1 + 2 in x
 
-x = _ + *     →  2           (right operand of +)
-x = * + _     →  1           (left operand of +)
-x = _ + _     →  1 + 2       (whole BinOp, implicit star)
+x = _ + %     →  2           (right operand of +)
+x = % + _     →  1           (left operand of +)
+x = _ + _     →  1 + 2       (whole BinOp, implicit focus)
 ```
 
 ### Other operators
@@ -944,15 +945,15 @@ x = _ + _     →  1 + 2       (whole BinOp, implicit star)
 ```
 Given:   let y = true && false in y
 
-y = _ && *    →  false        (right of &&)
-y = * && _    →  true         (left of &&)
+y = _ && %    →  false        (right of &&)
+y = % && _    →  true         (left of &&)
 ```
 
 ```
 Given:   let z = 1 :: [2, 3] in z
 
-z = _ :: *    →  [2, 3]      (cons tail)
-z = * :: _    →  1            (cons head)
+z = _ :: %    →  [2, 3]      (cons tail)
+z = % :: _    →  1            (cons head)
 ```
 
 ### Nested operator context
@@ -960,9 +961,9 @@ z = * :: _    →  1            (cons head)
 ```
 Given:   let x = (1 + 2) + 3 in x
 
-x = _ + *          →  3           (right of outer +)
-x = #0 _ + *       →  2           (right of inner + via child index)
-x = #0 * + _       →  1           (left of inner +)
+x = _ + %          →  3           (right of outer +)
+x = #0 _ + %       →  2           (right of inner + via child index)
+x = #0 % + _       →  1           (left of inner +)
 ```
 
 ### Named canonical for BinOp operands
@@ -970,18 +971,18 @@ x = #0 * + _       →  1           (left of inner +)
 The named canonical generator uses operator syntax for immediate operands:
 
 ```
-canonical_named(id_of(1), "let x = 1 + 2 in x")  →  "x = * + _"
-canonical_named(id_of(2), "let x = 1 + 2 in x")  →  "x = _ + *"
+canonical_named(id_of(1), "let x = 1 + 2 in x")  →  "x = % + _"
+canonical_named(id_of(2), "let x = 1 + 2 in x")  →  "x = _ + %"
 ```
 
 For deeper targets inside operands, falls back to numeric `#N` addressing.
 
 ## Known Limitations
 
-1. **`*` and `/` operator conflicts**: `*` (multiplication) conflicts with
-   focus syntax; `/` (division) conflicts with chain syntax. Use `#0`/`#1`
-   to address operands of these operators. Fix: new surface characters or
-   context-sensitive disambiguation.
+1. **`*` and `/` operator conflicts**: `*` (multiplication) no longer conflicts
+   with focus syntax (focus now uses `%`), but `*` support as a selector operator
+   token hasn't been added yet. `/` (division) still conflicts with chain syntax.
+   Use `#0`/`#1` to address operands of these operators.
 
 2. **SelectorInsert is permissive**: The binding fallback (step 5 in the
    insertion cascade) will wrap any expression in a Let, even for nonsensical
@@ -993,13 +994,13 @@ For deeper targets inside operands, falls back to numeric `#N` addressing.
 
 ### Features to add
 
-- **Multi-variable selectors**: Multiple focus variables (`*a`, `*b`, `*c`)
+- **Multi-variable selectors**: Multiple focus variables (`%a`, `%b`, `%c`)
   for extracting several subexpressions in one pass.
 - **Dynamics/probe integration**: `GetDynamics(path)` to return probe/runtime
   values. Wire `Sample.Cursor.t` to agent tools (capture, pin, step-into).
 - **Semantic filters**: `@refs(x)`, `@type(Int)`, `@errors` for query-based
   filtering. Multi-cursor edits building on queries (`UpdateAll`).
-- **Nested selector patterns**: `let (_, x) = *` for tuple-pattern let bindings.
+- **Nested selector patterns**: `let (_, x) = %` for tuple-pattern let bindings.
 - **Spine-schema unification**: Generic resolver parameterized by form structure
   instead of per-form walkers. New forms would get selector support by defining
   a spine schema.

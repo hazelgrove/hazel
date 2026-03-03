@@ -34,10 +34,10 @@ All wired into agent API (JSON tool defs + `action_of` dispatch).
 
 Selectors subsume paths for expressiveness but paths remain as a simpler,
 more constrained interface. The `target` enum maps directly to selector patterns:
-- `Definition` = `let x = *`
-- `Body` = `let x _... in *`
-- `Pattern` = `* let x` (focus on pattern)
-- `TypeAnnotation` = `let x : *`
+- `Definition` = `let x = %`
+- `Body` = `let x _... in %`
+- `Pattern` = `% let x` (focus on pattern)
+- `TypeAnnotation` = `let x : %`
 
 Both systems coexist. Selectors are the primary interface for new work.
 
@@ -47,9 +47,9 @@ Both systems coexist. Selectors are the primary interface for new work.
 
 ### 1. Fixes for existing syntactic things (near-term)
 
-- **`*` and `/` operator conflicts**: `*` (Times) conflicts with focus syntax;
-  `/` (Divide) conflicts with chain syntax. Use `#0`/`#1` as workaround.
-  Fix: new surface characters or context-sensitive disambiguation.
+- **`*` and `/` operator conflicts**: Focus now uses `%` (resolving the `*`
+  conflict), but `*` hasn't been added as a selector operator token yet.
+  `/` (Divide) still conflicts with chain syntax. Use `#0`/`#1` as workaround.
 
 - **SelectorInsert permissiveness**: The binding fallback wraps any expression
   in a Let, even for nonsensical positions (inside BinOp operand). Consider
