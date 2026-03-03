@@ -736,6 +736,40 @@ end|}),
     roundtrip_test({|Theorem: simple|}, {|theorem x = 1 in x|}),
     roundtrip_test({|Theorem: spaced|}, {|theorem x  =  1  in  x|}),
     roundtrip_test({|Theorem: compact|}, {|theorem x=1 in x|}),
+    /* Module expressions: empty module roundtrip */
+    roundtrip_test({|Module: empty|}, {|{}|}),
+    /* Module text round-trip tests */
+    roundtrip_test({|Module: single let|}, {|{ let x = 1 }|}),
+    roundtrip_test({|Module: multiple lets|}, {|{ let x = 1; let y = 2 }|}),
+    roundtrip_test({|Module: compact spacing|}, {|{let x = 1}|}),
+    roundtrip_test(
+      {|Module: with type alias|},
+      {|{ type T = Int; let x = 1 }|},
+    ),
+    /* ModuleExp round-trip tests */
+    roundtrip_test({|ModuleExp: basic|}, {|module M = { let x = 1 } in M|}),
+    roundtrip_test(
+      {|ModuleExp: with sig annotation|},
+      {|module M : { let x : Int } = { let x = 1 } in M|},
+    ),
+    roundtrip_test(
+      {|ModuleExp: nested module keyword|},
+      {|module M = { module N = { let x = 1 } } in M|},
+    ),
+    /* Module: with module keyword item */
+    roundtrip_test(
+      {|Module: module keyword item|},
+      {|{ module Inner = { let x = 1 } }|},
+    ),
+    /* Sig text round-trip tests */
+    roundtrip_test(
+      {|Sig: single let|},
+      {|let m : { let x : Int } = { let x = 1 } in m|},
+    ),
+    roundtrip_test(
+      {|Sig: multiple lets|},
+      {|let m : { let x : Int; let y : Bool } = { let x = 1; let y = true } in m|},
+    ),
   ],
 );
 

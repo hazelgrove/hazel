@@ -3,6 +3,13 @@ open Node;
 open Util.WebUtil;
 open Widgets;
 
+type setting_item = {
+  name: string,
+  active: bool,
+  setting: Settings.Update.t,
+  tooltip: option(string),
+};
+
 // COMPONENTS
 
 let item_group = (~inject as _, name: string, ts) => {
@@ -24,8 +31,8 @@ let submenu = (~tooltip, ~icon, menu) =>
 // SETTINGS MENU
 
 let settings_group = (~globals: Globals.t, name: string, ts) => {
-  let toggle = ((_icon, tooltip, bool, setting, warning: option(string))) =>
-    toggle_named("", ~tooltip, ~warning?, bool, _ =>
+  let toggle = ({name, active, setting, tooltip}) =>
+    toggle_named("", ~name, ~tooltip?, active, _ =>
       globals.inject_global(Set(setting))
     );
   div_c(
@@ -42,30 +49,37 @@ let semantics_group = (~globals) => {
     ~globals,
     "Semantics",
     [
-      ("τ", "Types", globals.settings.core.statics, Statics, None),
-      ("⇲", "Completion", globals.settings.core.assist, Assist, None),
-      ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics, None),
-      (
-        "?",
-        "Docs",
-        globals.settings.sidebar.show,
-        Sidebar(ToggleShow),
-        None,
-      ),
-      (
-        "🔄",
-        "Live Typing",
-        globals.settings.core.live_typing,
-        LiveTyping,
-        Some("May slow down editor performance"),
-      ),
-      // ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll, None),
-      // (
-      //   "👍",
-      //   "Feedback",
-      //   settings.explainThis.show_feedback,
-      //   ExplainThis(ToggleShowFeedback),
-      // ),
+      {
+        name: "Types",
+        active: globals.settings.core.statics,
+        setting: Statics,
+        tooltip: Some("Enable static typing"),
+      },
+      {
+        name: "Completion",
+        active: globals.settings.core.assist,
+        setting: Assist,
+        tooltip:
+          Some("Enable type-directed code completion and assistive features"),
+      },
+      {
+        name: "Evaluation",
+        active: globals.settings.core.dynamics,
+        setting: Dynamics,
+        tooltip: Some("Evaluate expressions and show results"),
+      },
+      {
+        name: "Docs",
+        active: globals.settings.sidebar.show,
+        setting: Sidebar(ToggleShow),
+        tooltip: Some("Show documentation sidebar"),
+      },
+      {
+        name: "Live Typing",
+        active: globals.settings.core.live_typing,
+        setting: LiveTyping,
+        tooltip: Some("May slow down editor performance"),
+      },
     ],
   );
 };
@@ -76,18 +90,42 @@ let values_group = (~globals: Globals.t) => {
     ~globals,
     "Value Display",
     [
-      ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies), None),
-      ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses), None),
-      ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints), None),
-      ("☰", "Tables", s.project_tables, Evaluation(ProjectTables), None),
-      ("⬡", "Rich Probes", s.rich_probes, Evaluation(RichProbes), None),
-      (
-        ":",
-        "Ascriptions",
-        s.show_ascriptions,
-        Evaluation(ShowAscriptions),
-        None,
-      ),
+      {
+        name: "Functions",
+        active: s.show_fn_bodies,
+        setting: Evaluation(ShowFnBodies),
+        tooltip: Some("Show function bodies in evaluated results"),
+      },
+      {
+        name: "Cases",
+        active: s.show_case_clauses,
+        setting: Evaluation(ShowCaseClauses),
+        tooltip: Some("Show case clauses in evaluated results"),
+      },
+      {
+        name: "Fixpoints",
+        active: s.show_fixpoints,
+        setting: Evaluation(ShowFixpoints),
+        tooltip: Some("Show fixpoint expressions in evaluated results"),
+      },
+      {
+        name: "Tables",
+        active: s.project_tables,
+        setting: Evaluation(ProjectTables),
+        tooltip: Some("Project tables in evaluated results"),
+      },
+      {
+        name: "Rich Probes",
+        active: s.rich_probes,
+        setting: Evaluation(RichProbes),
+        tooltip: Some("Show rich probe displays"),
+      },
+      {
+        name: "Ascriptions",
+        active: s.show_ascriptions,
+        setting: Evaluation(ShowAscriptions),
+        tooltip: Some("Show type ascriptions in evaluated results"),
+      },
     ],
   );
 };
@@ -98,48 +136,42 @@ let stepper_group = (~globals: Globals.t) => {
     ~globals,
     "Stepper",
     [
-      (
-        "🔍",
-        "Show lookups",
-        s.show_lookup_steps,
-        Evaluation(ShowLookups),
-        None,
-      ),
-      (
-        "🤫",
-        "Show hidden",
-        s.show_hidden_steps,
-        Evaluation(ShowHiddenSteps),
-        None,
-      ),
-      (
-        "⏯️",
-        "Show filters",
-        s.show_stepper_filters,
-        Evaluation(ShowFilters),
-        None,
-      ),
-      (
-        "⇨",
-        "Show Ascription Steps",
-        s.show_ascription_steps,
-        Evaluation(ShowAscriptionSteps),
-        None,
-      ),
-      (
-        "⇨",
-        "Show Case Steps",
-        s.show_case_steps,
-        Evaluation(ShowCaseSteps),
-        None,
-      ),
-      (
-        "π",
-        "Proof Steps (experimental)",
-        s.enable_proof,
-        Evaluation(EnableProof),
-        None,
-      ),
+      {
+        name: "Show lookups",
+        active: s.show_lookup_steps,
+        setting: Evaluation(ShowLookups),
+        tooltip: Some("Show variable lookup steps in the stepper"),
+      },
+      {
+        name: "Show hidden",
+        active: s.show_hidden_steps,
+        setting: Evaluation(ShowHiddenSteps),
+        tooltip: Some("Show hidden intermediate steps in the stepper"),
+      },
+      {
+        name: "Show filters",
+        active: s.show_stepper_filters,
+        setting: Evaluation(ShowFilters),
+        tooltip: Some("Show stepper filter controls"),
+      },
+      {
+        name: "Show Ascription Steps",
+        active: s.show_ascription_steps,
+        setting: Evaluation(ShowAscriptionSteps),
+        tooltip: Some("Show type ascription steps in the stepper"),
+      },
+      {
+        name: "Show Case Steps",
+        active: s.show_case_steps,
+        setting: Evaluation(ShowCaseSteps),
+        tooltip: Some("Show case expression steps in the stepper"),
+      },
+      {
+        name: "Proof Steps (experimental)",
+        active: s.enable_proof,
+        setting: Evaluation(EnableProof),
+        tooltip: Some("Enable proof-based stepping mode (experimental)"),
+      },
     ],
   );
 };
@@ -149,31 +181,34 @@ let dev_group = (~globals: Globals.t) => {
     ~globals,
     "Developer",
     [
-      (
-        "✓",
-        "Benchmarks",
-        globals.settings.benchmark,
-        Settings.Update.Benchmark,
-        None: option(string),
-      ),
-      (
-        "𝑒",
-        "Elaboration",
-        globals.settings.core.elaborate,
-        Elaborate,
-        None,
-      ),
+      {
+        name: "Benchmarks",
+        active: globals.settings.benchmark,
+        setting: Settings.Update.Benchmark,
+        tooltip: Some("Display performance benchmarks"),
+      },
+      {
+        name: "Elaboration",
+        active: globals.settings.core.elaborate,
+        setting: Elaborate,
+        tooltip: Some("Show elaborated (internal) expressions"),
+      },
+      {
+        name: "Ruled Lines",
+        active: globals.settings.show_row_lines,
+        setting: ShowRowLines,
+        tooltip: Some("Show horizontal lines between each row of code"),
+      },
     ]
     @ (
       ExerciseSettings.show_instructor
         ? [
-          (
-            "📃",
-            "Log Panel",
-            globals.settings.show_log_panel,
-            ShowLogPanel,
-            None,
-          ),
+          {
+            name: "Log Panel",
+            active: globals.settings.show_log_panel,
+            setting: ShowLogPanel,
+            tooltip: Some("Show the debug log panel"),
+          },
         ]
         : []
     ),
@@ -185,45 +220,34 @@ let code_display_group = (~globals: Globals.t) => {
     ~globals,
     "Code Display",
     [
-      (
-        "↵",
-        "Whitespace",
-        globals.settings.secondary_icons,
-        Settings.Update.SecondaryIcons,
-        None: option(string),
-      ),
-      (
-        "a",
-        "Animations",
-        globals.settings.core.flip_animations,
-        FlipAnimations,
-        None,
-      ),
-      (
-        "l",
-        "Line Numbers",
-        globals.settings.line_numbers,
-        ToggleLineNumbers,
-        None,
-      ),
-      (
-        "r",
-        "Relative Numbers",
-        globals.settings.relative_line_numbers,
-        ToggleRelativeLineNumbers,
-        None,
-      ),
+      {
+        name: "Whitespace",
+        active: globals.settings.secondary_icons,
+        setting: Settings.Update.SecondaryIcons,
+        tooltip: Some("Show whitespace indicator icons"),
+      },
+      {
+        name: "Animations",
+        active: globals.settings.core.flip_animations,
+        setting: FlipAnimations,
+        tooltip: Some("Enable flip animations for code changes"),
+      },
+      {
+        name: "Line Numbers",
+        active: globals.settings.line_numbers,
+        setting: ToggleLineNumbers,
+        tooltip: None,
+      },
     ]
     @ (
       globals.settings.line_numbers
         ? [
-          (
-            "r",
-            "Relative Numbers",
-            globals.settings.relative_line_numbers,
-            ToggleRelativeLineNumbers,
-            None,
-          ),
+          {
+            name: "Relative Numbers",
+            active: globals.settings.relative_line_numbers,
+            setting: ToggleRelativeLineNumbers,
+            tooltip: Some("Show line numbers relative to cursor position"),
+          },
         ]
         : []
     ),

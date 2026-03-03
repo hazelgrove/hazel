@@ -4,5 +4,9 @@
  (name haz3ltest)
  (libraries web menhirParser junit_alcotest bisect_ppx.runtime)
  (modes js)
+ ; Increase Node.js stack size to 8MB to prevent stack overflows
+ ; in deeply recursive tests (e.g., Pattern Coverage Checker).
+ (action
+  (run node --stack-size=8192 %{test}))
  (preprocess
   (pps ppx_deriving.show ppx_sexp_conv)))

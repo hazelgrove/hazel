@@ -49,16 +49,25 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
   );
 
-let toggle_named = (~tooltip="", ~warning=?, icon, active, action) =>
+let toggle_named = (~name="", ~tooltip=?, ~warning=?, icon, active, action) => {
+  let tooltip_attrs =
+    switch (tooltip) {
+    | Some(t) => [Attr.title(t)]
+    | None => []
+    };
   div(
-    ~attrs=[
-      clss(["named-menu-item"] @ (active ? ["active"] : [])),
-      Attr.on_pointerdown(action),
-    ],
+    ~attrs=
+      [
+        clss(["named-menu-item"] @ (active ? ["active"] : [])),
+        Attr.on_pointerdown(action),
+      ]
+      @ tooltip_attrs,
     [
-      toggle(icon, active, _ => Effect.Ignore),
+      toggle(~tooltip=Option.value(~default="", tooltip), icon, active, _ =>
+        Effect.Ignore
+      ),
       div([
-        text(tooltip),
+        text(name),
         switch (warning) {
         | Some(msg) => span(~attrs=[Attr.title(msg)], [text("⚠️")])
         | None => none
@@ -66,6 +75,7 @@ let toggle_named = (~tooltip="", ~warning=?, icon, active, action) =>
       ]),
     ],
   );
+};
 
 let file_select_button = (~tooltip="", id, icon, on_input) => {
   /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */

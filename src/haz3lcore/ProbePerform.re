@@ -52,8 +52,9 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({term: {term: Let(_pat, def, _), _}, _})) =>
-    /* If trying to probe a let, probe the definition instead.
+  | Some(InfoExp({term: {term: Let(_, def, _), _}, _}))
+  | Some(InfoExp({term: {term: ModuleExp(_, def, _), _}, _})) =>
+    /* If trying to probe a let/module, probe the definition instead.
        Recurse so that if def is a fun literal, the above case will get it */
     target_subterm_ids(IdTagged.rep_id(def), info_map)
 

@@ -630,6 +630,27 @@ let get_doc =
   };
 
   switch (info) {
+  | Some(InfoMod({cls, _})) =>
+    switch (cls) {
+    | Mod(ModLet) => message_single(ModLetDecl.single)
+    | Mod(ModType) => message_single(ModTypeDecl.single)
+    | Mod(ModuleMod) => message_single(ModuleKeywordDecl.single)
+    | _ => simple("Module item")
+    }
+  | Some(InfoSig({cls, _})) =>
+    switch (cls) {
+    | Sig(SigLet) => message_single(SigLetDecl.single)
+    | Sig(SigType) => message_single(SigTypeDecl.single)
+    | _ => simple("Signature item")
+    }
+  | Some(InfoMPat(_)) => simple("Module name")
+  | Some(InfoExp({cls: Mod(ModLet), _})) =>
+    message_single(ModLetDecl.single)
+  | Some(InfoExp({cls: Mod(ModType), _})) =>
+    message_single(ModTypeDecl.single)
+  | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
+    message_single(ModuleKeywordDecl.single)
+  | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
             (term)
@@ -2278,6 +2299,8 @@ let get_doc =
             ),
           TerminalExp.ctr(v),
         )
+      | Module(_) => message_single(ModuleExp.single)
+      | ModuleExp(_) => message_single(ModuleKeywordExp.single)
       | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
@@ -2774,11 +2797,12 @@ let get_doc =
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | ProdProjection(_) => get_message(DotTyp.dot)
     | ExplicitNonlabel
-    | ProdProjection(_)
     | ProdExtension(_)
     | Parens(_)
-    | Projector(_) => default // Shouldn't be hit?
+    | Sig(_) => message_single(SigTyp.single)
+    | Projector(_) => default
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
@@ -2799,7 +2823,7 @@ let get_doc =
     | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
     | Secondary(Comment) =>
       simple("Comments are ignored by systems but treasured by readers")
-    | _ => failwith("ExplainThis: Secondary Impossible")
+    | _ => simple("No documentation available")
     }
   | None => default
   };

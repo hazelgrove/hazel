@@ -16,6 +16,7 @@ module Model = {
     sidebar: SidebarModel.Settings.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    show_row_lines: bool,
   };
 
   let init = {
@@ -29,6 +30,7 @@ module Model = {
       live_typing: false,
       probe_all: false,
       flip_animations: true,
+      display_warnings: true,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -68,6 +70,7 @@ module Model = {
     },
     line_numbers: false,
     relative_line_numbers: false,
+    show_row_lines: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -134,10 +137,12 @@ module Update = {
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
+    | DisplayWarnings
     | Assistant(AssistantSettings.action)
     | FlipAnimations
     | ToggleLineNumbers
-    | ToggleRelativeLineNumbers;
+    | ToggleRelativeLineNumbers
+    | ShowRowLines;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -211,6 +216,13 @@ module Update = {
           core: {
             ...settings.core,
             live_typing: v,
+          },
+        }
+      | DisplayWarnings => {
+          ...settings,
+          core: {
+            ...settings.core,
+            display_warnings: !settings.core.display_warnings,
           },
         }
       | Evaluation(u) =>
@@ -399,6 +411,10 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | ShowRowLines => {
+          ...settings,
+          show_row_lines: !settings.show_row_lines,
         }
       }
     )

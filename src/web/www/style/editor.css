@@ -4,6 +4,16 @@
   position: relative;
 }
 
+.code-container.show-row-lines {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) var(--row-height-px)
+  );
+}
+
 /* Use this style for all text that should
  * be formatted like code, even if it's not
  * going to be inside an editor. For example,
@@ -13,14 +23,14 @@
   white-space: pre;
   font-family: var(--code-font);
   font-weight: normal;
+  font-size: var(--base-font-size);
+}
+
 /* Invisible backdrop to capture clicks outside context menu */
 .context-menu-backdrop {
   position: fixed;
   inset: 0;
   z-index: calc(var(--context-menu-z) - 1);
-}
-
-  font-size: var(--base-font-size);
 }
 
 .code-text {
@@ -102,8 +112,18 @@
 .code .token.TPat {
   color: var(--token-tpat);
 }
+.code .token.Mod {
+  color: var(--token-mod);
+}
+.code .token.Sig {
+  color: var(--token-sig);
+}
+.code .token.MPat {
+  color: var(--token-mpat);
+}
 
-.code .token.poly {
+.code .token.poly,
+.code .token.keyword {
   font-weight: bold;
 }
 
@@ -241,6 +261,15 @@ svg.shard.indicated.Rul {
 svg.shard.indicated.TPat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-tpat));
 }
+svg.shard.indicated.Mod {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-mod));
+}
+svg.shard.indicated.Sig {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-sig));
+}
+svg.shard.indicated.MPat {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-mpat));
+}
 
 svg.shard.indicated.Any>path {
   fill: var(--shard-any);
@@ -265,6 +294,15 @@ svg.shard.indicated.Rul>path {
 svg.shard.indicated.TPat>path {
   fill: var(--shard-tpat);
 }
+svg.shard.indicated.Mod > path {
+  fill: var(--shard-mod);
+}
+svg.shard.indicated.Sig > path {
+  fill: var(--shard-sig);
+}
+svg.shard.indicated.MPat > path {
+  fill: var(--shard-mpat);
+}
 
 svg.shard.indicated.caret.Exp>path {
   fill: var(--shard-caret-exp);
@@ -281,6 +319,15 @@ svg.shard.indicated.caret.Typ>path {
 .svg.shard.indicated.caret.TPat>path {
   fill: var(--shard-caret-tpat);
 }
+svg.shard.indicated.caret.Mod > path {
+  fill: var(--shard-caret-mod);
+}
+svg.shard.indicated.caret.Sig > path {
+  fill: var(--shard-caret-sig);
+}
+svg.shard.indicated.caret.MPat > path {
+  fill: var(--shard-caret-mpat);
+}
 
 svg.shard.selected {
   z-index: var(--select-z);
@@ -290,8 +337,15 @@ svg.shard.selected {
 svg.shard.indicated {
   z-index: var(--tile-z);
 }
+svg.shard.error {
+  z-index: var(--err-hole-z);
+}
 
-svg.shard.selected>path {
+.warnings svg.shard.error {
+  z-index: var(--warn-hole-z);
+}
+
+svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
@@ -307,7 +361,8 @@ svg.shard.selected-expanded > path {
   stroke: var(--shard-selected-expanded);
 }
 
-.errors .errors-piece svg.shard {
+.errors .errors-piece svg.shard,
+.warnings .warnings-piece svg.shard {
   z-index: var(--err-hole-z);
   filter: none;
 }
@@ -347,6 +402,16 @@ svg.shard.selected-expanded > path {
   fill: var(--error-hole-fill);
 }
 
+.warnings .warnings-piece svg.shard > path,
+.warnings .warnings-piece svg .child-line {
+  stroke: var(--warning-hole-stroke);
+  stroke-width: 0.75px;
+  stroke-dasharray: 1, 1;
+  stroke-linecap: butt;
+}
+.warnings .warnings-piece svg.shard > path {
+  fill: var(--warning-hole-fill);
+}
 
 /* Code completion decoration */
 
@@ -433,6 +498,15 @@ svg:has(.child-line) {
 
 .child-line.TPat {
   stroke: var(--token-tpat);
+}
+.child-line.Mod {
+  stroke: var(--token-mod);
+}
+.child-line.Sig {
+  stroke: var(--token-sig);
+}
+.child-line.MPat {
+  stroke: var(--token-mpat);
 }
 
 /* BACKPACK DECO */
