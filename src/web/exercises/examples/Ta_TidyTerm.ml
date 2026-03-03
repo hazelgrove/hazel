@@ -7,28 +7,27 @@ let exercise : Tutorial.spec =
     module_name = "Ta_TidyTerm";
     prompt =
       "Implement the `tidy_term` function. It should take a gradebook as a \
-       list of `GradebookEntry` and return a new table **without** the `term` \
-       column, replacing it with 2 new columns:\n\
+       list of `GradebookEntry` and return a new table that splits the `term` \
+       column into separate `year` and `semester` columns.\n\n\
+       For example, given a table containing:\n\
        ```hazelnostatics\n\
-       ^^table([\n\
-       (column=semester, `type`=Semester),\n\
-       (column=year, `type`=Int)\n\
-       ])\n\
+       ^^table([(student_id=1, term=\"2025FA\"), (student_id=2, \
+       term=\"2020SP\")])\n\
        ```\n\n\
-       `Semester` is a sum type defined in the prelude: `type Semester = Fall \
-       + Spring`. This definition brings the constructors `Fall` and `Spring` \
-       into scope as values (not strings). Use `Fall` for the term code \
-       `\"FA\"` and `Spring` for `\"SP\"`.\n\n\
-       The `year` column should be extracted from the first 4 characters of \
-       the `term` column (converted to `Int`) and the `semester` column should \
-       be determined from the last 2 characters.\n\n\
-       The output table should contain all original columns **except** `term`, \
-       plus the new `semester` and `year` columns.\n\n\
-       Example:\n\
+       The result should be:\n\
        ```hazelnostatics\n\
-       ^^table([(term=\"2025FA\", year=2025, semester=Fall), (term=\"2020SP\", \
+       ^^table([(student_id=1, year=2025, semester=Fall), (student_id=2, \
        year=2020, semester=Spring)])\n\
-       ```";
+       ```\n\n\
+       The `year` should be extracted from the first 4 characters of the \
+       `term` string (converted to `Int`), and the `semester` from the last 2 \
+       characters: `\"FA\"` → `Fall`, `\"SP\"` → `Spring`.\n\n\
+       `Semester` is a sum type defined in the prelude: `type Semester = Fall \
+       + Spring`. Use the constructors `Fall` and `Spring` directly (not as \
+       strings).\n\n\
+       The output table should contain all original columns **except** `term`, \
+       plus the new `year` and `semester` columns. The order of columns does \
+       not matter.";
     display_hint =
       "Think about how to transform each row independently. What string \
        operations could help you break the `term` field into its components?";
