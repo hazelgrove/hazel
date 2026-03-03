@@ -282,6 +282,16 @@ let hasPointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
     [|Js.Unsafe.inject(pointerId)|],
   );
 
+let set_css_custom_property = (name: string, value: string): unit =>
+  Js.Unsafe.meth_call(
+    Dom_html.document##.documentElement##.style,
+    "setProperty",
+    [|
+      Js.Unsafe.inject(Js.string(name)),
+      Js.Unsafe.inject(Js.string(value)),
+    |],
+  );
+
 let delay = (delay: float, callback: unit => unit) => {
   let _ =
     Js_of_ocaml.Dom_html.window##setTimeout(
