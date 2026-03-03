@@ -79,16 +79,19 @@ table.table {
 }
 
 .projector.table .table-resize-handle {
-    position: absolute;
-    right: 0;
+    position: sticky;
     bottom: 0;
+    left: 100%;
     width: 14px;
     height: 14px;
+    margin-top: -14px;
     cursor: nwse-resize;
     background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.25) 50%);
     border-top: 1px solid rgba(0, 0, 0, 0.15);
     border-left: 1px solid rgba(0, 0, 0, 0.15);
     border-top-left-radius: 2px;
+    z-index: calc(var(--projector-z) + 2);
+    pointer-events: auto;
 }
 
 .projector.table .code {
