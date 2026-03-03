@@ -24,8 +24,8 @@ let submenu = (~tooltip, ~icon, menu) =>
 // SETTINGS MENU
 
 let settings_group = (~globals: Globals.t, name: string, ts) => {
-  let toggle = ((_icon, tooltip, bool, setting)) =>
-    toggle_named("", ~tooltip, bool, _ =>
+  let toggle = ((_icon, name, bool, setting, tooltip: option(string))) =>
+    toggle_named("", ~name, ~tooltip?, bool, _ =>
       globals.inject_global(Set(setting))
     );
   div_c(
@@ -42,11 +42,17 @@ let semantics_group = (~globals) => {
     ~globals,
     "Semantics",
     [
-      ("τ", "Types", globals.settings.core.statics, Statics),
-      ("⇲", "Completion", globals.settings.core.assist, Assist),
-      ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics),
-      // ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll),
-      ("?", "Docs", globals.settings.sidebar.show, Sidebar(ToggleShow)),
+      ("τ", "Types", globals.settings.core.statics, Statics, None),
+      ("⇲", "Completion", globals.settings.core.assist, Assist, None),
+      ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics, None),
+      // ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll, None)
+      (
+        "?",
+        "Docs",
+        globals.settings.sidebar.show,
+        Sidebar(ToggleShow),
+        None,
+      ),
       // (
       //   "👍",
       //   "Feedback",
@@ -63,10 +69,16 @@ let values_group = (~globals: Globals.t) => {
     ~globals,
     "Value Display",
     [
-      ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies)),
-      ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
-      ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
-      (":", "Ascriptions", s.show_ascriptions, Evaluation(ShowAscriptions)),
+      ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies), None),
+      ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses), None),
+      ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints), None),
+      (
+        ":",
+        "Ascriptions",
+        s.show_ascriptions,
+        Evaluation(ShowAscriptions),
+        None,
+      ),
     ],
   );
 };
@@ -77,36 +89,47 @@ let stepper_group = (~globals: Globals.t) => {
     ~globals,
     "Stepper",
     [
-      ("🔍", "Show lookups", s.show_lookup_steps, Evaluation(ShowLookups)),
+      (
+        "🔍",
+        "Show lookups",
+        s.show_lookup_steps,
+        Evaluation(ShowLookups),
+        None,
+      ),
       (
         "🤫",
         "Show hidden",
         s.show_hidden_steps,
         Evaluation(ShowHiddenSteps),
+        None,
       ),
       (
         "⏯️",
         "Show filters",
         s.show_stepper_filters,
         Evaluation(ShowFilters),
+        None,
       ),
       (
         "⇨",
         "Show Ascription Steps",
         s.show_ascription_steps,
         Evaluation(ShowAscriptionSteps),
+        None,
       ),
       (
         "⇨",
         "Show Case Steps",
         s.show_case_steps,
         Evaluation(ShowCaseSteps),
+        None,
       ),
       (
         "π",
         "Proof Steps (experimental)",
         s.enable_proof,
         Evaluation(EnableProof),
+        None,
       ),
     ],
   );
@@ -122,8 +145,22 @@ let dev_group = (~globals: Globals.t) => {
         "Benchmarks",
         globals.settings.benchmark,
         Settings.Update.Benchmark,
+        None: option(string),
       ),
-      ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
+      (
+        "𝑒",
+        "Elaboration",
+        globals.settings.core.elaborate,
+        Elaborate,
+        None,
+      ),
+      (
+        "─",
+        "Ruled Lines",
+        globals.settings.show_row_lines,
+        ShowRowLines,
+        Some("Show horizontal lines between each row of code"),
+      )
     ]
     @ (
       ExerciseSettings.show_instructor
@@ -133,6 +170,7 @@ let dev_group = (~globals: Globals.t) => {
             "Log Panel",
             globals.settings.show_log_panel,
             ShowLogPanel,
+            None,
           ),
         ]
         : []
@@ -149,21 +187,37 @@ let code_display_group = (~globals: Globals.t) => {
         "↵",
         "Whitespace",
         globals.settings.secondary_icons,
-        SecondaryIcons: Settings.Update.t,
+        Settings.Update.SecondaryIcons,
+        None: option(string),
       ),
       (
         "a",
         "Animations",
         globals.settings.core.flip_animations,
         FlipAnimations,
+        None,
       ),
       (
-        "w",
-        "Warnings",
-        globals.settings.core.display_warnings,
-        DisplayWarnings,
+        "l",
+        "Line Numbers",
+        globals.settings.line_numbers,
+        ToggleLineNumbers,
+        None,
       ),
-      ("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers),
+      (
+        "r",
+        "Relative Numbers",
+        globals.settings.relative_line_numbers,
+        ToggleRelativeLineNumbers,
+        None,
+      ),
+      (
+        "l",
+        "Line Numbers",
+        globals.settings.line_numbers,
+        ToggleLineNumbers,
+        None,
+      ),
     ]
     @ (
       globals.settings.line_numbers
@@ -173,6 +227,7 @@ let code_display_group = (~globals: Globals.t) => {
             "Relative Numbers",
             globals.settings.relative_line_numbers,
             ToggleRelativeLineNumbers,
+            None,
           ),
         ]
         : []
