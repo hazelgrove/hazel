@@ -70,9 +70,23 @@ module Model = {
     };
   };
 
-  let unpersist = (~settings, ~instructor_mode, persistent, spec) => {
-    let spec = Tutorial.unpersist(~instructor_mode, persistent, spec);
-    of_spec(~settings, ~instructor_mode, spec);
+  let unpersist = (~settings as _, ~instructor_mode, persistent, spec) => {
+    let persisted_spec =
+      Tutorial.unpersist(~instructor_mode, persistent, spec);
+    let editors =
+      Tutorial.map(persisted_spec, Editor.Model.mk, Editor.Model.mk);
+    let term_item_to_cell = (item: Tutorial.TermItem.t): CellEditor.Model.t => {
+      CellEditor.Model.mk(item.editor);
+    };
+    let cells =
+      Tutorial.stitch_term(editors)
+      |> Tutorial.map_stitched(_ => term_item_to_cell);
+    {
+      spec,
+      editors,
+      cells,
+      editing_flags: editing_flags_false,
+    };
   };
 
   let all_tests_passed = (exercise: t) => {
