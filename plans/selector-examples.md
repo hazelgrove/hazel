@@ -41,7 +41,9 @@ Indexing:     x#0  x#1  (nth binder named x, 0-based)
 Child index:  #0  #1  #2  (nth structural child of current node)
 Chains:       A/B/C  A/B/C/  (binder navigation sugar)
 
-Implicit focus: if no % appears, one is appended at the end.
+Implicit focus: if no % appears and the last token is a name, % is
+inserted before it (focus on the last-mentioned term). Otherwise
+% is appended at the end.
 ```
 
 ## Semantics at a Glance
@@ -72,7 +74,7 @@ let x = 42 in x + 1
 |----------|--------|-------|
 | `let x = %` | `42` | definition of x |
 | `let x _... in %` | `x + 1` | body after x |
-| `let x` | `let x = 42 in x + 1` | whole let expression (implicit %) |
+| `let x` | `x` (pattern) | pattern x (implicit % before name) |
 | `x = %` | `42` | same as `let x = %` but without keyword |
 | `x` | `let x = 42 in x + 1` | bare name → whole binding |
 | `x/` | `42` | trailing slash → enter def |
@@ -465,15 +467,21 @@ type T = Int in type T = Bool in 42
 
 ## 12. The Implicit Focus Rule
 
-If no `%` appears in the selector, one is appended at the end. This means
-selectors that "end" at a binding naturally focus on it:
+If no `%` appears in the selector:
+- If the **last token is a name**, `%` is inserted **before** it → focuses on the
+  last-mentioned term (typically a pattern in its binding context).
+- Otherwise, `%` is **appended** at the end → focuses on the subexpression after the
+  last delimiter.
 
 | Selector | With implicit focus | Result |
 |----------|-------------------|--------|
-| `let x` | `let x %` | whole let expression |
+| `let x` | `let % x` | pattern x (FocusPat) |
+| `fun x` | `fun % x` | parameter pattern x (FocusPat) |
+| `\| A` | `\| % A` | arm pattern A (FocusPat) |
 | `let x =` | `let x = %` | x's definition |
 | `a/b/` | `a/b/ %` | b's definition |
 | `a/b` | `a/b %` | whole binding of b |
+| `type T` | `type % T` | whole type alias (fallback, no FocusTPat yet) |
 | `type T =` | `type T = %` | type definition |
 | `\... fun _ ->` | `\... fun _ -> %` | function body |
 
@@ -486,10 +494,10 @@ let f = \... % fun   ← % focuses on the fun expression
 
 ---
 
-## 13. The % Prefix: Focus-Before-Keyword
+## 13. The % Focus Marker: Full Position Spectrum
 
-Placing `%` before a keyword focuses on the **whole matched form**
-rather than a subpart:
+The `%` marker means "focus on the next syntactic term." Its position
+relative to keywords, names, and delimiters controls what gets focused:
 
 ### Program
 
@@ -497,10 +505,39 @@ rather than a subpart:
 let x = 42 in x + 1
 ```
 
-| Selector | Result | Notes |
-|----------|--------|-------|
-| `% let x` | `let x = 42 in x + 1` | focus on whole let |
-| `let x = %` | `42` | focus on def |
+| Selector | Result | Focus type | Notes |
+|----------|--------|------------|-------|
+| `% let x` | `let x = 42 in x + 1` | FocusExp | before keyword → whole form |
+| `let % x` | `x` | FocusPat | before name → pattern |
+| `let % x =` | `x` | FocusPat | before name + delimiter → pattern |
+| `let % =` | `x` | FocusPat | slot-focus → pattern of any let |
+| `let x = %` | `42` | FocusExp | after delimiter → definition |
+| `let x` | `x` | FocusPat | implicit % before last name |
+
+### Fun expressions
+
+```
+let f = fun x -> x + 1 in f
+```
+
+| Selector | Result | Focus type | Notes |
+|----------|--------|------------|-------|
+| `\... fun % x ->` | `x` | FocusPat | parameter pattern |
+| `\... fun % ->` | `x` | FocusPat | slot-focus parameter |
+| `\... fun x` | `x` | FocusPat | implicit % before last name |
+| `\... fun _ -> %` | `x + 1` | FocusExp | function body |
+
+### Case expressions
+
+```
+case x | A => 1 | B => 2 end
+```
+
+| Selector | Result | Focus type | Notes |
+|----------|--------|------------|-------|
+| `\... \| % A =>` | `A` | FocusPat | arm pattern |
+| `\... \| A => %` | `1` | FocusExp | arm body |
+| `\... \| % =>` | `A`, `B` | FocusPat | all arm patterns |
 
 ### With descent
 

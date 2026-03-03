@@ -1723,10 +1723,7 @@ let selector_tests = (
       `Quick,
       () => {
         let results =
-          selector_query(
-            "let a = 4 in let a = 4 in let a = 4 in a",
-            "a = %",
-          );
+          selector_query("let a = 4 in let a = 4 in let a = 4 in a", "a = %");
         check(int, "match count", 3, List.length(results));
       },
     ),
@@ -1761,10 +1758,7 @@ let selector_tests = (
       `Quick,
       () => {
         let results =
-          selector_query(
-            "let a = (let b = 42 in b) in a",
-            "a/b = %",
-          );
+          selector_query("let a = (let b = 42 in b) in a", "a/b = %");
         check(int, "match count", 1, List.length(results));
         check(string, "value", "42", List.hd(results));
       },
@@ -2148,12 +2142,12 @@ let selector_tests = (
       ~sel="m/ \\... let x = %",
       ~expected="42",
     ),
-    /* Implicit star rule: no * in selector means * appended */
-    sel_test_rendered(
-      ~name="let x (implicit star = whole binding)",
+    /* Implicit focus rule: last token is a name → insert % before it */
+    sel_test(
+      ~name="let x (implicit focus = pattern)",
       ~code="let x = 42 in x + 1",
       ~sel="let x",
-      ~expected="let x = 42 in x + 1",
+      ~expected="x",
     ),
     sel_test(
       ~name="let x = (implicit star on def)",
@@ -2237,6 +2231,82 @@ let selector_tests = (
       ~code="type T = Int in let x : T = 42 in x",
       ~sel="type T =",
       ~expected="Int",
+    ),
+    /* === Explicit pattern focus === */
+    sel_test(
+      ~name="let % x = (explicit pattern focus)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let % x =",
+      ~expected="x",
+    ),
+    sel_test(
+      ~name="let % x (explicit pattern focus, terminal)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let % x",
+      ~expected="x",
+    ),
+    sel_test(
+      ~name="let % = (slot-focus pattern)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let % =",
+      ~expected="x",
+    ),
+    sel_test(
+      ~name="fun % x -> (explicit pattern focus)",
+      ~code="let f = fun x -> x + 1 in f",
+      ~sel="\\... fun % x ->",
+      ~expected="x",
+    ),
+    sel_test(
+      ~name="fun % -> (slot-focus pattern)",
+      ~code="let f = fun x -> x + 1 in f",
+      ~sel="\\... fun % ->",
+      ~expected="x",
+    ),
+    sel_test(
+      ~name="| % A => (arm pattern focus)",
+      ~code="case x | A => 1 | B => 2 end",
+      ~sel="\\... | % A =>",
+      ~expected="A",
+    ),
+    /* === Implicit focus (changed behavior) === */
+    sel_test(
+      ~name="fun x (implicit focus = parameter pattern)",
+      ~code="let f = fun x -> x + 1 in f",
+      ~sel="\\... fun x",
+      ~expected="x",
+    ),
+    /* === Unchanged behavior (verify no regression) === */
+    sel_test_rendered(
+      ~name="% let x (explicit prefix = whole let)",
+      ~code="let x = 42 in x + 1",
+      ~sel="% let x",
+      ~expected="let x = 42 in x + 1",
+    ),
+    sel_test(
+      ~name="let x = % (explicit focus on def unchanged)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let x = %",
+      ~expected="42",
+    ),
+    sel_test_rendered(
+      ~name="type T = (unchanged)",
+      ~code="type T = Int in let x : T = 42 in x",
+      ~sel="type T =",
+      ~expected="Int",
+    ),
+    /* === Slot-in patterns: let x = _ in === */
+    sel_test(
+      ~name="let x = _ in % (skip def, focus body)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let x = _ in %",
+      ~expected="x + 1",
+    ),
+    sel_test(
+      ~name="let _ = _ in % (wildcard pattern, skip def, focus body)",
+      ~code="let x = 42 in x + 1",
+      ~sel="let _ = _ in %",
+      ~expected="x + 1",
     ),
     /* === Composition: chain + descend + if === */
     sel_test(

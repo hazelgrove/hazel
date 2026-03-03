@@ -878,9 +878,7 @@ module Local = {
             Ok((new_z, None));
           }
         | FocusMod(_) =>
-          switch (
-            TermEdit.find_module_containing_item(focused_id, term)
-          ) {
+          switch (TermEdit.find_module_containing_item(focused_id, term)) {
           | None =>
             Error(
               Action.Failure.Composition_action_failure(
@@ -912,9 +910,7 @@ module Local = {
             let hole = Exp.fresh(EmptyHole);
             TermEdit.replace_exp_by_id(focused_id, _ => hole, term);
           | FocusMod(_) =>
-            switch (
-              TermEdit.find_module_containing_item(focused_id, term)
-            ) {
+            switch (TermEdit.find_module_containing_item(focused_id, term)) {
             | None => term
             | Some((module_id, items, idx)) =>
               let new_items = TermEdit.delete_item(items, idx);

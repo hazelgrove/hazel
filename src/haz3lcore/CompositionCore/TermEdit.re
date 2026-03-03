@@ -183,7 +183,10 @@ let insert_item =
     switch (after) {
     | [] =>
       let (item_before, _) = new_item.annotation.secondary;
-      let space: Secondary.t = {id: Id.mk(), content: Whitespace(" ")};
+      let space: Secondary.t = {
+        id: Id.mk(),
+        content: Whitespace(" "),
+      };
       IdTagged.mk(
         new_item.annotation.ids,
         (item_before, [space]),

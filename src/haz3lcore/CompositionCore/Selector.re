@@ -277,7 +277,14 @@ let elaborate = (sel: selector): sem_selector => {
   if (List.exists(s => s == MatchFocus, steps)) {
     steps;
   } else {
-    steps @ [MatchFocus];
+    /* If the last step is a name, insert MatchFocus before it
+       (focus on the last-mentioned term). Otherwise append. */
+    switch (List.rev(steps)) {
+    | [MatchName(_) as last, ...rev_rest]
+    | [MatchNameIndex(_, _) as last, ...rev_rest] =>
+      List.rev(rev_rest) @ [MatchFocus, last]
+    | _ => steps @ [MatchFocus]
+    };
   };
 };
 
@@ -1213,7 +1220,29 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   and walk_let_spine = (spine: let_spine, steps: sem_selector) =>
     switch (steps) {
     | [] => [mk_exp(spine.whole)]
-    | [MatchFocus] => [mk_exp(spine.whole)]
+    /* let % : focus on pattern (next syntactic term after let) */
+    | [MatchFocus] => [mk_pat(~bc="let (pat)", spine.pat)]
+
+    /* let % <name> = : focus on pattern named <name> */
+    | [MatchFocus, MatchName(name), MatchDelimiter("=")]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        mk_pat(~bc="let " ++ name ++ " (pat)", spine.pat),
+      ]
+    | [MatchFocus, MatchName(name), MatchDelimiter("="), ...rest]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+      walk_pat(rest, spine.pat)
+
+    /* let % <name> : focus on pattern (terminal) */
+    | [MatchFocus, MatchName(name)]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        mk_pat(~bc="let " ++ name ++ " (pat)", spine.pat),
+      ]
+
+    /* let % = : slot-focus, pattern of any let */
+    | [MatchFocus, MatchDelimiter("=")] => [
+        mk_pat(~bc="let (pat)", spine.pat),
+      ]
+    | [MatchFocus, MatchDelimiter("="), ...rest] => walk_pat(rest, spine.pat)
 
     /* let <name> = % : focus on definition */
     | [MatchName(name), MatchDelimiter("="), MatchFocus]
@@ -1238,6 +1267,29 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         MatchEllipsis,
         MatchKeyword("in"),
         MatchFocus,
+        ...rest,
+      ]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+      walk(rest, spine.body)
+
+    /* let <name> = _ in % : skip def, focus on body */
+    | [
+        MatchName(name),
+        MatchDelimiter("="),
+        MatchSlot,
+        MatchKeyword("in"),
+        MatchFocus,
+      ]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        mk_exp(~bc="let " ++ name ++ " = _ in ...", spine.body),
+      ]
+
+    /* let <name> = _ in <more> : skip def, continue in body */
+    | [
+        MatchName(name),
+        MatchDelimiter("="),
+        MatchSlot,
+        MatchKeyword("in"),
         ...rest,
       ]
         when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
@@ -1319,6 +1371,21 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         mk_exp(~bc="let _ = ...", spine.def),
       ]
 
+    /* let _ = _ in % : slot pattern, skip def, focus on body */
+    | [
+        MatchSlot,
+        MatchDelimiter("="),
+        MatchSlot,
+        MatchKeyword("in"),
+        MatchFocus,
+      ] => [
+        mk_exp(~bc="let _ = _ in ...", spine.body),
+      ]
+
+    /* let _ = _ in <more> : slot pattern, skip def, continue in body */
+    | [MatchSlot, MatchDelimiter("="), MatchSlot, MatchKeyword("in"), ...rest] =>
+      walk(rest, spine.body)
+
     /* let _ ... in % : slot pattern, focus on body */
     | [MatchSlot, MatchEllipsis, MatchKeyword("in"), MatchFocus] => [
         mk_exp(~bc="let _ ... in ...", spine.body),
@@ -1389,9 +1456,66 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | _ => []
     }
 
+  /* NOTE: Constructor matching convenience — when a selector names a constructor
+     (e.g. `| A =>`), we match arms whose pattern *head* is that constructor,
+     including applied constructors like A(x, y). This is a pragmatic shorthand:
+     compositionally, `A` should only match nullary `A`, and `A(x, y)` would
+     require something like `| A(_) =>`. We don't yet have that syntax, so we
+     treat the name as "constructor head" for now. */
   and walk_pipe_in_rules =
       (rules: list((Pat.t, Exp.t)), steps: sem_selector) =>
     switch (steps) {
+    /* | % <name> [=>] : focus on arm pattern */
+    | [MatchFocus, MatchName(name), MatchDelimiter("=>")]
+    | [MatchFocus, MatchName(name)] =>
+      rules
+      |> List.filter_map(((pat, _body)) => {
+           let matches =
+             switch (pat_name(pat)) {
+             | Some(n) when String.equal(n, name) => true
+             | _ =>
+               switch (Pat.term_of(pat)) {
+               | Ap({term: Constructor(cname, _), _}, _)
+                   when String.equal(cname, name) =>
+                 true
+               | Constructor(cname, _) when String.equal(cname, name) => true
+               | _ => false
+               }
+             };
+           matches ? Some(mk_pat(~bc="| " ++ name ++ " (pat)", pat)) : None;
+         })
+
+    /* | % <name> => <more> : focus on arm pattern, continue into it */
+    | [MatchFocus, MatchName(name), MatchDelimiter("=>"), ...rest] =>
+      rules
+      |> List.concat_map(((pat, _body)) => {
+           let matches =
+             switch (pat_name(pat)) {
+             | Some(n) when String.equal(n, name) => true
+             | _ =>
+               switch (Pat.term_of(pat)) {
+               | Ap({term: Constructor(cname, _), _}, _)
+                   when String.equal(cname, name) =>
+                 true
+               | Constructor(cname, _) when String.equal(cname, name) => true
+               | _ => false
+               }
+             };
+           if (matches) {
+             walk_pat(rest, pat);
+           } else {
+             [];
+           };
+         })
+
+    /* | % => : slot-focus, pattern of each arm */
+    | [MatchFocus, MatchDelimiter("=>")] =>
+      rules |> List.map(((pat, _body)) => mk_pat(~bc="| (pat)", pat))
+
+    /* | % => <more> : slot-focus, continue into each arm pattern */
+    | [MatchFocus, MatchDelimiter("=>"), ...rest] =>
+      rules |> List.concat_map(((pat, _body)) => walk_pat(rest, pat))
+
     /* | <name> => % : find arm by constructor name */
     | [MatchName(name), MatchDelimiter("=>"), MatchFocus] =>
       rules
@@ -1572,6 +1696,13 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* module % : focus on whole module expression */
     | [MatchFocus] => [mk_exp(~bc="module " ++ name_str, whole)]
 
+    /* module % <name> : implicit focus before name, return whole (fallback) */
+    | [MatchFocus, MatchName(name)] when name_matches(name) =>
+      switch (mod_item_opt) {
+      | Some(item) => [mk_mod(~bc="module " ++ name, item)]
+      | None => [mk_exp(~bc="module " ++ name, whole)]
+      }
+
     | _ => []
     };
   }
@@ -1656,6 +1787,10 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* type % : focus on whole type alias expression */
     | [MatchFocus] => [mk_exp(~bc="type " ++ name_str, whole)]
 
+    /* type % <name> : implicit focus before name, return whole (fallback) */
+    | [MatchFocus, MatchName(name)] when name_matches(name) =>
+      focus_whole_or_mod()
+
     | _ => []
     };
   }
@@ -1663,9 +1798,30 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   /* Walk a fun spine after "fun" keyword */
   and walk_fun_spine = (spine: fun_spine, steps: sem_selector) =>
     switch (steps) {
-    /* fun % : focus on the pattern (as an expression context — actually
-       we can't return a Pat as Exp, so focus on whole fun) */
-    | [MatchFocus] => [mk_exp(~bc="fun ... -> ...", spine.body)]
+    /* fun % : focus on parameter pattern (next syntactic term after fun) */
+    | [MatchFocus] => [mk_pat(~bc="fun (pat)", spine.pat)]
+
+    /* fun % <name> -> : focus on parameter pattern */
+    | [MatchFocus, MatchName(name), MatchDelimiter("->")]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        mk_pat(~bc="fun " ++ name ++ " (pat)", spine.pat),
+      ]
+    | [MatchFocus, MatchName(name), MatchDelimiter("->"), ...rest]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) =>
+      walk_pat(rest, spine.pat)
+
+    /* fun % <name> : focus on parameter pattern (terminal) */
+    | [MatchFocus, MatchName(name)]
+        when Option.equal(String.equal, pat_name(spine.pat), Some(name)) => [
+        mk_pat(~bc="fun " ++ name ++ " (pat)", spine.pat),
+      ]
+
+    /* fun % -> : slot-focus, parameter of any fun */
+    | [MatchFocus, MatchDelimiter("->")] => [
+        mk_pat(~bc="fun (pat)", spine.pat),
+      ]
+    | [MatchFocus, MatchDelimiter("->"), ...rest] =>
+      walk_pat(rest, spine.pat)
 
     /* fun _ -> % : skip pattern, focus on body */
     | [MatchSlot, MatchDelimiter("->"), MatchFocus] => [
