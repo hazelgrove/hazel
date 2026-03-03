@@ -1,5 +1,11 @@
 /* PROJECTOR: Rich Probes for Tables */
 
+/* Empty hole indicator in table headers */
+.table th .empty-hole {
+    width: 0.6em;
+    height: 0.6em;
+    vertical-align: middle;
+}
 
 /* Closure Navigation Buttons in Table Header */
 .closure-nav-button {

@@ -16,7 +16,7 @@ type a =
   | FilterGreaterThan(string)
   | FilterLessThan(string)
   | FilterEquals(string);
-type v = (list(string), list(list(Language.Exp.t))); /* (headers, rows) */
+type v = (list(option(string)), list(list(Language.Exp.t))); /* (headers, rows) */
 
 include
   RichProbe.RichProbe with

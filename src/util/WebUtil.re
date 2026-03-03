@@ -147,4 +147,29 @@ module TextArea = {
   };
 };
 
+// TODO Deduplicate with EmptyHoleDec.re
+let empty_hole_svg = (~attrs=[], ()) =>
+  Node.create_svg(
+    "svg",
+    ~attrs=
+      [
+        Attr.classes(["empty-hole"]),
+        Attr.create("viewBox", "0 0.3 1 0.4"),
+        Attr.create("preserveAspectRatio", "none"),
+      ]
+      @ attrs,
+    [
+      Node.create_svg(
+        "path",
+        ~attrs=[
+          Attr.create(
+            "d",
+            "M 0.5 0.36 h 0.21 l 0.1344 0.14 l -0.1344 0.14 h -0.42 l -0.1344 -0.14 l 0.1344 -0.14 Z",
+          ),
+        ],
+        [],
+      ),
+    ],
+  );
+
 let span_text = (text: string) => span(~attrs=[], [Node.text(text)]);

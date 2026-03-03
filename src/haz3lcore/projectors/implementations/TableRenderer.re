@@ -6,7 +6,7 @@ open Language;
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type v = (list(string), list(list(Exp.t))); /* (headers, rows) */
+type v = (list(option(string)), list(list(Exp.t))); /* (headers, rows) */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, list(string)));
@@ -70,26 +70,23 @@ let max_column_length = 12;
 let parse = (_sort: Sort.t, exp: Exp.t) => {
   switch (exp.term) {
   | ListLit(es) =>
-    let data: list(option((list(string), list(TermBase.exp_t)))) =
+    let data =
       List.map(
-        e => {
-          switch (Unboxing.unbox(LabeledTupleEntries, e)) {
-          | IndetMatch => None
-          | DoesNotMatch => None
-          | Matches(entries: list((option(string), TermBase.exp_t))) =>
-            let f: option(list((string, TermBase.exp_t))) =
-              OptUtil.sequence(
-                List.map(
-                  ((label, value)) =>
-                    switch (label) {
-                    | Some(l) => Some((l, value))
-                    | None => None
-                    },
-                  entries,
-                ),
+        (e: Exp.t) => {
+          switch (e.term) {
+          | Tuple(ds) =>
+            let entries =
+              List.map(
+                (d: Exp.t) =>
+                  switch (d.term) {
+                  | TupLabel({term: Label(l), _}, v) => Some((Some(l), v))
+                  | TupLabel({term: EmptyHole, _}, v) => Some((None, v))
+                  | _ => None
+                  },
+                ds,
               );
-
-            f |> Option.map(List.split);
+            OptUtil.sequence(entries) |> Option.map(List.split);
+          | _ => None
           }
         },
         es,
@@ -98,13 +95,19 @@ let parse = (_sort: Sort.t, exp: Exp.t) => {
     let data_opt = OptUtil.sequence(data);
     switch (data_opt) {
     | Some(data) =>
-      let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
+      let (headers: list(list(option(string))), rows: list(list(Exp.t))) =
         List.split(data);
 
       // If all the headers aren't the same or empty table
       switch (headers) {
       | [] => None
-      | [h, ..._] when List.for_all(x => x == h, headers) => Some((h, rows)) // convert TermBase.exp_t to Exp.t
+      | [h, ..._]
+          when
+            List.for_all(
+              x => List.equal(Option.equal(String.equal), x, h),
+              headers,
+            ) =>
+        Some((h, rows))
       | _ => None
       };
     | None => None
@@ -1038,28 +1041,36 @@ let render =
     : Node.t => {
   let is_readonly = sort != Sort.Exp;
   let (headers, rows) = value;
-  // Parse the current expression instead of using the stale stored value
-  let make_menu_button = (i, _h) =>
+  let make_menu_button = i =>
     icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
 
   let header_cells =
     List.mapi(
       (i, h) => {
-        let menu_button = make_menu_button(i, h);
-        let base_content = [
-          Node.text(h),
-          is_readonly ? Node.none : menu_button,
+        let (label_node, has_name) =
+          switch (h) {
+          | Some(name) => (Node.text(name), true)
+          | None => (WebUtil.empty_hole_svg(), false)
+          };
+        let menu_button = make_menu_button(i);
+        let content = [
+          label_node,
+          is_readonly || !has_name ? Node.none : menu_button,
         ];
 
-        /* Add navigation buttons to first and last columns if provided */
-        let content = base_content;
-
         let full_content =
-          switch (model.menu_state) {
-          | Some((j, menu_path)) when i == j =>
+          switch (h, model.menu_state) {
+          | (Some(name), Some((j, menu_path))) when i == j =>
             let dyn_type = get_dynamic_type(exp); /* Is there a better way to get the types of the columns? */
             let menu_data =
-              build_column_menu(info, h, dyn_type, local, parent, menu_path);
+              build_column_menu(
+                info,
+                name,
+                dyn_type,
+                local,
+                parent,
+                menu_path,
+              );
             let menu_content = render_menu(menu_data);
             content
             @ [
