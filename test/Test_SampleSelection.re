@@ -992,6 +992,234 @@ let three_level_tests = [
   ),
 ];
 
+/* --- Tests: recursive functions (same call site ID at every depth) ---
+ *
+ * In recursive functions like factorial, every recursive call goes through
+ * the same syntactic call site, so all stack frames share one ID. This
+ * means every shallower stack is a suffix of every deeper stack:
+ *   depth 1: [F]
+ *   depth 2: [F, F]
+ *   depth 3: [F, F, F]
+ * [F] is a suffix of [F, F, F], [F, F] is a suffix of [F, F, F], etc.
+ *
+ * This is the scenario where effective_stack (cursor.index) matters:
+ * the full call_stack can't discriminate between depths because all
+ * depths share suffix relationships. The index encodes which depth
+ * the user is currently looking at.
+ *
+ * Modeled after: let fact = fun ^^probe(x) -> ... fact(x-1) ... in fact(5)
+ * Samples ordered by evaluation time: x=5, x=4, x=3, x=2, x=1 */
+
+/* A single frame ID shared by all recursive calls */
+let id_rec = Id.mk();
+let f_rec = frame(id_rec);
+
+/* Samples for a probe inside a recursive function called 5 times.
+ * Each sample has a stack of repeated f_rec frames at increasing depth. */
+let rec_samples = [
+  mk_sample(~seq=0, [f_rec]), /* x=5, depth 1 */
+  mk_sample(~seq=1, [f_rec, f_rec]), /* x=4, depth 2 */
+  mk_sample(~seq=2, [f_rec, f_rec, f_rec]), /* x=3, depth 3 */
+  mk_sample(~seq=3, [f_rec, f_rec, f_rec, f_rec]), /* x=2, depth 4 */
+  mk_sample(~seq=4, [f_rec, f_rec, f_rec, f_rec, f_rec]) /* x=1, depth 5 */
+];
+
+let recursive_tests = [
+  test_case(
+    "recursive: click on shallower sample respects index",
+    `Quick,
+    () => {
+      /* User is viewing x=3 (depth 3), clicks on x=4 (depth 2).
+       * Write side: [F,F] is suffix of [F,F,F] → keep stack, lower index.
+       * Cursor becomes (call_stack=[F,F,F], index=1).
+       * Read side should find x=4 (depth 2), not snap back to x=3. */
+      let cursor = mk_cursor_at_index(~index=1, [f_rec, f_rec, f_rec]);
+      let result =
+        Sample.Selection.most_aligned_index(~ap_id=None, cursor, rec_samples);
+      check(
+        bool,
+        "should find depth-2 sample at index 1 (x=4), not depth-3 at index 2 (x=3)",
+        true,
+        result == Some(1),
+      );
+    },
+  ),
+  test_case(
+    "recursive: click on shallowest sample respects index",
+    `Quick,
+    () => {
+      /* User has been deep, clicks the shallowest sample (x=5, depth 1).
+       * Write side preserves the deep stack.
+       * Cursor: (call_stack=[F,F,F,F], index=0).
+       * Read side should find x=5, not snap to x=2. */
+      let cursor =
+        mk_cursor_at_index(~index=0, [f_rec, f_rec, f_rec, f_rec]);
+      let result =
+        Sample.Selection.most_aligned_index(~ap_id=None, cursor, rec_samples);
+      check(
+        bool,
+        "should find depth-1 sample at index 0 (x=5)",
+        true,
+        result == Some(0),
+      );
+    },
+  ),
+  test_case(
+    "recursive: arrow left from x=3 to x=4 then arrow left again to x=5",
+    `Quick,
+    () => {
+      /* Simulates two successive ArrowLeft presses in move_cursor.
+       *
+       * Step 1: At x=3 (depth 3). ArrowLeft captures x=4.
+       *   capture: [F,F] suffix of [F,F,F] → keep. Cursor: stack=[F,F,F], index=1.
+       *   most_aligned_index should return index 1 (x=4).
+       *
+       * Step 2: At x=4 (depth 2). ArrowLeft captures x=5.
+       *   capture: [F] suffix of [F,F,F] → keep. Cursor: stack=[F,F,F], index=0.
+       *   most_aligned_index should return index 0 (x=5). */
+
+      /* Step 1: cursor after capturing x=4 */
+      let cursor_at_x4 = mk_cursor_at_index(~index=1, [f_rec, f_rec, f_rec]);
+      let idx_step1 =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor_at_x4,
+          rec_samples,
+        );
+      check(
+        bool,
+        "step 1: should be at index 1 (x=4)",
+        true,
+        idx_step1 == Some(1),
+      );
+
+      /* Step 2: ArrowLeft from index 1 → capture index 0 (x=5).
+       * Cursor after capture: [F] is suffix of [F,F,F] → keep stack, index=0. */
+      let cursor_at_x5 = mk_cursor_at_index(~index=0, [f_rec, f_rec, f_rec]);
+      let idx_step2 =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor_at_x5,
+          rec_samples,
+        );
+      check(
+        bool,
+        "step 2: should be at index 0 (x=5)",
+        true,
+        idx_step2 == Some(0),
+      );
+    },
+  ),
+  test_case(
+    "recursive: arrow right from x=3 to x=2, then arrow left back to x=3",
+    `Quick,
+    () => {
+      /* Going deeper works (new stack replaces old), but coming back
+       * must also work (shallower capture preserves deep stack).
+       *
+       * Step 1: At x=3. ArrowRight captures x=2.
+       *   [F,F,F,F] NOT suffix of [F,F,F] → replace.
+       *   Cursor: stack=[F,F,F,F], index=3.
+       *
+       * Step 2: At x=2. ArrowLeft captures x=3.
+       *   [F,F,F] IS suffix of [F,F,F,F] → keep.
+       *   Cursor: stack=[F,F,F,F], index=2. */
+
+      /* Step 2 cursor (the interesting one): */
+      let cursor_back_at_x3 =
+        mk_cursor_at_index(~index=2, [f_rec, f_rec, f_rec, f_rec]);
+      let result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor_back_at_x3,
+          rec_samples,
+        );
+      check(
+        bool,
+        "should find x=3 at index 2, not x=2 at index 3",
+        true,
+        result == Some(2),
+      );
+    },
+  ),
+  test_case(
+    "recursive: select Single returns correct sample after shallower click",
+    `Quick,
+    () => {
+      /* End-to-end: Selection.select in Single mode should return the sample
+       * at the user's active depth, not the deepest preserved depth. */
+      let cursor = mk_cursor_at_index(~index=1, [f_rec, f_rec, f_rec]);
+      let selected = do_select(~cursor, rec_samples);
+      check(int, "should show 1 sample", 1, List.length(selected));
+      switch (selected) {
+      | [s] => check(int, "should be depth-2 sample (seq=1, x=4)", 1, s.seq)
+      | _ => fail("expected exactly 1 sample")
+      };
+    },
+  ),
+  test_case(
+    "recursive: cross-probe consistency after depth change",
+    `Quick,
+    () => {
+      /* Two probes in a recursive function body. User changes depth at
+       * probe B (ArrowLeft from depth 3 to depth 2). Navigate to probe A.
+       * Probe A should also show depth 2, not snap back to depth 3.
+       *
+       * This tests that when cursor=(stack=[F,F,F], index=1), a DIFFERENT
+       * probe (with the same recursive sample structure) also aligns
+       * to depth 2. */
+      let other_rec_samples = [
+        mk_sample(~seq=10, [f_rec]),
+        mk_sample(~seq=11, [f_rec, f_rec]),
+        mk_sample(~seq=12, [f_rec, f_rec, f_rec]),
+        mk_sample(~seq=13, [f_rec, f_rec, f_rec, f_rec]),
+      ];
+      let cursor = mk_cursor_at_index(~index=1, [f_rec, f_rec, f_rec]);
+      let result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor,
+          other_rec_samples,
+        );
+      check(
+        bool,
+        "other probe should also find depth-2 sample (index 1)",
+        true,
+        result == Some(1),
+      );
+    },
+  ),
+  test_case(
+    "recursive: intent preserved when returning from non-recursive probe",
+    `Quick,
+    () => {
+      /* User is at depth 3 in a recursive probe. Navigates to a
+       * non-recursive probe (e.g. the test expression ^^probe(fact(5))),
+       * which has a single sample with empty/different call stack.
+       * Navigate back. The recursive probe should recover depth 3.
+       *
+       * After navigating away: cursor.index = -1 or 0, but call_stack
+       * preserved as [F,F,F]. When returning, effective_stack is too
+       * shallow to match any recursive sample, so the full stack should
+       * kick in and recover the depth-3 selection. */
+      let cursor_after_return =
+        mk_cursor_at_index(~index=-1, [f_rec, f_rec, f_rec]);
+      let result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor_after_return,
+          rec_samples,
+        );
+      check(
+        bool,
+        "should recover depth-3 sample (index 2) via full stack",
+        true,
+        result == Some(2),
+      );
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -1004,5 +1232,6 @@ let tests = (
     empty_status_tests,
     intent_preservation_tests,
     three_level_tests,
+    recursive_tests,
   ]),
 );
