@@ -103,10 +103,7 @@ let parse = (_sort: Sort.t, exp: Exp.t) => {
       | [] => None
       | [h, ..._]
           when
-            List.for_all(
-              x => List.equal(Option.equal(String.equal), x, h),
-              headers,
-            ) =>
+            List.for_all(List.equal(Option.equal(String.equal), h), headers) =>
         Some((h, rows))
       | _ => None
       };
