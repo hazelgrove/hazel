@@ -133,6 +133,19 @@ let init =
       Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
       Id.Map.map(_ => (), z.refractors.autos.ephemerals),
     );
+  /* Also include IDs from projectors that have dynamics = true,
+   * so their expressions are instrumented for sample collection. */
+  let projector_dynamic_ids =
+    Id.Map.fold(
+      (id, p: Base.projector, acc) => {
+        let (module P) = ProjectorInit.to_module(p.kind);
+        P.dynamics ? Id.Map.add(id, (), acc) : acc;
+      },
+      make_term_result.projectors,
+      Id.Map.empty,
+    );
+  let probe_ids =
+    Id.Map.union((_, _, _) => Some(), probe_ids, projector_dynamic_ids);
 
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
 };

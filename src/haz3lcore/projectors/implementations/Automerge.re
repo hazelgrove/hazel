@@ -30,6 +30,12 @@ class type repo = {
 let get_repo = (): Js.t(repo) =>
   Js.Unsafe.coerce(Js.Unsafe.get(Js.Unsafe.global, "repo"));
 
+// Check if the global Repo instance is available.
+let repo_is_ready = (): bool =>
+  Js.to_bool(
+    Js.Unsafe.pure_js_expr("typeof globalThis.repo !== 'undefined'"),
+  );
+
 // Call JSON.stringify on a JS value and return an OCaml string.
 let json_stringify = (value: Js.Unsafe.any): string => {
   let json_obj = Js.Unsafe.get(Js.Unsafe.global, "JSON");
@@ -51,3 +57,30 @@ let doc_to_exp = (handle: Js.t(handle)): result(Language.Exp.t, string) =>
   }) {
   | exn => Error("Document not available: " ++ Printexc.to_string(exn))
   };
+
+// Convert a Hazel expression (JSON ADT) to a JSON string.
+// Inverse of the doc_to_exp path.
+let exp_to_json_string = (exp: Language.Exp.t): result(string, string) =>
+  switch (HazelProtocol.JsonADT.exp_to_yojson(exp)) {
+  | Ok(yojson) => Ok(Yojson.Safe.to_string(yojson))
+  | Error(msg) => Error(msg)
+  };
+
+// Call window.hazelWriteToDoc(url, json_string) to write
+// data back to an automerge document. Fire-and-forget.
+// Silently does nothing if the JS helper isn't loaded yet.
+let write_to_doc = (url: string, json_string: string): unit => {
+  let fn: Js.Optdef.t(Js.Unsafe.any) =
+    Js.Unsafe.get(Js.Unsafe.global, "hazelWriteToDoc");
+  if (Js.Optdef.test(fn)) {
+    ignore(
+      Js.Unsafe.fun_call(
+        fn,
+        [|
+          Js.Unsafe.inject(Js.string(url)),
+          Js.Unsafe.inject(Js.string(json_string)),
+        |],
+      ),
+    );
+  };
+};

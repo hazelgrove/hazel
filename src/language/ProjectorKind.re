@@ -30,6 +30,7 @@ type t =
   | Patchwork
   | Exo(exo)
   | Automerge
+  | AutomergeWriteBack
   | PatchworkTool;
 
 let livelit_projectors: list(t) =
@@ -48,7 +49,15 @@ let livelit_projectors: list(t) =
 /* Note: Probe intentionally excluded - probes use separate action path */
 let projectors: list(t) =
   livelit_projectors
-  @ [Fold, Graph, ObservablePlot, Patchwork, Automerge, PatchworkTool];
+  @ [
+    Fold,
+    Graph,
+    ObservablePlot,
+    Patchwork,
+    Automerge,
+    AutomergeWriteBack,
+    PatchworkTool,
+  ];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
@@ -74,6 +83,7 @@ let name = (p: t): string =>
   | Patchwork => "Patchwork"
   | Exo(exo_kind) => show_exo(exo_kind)
   | Automerge => "Automerge"
+  | AutomergeWriteBack => "AutomergeWriteBack"
   | PatchworkTool => "PatchworkTool"
   };
 
@@ -96,6 +106,7 @@ let of_name = (p: string): t =>
   | "Patchwork" => Patchwork
   | "ObservablePlot" => ObservablePlot
   | "Automerge" => Automerge
+  | "AutomergeWriteBack" => AutomergeWriteBack
   | "PatchworkTool" => PatchworkTool
   | _ => Exo(p |> Sexplib.Sexp.of_string |> exo_of_sexp)
   };

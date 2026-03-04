@@ -35,70 +35,75 @@ let subscribe_to_doc =
   };
   subscriptions := Id.Map.add(id, sub, subscriptions^);
 
-  /* Look up the document by URL via the global automerge repo. */
-  let repo = Automerge.get_repo();
-  let promise = repo##find(Js.string(url));
+  /* Look up the document by URL via the global automerge repo.
+     Bail out if the repo isn't loaded yet (race condition on reload).
+     Keep the subscription in the map so ensure_subscribed won't retry
+     on every render (which would cause an infinite loop). */
+  if (Automerge.repo_is_ready()) {
+    let repo = Automerge.get_repo();
+    let promise = repo##find(Js.string(url));
 
-  /* Once the handle resolves, wire up the change listener. */
-  let then_result =
-    promise##then_(
-      Js.wrap_callback((handle: Js.t(Automerge.handle)) => {
-        /* Called on every "change" event (and once for the initial read).
-           Converts the live JS document to a Hazel expression. */
-        let callback =
-          Js.wrap_callback(_ => {
-            switch (Automerge.doc_to_exp(handle)) {
-            | Ok(exp) =>
-              switch (Id.Map.find_opt(id, subscriptions^)) {
-              | Some(s) => s.on_data(exp)
-              | None => ()
+    /* Once the handle resolves, wire up the change listener. */
+    let then_result =
+      promise##then_(
+        Js.wrap_callback((handle: Js.t(Automerge.handle)) => {
+          /* Called on every "change" event (and once for the initial read).
+             Converts the live JS document to a Hazel expression. */
+          let callback =
+            Js.wrap_callback(_ => {
+              switch (Automerge.doc_to_exp(handle)) {
+              | Ok(exp) =>
+                switch (Id.Map.find_opt(id, subscriptions^)) {
+                | Some(s) => s.on_data(exp)
+                | None => ()
+                }
+              | Error(err) =>
+                switch (Id.Map.find_opt(id, subscriptions^)) {
+                | Some(s) => s.on_error(err)
+                | None => ()
+                }
               }
-            | Error(err) =>
-              switch (Id.Map.find_opt(id, subscriptions^)) {
-              | Some(s) => s.on_error(err)
-              | None => ()
-              }
-            }
-          });
+            });
 
-        /* Store a cleanup function that unsubscribes from changes. */
-        let cleanup_fn = () => {
+          /* Store a cleanup function that unsubscribes from changes. */
+          let cleanup_fn = () => {
+            ignore(
+              handle##off_(Js.string("change"), Js.Unsafe.inject(callback)),
+            );
+          };
+          switch (Id.Map.find_opt(id, subscriptions^)) {
+          | Some(s) =>
+            s.cleanup = Some(cleanup_fn);
+            s.handle = Some(handle);
+          | None => ()
+          };
+
+          /* Subscribe to future changes. */
           ignore(
-            handle##off_(Js.string("change"), Js.Unsafe.inject(callback)),
+            handle##on_(Js.string("change"), Js.Unsafe.inject(callback)),
           );
-        };
-        switch (Id.Map.find_opt(id, subscriptions^)) {
-        | Some(s) =>
-          s.cleanup = Some(cleanup_fn);
-          s.handle = Some(handle);
-        | None => ()
-        };
 
-        /* Subscribe to future changes. */
-        ignore(
-          handle##on_(Js.string("change"), Js.Unsafe.inject(callback)),
-        );
-
-        /* Fire the callback once immediately to read the initial doc state. */
-        Js.Unsafe.fun_call(callback, [|Js.Unsafe.inject(Js.undefined)|]);
-      }),
+          /* Fire the callback once immediately to read the initial doc state. */
+          Js.Unsafe.fun_call(callback, [|Js.Unsafe.inject(Js.undefined)|]);
+        }),
+      );
+    ignore(
+      Js.Unsafe.meth_call(
+        then_result,
+        "catch",
+        [|
+          Js.Unsafe.inject(
+            Js.wrap_callback((_err: Js.Unsafe.any) => {
+              switch (Id.Map.find_opt(id, subscriptions^)) {
+              | Some(s) => s.on_error("Failed to find document")
+              | None => ()
+              }
+            }),
+          ),
+        |],
+      ),
     );
-  ignore(
-    Js.Unsafe.meth_call(
-      then_result,
-      "catch",
-      [|
-        Js.Unsafe.inject(
-          Js.wrap_callback((_err: Js.Unsafe.any) => {
-            switch (Id.Map.find_opt(id, subscriptions^)) {
-            | Some(s) => s.on_error("Failed to find document")
-            | None => ()
-            }
-          }),
-        ),
-      |],
-    ),
-  );
+  };
 };
 
 let ensure_subscribed =

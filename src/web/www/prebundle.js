@@ -26,6 +26,31 @@ const repo = new Repo({
 
 window.repo = repo
 
+window.hazelWriteToDoc = (docUrl, jsonString) => {
+  try {
+    const handle = repo.find(docUrl)
+    const parsed = JSON.parse(jsonString)
+
+    handle.change(doc => {
+      // Only sync top-level keys in doc.store (where tldraw keeps shapes)
+      if (parsed.store && doc.store) {
+        // Delete keys in doc.store that aren't in parsed.store
+        for (const key of Object.keys(doc.store)) {
+          if (!(key in parsed.store)) {
+            delete doc.store[key]
+          }
+        }
+        // Add/update keys from parsed.store
+        for (const [key, value] of Object.entries(parsed.store)) {
+          doc.store[key] = value
+        }
+      }
+    })
+  } catch (e) {
+    console.error("hazelWriteToDoc error:", e)
+  }
+}
+
 const handoff = createFilesystemHandoffHandler(repo)
 setup(async (href, request) => handoff(href, request))
 

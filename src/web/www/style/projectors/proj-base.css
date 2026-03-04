@@ -12,6 +12,7 @@
 @import "proj-graph.css";
 @import "proj-csv.css";
 @import "proj-automerge.css";
+@import "proj-automerge-writeback.css";
 @import "proj-patchwork-tool.css";
 
 /* Default projector styles */
