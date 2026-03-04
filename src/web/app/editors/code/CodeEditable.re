@@ -394,8 +394,6 @@ module View = {
         : [];
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
-    let statics_map = model.statics.info_map;
-    let sample_cursor = zipper.refractors.sample_cursor;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -406,12 +404,11 @@ module View = {
           ),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.piece''(zipper),
-        ~statics=statics_map,
+        ~statics=model.statics.info_map,
         ~dynamics,
-        ~sample_cursor,
+        ~sample_cursor=zipper.refractors.sample_cursor,
         ~editor_active=selected,
       );
-    /* TODO(andrew): remove profilling before merge */
     // let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
@@ -421,9 +418,6 @@ module View = {
         signal(MakeActive),
         globals.font_metrics,
         ~visible?,
-        ~statics_map,
-        ~dynamics_map=dynamics,
-        ~sample_cursor,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
@@ -435,15 +429,12 @@ module View = {
         signal(MakeActive),
         globals.font_metrics,
         ~visible?,
-        ~statics_map,
-        ~dynamics_map=dynamics,
-        ~sample_cursor,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
           ~indicated=Indicated.piece''(zipper),
-          ~statics=statics_map,
+          ~statics=model.statics.info_map,
           ~dynamics,
-          ~sample_cursor,
+          ~sample_cursor=zipper.refractors.sample_cursor,
           ~editor_active=selected,
         ),
         model.editor.syntax.projector_list,

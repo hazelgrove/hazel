@@ -20,6 +20,7 @@ module ViewCache = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_cursor: Language.Sample.Cursor.t,
+    settings_version: int,
     status: View.status,
     model: string,
     view: View.t,
@@ -35,6 +36,7 @@ module ViewCache = {
           e.statics_map === statics_map
           && e.dynamics_map === dynamics_map
           && Language.Sample.Cursor.equal(e.sample_cursor, sample_cursor)
+          && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
           && e.model == model =>
       Some(e.view)
@@ -42,15 +44,7 @@ module ViewCache = {
     };
 
   let store =
-      (
-        id,
-        ~statics_map,
-        ~dynamics_map,
-        ~sample_cursor,
-        ~status,
-        ~model,
-        ~view,
-      ) =>
+      (id, ~statics_map, ~dynamics_map, ~sample_cursor, ~status, ~model, ~view) =>
     Hashtbl.replace(
       cache,
       id,
@@ -58,6 +52,7 @@ module ViewCache = {
         statics_map,
         dynamics_map,
         sample_cursor,
+        settings_version: ProbeProj.Settings.version^,
         status,
         model,
         view,
@@ -111,6 +106,10 @@ module Model = {
     measurement: Measured.measurement,
     offside_base: int,
     status,
+    /* Map refs for view cache identity comparison */
+    statics_map: Language.Statics.Map.t,
+    dynamics_map: Language.Dynamics.Map.t,
+    sample_cursor: Language.Sample.Cursor.t,
   };
 
   type t = list(projector_data);
@@ -185,6 +184,9 @@ module Model = {
               ~info,
               ~id,
             ),
+          statics_map: statics,
+          dynamics_map: dynamics,
+          sample_cursor,
         };
       },
       Id.Map.bindings(projectors),
@@ -372,10 +374,7 @@ let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
-      ~statics_map: Language.Statics.Map.t,
-      ~dynamics_map: Language.Dynamics.Map.t,
-      ~sample_cursor: Language.Sample.Cursor.t,
-      {p, info, status, _}: Model.projector_data,
+      {p, info, status, statics_map, dynamics_map, sample_cursor, _}: Model.projector_data,
       projector_list: list(Id.t),
     )
     : View.t =>
@@ -447,9 +446,6 @@ let split_views =
       make_active,
       font_metrics: FontMetrics.t,
       ~skip_inline: bool,
-      ~statics_map: Language.Statics.Map.t,
-      ~dynamics_map: Language.Dynamics.Map.t,
-      ~sample_cursor: Language.Sample.Cursor.t,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
@@ -465,16 +461,7 @@ let split_views =
       ~idx,
       ~kind=p.kind,
     );
-  let views =
-    mk_view(
-      inject,
-      font_metrics,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_cursor,
-      projector_data,
-      projector_list,
-    );
+  let views = mk_view(inject, font_metrics, projector_data, projector_list);
   let line_view = {
     let offside_view =
       views.offside
@@ -501,9 +488,6 @@ let all =
       make_active,
       font_metrics: FontMetrics.t,
       ~visible: option(visible_rows)=?,
-      ~statics_map: Language.Statics.Map.t,
-      ~dynamics_map: Language.Dynamics.Map.t,
-      ~sample_cursor: Language.Sample.Cursor.t,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
@@ -524,9 +508,6 @@ let all =
     |> List.map(
          split_views(
            ~skip_inline=false,
-           ~statics_map,
-           ~dynamics_map,
-           ~sample_cursor,
            inject,
            make_active,
            font_metrics,

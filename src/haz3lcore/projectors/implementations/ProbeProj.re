@@ -87,6 +87,7 @@ module Settings = {
   let offset = Hashtbl.create(100);
 
   let s = ref(init);
+  let version = ref(0);
 
   /* When true, the context menu dropdown is shown for the indicated sample
    * without hovering. Toggled by '/' key. Persists across probe navigation. */
@@ -95,10 +96,14 @@ module Settings = {
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
+    version := version^ + 1;
     show_env := false;
   };
 
-  let go = (a: set_action): unit => s := update(s^, a);
+  let go = (a: set_action): unit => {
+    s := update(s^, a);
+    version := version^ + 1;
+  };
 };
 
 open Settings;
