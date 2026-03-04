@@ -12,15 +12,12 @@ type piece = {
   relation,
 };
 
-/* A single-character infix operator has no inner caret position, so
-   under inward bias it would have no indicated position at all. We
-   give these operators their left position as a special case.
-   Multi-char infixes like ++ or == have inner caret positions. */
-let is_single_char_infix = (p: Piece.t): bool =>
+/* Infix operators get their left position as a special case under
+   inward bias. Without this, an infix between two Convex operands
+   would never be indicated from its left (designated) position. */
+let is_infix_op = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: [tok], mold, _})
-      when String.length(tok) == 1 =>
-    Mold.is_infix_op(mold)
+  | Tile({mold, _}) => Mold.is_infix_op(mold)
   | _ => false
   };
 
@@ -39,7 +36,7 @@ let caret_facing_shape =
 /* Core indication logic. Determines the indicated piece at the
    current caret position using INWARD bias: when between two pieces,
    favor the one whose caret-facing nib is Convex (term-shaped).
-   Single-char infix operators get their left position as a special case.
+   Infix operators get their left (designated) position as a special case.
 
    Parameters:
    - no_ws: if true, return None when only secondary neighbors exist;
@@ -71,8 +68,8 @@ let indicated =
     Some({piece: parent, side: Left, relation: Parent})
   /* Both L and R non-ignored, caret outer: inward bias with infix special case */
   | ((Some(l), Some(r)), _parent) when !ign(l) && !ign(r) && z.caret == Outer =>
-    if (is_single_char_infix(r)) {
-      /* Single-char infix R gets left position (only position it can have) */
+    if (is_infix_op(r)) {
+      /* Infix R gets its left (designated) position */
       Some({piece: r, side: Right, relation: Sibling});
     } else {
       switch (

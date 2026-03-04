@@ -125,9 +125,8 @@ let ind_acts = (~name, ~acts, ~indicated) =>
  *
  * Inward bias: when between two pieces at an Outer caret position,
  * we favor the piece whose caret-facing nib is Convex (term-shaped).
- * Single-token infix operators (like +, *, ,, ;) get a special case:
- * they are indicated at their left position since they have no inner
- * caret position and would otherwise have no indicated position.
+ * Infix operators get a special case: they are indicated at their
+ * left (designated) position regardless of inward bias.
  * ================================================================== */
 
 let literal_tests = [
@@ -234,8 +233,8 @@ let binary_op_with_spaces_tests = [
 ];
 
 let binary_op_no_spaces_tests = [
-  /* --- Without spaces: inward bias + single-token infix special case
-   * At 1¦+2: R is single-token infix +, so + gets its left position
+  /* --- Without spaces: inward bias + infix special case
+   * At 1¦+2: R is infix +, so + gets its left position
    * At 1+¦2: R is 2 (Convex left nib), inward bias picks 2 */
   ind(~name="Plus no space: after left operand (infix special case)",
     ~input={|1¦+2|}, ~indicated="+ [R,S]"),
@@ -553,9 +552,9 @@ let inward_bias_tests = [
     ~input={|3¦-1|}, ~indicated="- [R,S]"),
   ind(~name="Comma gets left position in (1¦,2)",
     ~input={|(1¦,2)|}, ~indicated=", [R,S]"),
-  /* --- Multi-token operators: NOT single-token, so no special case --- */
-  ind(~name="Concat ++: not single-token, inner caret available",
-    ~input={|"a"¦++"b"|}, ~indicated={|"a" [L,S]|}),
+  /* --- Multi-token infix operators: same special case as single-token --- */
+  ind(~name="Concat ++: infix gets left position",
+    ~input={|"a"¦++"b"|}, ~indicated="++ [R,S]"),
   /* --- Inward at operator right edge picks operand --- */
   ind(~name="After + before 2 (no space): inward picks 2",
     ~input={|1+¦2|}, ~indicated="2 [R,S]"),
