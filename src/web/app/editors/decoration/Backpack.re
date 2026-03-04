@@ -233,7 +233,7 @@ let view =
                 ~can_put_down=Zipper.can_put_down(z),
                 ~caret_d=Zipper.Caret.direction(z),
                 ~ind_d=
-                  switch (Indicated.piece(z)) {
+                  switch (Indicated.for_decoration(z)) {
                   | Some((_, d, _)) => Some(d)
                   | None => None
                   },

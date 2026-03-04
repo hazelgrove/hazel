@@ -22,7 +22,7 @@ let local = (d: Direction.t, z: t): option(t) =>
  * rules and the scrutinee, but we want to consider it to be
  * the whole case expression. */
 let current_term_id = (z: t): option(Id.t) => {
-  let* (p, _, rel) = Indicated.piece''(z);
+  let* (p, _, rel) = Indicated.for_decoration(z);
   switch (p) {
   | Secondary(_) => None
   | Grout(_)
@@ -139,7 +139,7 @@ let current_term =
       ~case_rules: bool,
       z: t,
     ) => {
-  let* (p, _, _) = Indicated.piece''(z);
+  let* (p, _, _) = Indicated.for_decoration(z);
   switch (p) {
   | Tile({label: ["let" | "type" | "module", "=", "in"], _})
       when defs_exclude_bodies =>
@@ -202,7 +202,7 @@ let containing_secondary_run = (z: t): option(t) => {
  * contiguous spans of secondary are considered a single token,
  * although technically this is not the case */
 let indicated_token = (z: t) =>
-  switch (Indicated.piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+  switch (Indicated.indicated(~no_ws=false, ~ign=Piece.is_secondary, z)) {
   | Some((Secondary(_), _, _)) =>
     /* If there is secondary on both sides, select the
      * largest contiguous run of non-linebreak secondary */
@@ -250,7 +250,7 @@ let parent_is_rule = (z: t, info_map): option(Id.t) => {
     );
   let is_inside_rule = (z: t) => {
     let* z = move_left_until_case_or_rule(z);
-    let* (p, _, _) = Indicated.piece''(z);
+    let* (p, _, _) = Indicated.for_decoration(z);
     switch (p) {
     | Tile({label: ["|", "=>"], id, _}) => Some(id)
     | _ => None
@@ -306,7 +306,7 @@ let smart = (term_data, info_map, n, z: t): option(t) => {
   switch (n) {
   | 2 => indicated_token(z)
   | 3 =>
-    let* (p, _, _) = Indicated.piece''(z);
+    let* (p, _, _) = Indicated.for_decoration(z);
     /* For things where triple-clicking would otherwise have
      * no additional effect, select the parent term instead */
     Piece.is_term(p)

@@ -43,7 +43,8 @@ let (suite, _) =
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ Test_TyDi.tests
-    @ [Test_UnusedWarnings.tests],
+    @ [Test_UnusedWarnings.tests]
+    @ Test_Indication.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

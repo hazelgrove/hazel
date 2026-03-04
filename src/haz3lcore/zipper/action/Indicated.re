@@ -8,14 +8,42 @@ type relation =
 
 type piece = (Piece.t, Direction.t, relation);
 
-let piece' =
+/* A single-character infix operator has no inner caret position, so
+   under inward bias it would have no indicated position at all. We
+   give these operators their left position as a special case.
+   Multi-char infixes like ++ or == have inner caret positions. */
+let is_single_char_infix = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label: [tok], mold, _})
+      when String.length(tok) == 1 =>
+    Mold.is_infix_op(mold)
+  | _ => false
+  };
+
+/* The caret-facing nib shape of a piece: right nib for L, left nib for R */
+let caret_facing_shape =
+    (d: Direction.t, p: Piece.t): option(Nib.Shape.t) =>
+  switch (Piece.shapes(p)) {
+  | Some((l, r)) =>
+    switch (d) {
+    | Left => Some(r) /* L piece: its right nib faces the caret */
+    | Right => Some(l) /* R piece: its left nib faces the caret */
+    }
+  | None => None
+  };
+
+/* Core indication logic. Determines the indicated piece at the
+   current caret position using INWARD bias: when between two pieces,
+   favor the one whose caret-facing nib is Convex (term-shaped).
+   Single-char infix operators get their left position as a special case.
+
+   Parameters:
+   - no_ws: if true, return None when only secondary neighbors exist;
+     if false, return the secondary piece (for callers that always
+     need an answer, like index/direction queries).
+   - ign: predicate for pieces to skip (typically is_secondary) */
+let indicated =
     (~no_ws: bool, ~ign: Piece.t => bool, z: ZipperBase.t): option(piece) => {
-  /* Returns the piece currently indicated (if any) and which side of
-     that piece the caret is on. We favor indicating the piece to the
-     (R)ight, but may end up indicating the (P)arent or the (L)eft.
-     We don't indicate secondary tiles. This function ignores whether
-     or not there is a selection so this can be used to get the caret
-     direction, but the caller shouldn't indicate if there's a selection */
   switch (
     Siblings.neighbors(ZipperBase.sibs_with_sel(z)),
     ZipperBase.parent(z),
@@ -37,10 +65,33 @@ let piece' =
   /* No L and R is a secondary and there is a P => indicate P */
   | ((None, Some(r)), Some(parent)) when ign(r) =>
     Some((parent, Left, Parent))
-  /* L is not secondary and caret is outer => indicate L */
+  /* Both L and R non-ignored, caret outer: inward bias with infix special case */
+  | ((Some(l), Some(r)), _parent) when !ign(l) && !ign(r) && z.caret == Outer =>
+    if (is_single_char_infix(r)) {
+      /* Single-char infix R gets left position (only position it can have) */
+      Some((r, Right, Sibling));
+    } else {
+      switch (
+        caret_facing_shape(Left, l),
+        caret_facing_shape(Right, r),
+      ) {
+      /* R is convex (inward) => indicate R */
+      | (_, Some(Convex)) => Some((r, Right, Sibling))
+      /* L is convex (inward), R is not => indicate L */
+      | (Some(Convex), _) => Some((l, Left, Sibling))
+      /* Both concave or unknown => indicate L (fallback) */
+      | _ => Some((l, Left, Sibling))
+      };
+    }
+  /* L non-ignored, R ignored or absent, caret outer => indicate L.
+   * L is the only meaningful piece, so indicate it regardless of shape. */
   | ((Some(l), _), _) when !ign(l) && z.caret == Outer =>
     Some((l, Left, Sibling))
-  /* No L, some P, and caret is outer => indicate R */
+  /* No L, R non-ignored, parent exists, caret outer: inward bias
+   * prefers the child (R) over the parent delimiter */
+  | ((None, Some(r)), Some(_parent)) when !ign(r) && z.caret == Outer =>
+    Some((r, Right, Sibling))
+  /* No L, R ignored or absent, some P, caret outer => indicate P */
   | ((None, _), Some(parent)) when z.caret == Outer =>
     Some((parent, Left, Parent))
   /* R is not secondary, either no L or L is secondary or caret is inner => indicate R */
@@ -53,11 +104,16 @@ let piece' =
   };
 };
 
-let piece =
-  piece'(~no_ws=true, ~ign=p => Piece.(is_secondary(p) || is_grout(p)));
+/* For visual decoration (caret side, arms, projector/refractor highlighting).
+   Ignores secondary. Used by CaretDec, Arms, CodeEditable, Backpack. */
+let for_decoration = indicated(~no_ws=true, ~ign=Piece.is_secondary);
+
+/* For identity/direction queries that always need an answer, even in
+   whitespace. Ignores secondary but returns them as fallback. */
+let for_index = indicated(~no_ws=false, ~ign=Piece.is_secondary);
 
 let shard_index = (z: ZipperBase.t): option(int) =>
-  switch (piece(z)) {
+  switch (for_decoration(z)) {
   | None => None
   | Some((p, side, relation)) =>
     switch (relation) {
@@ -85,10 +141,8 @@ let shard_index = (z: ZipperBase.t): option(int) =>
     }
   };
 
-let for_index = piece'(~no_ws=false, ~ign=Piece.is_secondary);
-
 let direction = (z: ZipperBase.t): option(Direction.t) =>
-  switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+  switch (for_index(z)) {
   | None => None
   | Some((_, d, _)) => Some(d)
   };
@@ -99,18 +153,14 @@ let index = (z: ZipperBase.t): option(Id.t) =>
   | Some((p, _, _)) => Some(Piece.id(p))
   };
 
-let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary);
-
 let ci_of =
     (z: ZipperBase.t, info_map: Language.Statics.Map.t)
     : option(Language.Statics.Info.t) =>
-  /* This version takes into accounts Secondary, while accounting for the
-   * fact that Secondary is not currently added to the info_map. First we
-   * try the basic indication function, specifying that we do not want
-   * Secondary. But if this doesn't succeed, then we create a 'virtual'
-   * info map entry representing the Secondary notation, which takes on
-   * some of the semantic context of a nearby 'proxy' term */
-  switch (piece''(z)) {
+  /* First try the decoration indication function. If it succeeds,
+   * look up the piece's info. If not (e.g. only secondary neighbors),
+   * create a 'virtual' info map entry for the secondary notation,
+   * borrowing semantic context from a nearby 'proxy' term. */
+  switch (for_decoration(z)) {
   | Some((p, _, _)) => Id.Map.find_opt(Piece.id(p), info_map)
   | None =>
     let sibs = ZipperBase.sibs_with_sel(z);
@@ -141,3 +191,16 @@ let ci_of =
       ctx: Language.Statics.Info.ctx_of(ci),
     });
   };
+
+/* For type-directed completion (TyDi): returns the ci of the
+ * left neighbor tile, which is the token being completed.
+ * Falls back to ci_of when no suitable left neighbor exists. */
+let ci_for_completion =
+    (z: ZipperBase.t, info_map: Language.Statics.Map.t)
+    : option(Language.Statics.Info.t) =>
+  switch (Siblings.neighbor(Left, z.relatives.siblings)) {
+  | Some(p) when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
+    Id.Map.find_opt(Piece.id(p), info_map)
+  | _ => ci_of(z, info_map)
+  };
+
