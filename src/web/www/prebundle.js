@@ -26,9 +26,9 @@ const repo = new Repo({
 
 window.repo = repo
 
-window.hazelWriteToDoc = (docUrl, jsonString) => {
+window.hazelWriteToDoc = async (docUrl, jsonString) => {
   try {
-    const handle = repo.find(docUrl)
+    const handle = await repo.find(docUrl)
     const parsed = JSON.parse(jsonString)
 
     handle.change(doc => {

@@ -17,6 +17,8 @@ let documentation_slides =
       Exolivelits.out,
       Nool.out,
       Petrinaut.out,
+      // Tiling.out,
+      TLDraw.out,
       // BasicReference.out,
       // Projectors.out,
       // ADTs.out,
