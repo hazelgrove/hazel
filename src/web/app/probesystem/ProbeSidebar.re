@@ -62,15 +62,7 @@ let probe_view = (font_metrics, refractor_data, id: Id.t) => {
   switch (projector_data) {
   | Some(projector_data) =>
     let views =
-      ProjectorView.mk_view(
-        inject,
-        font_metrics,
-        ~statics_map=Language.Statics.Map.empty,
-        ~dynamics_map=Language.Dynamics.Map.empty,
-        ~sample_cursor=Language.Sample.Cursor.init,
-        projector_data,
-        [id],
-      );
+      ProjectorView.mk_view(inject, font_metrics, projector_data, [id]);
     let offside_view = views.offside |> Option.to_list;
     div(~attrs=[Attr.class_("probe-view")], offside_view);
   | None => div([] /*text("Not Probed")*/)
