@@ -92,7 +92,8 @@ module Update = {
     | UpdatePrompt(string)
     | Prelude(CellEditor.Update.t)
     | Lemmas(CellEditor.Update.t)
-    | Theorem(CellEditor.Update.t);
+    | Theorem(CellEditor.Update.t)
+    | RefreshStatics;
 
   let update = (~settings: Settings.t, action: t, model: Model.t) => {
     switch (action) {
@@ -192,6 +193,9 @@ module Update = {
     | Theorem(MainEditor(_)) =>
       print_endline("Instructor-only action");
       Updated.return_quiet(model);
+    | RefreshStatics =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      model |> Updated.return_quiet(~recalculate=true);
     };
   };
 
@@ -202,11 +206,17 @@ module Update = {
     | Prelude(action) => CellEditor.Update.can_undo(action)
     | Lemmas(action) => CellEditor.Update.can_undo(action)
     | Theorem(action) => CellEditor.Update.can_undo(action)
+    | RefreshStatics => false
     };
   };
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+    let statics_mode =
+      CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
+
     // Work out the terms
     let just_prelude_term =
       MakeTerm.from_zip_for_sem(
@@ -249,6 +259,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker("prelude")),
                ~stitch=_ =>
                just_prelude_term
@@ -258,6 +269,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker("lemmas")),
                ~stitch=_ =>
                stitched_scratch
@@ -267,6 +279,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker("theorem")),
                ~stitch=_ =>
                stitched_theorem
