@@ -11,6 +11,72 @@ type visible_rows = Globals.VisibleRows.t;
 
 let offside_offset = 4; /* Num characters offset to the right of the end of the line */
 
+/* Cache projector view results to avoid expensive P.view() calls
+ * when statics/dynamics haven't changed (e.g. during debounced typing).
+ * Per-projector cache keyed on map identity + status + model. Handles
+ * multiple editors calling into the same cache without thrashing. */
+module ViewCache = {
+  type entry = {
+    statics_map: Language.Statics.Map.t,
+    dynamics_map: Language.Dynamics.Map.t,
+    sample_cursor: Language.Sample.Cursor.t,
+    status: View.status,
+    model: string,
+    view: View.t,
+  };
+  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+
+  let lookup =
+      (id, ~statics_map, ~dynamics_map, ~sample_cursor, ~status, ~model)
+      : option(View.t) =>
+    switch (Hashtbl.find_opt(cache, id)) {
+    | Some(e)
+        when
+          e.statics_map === statics_map
+          && e.dynamics_map === dynamics_map
+          && Language.Sample.Cursor.equal(e.sample_cursor, sample_cursor)
+          && e.status == status
+          && e.model == model =>
+      Some(e.view)
+    | _ => None
+    };
+
+  let store =
+      (
+        id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_cursor,
+        ~status,
+        ~model,
+        ~view,
+      ) =>
+    Hashtbl.replace(
+      cache,
+      id,
+      {
+        statics_map,
+        dynamics_map,
+        sample_cursor,
+        status,
+        model,
+        view,
+      },
+    );
+
+  let hits = ref(0);
+  let misses = ref(0);
+  let log_frame = () => {
+    let h = hits^;
+    let m = misses^;
+    if (h + m > 0) {
+      Printf.printf("ViewCache: %d hits, %d misses\n%!", h, m);
+    };
+    hits := 0;
+    misses := 0;
+  };
+};
+
 /* Filter projector data to only include items in visible row range.
  * For multi-line projectors (like large text areas), we check if ANY part
  * of the projector overlaps with the visible range, not just the origin. */
@@ -306,42 +372,72 @@ let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
+      ~statics_map: Language.Statics.Map.t,
+      ~dynamics_map: Language.Dynamics.Map.t,
+      ~sample_cursor: Language.Sample.Cursor.t,
       {p, info, status, _}: Model.projector_data,
       projector_list: list(Id.t),
     )
-    : View.t => {
-  let (module P) = ProjectorInit.to_module(p.kind);
-  let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
-  P.view({
-    model: p.model,
-    info,
-    local: a => {
-      let new_model = P.update(p.model, info, a);
-      inject(Project(SetModel(idx, p.kind, new_model)));
-    },
-    parent: a =>
-      switch (a) {
-      | FocusById(id) =>
-        let target_idx = List.find_index(x => x == id, projector_list);
-        switch (target_idx) {
-        | Some(target_idx) =>
-          inject(Project(Focus(target_idx, Probe, None)))
-        | None => Effect.Ignore
-        };
-      | a => inject(handle(idx, a))
-      },
-    view_seg: (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
-      flex_code(
-        ~font_metrics,
-        ~single_line?,
-        ~background?,
-        ~text_only?,
-        sort,
-        segment,
-      ),
-    status,
-  });
-};
+    : View.t =>
+  switch (
+    ViewCache.lookup(
+      p.id,
+      ~statics_map,
+      ~dynamics_map,
+      ~sample_cursor,
+      ~status,
+      ~model=p.model,
+    )
+  ) {
+  | Some(view) =>
+    ViewCache.hits := ViewCache.hits^ + 1;
+    view;
+  | None =>
+    ViewCache.misses := ViewCache.misses^ + 1;
+    let (module P) = ProjectorInit.to_module(p.kind);
+    let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+    let view =
+      P.view({
+        model: p.model,
+        info,
+        local: a => {
+          let new_model = P.update(p.model, info, a);
+          inject(Project(SetModel(idx, p.kind, new_model)));
+        },
+        parent: a =>
+          switch (a) {
+          | FocusById(id) =>
+            let target_idx = List.find_index(x => x == id, projector_list);
+            switch (target_idx) {
+            | Some(target_idx) =>
+              inject(Project(Focus(target_idx, Probe, None)))
+            | None => Effect.Ignore
+            };
+          | a => inject(handle(idx, a))
+          },
+        view_seg:
+          (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+          flex_code(
+            ~font_metrics,
+            ~single_line?,
+            ~background?,
+            ~text_only?,
+            sort,
+            segment,
+          ),
+        status,
+      });
+    ViewCache.store(
+      p.id,
+      ~statics_map,
+      ~dynamics_map,
+      ~sample_cursor,
+      ~status,
+      ~model=p.model,
+      ~view,
+    );
+    view;
+  };
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
@@ -351,6 +447,9 @@ let split_views =
       make_active,
       font_metrics: FontMetrics.t,
       ~skip_inline: bool,
+      ~statics_map: Language.Statics.Map.t,
+      ~dynamics_map: Language.Dynamics.Map.t,
+      ~sample_cursor: Language.Sample.Cursor.t,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
@@ -366,7 +465,16 @@ let split_views =
       ~idx,
       ~kind=p.kind,
     );
-  let views = mk_view(inject, font_metrics, projector_data, projector_list);
+  let views =
+    mk_view(
+      inject,
+      font_metrics,
+      ~statics_map,
+      ~dynamics_map,
+      ~sample_cursor,
+      projector_data,
+      projector_list,
+    );
   let line_view = {
     let offside_view =
       views.offside
@@ -393,6 +501,9 @@ let all =
       make_active,
       font_metrics: FontMetrics.t,
       ~visible: option(visible_rows)=?,
+      ~statics_map: Language.Statics.Map.t,
+      ~dynamics_map: Language.Dynamics.Map.t,
+      ~sample_cursor: Language.Sample.Cursor.t,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
@@ -413,6 +524,9 @@ let all =
     |> List.map(
          split_views(
            ~skip_inline=false,
+           ~statics_map,
+           ~dynamics_map,
+           ~sample_cursor,
            inject,
            make_active,
            font_metrics,

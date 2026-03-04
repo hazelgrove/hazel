@@ -77,6 +77,9 @@ let all =
       make_active,
       font_metrics: FontMetrics.t,
       ~visible: option(Globals.VisibleRows.t)=?,
+      ~statics_map: Language.Statics.Map.t,
+      ~dynamics_map: Language.Dynamics.Map.t,
+      ~sample_cursor: Language.Sample.Cursor.t,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
@@ -94,6 +97,9 @@ let all =
            make_active,
            font_metrics,
            ~skip_inline=true,
+           ~statics_map,
+           ~dynamics_map,
+           ~sample_cursor,
            data,
            refractor_list,
          )
