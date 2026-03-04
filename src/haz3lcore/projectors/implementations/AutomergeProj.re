@@ -15,6 +15,7 @@ type subscription = {
   mutable on_error: string => unit,
   mutable cleanup: option(unit => unit),
   mutable handle: option(Js.t(Automerge.handle)),
+  mutable last_json: option(string),
 };
 
 let subscriptions: ref(Id.Map.t(subscription)) = ref(Id.Map.empty);
@@ -32,6 +33,7 @@ let subscribe_to_doc =
     on_error,
     cleanup: None,
     handle: None,
+    last_json: None,
   };
   subscriptions := Id.Map.add(id, sub, subscriptions^);
 
@@ -51,18 +53,39 @@ let subscribe_to_doc =
              Converts the live JS document to a Hazel expression. */
           let callback =
             Js.wrap_callback(_ => {
-              switch (Automerge.doc_to_exp(handle)) {
-              | Ok(exp) =>
-                switch (Id.Map.find_opt(id, subscriptions^)) {
-                | Some(s) => s.on_data(exp)
-                | None => ()
-                }
-              | Error(err) =>
-                switch (Id.Map.find_opt(id, subscriptions^)) {
-                | Some(s) => s.on_error(err)
-                | None => ()
-                }
-              }
+              /* Deduplicate: compare the raw JSON string before doing
+                 the expensive Yojson→Hazel conversion and SetSyntax.
+                 Automerge fires "change" on sync ACKs even when the
+                 document content is unchanged. */
+              let json_str =
+                try(Some(Automerge.json_stringify(handle##doc))) {
+                | _ => None
+                };
+              let changed =
+                switch (json_str, Id.Map.find_opt(id, subscriptions^)) {
+                | (Some(js), Some(s)) =>
+                  switch (s.last_json) {
+                  | Some(prev) when prev == js => false
+                  | _ =>
+                    s.last_json = Some(js);
+                    true;
+                  }
+                | _ => true
+                };
+              if (changed) {
+                switch (Automerge.doc_to_exp(handle)) {
+                | Ok(exp) =>
+                  switch (Id.Map.find_opt(id, subscriptions^)) {
+                  | Some(s) => s.on_data(exp)
+                  | None => ()
+                  }
+                | Error(err) =>
+                  switch (Id.Map.find_opt(id, subscriptions^)) {
+                  | Some(s) => s.on_error(err)
+                  | None => ()
+                  }
+                };
+              };
             });
 
           /* Store a cleanup function that unsubscribes from changes. */
