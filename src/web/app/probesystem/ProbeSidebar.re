@@ -225,7 +225,7 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
   div(
     ~attrs=[clss(["legend", "panel"])],
     [
-      div(~attrs=[clss(["title"])], [text("Sample FocusLegend")]),
+      div(~attrs=[clss(["title"])], [text("Sample Focus Legend")]),
       legend_item(
         ~tooltip=
           switch (color_scheme) {
