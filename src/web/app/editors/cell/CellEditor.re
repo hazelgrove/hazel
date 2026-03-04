@@ -93,6 +93,7 @@ module Update = {
       (
         ~settings,
         ~is_edited,
+        ~statics_mode=CodeWithStatics.StaticsNormal,
         ~queue_worker,
         ~stitch,
         {editor, result}: Model.t,
@@ -103,6 +104,7 @@ module Update = {
       CodeEditable.Update.calculate(
         ~settings,
         ~is_edited,
+        ~statics_mode,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
         ~is_dynamic_term=false,

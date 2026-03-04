@@ -109,6 +109,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | CellAction(CellEditor.Update.t)
+    | RefreshStatics
     | SwitchSlide(int)
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -122,6 +123,7 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | CellAction(action) => CellEditor.Update.can_undo(action)
+    | RefreshStatics => false
     | SwitchSlide(_) => false
     | ResetCurrent => true
     | InitImportScratchpad(_) => true
@@ -247,6 +249,9 @@ module Update = {
       | _ => ()
       };
       new_model;
+    | RefreshStatics =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
       let* current = i |> Updated.return;
       {
@@ -360,6 +365,10 @@ module Update = {
 
   let calculate =
       (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+    let statics_mode =
+      CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
@@ -372,6 +381,7 @@ module Update = {
       CellEditor.Update.calculate(
         ~settings,
         ~is_edited,
+        ~statics_mode,
         ~queue_worker,
         ~stitch=x => x,
         ed,
