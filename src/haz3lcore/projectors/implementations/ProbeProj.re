@@ -977,7 +977,7 @@ let empty_status_view =
     div(
       ~attrs=[
         Attr.classes(["empty-status", "not-aligned"]),
-        Attr.title("Samples not aligned with cursor — click to align"),
+        Attr.title("Samples not aligned with focus — click to align"),
         Attr.on_pointerdown(mv_least_distant_sample(ctx)),
         Attr.on_double_click(_ => local(ToggleWindowMode)),
       ],
@@ -1115,6 +1115,16 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     Many([local(ResetSettings), parent(SampleCursor(Reset))]);
   | D("Escape")
   | D("Tab") =>
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    Many([Stop_propagation, Prevent_default]);
+  | D("Enter") when key.meta == Down || key.ctrl == Down =>
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    Many([Stop_propagation, Prevent_default]);
+  /* Cmd+Left (Mac) / Home (PC): bounce back to editor */
+  | D("ArrowLeft") when key.meta == Down || key.ctrl == Down =>
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    Many([Stop_propagation, Prevent_default]);
+  | D("Home") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([Stop_propagation, Prevent_default]);
   | D("ArrowRight") when key.shift == Down =>
@@ -1269,7 +1279,6 @@ let offside_view =
         ~is_evaluating,
         (),
       );
-
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(id)),
