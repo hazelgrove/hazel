@@ -995,6 +995,36 @@ let selection_tests = [
       @ [Action.Select(Resize(Local(Left, ByToken)))],
     ~goal={|let x = 1 in (x, ¦12345§, ?)|},
   ),
+  /* --- Double-click (Smart(2)) and triple-click (Smart(3)) tests --- */
+  test(
+    ~name="Double-click on multi-char infix: select &&",
+    ~acts=mk({|true ¦&& false|}) @ [Action.Select(Smart(2))],
+    ~goal={|true §&&¦ false|},
+  ),
+  test(
+    ~name="Double-click on single-char infix: select +",
+    ~acts=mk({|1 ¦+ 2|}) @ [Action.Select(Smart(2))],
+    ~goal={|1 §+¦ 2|},
+  ),
+  test(
+    ~name="Double-click on operand: select operand",
+    ~acts=mk({|1 + ¦2|}) @ [Action.Select(Smart(2))],
+    ~goal={|1 + §2¦|},
+  ),
+  test(
+    ~name="Triple-click on infix operator: select full expression",
+    ~acts=
+      mk({|true ¦&& false|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§true && false¦|},
+  ),
+  test(
+    ~name="Triple-click on single-char infix: select full expression",
+    ~acts=
+      mk({|1 ¦+ 2|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§1 + 2¦|},
+  ),
 ];
 
 /* ===== MODULE EDITING TESTS =====
