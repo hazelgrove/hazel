@@ -44,7 +44,15 @@ module ViewCache = {
     };
 
   let store =
-      (id, ~statics_map, ~dynamics_map, ~sample_cursor, ~status, ~model, ~view) =>
+      (
+        id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_cursor,
+        ~status,
+        ~model,
+        ~view,
+      ) =>
     Hashtbl.replace(
       cache,
       id,
