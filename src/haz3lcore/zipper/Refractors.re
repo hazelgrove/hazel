@@ -9,6 +9,7 @@ open Util;
  * | Manual probes    | Refractors.manuals             | Per-editor | Yes        |
  * | Multi probe IDs  | Refractors.multis.ids           | Per-editor | No         |
  * | Multi ephemerals | Refractors.multis.ephemerals    | Per-editor | No         |
+ * | Multi suppressed | Refractors.multis.suppressed    | Per-editor | No         |
  * | Auto probe target| Refractors.autoprobe_target    | Per-editor | No         |
  * | Sample cursor    | Refractors.sample_cursor       | Per-editor | No         |
  * | Display settings | ProbeProj.Settings.s           | Global     | No         |
@@ -51,11 +52,13 @@ module RefractorList = {
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type multi_state = {
   ids: Id.Map.t(unit),
+  suppressed: Id.Map.t(unit),
   ephemerals: Map.t,
 };
 
 let empty_multi_state = {
   ids: Id.Map.empty,
+  suppressed: Id.Map.empty,
   ephemerals: Id.Map.empty,
 };
 
