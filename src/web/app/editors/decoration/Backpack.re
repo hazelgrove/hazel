@@ -234,7 +234,7 @@ let view =
                 ~caret_d=Zipper.Caret.direction(z),
                 ~ind_d=
                   switch (Indicated.for_decoration(z)) {
-                  | Some((_, d, _)) => Some(d)
+                  | Some({side: d, _}) => Some(d)
                   | None => None
                   },
                 ~origin=Zipper.Caret.point(measured, z),

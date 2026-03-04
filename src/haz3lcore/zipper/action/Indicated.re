@@ -6,7 +6,11 @@ type relation =
   | Parent
   | Sibling;
 
-type piece = (Piece.t, Direction.t, relation);
+type piece = {
+  piece: Piece.t,
+  side: Direction.t,
+  relation,
+};
 
 /* A single-character infix operator has no inner caret position, so
    under inward bias it would have no indicated position at all. We
@@ -52,55 +56,55 @@ let indicated =
   | ((None, None), None) => None
   /* L not secondary, R is secondary => indicate L */
   | ((Some(l), Some(r)), _) when !ign(l) && ign(r) =>
-    Some((l, Left, Sibling))
+    Some({piece: l, side: Left, relation: Sibling})
   /* L and R are secondarys => no indication */
   | ((Some(l), Some(r)), _) when ign(l) && ign(r) =>
-    no_ws ? None : Some((l, Left, Sibling))
+    no_ws ? None : Some({piece: l, side: Left, relation: Sibling})
   /* At right end of syntax and L is secondary => no indication */
   | ((Some(l), None), None) when ign(l) =>
-    no_ws ? None : Some((l, Left, Sibling))
+    no_ws ? None : Some({piece: l, side: Left, relation: Sibling})
   /* At left end of syntax and R is secondary => no indication */
   | ((None, Some(r)), None) when ign(r) =>
-    no_ws ? None : Some((r, Right, Sibling))
+    no_ws ? None : Some({piece: r, side: Right, relation: Sibling})
   /* No L and R is a secondary and there is a P => indicate P */
   | ((None, Some(r)), Some(parent)) when ign(r) =>
-    Some((parent, Left, Parent))
+    Some({piece: parent, side: Left, relation: Parent})
   /* Both L and R non-ignored, caret outer: inward bias with infix special case */
   | ((Some(l), Some(r)), _parent) when !ign(l) && !ign(r) && z.caret == Outer =>
     if (is_single_char_infix(r)) {
       /* Single-char infix R gets left position (only position it can have) */
-      Some((r, Right, Sibling));
+      Some({piece: r, side: Right, relation: Sibling});
     } else {
       switch (
         caret_facing_shape(Left, l),
         caret_facing_shape(Right, r),
       ) {
       /* R is convex (inward) => indicate R */
-      | (_, Some(Convex)) => Some((r, Right, Sibling))
+      | (_, Some(Convex)) => Some({piece: r, side: Right, relation: Sibling})
       /* L is convex (inward), R is not => indicate L */
-      | (Some(Convex), _) => Some((l, Left, Sibling))
+      | (Some(Convex), _) => Some({piece: l, side: Left, relation: Sibling})
       /* Both concave or unknown => indicate L (fallback) */
-      | _ => Some((l, Left, Sibling))
+      | _ => Some({piece: l, side: Left, relation: Sibling})
       };
     }
   /* L non-ignored, R ignored or absent, caret outer => indicate L.
    * L is the only meaningful piece, so indicate it regardless of shape. */
   | ((Some(l), _), _) when !ign(l) && z.caret == Outer =>
-    Some((l, Left, Sibling))
+    Some({piece: l, side: Left, relation: Sibling})
   /* No L, R non-ignored, parent exists, caret outer: inward bias
    * prefers the child (R) over the parent delimiter */
   | ((None, Some(r)), Some(_parent)) when !ign(r) && z.caret == Outer =>
-    Some((r, Right, Sibling))
+    Some({piece: r, side: Right, relation: Sibling})
   /* No L, R ignored or absent, some P, caret outer => indicate P */
   | ((None, _), Some(parent)) when z.caret == Outer =>
-    Some((parent, Left, Parent))
+    Some({piece: parent, side: Left, relation: Parent})
   /* R is not secondary, either no L or L is secondary or caret is inner => indicate R */
-  | ((_, Some(r)), _) => Some((r, Right, Sibling))
+  | ((_, Some(r)), _) => Some({piece: r, side: Right, relation: Sibling})
   /* No R and there is a P => indicate P */
-  | ((_, None), Some(parent)) => Some((parent, Right, Parent))
+  | ((_, None), Some(parent)) => Some({piece: parent, side: Right, relation: Parent})
   /* There is an L but no R and no P => indicate L */
   //WEIRD: Right below seems wrong but behaves right
-  | ((Some(l), None), None) => Some((l, Right, Sibling))
+  | ((Some(l), None), None) => Some({piece: l, side: Right, relation: Sibling})
   };
 };
 
@@ -115,7 +119,7 @@ let for_index = indicated(~no_ws=false, ~ign=Piece.is_secondary);
 let shard_index = (z: ZipperBase.t): option(int) =>
   switch (for_decoration(z)) {
   | None => None
-  | Some((p, side, relation)) =>
+  | Some({piece: p, side, relation}) =>
     switch (relation) {
     | Parent =>
       switch (Ancestors.parent(z.relatives.ancestors)) {
@@ -144,13 +148,13 @@ let shard_index = (z: ZipperBase.t): option(int) =>
 let direction = (z: ZipperBase.t): option(Direction.t) =>
   switch (for_index(z)) {
   | None => None
-  | Some((_, d, _)) => Some(d)
+  | Some({side, _}) => Some(side)
   };
 
 let index = (z: ZipperBase.t): option(Id.t) =>
   switch (for_index(z)) {
   | None => None
-  | Some((p, _, _)) => Some(Piece.id(p))
+  | Some({piece, _}) => Some(Piece.id(piece))
   };
 
 let ci_of =
@@ -161,7 +165,7 @@ let ci_of =
    * create a 'virtual' info map entry for the secondary notation,
    * borrowing semantic context from a nearby 'proxy' term. */
   switch (for_decoration(z)) {
-  | Some((p, _, _)) => Id.Map.find_opt(Piece.id(p), info_map)
+  | Some({piece, _}) => Id.Map.find_opt(Piece.id(piece), info_map)
   | None =>
     let sibs = ZipperBase.sibs_with_sel(z);
     let* cls =

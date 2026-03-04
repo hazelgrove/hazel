@@ -445,7 +445,7 @@ module Indicated = {
       : list(Node.t) =>
     switch (Indicated.for_decoration(z)) {
     | _ when z.selection.content != [] => []
-    | Some((p, _, _)) => of_piece(~font_metrics, ~syntax, p)
+    | Some({piece: p, _}) => of_piece(~font_metrics, ~syntax, p)
     | _ => []
     };
 

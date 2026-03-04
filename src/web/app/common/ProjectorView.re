@@ -112,7 +112,8 @@ module Model = {
   /* Is projector indicated and if so what side is the caret on? */
   let indication = (p: option(Indicated.piece), id) =>
     switch (p) {
-    | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+    | Some({piece: p, side: d, _}) when Piece.id(p) == id =>
+      Some(Direction.toggle(d))
     | _ => None
     };
 

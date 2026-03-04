@@ -52,7 +52,7 @@ let view =
           !Selection.is_empty(z.selection)
           && !Selection.is_buffer(z.selection) =>
       z.selection.focus
-    | Some((_, side, _)) => Direction.toggle(side)
+    | Some({side, _}) => Direction.toggle(side)
     | _ => Right
     };
   main(

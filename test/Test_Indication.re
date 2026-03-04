@@ -81,14 +81,14 @@ let piece_to_string = (p: Piece.t): string =>
 /* Format the indication result as "piece_string [D,R]" */
 let indicated_str = (z: Zipper.t): string =>
   switch (Indicated.for_decoration(z)) {
-  | Some((p, dir, rel)) =>
+  | Some({piece: p, side, relation}) =>
     let dir_s =
-      switch (dir) {
+      switch (side) {
       | Left => "L"
       | Right => "R"
       };
     let rel_s =
-      switch (rel) {
+      switch (relation) {
       | Sibling => "S"
       | Parent => "P"
       };
@@ -107,7 +107,18 @@ let ind = (~name, ~input, ~indicated) =>
     );
   });
 
-/* Debug test: type raw characters and check indication without caret marker */
+/* Test helper for raw action sequences (for grout tests where the
+ * caret marker approach doesn't give control over grout placement) */
+let ind_acts = (~name, ~acts, ~indicated) =>
+  test_case(name, `Quick, () => {
+    let z = perform(Zipper.init(), acts);
+    check(
+      testable(Fmt.string, String.equal),
+      indicated,
+      indicated,
+      indicated_str(z),
+    );
+  });
 
 /* ==================================================================
  * TEST SUITES — Inward bias behavior
@@ -569,7 +580,43 @@ let inward_bias_tests = [
     ~input={|((¦1))|}, ~indicated="1 [R,S]"),
 ];
 
+/* Real grout tests — uses raw action sequences since the caret marker
+ * approach doesn't give control over grout placement. Grout is the
+ * implicit hole that appears in incomplete expressions. */
+let grout_tests = [
+  /* Convex grout: after incomplete paren "f(" — grout fills the hole */
+  ind_acts(~name="Incomplete paren: convex grout indicated (inward)",
+    ~acts=string_to_ltr_actions("f("),
+    ~indicated="? [R,S]"),
+  /* Convex grout: after "1+" — grout is the missing right operand */
+  ind_acts(~name="After operator: convex grout indicated (inward)",
+    ~acts=string_to_ltr_actions("1+"),
+    ~indicated="? [R,S]"),
+  /* Concave grout: "1 1" produces concave grout between the operands.
+   * Move left 1 to be between grout and second 1 */
+  ind_acts(~name="Concave grout left, operand right: operand wins (inward)",
+    ~acts=string_to_ltr_actions("1 1") @ mv_l(1),
+    ~indicated="1 [R,S]"),
+  /* Concave grout: "1 1" move left 2 puts caret between ws and grout */
+  ind_acts(~name="Whitespace left, concave grout right: grout indicated",
+    ~acts=string_to_ltr_actions("1 1") @ mv_l(2),
+    ~indicated="~ [R,S]"),
+  /* Between operator and operand: inward bias picks operand (Convex) */
+  ind_acts(~name="Operator left, operand right: inward picks operand",
+    ~acts=string_to_ltr_actions("+1") @ mv_l(1),
+    ~indicated="1 [R,S]"),
+  /* Complete parens with grout inside: "()¦" — parens tile indicated */
+  ind_acts(~name="Complete parens at right edge",
+    ~acts=string_to_ltr_actions("()"),
+    ~indicated="() [L,S]"),
+  /* Complete parens "¦()" — move to left edge, inward picks parens */
+  ind_acts(~name="Complete parens at left edge",
+    ~acts=string_to_ltr_actions("()") @ mv_l(1),
+    ~indicated="() [R,S]"),
+];
+
 let tests = [
+  ("Indication.Grout", grout_tests),
   ("Indication.Literals", literal_tests),
   ("Indication.Parens", parens_tests),
   ("Indication.BinaryOpsSpaces", binary_op_with_spaces_tests),

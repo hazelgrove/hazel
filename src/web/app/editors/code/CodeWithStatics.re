@@ -59,7 +59,7 @@ module Model = {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
-      |> Option.map(((p, _, _)) => p),
+      |> Option.map(({piece, _}: Indicated.piece) => piece),
     selected_text:
       Some(
         () =>
