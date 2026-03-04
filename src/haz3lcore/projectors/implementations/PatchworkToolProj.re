@@ -28,6 +28,12 @@ let tools: list(patchwork_tool) = [
     width: 680,
     height: 490,
   },
+  {
+    id: "tldraw4",
+    name: "TLDraw",
+    width: 680,
+    height: 490,
+  },
 ];
 
 let find_tool = (id: string): option(patchwork_tool) =>
