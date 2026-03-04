@@ -394,6 +394,8 @@ module View = {
         : [];
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
+    let statics_map = model.statics.info_map;
+    let sample_cursor = zipper.refractors.sample_cursor;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -404,9 +406,9 @@ module View = {
           ),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.piece''(zipper),
-        ~statics=model.statics.info_map,
+        ~statics=statics_map,
         ~dynamics,
-        ~sample_cursor=zipper.refractors.sample_cursor,
+        ~sample_cursor,
         ~editor_active=selected,
       );
     /* TODO(andrew): remove profilling before merge */
@@ -419,6 +421,9 @@ module View = {
         signal(MakeActive),
         globals.font_metrics,
         ~visible?,
+        ~statics_map,
+        ~dynamics_map=dynamics,
+        ~sample_cursor,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
@@ -430,12 +435,15 @@ module View = {
         signal(MakeActive),
         globals.font_metrics,
         ~visible?,
+        ~statics_map,
+        ~dynamics_map=dynamics,
+        ~sample_cursor,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
           ~indicated=Indicated.piece''(zipper),
-          ~statics=model.statics.info_map,
+          ~statics=statics_map,
           ~dynamics,
-          ~sample_cursor=zipper.refractors.sample_cursor,
+          ~sample_cursor,
           ~editor_active=selected,
         ),
         model.editor.syntax.projector_list,
@@ -465,6 +473,7 @@ module View = {
     //     visible_str,
     //   );
     // };
+    ProjectorView.ViewCache.log_frame();
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
