@@ -165,7 +165,7 @@ let add_sample = (state: t, sample: Sample.t) => {
     | Some(existing) =>
       List.exists(
         (s: Sample.t) =>
-          s.call_stack == sample.call_stack
+          Sample.equal_call_stack(s.call_stack, sample.call_stack)
           || sample.call_stack != []
           && s.call_stack == [],
         existing,

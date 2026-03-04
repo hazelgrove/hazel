@@ -967,12 +967,19 @@ module Transition = (EV: EV_MODE) => {
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
         switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-        | Some(d) =>
+        | Some(_) =>
+          /* Use transition_multiple to fully resolve all Asc layers in one
+           * step, and is_value: true to prevent re-evaluation. This is critical
+           * because d' was already fully evaluated by req_final above — probes
+           * inside d' have already fired. Without this, the distributed Asc
+           * wrappers would cause sub-expressions to be re-evaluated, hitting
+           * probe targets a second time with a different (shorter) call_stack,
+           * producing duplicate samples that bypass dedup. */
           Step({
-            expr: d,
+            expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
             side_effects: [],
             kind: Ascription,
-            is_value: false,
+            is_value: true,
           })
         | None => Constructor
         };

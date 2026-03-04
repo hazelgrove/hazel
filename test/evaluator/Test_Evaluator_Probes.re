@@ -149,6 +149,33 @@ let probe_line_test =
   );
 };
 
+/* Test function: check that probes on specified lines have expected sample COUNTS */
+let probe_count_test =
+    (name: string, code: string, expected: list((int, int))) => {
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let actual_by_line = get_samples_by_line(code);
+
+      List.iter(
+        ((line, expected_count)) => {
+          let actual_values =
+            IntMap.find_opt(line, actual_by_line)
+            |> Option.value(~default=[]);
+          check(
+            int,
+            Printf.sprintf("Line %d sample count", line),
+            expected_count,
+            List.length(actual_values),
+          );
+        },
+        expected,
+      );
+    },
+  );
+};
+
 /* ===== Test Groups ===== */
 
 let basic_tests = [
@@ -976,6 +1003,156 @@ in m.f(5)|},
   ),
 ];
 
+let spread_tests = [
+  /* Spread operator inside function - single call */
+  probe_line_test(
+    "Probe inside spread operator",
+    {|let f = fun m -> m...(a= ^^probe(0))
+in f((a= 1, b= 2))|},
+    [(0, ["0"])],
+  ),
+  /* Spread operator - multiple calls, check sample count */
+  probe_count_test(
+    "Spread probe count matches call count (3 calls)",
+    {|let f = fun m -> m...(a= ^^probe(0))
+in let r1 = f((a= 1, b= 2))
+in let r2 = f(r1)
+in f(r2)|},
+    [(0, 3)],
+  ),
+  /* Spread operator with multiple probed fields */
+  probe_count_test(
+    "Multiple spread probes each get correct count",
+    {|let f = fun m ->
+m...(a= ^^probe(m.a + 1),
+b= ^^probe(0))
+in let r1 = f((a= 1, b= 2))
+in let r2 = f(r1)
+in f(r2)|},
+    [(1, 3), (2, 3)],
+  ),
+  /* Spread operator inside case arm with typed function */
+  probe_count_test(
+    "Spread probe inside case arm (5 calls)",
+    {|type M = (a= Int, b= Int) in
+type Action = + Go + Stop in
+let update : (M, Action) -> M =
+fun (m, action) ->
+case action
+| Go =>
+m...(a= ^^probe(m.a + 1),
+b= ^^probe(0))
+| Stop => m
+end
+in let init : M = (a= 1, b= 2)
+in let r1 = update(init, Go)
+in let r2 = update(r1, Go)
+in let r3 = update(r2, Go)
+in let r4 = update(r3, Go)
+in update(r4, Go)|},
+    [(6, 5), (7, 5)],
+  ),
+  /* Spread with non-tuple e2 (type error) - should still count correctly */
+  probe_count_test(
+    "Spread probe with non-tuple extension (type error case)",
+    {|let f = fun m -> m...^^probe(1)
+in let r1 = f((a= 1, b= 2))
+in let r2 = f(r1)
+in f(r2)|},
+    [(0, 3)],
+  ),
+  /* Spread inside let inside case arm */
+  probe_count_test(
+    "Spread with let inside case arm",
+    {|type M = (a= Int, b= Int) in
+type Action = + Go in
+let update : (M, Action) -> M =
+fun (m, action) ->
+case action
+| Go =>
+let x = m.a + 1 in
+m...(a= ^^probe(x),
+b= ^^probe(0))
+end
+in let init : M = (a= 1, b= 2)
+in let r1 = update(init, Go)
+in let r2 = update(r1, Go)
+in update(r2, Go)|},
+    [(7, 3), (8, 3)],
+  ),
+  /* Nested return type annotations: when g's return type Asc distributes
+   * through f's return value, the inner probed values should NOT be
+   * re-evaluated. Without the fix, the Asc distribution re-evaluates probed
+   * values at a different (shorter) call stack, bypassing dedup. */
+  probe_count_test(
+    "Nested return type annotations: labeled tuple",
+    {|let f : ? -> (a=Int) =
+  fun _ -> (a= ^^probe(1))
+in
+let g : ? -> (a=Int) = fun _ -> f(0)
+in
+g(0)|},
+    [(1, 1)],
+  ),
+  probe_count_test(
+    "Nested return type annotations: list",
+    {|let f : ? -> [Int] =
+  fun _ -> [^^probe(1)]
+in
+let g : ? -> [Int] = fun _ -> f(0)
+in
+g(0)|},
+    [(1, 1)],
+  ),
+  probe_count_test(
+    "Nested return type annotations: constructor payload",
+    {|type T = + A(Int) in
+let f : ? -> T =
+  fun _ -> A(^^probe(1))
+in
+let g : ? -> T = fun _ -> f(0)
+in
+g(0)|},
+    [(2, 1)],
+  ),
+  probe_count_test(
+    "Nested return type annotations: triple nesting",
+    {|let f : ? -> (a=Int) =
+  fun _ -> (a= ^^probe(1))
+in
+let g : ? -> (a=Int) = fun _ -> f(0)
+in
+let h : ? -> (a=Int) = fun _ -> g(0)
+in
+h(0)|},
+    [(1, 1)],
+  ),
+  probe_count_test(
+    "Nested return type annotations: multiple calls",
+    {|let f : ? -> (a=Int) =
+  fun _ -> (a= ^^probe(1))
+in
+let g : ? -> (a=Int) = fun _ -> f(0)
+in
+let _ = g(0) in
+let _ = g(0) in
+g(0)|},
+    [(1, 3)],
+  ),
+  /* Recursive function with return type: each recursive call should
+   * produce exactly one sample, not be doubled by Asc re-distribution. */
+  probe_count_test(
+    "Recursive function with return type annotation",
+    {|let count : Int -> [Int] =
+  fun n ->
+    if n <= 0 then []
+    else ^^probe(n) :: count(n - 1)
+in
+count(3)|},
+    [(3, 3)],
+  ),
+];
+
 let tests = [
   ("Evaluator.Probes.Basic", basic_tests),
   ("Evaluator.Probes.Operators", operator_tests),
@@ -986,4 +1163,5 @@ let tests = [
   ("Evaluator.Probes.Ascription", ascription_tests),
   ("Evaluator.Probes.DuplicatePrevention", duplicate_prevention_tests),
   ("Evaluator.Probes.Modules", module_tests),
+  ("Evaluator.Probes.Spread", spread_tests),
 ];
