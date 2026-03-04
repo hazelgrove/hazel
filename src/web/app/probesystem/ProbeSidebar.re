@@ -255,7 +255,7 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
           ~sample_stack=[f],
           ~step_range=(10, 20),
           ~focus_step_range=Some((10, 20)),
-          ~caption="At Cursor",
+          ~caption="Focused",
         ),
       ),
       legend_item(
@@ -318,7 +318,7 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
             ~sample_stack=[f],
             ~step_range=(0, 0),
             ~focus_step_range=None,
-            ~caption="Off Cursor",
+            ~caption="Unfocused",
           ),
         )
       },
@@ -513,7 +513,7 @@ let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
         );
       },
       toggle(
-        ~tooltip="Samples Before/Above Cursor",
+        ~tooltip="Samples Before/Above Focus",
         ~explain_this_inject,
         ~label1="∞",
         ~label2="1",
@@ -521,7 +521,7 @@ let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
         ~action=ToggleBeforeCutoff,
       ),
       toggle(
-        ~tooltip="Samples After/Below Cursor",
+        ~tooltip="Samples After/Below Focus",
         ~explain_this_inject,
         ~label1="∞",
         ~label2="1",
@@ -529,7 +529,7 @@ let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
         ~action=ToggleAfterCutoff,
       ),
       toggle(
-        ~tooltip="Callsites containing Cursor",
+        ~tooltip="Callsites containing Focus",
         ~explain_this_inject,
         ~label1="∞",
         ~label2="1",
@@ -537,7 +537,7 @@ let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
         ~action=ToggleCallerCutoff,
       ),
       toggle(
-        ~tooltip="Samples Inside Call at Cursor",
+        ~tooltip="Samples Inside Call at Focus",
         ~explain_this_inject,
         ~label1="∞",
         ~label2="1",
