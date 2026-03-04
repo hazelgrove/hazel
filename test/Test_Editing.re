@@ -996,7 +996,7 @@ let selection_tests = [
   test(
     ~name="Move left by token from selection",
     ~acts=
-      mk({|(1, (2, 3)¦, 4, 5)|})
+      mk({|(1, ¦(2, 3), 4, 5)|})
       @ [Action.Select(Term(Current))]
       @ mv_l_token(1),
     ~goal={|(1,¦ (2, 3), 4, 5)|},

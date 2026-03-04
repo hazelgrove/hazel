@@ -55,7 +55,8 @@ let go =
       Printer.of_zipper(~holes="", ~indent="", z),
     )
     |> return(CantReparse)
-  | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
+  | Buffer(a) =>
+    Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)

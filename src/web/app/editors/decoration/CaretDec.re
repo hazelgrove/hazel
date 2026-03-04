@@ -46,7 +46,7 @@ let view =
     : Node.t => {
   open Haz3lcore;
   let side =
-    switch (Indicated.piece(z)) {
+    switch (Indicated.for_decoration(z)) {
     | _
         when
           !Selection.is_empty(z.selection)
