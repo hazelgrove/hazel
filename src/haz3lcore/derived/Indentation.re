@@ -27,8 +27,6 @@ let next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
     };
   go(seg);
 };
-/* Memoize for perf */
-let indent_hash = Hashtbl.create(10000);
 
 let union_all =
   List.fold_left(
@@ -185,12 +183,7 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
 }
 and go = (~not_top, base: int, seg: Segment.t) => {
   let arg = (not_top, base, seg);
-  try(Hashtbl.find(indent_hash, arg)) {
-  | _ =>
-    let res = go'(arg);
-    Hashtbl.add(indent_hash, arg, res);
-    res;
-  };
+  go'(arg);
 };
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
