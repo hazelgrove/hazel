@@ -209,7 +209,11 @@ module Update = {
           );
         /* Resolve pending_probe_cursor again since update_autoprobe
            may have set it after editor_effects already ran */
-        ProbePerform.resolve_pending_probe_cursor(~dynamics=new_dynamics, z);
+        ProbePerform.resolve_pending_probe_cursor(
+          ~dynamics=new_dynamics,
+          ~syntax,
+          z,
+        );
       } else {
         /* If mode is off, clear any existing auto probe */
         ProbePerform.clear_autoprobe(

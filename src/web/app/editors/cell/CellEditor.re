@@ -119,6 +119,8 @@ module Update = {
         ~is_dynamic_term=false,
         editor,
       );
+    /* Save probe results reference before result calculation */
+    let probes_before = EvalResult.Model.probe_results(result);
     /* Calculate result (may produce new dynamics from worker) */
     let result =
       EvalResult.Update.calculate(
@@ -131,11 +133,15 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
-    /* Second pass: if there's a pending focus or pending_probe_cursor waiting
-       for dynamics, recalculate editor with the (possibly new) dynamics */
+    /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics) */
+    let probes_after = EvalResult.Model.probe_results(result);
+    let dynamics_changed = probes_before !== probes_after;
+    /* Second pass: if there's a pending focus, pending_probe_cursor waiting
+       for dynamics, or dynamics changed since the first pass */
     let needs_second_pass =
       editor.editor.state.zipper.refractors.sample_cursor.pending_focus != None
-      || editor.editor.state.zipper.refractors.pending_probe_cursor != None;
+      || editor.editor.state.zipper.refractors.pending_probe_cursor != None
+      || dynamics_changed;
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
