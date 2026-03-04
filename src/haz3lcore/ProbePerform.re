@@ -188,6 +188,15 @@ let sort_ids_lexically =
   List.map(((id, _, _)) => id, sorted);
 };
 
+/* Set pending_probe_cursor so sample cursor aligns when dynamics arrive. */
+let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
+  Zipper.update_refractors(z, r =>
+    {
+      ...r,
+      pending_probe_cursor: Some(ids),
+    }
+  );
+
 /* Check if id has either manual or ephemeral probe on it */
 let has_probe = (id: Id.t, z: Zipper.t): bool =>
   List.assoc_opt(id, z.refractors.manuals) != None
@@ -362,12 +371,7 @@ let add_manual =
 
   /* Set pending_probe_cursor so sample cursor updates when eval returns */
   let sorted_ids = sort_ids_lexically(~syntax, target_ids);
-  Zipper.update_refractors(z, r =>
-    {
-      ...r,
-      pending_probe_cursor: Some(sorted_ids),
-    }
-  );
+  set_pending_probe(sorted_ids, z);
 };
 
 let toggle_manual =
@@ -404,12 +408,7 @@ let add_ids_from_multi_term =
   | [] => z
   | _ =>
     let sorted = sort_ids_lexically(~syntax, new_ids);
-    Zipper.update_refractors(z, r =>
-      {
-        ...r,
-        pending_probe_cursor: Some(sorted),
-      }
-    );
+    set_pending_probe(sorted, z);
   };
 };
 
@@ -455,12 +454,7 @@ let add_multi =
     let ephemeral_ids =
       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids);
     let sorted_ids = sort_ids_lexically(~syntax, ephemeral_ids);
-    Zipper.update_refractors(z, r =>
-      {
-        ...r,
-        pending_probe_cursor: Some(sorted_ids),
-      }
-    );
+    set_pending_probe(sorted_ids, z);
   } else {
     z;
   };
@@ -836,13 +830,108 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
     }
   };
 
-/* Resolve pending_probe_cursor by finding the first probe ID with samples
- * and setting the sample cursor to the closest matching sample. */
+/* Check whether the cursor is aligned with any probe's samples.
+ * Returns true if the cursor has an empty call_stack (never captured)
+ * or if at least one probe has a sample matching the cursor via
+ * most_aligned_index. */
+let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
+  let cursor = z.refractors.sample_cursor;
+  if (cursor.call_stack == []) {
+    true; /* Empty cursor is trivially aligned */
+  } else {
+    let all_probe_ids =
+      List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
+      @ List.map(fst, z.refractors.manuals);
+    List.exists(
+      id =>
+        switch (Dynamics.Map.lookup(id, dynamics)) {
+        | Some([_, ..._] as samples) =>
+          Sample.Selection.most_aligned_index(~ap_id=None, cursor, samples)
+          != None
+        | _ => false
+        },
+      all_probe_ids,
+    );
+  };
+};
+
+/* Find the caret-nearest ephemeral probe ID. Uses the same strategies
+ * as align_to_indicated_probe: direct match via Indicated.index,
+ * then spatial proximity on the same row. */
+let caret_nearest_ephemeral =
+    (~syntax: CachedSyntax.t, z: Zipper.t): option(Id.t) => {
+  switch (Indicated.index(z)) {
+  | Some(piece_id) when Id.Map.mem(piece_id, z.refractors.multis.ephemerals) =>
+    Some(piece_id)
+  | _ =>
+    let caret_pt = Zipper.Caret.point(syntax.measured, z);
+    Id.Map.bindings(z.refractors.multis.ephemerals)
+    |> List.find_map(((id, _)) =>
+         switch (
+           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+         ) {
+         | Some((start_pt, end_pt))
+             when
+               start_pt.row == caret_pt.row
+               && caret_pt.col >= start_pt.col
+               && caret_pt.col <= end_pt.col
+               + 1 =>
+           Some(id)
+         | _ => None
+         }
+       );
+  };
+};
+
+/* Ensure the sample cursor is aligned with current dynamics.
+ *
+ * Handles two cases uniformly:
+ * 1. pending_probe_cursor is set (probe set changed via add_ids_from_multi_term
+ *    or align_to_indicated_probe): resolve by finding the first pending ID
+ *    with samples and capturing from it.
+ * 2. pending is None but cursor is stale (structural edit changed application
+ *    site tile IDs, so the cursor's call_stack frame IDs no longer match any
+ *    sample in the new dynamics): detect via cursor_is_aligned, then build
+ *    a target list from all probes.
+ *
+ * In both cases, the caret-nearest probe is prioritized to avoid capturing
+ * from a probe in a different case branch or distant expression. */
 let resolve_pending_probe_cursor =
-    (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
-  switch (z.refractors.pending_probe_cursor) {
+    (~dynamics: Dynamics.Map.t, ~syntax: CachedSyntax.t, z: Zipper.t)
+    : Zipper.t => {
+  /* Determine which IDs to try */
+  let (target_ids, is_pending) =
+    switch (z.refractors.pending_probe_cursor) {
+    | Some(ids) => (Some(ids), true)
+    | None =>
+      if (cursor_is_aligned(~dynamics, z)) {
+        (None, false);
+      } else {
+        /* Cursor is stale — treat all probes as candidates */
+        let all_ids =
+          List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
+          @ List.map(fst, z.refractors.manuals);
+        switch (all_ids) {
+        | [] => (None, false)
+        | _ => (Some(all_ids), false)
+        };
+      }
+    };
+
+  switch (target_ids) {
   | None => z
-  | Some(target_ids) =>
+  | Some(ids) =>
+    /* Prioritize caret-nearest probe */
+    let ids =
+      switch (caret_nearest_ephemeral(~syntax, z)) {
+      | Some(nearest) when List.mem(nearest, ids) => [
+          nearest,
+          ...List.filter(i => i != nearest, ids),
+        ]
+      | Some(nearest) => [nearest, ...ids]
+      | None => ids
+      };
+
     /* Find first ID that has samples */
     let first_with_samples =
       List.find_map(
@@ -852,13 +941,10 @@ let resolve_pending_probe_cursor =
           | Some([]) => None
           | None => None
           },
-        target_ids,
+        ids,
       );
     switch (first_with_samples) {
     | Some((_id, samples)) =>
-      /* Use most_aligned_sample to pick the best sample based on current
-       * cursor, rather than just the first sample. This preserves user's
-       * selection when adding new probes. */
       let selected =
         Sample.Selection.most_aligned_sample(
           ~ap_id=None,
@@ -867,14 +953,12 @@ let resolve_pending_probe_cursor =
         );
       switch (selected) {
       | Some(sample) =>
-        /* Use capture to set sample cursor (preserves deeper stack if applicable) */
         let z =
           SampleCursorPerform.capture(
             z,
             Sample.capture_of_sample(sample),
             None,
           );
-        /* Clear pending_probe_cursor */
         Zipper.update_refractors(z, r =>
           {
             ...r,
@@ -882,7 +966,6 @@ let resolve_pending_probe_cursor =
           }
         );
       | None =>
-        /* Clear pending anyway since we had samples */
         Zipper.update_refractors(z, r =>
           {
             ...r,
@@ -891,10 +974,11 @@ let resolve_pending_probe_cursor =
         )
       };
     | None =>
-      /* No samples yet - keep pending for next eval cycle */
-      z
+      /* No samples yet — keep pending if it was pending, otherwise noop */
+      if (is_pending) {z} else {z}
     };
   };
+};
 
 /* After an edit, if the new-ID diff in add_ids_from_multi_term didn't set
  * pending_probe_cursor (e.g., because grout ID preservation kept the same ID
@@ -945,22 +1029,10 @@ let align_to_indicated_probe =
       );
     };
     switch (direct_match) {
-    | Some(id) =>
-      Zipper.update_refractors(z, r =>
-        {
-          ...r,
-          pending_probe_cursor: Some([id]),
-        }
-      )
+    | Some(id) => set_pending_probe([id], z)
     | None =>
       switch (spatial_match()) {
-      | Some(id) =>
-        Zipper.update_refractors(z, r =>
-          {
-            ...r,
-            pending_probe_cursor: Some([id]),
-          }
-        )
+      | Some(id) => set_pending_probe([id], z)
       | None => z
       }
     };
@@ -983,7 +1055,7 @@ let editor_effects =
   |> add_ids_from_multi_term(~syntax, ~info_map)
   |> align_to_indicated_probe(~is_edited, ~syntax)
   |> resolve_pending_focus(~dynamics)
-  |> resolve_pending_probe_cursor(~dynamics)
+  |> resolve_pending_probe_cursor(~dynamics, ~syntax)
   |> maybe_reset_cursor;
 
 /* AUTO PROBE: automatically place a multi probe on the top-level
