@@ -223,40 +223,38 @@ let probe_data =
     (
       ~can_probe: bool,
       ~is_def: bool,
-      ~autoprobe_mode: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
     : list(menu_item_data) =>
-  /* Hide when auto probe is on and this would be a multi probe */
-  if (autoprobe_mode && is_def) {
-    [];
-  } else {
-    switch (ci) {
-    | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
-        {
-          name:
-            if (is_def) {
-              switch (probe_status) {
-              | Multi => "Remove multi probe"
-              | Manual(_) => "Remove probe"
-              | Statics(_) => "Switch to multi probe"
-              | Non => "Add multi probe"
-              };
-            } else {
-              switch (probe_status) {
-              | Manual(_) => "Remove probe"
-              | Multi => "Remove probe"
-              | Statics(_) => "Switch to probe"
-              | Non => "Add probe"
-              };
-            },
-          shortcut: Some(Shortcuts.manual_probe()),
-          action: Probe(ToggleManual),
-        },
-      ]
-    | _ => []
-    };
+  switch (ci) {
+  | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
+      {
+        name:
+          if (is_def) {
+            switch (probe_status) {
+            | Multi => "Remove multi probe"
+            | Manual(_) => "Remove probe"
+            | Statics(_) => "Switch to multi probe"
+            | Ephemeral(_) => "Hide probe"
+            | Suppressed(_) => "Show probe"
+            | Non => "Add multi probe"
+            };
+          } else {
+            switch (probe_status) {
+            | Manual(_) => "Remove probe"
+            | Multi => "Remove probe"
+            | Statics(_) => "Switch to probe"
+            | Ephemeral(_) => "Hide probe"
+            | Suppressed(_) => "Show probe"
+            | Non => "Add probe"
+            };
+          },
+        shortcut: Some(Shortcuts.manual_probe()),
+        action: Probe(ToggleManual),
+      },
+    ]
+  | _ => []
   };
 
 let type_annotation_data =
@@ -274,6 +272,8 @@ let type_annotation_data =
           | Statics(_) => "Remove statics"
           | Manual(_)
           | Multi => "Switch to statics"
+          | Ephemeral(_)
+          | Suppressed(_)
           | Non => "Add statics"
           },
         shortcut: Some(Shortcuts.type_annotation()),
@@ -457,7 +457,6 @@ module Projectors = {
 let refractor_actions_data =
     (
       ~ci: option(Language.Info.t),
-      ~autoprobe_mode: bool,
       info_map: Language.Statics.Map.t,
       z: Zipper.t,
     )
@@ -467,7 +466,7 @@ let refractor_actions_data =
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
   let is_def = ProbePerform.is_definition_form(id, info_map);
-  probe_data(~can_probe, ~is_def, ~autoprobe_mode, probe_status, ci)
+  probe_data(~can_probe, ~is_def, probe_status, ci)
   @ type_annotation_data(~can_type=can_statics, probe_status, ci);
 };
 
@@ -485,7 +484,7 @@ let refractor_actions_data =
 /* Get menu sections - each section is separated by a divider.
    This is the single source of truth for menu structure. */
 let get_sections =
-    (~info_map: Language.Statics.Map.t, ~autoprobe_mode: bool, z: Zipper.t)
+    (~info_map: Language.Statics.Map.t, z: Zipper.t)
     : list(list(menu_item_data)) => {
   let ci = Indicated.ci_of(z, info_map);
 
@@ -495,7 +494,7 @@ let get_sections =
     /* Section 2: Refactoring */
     introduce_data(ci),
     /* Section 3: Probes/Statics (refractors) */
-    refractor_actions_data(~ci, ~autoprobe_mode, info_map, z),
+    refractor_actions_data(~ci, info_map, z),
     /* Section 4: Projectors (fold, livelits) */
     Projectors.actions_data(z, info_map),
   ]
@@ -504,20 +503,14 @@ let get_sections =
 
 /* Get all menu items as a flat list */
 let get_all_items =
-    (~info_map: Language.Statics.Map.t, ~autoprobe_mode: bool, z: Zipper.t)
-    : list(menu_item_data) =>
-  List.concat(get_sections(~info_map, ~autoprobe_mode, z));
+    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(menu_item_data) =>
+  List.concat(get_sections(~info_map, z));
 
 /* Get action at index (for Enter key activation) */
 let get_action_at_index =
-    (
-      ~info_map: Language.Statics.Map.t,
-      ~autoprobe_mode: bool,
-      z: Zipper.t,
-      index: int,
-    )
+    (~info_map: Language.Statics.Map.t, z: Zipper.t, index: int)
     : option(Action.t) => {
-  let items = get_all_items(~info_map, ~autoprobe_mode, z);
+  let items = get_all_items(~info_map, z);
   List.nth_opt(items, index) |> Option.map(item => item.action);
 };
 
@@ -533,19 +526,12 @@ module WithContext = {
 
   /* Update menu state with clamping to valid item range */
   let update =
-      (
-        ~info_map: Language.Statics.Map.t,
-        ~autoprobe_mode: bool=false,
-        ~zipper: Zipper.t,
-        action,
-        state,
-      )
+      (~info_map: Language.Statics.Map.t, ~zipper: Zipper.t, action, state)
       : Model.t => {
     let new_state = Model.update(action, state);
     switch (new_state) {
     | Some(n) =>
-      let item_count =
-        List.length(get_all_items(~info_map, ~autoprobe_mode, zipper));
+      let item_count = List.length(get_all_items(~info_map, zipper));
       Some(max(0, min(n, item_count - 1)));
     | None => None
     };
@@ -555,7 +541,6 @@ module WithContext = {
   let handle_key =
       (
         ~info_map: Language.Statics.Map.t,
-        ~autoprobe_mode: bool=false,
         ~zipper: Zipper.t,
         key: Key.key,
         state: Model.t,
@@ -569,14 +554,7 @@ module WithContext = {
       | Key.D("ArrowUp") => MenuUpdate(Up)
       | Key.D("ArrowDown") => MenuUpdate(Down)
       | Key.D("Enter") =>
-        switch (
-          get_action_at_index(
-            ~info_map,
-            ~autoprobe_mode,
-            zipper,
-            selected_index,
-          )
-        ) {
+        switch (get_action_at_index(~info_map, zipper, selected_index)) {
         | Some(action) => EditorAction(action)
         | None => MenuUpdate(Close)
         }
@@ -620,13 +598,12 @@ let view =
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
       ~font_metrics: FontMetrics.t,
-      ~autoprobe_mode: bool,
       ~selected_index: int,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let sections = get_sections(~info_map, ~autoprobe_mode, z);
+  let sections = get_sections(~info_map, z);
 
   /* Clamp selected_index to valid range */
   let item_count =

@@ -45,6 +45,17 @@ let update_ephemerals = (f, z: t): t => {
   },
 };
 
+let update_suppressed = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    multis: {
+      ...z.refractors.multis,
+      suppressed: f(z.refractors.multis.suppressed),
+    },
+  },
+};
+
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
   ...z,
   relatives: f(z.relatives),

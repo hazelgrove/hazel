@@ -116,6 +116,8 @@ type probe_status =
   | Manual(list(Id.t)) /* manual probe; ids are target IDs (for fun literals: pat and body) */
   | Statics(list(Id.t)) /* statics annotation; ids are target IDs */
   | Multi
+  | Ephemeral(list(Id.t)) /* target IDs present in ephemerals map */
+  | Suppressed(list(Id.t)) /* target IDs present in suppressed map */
   | Non;
 
 let probe_status =
@@ -144,7 +146,25 @@ let probe_status =
     (List.exists(id => Id.Map.mem(id, refractors.multis.ids), target_ids)) {
     Multi;
   } else {
-    Non;
+    let ephemeral_ids =
+      List.filter(
+        id => Id.Map.mem(id, refractors.multis.ephemerals),
+        target_ids,
+      );
+    if (ephemeral_ids != []) {
+      Ephemeral(ephemeral_ids);
+    } else {
+      let suppressed_ids =
+        List.filter(
+          id => Id.Map.mem(id, refractors.multis.suppressed),
+          target_ids,
+        );
+      if (suppressed_ids != []) {
+        Suppressed(suppressed_ids);
+      } else {
+        Non;
+      };
+    };
   };
 };
 
@@ -246,6 +266,11 @@ let rm_multi =
             Id.Map.filter(
               (id, _) => !List.mem(id, target_ids),
               z.refractors.multis.ids,
+            ),
+          suppressed:
+            Id.Map.filter(
+              (id, _) => !List.mem(id, target_ids),
+              z.refractors.multis.suppressed,
             ),
           ephemerals:
             Id.Map.filter(
@@ -386,13 +411,67 @@ let toggle_manual =
   | Manual(ids) =>
     /* Remove manual probe */
     rm_manual(ids, z)
+  | Ephemeral(_)
+  | Suppressed(_)
   | Non => add_manual(~syntax, id, info_map, z)
   };
+
+let add_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
+  Zipper.update_suppressed(
+    suppressed =>
+      List.fold_left((map, id) => Id.Map.add(id, (), map), suppressed, ids),
+    z,
+  );
+
+let rm_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
+  Zipper.update_suppressed(
+    suppressed => Id.Map.filter((id, _) => !List.mem(id, ids), suppressed),
+    z,
+  );
 
 let add_ids_from_multi_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let auto_ids = Id.Map.bindings(z.refractors.multis.ids) |> List.map(fst);
-  let ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
+  let all_ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
+  /* Clean up suppressed: only keep IDs that are still in the would-be set */
+  let z =
+    Zipper.update_suppressed(
+      suppressed =>
+        Id.Map.filter((id, _) => List.mem(id, all_ids), suppressed),
+      z,
+    );
+  /* Filter out IDs that have manual probes or are suppressed */
+  let manual_ids = List.map(fst, z.refractors.manuals);
+  let ids =
+    List.filter(
+      id =>
+        !List.mem(id, manual_ids)
+        && !Id.Map.mem(id, z.refractors.multis.suppressed),
+      all_ids,
+    );
+  /* Filter out ephemerals that would render on the same line as a manual */
+  let manual_end_rows =
+    List.filter_map(
+      ((id, _)) =>
+        switch (
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+        ) {
+        | Some((_, end_loc)) => Some(end_loc.row)
+        | None => None
+        },
+      z.refractors.manuals,
+    );
+  let ids =
+    List.filter(
+      id =>
+        switch (
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+        ) {
+        | Some((_, end_loc)) => !List.mem(end_loc.row, manual_end_rows)
+        | None => true
+        },
+      ids,
+    );
   let old_ephemerals = z.refractors.multis.ephemerals;
   let new_ephemeral_map =
     List.fold_left(
@@ -467,6 +546,8 @@ let toggle_multi =
   | Multi => rm_multi(~syntax, ~info_map, id, z)
   | Manual(ids)
   | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
+  | Ephemeral(_)
+  | Suppressed(_)
   | Non =>
     /* Use same gating as manual probes: if target_subterm_ids returns [],
        the term is not probeable. */
@@ -500,6 +581,8 @@ let toggle_probe =
     | Multi => rm_multi(~syntax, ~info_map, id, z)
     | Manual(ids) => rm_manual(ids, z)
     | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
+    | Ephemeral(ids) => add_suppression(ids, z)
+    | Suppressed(ids) => rm_suppression(ids, z)
     | Non =>
       switch (target_subterm_ids(id, info_map)) {
       | [] => z
@@ -509,9 +592,11 @@ let toggle_probe =
   } else {
     /* Non-definition: use manual probe */
     switch (probe_status(id, info_map, z.refractors)) {
-    | Manual(ids) => rm_manual(ids, z)
+    | Manual(ids) => rm_manual(ids, z) |> add_suppression(ids)
     | Multi => rm_multi(~syntax, ~info_map, id, z)
     | Statics(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
+    | Ephemeral(ids) => add_suppression(ids, z)
+    | Suppressed(ids) => rm_suppression(ids, z)
     | Non => add_manual(~syntax, id, info_map, z)
     };
   };
@@ -624,6 +709,8 @@ let step_into_call_stack =
     | Manual(_)
     | Statics(_) => z
     | Multi
+    | Ephemeral(_)
+    | Suppressed(_)
     | Non => Zipper.add_manual(ap_id, Probe, z)
     };
 
@@ -632,7 +719,9 @@ let step_into_call_stack =
     switch (probe_status(body_id, info_map, z.refractors)) {
     | Multi
     | Manual(_)
-    | Statics(_) => z
+    | Statics(_)
+    | Ephemeral(_) => z
+    | Suppressed(_)
     | Non => add_multi(body_id, ~syntax, ~info_map, z)
     };
 
@@ -714,6 +803,8 @@ let toggle_statics =
     | Multi =>
       /* Switch from multi probe to statics */
       rm_multi(~syntax, ~info_map, id, z) |> add_statics
+    | Ephemeral(_)
+    | Suppressed(_)
     | Non =>
       /* Add statics */
       add_statics(z)
@@ -773,6 +864,8 @@ let go =
       | Manual(_)
       | Statics(_) => z
       | Multi
+      | Ephemeral(_)
+      | Suppressed(_)
       | Non => Zipper.add_manual(ap_id, Probe, z)
       };
     SampleCursorPerform.toggle_pin_call(z, call_stack);
@@ -785,6 +878,7 @@ let go =
            multis: {
              ...r.multis,
              ids: Id.Map.empty,
+             suppressed: Id.Map.empty,
            },
          }
        )
