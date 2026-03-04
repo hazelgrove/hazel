@@ -1387,9 +1387,13 @@ module M: Projector = {
 
   let update = (_, _, a: action) => {
     switch (a) {
-    | ChangeLength(id, len) => SampleLength.set(id, len)
+    | ChangeLength(id, len) =>
+      SampleLength.set(id, len);
+      Settings.version := Settings.version^ + 1;
     | ToggleWindowMode => Settings.go(ToggleWindow)
-    | ToggleShowEnv => Settings.show_env := ! Settings.show_env^
+    | ToggleShowEnv =>
+      Settings.show_env := ! Settings.show_env^;
+      Settings.version := Settings.version^ + 1;
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();
