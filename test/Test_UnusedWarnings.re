@@ -223,5 +223,20 @@ let tests = (
       "fun e -> e ... (a=1)",
       [],
     ),
+    check_unused(
+      "tuple extension: unused variable not in spread",
+      "let x = 1 in (a=1, b=2) ... (a=3)",
+      ["x"],
+    ),
+    check_unused(
+      "tuple extension: one used one unused",
+      "let x = (a=1, b=2) in let y = 1 in x ... (a=3)",
+      ["y"],
+    ),
+    check_unused(
+      "tuple extension: both operands use different variables",
+      "let x = (a=1, b=2) in let y = 3 in x ... (a=y)",
+      [],
+    ),
   ],
 );
