@@ -30,11 +30,21 @@ let printer = (z: Zipper.t): string => {
 };
 
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
-  /* This is a simplified testing harness for zipper actions.
-   * It does not apply any semantics-based behaviors. */
-  let perform = (a: Action.t, z: Zipper.t) =>
+  /* Compute statics so that Smart selection can look up parent terms */
+  let statics_settings = {
+    ...Language.CoreSettings.off,
+    statics: true,
+  };
+  let perform = (a: Action.t, z: Zipper.t) => {
+    let term = MakeTerm.from_zip_for_sem(z).term;
+    let statics =
+      CachedStatics.init_from_term(
+        ~settings=statics_settings,
+        ~is_dynamic_term=true,
+        term,
+      );
     Perform.go(
-      ~statics=CachedStatics.empty,
+      ~statics,
       ~syntax=CachedSyntax.init(z),
       a,
       {
@@ -42,6 +52,7 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
         col_target: None,
       },
     );
+  };
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z)) {
@@ -1063,6 +1074,303 @@ let selection_tests = [
       mk({|1 ¦+ 2|})
       @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
     ~goal={|§1 + 2¦|},
+  ),
+  /* --- Tile edge Smart(2): select indicated child, not delimiter --- */
+  test(
+    ~name="Double-click at left paren edge: select indicated child",
+    ~acts=mk({|(¦0 + 1, 1)|}) @ [Action.Select(Smart(2))],
+    ~goal={|(§0¦ + 1, 1)|},
+  ),
+  test(
+    ~name="Double-click at right paren edge: select indicated child",
+    ~acts=mk({|(0 + 1, 1¦)|}) @ [Action.Select(Smart(2))],
+    ~goal={|(0 + 1, §1¦)|},
+  ),
+  test(
+    ~name="Double-click at left bracket edge: select indicated child",
+    ~acts=mk({|[¦1, 2, 3]|}) @ [Action.Select(Smart(2))],
+    ~goal={|[§1¦, 2, 3]|},
+  ),
+  test(
+    ~name="Double-click at right bracket edge: select indicated child",
+    ~acts=mk({|[1, 2, 3¦]|}) @ [Action.Select(Smart(2))],
+    ~goal={|[1, 2, §3¦]|},
+  ),
+  /* --- Nested/compound terms --- */
+  test(
+    ~name="Double-click outside nested parens: select outer close paren",
+    ~acts=mk({|((c))¦|}) @ [Action.Select(Smart(2))],
+    ~goal={|((c)§)¦|},
+  ),
+  test(
+    ~name="Triple-click outside nested parens: select outer term",
+    ~acts=
+      mk({|((c))¦|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§((c))¦|},
+  ),
+  test(
+    ~name="Triple-click outside function application: select whole app",
+    ~acts=
+      mk({|f(n + 1)¦|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§f(n + 1)¦|},
+  ),
+  /* --- Function application inside tuple --- */
+  test(
+    ~name="Triple-click on first tuple element fn app: select fn app",
+    ~acts=
+      mk({|(¦odd(n), 1)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|(§odd(n)¦, 1)|},
+  ),
+  test(
+    ~name="Triple-click on second tuple element fn app: select fn app",
+    ~acts=
+      mk({|(1, ¦odd(n))|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|(1, §odd(n)¦)|},
+  ),
+  /* --- Smart(3) for non-term tokens (comma, operator inside parens) ---
+   * These don't need statics because the indicated piece is not a term,
+   * so Smart(3) uses current_term (term_data only) not parent_of_indicated. */
+  test(
+    ~name="Double-click on comma in parens: select comma",
+    ~acts=mk({|(0 + 1¦, 1)|}) @ [Action.Select(Smart(2))],
+    ~goal={|(0 + 1§,¦ 1)|},
+  ),
+  test(
+    ~name="Triple-click on comma in parens: select paren expression",
+    ~acts=
+      mk({|(0 + 1¦, 1)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§(0 + 1, 1)¦|},
+  ),
+  test(
+    ~name="Triple-click on + inside parens: select plus expression",
+    ~acts=
+      mk({|(0 ¦+ 1, 1)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|(§0 + 1¦, 1)|},
+  ),
+  test(
+    ~name="Double-click on comma in list: select comma",
+    ~acts=mk({|[1¦, 2, 3]|}) @ [Action.Select(Smart(2))],
+    ~goal={|[1§,¦ 2, 3]|},
+  ),
+  test(
+    ~name="Triple-click on comma in list: select list expression",
+    ~acts=
+      mk({|[1¦, 2, 3]|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§[1, 2, 3]¦|},
+  ),
+  /* --- More Smart(2) tests: various syntactic forms --- */
+  test(
+    ~name="Double-click on identifier",
+    ~acts=mk({|¦foo|}) @ [Action.Select(Smart(2))],
+    ~goal={|§foo¦|},
+  ),
+  test(
+    ~name="Double-click on integer literal",
+    ~acts=mk({|¦42|}) @ [Action.Select(Smart(2))],
+    ~goal={|§42¦|},
+  ),
+  test(
+    ~name="Double-click on float literal",
+    ~acts=mk({|¦3.14|}) @ [Action.Select(Smart(2))],
+    ~goal={|§3.14¦|},
+  ),
+  test(
+    ~name="Double-click on boolean",
+    ~acts=mk({|¦true|}) @ [Action.Select(Smart(2))],
+    ~goal={|§true¦|},
+  ),
+  test(
+    ~name="Double-click on string literal",
+    ~acts=mk({|¦"hello"|}) @ [Action.Select(Smart(2))],
+    ~goal={|§"hello"¦|},
+  ),
+  test(
+    ~name="Double-click on negation operator",
+    ~acts=mk({|¦- 5|}) @ [Action.Select(Smart(2))],
+    ~goal={|§-¦ 5|},
+  ),
+  test(
+    ~name="Double-click on :: operator",
+    ~acts=mk({|1 ¦:: []|}) @ [Action.Select(Smart(2))],
+    ~goal={|1 §::¦ []|},
+  ),
+  test(
+    ~name="Double-click on == operator",
+    ~acts=mk({|x ¦== y|}) @ [Action.Select(Smart(2))],
+    ~goal={|x §==¦ y|},
+  ),
+  test(
+    ~name="Double-click on pipe operator",
+    ~acts=mk({|x ¦|> f|}) @ [Action.Select(Smart(2))],
+    ~goal={|x §|>¦ f|},
+  ),
+  /* --- Smart(2) edge cases with spacing --- */
+  test(
+    ~name="Double-click on infix without spaces: select operator",
+    ~acts=mk({|1¦+2|}) @ [Action.Select(Smart(2))],
+    ~goal={|1§+¦2|},
+  ),
+  test(
+    ~name="Triple-click on infix without spaces: select expression",
+    ~acts=
+      mk({|1¦+2|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§1+2¦|},
+  ),
+  /* --- More Smart(3) tests: escalation from term to parent --- */
+  test(
+    ~name="Triple-click on operand in binary op: select expression",
+    ~acts=
+      mk({|1 + ¦2|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§1 + 2¦|},
+  ),
+  test(
+    ~name="Triple-click on left operand: select expression",
+    ~acts=
+      mk({|¦1 + 2|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§1 + 2¦|},
+  ),
+  test(
+    ~name="Triple-click on boolean in &&: select expression",
+    ~acts=
+      mk({|¦true && false|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§true && false¦|},
+  ),
+  test(
+    ~name="Triple-click on identifier in binary op: select expression",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§x + y¦|},
+  ),
+  /* --- Smart(3) for let expressions --- */
+  test(
+    ~name="Triple-click on let keyword: select let tile only",
+    ~acts=
+      mk({|¦let x = 1 in x|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§let x = 1 in¦ x|},
+  ),
+  test(
+    ~name="Triple-click on let body: select whole let expression",
+    ~acts=
+      mk({|let x = 1 in ¦x|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§let x = 1 in x¦|},
+  ),
+  /* --- Smart(3) for nested structures --- */
+  test(
+    ~name="Triple-click inside parens: select paren contents term",
+    ~acts=
+      mk({|(¦1 + 2)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|(§1 + 2¦)|},
+  ),
+  test(
+    ~name="Triple-click on inner term in nested parens: select inner paren",
+    ~acts=
+      mk({|((¦c))|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|(§(c)¦)|},
+  ),
+  /* --- Smart(2) and Smart(3) for function application --- */
+  test(
+    ~name="Double-click on function name in app: select function name",
+    ~acts=mk({|¦f(x)|}) @ [Action.Select(Smart(2))],
+    ~goal={|§f¦(x)|},
+  ),
+  test(
+    ~name="Triple-click on function name in app: select whole app",
+    ~acts=
+      mk({|¦f(x)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§f(x)¦|},
+  ),
+  test(
+    ~name="Double-click on argument inside app parens: select argument",
+    ~acts=mk({|f(¦x)|}) @ [Action.Select(Smart(2))],
+    ~goal={|f(§x¦)|},
+  ),
+  test(
+    ~name="Triple-click on argument inside app parens: select whole app",
+    ~acts=
+      mk({|f(¦x)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§f(x)¦|},
+  ),
+  /* --- App at designated position (between fn name and app parens) --- */
+  test(
+    ~name="Double-click between fn and app parens: select open paren token",
+    ~acts=mk({|f¦(x)|}) @ [Action.Select(Smart(2))],
+    ~goal={|f§(¦x)|},
+  ),
+  test(
+    ~name="Triple-click between fn and app parens: select whole app",
+    ~acts=
+      mk({|f¦(x)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§f(x)¦|},
+  ),
+  test(
+    ~name="Double-click between fn and app parens in tuple: select open paren",
+    ~acts=mk({|(myfun¦(arg), 1)|}) @ [Action.Select(Smart(2))],
+    ~goal={|(myfun§(¦arg), 1)|},
+  ),
+  test(
+    ~name="Triple-click between fn and app parens in tuple: select app",
+    ~acts=
+      mk({|(myfun¦(arg), 1)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|(§myfun(arg)¦, 1)|},
+  ),
+  /* --- Smart(2) for list and constructor --- */
+  test(
+    ~name="Double-click on element in list",
+    ~acts=mk({|[1, ¦2, 3]|}) @ [Action.Select(Smart(2))],
+    ~goal={|[1, §2¦, 3]|},
+  ),
+  test(
+    ~name="Triple-click on element in list: select whole list",
+    ~acts=
+      mk({|[1, ¦2, 3]|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§[1, 2, 3]¦|},
+  ),
+  /* --- Smart(2) for constructor --- */
+  test(
+    ~name="Double-click on constructor name",
+    ~acts=mk({|¦Some(1)|}) @ [Action.Select(Smart(2))],
+    ~goal={|§Some¦(1)|},
+  ),
+  test(
+    ~name="Triple-click on constructor name: select whole constructor app",
+    ~acts=
+      mk({|¦Some(1)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§Some(1)¦|},
+  ),
+  /* --- Constructor at designated position --- */
+  test(
+    ~name="Double-click between constructor and app parens: select open paren",
+    ~acts=mk({|Some¦(1)|}) @ [Action.Select(Smart(2))],
+    ~goal={|Some§(¦1)|},
+  ),
+  test(
+    ~name="Triple-click between constructor and app parens: select whole app",
+    ~acts=
+      mk({|Some¦(1)|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§Some(1)¦|},
   ),
 ];
 

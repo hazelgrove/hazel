@@ -339,8 +339,8 @@ let application_tests = [
    * The parent inside (...) is the parens tile, NOT f(...) --- */
   ind(~name="App: before function",
     ~input={|¦f(1)|}, ~indicated="f [R,S]"),
-  ind(~name="App: after function name",
-    ~input={|f¦(1)|}, ~indicated="f [L,S]"),
+  ind(~name="App: after function name (concave-left designated position)",
+    ~input={|f¦(1)|}, ~indicated="(1) [R,S]"),
   ind(~name="App: inside app before arg (inward: child over parent)",
     ~input={|f(¦1)|}, ~indicated="1 [R,S]"),
   ind(~name="App: inside app after arg",
@@ -352,6 +352,9 @@ let application_tests = [
     ~input={|f(g(¦1))|}, ~indicated="1 [R,S]"),
   ind(~name="Nested app: after inner arg",
     ~input={|f(g(1¦))|}, ~indicated="1 [L,S]"),
+  /* --- App inside tuple: (myfun(arg), 1) --- */
+  ind(~name="App in tuple: after function name (concave-left designated)",
+    ~input={|(myfun¦(arg), 1)|}, ~indicated="(arg) [R,S]"),
 ];
 
 let list_tests = [
@@ -397,8 +400,8 @@ let constructor_tests = [
    * The constructor name is one tile, (...) is the postfix app tile --- */
   ind(~name="Constructor: before name",
     ~input={|¦Some(1)|}, ~indicated="Some [R,S]"),
-  ind(~name="Constructor: after name",
-    ~input={|Some¦(1)|}, ~indicated="Some [L,S]"),
+  ind(~name="Constructor: after name (concave-left designated position)",
+    ~input={|Some¦(1)|}, ~indicated="(1) [R,S]"),
   ind(~name="Constructor: before arg (inward: child over parent)",
     ~input={|Some(¦1)|}, ~indicated="1 [R,S]"),
   ind(~name="Constructor: after arg",

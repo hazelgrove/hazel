@@ -12,12 +12,14 @@ type piece = {
   relation,
 };
 
-/* Infix operators get their left position as a special case under
-   inward bias. Without this, an infix between two Convex operands
-   would never be indicated from its left (designated) position. */
-let is_infix_op = (p: Piece.t): bool =>
+/* Tiles with a Concave left nib get their left position as a special
+   case under inward bias. Without this, they could never be indicated
+   from their left side, since the left neighbor's Convex right nib
+   would always win. This covers infix operators (Concave, Concave)
+   and application forms like Ap parens (Concave, Convex). */
+let has_concave_left_nib = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({mold, _}) => Mold.is_infix_op(mold)
+  | Tile({mold: {nibs: ({shape: Concave(_), _}, _), _}, _}) => true
   | _ => false
   };
 
@@ -66,10 +68,10 @@ let indicated =
   /* No L and R is a secondary and there is a P => indicate P */
   | ((None, Some(r)), Some(parent)) when ign(r) =>
     Some({piece: parent, side: Left, relation: Parent})
-  /* Both L and R non-ignored, caret outer: inward bias with infix special case */
+  /* Both L and R non-ignored, caret outer: inward bias with concave-left special case */
   | ((Some(l), Some(r)), _parent) when !ign(l) && !ign(r) && z.caret == Outer =>
-    if (is_infix_op(r)) {
-      /* Infix R gets its left (designated) position */
+    if (has_concave_left_nib(r)) {
+      /* R has concave left nib: this is R's designated position */
       Some({piece: r, side: Right, relation: Sibling});
     } else {
       switch (
