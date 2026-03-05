@@ -321,24 +321,101 @@ let parent_term_id = (z: t, info_map) => {
   };
 };
 
-let parent_of_indicated = (z: t, term_data, info_map) => {
-  let* id = parent_term_id(z, info_map);
-  /* Annoying special case here: In general when selecting the parent term
-   * we can just use the current term logic, for which we're using the option
-   * that definitions count as 'pseudo-terms', meaning their bodies won't be
-   * selected. But if the indicated term is the body of a definition, this
-   * would result in the parent selection excluding that body, which feels
-   * very weird. Take care in refactoring this, as it's very easy to miss
-   * this case, or to overgeneralize this case (note in particular that
-   * the name and def terms of a def should not exhibit this behavior,
-   * only the body. */
+let is_rule_tile =
+  fun
+  | Piece.Tile({label: ["|", "=>"], _}) => true
+  | _ => false;
+
+/* Check if id has a module item cls (ModLet, ModType, etc.).
+ * Module items are elaborated as nested Lets, so they need
+ * special handling to avoid escalating between siblings. */
+let has_mod_cls = (id, info_map) =>
+  switch (Id.Map.find_opt(id, info_map)) {
+  | Some(
+      Language.Statics.Info.InfoExp({
+        cls: Mod(ModLet | ModType | ModuleMod | ModExp),
+        _,
+      }),
+    ) =>
+    true
+  | _ => false
+  };
+
+/* Check if from_id is the body of the definition at parent_id.
+ * Returns false for module items (elaborated as nested Lets
+ * where each item appears as the "body" of the previous). */
+let is_def_body = (from_id, parent_id, info_map) =>
+  switch (Language.Statics.Map.lookup(parent_id, info_map)) {
+  | Some(
+      Language.Statics.Info.InfoExp({
+        cls: Mod(ModLet | ModType | ModuleMod),
+        _,
+      }),
+    ) =>
+    false
+  | Some(
+      Language.Statics.Info.InfoExp({
+        term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
+        _,
+      }),
+    ) =>
+    Language.IdTagged.rep_id(body) == from_id
+  | _ => false
+  };
+
+/* Select a term as a parent. In general we use
+ * defs_exclude_bodies=true so definitions are treated as
+ * pseudo-terms (header only). But if the indicated piece
+ * is the body of a definition, we use false so the parent
+ * selection includes that body. Take care in refactoring
+ * this, as it's easy to overgeneralize: only the body
+ * of a def should exhibit this behavior, not the name
+ * or def terms. */
+let select_as_parent =
+    (parent_id: Id.t, z: t, term_data: TermData.t, info_map) => {
   let defs_exclude_bodies =
     switch (def_body_indicated(z, info_map)) {
     | Some(_) => false
     | None => true
     };
-  term(~defs_exclude_bodies, ~case_rules=true, term_data, id, z);
+  term(~defs_exclude_bodies, ~case_rules=true, term_data, parent_id, z);
 };
+
+let parent_of_indicated = (z: t, term_data, info_map) => {
+  let* id = parent_term_id(z, info_map);
+  select_as_parent(id, z, term_data, info_map);
+};
+
+/* Escalate from a fully-matched selection to its parent.
+ * Priority order:
+ * 1. Def body → parent def (include body in selection)
+ * 2. Module item → enclosing module tile {…}
+ * 3. Inside case rule → enclosing rule tile |=>
+ * 4. Default → parent term from info_map ancestors */
+let escalate_from_term =
+    (root_id: Id.t, parent_id: Id.t, z: t, term_data: TermData.t, info_map) =>
+  if (is_def_body(root_id, parent_id, info_map)) {
+    term(
+      ~defs_exclude_bodies=false,
+      ~case_rules=true,
+      term_data,
+      parent_id,
+      z,
+    );
+  } else if (has_mod_cls(root_id, info_map)) {
+    let* p = Zipper.parent(z);
+    select_as_parent(Piece.id(p), z, term_data, info_map);
+  } else {
+    /* Find the closest enclosing rule tile in left siblings.
+     * Left siblings are in document order, so reverse to
+     * find the nearest one first. */
+    let enclosing_rule =
+      fst(z.relatives.siblings) |> List.rev |> List.find_opt(is_rule_tile);
+    switch (enclosing_rule) {
+    | Some(p) => select_as_parent(Piece.id(p), z, term_data, info_map)
+    | None => select_as_parent(parent_id, z, term_data, info_map)
+    };
+  };
 
 /* Select the smallest term strictly enclosing the current
  * selection (or cursor position if no selection). For empty
@@ -359,30 +436,37 @@ let select_enclosing_term =
   | [] =>
     current_term(term_data, ~defs_exclude_bodies=true, ~case_rules=true, z)
   | sel =>
-    let* root_id =
-      TermData.get_root_id_using_ranges(sel, term_data, measured);
     let z0 = Zipper.unselect(z);
-    let select = term(~case_rules=true, term_data);
-    let without_excl = select(~defs_exclude_bodies=false, root_id, z0);
-    let matches_sel =
-      fun
-      | Some(z') => z'.selection.content == sel
-      | None => false;
-    if (matches_sel(without_excl)) {
-      /* Selection covers root term (including body): escalate to parent */
-      let* info = Id.Map.find_opt(root_id, info_map);
-      let* parent_id =
-        Language.Info.ancestors_of(info) |> ListUtil.hd_opt;
-      let defs_exclude_bodies =
-        switch (def_body_indicated(z0, info_map)) {
-        | Some(_) => false
-        | None => true
-        };
-      select(~defs_exclude_bodies, parent_id, z0);
+    if (List.exists(is_rule_tile, sel)) {
+      /* Rule → case: rules aren't terms in term_data,
+       * so escalate to the parent case expression */
+      let* p = Zipper.parent(z0);
+      select_as_parent(Piece.id(p), z0, term_data, info_map);
     } else {
-      /* Selection is partial or matches only def header:
-       * round up to root term (including body) */
-      without_excl;
+      let* root_id =
+        TermData.get_root_id_using_ranges(sel, term_data, measured);
+      let root_sel =
+        term(
+          ~defs_exclude_bodies=false,
+          ~case_rules=true,
+          term_data,
+          root_id,
+          z0,
+        );
+      let sel_matches =
+        switch (root_sel) {
+        | Some(z') => z'.selection.content == sel
+        | None => false
+        };
+      if (sel_matches) {
+        let* info = Id.Map.find_opt(root_id, info_map);
+        let* parent_id = Language.Info.ancestors_of(info) |> ListUtil.hd_opt;
+        escalate_from_term(root_id, parent_id, z0, term_data, info_map);
+      } else {
+        /* Selection is partial or matches only def header:
+         * round up to root term (including body) */
+        root_sel;
+      };
     };
   };
 };
