@@ -87,7 +87,13 @@ let make_fixture = (z: Zipper.t): fixture => {
   let term = make_term_result.term;
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  {z, segment, syntax, term, info_map};
+  {
+    z,
+    segment,
+    syntax,
+    term,
+    info_map,
+  };
 };
 
 /* --- Benchmark definitions --- */
@@ -96,7 +102,8 @@ let make_fixture = (z: Zipper.t): fixture => {
  * These call functions with the same inputs on every iteration,
  * so Core.Memo.general will cache the result after the first call.
  * Useful for understanding the cost of memo lookup itself. */
-let memo_tests_for_size = (label: string, program: string): list(Bench.Test.t) => {
+let memo_tests_for_size =
+    (label: string, program: string): list(Bench.Test.t) => {
   let z = parse_to_zipper(program);
   let fix = make_fixture(z);
 
@@ -105,17 +112,11 @@ let memo_tests_for_size = (label: string, program: string): list(Bench.Test.t) =
       ignore(MakeTerm.go(fix.segment))
     ),
     Bench.Test.create(~name=label ++ "/memo/Measured.of_segment", () =>
-      ignore(
-        Measured.of_segment(fix.segment, Id.Map.empty, Id.Map.empty),
-      )
+      ignore(Measured.of_segment(fix.segment, Id.Map.empty, Id.Map.empty))
     ),
     Bench.Test.create(~name=label ++ "/memo/Statics.mk", () =>
       ignore(
-        Statics.mk(
-          CoreSettings.on,
-          Builtins.ctx_init(Some(Int)),
-          fix.term,
-        ),
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), fix.term),
       )
     ),
     Bench.Test.create(~name=label ++ "/memo/Elaborator.elaborate", () =>
@@ -131,7 +132,8 @@ let memo_tests_for_size = (label: string, program: string): list(Bench.Test.t) =
  *
  * The benchmarked phases mirror the production pipeline:
  *   Insert -> CachedSyntax rebuild -> Statics -> Elaboration */
-let edit_cycle_tests_for_size = (label: string, program: string): list(Bench.Test.t) => {
+let edit_cycle_tests_for_size =
+    (label: string, program: string): list(Bench.Test.t) => {
   let z = parse_to_zipper(program);
   let fix = make_fixture(z);
   let statics = CachedStatics.empty;
@@ -144,55 +146,72 @@ let edit_cycle_tests_for_size = (label: string, program: string): list(Bench.Tes
           ~statics,
           ~syntax=fix.syntax,
           Insert("x"),
-          {zipper: fix.z, col_target: None},
+          {
+            zipper: fix.z,
+            col_target: None,
+          },
         ),
       )
     ),
     /* Full edit cycle: insert + CachedSyntax rebuild.
      * This is the dominant cost on each keystroke: the segment changes,
      * triggering MakeTerm.go + Measured.of_segment from scratch. */
-    Bench.Test.create(~name=label ++ "/edit/Insert+CachedSyntax", () => {
-      let z =
-        switch (
-          Perform.go(
-            ~statics,
-            ~syntax=fix.syntax,
-            Insert("x"),
-            {zipper: fix.z, col_target: None},
-          )
-        ) {
-        | Ok(z) => z
-        | Error(_) => fix.z
-        };
-      let syntax = CachedSyntax.mark_old(fix.syntax);
-      ignore(CachedSyntax.calculate(z, Id.Map.empty, Id.Map.empty, syntax));
-    }),
+    Bench.Test.create(
+      ~name=label ++ "/edit/Insert+CachedSyntax",
+      () => {
+        let z =
+          switch (
+            Perform.go(
+              ~statics,
+              ~syntax=fix.syntax,
+              Insert("x"),
+              {
+                zipper: fix.z,
+                col_target: None,
+              },
+            )
+          ) {
+          | Ok(z) => z
+          | Error(_) => fix.z
+          };
+        let syntax = CachedSyntax.mark_old(fix.syntax);
+        ignore(
+          CachedSyntax.calculate(z, Id.Map.empty, Id.Map.empty, syntax),
+        );
+      },
+    ),
     /* Full edit cycle: insert + CachedSyntax + Statics + Elaboration.
      * This is the complete calculate phase after a keystroke. */
-    Bench.Test.create(~name=label ++ "/edit/Insert+Full", () => {
-      let z =
-        switch (
-          Perform.go(
-            ~statics,
-            ~syntax=fix.syntax,
-            Insert("x"),
-            {zipper: fix.z, col_target: None},
-          )
-        ) {
-        | Ok(z) => z
-        | Error(_) => fix.z
-        };
-      /* CachedSyntax rebuild */
-      let syntax = CachedSyntax.mark_old(fix.syntax);
-      let _syntax =
-        CachedSyntax.calculate(z, Id.Map.empty, Id.Map.empty, syntax);
-      /* Statics (MakeTerm + type checking + elaboration) */
-      let make_term_result = MakeTerm.from_zip_for_sem(z);
-      let term = make_term_result.term;
-      let info_map =
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-      ignore(Elaborator.elaborate(info_map, term));
-    }),
+    Bench.Test.create(
+      ~name=label ++ "/edit/Insert+Full",
+      () => {
+        let z =
+          switch (
+            Perform.go(
+              ~statics,
+              ~syntax=fix.syntax,
+              Insert("x"),
+              {
+                zipper: fix.z,
+                col_target: None,
+              },
+            )
+          ) {
+          | Ok(z) => z
+          | Error(_) => fix.z
+          };
+        /* CachedSyntax rebuild */
+        let syntax = CachedSyntax.mark_old(fix.syntax);
+        let _syntax =
+          CachedSyntax.calculate(z, Id.Map.empty, Id.Map.empty, syntax);
+        /* Statics (MakeTerm + type checking + elaboration) */
+        let make_term_result = MakeTerm.from_zip_for_sem(z);
+        let term = make_term_result.term;
+        let info_map =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+        ignore(Elaborator.elaborate(info_map, term));
+      },
+    ),
     /* Cursor move for comparison (should be ~free) */
     Bench.Test.create(~name=label ++ "/edit/Move(Left)", () =>
       ignore(
@@ -212,31 +231,41 @@ let edit_cycle_tests_for_size = (label: string, program: string): list(Bench.Tes
 
 let output_json = (results: list(Bench.Analysis_result.t)): unit => {
   let entries =
-    List.map(results, ~f=r => {
-      let time_per_run =
-        switch (
-          Array.find(Bench.Analysis_result.regressions(r), ~f=reg =>
-            Poly.(==)(Bench.Analysis_result.Regression.responder(reg), `Nanos)
-          )
-        ) {
-        | Some(reg) =>
+    List.map(
+      results,
+      ~f=r => {
+        let time_per_run =
           switch (
-            Array.find(Bench.Analysis_result.Regression.coefficients(reg), ~f=c =>
-              Poly.(==)(Bench.Analysis_result.Coefficient.predictor(c), `Runs)
+            Array.find(Bench.Analysis_result.regressions(r), ~f=reg =>
+              Poly.(==)(
+                Bench.Analysis_result.Regression.responder(reg),
+                `Nanos,
+              )
             )
           ) {
-          | Some(c) => Bench.Analysis_result.Coefficient.estimate(c)
+          | Some(reg) =>
+            switch (
+              Array.find(
+                Bench.Analysis_result.Regression.coefficients(reg), ~f=c =>
+                Poly.(==)(
+                  Bench.Analysis_result.Coefficient.predictor(c),
+                  `Runs,
+                )
+              )
+            ) {
+            | Some(c) => Bench.Analysis_result.Coefficient.estimate(c)
+            | None => Float.nan
+            }
           | None => Float.nan
-          }
-        | None => Float.nan
-        };
-      Printf.sprintf(
-        {|  {"name": "%s", "time_ns": %.2f, "samples": %d}|},
-        Bench.Analysis_result.name(r),
-        time_per_run,
-        Bench.Analysis_result.sample_count(r),
-      );
-    });
+          };
+        Printf.sprintf(
+          {|  {"name": "%s", "time_ns": %.2f, "samples": %d}|},
+          Bench.Analysis_result.name(r),
+          time_per_run,
+          Bench.Analysis_result.sample_count(r),
+        );
+      },
+    );
   print_endline("[");
   print_endline(String.concat(entries, ~sep=",\n"));
   print_endline("]");
@@ -245,7 +274,8 @@ let output_json = (results: list(Bench.Analysis_result.t)): unit => {
 /* --- Main --- */
 
 let () = {
-  let json_mode = Array.exists(Sys.get_argv(), ~f=s => String.equal(s, "--json"));
+  let json_mode =
+    Array.exists(Sys.get_argv(), ~f=s => String.equal(s, "--json"));
 
   /* Define all benchmarks */
   let tests =
