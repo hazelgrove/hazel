@@ -1490,6 +1490,308 @@ let selection_tests = [
       @ [Select(Term(Current)), Select(Term(Current))],
     ~goal={|§(1, 2, 3)¦|},
   ),
+  test(
+    ~name="Cmd+D in case rule body: select body",
+    ~acts=
+      mk({|case x | A => ¦1 | B => 2 end|})
+      @ [Select(Term(Current))],
+    ~goal={|case x | A => §1¦ | B => 2 end|},
+  ),
+  test(
+    ~name="Cmd+D in case rule body: body then rule",
+    ~acts=
+      mk({|case x | A => ¦1 | B => 2 end|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|case x §| A => 1¦ | B => 2 end|},
+  ),
+  test(
+    ~name="Cmd+D in case rule body: body then rule then case",
+    ~acts=
+      mk({|case x | A => ¦1 | B => 2 end|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§case x | A => 1 | B => 2 end¦|},
+  ),
+  test(
+    ~name="Cmd+D nested case: body then inner rule",
+    ~acts=
+      mk(
+        {|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|},
+      )
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal=
+      {|case x | A => case y §| C => 1¦ | D => 2 end | B => 3 end|},
+  ),
+  test(
+    ~name="Cmd+D nested case: inner rule then inner case",
+    ~acts=
+      mk(
+        {|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|},
+      )
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal=
+      {|case x | A => §case y | C => 1 | D => 2 end¦ | B => 3 end|},
+  ),
+  test(
+    ~name="Cmd+D nested case: inner case then outer rule",
+    ~acts=
+      mk(
+        {|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|},
+      )
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal=
+      {|case x §| A => case y | C => 1 | D => 2 end¦ | B => 3 end|},
+  ),
+  test(
+    ~name="Cmd+D nested case in last rule: step 1 cursor to inner case",
+    ~acts=
+      mk(
+        {|case x | A => 1 | B => 2 | C => ¦case y | D => 3 | E => 4 end end|},
+      )
+      @ [Select(Term(Current))],
+    ~goal=
+      {|case x | A => 1 | B => 2 | C => §case y | D => 3 | E => 4 end¦ end|},
+  ),
+  test(
+    ~name="Cmd+D nested case in last rule: step 2 inner case to outer rule",
+    ~acts=
+      mk(
+        {|case x | A => 1 | B => 2 | C => ¦case y | D => 3 | E => 4 end end|},
+      )
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal=
+      {|case x | A => 1 | B => 2 §| C => case y | D => 3 | E => 4 end¦ end|},
+  ),
+  test(
+    ~name=
+      "Cmd+D nested let compound body: step 1 cursor to x",
+    ~acts=
+      mk({|let x = 1 in let y = 2 in ¦x + y|})
+      @ [Select(Term(Current))],
+    ~goal={|let x = 1 in let y = 2 in §x¦ + y|},
+  ),
+  test(
+    ~name=
+      "Cmd+D nested let compound body: step 2 x to x+y",
+    ~acts=
+      mk({|let x = 1 in let y = 2 in ¦x + y|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|let x = 1 in let y = 2 in §x + y¦|},
+  ),
+  test(
+    ~name=
+      "Cmd+D nested let compound body: step 3 x+y to inner let",
+    ~acts=
+      mk({|let x = 1 in let y = 2 in ¦x + y|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|let x = 1 in §let y = 2 in x + y¦|},
+  ),
+  test(
+    ~name=
+      "Cmd+D nested let compound body: step 4 inner let to outer let",
+    ~acts=
+      mk({|let x = 1 in let y = 2 in ¦x + y|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§let x = 1 in let y = 2 in x + y¦|},
+  ),
+  test(
+    ~name="Cmd+D nested case in last rule: step 3 outer rule to outer case",
+    ~acts=
+      mk(
+        {|case x | A => 1 | B => 2 | C => ¦case y | D => 3 | E => 4 end end|},
+      )
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal=
+      {|§case x | A => 1 | B => 2 | C => case y | D => 3 | E => 4 end end¦|},
+  ),
+  /* --- Single let with compound body --- */
+  test(
+    ~name="Cmd+D single let compound body: x to x+y",
+    ~acts=
+      mk({|let x = 1 in ¦x + y|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|let x = 1 in §x + y¦|},
+  ),
+  test(
+    ~name="Cmd+D single let compound body: x+y to let",
+    ~acts=
+      mk({|let x = 1 in ¦x + y|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§let x = 1 in x + y¦|},
+  ),
+  /* --- Fun with compound body --- */
+  test(
+    ~name="Cmd+D fun compound body: x to x+y",
+    ~acts=
+      mk({|fun a -> ¦x + y|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|fun a -> §x + y¦|},
+  ),
+  test(
+    ~name="Cmd+D fun compound body: x+y to fun",
+    ~acts=
+      mk({|fun a -> ¦x + y|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§fun a -> x + y¦|},
+  ),
+  /* --- If/then/else --- */
+  test(
+    ~name="Cmd+D in if condition: select cond then if",
+    ~acts=
+      mk({|if ¦x then y else z|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§if x then y else z¦|},
+  ),
+  test(
+    ~name="Cmd+D in then branch: select body then if",
+    ~acts=
+      mk({|if x then ¦y else z|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§if x then y else z¦|},
+  ),
+  test(
+    ~name="Cmd+D in else branch: select body then if",
+    ~acts=
+      mk({|if x then y else ¦z|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§if x then y else z¦|},
+  ),
+  /* --- Let inside case rule --- */
+  test(
+    ~name="Cmd+D let in case rule: body to let",
+    ~acts=
+      mk({|case x | A => let y = 1 in ¦y | B => 2 end|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal=
+      {|case x | A => §let y = 1 in y¦ | B => 2 end|},
+  ),
+  test(
+    ~name="Cmd+D let in case rule: let to rule",
+    ~acts=
+      mk({|case x | A => let y = 1 in ¦y | B => 2 end|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal=
+      {|case x §| A => let y = 1 in y¦ | B => 2 end|},
+  ),
+  test(
+    ~name="Cmd+D let in case rule: rule to case",
+    ~acts=
+      mk({|case x | A => let y = 1 in ¦y | B => 2 end|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal=
+      {|§case x | A => let y = 1 in y | B => 2 end¦|},
+  ),
+  /* --- Case with single rule --- */
+  test(
+    ~name="Cmd+D in single-rule case: body to rule",
+    ~acts=
+      mk({|case x | A => ¦y end|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|case x §| A => y¦ end|},
+  ),
+  test(
+    ~name="Cmd+D in single-rule case: rule to case",
+    ~acts=
+      mk({|case x | A => ¦y end|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§case x | A => y end¦|},
+  ),
+  /* --- Compound def expression --- */
+  test(
+    ~name="Cmd+D compound def: f to f(y)",
+    ~acts=
+      mk({|let x = ¦f(y) in x|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|let x = §f(y)¦ in x|},
+  ),
+  test(
+    ~name="Cmd+D compound def: f(y) to let header",
+    ~acts=
+      mk({|let x = ¦f(y) in x|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§let x = f(y) in¦ x|},
+  ),
+  test(
+    ~name="Cmd+D compound def: let header to full let",
+    ~acts=
+      mk({|let x = ¦f(y) in x|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§let x = f(y) in x¦|},
+  ),
+  /* --- Pipeline / chained binops --- */
+  test(
+    ~name="Cmd+D in chained binop: x to x+y (left assoc)",
+    ~acts=
+      mk({|¦x + y + z|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§x + y¦ + z|},
+  ),
+  test(
+    ~name="Cmd+D in chained binop: x+y to x+y+z",
+    ~acts=
+      mk({|¦x + y + z|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§x + y + z¦|},
+  ),
 ];
 
 /* Check that no incomplete tiles exist anywhere in a segment (recursive). */
@@ -1777,6 +2079,59 @@ let module_tests = [
     ~name="Module: Empty module as let definition",
     ~acts=mk({|let m = ¦|}) @ [Insert("{"), Put_down],
     ~goal={|let m = {?}¦|},
+  ),
+  /* --- Module Cmd+D selection tests --- */
+  test(
+    ~name="Module Cmd+D: step 1 value to ModLet",
+    ~acts=
+      mk({|let m = { let x = ¦1; let y = 2 } in m|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|let m = { §let x = 1¦; let y = 2 } in m|},
+  ),
+  test(
+    ~name="Module Cmd+D: step 2 ModLet to module",
+    ~acts=
+      mk({|let m = { let x = ¦1; let y = 2 } in m|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|let m = §{ let x = 1; let y = 2 }¦ in m|},
+  ),
+  test(
+    ~name="Module Cmd+D: second ModLet to module",
+    ~acts=
+      mk({|let m = { let x = 1; let y = ¦2 } in m|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|let m = §{ let x = 1; let y = 2 }¦ in m|},
+  ),
+  test(
+    ~name="Module Cmd+D: ModType to module",
+    ~acts=
+      mk({|let m = { type T = ¦Int; let x = 1 } in m|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|let m = §{ type T = Int; let x = 1 }¦ in m|},
+  ),
+  /* --- Module with 3 items: shouldn't jump between items --- */
+  test(
+    ~name="Module Cmd+D: last of 3 items to module",
+    ~acts=
+      mk({|let m = { let a = 1; let b = 2; let c = ¦3 } in m|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|let m = §{ let a = 1; let b = 2; let c = 3 }¦ in m|},
   ),
 ];
 
