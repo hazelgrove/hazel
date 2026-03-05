@@ -1372,6 +1372,124 @@ let selection_tests = [
       @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
     ~goal={|§Some(1)¦|},
   ),
+  /* --- Select(Term(Current)) with existing selection --- */
+  /* When selection matches a term, Cmd+D escalates to parent */
+  test(
+    ~name="Cmd+D from no selection: select indicated term",
+    ~acts=mk({|1 + ¦2|}) @ [Select(Term(Current))],
+    ~goal={|1 + §2¦|},
+  ),
+  test(
+    ~name="Cmd+D from term selection: escalate to parent",
+    ~acts=
+      mk({|1 + ¦2|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§1 + 2¦|},
+  ),
+  test(
+    ~name="Cmd+D on operand in tuple: escalate to binop",
+    ~acts=
+      mk({|(¦1 + 2, 3)|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|(§1 + 2¦, 3)|},
+  ),
+  test(
+    ~name="Cmd+D on operand in tuple: escalate to tuple/parens",
+    ~acts=
+      mk({|(¦1 + 2, 3)|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§(1 + 2, 3)¦|},
+  ),
+  test(
+    ~name="Cmd+D from Smart(2) token: round up to containing term",
+    ~acts=
+      mk({|1 ¦+ 2|})
+      @ [Select(Smart(2)), Select(Term(Current))],
+    ~goal={|§1 + 2¦|},
+  ),
+  test(
+    ~name="Cmd+D on function name: select fn, then escalate to app",
+    ~acts=
+      mk({|¦f(x)|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§f(x)¦|},
+  ),
+  test(
+    ~name="Cmd+D on arg inside app: select arg, then app",
+    ~acts=
+      mk({|f(¦x)|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§f(x)¦|},
+  ),
+  test(
+    ~name="Cmd+D on inner parens: escalate from inner to outer",
+    ~acts=
+      mk({|((¦c))|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§((c))¦|},
+  ),
+  test(
+    ~name="Cmd+D on let body: select body",
+    ~acts=mk({|let x = 1 in ¦x|}) @ [Select(Term(Current))],
+    ~goal={|let x = 1 in §x¦|},
+  ),
+  test(
+    ~name="Cmd+D on let body: body then full let",
+    ~acts=
+      mk({|let x = 1 in ¦x|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§let x = 1 in x¦|},
+  ),
+  test(
+    ~name="Cmd+D on nested let body: select body",
+    ~acts=
+      mk({|let x = 1 in let y = 2 in ¦y|})
+      @ [Select(Term(Current))],
+    ~goal={|let x = 1 in let y = 2 in §y¦|},
+  ),
+  test(
+    ~name="Cmd+D on nested let body: body then inner let",
+    ~acts=
+      mk({|let x = 1 in let y = 2 in ¦y|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|let x = 1 in §let y = 2 in y¦|},
+  ),
+  test(
+    ~name="Cmd+D on nested let body: body through outer let",
+    ~acts=
+      mk({|let x = 1 in let y = 2 in ¦y|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§let x = 1 in let y = 2 in y¦|},
+  ),
+  test(
+    ~name="Cmd+D on def header then full let: no cycling",
+    ~acts=
+      mk({|¦let x = 1 in x|})
+      @ [
+        Select(Term(Current)),
+        Select(Term(Current)),
+      ],
+    ~goal={|§let x = 1 in x¦|},
+  ),
+  test(
+    ~name="Cmd+D inside tuple element: select element, then parens",
+    ~acts=
+      mk({|(1, ¦2, 3)|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§(1, 2, 3)¦|},
+  ),
 ];
 
 /* Check that no incomplete tiles exist anywhere in a segment (recursive). */

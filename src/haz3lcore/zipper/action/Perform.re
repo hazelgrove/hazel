@@ -106,10 +106,10 @@ let go =
        )
     |> return(Cant_select)
   | Select(Term(Current)) =>
-    Select.current_term(
+    Select.select_enclosing_term(
       syntax.term_data,
-      ~defs_exclude_bodies=true,
-      ~case_rules=true,
+      syntax.measured,
+      statics.info_map,
       z,
     )
     |> return(Cant_select)
