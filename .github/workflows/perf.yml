@@ -38,7 +38,9 @@ jobs:
               pull_number: context.issue.number
             });
             core.setOutput('head_ref', pr.data.head.ref);
+            core.setOutput('head_sha', pr.data.head.sha);
             core.setOutput('base_ref', pr.data.base.ref);
+            core.setOutput('base_sha', pr.data.base.sha);
 
       - name: Install node/npm
         uses: actions/setup-node@v4
@@ -51,19 +53,7 @@ jobs:
           ocaml-compiler: 5.2.0
           dune-cache: true
 
-      # --- Benchmark the base branch ---
-      - name: Checkout base branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.pr.outputs.base_ref }}
-          path: base
-
-      - name: Install NPM dependencies (base)
-        run: npm install
-        working-directory: ./base
-
       - name: Cache opam switch
-        id: opam-cache
         uses: actions/cache@v4
         with:
           path: "_opam"
@@ -74,6 +64,17 @@ jobs:
           eval $(opam env)
           export OPAMYES=1
           opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+
+      # --- Benchmark the base branch ---
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.base_sha }}
+          path: base
+
+      - name: Install NPM dependencies (base)
+        run: npm install
+        working-directory: ./base
 
       - name: Install dependencies (base)
         run: |
@@ -98,7 +99,7 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.pr.outputs.head_ref }}
+          ref: ${{ steps.pr.outputs.head_sha }}
           path: head
 
       - name: Install NPM dependencies (head)
@@ -139,6 +140,10 @@ jobs:
             }
             headResults = JSON.parse(fs.readFileSync('head_results.json', 'utf8'));
 
+            const baseSha = '${{ steps.pr.outputs.base_sha }}'.slice(0, 7);
+            const headSha = '${{ steps.pr.outputs.head_sha }}'.slice(0, 7);
+            const baseRef = '${{ steps.pr.outputs.base_ref }}';
+
             // Build lookup from base results
             const baseMap = {};
             for (const r of baseResults) {
@@ -147,7 +152,7 @@ jobs:
 
             // Format nanoseconds nicely
             function formatTime(ns) {
-              if (ns === 0 || isNaN(ns)) return '-';
+              if (ns === undefined || ns === 0 || isNaN(ns)) return '-';
               if (ns >= 1e9) return (ns / 1e9).toFixed(2) + ' s';
               if (ns >= 1e6) return (ns / 1e6).toFixed(2) + ' ms';
               if (ns >= 1e3) return (ns / 1e3).toFixed(2) + ' us';
@@ -163,22 +168,39 @@ jobs:
               return `${sign}${pct.toFixed(1)}%${emoji}`;
             }
 
-            let table = '| Benchmark | Base | PR | Delta |\n';
-            table += '|:---|---:|---:|---:|\n';
+            // Split into edit-cycle and memo sections
+            const editResults = headResults.filter(r => r.name.includes('/edit/'));
+            const memoResults = headResults.filter(r => r.name.includes('/memo/'));
 
-            for (const r of headResults) {
-              const baseTime = baseMap[r.name];
-              table += `| ${r.name} | ${formatTime(baseTime)} | ${formatTime(r.time_ns)} | ${formatDelta(baseTime, r.time_ns)} |\n`;
+            function makeTable(results) {
+              let table = '| Benchmark | Base | PR | Delta |\n';
+              table += '|:---|---:|---:|---:|\n';
+              for (const r of results) {
+                const baseTime = baseMap[r.name];
+                table += `| \`${r.name}\` | ${formatTime(baseTime)} | ${formatTime(r.time_ns)} | ${formatDelta(baseTime, r.time_ns)} |\n`;
+              }
+              return table;
             }
 
-            const body = `## Performance Benchmark Results\n\n` +
-              `Comparing \`${{ steps.pr.outputs.base_ref }}\` (base) vs \`${{ steps.pr.outputs.head_ref }}\` (PR)\n\n` +
-              table + '\n' +
-              `<details><summary>Legend</summary>\n\n` +
-              `- :rocket: = >10% faster\n` +
-              `- :warning: = >10% slower\n` +
-              `- "new" = benchmark not present on base branch\n` +
-              `</details>`;
+            let body = `## Performance Benchmark Results\n\n`;
+            body += `**Base:** \`${baseRef}\` @ [\`${baseSha}\`](../commit/${baseSha})\n`;
+            body += `**PR:** [\`${headSha}\`](../commit/${headSha})\n\n`;
+
+            body += `### Edit Cycle (per-keystroke latency)\n\n`;
+            body += makeTable(editResults);
+            body += '\n';
+
+            if (memoResults.length > 0) {
+              body += `<details><summary>Memo-hit overhead (repeated calls, same input)</summary>\n\n`;
+              body += makeTable(memoResults);
+              body += `\n</details>\n\n`;
+            }
+
+            body += `<details><summary>Legend</summary>\n\n`;
+            body += `- :rocket: = >10% faster\n`;
+            body += `- :warning: = >10% slower\n`;
+            body += `- "new" = benchmark not present on base branch\n`;
+            body += `</details>`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
