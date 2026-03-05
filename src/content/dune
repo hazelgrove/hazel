@@ -1,0 +1,6 @@
+(library
+ (name content)
+ (libraries haz3lcore)
+ (wrapped false)
+ (preprocess
+  (pps ppx_sexp_conv ppx_deriving.show)))

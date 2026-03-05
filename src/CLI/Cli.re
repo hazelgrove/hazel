@@ -393,6 +393,94 @@ let probe_hazel = (many: bool, path: string): unit => {
   };
 };
 
+/* Sanitize a slide name into a valid filename */
+let sanitize_filename = (name: string): string => {
+  name
+  |> String.split_on_char(' ')
+  |> String.concat("_")
+  |> String.to_seq
+  |> Seq.filter(c =>
+       c >= 'a'
+       && c <= 'z'
+       || c >= 'A'
+       && c <= 'Z'
+       || c >= '0'
+       && c <= '9'
+       || c == '_'
+       || c == '-'
+     )
+  |> String.of_seq;
+};
+
+/* Export documentation slides as .hz files */
+let export_hazel = (filter, output_dir) => {
+  // TODO figure out a way to reference init slides without depending on the entire Init module
+  let all_slides =
+    [
+      BasicReference.out,
+      Projectors.out,
+      ADTs.out,
+      Tuples.out,
+      Tables.out,
+      Polymorphism.out,
+      Cards.out,
+      Probes.out,
+      Livelits.out,
+    ]
+    @ B2t2.Slides.all_slides;
+
+  let slides =
+    switch (filter) {
+    | None => all_slides
+    | Some(f) =>
+      List.filter(
+        ((name, _)) => {
+          let name_lower = String.lowercase_ascii(name);
+          let f_lower = String.lowercase_ascii(f);
+          Core.String.is_substring(name_lower, ~substring=f_lower);
+        },
+        all_slides,
+      )
+    };
+
+  if (List.length(slides) == 0) {
+    prerr_endline("No slides matched the filter.");
+    `Error((false, "No matching slides"));
+  } else {
+    /* Create output directory if it doesn't exist */
+    if (!Sys.file_exists(output_dir)) {
+      ignore(Sys.command("mkdir -p " ++ Filename.quote(output_dir)));
+    };
+
+    let count = ref(0);
+    List.iter(
+      ((name, persistent_segment: Haz3lcore.PersistentSegment.t)) => {
+        let zipper = Haz3lcore.PersistentSegment.restore(persistent_segment);
+        let segment =
+          Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+        let output =
+          Haz3lcore.Printer.of_segment(
+            ~holes="?",
+            ~indent=" ",
+            ~refractors=zipper.refractors.manuals,
+            segment,
+          );
+        let filename = sanitize_filename(name) ++ ".hz";
+        let path = Filename.concat(output_dir, filename);
+        Core.Out_channel.write_all(path, ~data=output ++ "\n");
+        print_endline("Exported: " ++ filename);
+        incr(count);
+      },
+      slides,
+    );
+
+    print_endline(
+      "\nExported " ++ string_of_int(count^) ++ " slide(s) to " ++ output_dir,
+    );
+    `Ok();
+  };
+};
+
 /* Common arg: path or "-" for stdin */
 let input_arg = {
   let doc = "Path to Hazel source file, or '-' to read from stdin.";
@@ -447,11 +535,33 @@ let test_cmd = {
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
 };
 
+let export_cmd = {
+  let doc = "Export documentation slides as .hz files.";
+  let filter_arg = {
+    let doc = "Only export slides whose name contains this string.";
+    Arg.(value & opt(some(string), None) & info(["filter", "f"], ~doc));
+  };
+  let output_arg = {
+    let doc = "Output directory for .hz files.";
+    Arg.(
+      required & pos(0, some(string), None) & info([], ~docv="DIR", ~doc)
+    );
+  };
+  let info = Cmd.info("export", ~doc);
+  Cmd.v(
+    info,
+    Term.ret(Term.(const(export_hazel) $ filter_arg $ output_arg)),
+  );
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
-  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd]);
+  Cmd.group(
+    info,
+    [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd, export_cmd],
+  );
 };
 
 let () = exit(Cmd.eval(default_cmd));

@@ -36,6 +36,7 @@
   util
   ppx_yojson_conv.expander
   haz3lcore
+  content
   b2t2
   pretty
   omd)
