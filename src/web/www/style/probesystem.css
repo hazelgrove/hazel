@@ -241,10 +241,9 @@ body:not(:has(.live-offside:focus))
 #probesys .legend .legend-tooltip {
   display: none;
   position: absolute;
-  top: 60%;
-  left: 0;
-  right: 0;
-  /* margin-top: 0.25em; */
+  top: 59%;
+  left: 0.4em;
+  right: 0.4em;
   padding: 0.5em 0.75em;
   background-color: var(--BR1);
   color: var(--BR4);
@@ -253,7 +252,7 @@ body:not(:has(.live-offside:focus))
   line-height: 1.4;
   white-space: normal;
   z-index: 10;
-  min-height: 4em;
+  min-height: 3.5em;
   align-items: center;
   justify-content: center;
 }
@@ -407,7 +406,7 @@ body:not(:has(.live-offside:focus))
 #probesys .legend .segmented-control .segment .legend-tooltip {
   display: none;
   position: absolute;
-  top: 101%;
+  top: 125%;
   left: 0;
   right: 0;
   padding: 0.5em 0.75em;
@@ -496,7 +495,7 @@ body:not(:has(.live-offside:focus))
 #probesys .toggle-controls .legend-tooltip {
   display: none;
   position: absolute;
-  top: 101%;
+  top: 110%;
   left: 0;
   right: 0;
   padding: 0.5em 0.75em;
