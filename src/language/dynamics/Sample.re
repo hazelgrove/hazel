@@ -610,20 +610,59 @@ module Selection = {
           predicate(Cursor.relation(~trimmed=true, ~ap_id, cursor, sample)),
         samples,
       );
-    switch (full_match) {
-    | Some(_) as result => result
-    | None =>
-      switch (find(rel => rel.is_call_cursor)) {
+    let result =
+      switch (full_match) {
       | Some(_) as result => result
       | None =>
-        switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+        switch (find(rel => rel.is_call_cursor)) {
         | Some(_) as result => result
         | None =>
-          let indirect = find(rel => rel.is_below_indicated_call != None);
-          indirect == None ? find(Cursor.is_related) : indirect;
+          switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+          | Some(_) as result => result
+          | None =>
+            let indirect = find(rel => rel.is_below_indicated_call != None);
+            indirect == None ? find(Cursor.is_related) : indirect;
+          }
         }
-      }
+      };
+    if (cursor.indicated_call != None && List.length(samples) > 1) {
+      let tier =
+        switch (full_match) {
+        | Some(_) => "1-suffix"
+        | None =>
+          switch (find(rel => rel.is_call_cursor)) {
+          | Some(_) => "2-call"
+          | None =>
+            switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+            | Some(_) => "3-indicated"
+            | None => "4-fallback"
+            }
+          }
+        };
+      print_endline(
+        "[most_aligned] tier="
+        ++ tier
+        ++ " result="
+        ++ (
+          switch (result) {
+          | Some(i) => string_of_int(i)
+          | None => "None"
+          }
+        )
+        ++ " eff_len="
+        ++ string_of_int(List.length(eff))
+        ++ " stack_len="
+        ++ string_of_int(List.length(cursor.call_stack))
+        ++ " indicated="
+        ++ (
+          switch (cursor.indicated_call) {
+          | Some(id) => Id.to_string(id)
+          | None => "None"
+          }
+        ),
+      );
     };
+    result;
   };
 
   /* Find sample most aligned with the cursor's call path.

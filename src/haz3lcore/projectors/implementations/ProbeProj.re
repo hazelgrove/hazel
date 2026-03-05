@@ -197,6 +197,32 @@ let select_samples =
       dynamics.sample_cursor,
       samples,
     );
+  if (settings.window == Single && List.length(samples) > 1) {
+    print_endline(
+      "[select_samples] id="
+      ++ Id.to_string(id)
+      ++ " num_samples="
+      ++ string_of_int(List.length(samples))
+      ++ " first_idx="
+      ++ (
+        switch (first_idx) {
+        | Some(i) => string_of_int(i)
+        | None => "None"
+        }
+      )
+      ++ " indicated_call="
+      ++ (
+        switch (dynamics.sample_cursor.indicated_call) {
+        | Some(id) => Id.to_string(id)
+        | None => "None"
+        }
+      )
+      ++ " cursor_stack_len="
+      ++ string_of_int(List.length(dynamics.sample_cursor.call_stack))
+      ++ " cursor_index="
+      ++ string_of_int(dynamics.sample_cursor.index),
+    );
+  };
   if (first_idx == None && settings.window == Single) {
     [];
   } else {
@@ -457,6 +483,17 @@ let value_view =
       JsUtil.setPointerCapture(target, e##.pointerId);
       ValueState.mousedown := Some(target);
     };
+    print_endline(
+      "[val_pointerdown] ap_id="
+      ++ (
+        switch (ap_id) {
+        | Some(id) => Id.to_string(id)
+        | None => "None"
+        }
+      )
+      ++ " sample_stack_len="
+      ++ string_of_int(List.length(sample.call_stack)),
+    );
     ctx.parent(
       SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)),
     );

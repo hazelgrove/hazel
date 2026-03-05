@@ -23,25 +23,49 @@ let update_pinned_call =
  * the deeper stack but lower the index. This retains the user's prior
  * inner selection so the "read side" (most_aligned_index) can recover it.
  * See Sample.Cursor module comment for the full mechanism. */
-let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t =>
+let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
+  print_endline(
+    "[capture] id="
+    ++ (
+      switch (id) {
+      | Some(id) => Id.to_string(id)
+      | None => "None"
+      }
+    )
+    ++ " stack_len="
+    ++ string_of_int(List.length(data.call_stack))
+    ++ " old_indicated="
+    ++ (
+      switch (z.refractors.sample_cursor.indicated_call) {
+      | Some(id) => Id.to_string(id)
+      | None => "None"
+      }
+    )
+    ++ " old_call_stack_len="
+    ++ string_of_int(List.length(z.refractors.sample_cursor.call_stack)),
+  );
   update(z, sample_cursor =>
     {
       ...sample_cursor,
       time: Some(data.time),
       seq: data.seq,
-      indicated_call: id /*!= None ? id : z.refractors.sample_cursor.indicated_call*/,
+      indicated_call:
+        id != None ? id : z.refractors.sample_cursor.indicated_call,
       call_stack:
-        !
-          ListUtil.is_suffix_of(
-            ~eq=Sample.equal_stack_frame,
-            data.call_stack,
-            sample_cursor.call_stack,
-          )
-          ? data.call_stack : sample_cursor.call_stack,
+        id != None
+          ? data.call_stack
+          : !
+              ListUtil.is_suffix_of(
+                ~eq=Sample.equal_stack_frame,
+                data.call_stack,
+                sample_cursor.call_stack,
+              )
+              ? data.call_stack : sample_cursor.call_stack,
       index: List.length(data.call_stack) - 1,
       step_range: Some((data.step_start, data.step_end)),
     }
   );
+};
 
 let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
   update_pinned_call(z, pinned_call => {
