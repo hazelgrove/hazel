@@ -203,5 +203,25 @@ let tests = (
       "let m : { let x : Int } = { let x = 1 } in 5",
       ["m"],
     ),
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       TUPLE EXTENSION: CO-CONTEXT PROPAGATION
+       The ... operator should propagate co-contexts
+       from both operands.
+       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    check_unused(
+      "tuple extension: variable used in base of spread",
+      "let x = (a=1, b=2) in x ... (a=3)",
+      [],
+    ),
+    check_unused(
+      "tuple extension: variable used in extension of spread",
+      "let x = 1 in (a=1, b=2) ... (a=x)",
+      [],
+    ),
+    check_unused(
+      "tuple extension: fun param used in spread",
+      "fun e -> e ... (a=1)",
+      [],
+    ),
   ],
 );
