@@ -111,16 +111,34 @@ let containing_rule = (z: t): option(t) => {
   Some(z);
 };
 
+/* Check if a piece matches a shard, accounting for reassembled tiles.
+ * A full tile like (0+1,1) matches shard 0 or shard 1 of the same tile. */
+let piece_matches_shard = (piece: Piece.t, shard: Piece.t): bool =>
+  piece == shard
+  || (
+    switch (piece, shard) {
+    | (Tile(t1), Tile(t2)) =>
+      Id.equal(t1.id, t2.id)
+      && (
+        switch (t2.shards) {
+        | [s] => List.mem(s, t1.shards)
+        | _ => false
+        }
+      )
+    | _ => false
+    }
+  );
+
 /* Select the (inclusive) range between two shards */
 let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
   let pl = neighbors =>
     switch (neighbors) {
-    | (_, Some(piece)) => piece == l
+    | (_, Some(piece)) => piece_matches_shard(piece, l)
     | _ => false
     };
   let pr = neighbors =>
     switch (neighbors) {
-    | (Some(piece), _) => piece == r
+    | (Some(piece), _) => piece_matches_shard(piece, r)
     | _ => false
     };
   let* z =
@@ -147,8 +165,15 @@ let current_term =
   | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
   | _ =>
     let* id = current_term_id(z);
-    let* (l, r) = TermData.extremes_shards(id, term_data);
-    shard_range(l, r, z);
+    switch (TermData.extreme_ids(id, term_data)) {
+    | Some((lid, rid)) when Id.equal(lid, rid) =>
+      /* Term bounded by a single tile (parens, brackets, etc.);
+       * shard_range can't handle same-tile extremes after reassembly */
+      tile(lid, z)
+    | _ =>
+      let* (l, r) = TermData.extremes_shards(id, term_data);
+      shard_range(l, r, z);
+    };
   };
 };
 
@@ -282,23 +307,46 @@ let parent_term_id = (z: t, info_map) => {
 
 /* If the indicated term is the body of a definition
  * (`let` or `type`), return the id of the body, otherwise None */
+/* Select a term by its id using term_data extremes, without
+ * needing to navigate to the term first. Used as fallback for
+ * terms whose id doesn't correspond to any tile (e.g., Ap from
+ * juxtaposition, where MakeTerm assigns a fresh id). */
+let term_by_extremes = (id: Id.t, term_data: TermData.t, z: t): option(t) =>
+  switch (TermData.extreme_ids(id, term_data)) {
+  | Some((lid, rid)) when Id.equal(lid, rid) => tile(lid, z)
+  | _ =>
+    let* (l, r) = TermData.extremes_shards(id, term_data);
+    shard_range(l, r, z);
+  };
+
 let parent_of_indicated = (z: t, term_data, info_map) => {
   let* id = parent_term_id(z, info_map);
-  let* z' = Move.jump_to_id_indicated(z, id);
-  /* Annoying special case here: In general when selecting the parent term
-   * we can just use the current term logic, for which we're using the option
-   * that definitions count as 'pseudo-terms', meaning their bodies won't be
-   * selected. But if the indicated term is the body of a definition, this
-   * would result in the parent selection excluding that body, which feels
-   * very weird. Take care in refactoring this, as it's very easy to miss
-   * this case, or to overgeneralize this case (note in particular that
-   * the name and def terms of a def should not exhibit this behavior,
-   * only the body. */
-  switch (def_body_indicated(z, info_map)) {
-  | Some(_) =>
-    current_term(term_data, ~defs_exclude_bodies=false, ~case_rules=true, z')
+  switch (Move.jump_to_id_indicated(z, id)) {
+  | Some(z') =>
+    /* Annoying special case here: In general when selecting the parent term
+     * we can just use the current term logic, for which we're using the option
+     * that definitions count as 'pseudo-terms', meaning their bodies won't be
+     * selected. But if the indicated term is the body of a definition, this
+     * would result in the parent selection excluding that body, which feels
+     * very weird. Take care in refactoring this, as it's very easy to miss
+     * this case, or to overgeneralize this case (note in particular that
+     * the name and def terms of a def should not exhibit this behavior,
+     * only the body. */
+    switch (def_body_indicated(z, info_map)) {
+    | Some(_) =>
+      current_term(
+        term_data,
+        ~defs_exclude_bodies=false,
+        ~case_rules=true,
+        z',
+      )
+    | None =>
+      current_term(term_data, ~defs_exclude_bodies=true, ~case_rules=true, z')
+    }
   | None =>
-    current_term(term_data, ~defs_exclude_bodies=true, ~case_rules=true, z')
+    /* Term id doesn't correspond to a tile (e.g., Ap from juxtaposition);
+     * select by extremes from term_data directly */
+    term_by_extremes(id, term_data, z)
   };
 };
 
@@ -306,17 +354,29 @@ let smart = (term_data, info_map, n, z: t): option(t) => {
   switch (n) {
   | 2 => indicated_token(z)
   | 3 =>
-    let* {piece: p, _} = Indicated.for_decoration(z);
-    /* For things where triple-clicking would otherwise have
-     * no additional effect, select the parent term instead */
-    Piece.is_term(p)
-      ? parent_of_indicated(z, term_data, info_map)
-      : current_term(
-          term_data,
-          ~defs_exclude_bodies=true,
-          ~case_rules=true,
-          z,
-        );
+    /* Use the selected piece from Smart(2) to determine what
+     * term to select. This avoids the fragile unselect-then-
+     * re-indicate pattern, which fails when reassembly after
+     * unselect changes the cursor's structural position (e.g.
+     * creating ancestors from multi-shard tile shards). */
+    switch (z.selection.content) {
+    | [p] when Piece.is_term(p) =>
+      /* Single-token term: Smart(2) already selected the whole
+       * term, so Smart(3) escalates to the parent term. Unselect
+       * to anchor side (safe for single-token terms). */
+      let z0 =
+        Zipper.directional_unselect(Direction.toggle(z.selection.focus), z);
+      parent_of_indicated(z0, term_data, info_map);
+    | [p] =>
+      /* Non-term token (operator, delimiter, multi-shard tile):
+       * select the term containing this token. Jump to the piece
+       * by ID, which navigates independently of the current
+       * cursor position. */
+      let id = Piece.id(p);
+      let z = Zipper.unselect(z);
+      term(~defs_exclude_bodies=true, ~case_rules=true, term_data, id, z);
+    | _ => None
+    }
   | _ => None
   };
 };
