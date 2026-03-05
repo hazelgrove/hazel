@@ -177,6 +177,21 @@ let current_term =
   };
 };
 
+/* Select a term by its id using term_data extremes, without
+ * needing to navigate to the term first. Used as fallback for
+ * terms whose id doesn't correspond to any tile (e.g., Ap from
+ * juxtaposition, where MakeTerm assigns a fresh id). */
+let term_by_extremes = (id: Id.t, term_data: TermData.t, z: t): option(t) =>
+  switch (TermData.extreme_ids(id, term_data)) {
+  | Some((lid, rid)) when Id.equal(lid, rid) => tile(lid, z)
+  | _ =>
+    let* (l, r) = TermData.extremes_shards(id, term_data);
+    shard_range(l, r, z);
+  };
+
+/* Select a term by id. Navigates to the term and uses current_term
+ * (which applies special cases for defs, case rules, comma→parens).
+ * Falls back to term_by_extremes for virtual term ids. */
 let term =
     (
       ~defs_exclude_bodies: bool,
@@ -185,10 +200,11 @@ let term =
       id: Id.t,
       z: t,
     )
-    : option(t) => {
-  let* z = Move.jump_to_id_indicated(z, id);
-  current_term(term_data, ~defs_exclude_bodies, ~case_rules, z);
-};
+    : option(t) =>
+  switch (Move.jump_to_id_indicated(z, id)) {
+  | Some(z) => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z)
+  | None => term_by_extremes(id, term_data, z)
+  };
 
 /* Select the containing run of secondary if any */
 let containing_secondary_run = (z: t): option(t) => {
@@ -305,48 +321,69 @@ let parent_term_id = (z: t, info_map) => {
   };
 };
 
-/* If the indicated term is the body of a definition
- * (`let` or `type`), return the id of the body, otherwise None */
-/* Select a term by its id using term_data extremes, without
- * needing to navigate to the term first. Used as fallback for
- * terms whose id doesn't correspond to any tile (e.g., Ap from
- * juxtaposition, where MakeTerm assigns a fresh id). */
-let term_by_extremes = (id: Id.t, term_data: TermData.t, z: t): option(t) =>
-  switch (TermData.extreme_ids(id, term_data)) {
-  | Some((lid, rid)) when Id.equal(lid, rid) => tile(lid, z)
-  | _ =>
-    let* (l, r) = TermData.extremes_shards(id, term_data);
-    shard_range(l, r, z);
-  };
-
 let parent_of_indicated = (z: t, term_data, info_map) => {
   let* id = parent_term_id(z, info_map);
-  switch (Move.jump_to_id_indicated(z, id)) {
-  | Some(z') =>
-    /* Annoying special case here: In general when selecting the parent term
-     * we can just use the current term logic, for which we're using the option
-     * that definitions count as 'pseudo-terms', meaning their bodies won't be
-     * selected. But if the indicated term is the body of a definition, this
-     * would result in the parent selection excluding that body, which feels
-     * very weird. Take care in refactoring this, as it's very easy to miss
-     * this case, or to overgeneralize this case (note in particular that
-     * the name and def terms of a def should not exhibit this behavior,
-     * only the body. */
+  /* Annoying special case here: In general when selecting the parent term
+   * we can just use the current term logic, for which we're using the option
+   * that definitions count as 'pseudo-terms', meaning their bodies won't be
+   * selected. But if the indicated term is the body of a definition, this
+   * would result in the parent selection excluding that body, which feels
+   * very weird. Take care in refactoring this, as it's very easy to miss
+   * this case, or to overgeneralize this case (note in particular that
+   * the name and def terms of a def should not exhibit this behavior,
+   * only the body. */
+  let defs_exclude_bodies =
     switch (def_body_indicated(z, info_map)) {
-    | Some(_) =>
-      current_term(
-        term_data,
-        ~defs_exclude_bodies=false,
-        ~case_rules=true,
-        z',
-      )
-    | None =>
-      current_term(term_data, ~defs_exclude_bodies=true, ~case_rules=true, z')
-    }
-  | None =>
-    /* Term id doesn't correspond to a tile (e.g., Ap from juxtaposition);
-     * select by extremes from term_data directly */
-    term_by_extremes(id, term_data, z)
+    | Some(_) => false
+    | None => true
+    };
+  term(~defs_exclude_bodies, ~case_rules=true, term_data, id, z);
+};
+
+/* Select the smallest term strictly enclosing the current
+ * selection (or cursor position if no selection). For empty
+ * selections, this is the indicated term. For non-empty
+ * selections, we find the root term of the selection using
+ * measured ranges, then either select it (if it's bigger
+ * than the selection) or escalate to its parent (if the
+ * selection already covers it). */
+let select_enclosing_term =
+    (
+      term_data: TermData.t,
+      measured: Measured.t,
+      info_map: Language.Statics.Map.t,
+      z: t,
+    )
+    : option(t) => {
+  switch (z.selection.content) {
+  | [] =>
+    current_term(term_data, ~defs_exclude_bodies=true, ~case_rules=true, z)
+  | sel =>
+    let* root_id =
+      TermData.get_root_id_using_ranges(sel, term_data, measured);
+    let z0 = Zipper.unselect(z);
+    let select = term(~case_rules=true, term_data);
+    let without_excl = select(~defs_exclude_bodies=false, root_id, z0);
+    let matches_sel =
+      fun
+      | Some(z') => z'.selection.content == sel
+      | None => false;
+    if (matches_sel(without_excl)) {
+      /* Selection covers root term (including body): escalate to parent */
+      let* info = Id.Map.find_opt(root_id, info_map);
+      let* parent_id =
+        Language.Info.ancestors_of(info) |> ListUtil.hd_opt;
+      let defs_exclude_bodies =
+        switch (def_body_indicated(z0, info_map)) {
+        | Some(_) => false
+        | None => true
+        };
+      select(~defs_exclude_bodies, parent_id, z0);
+    } else {
+      /* Selection is partial or matches only def header:
+       * round up to root term (including body) */
+      without_excl;
+    };
   };
 };
 
