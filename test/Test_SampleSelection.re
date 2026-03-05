@@ -1220,6 +1220,149 @@ let recursive_tests = [
   ),
 ];
 
+/* --- Test: call-click alignment ---
+ *
+ * Scenario: function f called 3 times at top level.
+ * Probe inside f on parameter x: 3 samples with call_stacks [A], [B], [C].
+ * Probes on f(1), f(2), f(3): each has 1 top-level sample (call_stack=[]).
+ *
+ * When user clicks on the probe for f(2), in Single mode the inner probe
+ * should show the sample from that call. The click should set:
+ *   cursor = {call_stack: [], index: -1, indicated_call: Some(app_id_f2)}
+ *
+ * Selection logic: tiers 1a/1b (suffix scan) fail because cursor stack is [].
+ * Tier 2 (is_call_cursor) fails. Tier 3 (is_below_indicated_call) should
+ * match the sample whose call_stack contains the indicated app ID. */
+
+let call_click_alignment_tests = [
+  test_case(
+    "call-click: indicated_call aligns inner probe via tier 3",
+    `Quick,
+    () => {
+      let id_app_1 = Id.mk();
+      let id_app_2 = Id.mk();
+      let id_app_3 = Id.mk();
+      /* Inner probe samples: one per call to f */
+      let inner_samples = [
+        mk_sample(~seq=0, [named_frame(id_app_1, "f")]),
+        mk_sample(~seq=1, [named_frame(id_app_2, "f")]),
+        mk_sample(~seq=2, [named_frame(id_app_3, "f")]),
+      ];
+      /* Cursor after clicking call probe for f(2):
+       * capture({call_stack:[], ...}, Some(id_app_2))
+       * → {call_stack: [], index: -1, indicated_call: Some(id_app_2)} */
+      let cursor = mk_cursor(~indicated_call=Some(id_app_2), []);
+      let result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      check(
+        bool,
+        "should find sample from f(2) at index 1",
+        true,
+        result == Some(1),
+      );
+    },
+  ),
+  test_case(
+    "call-click: select Single shows correct inner sample via indicated_call",
+    `Quick,
+    () => {
+      let id_app_1 = Id.mk();
+      let id_app_2 = Id.mk();
+      let id_app_3 = Id.mk();
+      let inner_samples = [
+        mk_sample(~seq=0, [named_frame(id_app_1, "f")]),
+        mk_sample(~seq=1, [named_frame(id_app_2, "f")]),
+        mk_sample(~seq=2, [named_frame(id_app_3, "f")]),
+      ];
+      let cursor = mk_cursor(~indicated_call=Some(id_app_2), []);
+      let selected = do_select(~cursor, inner_samples);
+      check(int, "should show 1 sample", 1, List.length(selected));
+      switch (selected) {
+      | [s] => check(int, "should be sample from f(2) (seq=1)", 1, s.seq)
+      | _ => fail("expected exactly 1 sample")
+      };
+    },
+  ),
+  test_case(
+    "call-click: each call aligns to its own inner sample",
+    `Quick,
+    () => {
+      let id_app_1 = Id.mk();
+      let id_app_2 = Id.mk();
+      let id_app_3 = Id.mk();
+      let inner_samples = [
+        mk_sample(~seq=0, [named_frame(id_app_1, "f")]),
+        mk_sample(~seq=1, [named_frame(id_app_2, "f")]),
+        mk_sample(~seq=2, [named_frame(id_app_3, "f")]),
+      ];
+      /* Click f(1) */
+      let cursor_1 = mk_cursor(~indicated_call=Some(id_app_1), []);
+      let result_1 =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor_1,
+          inner_samples,
+        );
+      check(bool, "f(1) should align to index 0", true, result_1 == Some(0));
+      /* Click f(2) */
+      let cursor_2 = mk_cursor(~indicated_call=Some(id_app_2), []);
+      let result_2 =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor_2,
+          inner_samples,
+        );
+      check(bool, "f(2) should align to index 1", true, result_2 == Some(1));
+      /* Click f(3) */
+      let cursor_3 = mk_cursor(~indicated_call=Some(id_app_3), []);
+      let result_3 =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor_3,
+          inner_samples,
+        );
+      check(bool, "f(3) should align to index 2", true, result_3 == Some(2));
+    },
+  ),
+  test_case(
+    "call-click: WITHOUT indicated_call, always picks first (no discrimination)",
+    `Quick,
+    () => {
+      /* When indicated_call is None (e.g. ap_id not set on call probe),
+       * tier 3 can't fire. The fallback (is_related) finds the first
+       * Below sample, which is always index 0 regardless of which call
+       * was clicked. This test documents the limitation. */
+      let id_app_1 = Id.mk();
+      let id_app_2 = Id.mk();
+      let id_app_3 = Id.mk();
+      let inner_samples = [
+        mk_sample(~seq=0, [named_frame(id_app_1, "f")]),
+        mk_sample(~seq=1, [named_frame(id_app_2, "f")]),
+        mk_sample(~seq=2, [named_frame(id_app_3, "f")]),
+      ];
+      /* Cursor with NO indicated_call — as if click didn't propagate ap_id */
+      let cursor = mk_cursor([]);
+      let result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      /* Falls through to is_related → always finds first sample */
+      check(
+        bool,
+        "without indicated_call, always picks index 0 (first sample)",
+        true,
+        result == Some(0),
+      );
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -1233,5 +1376,6 @@ let tests = (
     intent_preservation_tests,
     three_level_tests,
     recursive_tests,
+    call_click_alignment_tests,
   ]),
 );
