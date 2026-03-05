@@ -92,24 +92,24 @@ let make_fixture = (z: Zipper.t): fixture => {
 
 /* --- Benchmark definitions --- */
 
-let tests_for_size = (label: string, program: string): list(Bench.Test.t) => {
-  /* Parse once upfront (not benchmarked) */
+/* Repeated-call benchmarks: measure memo-hit overhead.
+ * These call functions with the same inputs on every iteration,
+ * so Core.Memo.general will cache the result after the first call.
+ * Useful for understanding the cost of memo lookup itself. */
+let memo_tests_for_size = (label: string, program: string): list(Bench.Test.t) => {
   let z = parse_to_zipper(program);
   let fix = make_fixture(z);
 
   [
-    Bench.Test.create(~name=label ++ "/MakeTerm.go", () =>
+    Bench.Test.create(~name=label ++ "/memo/MakeTerm.go", () =>
       ignore(MakeTerm.go(fix.segment))
     ),
-    Bench.Test.create(~name=label ++ "/Measured.of_segment", () =>
+    Bench.Test.create(~name=label ++ "/memo/Measured.of_segment", () =>
       ignore(
         Measured.of_segment(fix.segment, Id.Map.empty, Id.Map.empty),
       )
     ),
-    Bench.Test.create(~name=label ++ "/CachedSyntax.init", () =>
-      ignore(CachedSyntax.init(fix.z))
-    ),
-    Bench.Test.create(~name=label ++ "/Statics.mk", () =>
+    Bench.Test.create(~name=label ++ "/memo/Statics.mk", () =>
       ignore(
         Statics.mk(
           CoreSettings.on,
@@ -118,13 +118,83 @@ let tests_for_size = (label: string, program: string): list(Bench.Test.t) => {
         ),
       )
     ),
-    Bench.Test.create(~name=label ++ "/Elaborator.elaborate", () =>
+    Bench.Test.create(~name=label ++ "/memo/Elaborator.elaborate", () =>
       ignore(Elaborator.elaborate(fix.info_map, fix.term))
     ),
-    Bench.Test.create(~name=label ++ "/Zipper.move(Left)", () =>
-      ignore(Zipper.move(Left, fix.z))
+  ];
+};
+
+/* Edit-cycle benchmarks: measure the realistic per-keystroke cost.
+ * Each iteration inserts a character into the zipper, producing a fresh
+ * segment with new IDs (Id.mk() generates random UUIDs), so memoization
+ * caches always miss. This is the cold path that determines edit latency.
+ *
+ * The benchmarked phases mirror the production pipeline:
+ *   Insert -> CachedSyntax rebuild -> Statics -> Elaboration */
+let edit_cycle_tests_for_size = (label: string, program: string): list(Bench.Test.t) => {
+  let z = parse_to_zipper(program);
+  let fix = make_fixture(z);
+  let statics = CachedStatics.empty;
+
+  [
+    /* Insert a character (action phase only, no recalculation) */
+    Bench.Test.create(~name=label ++ "/edit/Insert", () =>
+      ignore(
+        Perform.go(
+          ~statics,
+          ~syntax=fix.syntax,
+          Insert("x"),
+          {zipper: fix.z, col_target: None},
+        ),
+      )
     ),
-    Bench.Test.create(~name=label ++ "/Move.go(Left,ByChar)", () =>
+    /* Full edit cycle: insert + CachedSyntax rebuild.
+     * This is the dominant cost on each keystroke: the segment changes,
+     * triggering MakeTerm.go + Measured.of_segment from scratch. */
+    Bench.Test.create(~name=label ++ "/edit/Insert+CachedSyntax", () => {
+      let z =
+        switch (
+          Perform.go(
+            ~statics,
+            ~syntax=fix.syntax,
+            Insert("x"),
+            {zipper: fix.z, col_target: None},
+          )
+        ) {
+        | Ok(z) => z
+        | Error(_) => fix.z
+        };
+      let syntax = CachedSyntax.mark_old(fix.syntax);
+      ignore(CachedSyntax.calculate(z, Id.Map.empty, Id.Map.empty, syntax));
+    }),
+    /* Full edit cycle: insert + CachedSyntax + Statics + Elaboration.
+     * This is the complete calculate phase after a keystroke. */
+    Bench.Test.create(~name=label ++ "/edit/Insert+Full", () => {
+      let z =
+        switch (
+          Perform.go(
+            ~statics,
+            ~syntax=fix.syntax,
+            Insert("x"),
+            {zipper: fix.z, col_target: None},
+          )
+        ) {
+        | Ok(z) => z
+        | Error(_) => fix.z
+        };
+      /* CachedSyntax rebuild */
+      let syntax = CachedSyntax.mark_old(fix.syntax);
+      let _syntax =
+        CachedSyntax.calculate(z, Id.Map.empty, Id.Map.empty, syntax);
+      /* Statics (MakeTerm + type checking + elaboration) */
+      let make_term_result = MakeTerm.from_zip_for_sem(z);
+      let term = make_term_result.term;
+      let info_map =
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+      ignore(Elaborator.elaborate(info_map, term));
+    }),
+    /* Cursor move for comparison (should be ~free) */
+    Bench.Test.create(~name=label ++ "/edit/Move(Left)", () =>
       ignore(
         Move.go(
           ~statics=fix.info_map,
@@ -135,12 +205,6 @@ let tests_for_size = (label: string, program: string): list(Bench.Test.t) => {
         ),
       )
     ),
-    Bench.Test.create(~name=label ++ "/CachedSyntax.rebuild", () => {
-      let old = CachedSyntax.mark_old(fix.syntax);
-      ignore(
-        CachedSyntax.calculate(fix.z, Id.Map.empty, Id.Map.empty, old),
-      );
-    }),
   ];
 };
 
@@ -185,9 +249,11 @@ let () = {
 
   /* Define all benchmarks */
   let tests =
-    tests_for_size("let100", gen_let_chain(100))
-    @ tests_for_size("let500", gen_let_chain(500))
-    @ tests_for_size("case100", gen_case_chain(100));
+    edit_cycle_tests_for_size("let100", gen_let_chain(100))
+    @ edit_cycle_tests_for_size("let500", gen_let_chain(500))
+    @ edit_cycle_tests_for_size("case100", gen_case_chain(100))
+    @ memo_tests_for_size("let100", gen_let_chain(100))
+    @ memo_tests_for_size("let500", gen_let_chain(500));
 
   if (json_mode) {
     let run_config =
