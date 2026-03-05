@@ -412,8 +412,16 @@ let sanitize_filename = (name: string): string => {
   |> String.of_seq;
 };
 
+let strip_projectors = (segment: Haz3lcore.Segment.t): Haz3lcore.Segment.t =>
+  Haz3lcore.ZipperBase.MapPiece.of_segment(
+    fun
+    | Projector(pr) => [pr.syntax]
+    | x => [x],
+    segment,
+  );
+
 /* Export documentation slides as .hz files */
-let export_hazel = (filter, output_dir) => {
+let export_hazel = (format, width, strip, filter, output_dir) => {
   // TODO figure out a way to reference init slides without depending on the entire Init module
   let all_slides =
     [
@@ -458,11 +466,15 @@ let export_hazel = (filter, output_dir) => {
         let zipper = Haz3lcore.PersistentSegment.restore(persistent_segment);
         let segment =
           Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+        let segment = strip ? strip_projectors(segment) : segment;
+        let segment =
+          format
+            ? Haz3lcore.PrettySegment.prettify(~width, segment) : segment;
         let output =
           Haz3lcore.Printer.of_segment(
             ~holes="?",
             ~indent=" ",
-            ~refractors=zipper.refractors.manuals,
+            ~refractors=strip ? [] : zipper.refractors.manuals,
             segment,
           );
         let filename = sanitize_filename(name) ++ ".hz";
@@ -537,6 +549,18 @@ let test_cmd = {
 
 let export_cmd = {
   let doc = "Export documentation slides as .hz files.";
+  let format_arg = {
+    let doc = "Pretty-print exported code.";
+    Arg.(value & flag & info(["format", "F"], ~doc));
+  };
+  let width_arg = {
+    let doc = "Target line width for formatting (default: 60).";
+    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+  };
+  let strip_arg = {
+    let doc = "Remove projectors, keeping only their inner syntax.";
+    Arg.(value & flag & info(["strip-projectors", "s"], ~doc));
+  };
   let filter_arg = {
     let doc = "Only export slides whose name contains this string.";
     Arg.(value & opt(some(string), None) & info(["filter", "f"], ~doc));
@@ -550,7 +574,16 @@ let export_cmd = {
   let info = Cmd.info("export", ~doc);
   Cmd.v(
     info,
-    Term.ret(Term.(const(export_hazel) $ filter_arg $ output_arg)),
+    Term.ret(
+      Term.(
+        const(export_hazel)
+        $ format_arg
+        $ width_arg
+        $ strip_arg
+        $ filter_arg
+        $ output_arg
+      ),
+    ),
   );
 };
 
