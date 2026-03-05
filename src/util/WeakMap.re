@@ -75,3 +75,19 @@ let set = (t: t('k, 'v), k: 'k, v: 'v): unit => {
     };
   ignore(map##set(k, v));
 };
+
+/* Memoize a single-argument function using pointer identity.
+ * Drop-in replacement for Core.Memo.general for single-arg functions
+ * where the argument is a heap-allocated value.
+ * Cache entries are automatically GC'd when the key is no longer referenced. */
+let memoize = (f: 'a => 'b): ('a => 'b) => {
+  let cache = mk();
+  key =>
+    switch (get(cache, key)) {
+    | Some(v) => v
+    | None =>
+      let v = f(key);
+      set(cache, key, v);
+      v;
+    };
+};
