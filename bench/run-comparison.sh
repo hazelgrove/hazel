@@ -17,10 +17,17 @@
 set -euo pipefail
 
 BASE_REF="${1:-dev}"
+
+# Refuse to run with uncommitted changes — the branch switching is too
+# risky to rely on stash/restore, especially with delete/modify conflicts.
+if ! git diff --quiet HEAD 2>/dev/null || ! git diff --cached --quiet HEAD 2>/dev/null; then
+  echo "Error: uncommitted changes detected. Please commit or stash first." >&2
+  exit 1
+fi
+
 RESULTS_DIR=$(mktemp -d)
 BENCH_DIR=$(mktemp -d)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-STASHED=false
 
 # Clean up on exit (normal or error) to always restore head branch state
 cleanup() {
@@ -31,16 +38,6 @@ cleanup() {
     git checkout -f -q "$CURRENT_BRANCH" 2>/dev/null || git checkout -f -q "$CURRENT_SHA"
   elif [ -n "${CURRENT_SHA:-}" ]; then
     git checkout -f -q "$CURRENT_SHA"
-  fi
-
-  # Try to restore stashed changes; on conflict, hard reset and clean
-  if [ "$STASHED" = true ]; then
-    if ! git stash pop -q 2>/dev/null; then
-      echo "==> Stash pop had conflicts, resetting to clean state" >&2
-      git reset --hard -q 2>/dev/null || true
-      git clean -fd -q 2>/dev/null || true
-      git stash drop -q 2>/dev/null || true
-    fi
   fi
 
   # Ensure head branch deps are current
@@ -69,13 +66,6 @@ CURRENT_SHA=$(git rev-parse HEAD)
 BASE_SHA_FULL=$(git rev-parse "$BASE_REF")
 
 echo "==> Checking out base ($BASE_REF @ ${BASE_SHA_FULL:0:7}) as detached HEAD"
-if git stash --include-untracked -q 2>/dev/null; then
-  # Check if stash actually created an entry (git stash exits 0 even if nothing to stash)
-  STASH_SHA=$(git stash list -1 --format='%H' 2>/dev/null || true)
-  if [ -n "$STASH_SHA" ]; then
-    STASHED=true
-  fi
-fi
 git checkout -q "$BASE_SHA_FULL"
 
 # Copy benchmark harness if base doesn't have one
