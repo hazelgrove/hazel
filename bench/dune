@@ -1,0 +1,6 @@
+(executable
+ (name hazel_bench)
+ (libraries core_bench.js web)
+ (modes js)
+ (preprocess
+  (pps ppx_deriving.show)))

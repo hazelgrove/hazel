@@ -18,6 +18,7 @@ module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
+module WeakMap = WeakMap;
 module ContextMenuListener = ContextMenuListener;
 module Key = Key;
 module Os = Os;
