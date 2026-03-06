@@ -99,6 +99,16 @@ jobs:
           opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 
       # --- Benchmark the base branch ---
+      # Use head's benchmark harness for base if base doesn't have one.
+      # This lets us get base numbers even before bench/ is merged.
+      # If head's benchmarks reference APIs that don't exist on base,
+      # the build fails gracefully (continue-on-error) and results show as "new".
+      - name: Copy benchmark harness to base (if missing)
+        run: |
+          if [ ! -d base/bench ]; then
+            cp -r head/bench base/bench
+          fi
+
       - name: Install dependencies (base)
         run: |
           eval $(opam env)
