@@ -81,7 +81,8 @@ let destruct = (d: Direction.t, z: t): option(t) =>
     }
   };
 
-let go = (d: Direction.t, z: t): option(t) =>
+let go = (d: Direction.t, z: t): option(t) => {
+  Grout.suppressed_space := None;
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
   | None =>
@@ -91,3 +92,4 @@ let go = (d: Direction.t, z: t): option(t) =>
       z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
     Zipper.rescan_reassemble(d, z);
   };
+};
