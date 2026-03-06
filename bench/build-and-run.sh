@@ -12,7 +12,7 @@ eval $(opam env) 2>/dev/null || true
 export OPAMYES=1
 
 echo "==> Installing dependencies" >&2
-opam install . --deps-only --locked -q
+opam install . --deps-only --locked -q >&2
 
 echo "==> Building benchmarks" >&2
 dune build bench/hazel_bench.bc.js >&2
