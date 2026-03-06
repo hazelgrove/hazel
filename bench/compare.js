@@ -1,17 +1,21 @@
 #!/usr/bin/env node
-/* Compare two benchmark JSON files and print a table.
+/* Compare two benchmark JSON files.
  *
  * Usage:
- *   node bench/compare.js base.json head.json
+ *   node bench/compare.js base.json head.json              # terminal table
+ *   node bench/compare.js base.json head.json --markdown   # GitHub markdown
  *
- * Also used by the GitHub Actions perf workflow. */
+ * Shared by both the local comparison script and the CI workflow. */
 
 const fs = require('fs');
 
-const [,, baseFile, headFile] = process.argv;
+const args = process.argv.slice(2);
+const markdown = args.includes('--markdown');
+const files = args.filter(a => !a.startsWith('--'));
+const [baseFile, headFile] = files;
 
 if (!baseFile || !headFile) {
-  console.error('Usage: node bench/compare.js <base.json> <head.json>');
+  console.error('Usage: node bench/compare.js <base.json> <head.json> [--markdown]');
   process.exit(1);
 }
 
@@ -21,7 +25,13 @@ try {
 } catch (e) {
   console.error(`Warning: could not read base results (${e.message})`);
 }
-const headResults = JSON.parse(fs.readFileSync(headFile, 'utf8'));
+
+let headResults = [];
+try {
+  headResults = JSON.parse(fs.readFileSync(headFile, 'utf8'));
+} catch (e) {
+  console.error(`Warning: could not read head results (${e.message})`);
+}
 
 const baseMap = {};
 for (const r of baseResults) {
@@ -41,38 +51,76 @@ function formatDelta(base, head) {
   if (head === 0 || isNaN(head)) return '-';
   const pct = ((head - base) / base * 100);
   const sign = pct >= 0 ? '+' : '';
-  const emoji = pct > 10 ? ' ⚠️' : pct < -10 ? ' 🚀' : '';
-  return `${sign}${pct.toFixed(1)}%${emoji}`;
-}
-
-function printTable(title, results) {
-  if (results.length === 0) return;
-  console.log(`\n${title}`);
-
-  const nameWidth = Math.max(10, ...results.map(r => r.name.length));
-  const colWidth = 12;
-
-  const header = 'Benchmark'.padEnd(nameWidth) + '  ' +
-    'Base'.padStart(colWidth) + '  ' +
-    'Head'.padStart(colWidth) + '  ' +
-    'Delta'.padStart(colWidth);
-  console.log(header);
-  console.log('-'.repeat(header.length));
-
-  for (const r of results) {
-    const baseTime = baseMap[r.name];
-    console.log(
-      r.name.padEnd(nameWidth) + '  ' +
-      formatTime(baseTime).padStart(colWidth) + '  ' +
-      formatTime(r.time_ns).padStart(colWidth) + '  ' +
-      formatDelta(baseTime, r.time_ns).padStart(colWidth)
-    );
+  if (markdown) {
+    const emoji = pct > 10 ? ' :warning:' : pct < -10 ? ' :rocket:' : '';
+    return `${sign}${pct.toFixed(1)}%${emoji}`;
+  } else {
+    const emoji = pct > 10 ? ' ⚠️' : pct < -10 ? ' 🚀' : '';
+    return `${sign}${pct.toFixed(1)}%${emoji}`;
   }
 }
 
 const editResults = headResults.filter(r => r.name.includes('/edit/'));
 const memoResults = headResults.filter(r => r.name.includes('/memo/'));
 
-printTable('Edit Cycle (per-keystroke latency)', editResults);
-printTable('Memo-hit overhead (repeated calls, same input)', memoResults);
-console.log();
+if (markdown) {
+  // GitHub-flavored markdown output
+  function makeTable(results) {
+    let table = '| Benchmark | Base | PR | Delta |\n';
+    table += '|:---|---:|---:|---:|\n';
+    for (const r of results) {
+      const baseTime = baseMap[r.name];
+      table += `| \`${r.name}\` | ${formatTime(baseTime)} | ${formatTime(r.time_ns)} | ${formatDelta(baseTime, r.time_ns)} |\n`;
+    }
+    return table;
+  }
+
+  if (headResults.length === 0) {
+    console.log(':x: Benchmarks failed to build or run.');
+  } else {
+    console.log('### Edit Cycle (per-keystroke latency)\n');
+    console.log(makeTable(editResults));
+
+    if (memoResults.length > 0) {
+      console.log('<details><summary>Memo-hit overhead (repeated calls, same input)</summary>\n');
+      console.log(makeTable(memoResults));
+      console.log('</details>\n');
+    }
+
+    console.log('<details><summary>Legend</summary>\n');
+    console.log('- :rocket: = >10% faster');
+    console.log('- :warning: = >10% slower');
+    console.log('- "new" = benchmark not present on base branch');
+    console.log('</details>');
+  }
+} else {
+  // Terminal table output
+  function printTable(title, results) {
+    if (results.length === 0) return;
+    console.log(`\n${title}`);
+
+    const nameWidth = Math.max(10, ...results.map(r => r.name.length));
+    const colWidth = 12;
+
+    const header = 'Benchmark'.padEnd(nameWidth) + '  ' +
+      'Base'.padStart(colWidth) + '  ' +
+      'Head'.padStart(colWidth) + '  ' +
+      'Delta'.padStart(colWidth);
+    console.log(header);
+    console.log('-'.repeat(header.length));
+
+    for (const r of results) {
+      const baseTime = baseMap[r.name];
+      console.log(
+        r.name.padEnd(nameWidth) + '  ' +
+        formatTime(baseTime).padStart(colWidth) + '  ' +
+        formatTime(r.time_ns).padStart(colWidth) + '  ' +
+        formatDelta(baseTime, r.time_ns).padStart(colWidth)
+      );
+    }
+  }
+
+  printTable('Edit Cycle (per-keystroke latency)', editResults);
+  printTable('Memo-hit overhead (repeated calls, same input)', memoResults);
+  console.log();
+}

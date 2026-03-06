@@ -109,40 +109,27 @@ jobs:
             cp -r head/bench base/bench
           fi
 
-      - name: Install dependencies (base)
-        run: |
-          eval $(opam env)
-          export OPAMYES=1
-          npm install
-          opam install . --deps-only --locked
-          opam exec -- make setup-zarith
+      - name: Setup zarith (base)
+        run: opam exec -- make setup-zarith
         working-directory: ./base
+        continue-on-error: true
 
       - name: Build and run benchmarks (base)
         run: |
-          eval $(opam env)
-          export DUNE_CACHE=enabled
-          dune build bench/hazel_bench.bc.js
-          node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json 2>&1 | sed -n '/^\[/,/^\]/p' > ../base_results.json
+          npm install
+          bash bench/build-and-run.sh > ../base_results.json
         working-directory: ./base
         continue-on-error: true
 
       # --- Benchmark the PR branch ---
-      - name: Install dependencies (head)
-        run: |
-          eval $(opam env)
-          export OPAMYES=1
-          npm install
-          opam install . --deps-only --locked
-          opam exec -- make setup-zarith
+      - name: Setup zarith (head)
+        run: opam exec -- make setup-zarith
         working-directory: ./head
 
       - name: Build and run benchmarks (head)
         run: |
-          eval $(opam env)
-          export DUNE_CACHE=enabled
-          dune build bench/hazel_bench.bc.js
-          node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json 2>&1 | sed -n '/^\[/,/^\]/p' > ../head_results.json
+          npm install
+          bash bench/build-and-run.sh > ../head_results.json
         working-directory: ./head
 
       # --- Compare and post results ---
@@ -151,80 +138,26 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-
-            let baseResults = [];
-            let headResults = [];
-            try {
-              baseResults = JSON.parse(fs.readFileSync('base_results.json', 'utf8'));
-            } catch (e) {
-              console.log('No base results (benchmark may not exist on base branch)');
-            }
-            try {
-              headResults = JSON.parse(fs.readFileSync('head_results.json', 'utf8'));
-            } catch (e) {
-              console.log('No head results');
-            }
+            const { execSync } = require('child_process');
 
             const baseSha = '${{ steps.pr.outputs.base_sha }}'.slice(0, 7);
             const headSha = '${{ steps.pr.outputs.head_sha }}'.slice(0, 7);
             const baseRef = '${{ steps.pr.outputs.base_ref }}';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
-            const baseMap = {};
-            for (const r of baseResults) { baseMap[r.name] = r.time_ns; }
-
-            function formatTime(ns) {
-              if (ns === undefined || ns === 0 || isNaN(ns)) return '-';
-              if (ns >= 1e9) return (ns / 1e9).toFixed(2) + ' s';
-              if (ns >= 1e6) return (ns / 1e6).toFixed(2) + ' ms';
-              if (ns >= 1e3) return (ns / 1e3).toFixed(2) + ' us';
-              return ns.toFixed(0) + ' ns';
-            }
-
-            function formatDelta(base, head) {
-              if (!base || base === 0 || isNaN(base)) return 'new';
-              if (head === 0 || isNaN(head)) return '-';
-              const pct = ((head - base) / base * 100);
-              const sign = pct >= 0 ? '+' : '';
-              const emoji = pct > 10 ? ' :warning:' : pct < -10 ? ' :rocket:' : '';
-              return `${sign}${pct.toFixed(1)}%${emoji}`;
-            }
-
-            function makeTable(results) {
-              let table = '| Benchmark | Base | PR | Delta |\n';
-              table += '|:---|---:|---:|---:|\n';
-              for (const r of results) {
-                const baseTime = baseMap[r.name];
-                table += `| \`${r.name}\` | ${formatTime(baseTime)} | ${formatTime(r.time_ns)} | ${formatDelta(baseTime, r.time_ns)} |\n`;
-              }
-              return table;
-            }
-
             let body = `## Performance Benchmark Results\n\n`;
             body += `**Base:** \`${baseRef}\` @ [\`${baseSha}\`](../commit/${baseSha})\n`;
             body += `**PR:** [\`${headSha}\`](../commit/${headSha})\n\n`;
 
-            if (headResults.length === 0) {
-              body += `:x: Head benchmarks failed to build or run. Check the [workflow log](${runUrl}).\n`;
-            } else {
-              const editResults = headResults.filter(r => r.name.includes('/edit/'));
-              const memoResults = headResults.filter(r => r.name.includes('/memo/'));
-
-              body += `### Edit Cycle (per-keystroke latency)\n\n`;
-              body += makeTable(editResults);
-              body += '\n';
-
-              if (memoResults.length > 0) {
-                body += `<details><summary>Memo-hit overhead (repeated calls, same input)</summary>\n\n`;
-                body += makeTable(memoResults);
-                body += `\n</details>\n\n`;
-              }
-
-              body += `<details><summary>Legend</summary>\n\n`;
-              body += `- :rocket: = >10% faster\n`;
-              body += `- :warning: = >10% slower\n`;
-              body += `- "new" = benchmark not present on base branch\n`;
-              body += `</details>`;
+            try {
+              const table = execSync(
+                'node head/bench/compare.js base_results.json head_results.json --markdown',
+                { encoding: 'utf8' }
+              );
+              body += table;
+            } catch (e) {
+              body += `:x: Comparison failed. Check the [workflow log](${runUrl}).\n\n`;
+              body += `\`\`\`\n${e.stderr || e.message}\n\`\`\``;
             }
 
             await github.rest.issues.updateComment({

@@ -43,11 +43,8 @@ trap cleanup EXIT
 echo "==> Saving benchmark harness from current branch"
 cp -r "$SCRIPT_DIR" "$BENCH_DIR/bench"
 
-echo "==> Building and running benchmarks on current branch (head)"
-opam install . --deps-only --locked -q
-dune build bench/hazel_bench.bc.js
-node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json 2>&1 \
-  | sed -n '/^\[/,/^\]/p' > "$RESULTS_DIR/head.json"
+echo "==> Benchmarking current branch (head)"
+"$SCRIPT_DIR/build-and-run.sh" > "$RESULTS_DIR/head.json"
 
 HEAD_SHA=$(git rev-parse --short HEAD)
 CURRENT_BRANCH=$(git branch --show-current)
@@ -69,13 +66,8 @@ if [ ! -f bench/hazel_bench.re ]; then
   COPIED_BENCH=true
 fi
 
-echo "==> Installing base branch dependencies"
-opam install . --deps-only --locked -q
-
-echo "==> Building and running benchmarks on base ($BASE_REF)"
-dune build bench/hazel_bench.bc.js
-node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json 2>&1 \
-  | sed -n '/^\[/,/^\]/p' > "$RESULTS_DIR/base.json"
+echo "==> Benchmarking base ($BASE_REF)"
+bench/build-and-run.sh > "$RESULTS_DIR/base.json"
 
 BASE_SHA=$(git rev-parse --short HEAD)
 
