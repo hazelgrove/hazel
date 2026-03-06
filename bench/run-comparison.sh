@@ -33,11 +33,11 @@ cleanup() {
     git checkout -f -q "$CURRENT_SHA"
   fi
 
-  # Try to restore stashed changes; on conflict, drop stash and hard reset
+  # Try to restore stashed changes; on conflict, hard reset and clean
   if [ "$STASHED" = true ]; then
     if ! git stash pop -q 2>/dev/null; then
       echo "==> Stash pop had conflicts, resetting to clean state" >&2
-      git checkout -f -q . 2>/dev/null || true
+      git reset --hard -q 2>/dev/null || true
       git clean -fd -q 2>/dev/null || true
       git stash drop -q 2>/dev/null || true
     fi
@@ -101,4 +101,4 @@ fi
 echo ""
 echo "Base: $BASE_REF @ $BASE_SHA"
 echo "Head: $CURRENT_REF @ $HEAD_SHA"
-"$BENCH_DIR/bench/compare.js" "$RESULTS_DIR/base.json" "$RESULTS_DIR/head.json"
+node "$BENCH_DIR/bench/compare.js" "$RESULTS_DIR/base.json" "$RESULTS_DIR/head.json"
