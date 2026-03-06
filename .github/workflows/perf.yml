@@ -91,7 +91,7 @@ jobs:
           eval $(opam env)
           export DUNE_CACHE=enabled
           dune build bench/hazel_bench.bc.js
-          node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json > ../base_results.json
+          node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json 2>&1 | sed -n '/^\[/,/^\]/p' > ../base_results.json
         working-directory: ./base
         continue-on-error: true
 
@@ -121,7 +121,7 @@ jobs:
           eval $(opam env)
           export DUNE_CACHE=enabled
           dune build bench/hazel_bench.bc.js
-          node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json > ../head_results.json
+          node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json 2>&1 | sed -n '/^\[/,/^\]/p' > ../head_results.json
         working-directory: ./head
 
       # --- Compare and post results ---
