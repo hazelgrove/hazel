@@ -168,8 +168,8 @@ jobs:
             const baseSha = '${{ steps.pr.outputs.base_sha }}'.slice(0, 7);
             const headSha = '${{ steps.pr.outputs.head_sha }}'.slice(0, 7);
             const baseRef = '${{ steps.pr.outputs.base_ref }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
-            // Reuse formatting logic from bench/compare.js
             const baseMap = {};
             for (const r of baseResults) { baseMap[r.name] = r.time_ns; }
 
@@ -200,17 +200,16 @@ jobs:
               return table;
             }
 
-            const editResults = headResults.filter(r => r.name.includes('/edit/'));
-            const memoResults = headResults.filter(r => r.name.includes('/memo/'));
-
             let body = `## Performance Benchmark Results\n\n`;
             body += `**Base:** \`${baseRef}\` @ [\`${baseSha}\`](../commit/${baseSha})\n`;
             body += `**PR:** [\`${headSha}\`](../commit/${headSha})\n\n`;
 
             if (headResults.length === 0) {
-              body += `:x: Head benchmarks failed to build or run. Check the [workflow log]`;
-              body += `(${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).\n`;
+              body += `:x: Head benchmarks failed to build or run. Check the [workflow log](${runUrl}).\n`;
             } else {
+              const editResults = headResults.filter(r => r.name.includes('/edit/'));
+              const memoResults = headResults.filter(r => r.name.includes('/memo/'));
+
               body += `### Edit Cycle (per-keystroke latency)\n\n`;
               body += makeTable(editResults);
               body += '\n';
