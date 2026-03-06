@@ -71,11 +71,12 @@ jobs:
           dune-cache: true
 
       - name: Cache opam switch
-        id: opam-cache
         uses: actions/cache@v4
         with:
           path: _opam
-          key: ${{ runner.os }}-opam-${{ hashFiles('./head/hazel.opam.locked') }}
+          key: ${{ runner.os }}-opam-${{ hashFiles('./head/hazel.opam.locked', './base/hazel.opam.locked') }}
+          restore-keys: |
+            ${{ runner.os }}-opam-
 
       - name: Add opam repository archive
         run: |
@@ -83,20 +84,14 @@ jobs:
           export OPAMYES=1
           opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 
-      - name: Install opam dependencies
-        if: steps.opam-cache.outputs.cache-hit != 'true'
+      # --- Benchmark the base branch ---
+      - name: Install dependencies (base)
         run: |
           eval $(opam env)
           export OPAMYES=1
-          opam install ./head --deps-only --locked
-
-      - name: Setup zarith
-        run: opam exec -- make setup-zarith
-        working-directory: ./head
-
-      # --- Benchmark the base branch ---
-      - name: Install NPM dependencies (base)
-        run: npm install
+          npm install
+          opam install . --deps-only --locked
+          opam exec -- make setup-zarith
         working-directory: ./base
 
       - name: Build and run benchmarks (base)
@@ -109,8 +104,13 @@ jobs:
         continue-on-error: true
 
       # --- Benchmark the PR branch ---
-      - name: Install NPM dependencies (head)
-        run: npm install
+      - name: Install dependencies (head)
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          npm install
+          opam install . --deps-only --locked
+          opam exec -- make setup-zarith
         working-directory: ./head
 
       - name: Build and run benchmarks (head)
