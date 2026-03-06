@@ -1273,9 +1273,7 @@ let paste_tests = [
   /* MULTI-LINE PASTE */
   test(
     ~name="Paste multi-line let bindings",
-    ~acts=
-      mk("¦")
-      @ [Paste("let x = 1 in\nlet y = 2 in\nx + y")],
+    ~acts=mk("¦") @ [Paste("let x = 1 in\nlet y = 2 in\nx + y")],
     ~goal={|let x = 1 in
 let y = 2 in
 x + y¦|},
