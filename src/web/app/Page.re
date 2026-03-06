@@ -487,7 +487,8 @@ module View = {
         !selection_has_refractors(editor.state.zipper.refractors, selection)
       | _ => true
       };
-    should_set ? ClipboardCache.set(cursor.selection, str) : ();
+    should_set
+      ? Haz3lcore.Parser.set_segment_cache(cursor.selection, str) : ();
     JsUtil.copy(str);
   };
 
@@ -591,9 +592,10 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
+            let text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
             let action =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> ClipboardCache.get;
+              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Dom.preventDefault(evt);
             switch (cursor.editor_action(action)) {
             | None => Effect.Ignore

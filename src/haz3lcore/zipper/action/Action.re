@@ -79,9 +79,7 @@ type buffer =
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type paste =
-  | String(string)
-  | Segment(Segment.t);
+type paste = string;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type probe =
