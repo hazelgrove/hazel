@@ -1146,6 +1146,135 @@ let rescan_tests = [
   ),
 ];
 
+/* ===== PASTE CORRECTNESS TESTS =====
+   These test paste behavior in various contexts. Tests marked [VALIDATED]
+   produce WRONG results when the fast paste optimization is forced (guards
+   bypassed). Tests marked [BASELINE] are correctness checks that happen to
+   pass under both paths; their guards are either redundant with other guards
+   or their edge case doesn't manifest in text output differences. */
+let paste_tests = [
+  /* TOKEN MERGING: LEFT BOUNDARY [VALIDATED]
+     Clipboard first char merges with left neighbor token.
+     Fast paste would parse clipboard in isolation, producing separate
+     tokens with concave grout between them instead of merging. */
+  test(
+    ~name="Paste merging with left neighbor token",
+    ~acts=mk("foo¦") @ [Paste("bar")],
+    ~goal={|foobar¦|},
+  ),
+  test(
+    ~name="Paste single char merging left into number",
+    ~acts=mk("12¦") @ [Paste("3")],
+    ~goal={|123¦|},
+  ),
+  /* TOKEN MERGING: RIGHT BOUNDARY [VALIDATED]
+     Clipboard last char merges with right neighbor token.
+     Fast paste keeps them separate with grout. Slow path merges. */
+  test(
+    ~name="Paste merging with right neighbor token",
+    ~acts=mk("¦bar") @ [Paste("foo")],
+    ~goal={|foo¦bar|},
+  ),
+  test(
+    ~name="Paste number merging with right neighbor",
+    ~acts=mk("¦23") @ [Paste("1")],
+    ~goal={|1¦23|},
+  ),
+  /* INNER CARET (inside a token) [VALIDATED]
+     Caret is between characters of a token. Fast paste can't split
+     a token and produces a completely wrong structure. */
+  test(
+    ~name="Paste at inner caret position",
+    ~acts=mk("fo¦o") @ [Paste("x")],
+    ~goal={|fox¦o|},
+  ),
+  test(
+    ~name="Paste multiple chars at inner caret",
+    ~acts=mk("he¦o") @ [Paste("ll")],
+    ~goal={|hell¦o|},
+  ),
+  /* INSIDE NESTED STRUCTURE (ancestors non-empty) [VALIDATED]
+     Caret is inside parens/brackets. Fast paste splices at the wrong
+     level, placing content outside the delimiters instead of inside. */
+  test(
+    ~name="Paste expression inside parens",
+    ~acts=mk("(¦)") @ [Paste("1 + 2")],
+    ~goal={|(1 + 2¦)|},
+  ),
+  test(
+    ~name="Paste inside nested parens",
+    ~acts=mk("((¦))") @ [Paste("42")],
+    ~goal={|((42¦))|},
+  ),
+  test(
+    ~name="Paste inside list literal",
+    ~acts=mk("[¦]") @ [Paste("1, 2, 3")],
+    ~goal={|[1, 2, 3¦]|},
+  ),
+  /* NON-EMPTY BACKPACK [BASELINE]
+     Insert "(" puts caret inside parens (ancestors non-empty), so
+     fast_paste returns None via ancestors check before backpack check.
+     This tests correctness of paste inside an incomplete form. */
+  test(
+    ~name="Paste with pending close paren in backpack",
+    ~acts=mk("¦") @ [Insert("(")] @ [Paste("1 + 2")],
+    ~goal={|(1 + 2¦|},
+  ),
+  /* NON-EXP SORT [BASELINE]
+     At top level ancestors==[] implies sort==Exp, so the sort guard
+     is redundant with the ancestors guard. Inside a type ascription,
+     ancestors!=[] catches it first. This tests paste correctness in
+     type position regardless. */
+  test(
+    ~name="Paste type arrow in type annotation position",
+    ~acts=mk("1 : ¦") @ [Paste("Int -> Int")],
+    ~goal={|1 : Int -> Int¦|},
+  ),
+  /* UNBALANCED DELIMITERS IN CLIPBOARD [VALIDATED]
+     Clipboard with unmatched parens/brackets. Fast paste would lose
+     the unmatched delimiters (they end up in parsing backpack, which
+     is discarded during segment extraction). Slow path preserves
+     them in the target zipper's backpack. */
+  test(
+    ~name="Paste unbalanced parens (backpack glom)",
+    ~acts=mk("¦") @ [Paste({|([)(|})],
+    ~goal={|([?)(¦?|},
+  ),
+  test(
+    ~name="Paste unmatched open paren",
+    ~acts=mk("¦") @ [Paste("(1 + 2")],
+    ~goal={|(1 + 2¦|},
+  ),
+  /* NORMAL TOP-LEVEL PASTE (fast path eligible)
+     These work correctly regardless of which path is taken.
+     They serve as baseline correctness checks. */
+  test(
+    ~name="Paste simple expression at top level",
+    ~acts=mk("¦") @ [Paste("1 + 2")],
+    ~goal={|1 + 2¦|},
+  ),
+  test(
+    ~name="Paste let binding at top level",
+    ~acts=mk("¦") @ [Paste("let x = 1 in x")],
+    ~goal={|let x = 1 in x¦|},
+  ),
+  test(
+    ~name="Paste after complete expression with space separator",
+    ~acts=mk("1 + 2 ¦") @ [Paste("+ 3")],
+    ~goal={|1 + 2 + 3¦|},
+  ),
+  /* MULTI-LINE PASTE */
+  test(
+    ~name="Paste multi-line let bindings",
+    ~acts=
+      mk("¦")
+      @ [Paste("let x = 1 in\nlet y = 2 in\nx + y")],
+    ~goal={|let x = 1 in
+let y = 2 in
+x + y¦|},
+  ),
+];
+
 /* ===== MODULE EDITING TESTS =====
    NOTE: These test basic module syntax editing behavior.
    `{` is an instant-expanding delimiter that creates `{¦}`.
@@ -1277,6 +1406,7 @@ let tests = [
   ("Editing.Move", move_tests),
   ("Editing.Selection", selection_tests),
   ("Editing.Rescan", rescan_tests),
+  ("Editing.Paste", paste_tests),
   ("Editing.Module", module_tests),
   ("Editing.SegmentCache", segment_cache_tests),
 ];
