@@ -182,15 +182,15 @@ let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
   | _ => (Id.mk(), z)
   };
 
-/* Figure out if we should avoid inserting a space
- * because grout is due to be inserted instead,
- *  e.g. when splitting `[|]` or `(|)` */
-let should_supress_space = (z: t): bool =>
+/* Check if regrout would insert a grout to our left.
+ * Returns the grout so we can insert it ourselves and
+ * track its ID for later space redemption. */
+let grout_for_suppressed_space = (z: t): option(Grout.t) =>
   switch (
     Siblings.neighbor(Left, remold_regrout(Right, z).relatives.siblings)
   ) {
-  | None => false
-  | Some(p) => Piece.is_grout(p)
+  | Some(Grout(g)) => Some(g)
+  | _ => None
   };
 
 /* This is special-case logic for advancing the caret to between
@@ -223,11 +223,15 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
         |> insert_shard(~id, ~d=Left, l)
         |> insert_shard(~id=Id.mk(), ~d=Right, r);
   let z =
-    Token.space == char && should_supress_space(z)
-      ? z
-      : z
-        |> insert_shard(~id=Id.mk(), ~d=Left, char)
-        |> move_into_string_or_comment(char);
+    switch (Token.space == char ? grout_for_suppressed_space(z) : None) {
+    | Some(g) =>
+      Grout.mark_space_owed(g.id);
+      Zipper.put_down_seg(Left, [Grout(g)], z);
+    | None =>
+      z
+      |> insert_shard(~id=Id.mk(), ~d=Left, char)
+      |> move_into_string_or_comment(char)
+    };
   remold_regrout(Right, z);
 };
 
@@ -283,6 +287,11 @@ let insert_or_append = (char: string, z: t): option(t) => {
     switch (sibling_appendability(char, z)) {
     | None =>
       let (id, z) = preserve_grout_id(char, z);
+      let z =
+        switch (Grout.redeem_space(id)) {
+        | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
+        | None => z
+        };
       Some(insert_shard(~id, ~d=Left, char, z));
     | Some((d, t)) => replace_shard(d, t, z)
     };

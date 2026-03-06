@@ -258,6 +258,13 @@ let insertion_tests = [
     ~acts=mk({|let a = 1 in¦|}) @ [Insert(" ")],
     ~goal={|let a = 1 in ¦?|},
   ),
+  /* INSERTION: SUPPRESSED SPACE TRACKING */
+  /* Space suppression tracking: space reappears when grout is consumed */
+  test(
+    ~name="Suppressed space reappears on grout fill",
+    ~acts=mk({|1¦1|}) @ [Insert(" "), Insert("+")],
+    ~goal={|1 +¦1|},
+  ),
   /* INSERTION: TOKEN SPLITTING */
   test(
     ~name="Split empty list",
@@ -1319,6 +1326,13 @@ let module_tests = [
    The test_complete helper checks both printer output AND that no
    incomplete tiles remain, which catches the structural breakage. */
 
+/* Helper: check that a zipper has a non-empty backpack (i.e. there are
+ * missing shards from incomplete tiles visible at the caret position).
+ * A non-empty backpack after entering what should be a complete program
+ * indicates structural breakage. */
+let zip_backpack_empty = (z: Zipper.t): bool =>
+  Zipper.local_backpack(z) == [];
+
 let shard_theft_tests = [
   /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right
    * should produce a complete program with no incomplete tiles. */
@@ -1328,11 +1342,127 @@ let shard_theft_tests = [
     ~goal={|let y = 2 in let x = 1 in x¦|},
   ),
   /* Core bug: type `let x = 1 in x`, move to start, type `let y = 2 in `.
-   * This should produce the same complete program as the baseline. */
+   * This should produce the same complete program as the baseline.
+   * Currently FAILS: the first `let` steals `=` and `in` from the
+   * original `let x = 1 in x` when `y` merges with the original `let`
+   * shard, and sort-specific expansion prevents recovery. */
   test_complete(
     ~name="Prepend let definition before existing let",
     ~acts=mk({|¦let x = 1 in x|}) @ string_to_ltr_actions("let y = 2 in "),
     ~goal={|let y = 2 in ¦let x = 1 in x|},
+  ),
+  /* Diagnostic: trace the zipper state after each character of "let y"
+   * typed before an existing `let x = 1 in x`. */
+  test_case(
+    "Prepend let y: trace intermediate states",
+    `Quick,
+    () => {
+      let init_acts = mk({|¦let x = 1 in x|});
+      let z0 = init_acts |> perform(Zipper.init());
+      let piece_summary = (p: Piece.t): string =>
+        switch (p) {
+        | Tile(t) =>
+          let eff = Tile.effective_label(t);
+          let sstr =
+            t.shards |> List.map(string_of_int) |> String.concat(",");
+          Printf.sprintf(
+            "T(%s shards=[%s]%s)",
+            String.concat(" ", eff),
+            sstr,
+            Tile.is_complete(t) ? "" : " INCOMPLETE",
+          );
+        | Secondary(s) =>
+          Printf.sprintf("S(%s)", Secondary.get_string(s.content))
+        | Grout(g) =>
+          Printf.sprintf(
+            "G(%s)",
+            switch (g.shape) {
+            | Convex => "convex"
+            | Concave => "concave"
+            },
+          )
+        | Projector(_) => "Proj"
+        };
+      let (l0, r0) = z0.relatives.siblings;
+      Printf.printf(
+        "INIT left=[%s] right=[%s]\n",
+        l0 |> List.map(piece_summary) |> String.concat(", "),
+        r0 |> List.map(piece_summary) |> String.concat(", "),
+      );
+      let (lt0, rt0) = Zipper.neighbor_tokens(z0);
+      Printf.printf(
+        "INIT neighbor_tokens: left=%s right=%s\n",
+        switch (lt0) {
+        | None => "None"
+        | Some(t) => Printf.sprintf("Some(%s)", t)
+        },
+        switch (rt0) {
+        | None => "None"
+        | Some(t) => Printf.sprintf("Some(%s)", t)
+        },
+      );
+      let chars = Token.to_list("let y = 2 in ");
+      let _ =
+        List.fold_left(
+          (z, c) => {
+            let z' = perform(z, [Action.Insert(c)]);
+            let text = printer(z');
+            let bp = Zipper.local_backpack(z');
+            let bp_labels =
+              bp
+              |> List.map((t: Tile.t) => String.concat(",", t.label))
+              |> String.concat("; ");
+            let global_seg = Relatives.zip(z'.relatives);
+            let global_bp =
+              Segment.global_missing_shards(global_seg)
+              |> List.map((t: Tile.t) => String.concat(",", t.label))
+              |> String.concat("; ");
+            let anc_info =
+              switch (z'.relatives.ancestors) {
+              | [] => "no ancestor"
+              | [(a, _), ..._] =>
+                let label = String.concat(",", a.label);
+                let (sl, sr) = a.shards;
+                let shards =
+                  sl @ sr |> List.map(string_of_int) |> String.concat(",");
+                Printf.sprintf("ancestor: %s shards=[%s]", label, shards);
+              };
+            let (ls, rs) = z'.relatives.siblings;
+            let l_summary =
+              ls |> List.map(piece_summary) |> String.concat(", ");
+            let r_summary =
+              rs |> List.map(piece_summary) |> String.concat(", ");
+            Printf.printf(
+              "After '%s': %s | local=[%s] | global=[%s] | %s\n  L=[%s]\n  R=[%s]\n",
+              c,
+              text,
+              bp_labels,
+              global_bp,
+              anc_info,
+              l_summary,
+              r_summary,
+            );
+            z';
+          },
+          z0,
+          chars,
+        );
+      let z_final =
+        mk({|¦let x = 1 in x|})
+        @ string_to_ltr_actions("let y = 2 in ")
+        |> perform(Zipper.init());
+      let has_incomplete = zip_has_incomplete(z_final);
+      Printf.printf(
+        "FINAL: %s | has_incomplete=%b\n",
+        printer(z_final),
+        has_incomplete,
+      );
+      if (has_incomplete) {
+        Alcotest.fail(
+          "Incomplete tiles remain after prepending let y = 2 in",
+        );
+      };
+    },
   ),
   /* Similar bug with fun/->: type `fun x -> e`, prepend `fun y -> `. */
   test_complete(

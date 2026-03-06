@@ -759,7 +759,14 @@ module Trim = {
   let cons_g = (g: Grout.t, (wss, gs)) =>
     Aba.mk([[], ...wss], [g, ...gs]);
 
-  let ws = ((wss, _): t): seg => List.(map(Piece.secondary, concat(wss)));
+  let ws = ((wss, gs): t): seg => {
+    let extra =
+      switch (Grout.redeem_space_from(gs)) {
+      | Some(w) => [w]
+      | None => []
+      };
+    List.(map(Piece.secondary, concat(wss) @ extra));
+  };
 
   // postcond: result is either <ws> or <ws,g,ws'>
   let merge = ((wss, gs): t): t => {
@@ -777,7 +784,13 @@ module Trim = {
   // assumes grout in trim fit r but may not fit l
   let regrout = ((l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
-      Aba.mk([List.concat(trim |> fst)], []);
+      let (_, gs) = trim;
+      let extra =
+        switch (Grout.redeem_space_from(gs)) {
+        | Some(w) => [w]
+        | None => []
+        };
+      Aba.mk([List.concat(trim |> fst) @ extra], []);
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
