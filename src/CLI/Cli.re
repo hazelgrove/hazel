@@ -30,7 +30,6 @@ let format_hazel = path => {
   print_endline(Print.print(parsed));
 };
 
-
 /* Parse program and return zipper (preserving projectors like probes) */
 let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
   Haz3lcore.Parser.to_zipper(s);
@@ -456,7 +455,9 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
 
 /* Benchmark parsing performance */
 let bench_parse = (iterations: int, paths: list(string)): unit => {
-  let now = () => Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf |> Js_of_ocaml.Js.float_of_number;
+  let now = () =>
+    Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
+    |> Js_of_ocaml.Js.float_of_number;
 
   /* Measure baseline (empty string parse) */
   let baseline = {
@@ -468,61 +469,93 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
     (t1 -. t0) /. float_of_int(iterations);
   };
 
-  Printf.printf("Baseline (empty parse): %.3fms per iteration (%d iterations)\n\n", baseline, iterations);
-  Printf.printf("%-50s %8s %8s %10s %10s %10s %10s %10s %10s\n", "File", "Chars", "Lines", "Orig(ms)", "Seg(ms)", "Speedup", "Paste(ms)", "Fast(ms)", "Speedup");
+  Printf.printf(
+    "Baseline (empty parse): %.3fms per iteration (%d iterations)\n\n",
+    baseline,
+    iterations,
+  );
+  Printf.printf(
+    "%-50s %8s %8s %10s %10s %10s %10s %10s %10s\n",
+    "File",
+    "Chars",
+    "Lines",
+    "Orig(ms)",
+    "Seg(ms)",
+    "Speedup",
+    "Paste(ms)",
+    "Fast(ms)",
+    "Speedup",
+  );
   Printf.printf("%s\n", String.make(140, '-'));
 
-  List.iter(path => {
-    let program = read_input(path);
-    let chars = String.length(program);
-    let lines = List.length(String.split_on_char('\n', program));
+  List.iter(
+    path => {
+      let program = read_input(path);
+      let chars = String.length(program);
+      let lines = List.length(String.split_on_char('\n', program));
 
-    /* Warmup both */
-    ignore(Haz3lcore.Parser.to_zipper(program));
-    ignore(Haz3lcore.Parser.to_segment(program));
-
-    /* Time unsegmented (to_zipper) */
-    let t0 = now();
-    for (_ in 1 to iterations) {
+      /* Warmup both */
       ignore(Haz3lcore.Parser.to_zipper(program));
-    };
-    let t1 = now();
-    let orig_avg = (t1 -. t0) /. float_of_int(iterations);
-
-    /* Time segmented (to_segment) */
-    let t2 = now();
-    for (_ in 1 to iterations) {
       ignore(Haz3lcore.Parser.to_segment(program));
-    };
-    let t3 = now();
-    let seg_avg = (t3 -. t2) /. float_of_int(iterations);
 
-    /* Time paste: slow (char-by-char into empty zipper) */
-    let t4 = now();
-    for (_ in 1 to iterations) {
-      ignore(Haz3lcore.Parser.to_zipper(~zipper_init=Haz3lcore.Zipper.init(), program));
-    };
-    let t5 = now();
-    let paste_slow = (t5 -. t4) /. float_of_int(iterations);
+      /* Time unsegmented (to_zipper) */
+      let t0 = now();
+      for (_ in 1 to iterations) {
+        ignore(Haz3lcore.Parser.to_zipper(program));
+      };
+      let t1 = now();
+      let orig_avg = (t1 -. t0) /. float_of_int(iterations);
 
-    /* Time paste: fast (segment splice) */
-    let z_init = Haz3lcore.Zipper.init();
-    let t6 = now();
-    for (_ in 1 to iterations) {
-      ignore(Haz3lcore.Parser.fast_paste(program, z_init));
-    };
-    let t7 = now();
-    let paste_fast = (t7 -. t6) /. float_of_int(iterations);
+      /* Time segmented (to_segment) */
+      let t2 = now();
+      for (_ in 1 to iterations) {
+        ignore(Haz3lcore.Parser.to_segment(program));
+      };
+      let t3 = now();
+      let seg_avg = (t3 -. t2) /. float_of_int(iterations);
 
-    let speedup = orig_avg /. seg_avg;
-    let paste_speedup = paste_slow /. paste_fast;
-    Printf.printf("%-50s %8d %8d %10.1f %10.1f %9.2fx %10.1f %10.1f %9.2fx\n",
-      path, chars, lines, orig_avg, seg_avg, speedup, paste_slow, paste_fast, paste_speedup);
-  }, paths);
+      /* Time paste: slow (char-by-char into empty zipper) */
+      let t4 = now();
+      for (_ in 1 to iterations) {
+        ignore(
+          Haz3lcore.Parser.to_zipper(
+            ~zipper_init=Haz3lcore.Zipper.init(),
+            program,
+          ),
+        );
+      };
+      let t5 = now();
+      let paste_slow = (t5 -. t4) /. float_of_int(iterations);
+
+      /* Time paste: fast (segment splice) */
+      let z_init = Haz3lcore.Zipper.init();
+      let t6 = now();
+      for (_ in 1 to iterations) {
+        ignore(Haz3lcore.Parser.fast_paste(program, z_init));
+      };
+      let t7 = now();
+      let paste_fast = (t7 -. t6) /. float_of_int(iterations);
+
+      let speedup = orig_avg /. seg_avg;
+      let paste_speedup = paste_slow /. paste_fast;
+      Printf.printf(
+        "%-50s %8d %8d %10.1f %10.1f %9.2fx %10.1f %10.1f %9.2fx\n",
+        path,
+        chars,
+        lines,
+        orig_avg,
+        seg_avg,
+        speedup,
+        paste_slow,
+        paste_fast,
+        paste_speedup,
+      );
+    },
+    paths,
+  );
 
   Printf.printf("\n");
 };
-
 
 /* Common arg: path or "-" for stdin */
 let input_arg = {
@@ -580,22 +613,6 @@ let test_cmd = {
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
 };
 
-let gen_slides_cmd = {
-  let doc = "Generate ML slide files from .hz programs. Optionally pass path prefixes to only rebuild matching files (e.g., ./hazel gen-slides tutorial debugging/grove-plotter).";
-  let filter_arg = {
-    let doc = "Path prefix filters (relative to hazel-programs/study/). Only .hz files matching these prefixes will be processed.";
-    Arg.(value & pos_all(string, []) & info([], ~doc));
-  };
-  let info = Cmd.info("gen-slides", ~doc);
-  Cmd.v(info, Term.(const(GenSlides.generate) $ filter_arg));
-};
-
-let gen_slides_clean_cmd = {
-  let doc = "Remove generated slide files and restore stub.";
-  let info = Cmd.info("gen-slides-clean", ~doc);
-  Cmd.v(info, Term.(const(GenSlides.clean) $ const()));
-};
-
 let bench_parse_cmd = {
   let doc = "Benchmark parsing performance on one or more .hz files.";
   let iterations_arg = {
@@ -622,8 +639,6 @@ let default_cmd = {
       analyze_cmd,
       probe_cmd,
       test_cmd,
-      gen_slides_cmd,
-      gen_slides_clean_cmd,
       bench_parse_cmd,
     ],
   );

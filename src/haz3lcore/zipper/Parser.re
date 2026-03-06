@@ -115,21 +115,24 @@ let to_segment = (str: string): option(Segment.t) => {
     };
   };
 
-  List.iter(c => {
-    current_z := insert_char(current_z^, c);
-    incr(chars_since_split);
-    switch (current_z^) {
-    | None => ()
-    | Some(z) =>
-      if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
-        let z = Zipper.remold_regrout(Left, z);
-        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-        segments := [strip_trailing_grout(seg), ...segments^];
-        current_z := Some(Zipper.init());
-        chars_since_split := 0;
+  List.iter(
+    c => {
+      current_z := insert_char(current_z^, c);
+      incr(chars_since_split);
+      switch (current_z^) {
+      | None => ()
+      | Some(z) =>
+        if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
+          let z = Zipper.remold_regrout(Left, z);
+          let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+          segments := [strip_trailing_grout(seg), ...segments^];
+          current_z := Some(Zipper.init());
+          chars_since_split := 0;
+        }
       };
-    };
-  }, chars);
+    },
+    chars,
+  );
 
   let+ z = current_z^;
   let z = Zipper.remold_regrout(Left, z);
@@ -155,7 +158,9 @@ let has_balanced_delimiters = (s: string): bool => {
       | "(" => stack := [")", ...stack^]
       | "[" => stack := ["]", ...stack^]
       | "{" => stack := ["}", ...stack^]
-      | ")" | "]" | "}" =>
+      | ")"
+      | "]"
+      | "}" =>
         switch (stack^) {
         | [top, ...rest] when top == c => stack := rest
         | _ => ok := false
