@@ -434,7 +434,7 @@ let insertion_tests = [
   test(
     ~name="Prepending to leading delimiter: if",
     ~acts=mk({|¦if 1 then 2 else 3|}) @ [Insert("x")],
-    ~goal={|x¦if~ 1 then 2 else 3|},
+    ~goal={|x¦~if 1 then 2 else 3|},
   ),
   test(
     ~name="Prepending to middle delimiter: if",
@@ -1309,6 +1309,81 @@ let module_tests = [
   ),
 ];
 
+/* ===== SHARD THEFT / PREPEND EDITING TESTS =====
+   These test scenarios where typing new code directly before existing
+   multi-delimiter forms (let/=/in, fun/->, if/then/else) causes delimiter
+   mis-association. The core issue: appending a character to an adjacent
+   shard of a complete tile disassembles it, and rescan greedily steals
+   the orphaned shards for the nearest incomplete tile.
+
+   The test_complete helper checks both printer output AND that no
+   incomplete tiles remain, which catches the structural breakage. */
+
+let shard_theft_tests = [
+  /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right
+   * should produce a complete program with no incomplete tiles. */
+  test_complete(
+    ~name="Baseline: nested let (left-to-right)",
+    ~acts=mk({|let y = 2 in let x = 1 in x¦|}),
+    ~goal={|let y = 2 in let x = 1 in x¦|},
+  ),
+  /* Core bug: type `let x = 1 in x`, move to start, type `let y = 2 in `.
+   * This should produce the same complete program as the baseline. */
+  test_complete(
+    ~name="Prepend let definition before existing let",
+    ~acts=mk({|¦let x = 1 in x|}) @ string_to_ltr_actions("let y = 2 in "),
+    ~goal={|let y = 2 in ¦let x = 1 in x|},
+  ),
+  /* Similar bug with fun/->: type `fun x -> e`, prepend `fun y -> `. */
+  test_complete(
+    ~name="Prepend fun definition before existing fun",
+    ~acts=mk({|¦fun x -> e|}) @ string_to_ltr_actions("fun y -> "),
+    ~goal={|fun y -> ¦fun x -> e|},
+  ),
+  /* Similar bug with if/then/else */
+  test_complete(
+    ~name="Prepend if before existing if",
+    ~acts=
+      mk({|¦if a then b else c|})
+      @ string_to_ltr_actions("if d then e else "),
+    ~goal={|if d then e else ¦if a then b else c|},
+  ),
+  /* Baseline: fresh-typed nested fun should be complete */
+  test_complete(
+    ~name="Baseline: nested fun (left-to-right)",
+    ~acts=mk({|fun y -> fun x -> e¦|}),
+    ~goal={|fun y -> fun x -> e¦|},
+  ),
+  /* Prepend type before existing type */
+  test_complete(
+    ~name="Prepend type before existing type",
+    ~acts=
+      mk({|¦type T = Int in T|})
+      @ string_to_ltr_actions("type S = Bool in "),
+    ~goal={|type S = Bool in ¦type T = Int in T|},
+  ),
+  /* Delete leading char of keyword, retype it.
+   * After deletion, tile decomposes (et is a monotile, not multi-shard),
+   * so the guard doesn't interfere. Retyping `l` creates a new let form
+   * that picks up orphaned = and in shards. Result has no incomplete tiles. */
+  test_complete(
+    ~name="Delete and retype leading char of let keyword",
+    ~acts=
+      mk({|let x = 1 in x¦|})
+      @ mv_l(14)
+      @ [Destruct(Right)]
+      @ [Insert("l")],
+    ~goal={|l¦et x = 1 in x|},
+  ),
+  /* Type identifier before complete let — guard blocks merge,
+   * identifier stays separate. Grout (~) inserted between y and let. */
+  test_complete(
+    ~name="Type identifier before complete let",
+    ~acts=mk({|¦let x = 1 in x|}) @ string_to_ltr_actions("y "),
+    ~goal={|y ¦~let x = 1 in x|},
+  ),
+];
+
 /* Segment paste cache tests.
  * These test the internal optimization where copy/paste reuses the
  * parsed segment tree instead of re-parsing from text. If this
@@ -1408,5 +1483,6 @@ let tests = [
   ("Editing.Rescan", rescan_tests),
   ("Editing.Paste", paste_tests),
   ("Editing.Module", module_tests),
+  ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
 ];
