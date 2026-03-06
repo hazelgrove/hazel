@@ -12,4 +12,5 @@ let tests =
     Test_Statics_Fixpoint.tests,
     Test_Statics_Properties.tests,
     Test_Statics_Numerics.tests,
+    Test_Statics_Parens.tests,
   ];
