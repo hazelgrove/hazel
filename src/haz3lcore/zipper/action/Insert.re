@@ -312,6 +312,9 @@ let go = (char: string, z: t): option(t) => {
   };
 };
 
+/* Expose the inner go for profiling */
+let go_inner = go;
+
 /* This is a wrapper intended to effectuate after-insertion conditional
  * operations. See Triggers.re for more details */
 let go = (~ci: option(Language.Info.t)=None, char: string, z: t): option(t) => {

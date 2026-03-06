@@ -30,6 +30,7 @@ let format_hazel = path => {
   print_endline(Print.print(parsed));
 };
 
+
 /* Parse program and return zipper (preserving projectors like probes) */
 let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
   Haz3lcore.Parser.to_zipper(s);
@@ -453,6 +454,76 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
   };
 };
 
+/* Benchmark parsing performance */
+let bench_parse = (iterations: int, paths: list(string)): unit => {
+  let now = () => Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf |> Js_of_ocaml.Js.float_of_number;
+
+  /* Measure baseline (empty string parse) */
+  let baseline = {
+    let t0 = now();
+    for (_ in 1 to iterations) {
+      ignore(Haz3lcore.Parser.to_zipper(""));
+    };
+    let t1 = now();
+    (t1 -. t0) /. float_of_int(iterations);
+  };
+
+  Printf.printf("Baseline (empty parse): %.3fms per iteration (%d iterations)\n\n", baseline, iterations);
+  Printf.printf("%-50s %8s %8s %10s %10s %10s %10s %10s %10s\n", "File", "Chars", "Lines", "Orig(ms)", "Seg(ms)", "Speedup", "Paste(ms)", "Fast(ms)", "Speedup");
+  Printf.printf("%s\n", String.make(140, '-'));
+
+  List.iter(path => {
+    let program = read_input(path);
+    let chars = String.length(program);
+    let lines = List.length(String.split_on_char('\n', program));
+
+    /* Warmup both */
+    ignore(Haz3lcore.Parser.to_zipper(program));
+    ignore(Haz3lcore.Parser.to_segment(program));
+
+    /* Time unsegmented (to_zipper) */
+    let t0 = now();
+    for (_ in 1 to iterations) {
+      ignore(Haz3lcore.Parser.to_zipper(program));
+    };
+    let t1 = now();
+    let orig_avg = (t1 -. t0) /. float_of_int(iterations);
+
+    /* Time segmented (to_segment) */
+    let t2 = now();
+    for (_ in 1 to iterations) {
+      ignore(Haz3lcore.Parser.to_segment(program));
+    };
+    let t3 = now();
+    let seg_avg = (t3 -. t2) /. float_of_int(iterations);
+
+    /* Time paste: slow (char-by-char into empty zipper) */
+    let t4 = now();
+    for (_ in 1 to iterations) {
+      ignore(Haz3lcore.Parser.to_zipper(~zipper_init=Haz3lcore.Zipper.init(), program));
+    };
+    let t5 = now();
+    let paste_slow = (t5 -. t4) /. float_of_int(iterations);
+
+    /* Time paste: fast (segment splice) */
+    let z_init = Haz3lcore.Zipper.init();
+    let t6 = now();
+    for (_ in 1 to iterations) {
+      ignore(Haz3lcore.Parser.fast_paste(program, z_init));
+    };
+    let t7 = now();
+    let paste_fast = (t7 -. t6) /. float_of_int(iterations);
+
+    let speedup = orig_avg /. seg_avg;
+    let paste_speedup = paste_slow /. paste_fast;
+    Printf.printf("%-50s %8d %8d %10.1f %10.1f %9.2fx %10.1f %10.1f %9.2fx\n",
+      path, chars, lines, orig_avg, seg_avg, speedup, paste_slow, paste_fast, paste_speedup);
+  }, paths);
+
+  Printf.printf("\n");
+};
+
+
 /* Common arg: path or "-" for stdin */
 let input_arg = {
   let doc = "Path to Hazel source file, or '-' to read from stdin.";
@@ -525,6 +596,20 @@ let gen_slides_clean_cmd = {
   Cmd.v(info, Term.(const(GenSlides.clean) $ const()));
 };
 
+let bench_parse_cmd = {
+  let doc = "Benchmark parsing performance on one or more .hz files.";
+  let iterations_arg = {
+    let doc = "Number of iterations per file (default: 5).";
+    Arg.(value & opt(int, 5) & info(["n", "iterations"], ~doc));
+  };
+  let files_arg = {
+    let doc = "Hazel source files to benchmark.";
+    Arg.(non_empty & pos_all(string, []) & info([], ~docv="FILES", ~doc));
+  };
+  let info = Cmd.info("bench-parse", ~doc);
+  Cmd.v(info, Term.(const(bench_parse) $ iterations_arg $ files_arg));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
@@ -539,6 +624,7 @@ let default_cmd = {
       test_cmd,
       gen_slides_cmd,
       gen_slides_clean_cmd,
+      bench_parse_cmd,
     ],
   );
 };

@@ -33,7 +33,11 @@ let go =
     switch (Parser.try_segment_paste(clipboard, z)) {
     | Some(z) => Ok(z)
     | None =>
-      Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
+      if (Parser.can_fast_paste(clipboard, z)) {
+        Parser.fast_paste(clipboard, z) |> return(CantPaste);
+      } else {
+        Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste);
+      }
     }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
