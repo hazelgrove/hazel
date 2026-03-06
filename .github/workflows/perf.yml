@@ -70,12 +70,26 @@ jobs:
           ocaml-compiler: 5.2.0
           dune-cache: true
 
+      # Cache the opam switch keyed on head's lockfile for exact hit on re-runs.
+      # Restore-keys provide warm starts:
+      #   1. Base lockfile match — reuses cache from any PR that didn't change deps
+      #      (or a previous PR whose head had the same lockfile as this base).
+      #   2. Any previous opam cache — last resort fallback when base deps changed.
+      # opam install runs for each branch regardless and is a no-op when deps
+      # are already satisfied, so partial cache hits just reduce install time.
+      #
+      # Scenarios:
+      #   Same PR re-run / new PR with same deps  → exact hit, no install
+      #   New PR that adds a dep                   → warm start from base cache
+      #   Base branch updated deps                 → warm start from any old cache
+      #   First run ever                           → cold install
       - name: Cache opam switch
         uses: actions/cache@v4
         with:
           path: _opam
-          key: ${{ runner.os }}-opam-${{ hashFiles('./head/hazel.opam.locked', './base/hazel.opam.locked') }}
+          key: ${{ runner.os }}-opam-${{ hashFiles('./head/hazel.opam.locked') }}
           restore-keys: |
+            ${{ runner.os }}-opam-${{ hashFiles('./base/hazel.opam.locked') }}
             ${{ runner.os }}-opam-
 
       - name: Add opam repository archive
