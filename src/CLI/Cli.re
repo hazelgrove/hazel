@@ -493,6 +493,54 @@ let export_hazel = (format, width, strip, filter, output_dir) => {
   };
 };
 
+/* Check a Hazel program for parse incompleteness */
+let parse_check_hazel =
+    (path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let program = read_input(path);
+  switch (parse_to_zipper(program)) {
+  | None =>
+    prerr_endline("Failed to parse program");
+    `Error((false, "Parse error"));
+  | Some(zipper) =>
+    let segment =
+      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+
+    /* Check 1: Non-empty backpack (missing shards) */
+    let missing_shards = Haz3lcore.Zipper.local_backpack(zipper);
+
+    /* Check 2: Concave grout in segment (missing operands/operators) */
+    let all_grout = Haz3lcore.Segment.holes(segment);
+    let concave_grout =
+      List.filter((g: Haz3lcore.Grout.t) => g.shape == Concave, all_grout);
+
+    let has_missing = List.length(missing_shards) > 0;
+    let has_concave = List.length(concave_grout) > 0;
+
+    if (!has_missing && !has_concave) {
+      print_endline("Parse complete.");
+      `Ok();
+    } else {
+      if (has_missing) {
+        prerr_endline(
+          "Incomplete tiles (missing shards): "
+          ++ string_of_int(List.length(missing_shards)),
+        );
+      };
+      if (has_concave) {
+        prerr_endline(
+          "Concave grout found: "
+          ++ string_of_int(List.length(concave_grout)),
+        );
+      };
+      `Error((false, "Parse incomplete"));
+    };
+  };
+};
+
 /* Common arg: path or "-" for stdin */
 let input_arg = {
   let doc = "Path to Hazel source file, or '-' to read from stdin.";
@@ -587,13 +635,27 @@ let export_cmd = {
   );
 };
 
+let parse_check_cmd = {
+  let doc = "Check a Hazel program for parse incompleteness.";
+  let info = Cmd.info("parse-check", ~doc);
+  Cmd.v(info, Term.ret(Term.(const(parse_check_hazel) $ input_arg)));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
   Cmd.group(
     info,
-    [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd, export_cmd],
+    [
+      run_cmd,
+      format_cmd,
+      analyze_cmd,
+      probe_cmd,
+      test_cmd,
+      export_cmd,
+      parse_check_cmd,
+    ],
   );
 };
 
