@@ -91,6 +91,154 @@ let probe_hazel = (many: bool, path: string): unit => {
   };
 };
 
+/* Sanitize a slide name into a valid filename */
+let sanitize_filename = (name: string): string => {
+  name
+  |> String.split_on_char(' ')
+  |> String.concat("_")
+  |> String.to_seq
+  |> Seq.filter(c =>
+       c >= 'a'
+       && c <= 'z'
+       || c >= 'A'
+       && c <= 'Z'
+       || c >= '0'
+       && c <= '9'
+       || c == '_'
+       || c == '-'
+     )
+  |> String.of_seq;
+};
+
+let strip_projectors = (segment: Haz3lcore.Segment.t): Haz3lcore.Segment.t =>
+  Haz3lcore.ZipperBase.MapPiece.of_segment(
+    fun
+    | Projector(pr) => [pr.syntax]
+    | x => [x],
+    segment,
+  );
+
+/* Export documentation slides as .hz files */
+let export_hazel = (format, width, strip, filter, output_dir) => {
+  // TODO figure out a way to reference init slides without depending on the entire Init module
+  let all_slides =
+    [
+      BasicReference.out,
+      Projectors.out,
+      ADTs.out,
+      Tuples.out,
+      Modules.out,
+      Tables.out,
+      Polymorphism.out,
+      Cards.out,
+      Probes.out,
+      Livelits.out,
+    ]
+    @ B2t2.Slides.all_slides;
+
+  let slides =
+    switch (filter) {
+    | None => all_slides
+    | Some(f) =>
+      List.filter(
+        ((name, _)) => {
+          let name_lower = String.lowercase_ascii(name);
+          let f_lower = String.lowercase_ascii(f);
+          Core.String.is_substring(name_lower, ~substring=f_lower);
+        },
+        all_slides,
+      )
+    };
+
+  if (List.length(slides) == 0) {
+    prerr_endline("No slides matched the filter.");
+    `Error((false, "No matching slides"));
+  } else {
+    /* Create output directory if it doesn't exist */
+    if (!Sys.file_exists(output_dir)) {
+      ignore(Sys.command("mkdir -p " ++ Filename.quote(output_dir)));
+    };
+
+    let count = ref(0);
+    List.iter(
+      ((name, persistent_segment: Haz3lcore.PersistentSegment.t)) => {
+        let zipper = Haz3lcore.PersistentSegment.restore(persistent_segment);
+        let segment =
+          Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+        let segment = strip ? strip_projectors(segment) : segment;
+        let segment =
+          format
+            ? Haz3lcore.PrettySegment.prettify(~width, segment) : segment;
+        let output =
+          Haz3lcore.Printer.of_segment(
+            ~holes="?",
+            ~indent=" ",
+            ~refractors=strip ? [] : zipper.refractors.manuals,
+            segment,
+          );
+        let filename = sanitize_filename(name) ++ ".hz";
+        let path = Filename.concat(output_dir, filename);
+        Core.Out_channel.write_all(path, ~data=output ++ "\n");
+        print_endline("Exported: " ++ filename);
+        incr(count);
+      },
+      slides,
+    );
+
+    print_endline(
+      "\nExported " ++ string_of_int(count^) ++ " slide(s) to " ++ output_dir,
+    );
+    `Ok();
+  };
+};
+
+/* Check a Hazel program for parse incompleteness */
+let parse_check_hazel =
+    (path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let program = read_input(path);
+  switch (parse_to_zipper(program)) {
+  | None =>
+    prerr_endline("Failed to parse program");
+    `Error((false, "Parse error"));
+  | Some(zipper) =>
+    let segment =
+      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+
+    /* Check 1: Non-empty backpack (missing shards) */
+    let missing_shards = Haz3lcore.Zipper.local_backpack(zipper);
+
+    /* Check 2: Concave grout in segment (missing operands/operators) */
+    let all_grout = Haz3lcore.Segment.holes(segment);
+    let concave_grout =
+      List.filter((g: Haz3lcore.Grout.t) => g.shape == Concave, all_grout);
+
+    let has_missing = List.length(missing_shards) > 0;
+    let has_concave = List.length(concave_grout) > 0;
+
+    if (!has_missing && !has_concave) {
+      print_endline("Parse complete.");
+      `Ok();
+    } else {
+      if (has_missing) {
+        prerr_endline(
+          "Incomplete tiles (missing shards): "
+          ++ string_of_int(List.length(missing_shards)),
+        );
+      };
+      if (has_concave) {
+        prerr_endline(
+          "Concave grout found: "
+          ++ string_of_int(List.length(concave_grout)),
+        );
+      };
+      `Error((false, "Parse incomplete"));
+    };
+  };
+};
 /* Common arg: path or "-" for stdin */
 let input_arg = {
   let doc = "Path to Hazel source file, or '-' to read from stdin.";
@@ -133,11 +281,67 @@ let probe_cmd = {
   Cmd.v(info, Term.(const(probe_hazel) $ many_arg $ input_arg));
 };
 
+let export_cmd = {
+  let doc = "Export documentation slides as .hz files.";
+  let format_arg = {
+    let doc = "Pretty-print exported code.";
+    Arg.(value & flag & info(["format", "F"], ~doc));
+  };
+  let width_arg = {
+    let doc = "Target line width for formatting (default: 60).";
+    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+  };
+  let strip_arg = {
+    let doc = "Remove projectors, keeping only their inner syntax.";
+    Arg.(value & flag & info(["strip-projectors", "s"], ~doc));
+  };
+  let filter_arg = {
+    let doc = "Only export slides whose name contains this string.";
+    Arg.(value & opt(some(string), None) & info(["filter", "f"], ~doc));
+  };
+  let output_arg = {
+    let doc = "Output directory for .hz files.";
+    Arg.(
+      required & pos(0, some(string), None) & info([], ~docv="DIR", ~doc)
+    );
+  };
+  let info = Cmd.info("export", ~doc);
+  Cmd.v(
+    info,
+    Term.ret(
+      Term.(
+        const(export_hazel)
+        $ format_arg
+        $ width_arg
+        $ strip_arg
+        $ filter_arg
+        $ output_arg
+      ),
+    ),
+  );
+};
+
+let parse_check_cmd = {
+  let doc = "Check a Hazel program for parse incompleteness.";
+  let info = Cmd.info("parse-check", ~doc);
+  Cmd.v(info, Term.ret(Term.(const(parse_check_hazel) $ input_arg)));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
-  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd]);
+  Cmd.group(
+    info,
+    [
+      run_cmd,
+      format_cmd,
+      analyze_cmd,
+      probe_cmd,
+      export_cmd,
+      parse_check_cmd,
+    ],
+  );
 };
 
 let () = exit(Cmd.eval(default_cmd));
