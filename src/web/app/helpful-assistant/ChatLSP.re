@@ -337,26 +337,26 @@ module Composition = {
           // Unselect current definition
           Action.Unselect(Some(Left)),
           // Paste new code
-          Action.Paste(String(code ++ "\n")),
+          Action.Paste(code ++ "\n"),
         ]
       | After => [
           // Unselect current definition
           Action.Unselect(Some(Direction.Right)),
           // Paste new code
-          Action.Paste(String("\n" ++ code)),
+          Action.Paste("\n" ++ code),
         ]
       | Current =>
         String.length(code) == 0
           ? [
             // This implies the calling of the ```delete``` tool
             // Replace current definition
-            Action.Paste(String(code)),
+            Action.Paste(code),
             // Destruct left
             Action.Destruct(Left),
           ]
           : [
             // Replace current definition
-            Action.Paste(String(code)),
+            Action.Paste(code),
           ]
       // We paste the code edit, then reselect the definition, and copy
       // to clipboard shim to give context to assistant.

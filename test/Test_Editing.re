@@ -117,22 +117,22 @@ let basic_tests = [
   ),
   test(
     ~name="Paste string duo-splitting empty tuple",
-    ~acts=mk("(¦)") @ [Paste(String({|"foo"|}))],
+    ~acts=mk("(¦)") @ [Paste({|"foo"|})],
     ~goal={|("foo"¦)|},
   ),
   test(
     ~name="Paste string splitting token",
-    ~acts=mk("1¦1") @ [Paste(String({|"foo"|}))],
+    ~acts=mk("1¦1") @ [Paste({|"foo"|})],
     ~goal={|1~"foo"¦~1|},
   ),
   test(
     ~name="Paste string splitting consecutive delimiters",
-    ~acts=mk("if¦then") @ [Paste(String({|"foo"|}))],
+    ~acts=mk("if¦then") @ [Paste({|"foo"|})],
     ~goal={|if"foo"¦then?|},
   ),
   test(
     ~name="Paste string with a backpack glom false friend",
-    ~acts=mk("¦") @ [Paste(String({|([)(|}))],
+    ~acts=mk("¦") @ [Paste({|([)(|})],
     ~goal={|([?)(¦?|},
   ),
   test(
@@ -215,7 +215,7 @@ let insertion_tests = [
   ),
   test(
     ~name="Paste emoji inside string",
-    ~acts=mk({|"¦"|}) @ [Paste(String("😄"))],
+    ~acts=mk({|"¦"|}) @ [Paste("😄")],
     ~goal={|"😄¦"|},
   ),
   test(
@@ -1180,6 +1180,96 @@ let module_tests = [
   ),
 ];
 
+/* Segment paste cache tests.
+ * These test the internal optimization where copy/paste reuses the
+ * parsed segment tree instead of re-parsing from text. If this
+ * optimization is removed, these tests can be deleted.
+ *
+ * We test try_segment_paste directly since the cache is populated
+ * at the UI layer (Page.re) which isn't available in unit tests. */
+
+let segment_cache_test =
+    (~name, ~setup: string, ~cache_text: string, ~paste_text: string, ~expect)
+    : test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = perform(Zipper.init(), mk(setup));
+      /* Populate the segment cache */
+      let seg = Parser.to_segment(cache_text);
+      Parser.set_segment_cache(seg, cache_text);
+      let result = Parser.try_segment_paste(paste_text, z);
+      let got =
+        switch (result) {
+        | Some(_) => `Hit
+        | None => `Miss
+        };
+      check(
+        testable(Fmt.string, String.equal),
+        name,
+        switch (expect) {
+        | `Hit => "Hit"
+        | `Miss => "Miss"
+        },
+        switch (got) {
+        | `Hit => "Hit"
+        | `Miss => "Miss"
+        },
+      );
+    },
+  );
+
+let segment_cache_tests = [
+  segment_cache_test(
+    ~name="Cache hit: paste matching text at token boundary",
+    ~setup="1 + ¦",
+    ~cache_text="2 + 3",
+    ~paste_text="2 + 3",
+    ~expect=`Hit,
+  ),
+  segment_cache_test(
+    ~name="Cache miss: left token merge (foo + bar = foobar)",
+    ~setup="foo¦",
+    ~cache_text="bar",
+    ~paste_text="bar",
+    ~expect=`Miss,
+  ),
+  segment_cache_test(
+    ~name="Cache miss: right token merge (bar + foo = barfoo)",
+    ~setup="¦foo",
+    ~cache_text="bar",
+    ~paste_text="bar",
+    ~expect=`Miss,
+  ),
+  segment_cache_test(
+    ~name="Cache miss: inner caret",
+    ~setup="fo¦o",
+    ~cache_text="bar",
+    ~paste_text="bar",
+    ~expect=`Miss,
+  ),
+  segment_cache_test(
+    ~name="Cache miss: text doesn't match cache",
+    ~setup="1 + ¦",
+    ~cache_text="2 + 3",
+    ~paste_text="something else",
+    ~expect=`Miss,
+  ),
+  /* Verify the full paste pipeline produces correct results
+   * when segment cache is populated (integration-style) */
+  test(
+    ~name="Paste with warm cache produces same result as cold paste",
+    ~acts={
+      let text = "2 + 3";
+      let seg = Parser.to_segment(text);
+      Parser.set_segment_cache(seg, text);
+      mk("1 + ¦") @ [Paste(text)];
+    },
+    ~goal="1 + 2 + 3¦",
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -1188,4 +1278,5 @@ let tests = [
   ("Editing.Selection", selection_tests),
   ("Editing.Rescan", rescan_tests),
   ("Editing.Module", module_tests),
+  ("Editing.SegmentCache", segment_cache_tests),
 ];
