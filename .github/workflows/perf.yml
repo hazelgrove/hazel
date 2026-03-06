@@ -45,6 +45,20 @@ jobs:
             core.setOutput('base_ref', pr.data.base.ref);
             core.setOutput('base_sha', pr.data.base.sha);
 
+      # --- Checkout both branches (head first for cache key) ---
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_sha }}
+          path: head
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.base_sha }}
+          path: base
+
+      # --- Toolchain setup ---
       - name: Install node/npm
         uses: actions/setup-node@v4
         with:
@@ -57,10 +71,11 @@ jobs:
           dune-cache: true
 
       - name: Cache opam switch
+        id: opam-cache
         uses: actions/cache@v4
         with:
-          path: "_opam"
-          key: ${{ runner.os }}-opam-${{ hashFiles('./base/hazel.opam.locked') }}
+          path: _opam
+          key: ${{ runner.os }}-opam-${{ hashFiles('./head/hazel.opam.locked') }}
 
       - name: Add opam repository archive
         run: |
@@ -68,25 +83,20 @@ jobs:
           export OPAMYES=1
           opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 
-      # --- Benchmark the base branch ---
-      - name: Checkout base branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.pr.outputs.base_sha }}
-          path: base
-
-      - name: Install NPM dependencies (base)
-        run: npm install
-        working-directory: ./base
-
-      - name: Install dependencies (base)
+      - name: Install opam dependencies
+        if: steps.opam-cache.outputs.cache-hit != 'true'
         run: |
           eval $(opam env)
           export OPAMYES=1
-          opam install ./base --deps-only --locked
+          opam install ./head --deps-only --locked
 
-      - name: Setup zarith (base)
+      - name: Setup zarith
         run: opam exec -- make setup-zarith
+        working-directory: ./head
+
+      # --- Benchmark the base branch ---
+      - name: Install NPM dependencies (base)
+        run: npm install
         working-directory: ./base
 
       - name: Build and run benchmarks (base)
@@ -99,24 +109,8 @@ jobs:
         continue-on-error: true
 
       # --- Benchmark the PR branch ---
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.pr.outputs.head_sha }}
-          path: head
-
       - name: Install NPM dependencies (head)
         run: npm install
-        working-directory: ./head
-
-      - name: Install dependencies (head)
-        run: |
-          eval $(opam env)
-          export OPAMYES=1
-          opam install ./head --deps-only --locked
-
-      - name: Setup zarith (head)
-        run: opam exec -- make setup-zarith
         working-directory: ./head
 
       - name: Build and run benchmarks (head)
