@@ -132,6 +132,18 @@ let parens_edge_case = (char: string, z: t): bool =>
   | _ => false
   };
 
+/* Check if the RIGHT sibling (without disassembly) is a complete
+ * multi-shard tile. Only block rightward merges (where a new token
+ * would steal the leading delimiter of the complete tile and cause
+ * shard theft during rescan). Leftward merges (extending the trailing
+ * delimiter) are legitimate editing (e.g., typing after `in` to
+ * make `inner`). */
+let has_complete_multishard_right_sibling = (z: t): bool =>
+  switch (Siblings.neighbor(Right, z.relatives.siblings)) {
+  | Some(Tile(t)) => Tile.is_complete(t) && List.length(t.label) > 1
+  | _ => false
+  };
+
 /* Decide which if any sibling we can append `char` to.
  * We bias towards the left sibling */
 let sibling_appendability = (char: string, z: t): appendability =>
@@ -144,7 +156,8 @@ let sibling_appendability = (char: string, z: t): appendability =>
   | (_, Some(t))
       when
         Token.is_potential_token(Token.append(char, t))
-        && !parens_edge_case(char, z) =>
+        && !parens_edge_case(char, z)
+        && !has_complete_multishard_right_sibling(z) =>
     Some((Right, Token.append(char, t)))
   | _ => None
   };
@@ -219,11 +232,16 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
 };
 
 /* If the caret is precisely between two tokens, which
- * can become a valid token if merged, merge those tokens */
+ * can become a valid token if merged, merge those tokens.
+ * Guarded against merging with a complete multi-shard right
+ * sibling to prevent disassembly and shard theft. */
 let will_merge = (z: t): option((Token.t, Token.t)) =>
   switch (Zipper.neighbor_tokens(z)) {
   | (Some(l), Some(r))
-      when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
+      when
+        Token.is_potential_token(Token.append(l, r))
+        && z.caret == Outer
+        && !has_complete_multishard_right_sibling(z) =>
     Some((l, r))
   | _ => None
   };
