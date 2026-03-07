@@ -518,6 +518,11 @@ let with_prompt = (prompt: string, spec: spec): spec => {
   prompt,
 };
 
+let with_task_reference = (task_reference: string, spec: spec): spec => {
+  ...spec,
+  task_reference,
+};
+
 let with_rich_probes = (v: option(bool), spec: spec): spec => {
   ...spec,
   setting_overrides: {

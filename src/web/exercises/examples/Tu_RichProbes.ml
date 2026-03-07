@@ -24,29 +24,13 @@ The code below defines a `products` table with `name`, `price`, and `qty` column
        button on the right side of the table header to add a column named \
        total. In the source code, fill in the expression r.price *. r.qty";
     task_reference =
-      (let adding_a_probe =
-         "### Adding a Probe\n\
-          Right-click an expression and choose **\"Add probe\"**, or press \
-          **Cmd+E** / **Ctrl+E**."
-       in
-       let rich_probe_table =
-         "### Rich Probe Table Interface\n\
-          After adding a probe, press the **table button** to switch to the \
-          rich table view.\n\n\
-          Each column has a **⋮** menu button with actions like **Transform** \
-          (convert types), **Sort**, **Filter**, and more. To **add a new \
-          column**, click the **+** button on the right side of the table \
-          header.\n\n\
-          Column actions **rewrite the underlying textual syntax**. After \
-          performing an action, fill in any holes directly in the source code."
-       in
-       TaskRefDocs.compose
-         [
-           adding_a_probe;
-           rich_probe_table;
-           TaskRefDocs.column_projection;
-           TaskRefDocs.float_arithmetic;
-         ]);
+      TaskRefDocs.compose
+        [
+          TaskRefDocs.adding_a_probe;
+          TaskRefDocs.rich_probe_table;
+          TaskRefDocs.column_projection;
+          TaskRefDocs.float_arithmetic;
+        ];
     wrapper = false;
     show_report = true;
     setting_overrides =

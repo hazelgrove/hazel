@@ -97,7 +97,13 @@ let lessons: list(Tutorial.spec) =
     rich_probes_post
     |> Tutorial.with_title("Task 4: " ++ rich_probes_post.title)
     |> Tutorial.with_rich_probes(Some(true))
-    |> Tutorial.with_prompt(add_rich_probes_prefix(rich_probes_post.prompt)),
+    |> Tutorial.with_prompt(add_rich_probes_prefix(rich_probes_post.prompt))
+    |> Tutorial.with_task_reference(
+         TaskRefDocs.prepend(
+           [TaskRefDocs.adding_a_probe, TaskRefDocs.rich_probe_table],
+           rich_probes_post.task_reference,
+         ),
+       ),
     bug_id_pre
     |> Tutorial.with_title("Task 5: " ++ bug_id_pre.title ++ " 1")
     |> Tutorial.with_prompt(strip_live_typing_prefix(bug_id_pre.prompt)),

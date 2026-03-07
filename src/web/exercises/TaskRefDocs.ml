@@ -370,4 +370,29 @@ let comparison_operators =
 - `<=` — less than or equal
 - `>=` — greater than or equal|md}
 
+let adding_a_probe =
+  {md|### Adding a Probe
+Right-click an expression and choose **"Add probe"**, or press **Cmd+E** / **Ctrl+E**.|md}
+
+let rich_probe_table =
+  {md|### Rich Probe Table Interface
+After adding a probe, press the **table button** to switch to the rich table view.
+
+Each column has a **⋮** menu button with actions like **Transform** (convert types), **Sort**, **Filter**, and more. To **add a new column**, click the **+** button on the right side of the table header.
+
+Column actions **rewrite the underlying textual syntax**. After performing an action, fill in any holes directly in the source code.|md}
+
 let compose sections = "## Quick Reference\n\n" ^ String.concat "\n\n" sections
+
+let prepend sections composed =
+  let header = "## Quick Reference\n\n" in
+  let body =
+    if
+      String.length composed > String.length header
+      && String.sub composed 0 (String.length header) = header
+    then
+      String.sub composed (String.length header)
+        (String.length composed - String.length header)
+    else composed
+  in
+  header ^ String.concat "\n\n" sections ^ "\n\n" ^ body
