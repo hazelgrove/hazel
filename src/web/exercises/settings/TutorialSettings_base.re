@@ -3,6 +3,8 @@ let log_key = filename;
 
 let live_typing_prefix = "**Before you begin**, turn on live typing using the settings menu at the top left.\n\n";
 
+let rich_probes_prefix = "**Tip:** Feel free to use rich probes to help you solve this task.\n\n";
+
 let strip_live_typing_prefix = (prompt: string): string =>
   if (String.starts_with(prompt, ~prefix=live_typing_prefix)) {
     String.sub(
@@ -19,6 +21,13 @@ let add_live_typing_prefix = (prompt: string): string =>
     prompt;
   } else {
     live_typing_prefix ++ prompt;
+  };
+
+let add_rich_probes_prefix = (prompt: string): string =>
+  if (String.starts_with(prompt, ~prefix=rich_probes_prefix)) {
+    prompt;
+  } else {
+    rich_probes_prefix ++ prompt;
   };
 
 /* Treatment group selection */
@@ -87,7 +96,8 @@ let lessons: list(Tutorial.spec) =
     Tu_RichProbes.exercise,
     rich_probes_post
     |> Tutorial.with_title("Task 4: " ++ rich_probes_post.title)
-    |> Tutorial.with_rich_probes(Some(true)),
+    |> Tutorial.with_rich_probes(Some(true))
+    |> Tutorial.with_prompt(add_rich_probes_prefix(rich_probes_post.prompt)),
     bug_id_pre
     |> Tutorial.with_title("Task 5: " ++ bug_id_pre.title ++ " 1")
     |> Tutorial.with_prompt(strip_live_typing_prefix(bug_id_pre.prompt)),
