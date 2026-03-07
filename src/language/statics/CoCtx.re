@@ -79,6 +79,9 @@ let meet: (Ctx.t, list(entry)) => Typ.t =
     };
   };
 
+let contains_hole = (co_ctx: t): bool =>
+  VarMap.lookup(co_ctx, "$hole") !== None;
+
 let has_any = (co_ctx: t, vs: list(Var.t)): bool => {
   List.exists(v => VarMap.contains(co_ctx, v), vs);
 };

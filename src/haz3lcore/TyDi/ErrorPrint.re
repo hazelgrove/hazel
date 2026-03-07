@@ -51,6 +51,7 @@ let common_error: Info.error_common => string =
   | NoType(BadLabel(_)) => "Invalid label"
   | NoType(InvalidLabel(_)) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
+  | DuplicateVar(_, _) => "Duplicate variable"
   | TupleLabelError(_) => "Invalid tuple label"
   | NoType(UnexpectedLabelSort(_)) => "Unexpected label sort"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
@@ -199,6 +200,9 @@ let term_string_of: Info.t => string =
   | InfoPat({term, _}) => Print.term(Pat(term))
   | InfoTyp({term, _}) => Print.term(Typ(term))
   | InfoTPat({term, _}) => Print.term(TPat(term))
+  | InfoMod({term, _}) => Print.term(Mod(term))
+  | InfoSig({term, _}) => Print.term(Sig(term))
+  | InfoMPat({term, _}) => Print.term(MPat(term))
   | Secondary(_) => failwith("ChatLSP: term_string_of: Secondary");
 
 let all = (info_map: Statics.Map.t): list(string) => {
