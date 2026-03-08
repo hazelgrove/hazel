@@ -651,11 +651,17 @@ module Chat = {
         | AppendToMessageContent(Id.t, string)
         | OverwriteMessage(Id.t, Message.Model.t)
         | SwitchView(Model.current_view)
-        | MessageAction(Id.t, Message.Update.action);
+        | MessageAction(Id.t, Message.Update.action)
+        | SetTitle(string);
     };
 
     let update = (action: Action.t, model: Model.t): Result.t(Model.t) => {
       switch (action) {
+      | SetTitle(title) =>
+        Ok({
+          ...model,
+          title,
+        })
       | AppendMessage(message) => Ok(Utils.append(message, model))
       | SwitchBranch(fork_id, new_child_id) =>
         Ok(Utils.switch_branch(~fork_id, ~new_child_id, model))
@@ -1338,6 +1344,7 @@ module Agent = {
         | ChatSystemAction(ChatSystem.Update.Action.t)
         | SendMessage(Message.Model.t, Id.t)
         | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t)
+        | HandleChatNamingResponse(string, Id.t)
         | ApiErrorResponse(Id.t, Message.Model.t)
         | RetryApiError(Id.t, int)
         | DoRetryApiSend(Id.t, int)
@@ -1366,6 +1373,39 @@ module Agent = {
     // Exponential backoff
     let backoff_ms = (attempt: int): float =>
       1000.0 *. 2.0 ** float(attempt);
+
+    let chat_naming_model_id = "google/gemini-2.0-flash-lite-001";
+
+    let request_chat_name =
+        (
+          ~api_key: string,
+          ~user_message: string,
+          ~schedule_action: Action.t => unit,
+          ~chat_id: Id.t,
+        )
+        : unit => {
+      let prompt = "Generate a short, concise chat title (3-6 words max) that captures the essence of what the user is asking or working on. Respond with ONLY the title text, nothing else. No quotes, no punctuation at the end, no explanation.";
+      let payload =
+        OpenRouter.Payload.Utils.mk_default(
+          ~model_id=chat_naming_model_id,
+          ~messages=[
+            OpenRouter.Message.Utils.mk_system_msg(prompt),
+            OpenRouter.Message.Utils.mk_user_msg(user_message),
+          ],
+          ~tools=[],
+        );
+      let handler = (response: option(API.Json.t)): unit => {
+        switch (OpenRouter.Utils.handle_chat(response)) {
+        | Some(OpenRouter.Model.Reply(reply)) =>
+          let title = String.trim(reply.content);
+          if (String.length(title) > 0 && String.length(title) < 80) {
+            schedule_action(Action.HandleChatNamingResponse(title, chat_id));
+          };
+        | _ => ()
+        };
+      };
+      OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
+    };
 
     let send_llm_request =
         (
@@ -1473,6 +1513,15 @@ module Agent = {
           ~chat_id,
           ~retry_attempt=0,
         );
+        let current_chat = ChatSystem.Utils.find_chat(chat_id, chat_system);
+        if (current_chat.title == "New Chat" && new_message.role == User) {
+          request_chat_name(
+            ~api_key,
+            ~user_message=new_message.content,
+            ~schedule_action,
+            ~chat_id,
+          );
+        };
         Ok({
           ...model,
           chat_system,
@@ -1881,6 +1930,23 @@ module Agent = {
           settings,
           schedule_action,
         )
+      | HandleChatNamingResponse(title, chat_id) =>
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.SetTitle(title),
+              chat_id,
+            ),
+            model.chat_system,
+          )
+          |> ChatSystem.Update.get;
+        (
+          {
+            ...model,
+            chat_system,
+          },
+          editor |> Updated.return,
+        );
       | ApiErrorResponse(chat_id, api_error_message) =>
         let chat_system =
           ChatSystem.Update.update(
