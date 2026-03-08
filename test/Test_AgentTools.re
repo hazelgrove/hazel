@@ -972,7 +972,7 @@ let nested_definition_tests = (
       () => {
         let result =
           apply_and_render(
-            "let a = let b = 1 in let c = 2 in b + c in a",
+            "let a = let b = 1 in let c = 2 in c in a",
             Delete(BindingClause, "a/b"),
           );
         check_rendered(
