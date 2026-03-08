@@ -2233,7 +2233,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        check(int, "tool count", 19, List.length(tools));
+        check(int, "tool count", 25, List.length(tools));
       },
     ),
     test_case(

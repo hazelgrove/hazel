@@ -138,6 +138,52 @@ let prefixes = (s: string): list(string) => {
   };
 };
 
+let levenshtein_distance = (a: string, b: string): int => {
+  let a_len = String.length(a);
+  let b_len = String.length(b);
+  if (a_len == 0) {
+    b_len;
+  } else if (b_len == 0) {
+    a_len;
+  } else {
+    let prev = Array.init(b_len + 1, i => i);
+    let curr = Array.make(b_len + 1, 0);
+    for (i in 1 to a_len) {
+      curr[0] = i;
+      let ai = a.[i - 1];
+      for (j in 1 to b_len) {
+        let bj = b.[j - 1];
+        let cost =
+          if (ai == bj) {
+            0;
+          } else {
+            1;
+          };
+        let deletion = prev[j] + 1;
+        let insertion = curr[j - 1] + 1;
+        let substitution = prev[j - 1] + cost;
+        let m =
+          if (deletion < insertion) {
+            deletion;
+          } else {
+            insertion;
+          };
+        curr[j] = (
+          if (m < substitution) {
+            m;
+          } else {
+            substitution;
+          }
+        );
+      };
+      for (k in 0 to b_len) {
+        prev[k] = curr[k];
+      };
+    };
+    prev[b_len];
+  };
+};
+
 /* Compute edit distance between two lists of strings using the Levenshtein algorithm */
 let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
   let a_len = List.length(a);

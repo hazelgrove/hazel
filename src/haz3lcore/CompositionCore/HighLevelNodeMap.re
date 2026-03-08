@@ -582,10 +582,16 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
   // This uses the levenshtein distance to find the closest match
   let path_names = split_path(path);
 
+  let path_str = path;
+
   /* Helper to compute distance between a candidate node's name-path and the input */
-  let distance_for_node = (node: node): int => {
+  let distance_for_node = (node: node): (int, int) => {
     let candidate_names = id_path_to_name_path(node.path, node_map);
-    StringUtil.levenshtein_list_distance(path_names, candidate_names);
+    let list_dist =
+      StringUtil.levenshtein_list_distance(path_names, candidate_names);
+    let candidate_str = String.concat("/", candidate_names);
+    let char_dist = StringUtil.levenshtein_distance(path_str, candidate_str);
+    (list_dist, char_dist);
   };
 
   /* Iterate over the map to find the minimum distance candidate */
@@ -593,29 +599,31 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
   | [] =>
     raise(Failure("No nodes to compare when searching for closest path"))
   | bindings =>
-    /* fold to find (best_id, best_node, best_distance) */
     let (first_id, first_node) = List.hd(bindings);
     let initial_acc = (first_id, first_node, distance_for_node(first_node));
 
     let (best_id, _best_node, _best_dist) =
       List.fold_left(
-        ((acc_id, acc_node, acc_d), (id, node)) => {
-          let d = distance_for_node(node);
-          if (d < acc_d) {
-            (id, node, d);
-          } else if (d == acc_d) {
-            /* Tie-breaker: prefer shorter candidate path (fewer segments)
-               which tends to yield simpler / more specific matches */
-            if (List.length(node.path) < List.length(acc_node.path)) {
-              (id, node, d);
+        ((acc_id, acc_node, (acc_ld, acc_cd)), (id, node)) => {
+          let (ld, cd) = distance_for_node(node);
+          if (ld < acc_ld) {
+            (id, node, (ld, cd));
+          } else if (ld == acc_ld) {
+            if (cd < acc_cd) {
+              (id, node, (ld, cd));
+            } else if (cd == acc_cd) {
+              if (List.length(node.path) < List.length(acc_node.path)) {
+                (id, node, (ld, cd));
+              } else {
+                (acc_id, acc_node, (acc_ld, acc_cd));
+              };
             } else {
-              (acc_id, acc_node, acc_d);
+              (acc_id, acc_node, (acc_ld, acc_cd));
             };
           } else {
-            (acc_id, acc_node, acc_d);
+            (acc_id, acc_node, (acc_ld, acc_cd));
           };
         },
-        /* initial accumulator is the first binding */
         initial_acc,
         List.tl(bindings),
       );
