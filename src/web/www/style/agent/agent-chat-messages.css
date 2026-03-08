@@ -233,344 +233,505 @@
   opacity: 1;
 }
 
-/* Workbench View Styles */
+/* ============================================================
+   Workbench View
+   ============================================================ */
 .workbench-view {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  min-height: 0; /* Important for flex children */
+  min-height: 0;
   position: relative;
 }
 
-.todo-archive-button-container {
+/* Toolbar */
+.wb-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.5em 1em;
+  gap: 0.75em;
+  padding: 0.5em 0.75em;
   border-bottom: 0.6px solid var(--BR2);
   flex-shrink: 0;
+  background-color: var(--T1);
 }
 
-.active-task-button {
+.wb-toolbar-btn {
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
-  gap: 0.5em;
+  justify-content: center;
   cursor: pointer;
-  padding: 0.25em 0.5em;
   border-radius: 4px;
   transition: background-color 0.15s ease;
 }
 
-.active-task-button:hover {
-  background-color: var(--T2);
+.wb-toolbar-btn:hover {
+  background-color: var(--T3);
 }
 
-.active-task-title {
-  font-size: 0.85em;
+.wb-toolbar-btn svg {
+  fill: var(--menu-icon);
+  width: 16px;
+  height: 16px;
+}
+
+.wb-active-task-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.2em 0.6em;
+  border-radius: 12px;
+  background-color: oklch(from var(--exp-ap) l c h / 0.08);
+  border: 0.6px solid oklch(from var(--exp-ap) l c h / 0.2);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  max-width: 70%;
+}
+
+.wb-active-task-pill:hover {
+  background-color: oklch(from var(--exp-ap) l c h / 0.14);
+  border-color: oklch(from var(--exp-ap) l c h / 0.3);
+}
+
+.wb-active-task-pill span {
+  font-size: 0.78em;
   color: var(--STONE);
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes wb-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.wb-active-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--exp-ap);
+  flex-shrink: 0;
+  animation: wb-pulse 2s infinite ease-in-out;
 }
 
 .workbench-content {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  min-height: 0; /* Important for flex children */
+  min-height: 0;
 }
 
-.no-todo-list {
-  padding: 2em 1em;
-  text-align: center;
-  color: var(--STONE);
-  opacity: 0.6;
-  font-size: 0.9em;
-}
-
-.todo-list-container {
-  padding: 1em;
+/* Empty state */
+.wb-empty-state {
   display: flex;
   flex-direction: column;
-  gap: 0.5em;
-}
-
-.todo-list-title {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.5em 0;
-  border-bottom: 0.6px solid var(--BR2);
-  margin-bottom: 0.5em;
+  justify-content: center;
+  padding: 3em 1.5em;
+  gap: 0.6em;
 }
 
-.todo-list-title-left {
-  font-weight: 600;
+.wb-empty-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.25;
+}
+
+.wb-empty-icon svg {
+  fill: var(--STONE);
+  width: 28px;
+  height: 28px;
+}
+
+.wb-empty-text {
+  font-size: 0.95em;
+  font-weight: 500;
   color: var(--STONE);
-  font-size: 1em;
+  opacity: 0.5;
 }
 
-.todo-list-title-time {
+.wb-empty-hint {
   font-size: 0.8em;
-  color: var(--BR2);
+  color: var(--STONE);
+  opacity: 0.35;
+  text-align: center;
+  max-width: 220px;
+  line-height: 1.4;
 }
 
-.todo-items {
+/* Task container */
+.wb-task-container {
+  padding: 0.75em;
   display: flex;
   flex-direction: column;
   gap: 0.5em;
 }
 
-.todo-item {
+.wb-task-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding-bottom: 0.5em;
+  border-bottom: 0.6px solid var(--BR2);
+}
+
+.wb-task-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.wb-task-title {
+  font-weight: 600;
+  font-size: 0.95em;
+  color: var(--STONE);
+}
+
+.wb-task-title.completed {
+  opacity: 0.7;
+}
+
+.wb-task-time {
+  font-size: 0.72em;
+  color: var(--BR2);
+  flex-shrink: 0;
+}
+
+.wb-task-description {
+  font-size: 0.8em;
+  color: var(--STONE);
+  opacity: 0.65;
+  line-height: 1.4;
+}
+
+/* Progress bar */
+.wb-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.wb-progress-bar {
+  flex: 1;
+  height: 3px;
+  background-color: var(--T3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.wb-progress-fill {
+  height: 100%;
+  background-color: var(--BR3);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.wb-progress-fill.complete {
+  background-color: var(--PAT);
+}
+
+.wb-progress-label {
+  font-size: 0.68em;
+  color: var(--BR3);
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 2em;
+  text-align: right;
+}
+
+/* Subtask list */
+.wb-subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Subtask item */
+.wb-subtask {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  gap: 0.75em;
-  padding: 0.75em;
+  gap: 0.6em;
+  padding: 0.5em 0.6em;
   border-radius: 6px;
-  background-color: var(--T1);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
-.todo-item:hover {
-  background-color: var(--T2);
+.wb-subtask:hover {
+  background-color: var(--T1);
 }
 
-.todo-item.expanded {
-  background-color: var(--T2);
+.wb-subtask.expanded {
+  background-color: var(--T1);
 }
 
-.todo-status-icon {
+.wb-subtask.is-active {
+  background-color: oklch(from var(--exp-ap) l c h / 0.04);
+}
+
+.wb-subtask.is-active:hover {
+  background-color: oklch(from var(--exp-ap) l c h / 0.07);
+}
+
+/* Subtask status icon */
+.wb-subtask-status {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  fill: var(--STONE);
-  opacity: 0.5;
-  transition: opacity 0.15s ease, fill 0.15s ease;
+  margin-top: 1px;
 }
 
-.todo-status-icon.completed {
+.wb-subtask-status svg {
+  width: 16px;
+  height: 16px;
+}
+
+.wb-subtask-status {
+  fill: var(--BR2);
+  opacity: 0.6;
+}
+
+.wb-subtask-status.completed {
   fill: var(--PAT);
   opacity: 1;
 }
 
-@keyframes inner-glow {
-  0% {
-    opacity: 1.0;
-    transform: translate(-50%, -50%) scale(0.6);
-    filter: drop-shadow(0 0 3px oklch(from var(--exp-ap) l c h / 0.4)) drop-shadow(0 0 5px oklch(from var(--exp-ap) l c h / 0.3));
-  }
-  50% {
-    opacity: 0.55;
-    transform: translate(-50%, -50%) scale(0.6);
-    filter: drop-shadow(0 0 6px oklch(from var(--exp-ap) l c h / 0.7)) drop-shadow(0 0 10px oklch(from var(--exp-ap) l c h / 0.5));
-  }
-  100% {
-    opacity: 1.0;
-    transform: translate(-50%, -50%) scale(0.6);
-    filter: drop-shadow(0 0 3px oklch(from var(--exp-ap) l c h / 0.4)) drop-shadow(0 0 5px oklch(from var(--exp-ap) l c h / 0.3));
-  }
-}
-
-.todo-status-icon.active-todo {
+.wb-subtask-status.active {
   fill: var(--exp-ap);
   opacity: 1;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.todo-status-icon.active-todo > svg:first-child {
-  position: relative;
-  z-index: 1;
+.wb-subtask-status.failed {
+  fill: var(--R1);
+  opacity: 0.85;
 }
 
-.todo-status-icon.active-todo > svg:last-child {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  fill: var(--exp-ap);
-  z-index: 0;
-  animation: inner-glow 2.5s infinite ease-in-out;
-  pointer-events: none;
+.wb-subtask-status.failed svg {
+  width: 14px;
+  height: 14px;
 }
 
-.todo-item-content {
+/* Subtask content */
+.wb-subtask-content {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 0.35em;
+}
+
+.wb-subtask-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5em;
 }
 
-.todo-item-title-row {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.todo-item-title {
+.wb-subtask-title {
+  font-size: 0.85em;
   font-weight: 500;
   color: var(--STONE);
-  font-size: 0.9em;
 }
 
-.todo-item-title-time {
-  font-size: 0.75em;
+.wb-subtask.is-completed .wb-subtask-title {
+  opacity: 0.65;
+}
+
+.wb-subtask.is-failed .wb-subtask-title {
+  opacity: 0.65;
+  text-decoration: line-through;
+  text-decoration-color: var(--R1);
+}
+
+.wb-subtask-time {
+  font-size: 0.7em;
   color: var(--BR2);
+  flex-shrink: 0;
 }
 
-.todo-item-details {
+/* Subtask details (expanded) */
+.wb-subtask-details {
   display: flex;
   flex-direction: column;
-  gap: 0.75em;
-  padding-top: 0.5em;
+  gap: 0.6em;
+  padding-top: 0.4em;
   border-top: 0.6px solid var(--BR2);
+  margin-top: 0.15em;
 }
 
-.todo-detail-header-row {
+.wb-detail-block {
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.2em;
 }
 
-.todo-detail-header {
+.wb-detail-label {
+  font-size: 0.7em;
   font-weight: 600;
-  color: var(--STONE);
-  font-size: 0.85em;
+  color: var(--BR3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.todo-detail-text {
+.wb-detail-body {
+  font-size: 0.82em;
   color: var(--STONE);
-  font-size: 0.85em;
-  line-height: 1.4;
+  line-height: 1.45;
   white-space: pre-wrap;
 }
 
-.todo-detail-section {
+.wb-tool-results {
   display: flex;
   flex-direction: column;
-  gap: 0.5em;
+  gap: 0.35em;
 }
 
-.todo-tool-results {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-  margin-top: 0.5em;
-}
-
-.todo-archive-menu {
+/* Archive overlay */
+.wb-archive-overlay {
   position: absolute;
-  right: 0;
-  top: 0;
-  width: 300px;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+}
+
+.wb-archive-backdrop {
+  flex: 1;
+  background-color: oklch(0 0 0 / 0.15);
+}
+
+.wb-archive-panel {
+  width: 260px;
   height: 100%;
   background-color: var(--ui-bkg);
   border-left: 0.6px solid var(--BR2);
-  z-index: 1000;
   display: flex;
   flex-direction: column;
+  box-shadow: -4px 0 12px oklch(0 0 0 / 0.06);
 }
 
-.history-menu-header {
-  padding: 12px 16px;
+.wb-archive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6em 0.75em;
+  border-bottom: 0.6px solid var(--BR2);
   background-color: var(--T1);
-  color: var(--STONE);
-  font-weight: bold;
-  border-bottom: 1px solid var(--SAND);
-  font-size: 0.9em;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   flex-shrink: 0;
 }
 
-.history-menu-list {
-  background: var(--T2);
+.wb-archive-header span {
+  font-size: 0.82em;
+  font-weight: 600;
+  color: var(--STONE);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wb-archive-close {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.wb-archive-close:hover {
+  background-color: var(--T3);
+}
+
+.wb-archive-close svg {
+  fill: var(--menu-icon);
+  width: 14px;
+  height: 14px;
+}
+
+.wb-archive-list {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 0;
 }
 
-.history-menu-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.history-menu-list::-webkit-scrollbar-track {
-  background: var(--UI-Background);
-}
-
-.history-menu-list::-webkit-scrollbar-thumb {
-  background: var(--SAND);
-  border-radius: 4px;
-}
-
-.history-menu-item {
-  padding: 10px 16px;
-  background-color: var(--T2);
-  color: var(--STONE);
-  cursor: pointer;
-  transition: background-color 0.15s ease, padding-left 0.15s ease;
-  border-bottom: 1px solid var(--SAND);
-  font-size: 0.9em;
+.wb-archive-item {
   display: flex;
   align-items: center;
-  gap: 0.5em;
-  user-select: none;
+  gap: 0.6em;
+  padding: 0.6em 0.75em;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border-bottom: 0.6px solid var(--T2);
 }
 
-.history-menu-item .todo-status-icon {
-  flex-shrink: 0;
+.wb-archive-item:hover {
+  background-color: var(--T2);
 }
 
-.history-menu-item.active {
+.wb-archive-item.selected {
   background-color: var(--T3);
+}
+
+.wb-archive-item:last-child {
+  border-bottom: none;
+}
+
+.wb-archive-item-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  fill: var(--BR2);
+  opacity: 0.5;
+}
+
+.wb-archive-item-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.wb-archive-item-icon.completed {
+  fill: var(--PAT);
+  opacity: 1;
+}
+
+.wb-archive-item-icon.active {
+  fill: var(--exp-ap);
+  opacity: 1;
+}
+
+.wb-archive-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-archive-item-title {
+  font-size: 0.82em;
   color: var(--STONE);
   font-weight: 500;
-}
-
-.history-menu-item:hover:not(.active) {
-  background-color: var(--T4);
-  padding-left: 18px;
-}
-
-.history-menu-item:active {
-  background-color: var(--T3);
-}
-
-.history-menu-item-content {
-  flex: 1;
-  margin-right: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.history-menu-item-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.history-menu-item-time {
-  font-size: 0.725em;
+.wb-archive-item-time {
+  font-size: 0.68em;
   color: var(--BR2);
-  margin-left: 8px;
-  white-space: nowrap;
-}
-
-.history-menu-item:last-child {
-  border-bottom: none;
+  margin-top: 1px;
 }
 
 .chat-action-button {

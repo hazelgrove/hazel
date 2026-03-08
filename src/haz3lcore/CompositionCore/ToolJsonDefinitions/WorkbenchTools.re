@@ -1,28 +1,21 @@
 open Util;
 
 let create_new_task_description = {|
-# Description
-## Effects
-Creates a new task with the given title, description, and subtasks.
-If a task with the same title already exists, it will be overwritten.
-All subtasks will be initialized to incomplete and no active subtask will be set.
-This new task will be set as the active task in the model.
-## Use Cases
-Use this tool before starting work on a new feature, bug fix, or code implementation.
-Since you are only allowed to make edit actions while an active subtask is set,
-this is a mandatory step.
-Use this tool to organize your thoughts, plan out implementation steps, and break down
-complex tasks into manageable subtasks.
-This will help you stay focused, track progress, and ensure that you complete all necessary steps
-to successfully implement the desired functionality.
+Creates a task plan with a title, description, and subtask milestones.
+Sets this as the active task. The first subtask becomes active automatically.
+
+Use this BEFORE starting any code work to establish a clear plan.
+Subtasks should be meaningful milestones (e.g., "Implement core logic", "Add tests"),
+not individual tool calls (e.g., NOT "update definition", "add line break").
+Aim for 1-4 subtasks per task. Each subtask represents a logical stage of work.
 
 Parameters:
 task: {
-  title: string,
-  description: string,
+  title: string — concise name (serves as unique identifier)
+  description: string — detailed explanation of the goal, approach, and relevant context
   subtasks: list({
-    title: string,
-    description: string
+    title: string — concise milestone name (serves as unique identifier)
+    description: string — what this milestone involves and any implementation notes
   })
 }
 |};
@@ -301,13 +294,12 @@ let set_active_subtask: API.Json.t =
   ]);
 
 let mark_active_task_complete_description = {|
-Description:
-Marks the currently active task as complete.
-Sets the completion summary of the active task with the given summary.
-This requires an active task to be set, otherwise nothing will happen.
+Marks the active task as complete with a summary describing what was accomplished.
+The summary is visible to the user — make it clear and informative.
+All subtasks should be complete before marking the task complete.
 
 Parameters:
-summary: string — a summary of changes made to complete the active task
+summary: string — a clear description of what was built/changed and how it works
 |};
 
 let mark_active_task_complete: API.Json.t =
@@ -376,15 +368,11 @@ let mark_active_task_incomplete: API.Json.t =
   ]);
 
 let mark_active_subtask_complete_description = {|
-Description:
-Marks the currently active subtask as complete.
-Sets the completion summary of the active subtask with the given summary.
-Also automatically tries to set the next incomplete subtask (if any) as the active subtask in the currently active task;
-the "next" incomplete subtask is determined by the ordering of subtasks in the active task.
-No subtask will be active if all subtasks in the currently active task are marked complete.
+Marks the active subtask as complete and automatically advances to the next incomplete subtask.
+If all subtasks are complete, no subtask will be active (proceed to mark the task complete).
 
 Parameters:
-summary: string — a summary of changes made to complete the active subtask
+summary: string — a brief description of what was done to complete this milestone
 |};
 
 let mark_active_subtask_complete: API.Json.t =
@@ -453,17 +441,15 @@ let mark_active_subtask_incomplete: API.Json.t =
   ]);
 
 let add_new_subtask_to_active_task_description = {|
-Description:
-Adds a new subtask to the currently active task.
-The new subtask will be appended to the end of the active task's subtask ordering.
-If you want to change this ordering, you can call the reorder_subtasks_in_active_task tool later on.
-This requires an active task to be set, otherwise nothing will happen.
+Adds a new subtask milestone to the active task.
+Use this when you discover additional work needed during implementation.
+The new subtask is appended to the end of the ordering.
 
 Parameters:
 subtask: {
-  title: string,
-  description: string
-} — the new subtask to add to the active task
+  title: string — concise milestone name
+  description: string — what this milestone involves
+}
 |};
 
 let add_new_subtask_to_active_task: API.Json.t =
@@ -524,6 +510,97 @@ let add_new_subtask_to_active_task: API.Json.t =
               ]),
             ),
             ("required", `List([`String("subtask")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let mark_active_subtask_failed_description = {|
+Description:
+Marks the currently active subtask as failed.
+Use this when you are unable to complete the subtask due to errors, constraints, or other blockers.
+Also automatically tries to set the next incomplete subtask (if any) as the active subtask.
+
+Parameters:
+reason: string — a brief explanation of why the subtask failed
+|};
+
+let mark_active_subtask_failed: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("mark_active_subtask_failed")),
+        ("description", `String(mark_active_subtask_failed_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "reason",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "A brief explanation of why the subtask could not be completed.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("reason")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let mark_active_task_failed_description = {|
+Description:
+Marks the currently active task as failed.
+Use this when you are unable to complete the overall task. This will also unset the active subtask.
+
+Parameters:
+reason: string — a brief explanation of why the task failed
+|};
+
+let mark_active_task_failed: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("mark_active_task_failed")),
+        ("description", `String(mark_active_task_failed_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "reason",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "A brief explanation of why the task could not be completed.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("reason")])),
           ]),
         ),
       ]),

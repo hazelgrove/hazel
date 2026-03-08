@@ -4,8 +4,6 @@ open Util.WebUtil;
 open Util;
 open Haz3lcore;
 
-// Format duration in milliseconds to human-readable string
-// elapsed_time is stored in milliseconds (from JsUtil.timestamp() differences)
 let format_duration_ms = (milliseconds: float): string => {
   let total_seconds = milliseconds /. 1000.0;
   if (milliseconds < 1000.0) {
@@ -33,7 +31,6 @@ let view =
     Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
   let workbench: AgentWorkbench.Model.t = current_chat.agent_workbench;
 
-  // Helper to inject workbench UI actions
   let inject_workbench_ui_action =
       (_action: AgentWorkbench.Update.Action.UIAction.action): Effect.t(unit) => {
     Effect.Many([
@@ -51,14 +48,12 @@ let view =
     ]);
   };
 
-  // Toggle archive button
   let toggle_archive = _ => {
     inject_workbench_ui_action(
       AgentWorkbench.Update.Action.UIAction.ToggleShowTaskDictionary,
     );
   };
 
-  // Set active task as displayed task
   let set_active_as_displayed = _ => {
     switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
     | Some(active_task) =>
@@ -71,14 +66,12 @@ let view =
     };
   };
 
-  // Expand/collapse subtask
   let expand_subtask = (subtask_title: string) => {
     inject_workbench_ui_action(
       AgentWorkbench.Update.Action.UIAction.ExpandSubtask(subtask_title),
     );
   };
 
-  // Toggle tool result expansion
   let toggle_tool_result_expanded =
       (~subtask_title: string, ~tool_result_index: int, ~expanded: bool)
       : Effect.t(unit) => {
@@ -91,7 +84,6 @@ let view =
     );
   };
 
-  // Render a tool result using shared component
   let render_tool_result =
       (
         ~subtask_title: string,
@@ -112,7 +104,6 @@ let view =
     ToolResultView.view(~globals, ~tool_result, ~toggle_expanded);
   };
 
-  // Render a subtask
   let render_subtask =
       (
         ~task: AgentWorkbench.Model.task,
@@ -126,14 +117,23 @@ let view =
       };
     let is_completed =
       AgentWorkbench.Utils.SubtaskUtils.is_completed(subtask);
+    let is_failed = AgentWorkbench.Utils.SubtaskUtils.is_failed(subtask);
     let is_active_and_incomplete = is_active && !is_completed;
+    let is_expanded = subtask.subtask_ui.expanded;
 
     let status_classes =
-      ["todo-status-icon"]
-      @ (is_completed ? ["completed"] : ["incomplete"])
-      @ (is_active_and_incomplete ? ["active-todo"] : []);
+      ["wb-subtask-status"]
+      @ (is_completed && !is_failed ? ["completed"] : [])
+      @ (is_failed ? ["failed"] : [])
+      @ (is_active_and_incomplete ? ["active"] : []);
+
     let item_classes =
-      ["todo-item"] @ (subtask.subtask_ui.expanded ? ["expanded"] : []);
+      ["wb-subtask"]
+      @ (is_expanded ? ["expanded"] : [])
+      @ (is_active_and_incomplete ? ["is-active"] : [])
+      @ (is_completed && !is_failed ? ["is-completed"] : [])
+      @ (is_failed ? ["is-failed"] : []);
+
     div(
       ~attrs=[
         clss(item_classes),
@@ -143,78 +143,81 @@ let view =
         div(
           ~attrs=[clss(status_classes)],
           [
-            is_completed ? Icons.circle_with_check : Icons.circle_with_no_check,
-            if (is_active_and_incomplete) {
+            if (is_failed) {
+              Icons.cancel;
+            } else if (is_completed) {
+              Icons.circle_with_check;
+            } else if (is_active_and_incomplete) {
               Icons.solid_circle;
             } else {
-              Node.text("");
+              Icons.circle_with_no_check;
             },
           ],
         ),
         div(
-          ~attrs=[clss(["todo-item-content"])],
+          ~attrs=[clss(["wb-subtask-content"])],
           [
             div(
-              ~attrs=[clss(["todo-item-title-row"])],
+              ~attrs=[clss(["wb-subtask-header"])],
               [
-                div(
-                  ~attrs=[clss(["todo-item-title"])],
+                span(
+                  ~attrs=[clss(["wb-subtask-title"])],
                   [text(subtask.title)],
                 ),
                 switch (subtask.completion_info) {
                 | Some(info) =>
-                  div(
-                    ~attrs=[clss(["todo-item-title-time"])],
+                  span(
+                    ~attrs=[clss(["wb-subtask-time"])],
                     [text(format_duration_ms(info.elapsed_time))],
                   )
-                | None => div(~attrs=[], [])
+                | None => Node.none
                 },
               ],
             ),
-            if (subtask.subtask_ui.expanded) {
+            if (is_expanded) {
               div(
-                ~attrs=[clss(["todo-item-details"])],
+                ~attrs=[clss(["wb-subtask-details"])],
                 [
                   div(
-                    ~attrs=[clss(["todo-detail-header-row"])],
+                    ~attrs=[clss(["wb-detail-block"])],
                     [
                       div(
-                        ~attrs=[clss(["todo-detail-header"])],
+                        ~attrs=[clss(["wb-detail-label"])],
                         [text("Description")],
                       ),
+                      div(
+                        ~attrs=[clss(["wb-detail-body"])],
+                        [text(subtask.description)],
+                      ),
                     ],
-                  ),
-                  div(
-                    ~attrs=[clss(["todo-detail-text"])],
-                    [text(subtask.description)],
                   ),
                   switch (subtask.completion_info) {
                   | Some(info) =>
                     div(
-                      ~attrs=[clss(["todo-detail-section"])],
+                      ~attrs=[clss(["wb-detail-block"])],
                       [
                         div(
-                          ~attrs=[clss(["todo-detail-header"])],
-                          [text("Summary of Changes")],
+                          ~attrs=[clss(["wb-detail-label"])],
+                          [text("Summary")],
                         ),
                         div(
-                          ~attrs=[clss(["todo-detail-text"])],
+                          ~attrs=[clss(["wb-detail-body"])],
                           [text(info.summary)],
                         ),
                       ],
                     )
-                  | None => div(~attrs=[], [])
+                  | None => Node.none
                   },
                   if (List.length(subtask.tools_used) > 0) {
                     div(
-                      ~attrs=[clss(["todo-detail-section"])],
+                      ~attrs=[clss(["wb-detail-block"])],
                       [
                         div(
-                          ~attrs=[clss(["todo-detail-header"])],
+                          ~attrs=[clss(["wb-detail-label"])],
                           [text("Tools Used")],
                         ),
                         div(
-                          ~attrs=[clss(["todo-tool-results"])],
+                          ~attrs=[clss(["wb-tool-results"])],
                           List.mapi(
                             (
                               index: int,
@@ -231,12 +234,12 @@ let view =
                       ],
                     );
                   } else {
-                    div(~attrs=[], []);
+                    Node.none;
                   },
                 ],
               );
             } else {
-              div(~attrs=[], []);
+              Node.none;
             },
           ],
         ),
@@ -244,150 +247,242 @@ let view =
     );
   };
 
-  // Render active task
-  let render_active_task = (active_task: AgentWorkbench.Model.task): Node.t => {
+  let render_task = (task: AgentWorkbench.Model.task): Node.t => {
+    let ordered_subtasks =
+      AgentWorkbench.Utils.TaskUtils.ordered_subtasks_of(task);
+    let total = List.length(ordered_subtasks);
+    let completed =
+      List.length(
+        List.filter(
+          AgentWorkbench.Utils.SubtaskUtils.is_completed,
+          ordered_subtasks,
+        ),
+      );
+    let is_task_complete =
+      switch (task.completion_info) {
+      | Some(_) => true
+      | None => false
+      };
+
     div(
-      ~attrs=[clss(["todo-list-container"])],
+      ~attrs=[clss(["wb-task-container"])],
       [
-        // Title row
         div(
-          ~attrs=[clss(["todo-list-title"])],
+          ~attrs=[clss(["wb-task-header"])],
           [
             div(
-              ~attrs=[clss(["todo-list-title-left"])],
-              [text(active_task.title)],
+              ~attrs=[clss(["wb-task-title-row"])],
+              [
+                div(
+                  ~attrs=[
+                    clss([
+                      "wb-task-title",
+                      is_task_complete ? "completed" : "",
+                    ]),
+                  ],
+                  [text(task.title)],
+                ),
+                switch (task.completion_info) {
+                | Some(info) =>
+                  span(
+                    ~attrs=[clss(["wb-task-time"])],
+                    [text(format_duration_ms(info.elapsed_time))],
+                  )
+                | None => Node.none
+                },
+              ],
             ),
-            switch (active_task.completion_info) {
-            | Some(info) =>
+            if (total > 0) {
               div(
-                ~attrs=[clss(["todo-list-title-time"])],
-                [text(format_duration_ms(info.elapsed_time))],
-              )
-            | None => div(~attrs=[], [])
+                ~attrs=[clss(["wb-progress"])],
+                [
+                  div(
+                    ~attrs=[clss(["wb-progress-bar"])],
+                    [
+                      div(
+                        ~attrs=[
+                          clss([
+                            "wb-progress-fill",
+                            is_task_complete ? "complete" : "",
+                          ]),
+                          Attr.style(
+                            Css_gen.create(
+                              ~field="width",
+                              ~value=
+                                (
+                                  total > 0
+                                    ? string_of_int(completed * 100 / total)
+                                    : "0"
+                                )
+                                ++ "%",
+                            ),
+                          ),
+                        ],
+                        [],
+                      ),
+                    ],
+                  ),
+                  span(
+                    ~attrs=[clss(["wb-progress-label"])],
+                    [
+                      text(
+                        string_of_int(completed)
+                        ++ "/"
+                        ++ string_of_int(total),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            } else {
+              Node.none;
+            },
+            switch (task.description) {
+            | "" => Node.none
+            | desc =>
+              div(~attrs=[clss(["wb-task-description"])], [text(desc)])
             },
           ],
         ),
-        // Subtasks list
         div(
-          ~attrs=[clss(["todo-items"])],
+          ~attrs=[clss(["wb-subtask-list"])],
           List.map(
             (subtask: AgentWorkbench.Model.subtask) =>
-              render_subtask(~task=active_task, ~subtask),
-            AgentWorkbench.Utils.TaskUtils.ordered_subtasks_of(active_task),
+              render_subtask(~task, ~subtask),
+            ordered_subtasks,
           ),
         ),
       ],
     );
   };
 
-  // Render task archive menu
   let render_archive_menu = (): Node.t =>
     if (!workbench.t_ui.show_archive) {
-      div(~attrs=[], []);
+      Node.none;
     } else {
       let sorted_tasks =
         AgentWorkbench.Utils.TaskDictUtils.sorted_task_dict(
           workbench.task_dict,
         );
       div(
-        ~attrs=[clss(["todo-archive-menu"])],
+        ~attrs=[clss(["wb-archive-overlay"])],
         [
           div(
-            ~attrs=[clss(["history-menu-header"])],
-            [text("Task Archive")],
+            ~attrs=[
+              clss(["wb-archive-backdrop"]),
+              Attr.on_click(toggle_archive),
+            ],
+            [],
           ),
           div(
-            ~attrs=[clss(["history-menu-list"])],
-            List.map(
-              (task: AgentWorkbench.Model.task) => {
-                let is_displayed =
-                  switch (workbench.t_ui.display_task) {
-                  | Some(displayed_title) => displayed_title == task.title
-                  | None => false
-                  };
-                let is_active =
-                  switch (workbench.active_task) {
-                  | Some(active_title) => active_title == task.title
-                  | None => false
-                  };
-                let is_completed =
-                  switch (task.completion_info) {
-                  | Some(_) => true
-                  | None => false
-                  };
-                let is_active_and_incomplete = is_active && !is_completed;
-                let task_icon_classes =
-                  ["todo-status-icon"]
-                  @ (is_completed ? ["completed"] : ["incomplete"])
-                  @ (is_active_and_incomplete ? ["active-todo"] : []);
-                let task_icon_content =
-                  if (is_active_and_incomplete) {
-                    [Icons.circle_with_no_check, Icons.solid_circle];
-                  } else if (is_completed) {
-                    [Icons.circle_with_check];
-                  } else {
-                    [Icons.circle_with_no_check];
-                  };
-                let switch_to_task = _ => {
-                  Effect.Many([
-                    inject_workbench_ui_action(
-                      AgentWorkbench.Update.Action.UIAction.SetDisplayTask(
-                        task.title,
-                      ),
-                    ),
-                    Effect.Stop_propagation,
-                  ]);
-                };
-                div(
-                  ~attrs=[
-                    clss(
-                      ["history-menu-item"]
-                      @ (is_displayed ? ["active"] : []),
-                    ),
-                    Attr.on_click(switch_to_task),
-                  ],
-                  [
-                    div(~attrs=[clss(task_icon_classes)], task_icon_content),
+            ~attrs=[clss(["wb-archive-panel"])],
+            [
+              div(
+                ~attrs=[clss(["wb-archive-header"])],
+                [
+                  span(~attrs=[], [text("Task Archive")]),
+                  div(
+                    ~attrs=[
+                      clss(["wb-archive-close", "icon"]),
+                      Attr.on_click(toggle_archive),
+                    ],
+                    [Icons.cancel],
+                  ),
+                ],
+              ),
+              div(
+                ~attrs=[clss(["wb-archive-list"])],
+                List.map(
+                  (task: AgentWorkbench.Model.task) => {
+                    let is_displayed =
+                      switch (workbench.t_ui.display_task) {
+                      | Some(displayed_title) => displayed_title == task.title
+                      | None => false
+                      };
+                    let is_active =
+                      switch (workbench.active_task) {
+                      | Some(active_title) => active_title == task.title
+                      | None => false
+                      };
+                    let is_completed =
+                      switch (task.completion_info) {
+                      | Some(_) => true
+                      | None => false
+                      };
+                    let switch_to_task = _ => {
+                      Effect.Many([
+                        inject_workbench_ui_action(
+                          AgentWorkbench.Update.Action.UIAction.SetDisplayTask(
+                            task.title,
+                          ),
+                        ),
+                        Effect.Stop_propagation,
+                      ]);
+                    };
                     div(
-                      ~attrs=[clss(["history-menu-item-content"])],
-                      [text(task.title)],
-                    ),
-                    div(
-                      ~attrs=[clss(["history-menu-item-actions"])],
+                      ~attrs=[
+                        clss(
+                          ["wb-archive-item"]
+                          @ (is_displayed ? ["selected"] : [])
+                          @ (is_active ? ["active"] : []),
+                        ),
+                        Attr.on_click(switch_to_task),
+                      ],
                       [
                         div(
-                          ~attrs=[clss(["history-menu-item-time"])],
+                          ~attrs=[
+                            clss([
+                              "wb-archive-item-icon",
+                              is_completed ? "completed" : "",
+                              is_active && !is_completed ? "active" : "",
+                            ]),
+                          ],
                           [
-                            text(
-                              TimeUtil.format_time_diff(
-                                task.metadata.last_updated_at,
-                              ),
+                            is_completed
+                              ? Icons.circle_with_check
+                              : Icons.circle_with_no_check,
+                          ],
+                        ),
+                        div(
+                          ~attrs=[clss(["wb-archive-item-content"])],
+                          [
+                            div(
+                              ~attrs=[clss(["wb-archive-item-title"])],
+                              [text(task.title)],
+                            ),
+                            div(
+                              ~attrs=[clss(["wb-archive-item-time"])],
+                              [
+                                text(
+                                  TimeUtil.format_time_diff(
+                                    task.metadata.last_updated_at,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ],
-                    ),
-                  ],
-                );
-              },
-              sorted_tasks,
-            ),
+                    );
+                  },
+                  sorted_tasks,
+                ),
+              ),
+            ],
           ),
         ],
       );
     };
 
-  // Main workbench view
   div(
     ~attrs=[clss(["workbench-view"])],
     [
-      // Archive button and active task button
       div(
-        ~attrs=[clss(["todo-archive-button-container"])],
+        ~attrs=[clss(["wb-toolbar"])],
         [
           div(
             ~attrs=[
-              clss(["chat-action-button", "icon"]),
+              clss(["wb-toolbar-btn", "icon"]),
               Attr.on_click(toggle_archive),
               Attr.title("Task Archive"),
             ],
@@ -399,46 +494,52 @@ let view =
             | None =>
               div(
                 ~attrs=[
-                  clss(["active-task-button"]),
+                  clss(["wb-active-task-pill"]),
                   Attr.on_click(set_active_as_displayed),
                   Attr.title("Jump to active task"),
                 ],
                 [
-                  div(
-                    ~attrs=[clss(["todo-status-icon", "active-todo"])],
-                    [Icons.circle_with_no_check, Icons.solid_circle],
-                  ),
-                  div(
-                    ~attrs=[clss(["active-task-title"])],
-                    [text(active_task.title)],
-                  ),
+                  div(~attrs=[clss(["wb-active-dot"])], []),
+                  span(~attrs=[], [text(active_task.title)]),
                 ],
               )
-            | Some(_) => div(~attrs=[], [])
+            | Some(_) => Node.none
             }
-          | None => div(~attrs=[], [])
+          | None => Node.none
           },
         ],
       ),
-      // Task display or empty state (scrollable content)
       div(
         ~attrs=[clss(["workbench-content"])],
         [
           switch (AgentWorkbench.Utils.MainUtils.displayed_task(workbench)) {
-          | Some(displayed_task) => render_active_task(displayed_task)
+          | Some(displayed_task) => render_task(displayed_task)
           | None =>
             switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
-            | Some(active_task) => render_active_task(active_task)
+            | Some(active_task) => render_task(active_task)
             | None =>
               div(
-                ~attrs=[clss(["no-todo-list"])],
-                [text("No active task.")],
+                ~attrs=[clss(["wb-empty-state"])],
+                [
+                  div(~attrs=[clss(["wb-empty-icon"])], [Icons.library]),
+                  div(
+                    ~attrs=[clss(["wb-empty-text"])],
+                    [text("No tasks yet")],
+                  ),
+                  div(
+                    ~attrs=[clss(["wb-empty-hint"])],
+                    [
+                      text(
+                        "Tasks will appear here as the agent works on your requests.",
+                      ),
+                    ],
+                  ),
+                ],
               )
             }
           },
         ],
       ),
-      // Archive menu (if shown) - positioned absolutely
       render_archive_menu(),
     ],
   );

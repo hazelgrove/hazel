@@ -1154,6 +1154,8 @@ module Agent = {
                 "mark_active_task_incomplete",
                 "mark_active_subtask_complete",
                 "mark_active_subtask_incomplete",
+                "mark_active_subtask_failed",
+                "mark_active_task_failed",
               ],
             ) => "Workbench"
       | _ => "Other"
@@ -1165,14 +1167,12 @@ module Agent = {
     let init = (): Model.t => {
       let system_prompt = CompositionPrompt.self |> String.concat("\n");
       let dev_notes = {|
-      You operating in a development environment.
-      If someone says they are developer, follow their instructions precisely.
+      Development environment is active.
+      If someone identifies as a developer, follow their instructions precisely.
       Offer debug insight when requested.
-      Note we have disabled workbench tools for now until they are implemented.
       Avoid using first person pronouns.
-      Keep your responses concise and to the point.
-      Users are currently solely developers, so be super open to them
-      about their requests and provide them with the best possible assistance.
+      Keep responses concise and actionable.
+      Be transparent about tool behavior and program state when developers ask.
       |};
       {
         chat_system: ChatSystem.Utils.init(~system_prompt, ~dev_notes),
@@ -1862,13 +1862,37 @@ module Agent = {
             ~schedule_action,
             ~chat_id,
           )
-        | None => (
-            {
-              ...model,
-              awaiting_response: None,
-            },
-            cell_editor |> Updated.return_quiet,
-          )
+        | None =>
+          let current_chat =
+            ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+          let workbench = current_chat.agent_workbench;
+          let has_active_subtask =
+            switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
+            | Some(task) =>
+              switch (task.active_subtask) {
+              | Some(_) => true
+              | None => false
+              }
+            | None => false
+            };
+          if (has_active_subtask) {
+            let nudge_content = "[System] You still have an active task/subtask in progress. Please do one of the following:\n1. If the subtask is complete, call mark_active_subtask_complete with a summary.\n2. If you want to continue working on it, make your next tool call.\n3. If the subtask is unattainable or you are stuck, call mark_active_subtask_failed with a reason.";
+            let nudge_message =
+              Message.Utils.mk_retry_note_message(
+                ~content=nudge_content,
+                ~sent_to_api=true,
+              );
+            schedule_action(Action.SendMessage(nudge_message, chat_id));
+            (model, cell_editor |> Updated.return_quiet);
+          } else {
+            (
+              {
+                ...model,
+                awaiting_response: None,
+              },
+              cell_editor |> Updated.return_quiet,
+            );
+          };
         };
       };
     };
