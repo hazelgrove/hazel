@@ -194,15 +194,22 @@ module ViewComponents = {
       |> List.rev
       |> List.map(((cat, items)) => (cat, List.rev(items)));
 
+    let enabled_count =
+      List.length(List.filter(((_, _, _, en, _)) => en, tool_items));
+    let total_count = List.length(tool_items);
+
     let render_tool =
         (name: string, desc: string, is_enabled: bool, is_expanded: bool) => {
-      let toggle_tool = _ =>
+      let toggle_tool = evt => {
+        Js_of_ocaml.Dom.preventDefault(evt);
+        Js_of_ocaml.Dom_html.stopPropagation(evt);
         Effect.Many([
           agent_inject(
             Agent.Agent.Update.Action.SetToolEnabled(name, !is_enabled),
           ),
           Effect.Stop_propagation,
         ]);
+      };
       let toggle_expand = _ =>
         Effect.Many([
           agent_inject(
@@ -211,40 +218,43 @@ module ViewComponents = {
           Effect.Stop_propagation,
         ]);
       div(
-        ~attrs=[clss(["tools-view-item"])],
+        ~attrs=[
+          clss([
+            "tv-item",
+            is_enabled ? "" : "disabled",
+            is_expanded ? "expanded" : "",
+          ]),
+        ],
         [
           div(
-            ~attrs=[
-              clss(["tools-view-item-header"]),
-              Attr.on_click(toggle_expand),
-            ],
+            ~attrs=[clss(["tv-item-row"]), Attr.on_click(toggle_expand)],
             [
               div(
-                ~attrs=[clss(["tools-view-item-expand-icon"])],
-                [text(is_expanded ? "▾" : "▸")],
-              ),
-              div(
                 ~attrs=[
-                  clss(["tools-view-item-toggle"]),
+                  clss(["tv-toggle"]),
                   Attr.on_click(toggle_tool),
+                  Attr.title(is_enabled ? "Disable tool" : "Enable tool"),
                 ],
                 [
-                  is_enabled
-                    ? Icons.circle_with_check : Icons.circle_with_no_check,
+                  div(
+                    ~attrs=[
+                      clss(["tv-toggle-track", is_enabled ? "on" : ""]),
+                    ],
+                    [div(~attrs=[clss(["tv-toggle-thumb"])], [])],
+                  ),
                 ],
               ),
-              div(~attrs=[clss(["tools-view-item-name"])], [text(name)]),
+              span(~attrs=[clss(["tv-item-name"])], [text(name)]),
+              span(
+                ~attrs=[clss(["tv-item-chevron"])],
+                [text(is_expanded ? {|▾|} : {|▸|})],
+              ),
             ],
           ),
           if (is_expanded) {
-            div(
-              ~attrs=[clss(["tools-view-item-detail"])],
-              [
-                div(~attrs=[clss(["tools-view-item-desc"])], [text(desc)]),
-              ],
-            );
+            div(~attrs=[clss(["tv-item-detail"])], [text(desc)]);
           } else {
-            div(~attrs=[], []);
+            Node.none;
           },
         ],
       );
@@ -252,15 +262,30 @@ module ViewComponents = {
 
     let render_category =
         (category: string, items: list((string, string, bool, bool))) => {
+      let cat_enabled =
+        List.length(List.filter(((_, _, en, _)) => en, items));
+      let cat_total = List.length(items);
       div(
-        ~attrs=[clss(["tools-view-category"])],
+        ~attrs=[clss(["tv-category"])],
         [
           div(
-            ~attrs=[clss(["tools-view-category-title"])],
-            [text(category)],
+            ~attrs=[clss(["tv-category-header"])],
+            [
+              span(~attrs=[clss(["tv-category-title"])], [text(category)]),
+              span(
+                ~attrs=[clss(["tv-category-count"])],
+                [
+                  text(
+                    string_of_int(cat_enabled)
+                    ++ "/"
+                    ++ string_of_int(cat_total),
+                  ),
+                ],
+              ),
+            ],
           ),
           div(
-            ~attrs=[clss(["tools-view-category-items"])],
+            ~attrs=[clss(["tv-category-items"])],
             List.map(
               ((name, desc, enabled, exp)) =>
                 render_tool(name, desc, enabled, exp),
@@ -277,7 +302,23 @@ module ViewComponents = {
         div(
           ~attrs=[clss(["view-header"])],
           [
-            div(~attrs=[clss(["view-title"])], [text("Agent Tools")]),
+            div(
+              ~attrs=[clss(["view-title"])],
+              [
+                text("Agent Tools"),
+                span(
+                  ~attrs=[clss(["tv-header-count"])],
+                  [
+                    text(
+                      string_of_int(enabled_count)
+                      ++ "/"
+                      ++ string_of_int(total_count)
+                      ++ " enabled",
+                    ),
+                  ],
+                ),
+              ],
+            ),
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
@@ -1014,10 +1055,10 @@ let view =
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
-          // Corylus identifier
+          // Filbert identifier
           div(
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
-            [Icons.corylus, text("Filbert")],
+            [Icons.filbert, text("Filbert")],
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],

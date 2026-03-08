@@ -17,6 +17,7 @@ let self = [
   "10. **Comments**: `# text #`. MUST have BOTH opening AND closing `#`. Cannot span multiple lines.",
   "11. **No dot-accessor** on tuples. Use destructuring: `let (a, b) = tuple in ...`.",
   "12. **FORBIDDEN keywords**: `rec`, `switch`, `match`, `with`, `of`. NEVER use them.",
+  "13. **No modulo operator** `%`. Hazel does NOT have `%`. Use integer arithmetic instead: `n - (n / 2) * 2` for mod 2.",
   "",
   "## Types",
   "",

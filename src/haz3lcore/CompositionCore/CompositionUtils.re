@@ -13,6 +13,9 @@ module Local = {
   let tools = [
     ViewTools.expand,
     ViewTools.collapse,
+    ProbeTools.place_probe,
+    ProbeTools.remove_probe,
+    ProbeTools.toggle_probe,
     EditTools.initialize,
     EditTools.update_definition,
     EditTools.update_body,
@@ -72,6 +75,12 @@ module Local = {
               AgentContextAction(Expand(get_string_list(args, "paths")))
             | "collapse" =>
               AgentContextAction(Collapse(get_string_list(args, "paths")))
+            | "place_probe" =>
+              ProbeAction(PlaceProbe(get_string_list(args, "paths")))
+            | "remove_probe" =>
+              ProbeAction(RemoveProbe(get_string_list(args, "paths")))
+            | "toggle_probe" =>
+              ProbeAction(ToggleProbe(get_string_list(args, "paths")))
             | "initialize" => Initialize(get_string(args, "code"))
             | "update_definition" =>
               EditorAction(
@@ -202,6 +211,12 @@ module Local = {
       "expand(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | AgentContextAction(Collapse(paths)) =>
       "collapse(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | ProbeAction(PlaceProbe(paths)) =>
+      "place_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | ProbeAction(RemoveProbe(paths)) =>
+      "remove_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | ProbeAction(ToggleProbe(paths)) =>
+      "toggle_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | LanguageServerAction(ShowUseSites(path)) =>
       "show_use_sites(\"" ++ path ++ "\")"
     | LanguageServerAction(ShowReferences(path)) =>

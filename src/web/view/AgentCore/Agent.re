@@ -212,12 +212,14 @@ module Message = {
         (
           agent_editor_content: string,
           static_errors_content: string,
+          test_results_content: string,
           workbench_content: string,
         )
         : Model.t => {
       let sanitized_agent_editor_content = String.trim(agent_editor_content);
       let sanitized_static_errors_content =
         String.trim(static_errors_content);
+      let sanitized_test_results_content = String.trim(test_results_content);
       let sanitized_workbench_content = String.trim(workbench_content);
 
       let agent_editor_content_prefix = "\n<agentEditorView>\n```";
@@ -234,6 +236,13 @@ module Message = {
         ++ sanitized_static_errors_content
         ++ static_errors_content_suffix;
 
+      let test_results_content_prefix = "\n<testResultsInfo>\n";
+      let test_results_content_suffix = "\n</testResultsInfo>\n";
+      let test_results_content =
+        test_results_content_prefix
+        ++ sanitized_test_results_content
+        ++ test_results_content_suffix;
+
       let workbench_content_prefix = "\n<workbenchTaskInfo>\n";
       let workbench_content_suffix = "\n</workbenchTaskInfo>\n";
       let workbench_content =
@@ -247,18 +256,19 @@ module Message = {
         context_prefix
         ++ agent_editor_content
         ++ static_errors_content
+        ++ test_results_content
         ++ workbench_content
         ++ context_suffix;
       let content =
         context_content
-        ++ "\nNOTE: This is an automated message triggered before every message send. This is to provide you with rich information of the current task, editor, code, and project as a whole.";
+        ++ "\n[CONTEXT UPDATE — Do not respond to this. It is an automated snapshot of the current program state. Continue with your current task without acknowledging this message.]";
 
       {
         id: Id.mk(),
         content,
         timestamp: JsUtil.timestamp(),
         role: System(Context),
-        api_message: Some(OpenRouter.Message.Utils.mk_user_msg(content)),
+        api_message: Some(OpenRouter.Message.Utils.mk_system_msg(content)),
         children: [],
         current_child: None,
       };
@@ -582,12 +592,18 @@ module Chat = {
     };
 
     let update_context =
-        (agent_editor_view: string, static_errors_info: string, chat: Model.t)
+        (
+          agent_editor_view: string,
+          static_errors_info: string,
+          test_results_info: string,
+          chat: Model.t,
+        )
         : Model.t => {
       let workbench =
         Message.Utils.mk_context_message(
           agent_editor_view,
           static_errors_info,
+          test_results_info,
           AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
             chat.agent_workbench,
           ),
@@ -647,7 +663,7 @@ module Chat = {
         | BranchOff(Id.t)
         | AgentContextAction(AgentContext.Update.action)
         | WorkbenchAction(AgentWorkbench.Update.Action.action)
-        | UpdateContext(string, string)
+        | UpdateContext(string, string, string)
         | AppendToMessageContent(Id.t, string)
         | OverwriteMessage(Id.t, Message.Model.t)
         | SwitchView(Model.current_view)
@@ -691,9 +707,18 @@ module Chat = {
           })
         | Failure(error) => Error(Failure.Info(error))
         };
-      | UpdateContext(agent_editor_view, static_errors_info) =>
+      | UpdateContext(
+          agent_editor_view,
+          static_errors_info,
+          test_results_info,
+        ) =>
         Ok(
-          Utils.update_context(agent_editor_view, static_errors_info, model),
+          Utils.update_context(
+            agent_editor_view,
+            static_errors_info,
+            test_results_info,
+            model,
+          ),
         )
       | AppendToMessageContent(message_id, content) =>
         Ok(Utils.append_to_message_content(message_id, content, model))
@@ -1070,6 +1095,7 @@ module Agent = {
       awaiting_response: option(Id.t),
       restore_editor_state: option(Segment.t),
       last_empty_retry_attempt: option(int),
+      last_active_task_nudge_attempt: option(int),
       tools_view_expanded: list(string),
     };
   };
@@ -1083,6 +1109,7 @@ module Agent = {
         ...model,
         restore_editor_state: None,
         last_empty_retry_attempt: None,
+        last_active_task_nudge_attempt: None,
         tools_view_expanded: [],
       };
     };
@@ -1093,6 +1120,7 @@ module Agent = {
         awaiting_response: None,
         restore_editor_state: None,
         last_empty_retry_attempt: None,
+        last_active_task_nudge_attempt: None,
         tools_view_expanded: [],
       };
     };
@@ -1123,7 +1151,18 @@ module Agent = {
 
     let category_of_tool = (name: string): string => {
       switch (name) {
-      | n when List.mem(n, ["expand", "collapse"]) => "View"
+      | n
+          when
+            List.mem(
+              n,
+              [
+                "expand",
+                "collapse",
+                "place_probe",
+                "remove_probe",
+                "toggle_probe",
+              ],
+            ) => "View"
       | n
           when
             List.mem(
@@ -1166,14 +1205,7 @@ module Agent = {
   module Utils = {
     let init = (): Model.t => {
       let system_prompt = CompositionPrompt.self |> String.concat("\n");
-      let dev_notes = {|
-      Development environment is active.
-      If someone identifies as a developer, follow their instructions precisely.
-      Offer debug insight when requested.
-      Avoid using first person pronouns.
-      Keep responses concise and actionable.
-      Be transparent about tool behavior and program state when developers ask.
-      |};
+      let dev_notes = {|Development mode active. Follow developer instructions precisely. Be concise. No first-person pronouns.|};
       {
         chat_system: ChatSystem.Utils.init(~system_prompt, ~dev_notes),
         // Todo: Will want to move prompting and api params to a global agent state
@@ -1187,6 +1219,7 @@ module Agent = {
         awaiting_response: None,
         restore_editor_state: None,
         last_empty_retry_attempt: None,
+        last_active_task_nudge_attempt: None,
         tools_view_expanded: [],
       };
     };
@@ -1332,6 +1365,91 @@ module Agent = {
             editor,
           ))
         | Error(error) => Error(error)
+        };
+      | ProbeAction(probe_action) =>
+        let z = editor.editor.state.zipper;
+        let info_map = CompositionGo.Public.mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None =>
+          Error(
+            Failure.Info(
+              "No bindings in the program to probe. Add let/type bindings first.",
+            ),
+          )
+        | Some(node_map) =>
+          let syntax = CachedSyntax.init(z);
+          let resolve_path = (path: string): option(Id.t) =>
+            HighLevelNodeMap.Public.path_to_id_opt(node_map, path);
+
+          let apply_probe_action =
+              (z: Zipper.t, paths: list(string)): (Zipper.t, list(string)) => {
+            List.fold_left(
+              ((z, expanded), path) =>
+                switch (resolve_path(path)) {
+                | Some(id) =>
+                  switch (probe_action) {
+                  | PlaceProbe(_) =>
+                    let z = ProbePerform.add_manual(~syntax, id, info_map, z);
+                    (z, [path, ...expanded]);
+                  | RemoveProbe(_) =>
+                    let target_ids =
+                      ProbePerform.target_subterm_ids(id, info_map);
+                    let z = ProbePerform.rm_manual(target_ids, z);
+                    (z, expanded);
+                  | ToggleProbe(_) =>
+                    let z =
+                      ProbePerform.toggle_manual(~syntax, id, ~info_map, z);
+                    let has_probe = ProbePerform.has_probe(id, z);
+                    let expanded = has_probe ? [path, ...expanded] : expanded;
+                    (z, expanded);
+                  }
+                | None => (z, expanded)
+                },
+              (z, []),
+              paths,
+            );
+          };
+
+          let paths =
+            switch (probe_action) {
+            | PlaceProbe(p)
+            | RemoveProbe(p)
+            | ToggleProbe(p) => p
+            };
+          let (new_z, paths_to_expand) = apply_probe_action(z, paths);
+          let new_z = Dump.to_zipper(new_z);
+          let new_editor_model = Editor.Model.mk(new_z);
+          let new_cws =
+            CodeWithStatics.Model.mk(
+              ~dynamics=editor.dynamics,
+              new_editor_model,
+            );
+
+          /* Auto-expand probed definitions so results are visible */
+          if (List.length(paths_to_expand) > 0) {
+            let expand_action = AgentContext.Update.Expand(paths_to_expand);
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AgentContextAction(expand_action),
+                  chat_id,
+                ),
+                agent.chat_system,
+              );
+            switch (chat_system) {
+            | Ok(updated_chat_system) =>
+              Ok((
+                {
+                  ...agent,
+                  chat_system: updated_chat_system,
+                },
+                new_cws,
+              ))
+            | Error(_) => Ok((agent, new_cws))
+            };
+          } else {
+            Ok((agent, new_cws));
+          };
         };
       };
     };
@@ -1530,23 +1648,53 @@ module Agent = {
       };
     };
 
+    let test_results_string =
+        (test_results: option(Language.TestResults.t)): string => {
+      switch (test_results) {
+      | None => "No test results available (evaluator may still be running)."
+      | Some(results) when results.total == 0 => "No tests in program."
+      | Some(results) =>
+        let summary = Language.TestResults.test_summary_str(results);
+        let details =
+          List.mapi(
+            (i, status: Language.TestStatus.t) => {
+              let status_str = Language.TestStatus.to_string(status);
+              "Test " ++ string_of_int(i + 1) ++ ": " ++ status_str;
+            },
+            results.statuses,
+          );
+        summary ++ "\n" ++ String.concat("\n", details);
+      };
+    };
+
     let update_context =
-        (model: Model.t, editor: CodeWithStatics.Model.t, chat_id: Id.t)
+        (
+          ~test_results: option(Language.TestResults.t)=?,
+          model: Model.t,
+          editor: CodeWithStatics.Model.t,
+          chat_id: Id.t,
+        )
         : Model.t => {
       let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
       let agent_editor_view_string =
-        CompositionView.Public.print(editor.editor, curr_chat.agent_view);
+        CompositionView.Public.print(
+          ~probe_map=editor.dynamics,
+          editor.editor,
+          curr_chat.agent_view,
+        );
       let static_errors_info_string =
         ErrorPrint.all(
           CompositionGo.Public.mk_statics(editor.editor.state.zipper),
         )
         |> String.concat("\n");
+      let test_results_info_string = test_results_string(test_results);
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
             Chat.Update.Action.UpdateContext(
               agent_editor_view_string,
               static_errors_info_string,
+              test_results_info_string,
             ),
             chat_id,
           ),
@@ -1638,7 +1786,9 @@ module Agent = {
         )
         : (option(Segment.t), option(Segment.t)) => {
       switch (action) {
-      | EditorAction(_) =>
+      | EditorAction(_)
+      | Initialize(_)
+      | ProbeAction(_) =>
         let old_segment =
           Select.all(old_editor.state.zipper).selection.content;
         let new_segment =
@@ -1851,6 +2001,7 @@ module Agent = {
           ...model,
           chat_system,
           last_empty_retry_attempt: None,
+          last_active_task_nudge_attempt: None,
         };
         switch (tool_call) {
         | Some(tool_call) =>
@@ -1863,19 +2014,33 @@ module Agent = {
             ~chat_id,
           )
         | None =>
+          let max_task_nudges = 1;
           let current_chat =
             ChatSystem.Utils.find_chat(chat_id, model.chat_system);
           let workbench = current_chat.agent_workbench;
-          let has_active_subtask =
+          let has_incomplete_active_subtask =
             switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
             | Some(task) =>
-              switch (task.active_subtask) {
-              | Some(_) => true
-              | None => false
+              switch (task.completion_info) {
+              | Some(_) => false
+              | None =>
+                switch (task.active_subtask) {
+                | Some(st) =>
+                  switch (
+                    AgentWorkbench.Utils.SubtaskUtils.find_subtask(task, st)
+                  ) {
+                  | Some(sub) =>
+                    !AgentWorkbench.Utils.SubtaskUtils.is_completed(sub)
+                  | None => false
+                  }
+                | None => false
+                }
               }
             | None => false
             };
-          if (has_active_subtask) {
+          let nudge_count =
+            Option.value(~default=0, model.last_active_task_nudge_attempt);
+          if (has_incomplete_active_subtask && nudge_count < max_task_nudges) {
             let nudge_content = "[System] You still have an active task/subtask in progress. Please do one of the following:\n1. If the subtask is complete, call mark_active_subtask_complete with a summary.\n2. If you want to continue working on it, make your next tool call.\n3. If the subtask is unattainable or you are stuck, call mark_active_subtask_failed with a reason.";
             let nudge_message =
               Message.Utils.mk_retry_note_message(
@@ -1883,12 +2048,19 @@ module Agent = {
                 ~sent_to_api=true,
               );
             schedule_action(Action.SendMessage(nudge_message, chat_id));
-            (model, cell_editor |> Updated.return_quiet);
+            (
+              {
+                ...model,
+                last_active_task_nudge_attempt: Some(nudge_count + 1),
+              },
+              cell_editor |> Updated.return_quiet,
+            );
           } else {
             (
               {
                 ...model,
                 awaiting_response: None,
+                last_active_task_nudge_attempt: None,
               },
               cell_editor |> Updated.return_quiet,
             );
@@ -1926,7 +2098,13 @@ module Agent = {
           )
         };
       | SendMessage(message, chat_id) =>
-        let model = update_context(model, editor.editor, chat_id);
+        let model =
+          update_context(
+            ~test_results=?EvalResult.Model.test_results(editor.result),
+            model,
+            editor.editor,
+            chat_id,
+          );
         switch (
           send_message(
             ~api_key=settings.agent_globals.api_key,
@@ -2024,7 +2202,13 @@ module Agent = {
           editor |> Updated.return,
         );
       | DoRetryApiSend(chat_id, attempt) =>
-        let model = update_context(model, editor.editor, chat_id);
+        let model =
+          update_context(
+            ~test_results=?EvalResult.Model.test_results(editor.result),
+            model,
+            editor.editor,
+            chat_id,
+          );
         let chat_system = model.chat_system;
         switch (
           settings.agent_globals.api_key,

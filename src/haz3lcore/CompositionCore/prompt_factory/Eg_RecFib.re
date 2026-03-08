@@ -156,10 +156,35 @@ Tool call: `update_body`
 }
 ```
 
-No static errors. Mark complete:
-Tool call: `mark_active_subtask_complete` → `mark_active_task_complete`
+No static errors.
 
-**Final message to user:** "Added `map_fib` which maps the fibonacci function over a list. Two tests verify the implementation."
+**Step 4 — Verify with probes.** Use probes to confirm the output is correct.
+
+Tool call: `place_probe`
+```json
+{ "paths": ["map_fib"] }
+```
+
+Agent sees (with probe results):
+```
+let fib : Int -> Int =
+  ⋱
+in
+let map_fib : [Int] -> [Int] = fun ns ->
+  case ns
+  | [] => []                                   ≡ []
+  | hd :: tl => fib(hd) :: map_fib(tl)        ≡ [1, 1, 2, 3, 5]
+  end
+in
+test map_fib([]) == [] end;
+test map_fib([0, 1, 5]) == [0, 1, 5] end;
+map_fib([1, 2, 3, 4, 5])                      ≡ [1, 1, 2, 3, 5]
+```
+
+The `≡` values confirm `map_fib` works correctly. Clean up the probe and mark complete:
+Tool call: `remove_probe` → `mark_active_subtask_complete` → `mark_active_task_complete`
+
+**Final message to user:** "Added `map_fib` which maps the fibonacci function over a list. Verified with probes and 2 test cases."
 
 ---
 
@@ -168,6 +193,7 @@ Tool call: `mark_active_subtask_complete` → `mark_active_task_complete`
 1. **Plan first**: Create a task with coarse milestones before writing code.
 2. **Use the right tool**: `initialize` for empty programs, `insert_after`/`insert_before` for adding bindings, `update_definition`/`update_body` for modifying existing code.
 3. **Manage context**: Collapsed definitions (⋱) don't need to be expanded if tests or context already explain what they do. Expand only what you need.
-4. **Verify via static errors**: After each edit, check the context for type errors. Fix them before moving on.
-5. **Communicate clearly**: Tell the user what was done and why, without referencing tool internals.
+4. **Verify with probes**: After implementing, use `place_probe` to observe runtime values and confirm correctness. Clean up with `remove_probe` when done.
+5. **Check static errors**: After each edit, check the context for type errors. Fix them before moving on.
+6. **Communicate clearly**: Tell the user what was done and why, without referencing tool internals.
 |};

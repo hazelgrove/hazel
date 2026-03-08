@@ -250,15 +250,24 @@ module Local = {
       );
 
     let print =
-        (editor: Editor.t, agent_context: AgentContext.Model.t): string => {
+        (
+          ~probe_map: Language.Sample.Map.t=Language.Sample.Map.empty,
+          editor: Editor.t,
+          agent_context: AgentContext.Model.t,
+        )
+        : string => {
       let z = editor.state.zipper;
       let info_map = CompositionGo.Public.mk_statics(z);
       let node_map = HighLevelNodeMap.build(z, info_map);
       switch (node_map) {
-      | None => print_zipper(z)
+      | None =>
+        let has_probes = !List.is_empty(z.refractors.manuals);
+        if (has_probes) {
+          ProbeText.of_zipper(~probe_map, z);
+        } else {
+          print_zipper(z);
+        };
       | Some(node_map) =>
-        // Step 2: Collapse all top level definitions for agent view,
-        // except for the ones that are expanded, given by the agent view's expanded list
         let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);
         let expanded_ids =
           List.filter_map(
@@ -270,17 +279,18 @@ module Local = {
           |> List.filter((id: Id.t) => !List.mem(id, expanded_ids));
         let z' =
           ViewUtils.collapse_definitions(~z, ~ids=ids_to_collapse, ~info_map);
-        print_zipper(z');
+        let has_probes = !List.is_empty(z'.refractors.manuals);
+        if (has_probes) {
+          ProbeText.of_zipper(~probe_map, z');
+        } else {
+          print_zipper(z');
+        };
       };
     };
   };
 };
 
 module Public = {
-  let print = {
-    Local.Printer.print;
-  };
-  let print_zipper = {
-    Local.Printer.print_zipper;
-  };
+  let print = Local.Printer.print;
+  let print_zipper = Local.Printer.print_zipper;
 };

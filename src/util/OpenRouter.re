@@ -164,7 +164,7 @@ module Payload = {
         : Model.t => {
       model_id,
       reasoning: None,
-      temperature: 0.9,
+      temperature: 1.0,
       top_p: 1.0,
       tools,
       stream: false,
