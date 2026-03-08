@@ -908,6 +908,10 @@
   box-shadow: 0 1px 2px oklch(0 0 0 / 0.04);
 }
 
+.agent-tool-summary.collapsed {
+  box-shadow: none;
+}
+
 .agent-tool-summary-header {
   padding: 0.45em 0.7em;
   font-size: 0.75em;
@@ -922,10 +926,113 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75em;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.agent-tool-summary-header:hover {
+  background-color: var(--T2);
+}
+
+.agent-tool-summary.collapsed .agent-tool-summary-header {
+  border-bottom: none;
+}
+
+.agent-tool-summary.collapsed .agent-tool-summary-content {
+  display: none;
+}
+
+.agent-tool-summary.collapsed .summary-collapse-icon {
+  transform: rotate(-90deg);
 }
 
 .agent-tool-summary-title {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.summary-collapse-icon {
+  font-size: 1.1em;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+/* Summary tool links — jump-to-chat style */
+.summary-tool-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.25em 0.5em;
+  margin: 0.1em 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  position: relative;
+}
+
+.summary-tool-link:hover {
+  background-color: oklch(0 0 0 / 0.05);
+}
+
+.summary-tool-link .tool-call-status-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.summary-tool-link .tool-call-status-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.summary-tool-link-name {
+  font-size: 0.85em;
+  font-family: ui-monospace, monospace;
+  color: var(--STONE);
+  font-weight: 500;
+}
+
+.summary-tool-link:hover .summary-tool-link-name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.summary-tool-link-arrow {
+  font-size: 0.75em;
+  color: var(--BR3);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  margin-left: auto;
+}
+
+.summary-tool-link:hover .summary-tool-link-arrow {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
+.summary-tool-link::before {
+  content: '';
+  position: absolute;
+  left: calc(4px - 1.25em);
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--G0);
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+.summary-tool-link .tool-call-failure ~ .summary-tool-link-name {
+  opacity: 0.7;
+}
+
+/* Failed link dot color */
+.summary-tool-link:has(.tool-call-failure)::before {
+  background-color: var(--R1);
 }
 
 .agent-restore-original-button {
@@ -1075,37 +1182,7 @@
   opacity: 0.5;
 }
 
-/* Compact tool calls in timeline */
-.agent-tool-summary-content .agent-tool-call-inline {
-  margin-top: 0.15em;
-  margin-bottom: 0.15em;
-}
-
-.agent-tool-summary-content .agent-tool-call-inline::before {
-  content: '';
-  position: absolute;
-  left: calc(4px - 1.25em);
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--G0);
-  transform: translate(-50%, -50%);
-  z-index: 1;
-}
-
-.agent-tool-summary-content .agent-tool-call-inline::after {
-  height: 0.35em;
-}
-
-.agent-tool-summary-content .tool-call-header {
-  padding: 0.3em 0.5em;
-  border-radius: 4px;
-}
-
-.agent-tool-summary-content .tool-call-name {
-  font-size: 0.88em;
-}
+/* Summary area no longer renders full tool call boxes */
 
 .agent-tool-summary-empty-text {
   padding: 0.6em 0.75em;
@@ -1513,5 +1590,91 @@
   color: var(--STONE);
   white-space: pre-wrap;
   line-height: 1.4;
+}
+
+/* Pretty-printed tool call arguments */
+.tool-call-args-pretty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 0.5em 0.6em;
+  background-color: var(--T2);
+  border-radius: 4px;
+  border: 0.6px solid var(--BR2);
+}
+
+.arg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+
+.arg-field-key {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--BR3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.arg-string {
+  font-size: 0.82em;
+  color: var(--STONE);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.arg-number {
+  font-size: 0.82em;
+  color: var(--exp-ap);
+  font-family: ui-monospace, monospace;
+}
+
+.arg-bool {
+  font-size: 0.82em;
+  color: var(--exp-ap);
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+}
+
+.arg-null {
+  font-size: 0.82em;
+  color: var(--BR2);
+  font-style: italic;
+}
+
+.arg-object {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.35em 0.5em;
+  background-color: oklch(0 0 0 / 0.02);
+  border-radius: 3px;
+  border-left: 2px solid var(--BR2);
+}
+
+.arg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  padding-left: 0.25em;
+}
+
+.arg-list-item {
+  display: flex;
+  flex-direction: row;
+  gap: 0.4em;
+  align-items: flex-start;
+}
+
+.arg-list-index {
+  font-size: 0.72em;
+  color: var(--BR3);
+  font-weight: 600;
+  min-width: 1.2em;
+  text-align: right;
+  flex-shrink: 0;
+  padding-top: 0.15em;
 }
 
