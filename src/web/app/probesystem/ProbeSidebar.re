@@ -750,19 +750,37 @@ type eval_mode =
   | Auto
   | Manual;
 
-let eval_mode_ref = ref(Auto);
+let eval_mode_ref = ref(Manual);
 let cached_print_entries = ref(None: option(list(print_entry)));
 
-let mode_toggle = (~explain_this_inject) =>
-  Widgets.toggle(
-    ~tooltip="Toggle between Probes and Prints",
-    mode^ == Probes ? "🔍" : "🖨",
-    mode^ == Probes,
-    _ => {
-      mode := mode^ == Probes ? Prints : Probes;
-      explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-    },
+let mode_title = (~explain_this_inject) => {
+  let switch_mode = _ => {
+    mode := mode^ == Probes ? Prints : Probes;
+    explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+  };
+  let is_probes = mode^ == Probes;
+  div(
+    ~attrs=[clss(["main-title"])],
+    [
+      span(
+        ~attrs=
+          [clss(["mode-label"] @ (is_probes ? ["active"] : ["inactive"]))]
+          @ (is_probes ? [] : [Attr.on_pointerdown(switch_mode)]),
+        [text("Probearium")],
+      ),
+      span(
+        ~attrs=[clss(["mode-separator"] @ (is_probes ? [] : ["prints"]))],
+        [text(" / ")],
+      ),
+      span(
+        ~attrs=
+          [clss(["mode-label"] @ (is_probes ? ["inactive"] : ["active"]))]
+          @ (is_probes ? [Attr.on_pointerdown(switch_mode)] : []),
+        [text("Printarium")],
+      ),
+    ],
   );
+};
 
 let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   let measured = editor.editor.syntax.measured;
@@ -784,10 +802,10 @@ let render_print_entry = (entry: print_entry): Node.t =>
   div(
     ~attrs=[clss(["print-entry"])],
     [
-      span(
-        ~attrs=[clss(["print-seq"])],
-        [text(string_of_int(entry.seq))],
-      ),
+      // span(
+      //   ~attrs=[clss(["print-seq"])],
+      //   [text(string_of_int(entry.seq))],
+      // ),
       span(~attrs=[clss(["print-value"])], [text(entry.value_str)]),
       span(
         ~attrs=[clss(["print-line"])],
@@ -814,27 +832,22 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     | Manual => cached_print_entries^
     };
   [
-    div(
-      ~attrs=[clss(["header"])],
-      [
-        div(~attrs=[clss(["main-title"])], [text("Printarium")]),
-        mode_toggle(~explain_this_inject),
-      ],
-    ),
+    div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)]),
     div(
       ~attrs=[clss(["eval-controls"])],
       [
-        Widgets.toggle_named(
-          ~tooltip="Auto-eval",
-          eval_mode_ref^ == Auto ? "A" : "M",
-          eval_mode_ref^ == Auto,
-          _ => {
-            eval_mode_ref := eval_mode_ref^ == Auto ? Manual : Auto;
-            explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-          },
-        ),
-        ...eval_mode_ref^ == Manual
-             ? [run_button(~explain_this_inject, ~editor)] : [],
+        run_button(~explain_this_inject, ~editor),
+        // Widgets.toggle_named(
+        //   ~tooltip="Auto-eval",
+        //   eval_mode_ref^ == Auto ? "A" : "M",
+        //   eval_mode_ref^ == Auto,
+        //   _ => {
+        //     eval_mode_ref := eval_mode_ref^ == Auto ? Manual : Auto;
+        //     explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+        //   },
+        // ),
+        // ...eval_mode_ref^ == Manual
+        //      ? [run_button(~explain_this_inject, ~editor)] : [],
       ],
     ),
     div(
@@ -1027,13 +1040,7 @@ let probearium =
     | None => false
     };
   [
-    div(
-      ~attrs=[clss(["header"])],
-      [
-        div(~attrs=[clss(["main-title"])], [text("Probearium")]),
-        mode_toggle(~explain_this_inject),
-      ],
-    ),
+    div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)]),
     toggle_controls_view(~globals, ~explain_this_inject),
     quick_ref_view(
       ~indicated_can_probe,
@@ -1067,7 +1074,7 @@ let view =
       ~editor: CodeEditable.Model.t,
     ) => {
   div(
-    ~attrs=[Attr.id("probesys")],
+    ~attrs=[Attr.id("probe-sidebar")],
     mode^ == Probes
       ? probearium(~globals, ~explain_this_inject, ~editor)
       : printarium(~explain_this_inject, ~editor),
