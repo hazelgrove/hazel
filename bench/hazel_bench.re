@@ -71,13 +71,20 @@ let parse_to_zipper = (program: string): Zipper.t =>
   | None => failwith("Failed to parse: " ++ String.prefix(program, 40))
   };
 
-/* Precompute all derived data for a given zipper. */
+/* Precompute all derived data for a given zipper, including a
+ * post-edit snapshot so downstream phases can be benchmarked
+ * individually with realistic (post-edit) inputs. */
 type fixture = {
   z: Zipper.t,
   segment: Segment.t,
   syntax: CachedSyntax.t,
   term: Exp.t,
   info_map: Statics.Map.t,
+  /* Post-edit state (Insert "x" applied once) */
+  edited_segment: Segment.t,
+  edited_term: Exp.t,
+  edited_info_map: Statics.Map.t,
+  edited_dhexp: DHExp.t,
 };
 
 let make_fixture = (z: Zipper.t): fixture => {
@@ -87,12 +94,40 @@ let make_fixture = (z: Zipper.t): fixture => {
   let term = make_term_result.term;
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  /* Compute post-edit state for individual phase benchmarks */
+  let edited_z =
+    switch (
+      Perform.go(
+        ~statics=CachedStatics.empty,
+        ~syntax,
+        Insert("x"),
+        {zipper: z, col_target: None},
+      )
+    ) {
+    | Ok(z) => z
+    | Error(_) => z
+    };
+  let edited_segment = Zipper.unselect_and_zip(edited_z);
+  let edited_make_term = MakeTerm.go(edited_segment);
+  let edited_term = edited_make_term.term;
+  let edited_info_map =
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Int)),
+      edited_term,
+    );
+  let (edited_dhexp, _) =
+    Elaborator.elaborate(edited_info_map, edited_term);
   {
     z,
     segment,
     syntax,
     term,
     info_map,
+    edited_segment,
+    edited_term,
+    edited_info_map,
+    edited_dhexp,
   };
 };
 
@@ -125,13 +160,16 @@ let memo_tests_for_size =
   ];
 };
 
-/* Edit-cycle benchmarks: measure the realistic per-keystroke cost.
- * Each iteration inserts a character into the zipper, producing a fresh
- * segment with new IDs (Id.mk() generates random UUIDs), so memoization
- * caches always miss. This is the cold path that determines edit latency.
+/* Edit-cycle benchmarks: measure individual pipeline phases.
  *
- * The benchmarked phases mirror the production pipeline:
- *   Insert -> CachedSyntax rebuild -> Statics -> Elaboration */
+ * Each phase is benchmarked in isolation using pre-computed inputs
+ * from the previous phase (computed once in make_fixture). This means
+ * iteration 1 is a cold call but iterations 2+ may hit memo caches
+ * since the inputs don't change between iterations.
+ *
+ * Pipeline: Perform -> MakeTerm -> Measured -> Statics -> Elaborate -> Evaluate
+ *
+ * The compare.js script computes a "Total" row by summing all phases. */
 let edit_cycle_tests_for_size =
     (label: string, program: string): list(Bench.Test.t) => {
   let z = parse_to_zipper(program);
@@ -139,80 +177,45 @@ let edit_cycle_tests_for_size =
   let statics = CachedStatics.empty;
 
   [
-    /* Insert a character (action phase only, no recalculation) */
-    Bench.Test.create(~name=label ++ "/edit/Insert", () =>
+    Bench.Test.create(~name=label ++ "/edit/Perform", () =>
       ignore(
         Perform.go(
           ~statics,
           ~syntax=fix.syntax,
           Insert("x"),
-          {
-            zipper: fix.z,
-            col_target: None,
-          },
+          {zipper: fix.z, col_target: None},
         ),
       )
     ),
-    /* Full edit cycle: insert + CachedSyntax rebuild.
-     * This is the dominant cost on each keystroke: the segment changes,
-     * triggering MakeTerm.go + Measured.of_segment from scratch. */
-    Bench.Test.create(
-      ~name=label ++ "/edit/Insert+CachedSyntax",
-      () => {
-        let z =
-          switch (
-            Perform.go(
-              ~statics,
-              ~syntax=fix.syntax,
-              Insert("x"),
-              {
-                zipper: fix.z,
-                col_target: None,
-              },
-            )
-          ) {
-          | Ok(z) => z
-          | Error(_) => fix.z
-          };
-        let syntax = CachedSyntax.mark_old(fix.syntax);
-        ignore(
-          CachedSyntax.calculate(z, Id.Map.empty, Id.Map.empty, syntax),
-        );
-      },
+    Bench.Test.create(~name=label ++ "/edit/MakeTerm", () =>
+      ignore(MakeTerm.go(fix.edited_segment))
     ),
-    /* Full edit cycle: insert + CachedSyntax + Statics + Elaboration.
-     * This is the complete calculate phase after a keystroke. */
-    Bench.Test.create(
-      ~name=label ++ "/edit/Insert+Full",
-      () => {
-        let z =
-          switch (
-            Perform.go(
-              ~statics,
-              ~syntax=fix.syntax,
-              Insert("x"),
-              {
-                zipper: fix.z,
-                col_target: None,
-              },
-            )
-          ) {
-          | Ok(z) => z
-          | Error(_) => fix.z
-          };
-        /* CachedSyntax rebuild */
-        let syntax = CachedSyntax.mark_old(fix.syntax);
-        let _syntax =
-          CachedSyntax.calculate(z, Id.Map.empty, Id.Map.empty, syntax);
-        /* Statics (MakeTerm + type checking + elaboration) */
-        let make_term_result = MakeTerm.from_zip_for_sem(z);
-        let term = make_term_result.term;
-        let info_map =
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-        ignore(Elaborator.elaborate(info_map, term));
-      },
+    Bench.Test.create(~name=label ++ "/edit/Measured", () =>
+      ignore(
+        Measured.of_segment(
+          fix.edited_segment,
+          Id.Map.empty,
+          Id.Map.empty,
+        ),
+      )
     ),
-    /* Cursor move for comparison (should be ~free) */
+    Bench.Test.create(~name=label ++ "/edit/Statics", () =>
+      ignore(
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          fix.edited_term,
+        ),
+      )
+    ),
+    Bench.Test.create(~name=label ++ "/edit/Elaborate", () =>
+      ignore(Elaborator.elaborate(fix.edited_info_map, fix.edited_term))
+    ),
+    Bench.Test.create(~name=label ++ "/edit/Evaluate", () =>
+      ignore(
+        Evaluator.evaluate(~env=Builtins.env_init, fix.edited_dhexp),
+      )
+    ),
     Bench.Test.create(~name=label ++ "/edit/Move(Left)", () =>
       ignore(
         Move.go(

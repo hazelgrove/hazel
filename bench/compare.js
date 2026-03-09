@@ -64,6 +64,28 @@ function formatDelta(base, head) {
 const editResults = headResults.filter(r => r.name.includes('/edit/'));
 const memoResults = headResults.filter(r => r.name.includes('/memo/'));
 
+/* Compute Total rows by summing individual pipeline phases per program size.
+ * Excludes Move(Left) since it's a baseline reference, not part of the pipeline. */
+const pipelinePhases = ['Perform', 'MakeTerm', 'Measured', 'Statics', 'Elaborate', 'Evaluate'];
+const sizeGroups = {};
+for (const r of editResults) {
+  const slash = r.name.indexOf('/edit/');
+  if (slash < 0) continue;
+  const size = r.name.slice(0, slash);
+  const phase = r.name.slice(slash + 6);
+  if (!pipelinePhases.includes(phase)) continue;
+  if (!sizeGroups[size]) sizeGroups[size] = { head: 0, base: 0 };
+  sizeGroups[size].head += r.time_ns || 0;
+  sizeGroups[size].base += baseMap[r.name] || 0;
+}
+const totalRows = [];
+for (const [size, sums] of Object.entries(sizeGroups)) {
+  const name = `${size}/edit/Total`;
+  totalRows.push({ name, time_ns: sums.head });
+  baseMap[name] = sums.base;
+}
+const editWithTotals = [...editResults, ...totalRows];
+
 if (markdown) {
   function makeTable(results) {
     let table = '| Benchmark | Base | PR | Delta |\n';
@@ -79,7 +101,7 @@ if (markdown) {
     console.log(':x: Benchmarks failed to build or run.');
   } else {
     console.log('### Edit Cycle (per-keystroke latency)\n');
-    console.log(makeTable(editResults));
+    console.log(makeTable(editWithTotals));
 
     if (memoResults.length > 0) {
       console.log('<details><summary>Memo-hit overhead (repeated calls, same input)</summary>\n');
@@ -120,7 +142,7 @@ if (markdown) {
     }
   }
 
-  printTable('Edit Cycle (per-keystroke latency)', editResults);
+  printTable('Edit Cycle (per-keystroke latency)', editWithTotals);
   printTable('Memo-hit overhead (repeated calls, same input)', memoResults);
   console.log();
 }
