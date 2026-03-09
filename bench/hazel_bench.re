@@ -273,9 +273,32 @@ let output_json = (results: list(Bench.Analysis_result.t)): unit => {
 
 /* --- Main --- */
 
+/* Parse --filter <pattern> from argv. Matches benchmark names containing
+ * the pattern as a substring (case-sensitive). Multiple --filter flags
+ * are OR'd together. Examples:
+ *   --filter let500           # all let500 benchmarks
+ *   --filter Insert+Full      # just the full edit cycle
+ *   --filter memo             # all memo-hit benchmarks
+ *   --filter let500/edit      # let500 edit cycle benchmarks */
+let parse_filters = (argv: array(string)): list(string) => {
+  let filters = ref([]);
+  let arr = Array.to_list(argv);
+  let rec go =
+    fun
+    | [] => ()
+    | ["--filter", pattern, ...rest] => {
+        filters := [pattern, ...filters^];
+        go(rest);
+      }
+    | [_, ...rest] => go(rest);
+  go(arr);
+  filters^;
+};
+
 let () = {
-  let json_mode =
-    Array.exists(Sys.get_argv(), ~f=s => String.equal(s, "--json"));
+  let argv = Sys.get_argv();
+  let json_mode = Array.exists(argv, ~f=s => String.equal(s, "--json"));
+  let filters = parse_filters(argv);
 
   /* Define all benchmarks */
   let tests =
@@ -285,7 +308,24 @@ let () = {
     @ memo_tests_for_size("let100", gen_let_chain(100))
     @ memo_tests_for_size("let500", gen_let_chain(500));
 
-  if (json_mode) {
+  /* Apply filters if any were specified */
+  let tests =
+    switch (filters) {
+    | [] => tests
+    | _ =>
+      List.filter(tests, ~f=t =>
+        List.exists(filters, ~f=pattern =>
+          String.is_substring(Bench.Test.name(t), ~substring=pattern)
+        )
+      )
+    };
+
+  if (List.is_empty(tests)) {
+    Printf.eprintf(
+      "No benchmarks matched filter(s): %s\n",
+      String.concat(filters, ~sep=", "),
+    );
+  } else if (json_mode) {
     let run_config =
       Bench.Run_config.create(~quota=Bench.Quota.Num_calls(20), ());
     let measurements = Bench.measure(~run_config, tests);
@@ -298,9 +338,6 @@ let () = {
       );
     output_json(results);
   } else {
-    /* Use core_bench's built-in command-line interface for interactive use.
-     * This respects -quota, -ci-absolute, etc. passed via argv.
-     * Since we can't use Command.run in JS, call bench directly. */
     let run_config =
       Bench.Run_config.create(~quota=Bench.Quota.Num_calls(30), ());
     Bench.bench(~run_config, tests);
