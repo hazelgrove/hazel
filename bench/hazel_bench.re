@@ -327,7 +327,11 @@ let () = {
     );
   } else if (json_mode) {
     let run_config =
-      Bench.Run_config.create(~quota=Bench.Quota.Num_calls(20), ());
+      Bench.Run_config.create(
+        ~quota=Bench.Quota.Num_calls(20),
+        ~stabilize_gc_between_runs=true,
+        (),
+      );
     let measurements = Bench.measure(~run_config, tests);
     let results =
       List.filter_map(measurements, ~f=m =>
@@ -339,7 +343,11 @@ let () = {
     output_json(results);
   } else {
     let run_config =
-      Bench.Run_config.create(~quota=Bench.Quota.Num_calls(30), ());
+      Bench.Run_config.create(
+        ~quota=Bench.Quota.Num_calls(30),
+        ~stabilize_gc_between_runs=true,
+        (),
+      );
     Bench.bench(~run_config, tests);
   };
 };
