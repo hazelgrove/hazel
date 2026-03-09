@@ -647,7 +647,153 @@ let x = 10 + 20 in x
 
 ---
 
-## 9. The % Focus Marker: Full Position Spectrum
+## 9. Cross-Sort Navigation: Patterns, Types, and Beyond
+
+The selector system works **homogeneously across sorts**. When a child
+has a different sort than its parent, navigation crosses the sort
+boundary transparently. This section illustrates navigation within
+patterns (Pat) and types (Typ) — sorts that are often reached from
+expression (Exp) context but have their own internal spine structure.
+
+### 9.1 Pattern-Internal Navigation
+
+Patterns decompose into spines just like expressions:
+
+| Pattern form | Spine decomposition |
+|---|---|
+| `Var("x")` | atom `"x"` |
+| `Tuple([p1, p2])` | `[Token("("), Child(p1), Token(","), Child(p2), Token(")")]` |
+| `Cons(hd, tl)` | `[Child(hd), Token("::"), Child(tl)]` |
+| `Ap(ctor, arg)` | `[Child(ctor), Token("("), Child(arg), Token(")")]` |
+| `Asc(p, t)` | `[Child(p), Token(":"), Child(t)]` |
+| `ListLit([p1, p2])` | `[Token("["), Child(p1), Token(","), Child(p2), Token("]")]` |
+| `Wild` | atom `"_"` |
+
+#### Tuple patterns
+
+```
+let (a, b, c) = (1, 2, 3) in a + b + c
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `let ( _ _ % )` | `c` | third element of tuple pattern (FocusPat) |
+| `let ( % )` | `a` | first element (FocusPat) |
+| `let ( _ % )` | `b` | second element (FocusPat) |
+| `#0 #0` | `a` | first tuple element via child index |
+| `#0 #2` | `c` | third via child index |
+
+#### Constructor patterns in case arms
+
+```
+case xs | [] => 0 | x :: rest => x + count(rest) end
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `\| [] => %` | `0` | base case body |
+| `\| _ :: rest => %` | `x + count(rest)` | recursive case body |
+
+The constructor `::` in a pattern decomposes as
+`[Child(x), Token("::"), Child(rest)]`, so `_ :: rest` matches
+the cons pattern's spine with a wildcard head and named tail.
+
+#### Nested patterns
+
+```
+case p | (x, A(y)) => x + y | (x, B) => x end
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `\| ( _ , A _ ) => %` | `x + y` | match on nested constructor in tuple |
+| `\| ( _ , B ) => %` | `x` | match on simple constructor in tuple |
+
+### 9.2 Type-Internal Navigation
+
+Types have their own spine structure, reachable via annotations
+(`:` in let patterns, ascriptions), type definitions (`type T = ...`),
+and signature items.
+
+| Type form | Spine decomposition |
+|---|---|
+| `Arrow(t1, t2)` | `[Child(t1), Token("->"), Child(t2)]` |
+| `Prod([t1, t2])` | `[Token("("), Child(t1), Token(","), Child(t2), Token(")")]` |
+| `List(t)` | `[Token("["), Child(t), Token("]")]` |
+| `Var("T")` | atom `"T"` |
+| `Atom(Int)` | atom `"Int"` |
+
+#### Arrow types
+
+```
+let f : Int -> Bool = fun x -> x > 0 in f
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `let f : %` | `Int -> Bool` | the whole type annotation (FocusTyp) |
+| `let f : #0` | `Int` | parameter type (via child index into arrow) |
+| `let f : #1` | `Bool` | return type (via child index into arrow) |
+| `let f : % -> _` | `Int` | parameter type via spine match |
+| `let f : _ -> %` | `Bool` | return type via spine match |
+
+#### Descent through types
+
+```
+type T = (Int, Bool) in
+let f : T -> Int = fun x -> 0 in
+let g : Int -> Int = fun x -> x in g(f((1, true)))
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `\... Int` | multiple matches | all occurrences of `Int` (in types and exprs) |
+| `type T = %` | `(Int, Bool)` | the type definition |
+| `type T = ( %` | `Int` | first component of product type |
+| `type T = ( _ %` | `Bool` | second component of product type |
+
+#### List types
+
+```
+let xs : [Int] = [1, 2, 3] in xs
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `let xs : %` | `[Int]` | the list type annotation |
+| `let xs : [ %` | `Int` | the element type inside the list type |
+
+### 9.3 Sequence / Semicolon Forms
+
+The semicolon `;` operator produces `Seq(e1, e2)` at the expression
+level. It decomposes as `[Child(e1), Token(";"), Child(e2)]`.
+
+```
+let x = 1 in let y = 2 in x; y
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `\... % ; _` | `x` | left side of semicolon |
+| `\... _ ; %` | `y` | right side of semicolon |
+
+### 9.4 Ascription / Type Annotation Expressions
+
+The expression-level ascription `e : T` decomposes as
+`[Child(e), Token(":"), Child(T)]`.
+
+```
+let x = (42 : Int) in x
+```
+
+| Selector | Result | Notes |
+|----------|--------|-------|
+| `x = % : _` | `42` | the expression being annotated |
+| `x = _ : %` | `Int` | the type annotation |
+
+---
+
+## 10. The % Focus Marker: Full Position Spectrum
 
 The `%` marker determines what gets focused. It has two forms:
 
@@ -684,7 +830,7 @@ case x | A => 1 | B => 2 end
 
 ---
 
-## 10. Shadowed Names and Indexing
+## 11. Shadowed Names and Indexing
 
 When multiple bindings share the same name, use `name#N` (0-based):
 
@@ -725,9 +871,9 @@ module M = { let x = 1 } in module M = { let y = 2 } in M.y
 
 ---
 
-## 11. Worked Examples
+## 12. Worked Examples
 
-### 11.1 MVU Application
+### 12.1 MVU Application
 
 ```
 module App = {
@@ -769,7 +915,7 @@ let result = App.update(App.init) in result
 | `App = #0 #1` | `0` | init's definition |
 | `App = #1 #1 #1 #0` | `msg` | update → fun body → case scrutinee |
 
-### 11.2 Multi-Module Project
+### 12.2 Multi-Module Project
 
 A program structured like a multi-file project, with top-level modules
 acting as "files" and nested modules as "directories":
@@ -842,7 +988,7 @@ canvas
 | `\... let _ = %` | all let defs | every definition everywhere |
 | `_ = % _...` | multiple | all top-level definition RHSes |
 
-### 11.3 Data Processing Pipeline
+### 12.3 Data Processing Pipeline
 
 A program exercising lists, tuples, case expressions, and operators:
 
@@ -894,7 +1040,7 @@ let result = count(users) in result
 
 ---
 
-## 12. Canonical Selectors
+## 13. Canonical Selectors
 
 Two functions generate selectors that uniquely identify any node:
 
@@ -957,7 +1103,7 @@ deparse(Descend(Spine([Token("let"), ...])))  →  "\\... let ..."
 
 ---
 
-## 13. Edit Actions
+## 14. Edit Actions
 
 ### SelectorUpdate / SelectorDelete
 
@@ -1008,7 +1154,7 @@ responsible for using sensible selectors.
 
 ---
 
-## 14. Error Diagnostics
+## 15. Error Diagnostics
 
 When a selector doesn't match, the error includes:
 - How far matching got before failing
@@ -1028,7 +1174,7 @@ let foo = 1 in let bar = 2 in foo + bar
 
 ---
 
-## 15. Known Limitations
+## 16. Known Limitations
 
 1. **`/` operator**: `/` (division) conflicts with chain syntax.
    Use `#0`/`#1` to address operands of `/`.
@@ -1044,7 +1190,7 @@ let foo = 1 in let bar = 2 in foo + bar
 
 ---
 
-## 16. Future Directions
+## 17. Future Directions
 
 - **Multi-variable selectors**: `%a`, `%b`, `%c` for extracting
   several subexpressions in one pass.

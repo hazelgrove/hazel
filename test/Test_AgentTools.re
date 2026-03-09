@@ -2907,6 +2907,264 @@ let canonical_roundtrip = (~name, ~code, ~sel) =>
     },
   );
 
+/* === EXPERIMENTAL: New coverage tests (section 9 of spec) ===
+   These tests were NOT validated against the previous implementation.
+   They are based on the spec's cross-sort navigation principles and
+   represent expected behavior for the rewrite. Some may need adjustment
+   after implementation — review carefully before treating as ground truth. */
+
+/* Test programs for cross-sort navigation */
+let tuple_pat_program =
+  "let (a, b, c) = (1, 2, 3) in a + b + c";
+
+let annotated_fun_program =
+  "let f : Int -> Bool = fun x -> x > 0 in f";
+
+let cons_pat_program =
+  "case xs | [] => 0 | x :: rest => x + count(rest) end";
+
+let nested_pat_program =
+  "case p | (x, A(y)) => x + y | (x, B) => x end";
+
+let type_def_program =
+  "type T = (Int, Bool) in "
+  ++ "let f : T -> Int = fun x -> 0 in "
+  ++ "let g : Int -> Int = fun x -> x in "
+  ++ "g(f((1, true)))";
+
+let list_type_program =
+  "let xs : [Int] = [1, 2, 3] in xs";
+
+let seq_program =
+  "let x = 1 in let y = 2 in x; y";
+
+let asc_expr_program =
+  "let x = (42 : Int) in x";
+
+let experimental_selector_tests = (
+  "AgentTools.ExperimentalSelectors",
+  [
+    /* === 9.1 Pattern-Internal Navigation === */
+
+    /* Tuple patterns: navigate into tuple pattern elements */
+    sel_test(
+      ~name="tuple pat: ( % ) first",
+      ~code=tuple_pat_program,
+      ~sel="let ( % )",
+      ~expected="a",
+    ),
+    sel_test(
+      ~name="tuple pat: ( _ % ) second",
+      ~code=tuple_pat_program,
+      ~sel="let ( _ % )",
+      ~expected="b",
+    ),
+    sel_test(
+      ~name="tuple pat: ( _ _ % ) third",
+      ~code=tuple_pat_program,
+      ~sel="let ( _ _ % )",
+      ~expected="c",
+    ),
+    sel_test(
+      ~name="tuple pat: #0 #0 first via index",
+      ~code=tuple_pat_program,
+      ~sel="#0 #0",
+      ~expected="a",
+    ),
+    sel_test(
+      ~name="tuple pat: #0 #2 third via index",
+      ~code=tuple_pat_program,
+      ~sel="#0 #2",
+      ~expected="c",
+    ),
+
+    /* Cons patterns in case arms */
+    sel_test(
+      ~name="cons pat: | [] => % base case",
+      ~code=cons_pat_program,
+      ~sel="| [] => %",
+      ~expected="0",
+    ),
+    sel_test(
+      ~name="cons pat: | _ :: rest => % recursive case",
+      ~code=cons_pat_program,
+      ~sel="| _ :: rest => %",
+      ~expected="x + count(rest)",
+    ),
+
+    /* Nested patterns: tuple with constructor inside */
+    sel_test(
+      ~name="nested pat: | ( _ , A _ ) => %",
+      ~code=nested_pat_program,
+      ~sel="| ( _ , A _ ) => %",
+      ~expected="x + y",
+    ),
+    sel_test(
+      ~name="nested pat: | ( _ , B ) => %",
+      ~code=nested_pat_program,
+      ~sel="| ( _ , B ) => %",
+      ~expected="x",
+    ),
+
+    /* === 9.2 Type-Internal Navigation === */
+
+    /* Arrow types: navigate param vs return type */
+    sel_test(
+      ~name="arrow type: let f : %",
+      ~code=annotated_fun_program,
+      ~sel="let f : %",
+      ~expected="Int -> Bool",
+    ),
+    sel_test(
+      ~name="arrow type: let f : #0 param type",
+      ~code=annotated_fun_program,
+      ~sel="let f : #0",
+      ~expected="Int",
+    ),
+    sel_test(
+      ~name="arrow type: let f : #1 return type",
+      ~code=annotated_fun_program,
+      ~sel="let f : #1",
+      ~expected="Bool",
+    ),
+    sel_test(
+      ~name="arrow type: let f : % -> _ param via spine",
+      ~code=annotated_fun_program,
+      ~sel="let f : % -> _",
+      ~expected="Int",
+    ),
+    sel_test(
+      ~name="arrow type: let f : _ -> % return via spine",
+      ~code=annotated_fun_program,
+      ~sel="let f : _ -> %",
+      ~expected="Bool",
+    ),
+
+    /* Product types: navigate inside type definitions */
+    sel_test(
+      ~name="product type: type T = %",
+      ~code=type_def_program,
+      ~sel="type T = %",
+      ~expected="(Int, Bool)",
+    ),
+    sel_test(
+      ~name="product type: type T = ( % first",
+      ~code=type_def_program,
+      ~sel="type T = ( %",
+      ~expected="Int",
+    ),
+    sel_test(
+      ~name="product type: type T = ( _ % second",
+      ~code=type_def_program,
+      ~sel="type T = ( _ %",
+      ~expected="Bool",
+    ),
+
+    /* List types: navigate into element type */
+    sel_test(
+      ~name="list type: let xs : %",
+      ~code=list_type_program,
+      ~sel="let xs : %",
+      ~expected="[Int]",
+    ),
+    sel_test(
+      ~name="list type: let xs : [ % element type",
+      ~code=list_type_program,
+      ~sel="let xs : [ %",
+      ~expected="Int",
+    ),
+
+    /* Descent finding types: \... Int to find all Int atoms */
+    test_case(
+      "descent finds Int type atoms",
+      `Quick,
+      () => {
+        let results = selector_query(type_def_program, "\\... Int");
+        /* Int appears in: type T = (Int, ...), f : T -> Int, g : Int -> Int (x2) */
+        check(
+          bool,
+          "at least 3 Int matches",
+          true,
+          List.length(results) >= 3,
+        );
+      },
+    ),
+
+    /* === 9.3 Seq spine === */
+    sel_test(
+      ~name="seq: % ; _ left side",
+      ~code=seq_program,
+      ~sel="\\... % ; _",
+      ~expected="x",
+    ),
+    sel_test(
+      ~name="seq: _ ; % right side",
+      ~code=seq_program,
+      ~sel="\\... _ ; %",
+      ~expected="y",
+    ),
+
+    /* === 9.4 Expression ascription === */
+    sel_test(
+      ~name="asc expr: % : _ expression",
+      ~code=asc_expr_program,
+      ~sel="x = % : _",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="asc expr: _ : % type",
+      ~code=asc_expr_program,
+      ~sel="x = _ : %",
+      ~expected="Int",
+    ),
+
+    /* === Additional coverage: forms from spec not in main tests === */
+
+    /* Descent + type: find all function types anywhere */
+    test_case(
+      "descent finds arrow types",
+      `Quick,
+      () => {
+        let code = "let f : Int -> Bool = fun x -> x > 0 in let g : Bool -> Int = fun y -> 0 in f";
+        let results = selector_query(code, "\\... _ -> %");
+        /* Should find Bool (return of f) and Int (return of g) */
+        check(
+          bool,
+          "at least 2 arrow return types",
+          true,
+          List.length(results) >= 2,
+        );
+      },
+    ),
+
+    /* Wildcard arm pattern with constructor application */
+    test_case(
+      "wildcard arms multi-match with nested patterns",
+      `Quick,
+      () => {
+        let results = selector_query(nested_pat_program, "| _ => %");
+        check(int, "two arm bodies", 2, List.length(results));
+      },
+    ),
+
+    /* Deep cross-sort: Exp -> Pat -> Typ */
+    sel_test(
+      ~name="deep cross-sort: exp -> pat -> typ",
+      ~code="let x : Int = 42 in x",
+      ~sel="#0 #1",
+      ~expected="Int",
+    ),
+
+    /* Test form with descent */
+    sel_test(
+      ~name="test body via descent",
+      ~code="let x = 1 in test x == 1 end",
+      ~sel="\\... test %",
+      ~expected="x == 1",
+    ),
+  ],
+);
+
 let canonical_tests = (
   "AgentTools.Canonical",
   [
@@ -5430,6 +5688,7 @@ let tests = [
   composition_view_print_tests,
   seq_node_map_tests,
   selector_tests,
+  experimental_selector_tests,
   canonical_tests,
   canonical_read_tests,
   selector_edit_tests,
