@@ -1155,8 +1155,7 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([local(ResetSettings), parent(SampleCursor(Reset))]);
-  | D("Escape")
-  | D("Tab") =>
+  | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([Stop_propagation, Prevent_default]);
   | D("Enter") when key.meta == Down || key.ctrl == Down =>
