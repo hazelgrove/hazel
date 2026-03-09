@@ -216,17 +216,6 @@ let edit_cycle_tests_for_size =
         Evaluator.evaluate(~env=Builtins.env_init, fix.edited_dhexp),
       )
     ),
-    Bench.Test.create(~name=label ++ "/edit/Move(Left)", () =>
-      ignore(
-        Move.go(
-          ~statics=fix.info_map,
-          ~col_target=0,
-          ~measured=fix.syntax.measured,
-          Local(Left, ByChar),
-          fix.z,
-        ),
-      )
-    ),
   ];
 };
 

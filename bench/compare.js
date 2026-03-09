@@ -64,27 +64,38 @@ function formatDelta(base, head) {
 const editResults = headResults.filter(r => r.name.includes('/edit/'));
 const memoResults = headResults.filter(r => r.name.includes('/memo/'));
 
-/* Compute Total rows by summing individual pipeline phases per program size.
- * Excludes Move(Left) since it's a baseline reference, not part of the pipeline. */
+/* Insert a Total row after each program-size group by summing pipeline phases. */
 const pipelinePhases = ['Perform', 'MakeTerm', 'Measured', 'Statics', 'Elaborate', 'Evaluate'];
-const sizeGroups = {};
+const editWithTotals = [];
+let curSize = null;
+let headSum = 0, baseSum = 0;
+
+function flushTotal() {
+  if (curSize !== null) {
+    const name = `${curSize}/edit/Total`;
+    editWithTotals.push({ name, time_ns: headSum });
+    baseMap[name] = baseSum;
+  }
+}
+
 for (const r of editResults) {
   const slash = r.name.indexOf('/edit/');
-  if (slash < 0) continue;
+  if (slash < 0) { editWithTotals.push(r); continue; }
   const size = r.name.slice(0, slash);
   const phase = r.name.slice(slash + 6);
-  if (!pipelinePhases.includes(phase)) continue;
-  if (!sizeGroups[size]) sizeGroups[size] = { head: 0, base: 0 };
-  sizeGroups[size].head += r.time_ns || 0;
-  sizeGroups[size].base += baseMap[r.name] || 0;
+  if (size !== curSize) {
+    flushTotal();
+    curSize = size;
+    headSum = 0;
+    baseSum = 0;
+  }
+  editWithTotals.push(r);
+  if (pipelinePhases.includes(phase)) {
+    headSum += r.time_ns || 0;
+    baseSum += baseMap[r.name] || 0;
+  }
 }
-const totalRows = [];
-for (const [size, sums] of Object.entries(sizeGroups)) {
-  const name = `${size}/edit/Total`;
-  totalRows.push({ name, time_ns: sums.head });
-  baseMap[name] = sums.base;
-}
-const editWithTotals = [...editResults, ...totalRows];
+flushTotal();
 
 if (markdown) {
   function makeTable(results) {
