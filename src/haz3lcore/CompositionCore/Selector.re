@@ -778,9 +778,9 @@ let children_of = (target: focus_target): list(focus_target) =>
   };
 
 let nth_child = (n: int, target: focus_target): option(focus_target) => {
-  /* For transparent wrappers, look through them first */
-  let (_, dec) = decompose_through(target);
-  switch (dec) {
+  /* Use direct decompose (NOT decompose_through) so that Parens/Projector
+     are treated as single-child wrappers rather than being skipped */
+  switch (decompose(target)) {
   | Form(positions) =>
     let children =
       positions
@@ -790,7 +790,13 @@ let nth_child = (n: int, target: focus_target): option(focus_target) => {
            | PosToken(_) => None,
          );
     List.nth_opt(children, n);
-  | Transparent(_) => None /* resolved above */
+  | Transparent(inner) =>
+    /* Transparent wrappers have exactly one child */
+    if (n == 0) {
+      Some(inner);
+    } else {
+      None;
+    }
   | AtomNode(_)
   | Hole => None
   };
@@ -1091,9 +1097,20 @@ type spine_result = list((focus_target, string));
    Returns list of match_results for each successful resolution path. */
 let rec resolve_steps =
         (steps: sem_selector, target: focus_target): list(match_result) => {
-  /* Look through transparent wrappers */
-  let (actual, dec) = decompose_through(target);
-  resolve_with_decomposed(steps, actual, dec);
+  /* Handle ChildIndex on the raw target (before decompose_through)
+     so that Parens/Projector are treated as single-child wrappers
+     rather than being skipped. */
+  switch (steps) {
+  | [ChildIndex(n), ...rest] =>
+    switch (nth_child(n, target)) {
+    | Some(child) => resolve_steps(rest, child)
+    | None => []
+    }
+  | _ =>
+    /* Look through transparent wrappers */
+    let (actual, dec) = decompose_through(target);
+    resolve_with_decomposed(steps, actual, dec);
+  };
 }
 
 and resolve_with_decomposed =
@@ -1377,8 +1394,10 @@ and resolve_spine =
 }
 
 /* Match a keyword token against spine positions.
-   Returns results from ALL matching positions.
-   When encountering a child, tries entering it to find the keyword. */
+   Keywords enter structural children (FocusMod, FocusSig, FocusRule, FocusTPat,
+   FocusMPat) but NOT expression/pattern/type children which have their own
+   keyword scoping. This prevents nested "in"/"then"/"else" false matches
+   while allowing "{ let x = %" to find items inside module bodies. */
 and match_keyword_in_spine =
     (kw: string, rest: sem_selector, positions: list(spine_pos),
      form_target: focus_target)
@@ -1389,8 +1408,13 @@ and match_keyword_in_spine =
     let more = match_keyword_in_spine(kw, rest, remaining, form_target);
     dedup_results(here @ more);
   | [PosChild(child), ...remaining] =>
-    /* Try entering the child to find the keyword inside */
-    let enter = resolve_steps([MatchKeyword(kw), ...rest], child);
+    /* Only enter structural children (Mod/Sig/Rule/TPat/MPat) for keywords */
+    let enter =
+      switch (child) {
+      | FocusMod(_) | FocusSig(_) | FocusRule(_, _) | FocusTPat(_) | FocusMPat(_) =>
+        resolve_steps([MatchKeyword(kw), ...rest], child)
+      | FocusExp(_) | FocusPat(_) | FocusTyp(_) => []
+      };
     let skip = match_keyword_in_spine(kw, rest, remaining, form_target);
     dedup_results(enter @ skip);
   | [PosToken(_), ...remaining] =>
@@ -1437,15 +1461,20 @@ and match_name_in_spine_resolve =
     (name: string, idx_opt: option(int), rest: sem_selector,
      positions: list(spine_pos), form_target: focus_target)
     : list(match_result) => {
-  /* First scan: try to find a matching name in current positions */
+  /* First scan: try to find a matching name in current positions.
+     Prefer spine continuation over entering the matched child
+     (same pattern as MatchSlot). Only enter if spine produces nothing. */
   let rec scan = (pos: list(spine_pos)): list(match_result) =>
     switch (pos) {
     | [PosChild(child), ...remaining] =>
       switch (name_of_target(child)) {
       | Some(n) when name_matches_str(name, idx_opt, n) =>
         let spine_results = resolve_spine(rest, remaining, form_target);
-        let enter_results = resolve_steps(rest, child);
-        dedup_results(spine_results @ enter_results);
+        if (List.length(spine_results) > 0) {
+          spine_results;
+        } else {
+          resolve_steps(rest, child);
+        };
       | _ => scan(remaining)
       }
     | [PosToken(_), ...remaining] => scan(remaining)
@@ -1494,7 +1523,7 @@ and try_ellipsis_spine =
     | [_, ...remaining] =>
       try_ellipsis_spine(rest_steps, remaining, form_target)
     };
-  here @ skip;
+  dedup_results(here @ skip);
 }
 
 /* Try to match an atom in a spine's children */
@@ -1837,12 +1866,12 @@ and resolve_name_index_body =
 /* Resolve a surface selector against an expression */
 let resolve = (sel: selector, root: Exp.t): list(match_result) => {
   let steps = elaborate(sel);
-  resolve_with_name_index(steps, root);
+  dedup_results(resolve_with_name_index(steps, root));
 };
 
 /* Resolve a sem_selector */
 let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) =>
-  resolve_with_name_index(steps, root);
+  dedup_results(resolve_with_name_index(steps, root));
 
 /* === Convenience: parse + resolve === */
 
