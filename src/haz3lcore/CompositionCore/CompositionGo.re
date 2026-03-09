@@ -896,6 +896,15 @@ module Local = {
               Ok((new_z, None));
             }
           }
+        | FocusSig(_)
+        | FocusTPat(_)
+        | FocusMPat(_)
+        | FocusRule(_, _) =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Cannot update this focus type via selector",
+            ),
+          )
         };
       };
 
@@ -922,6 +931,10 @@ module Local = {
           | FocusTyp(_) =>
             let hole = Typ.fresh(Unknown(Hole(EmptyHole)));
             TermEdit.replace_typ_by_id(focused_id, hole, term);
+          | FocusSig(_)
+          | FocusTPat(_)
+          | FocusMPat(_)
+          | FocusRule(_, _) => term
           };
         let new_z = TermEdit.term_to_zipper(new_term);
         Ok((new_z, None));
