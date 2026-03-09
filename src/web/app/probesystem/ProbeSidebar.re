@@ -196,7 +196,7 @@ let kbd = (shortcut: string) =>
 
 /* A joined pill: pointer icon (outline) + kbd badge (filled).
  * Reads as "click, then press key". */
-let click_kbd = (shortcut: string) =>
+let _click_kbd = (shortcut: string) =>
   span(
     ~attrs=[clss(["click-kbd-pill"])],
     [
@@ -204,6 +204,7 @@ let click_kbd = (shortcut: string) =>
       span(~attrs=[clss(["kbd-part"])], [text(shortcut)]),
     ],
   );
+let click_kbd = kbd;
 
 let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
   let mode = ProbeProj.Settings.s^.window;
@@ -974,13 +975,13 @@ let quick_ref_view =
           /* Group 3: Focus */
           quick_ref_divider,
           quick_ref_row(
-            ~shortcut="Tab",
+            ~shortcut=meta ++ {js|↩|js},
             ~badge_cls="qr-focus-probe",
             "Focus probe",
             "Click sample",
           ),
           quick_ref_row(
-            ~click_shortcut="Tab",
+            ~click_shortcut=meta ++ {js|↩|js},
             ~click_shortcut2="Esc",
             ~badge_cls="qr-when-focused",
             "Focus editor",
