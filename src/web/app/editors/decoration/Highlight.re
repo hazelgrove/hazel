@@ -252,12 +252,14 @@ let outline_path =
 
     let lx = (row: row_data) => left_x(row) -. origin_col;
     let rx = (row: row_data) => right_x(row) -. origin_col;
-    let ty = (row: row_data) =>
-      float_of_int(row.row_num - origin_row);
+    let ty = (row: row_data) => float_of_int(row.row_num - origin_row);
 
     let top =
       SvgUtil.Path.[
-        M({x: lx(first), y: ty(first)}),
+        M({
+          x: lx(first),
+          y: ty(first),
+        }),
         H({x: rx(first)}),
       ];
 
@@ -340,14 +342,23 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
             max_row: max(bb.max_row, row.row_num),
           };
         },
-        {min_col: l0, max_col: r0, min_row: first.row_num, max_row: first.row_num},
+        {
+          min_col: l0,
+          max_col: r0,
+          min_row: first.row_num,
+          max_row: first.row_num,
+        },
         rest,
       ),
     );
   };
 
 let svg_of_group =
-    (~font_metrics: FontMetrics.t, ~clss: list(string), rows: list(row_data))
+    (
+      ~font_metrics: FontMetrics.t,
+      ~clss: list(string),
+      rows: list(row_data),
+    )
     : option(Node.t) =>
   switch (bbox_of(rows)) {
   | None => None
