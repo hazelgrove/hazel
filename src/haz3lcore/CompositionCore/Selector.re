@@ -842,6 +842,7 @@ let name_of_target = (target: focus_target): option(string) =>
     | ModuleMod(mpat, _) => mpat_name(mpat)
     | _ => None
     }
+  | FocusRule(pat, _) => pat_name(pat)
   | _ => None
   };
 
@@ -1104,19 +1105,23 @@ and resolve_with_decomposed =
     [mk_result(actual)]
 
   | [MatchFocus, ...rest] =>
-    /* Focus marker: if no remaining steps, or remaining steps match
-       as a predicate on this node (Focus(Some(k)) behavior) */
     switch (rest) {
     | [] => [mk_result(actual)]
     | _ =>
-      /* Focus(Some(k)): the remaining steps must match this node.
-         If they produce any results, focus on this node itself. */
-      let inner = resolve_steps(rest, actual);
-      if (List.length(inner) > 0) {
-        [mk_result(actual)];
-      } else {
-        [];
-      };
+      /* If node is a Form, delegate to spine matching which handles
+         Focus as a position marker (e.g., "% + _" focuses on left operand) */
+      switch (dec) {
+      | Form(positions) =>
+        resolve_spine(steps, positions, actual)
+      | _ =>
+        /* Non-form: use Focus(Some(k)) predicate semantics */
+        let inner = resolve_steps(rest, actual);
+        if (List.length(inner) > 0) {
+          [mk_result(actual)];
+        } else {
+          [];
+        };
+      }
     }
 
   | [ChildIndex(n), ...rest] =>
@@ -1255,21 +1260,24 @@ and resolve_spine =
         | None => []
         }
       | _ =>
-        /* Generic case: focus on the next child */
+        /* Generic case: focus on the next child.
+           The remaining steps serve as a predicate — they verify the
+           SPINE context (e.g., "let % =" checks that = follows in spine). */
         switch (skip_tokens_to_child(positions)) {
         | Some((child, remaining)) =>
-          /* Check if the rest of the steps match inside this child */
-          let inner_results = resolve_steps(rest, child);
-          if (List.length(inner_results) > 0) {
-            inner_results;
+          /* Try: 1) spine predicate, 2) enter child with full [Focus,...rest],
+                  3) skip child */
+          let spine_check = resolve_spine(rest, remaining, form_target);
+          if (List.length(spine_check) > 0) {
+            /* Spine predicate matches — focus on this child */
+            [mk_result(child)];
           } else {
-            /* The rest of the steps might match the child itself */
-            /* Focus on the child if the rest matches it as predicate */
-            let pred_results = resolve_steps(rest, child);
-            if (List.length(pred_results) > 0) {
-              [mk_result(child)];
+            /* Enter the child with [MatchFocus, ...rest] to resolve inside */
+            let enter = resolve_steps(steps, child);
+            if (List.length(enter) > 0) {
+              enter;
             } else {
-              /* Try remaining positions */
+              /* Skip this child, try next position */
               resolve_spine(steps, remaining, form_target);
             };
           }
@@ -1321,34 +1329,27 @@ and resolve_spine =
     try_atom_in_spine(s, rest, positions, form_target)
 
   | [ChildIndex(n), ...rest] =>
-    /* Child index inside a spine: get nth child from positions */
-    let children =
-      positions
-      |> List.filter_map(
-           fun
-           | PosChild(c) => Some(c)
-           | PosToken(_) => None,
-         );
-    switch (List.nth_opt(children, n)) {
-    | Some(child) => resolve_steps(rest, child)
+    /* Child index inside a spine: enter the NEXT child, then get its nth child.
+       This allows e.g. "x = #0" to get child #0 of x's definition. */
+    switch (skip_tokens_to_child(positions)) {
+    | Some((child, _remaining)) =>
+      /* Enter the child and get its nth sub-child */
+      switch (nth_child(n, child)) {
+      | Some(sub_child) => resolve_steps(rest, sub_child)
+      | None => []
+      }
     | None => []
     };
 
   | [DescendInto, ...rest] =>
-    /* Descend from within a spine: search all children */
-    let children =
-      positions
-      |> List.filter_map(
-           fun
-           | PosChild(c) => Some(c)
-           | PosToken(_) => None,
-         );
-    let results =
-      children
-      |> List.concat_map(child => resolve_steps([DescendInto, ...rest], child));
-    /* Also try matching rest directly on the form */
-    let here = resolve_steps(rest, form_target);
-    dedup_results(here @ results);
+    /* Descend from within a spine: enter the next child and descend there */
+    switch (skip_tokens_to_child(positions)) {
+    | Some((child, _remaining)) =>
+      resolve_steps([DescendInto, ...rest], child)
+    | None =>
+      /* No child found: try matching rest on the form itself */
+      resolve_steps(rest, form_target)
+    };
 
   | [EnterBinderDef(name), ...rest] =>
     /* Binder search inside a spine */
@@ -1381,18 +1382,26 @@ and match_keyword_in_spine =
 
 /* Match a delimiter against spine positions.
    Returns results from ALL matching positions (not just the first).
-   Delimiters do NOT enter children (spine descent happens at resolve_steps level). */
+   For form-starting delimiters ({, [, (), tries entering child forms. */
 and match_delimiter_in_spine =
     (d: string, rest: sem_selector, positions: list(spine_pos),
      form_target: focus_target)
     : list(match_result) => {
   switch (positions) {
   | [PosToken(s), ...remaining] when String.equal(s, d) =>
-    /* Found a match — get results from here AND continue looking for more */
     let here = resolve_spine(rest, remaining, form_target);
     let more = match_delimiter_in_spine(d, rest, remaining, form_target);
     dedup_results(here @ more);
-  | [PosChild(_), ...remaining]
+  | [PosChild(child), ...remaining] =>
+    /* For form-starting delimiters, try entering the child */
+    let enter =
+      switch (d) {
+      | "{" | "[" | "(" | "|" =>
+        resolve_steps([MatchDelimiter(d), ...rest], child)
+      | _ => []
+      };
+    let skip = match_delimiter_in_spine(d, rest, remaining, form_target);
+    dedup_results(enter @ skip);
   | [PosToken(_), ...remaining] =>
     match_delimiter_in_spine(d, rest, remaining, form_target)
   | [] => []
