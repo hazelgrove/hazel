@@ -1260,28 +1260,40 @@ and resolve_spine =
         | None => []
         }
       | _ =>
-        /* Generic case: focus on the next child.
-           The remaining steps serve as a predicate — they verify the
-           SPINE context (e.g., "let % =" checks that = follows in spine). */
-        switch (skip_tokens_to_child(positions)) {
-        | Some((child, remaining)) =>
-          /* Try: 1) spine predicate, 2) enter child with full [Focus,...rest],
-                  3) skip child */
-          let spine_check = resolve_spine(rest, remaining, form_target);
-          if (List.length(spine_check) > 0) {
-            /* Spine predicate matches — focus on this child */
-            [mk_result(child)];
+        /* Generic case: two sub-cases based on what rest starts with:
+           a) Keyword → "% let x" style: rest describes the whole form
+           b) Other → "let % =" style: rest describes spine after child */
+        let starts_with_keyword =
+          switch (rest) {
+          | [MatchKeyword(_), ..._] => true
+          | _ => false
+          };
+        if (starts_with_keyword) {
+          /* Form-level predicate: check rest against the entire form */
+          let form_check = resolve_steps(rest, form_target);
+          if (List.length(form_check) > 0) {
+            [mk_result(form_target)];
           } else {
-            /* Enter the child with [MatchFocus, ...rest] to resolve inside */
-            let enter = resolve_steps(steps, child);
-            if (List.length(enter) > 0) {
-              enter;
+            [];
+          };
+        } else {
+          /* Child-level: focus on next child, using rest as spine predicate */
+          switch (skip_tokens_to_child(positions)) {
+          | Some((child, remaining)) =>
+            let spine_check = resolve_spine(rest, remaining, form_target);
+            if (List.length(spine_check) > 0) {
+              [mk_result(child)];
             } else {
-              /* Skip this child, try next position */
-              resolve_spine(steps, remaining, form_target);
-            };
-          }
-        | None => []
+              /* Enter child for descent */
+              let enter = resolve_steps(steps, child);
+              if (List.length(enter) > 0) {
+                enter;
+              } else {
+                resolve_spine(steps, remaining, form_target);
+              };
+            }
+          | None => []
+          };
         }
       }
     }
@@ -1366,7 +1378,7 @@ and resolve_spine =
 
 /* Match a keyword token against spine positions.
    Returns results from ALL matching positions.
-   Keywords do NOT enter children (spine descent happens at resolve_steps level). */
+   When encountering a child, tries entering it to find the keyword. */
 and match_keyword_in_spine =
     (kw: string, rest: sem_selector, positions: list(spine_pos),
      form_target: focus_target)
@@ -1376,8 +1388,12 @@ and match_keyword_in_spine =
     let here = resolve_spine(rest, remaining, form_target);
     let more = match_keyword_in_spine(kw, rest, remaining, form_target);
     dedup_results(here @ more);
-  | [PosToken(_), ...remaining]
-  | [PosChild(_), ...remaining] =>
+  | [PosChild(child), ...remaining] =>
+    /* Try entering the child to find the keyword inside */
+    let enter = resolve_steps([MatchKeyword(kw), ...rest], child);
+    let skip = match_keyword_in_spine(kw, rest, remaining, form_target);
+    dedup_results(enter @ skip);
+  | [PosToken(_), ...remaining] =>
     match_keyword_in_spine(kw, rest, remaining, form_target)
   | [] => []
   };
