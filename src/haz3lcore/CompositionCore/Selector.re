@@ -1306,13 +1306,16 @@ and resolve_spine =
 
   | [MatchSlot, ...rest] =>
     /* Consume one child (with separator transparency).
-       Try both continuing in current spine AND entering the consumed child. */
+       Try spine continuation first; if that fails, enter the child. */
     switch (skip_tokens_to_child(positions)) {
     | Some((child, remaining)) =>
       let spine_results = resolve_spine(rest, remaining, form_target);
-      /* Also try entering the consumed child and matching rest inside */
-      let enter_results = resolve_steps(rest, child);
-      dedup_results(spine_results @ enter_results);
+      if (List.length(spine_results) > 0) {
+        spine_results;
+      } else {
+        /* Spine didn't match — enter the consumed child */
+        resolve_steps(rest, child);
+      };
     | None =>
       switch (positions) {
       | [PosToken(_), ...remaining] =>
@@ -1411,25 +1414,53 @@ and match_delimiter_in_spine =
 /* Match a name against spine children, with separator transparency.
    When a name matches, try both continuing in the current spine AND
    entering the matched child (for cases like module items where
-   the child's inner spine contains the relevant tokens like "="). */
+   the child's inner spine contains the relevant tokens like "=").
+   If no name matches in the current spine, try entering the LAST child
+   (for let-chain traversal: "let b = %" on nested lets). */
 and match_name_in_spine_resolve =
     (name: string, idx_opt: option(int), rest: sem_selector,
      positions: list(spine_pos), form_target: focus_target)
     : list(match_result) => {
-  switch (positions) {
-  | [PosChild(child), ...remaining] =>
-    switch (name_of_target(child)) {
-    | Some(n) when name_matches_str(name, idx_opt, n) =>
-      /* Name matched — try continuing in spine AND entering child */
-      let spine_results = resolve_spine(rest, remaining, form_target);
-      let enter_results = resolve_steps(rest, child);
-      dedup_results(spine_results @ enter_results);
-    | _ =>
-      match_name_in_spine_resolve(name, idx_opt, rest, remaining, form_target)
-    }
-  | [PosToken(_), ...remaining] =>
-    match_name_in_spine_resolve(name, idx_opt, rest, remaining, form_target)
-  | [] => []
+  /* First scan: try to find a matching name in current positions */
+  let rec scan = (pos: list(spine_pos)): list(match_result) =>
+    switch (pos) {
+    | [PosChild(child), ...remaining] =>
+      switch (name_of_target(child)) {
+      | Some(n) when name_matches_str(name, idx_opt, n) =>
+        let spine_results = resolve_spine(rest, remaining, form_target);
+        let enter_results = resolve_steps(rest, child);
+        dedup_results(spine_results @ enter_results);
+      | _ => scan(remaining)
+      }
+    | [PosToken(_), ...remaining] => scan(remaining)
+    | [] => []
+    };
+  let direct = scan(positions);
+  if (List.length(direct) > 0) {
+    direct;
+  } else {
+    /* No match found: try entering the last child (let-chain traversal) */
+    let last_child =
+      positions
+      |> List.filter_map(
+           fun
+           | PosChild(c) => Some(c)
+           | PosToken(_) => None,
+         )
+      |> (children =>
+            switch (List.rev(children)) {
+            | [last, ..._] => Some(last)
+            | [] => None
+            });
+    switch (last_child) {
+    | Some(child) =>
+      /* Descend into the last child with the full current steps */
+      resolve_steps(
+        [MatchName(name), ...rest],
+        child,
+      )
+    | None => []
+    };
   };
 }
 
