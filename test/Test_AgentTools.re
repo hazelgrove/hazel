@@ -1194,6 +1194,46 @@ let app_program =
   ++ "let result = App.update(Inc, App.init) in "
   ++ "result";
 
+/* Multi-module program for spec section 11.2 */
+let multi_module_program =
+  "module Types = { "
+  ++ "type point = (Int, Int); "
+  ++ "type color = (Int, Int, Int) "
+  ++ "} in "
+  ++ "module Geom = { "
+  ++ "let origin = (0, 0); "
+  ++ "let translate = fun p -> fun dx -> "
+  ++ "let x = p.0 + dx in "
+  ++ "let y = p.1 in "
+  ++ "(x, y); "
+  ++ "module Shapes = { "
+  ++ "let circle = fun center -> fun radius -> (center, radius); "
+  ++ "let rect = fun tl -> fun br -> (tl, br) "
+  ++ "} "
+  ++ "} in "
+  ++ "module Render = { "
+  ++ "let draw = fun shape -> fun color -> "
+  ++ "if shape.1 > 0 then color else (0, 0, 0) "
+  ++ "} in "
+  ++ "let canvas = Render.draw(Geom.Shapes.circle(Geom.origin)(5))((255, 0, 0)) in "
+  ++ "canvas";
+
+/* Data processing pipeline for spec section 11.3 */
+let pipeline_program =
+  "type status = +Active +Inactive +Pending in "
+  ++ "let users = [(\"Alice\", Active), (\"Bob\", Inactive), (\"Carol\", Pending)] in "
+  ++ "let is_active = fun user -> case user.1 "
+  ++ "| Active => true "
+  ++ "| Inactive => false "
+  ++ "| Pending => false "
+  ++ "end in "
+  ++ "let count : [?] -> Int = fun xs -> case xs "
+  ++ "| [] => 0 "
+  ++ "| _ :: tl => 1 + count(tl) "
+  ++ "end in "
+  ++ "let result = count(users) in "
+  ++ "result";
+
 let selector_tests = (
   "AgentTools.Selectors",
   [
@@ -2173,12 +2213,14 @@ let selector_tests = (
       ~sel="a/ %",
       ~expected="42",
     ),
-    /* a (no trailing slash) = whole binding */
-    sel_test_rendered(
-      ~name="a (no slash = whole binding)",
-      ~code="let a = 42 in a + 1",
-      ~sel="a",
-      ~expected="let a = 42 in a + 1",
+    /* a (no trailing slash) = atom match (pat + exp references, spec section 6) */
+    test_case(
+      "a (no slash = atom match)",
+      `Quick,
+      () => {
+        let results = selector_query("let a = 42 in a + 1", "a");
+        check(int, "2 matches (pat + ref)", 2, List.length(results));
+      },
     ),
     /* A/B/C/ enters all defs */
     sel_test(
@@ -2195,12 +2237,15 @@ let selector_tests = (
       ~sel="a/b/c",
       ~expected="let c = 99",
     ),
-    /* But at top level, bare name DOES return whole let expression */
-    sel_test_rendered(
-      ~name="a (no slash, top-level = whole let)",
-      ~code="let a = 42 in let b = 99 in a + b",
-      ~sel="b",
-      ~expected="let b = 99 in a + b",
+    /* Bare name at top level = atom match (pat + exp references) */
+    test_case(
+      "b (no slash, top-level = atom match)",
+      `Quick,
+      () => {
+        let results =
+          selector_query("let a = 42 in let b = 99 in a + b", "b");
+        check(int, "2 matches (pat + ref)", 2, List.length(results));
+      },
     ),
     /* Trailing slash + continuation */
     sel_test(
@@ -2270,12 +2315,12 @@ let selector_tests = (
       ~sel="A/ \\... module B = %",
       ~expected="{ let x = 42 }",
     ),
-    /* type T inside module items: returns the ModType item as FocusMod */
-    sel_test_rendered(
-      ~name="type T (bare) inside module items",
+    /* type T inside module items: implicit focus → type %T → FocusTPat */
+    sel_test(
+      ~name="type T (bare) inside module items = FocusTPat",
       ~code="module M = { type T = Int; let x = 1 } in M.x",
       ~sel="M/ \\... type T",
-      ~expected="type T = Int",
+      ~expected="T",
     ),
     /* === Implicit star with various forms === */
     /* let x = (no *) → implicit * makes it focus on def */
@@ -2410,12 +2455,12 @@ let selector_tests = (
         check(string, "same result", compact, spaced);
       },
     ),
-    /* === FocusMod: module B bare name inside module items === */
-    sel_test_rendered(
-      ~name="module B (bare) inside module = FocusMod",
+    /* === module B bare name: implicit focus → module %B → FocusPat === */
+    sel_test(
+      ~name="module B (bare) inside module = FocusPat",
       ~code="module A = { module B = { let x = 42 } } in A.B.x",
       ~sel="A/ \\... module B",
-      ~expected="module B = { let x = 42 }",
+      ~expected="B",
     ),
     /* === Indexing for non-let binders === */
     /* module#N: disambiguate shadowed module binders */
@@ -3532,6 +3577,574 @@ let canonical_tests = (
       ~code=app_program,
       ~sel="App = #0 #1",
       ~expected="0",
+    ),
+    /* === Spec 11.1: Module spine structural selectors === */
+    sel_test_rendered(
+      ~name="mvu: App = { % (first item)",
+      ~code=app_program,
+      ~sel="App = { %",
+      ~expected="let init = 0",
+    ),
+    test_case(
+      "mvu: App = { _ % (second item)",
+      `Quick,
+      () => {
+        let result = selector_query_unique(app_program, "App = { _ %");
+        check(
+          bool,
+          "starts with let update",
+          true,
+          String.length(result) >= 10
+          && String.sub(result, 0, 10) == "let update",
+        );
+      },
+    ),
+    test_case(
+      "mvu: App = { _ _ % (third item)",
+      `Quick,
+      () => {
+        let result = selector_query_unique(app_program, "App = { _ _ %");
+        check(
+          bool,
+          "starts with let view",
+          true,
+          String.length(result) >= 8
+          && String.sub(result, 0, 8) == "let view",
+        );
+      },
+    ),
+    /* === Spec 11.2: Multi-module cross-module navigation === */
+    /* Type defs inside module accessed via keyword + descent */
+    sel_test(
+      ~name="mm: \\... type point = %",
+      ~code=multi_module_program,
+      ~sel="\\... type point = %",
+      ~expected="(Int, Int)",
+    ),
+    sel_test(
+      ~name="mm: \\... type color = %",
+      ~code=multi_module_program,
+      ~sel="\\... type color = %",
+      ~expected="(Int, Int, Int)",
+    ),
+    sel_test(
+      ~name="mm: Geom/origin = %",
+      ~code=multi_module_program,
+      ~sel="Geom/origin = %",
+      ~expected="(0, 0)",
+    ),
+    /* Chain into nested module — check non-error result */
+    test_case(
+      "mm: Geom/Shapes/circle = % (nested chain)",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            multi_module_program,
+            "Geom/Shapes/circle = %",
+          );
+        check(
+          bool,
+          "not error",
+          true,
+          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+        );
+      },
+    ),
+    test_case(
+      "mm: Geom/Shapes/rect = % (sibling in nested)",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(multi_module_program, "Geom/Shapes/rect = %");
+        check(
+          bool,
+          "not error",
+          true,
+          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+        );
+      },
+    ),
+    test_case(
+      "mm: Render/draw = % (different module)",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(multi_module_program, "Render/draw = %");
+        check(
+          bool,
+          "not error",
+          true,
+          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+        );
+      },
+    ),
+    /* Spec 11.2: Deep access within definitions */
+    sel_test(
+      ~name="mm: Geom/translate \\... let x = %",
+      ~code=multi_module_program,
+      ~sel="Geom/translate \\... let x = %",
+      ~expected="p. (0) + dx",
+    ),
+    sel_test(
+      ~name="mm: Geom/translate \\... let y = %",
+      ~code=multi_module_program,
+      ~sel="Geom/translate \\... let y = %",
+      ~expected="p. (1)",
+    ),
+    sel_test(
+      ~name="mm: Render/draw \\... if %",
+      ~code=multi_module_program,
+      ~sel="Render/draw \\... if %",
+      ~expected="shape. (1) > 0",
+    ),
+    sel_test(
+      ~name="mm: Render/draw \\... if _ then %",
+      ~code=multi_module_program,
+      ~sel="Render/draw \\... if _ then %",
+      ~expected="color",
+    ),
+    sel_test(
+      ~name="mm: Render/draw \\... if _... else %",
+      ~code=multi_module_program,
+      ~sel="Render/draw \\... if _... else %",
+      ~expected="(0, 0, 0)",
+    ),
+    /* Spec 11.2: Module-level operations */
+    sel_test(
+      ~name="mm: module Types (name pat)",
+      ~code=multi_module_program,
+      ~sel="module Types",
+      ~expected="Types",
+    ),
+    test_case(
+      "mm: module Geom = % (whole body)",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(multi_module_program, "module Geom = %");
+        check(
+          bool,
+          "not error",
+          true,
+          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+        );
+      },
+    ),
+    sel_test_rendered(
+      ~name="mm: Geom = { % (first item)",
+      ~code=multi_module_program,
+      ~sel="Geom = { %",
+      ~expected="let origin = (0, 0)",
+    ),
+    /* Spec 11.2: Wildcard queries */
+    test_case(
+      "mm: \\... fun _ -> % (all funs)",
+      `Quick,
+      () => {
+        let results =
+          selector_query(multi_module_program, "\\... fun _ -> %");
+        check(
+          bool,
+          "at least 5 fun bodies",
+          true,
+          List.length(results) >= 5,
+        );
+      },
+    ),
+    test_case(
+      "mm: \\... type _ = % (all type defs)",
+      `Quick,
+      () => {
+        let results =
+          selector_query(multi_module_program, "\\... type _ = %");
+        check(int, "2 type defs", 2, List.length(results));
+      },
+    ),
+    /* === Spec 11.3: Data processing pipeline === */
+    sel_test(
+      ~name="dp: users/ [ %",
+      ~code=pipeline_program,
+      ~sel="users/ [ %",
+      ~expected="(\"Alice\", Active)",
+    ),
+    sel_test(
+      ~name="dp: users/ [ _ %",
+      ~code=pipeline_program,
+      ~sel="users/ [ _ %",
+      ~expected="(\"Bob\", Inactive)",
+    ),
+    sel_test(
+      ~name="dp: users/ [ _... %",
+      ~code=pipeline_program,
+      ~sel="users/ [ _... %",
+      ~expected="(\"Carol\", Pending)",
+    ),
+    /* Case arm access */
+    sel_test(
+      ~name="dp: is_active/ \\... case %",
+      ~code=pipeline_program,
+      ~sel="is_active/ \\... case %",
+      ~expected="user. (1)",
+    ),
+    sel_test(
+      ~name="dp: is_active/ \\... | Active => %",
+      ~code=pipeline_program,
+      ~sel="is_active/ \\... | Active => %",
+      ~expected="true",
+    ),
+    sel_test(
+      ~name="dp: is_active/ \\... | Pending => %",
+      ~code=pipeline_program,
+      ~sel="is_active/ \\... | Pending => %",
+      ~expected="false",
+    ),
+    test_case(
+      "dp: is_active/ \\... | _ => % (all arms)",
+      `Quick,
+      () => {
+        let results =
+          selector_query(pipeline_program, "is_active/ \\... | _ => %");
+        check(int, "3 arm bodies", 3, List.length(results));
+      },
+    ),
+    /* count base case via descent */
+    sel_test(
+      ~name="dp: count/ \\... | [] => %",
+      ~code=pipeline_program,
+      ~sel="count/ \\... | [] => %",
+      ~expected="0",
+    ),
+    /* Cross-cutting */
+    test_case(
+      "dp: \\... case % (all scrutinees)",
+      `Quick,
+      () => {
+        let results = selector_query(pipeline_program, "\\... case %");
+        check(int, "2 scrutinees", 2, List.length(results));
+      },
+    ),
+    test_case(
+      "dp: \\... | _ => % (all arm bodies)",
+      `Quick,
+      () => {
+        let results = selector_query(pipeline_program, "\\... | _ => %");
+        check(int, "5 arm bodies", 5, List.length(results));
+      },
+    ),
+    test_case(
+      "dp: \\... fun _ -> % (all fun bodies)",
+      `Quick,
+      () => {
+        let results = selector_query(pipeline_program, "\\... fun _ -> %");
+        check(int, "2 fun bodies", 2, List.length(results));
+      },
+    ),
+    /* Combined chain + module + atom */
+    sel_test(
+      ~name="combined: M/ \\... 42 (chain + descent + atom)",
+      ~code="module M = { let a = 42; let b = 99 } in M.a",
+      ~sel="M/ \\... 42",
+      ~expected="42",
+    ),
+  ],
+);
+
+/* Geometry program for gap tests */
+let geometry_program =
+  "module Geometry = { "
+  ++ "type Point = (Int, Int); "
+  ++ "type Distance = Int; "
+  ++ "let origin : Point = (0, 0); "
+  ++ "let manhattan = fun (x, y) : Point -> x + y "
+  ++ "} in "
+  ++ "Geometry.origin";
+
+/* === Gap Tests: implementation targets grouped by feature === */
+
+let gap_tests = (
+  "AgentTools.Gaps",
+  [
+    /* --- Gap 1: Bare name atom matching --- */
+    /* Bare name should match variable references (atoms) */
+    sel_test(
+      ~name="bare name: x matches var ref",
+      ~code="let y = 1 in x",
+      ~sel="x",
+      ~expected="x",
+    ),
+    test_case(
+      "bare name: x matches pat + both refs in x + x",
+      `Quick,
+      () => {
+        let results = selector_query("let x = 1 in x + x", "x");
+        check(int, "3 matches (pat + 2 refs)", 3, List.length(results));
+      },
+    ),
+    sel_test(
+      ~name="bare name: constructor matches",
+      ~code="let x = Active in x",
+      ~sel="Active",
+      ~expected="Active",
+    ),
+    /* --- Gap 2: Chain into type/module binders --- */
+    /* find_all_binders_named must find type and module binders */
+    sel_test(
+      ~name="chain: type binder via chain",
+      ~code=geometry_program,
+      ~sel="Geometry/Point/",
+      ~expected="(Int, Int)",
+    ),
+    sel_test(
+      ~name="chain: type binder Distance via chain",
+      ~code=geometry_program,
+      ~sel="Geometry/Distance/",
+      ~expected="Int",
+    ),
+    sel_test(
+      ~name="chain: let binder still works",
+      ~code=geometry_program,
+      ~sel="Geometry/origin = %",
+      ~expected="(0, 0)",
+    ),
+    /* Module binder inside module via chain */
+    sel_test(
+      ~name="chain: nested module via chain",
+      ~code="module A = { module B = { let x = 42 } } in A.B.x",
+      ~sel="A/B/x = %",
+      ~expected="42",
+    ),
+    /* --- Gap 3: Tuple spine access via ( delimiter --- */
+    sel_test(
+      ~name="tuple: ( % first element",
+      ~code="let t = (10, 20, 30) in t",
+      ~sel="t/ ( %",
+      ~expected="10",
+    ),
+    sel_test(
+      ~name="tuple: ( _ % second element",
+      ~code="let t = (10, 20, 30) in t",
+      ~sel="t/ ( _ %",
+      ~expected="20",
+    ),
+    sel_test(
+      ~name="tuple: ( _ _ % third element",
+      ~code="let t = (10, 20, 30) in t",
+      ~sel="t/ ( _ _ %",
+      ~expected="30",
+    ),
+    sel_test(
+      ~name="tuple: origin = ( after chain",
+      ~code=geometry_program,
+      ~sel="Geometry/origin = ( %",
+      ~expected="0",
+    ),
+    /* --- Gap 4: Trailing token prefix matching --- */
+    /* TODO: post-focus spine matching (e.g., `fun _ -> % +` where `+` confirms
+       structure inside the focused body). Deferred — requires architectural
+       change to support matching constraints after the focus point. */
+    test_case("trailing: fun _ -> % + (prefix match into body)", `Quick, () =>
+      Alcotest.skip()
+    ),
+    /* Simpler version: infix trailing token */
+    sel_test(
+      ~name="trailing: x = _ + % (right of +)",
+      ~code="let x = 1 + 2 in x",
+      ~sel="x = _ + %",
+      ~expected="2",
+    ),
+    /* --- Gap 5: % before keyword (whole-form focus) --- */
+    test_case(
+      "focus-keyword: Geometry/ % let (all lets)",
+      `Quick,
+      () => {
+        let results = selector_query(geometry_program, "Geometry/ % let");
+        check(bool, "at least 2 lets", true, List.length(results) >= 2);
+      },
+    ),
+    /* --- Gap 6: Module spine entry via { from walk --- */
+    /* \... { should find Module nodes and enter spine */
+    test_case(
+      "mod-spine-descent: \\... { type (find type in module)",
+      `Quick,
+      () => {
+        let results = selector_query(geometry_program, "\\... { type");
+        check(bool, "at least 1 match", true, List.length(results) >= 1);
+      },
+    ),
+    sel_test(
+      ~name="mod-spine-descent: \\... { type Point = %",
+      ~code=geometry_program,
+      ~sel="\\... { type Point = %",
+      ~expected="(Int, Int)",
+    ),
+    sel_test(
+      ~name="mod-spine-descent: \\... { _... let origin",
+      ~code=geometry_program,
+      ~sel="\\... { _... let origin",
+      ~expected="origin",
+    ),
+    /* --- Spec coverage: selectors from 11.2 not yet tested --- */
+    /* Chain into type defs (distinct from \... type) */
+    sel_test(
+      ~name="spec11.2: Types/point = %",
+      ~code=multi_module_program,
+      ~sel="Types/point = %",
+      ~expected="(Int, Int)",
+    ),
+    sel_test(
+      ~name="spec11.2: Types/color = %",
+      ~code=multi_module_program,
+      ~sel="Types/color = %",
+      ~expected="(Int, Int, Int)",
+    ),
+    /* Deep access: chain + descend + fun body (2 nested funs) */
+    test_case(
+      "spec11.2: Geom/translate \\... fun _ -> %",
+      `Quick,
+      () => {
+        let results =
+          selector_query(
+            multi_module_program,
+            "Geom/translate \\... fun _ -> %",
+          );
+        check(int, "2 nested funs", 2, List.length(results));
+      },
+    ),
+    /* Module-level: last item via ellipsis */
+    test_case(
+      "spec11.2: Geom = { _... % (last item)",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(multi_module_program, "Geom = { _... %");
+        check(
+          bool,
+          "not error",
+          true,
+          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+        );
+      },
+    ),
+    /* Item by name inside module spine */
+    test_case(
+      "spec11.2: Geom = { _... let translate = %",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            multi_module_program,
+            "Geom = { _... let translate = %",
+          );
+        check(
+          bool,
+          "not error",
+          true,
+          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+        );
+      },
+    ),
+    /* Descend to nested module */
+    test_case(
+      "spec11.2: \\... module Shapes = %",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(
+            multi_module_program,
+            "\\... module Shapes = %",
+          );
+        check(
+          bool,
+          "not error",
+          true,
+          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+        );
+      },
+    ),
+    /* Chain into nested module + spine */
+    test_case(
+      "spec11.2: Geom/Shapes = { % (first item)",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(multi_module_program, "Geom/Shapes = { %");
+        check(
+          bool,
+          "contains let circle",
+          true,
+          string_contains("let circle", result),
+        );
+      },
+    ),
+    test_case(
+      "spec11.2: Geom/Shapes = { _ % (second item)",
+      `Quick,
+      () => {
+        let result =
+          selector_query_unique(multi_module_program, "Geom/Shapes = { _ %");
+        check(
+          bool,
+          "contains let rect",
+          true,
+          string_contains("let rect", result),
+        );
+      },
+    ),
+    /* Spec 11.3: cons pattern arm — requires compound pattern matching
+       in pipe walker (e.g., matching Cons(_, Var("tl")) via spine tokens).
+       Skipped until spine-matching within arm patterns is implemented. */
+    test_case(
+      "spec11.3: count/ \\... | _ :: tl => %",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        let result =
+          selector_query_unique(
+            pipeline_program,
+            "count/ \\... | _ :: tl => %",
+          );
+        check(
+          bool,
+          "not error",
+          true,
+          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+        );
+      },
+    ),
+    /* --- User-reported selectors from geometry_program --- */
+    /* Tuple spine with explicit comma separator */
+    sel_test(
+      ~name="user: Geometry/origin = ( _ , %",
+      ~code=geometry_program,
+      ~sel="Geometry/origin = ( _ , %",
+      ~expected="0",
+    ),
+    /* Module spine descent: {type % (focus on type name) */
+    test_case(
+      "user: \\... { type % (type name pat)",
+      `Quick,
+      () => {
+        let results = selector_query(geometry_program, "\\... { type %");
+        check(bool, "at least 1 match", true, List.length(results) >= 1);
+      },
+    ),
+    /* Module spine descent: {type Point = % _... */
+    sel_test(
+      ~name="user: \\... { type Point = % (type def)",
+      ~code=geometry_program,
+      ~sel="\\... { type Point = %",
+      ~expected="(Int, Int)",
+    ),
+    /* Module spine descent: { _... let _ = % (wildcard let) */
+    test_case(
+      "user: \\... { _... let _ = % (any let def)",
+      `Quick,
+      () => {
+        let results =
+          selector_query(geometry_program, "\\... { _... let _ = %");
+        check(bool, "at least 1 match", true, List.length(results) >= 1);
+      },
     ),
   ],
 );
@@ -4820,6 +5433,7 @@ let tests = [
   canonical_tests,
   canonical_read_tests,
   selector_edit_tests,
+  gap_tests,
   whitespace_tests,
   completeness_tests,
   complex_program_tests,

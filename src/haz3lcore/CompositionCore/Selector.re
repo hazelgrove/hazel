@@ -44,6 +44,7 @@ type token =
   | LBrace /* { */
   | RBrace /* } */
   | Semi /* ; */
+  | Comma /* , */
   | Chain(list(string), bool) /* A/B/C - binder chain; bool = trailing slash */
   | Operator(string) /* binary operator: +, -, **, <, <=, >, >=, ==, !=, &&, ||, ++, etc. */
   | Literal(string) /* literal value: 42, 3.14, "hello", true, false */
@@ -187,6 +188,7 @@ let tokenize = (input: string): list(token) => {
       | "{" => LBrace
       | "}" => RBrace
       | ";" => Semi
+      | "," => Comma
       | s when is_binop_token(s) => Operator(s)
       | s when String.contains(s, '/') =>
         let len = String.length(s);
@@ -264,6 +266,7 @@ let elaborate = (sel: selector): sem_selector => {
     | [LBrace, ...rest] => [MatchDelimiter("{"), ...go(rest)]
     | [RBrace, ...rest] => [MatchDelimiter("}"), ...go(rest)]
     | [Semi, ...rest] => [MatchDelimiter(";"), ...go(rest)]
+    | [Comma, ...rest] => [MatchDelimiter(","), ...go(rest)]
     | [Chain(segments, trailing_slash), ...rest] =>
       /* A/B/C  (no trailing slash): EnterBinderDef(A), EnterBinderDef(B), MatchName(C)
          A/B/C/ (trailing slash):    EnterBinderDef(A), EnterBinderDef(B), EnterBinderDef(C) */
@@ -329,12 +332,37 @@ let rec mpat_name = (mp: TermBase.mpat_t): option(string) =>
   | _ => None
   };
 
+/* Helper: check if a case arm pattern head matches a name string.
+   Matches: Var, Constructor (including applied), and structural
+   patterns by their printed form (e.g., "[]" matches ListLit([])). */
+let pat_head_matches = (name: string, pat: Pat.t): bool =>
+  switch (pat_name(pat)) {
+  | Some(n) when String.equal(n, name) => true
+  | _ =>
+    switch (Pat.term_of(pat)) {
+    | Ap({term: Constructor(cname, _), _}, _)
+        when String.equal(cname, name) =>
+      true
+    | Constructor(cname, _) when String.equal(cname, name) => true
+    | ListLit([]) when String.equal(name, "[]") => true
+    | _ => false
+    }
+  };
+
 /* Helper: convert a TPat.t to a Pat.t for mk_pat results.
    Preserves the ID from the TPat. */
 let tpat_to_pat = (tp: TPat.t): Pat.t =>
   switch (tp.term) {
   | Var(name) => IdTagged.fast_copy(TPat.rep_id(tp), Pat.fresh(Var(name)))
   | _ => IdTagged.fast_copy(TPat.rep_id(tp), Pat.fresh(Wild))
+  };
+
+/* Helper: convert an mpat_t to a Pat.t for mk_pat results.
+   Preserves the ID from the MPat. */
+let mpat_to_pat = (mp: TermBase.mpat_t): Pat.t =>
+  switch (mp.term) {
+  | Var(name) => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Var(name)))
+  | _ => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Wild))
   };
 
 /* Helper: check if an Atom matches the expected selector string.
@@ -366,30 +394,40 @@ let match_binop = (op: string, e: Exp.t): option((Exp.t, Exp.t)) =>
   | _ => None
   };
 
-/* Find a binder by name in an expression, returning (binder_exp, def, body).
+/* Binder definitions can be expressions (let, module) or types (type alias).
+   This sum type lets all binder-finding functions handle both uniformly. */
+type binder_def =
+  | ExpDef(Exp.t)
+  | TypDef(Typ.t);
+
+/* Focus a binder_def as a match result */
+let focus_binder_def = (~bc=?, def: binder_def): match_result =>
+  switch (def) {
+  | ExpDef(e) => mk_exp(~bc?, e)
+  | TypDef(t) => mk_typ(~bc?, t)
+  };
+
+/* Find a binder by name in an expression, returning (def, body).
    Searches through nested let/type/module chains. */
 let rec find_binder_in_exp =
-        (name: string, e: Exp.t): option((Exp.t, Exp.t)) =>
+        (name: string, e: Exp.t): option((binder_def, Exp.t)) =>
   switch (Exp.term_of(e)) {
   | Let(pat, def, body) =>
     switch (pat_name(pat)) {
-    | Some(n) when String.equal(n, name) => Some((def, body))
+    | Some(n) when String.equal(n, name) => Some((ExpDef(def), body))
     | _ => find_binder_in_exp(name, body)
     }
-  | TyAlias(tpat, _tdef, body) =>
+  | TyAlias(tpat, tdef, body) =>
     switch (tpat_name(tpat)) {
-    | Some(n) when String.equal(n, name) =>
-      /* For type aliases, the "def" isn't an Exp, so we skip into body */
-      find_binder_in_exp(name, body)
+    | Some(n) when String.equal(n, name) => Some((TypDef(tdef), body))
     | _ => find_binder_in_exp(name, body)
     }
   | ModuleExp(mpat, def, body) =>
     switch (mpat_name(mpat)) {
-    | Some(n) when String.equal(n, name) => Some((def, body))
+    | Some(n) when String.equal(n, name) => Some((ExpDef(def), body))
     | _ => find_binder_in_exp(name, body)
     }
   | Module(items) =>
-    /* Search module items for a let/type/module named `name` */
     List.fold_left(
       (acc, item: Mod.t) =>
         switch (acc) {
@@ -398,14 +436,17 @@ let rec find_binder_in_exp =
           switch (item.term) {
           | ModLet(pat, def) =>
             switch (pat_name(pat)) {
-            | Some(n) when String.equal(n, name) =>
-              /* For module let, def is the definition. No body per se. */
-              Some((def, e))
+            | Some(n) when String.equal(n, name) => Some((ExpDef(def), e))
             | _ => None
             }
           | ModuleMod(mpat, def) =>
             switch (mpat_name(mpat)) {
-            | Some(n) when String.equal(n, name) => Some((def, e))
+            | Some(n) when String.equal(n, name) => Some((ExpDef(def), e))
+            | _ => None
+            }
+          | ModType(tpat, tdef) =>
+            switch (tpat_name(tpat)) {
+            | Some(n) when String.equal(n, name) => Some((TypDef(tdef), e))
             | _ => None
             }
           | _ => None
@@ -461,23 +502,29 @@ let rec find_mod_item_by_name = (name: string, e: Exp.t): option(Mod.t) =>
 /* Find all binders with a given name in an expression chain.
    Returns list of (def, body) pairs in order of appearance (0-indexed). */
 let rec find_all_binders_named =
-        (name: string, e: Exp.t): list((Exp.t, Exp.t)) =>
+        (name: string, e: Exp.t): list((binder_def, Exp.t)) =>
   switch (Exp.term_of(e)) {
   | Let(pat, def, body) =>
     let here =
       switch (pat_name(pat)) {
-      | Some(n) when String.equal(n, name) => [(def, body)]
+      | Some(n) when String.equal(n, name) => [(ExpDef(def), body)]
       | _ => []
       };
     here @ find_all_binders_named(name, body);
   | ModuleExp(mpat, def, body) =>
     let here =
       switch (mpat_name(mpat)) {
-      | Some(n) when String.equal(n, name) => [(def, body)]
+      | Some(n) when String.equal(n, name) => [(ExpDef(def), body)]
       | _ => []
       };
     here @ find_all_binders_named(name, body);
-  | TyAlias(_tpat, _tdef, body) => find_all_binders_named(name, body)
+  | TyAlias(tpat, tdef, body) =>
+    let here =
+      switch (tpat_name(tpat)) {
+      | Some(n) when String.equal(n, name) => [(TypDef(tdef), body)]
+      | _ => []
+      };
+    here @ find_all_binders_named(name, body);
   | Parens(inner) => find_all_binders_named(name, inner)
   | Module(items) =>
     List.concat_map(
@@ -485,12 +532,17 @@ let rec find_all_binders_named =
         switch (item.term) {
         | ModLet(pat, def) =>
           switch (pat_name(pat)) {
-          | Some(n) when String.equal(n, name) => [(def, e)]
+          | Some(n) when String.equal(n, name) => [(ExpDef(def), e)]
           | _ => []
           }
         | ModuleMod(mpat, def) =>
           switch (mpat_name(mpat)) {
-          | Some(n) when String.equal(n, name) => [(def, e)]
+          | Some(n) when String.equal(n, name) => [(ExpDef(def), e)]
+          | _ => []
+          }
+        | ModType(tpat, tdef) =>
+          switch (tpat_name(tpat)) {
+          | Some(n) when String.equal(n, name) => [(TypDef(tdef), e)]
           | _ => []
           }
         | _ => []
@@ -502,7 +554,7 @@ let rec find_all_binders_named =
 
 /* Find the nth (0-indexed) binder with the given name */
 let find_binder_indexed =
-    (name: string, idx: int, e: Exp.t): option((Exp.t, Exp.t)) => {
+    (name: string, idx: int, e: Exp.t): option((binder_def, Exp.t)) => {
   let all = find_all_binders_named(name, e);
   List.nth_opt(all, idx);
 };
@@ -866,34 +918,56 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
        Tries all binders with that name (handles shadowed bindings). */
     | [EnterBinderDef(name), ...rest] =>
       find_all_binders_named(name, current)
-      |> List.concat_map(((def, _body)) => walk(rest, def))
+      |> List.concat_map(((def, _body)) =>
+           switch (def) {
+           | ExpDef(e) => walk(rest, e)
+           | TypDef(t) =>
+             switch (rest) {
+             | []
+             | [MatchFocus] => [mk_typ(~bc=name, t)]
+             | _ => walk_typ(rest, t)
+             }
+           }
+         )
 
-    /* MatchName: find a binder by name in the current expression */
+    /* MatchName: bare name without keyword context.
+       Atom matching takes priority (Var/Constructor references),
+       falling back to binder matching if no atoms found (spec section 6). */
     | [MatchName(name)] =>
-      /* If this is the final step with no focus, match the whole binding */
-      switch (find_let_node(name, current)) {
-      | Some(let_exp) => [mk_exp(~bc=name, let_exp)]
-      | None =>
-        /* Check module items — return FocusMod for the whole item */
-        switch (find_mod_item_by_name(name, current)) {
-        | Some(item) => [mk_mod(~bc=name, item)]
+      let atoms = descend_all(current, [MatchAtom(name)]);
+      switch (atoms) {
+      | [_, ..._] => atoms
+      | [] =>
+        switch (find_let_node(name, current)) {
+        | Some(let_exp) => [mk_exp(~bc=name, let_exp)]
         | None =>
-          switch (find_binder_in_exp(name, current)) {
-          | Some((def, _)) => [mk_exp(~bc=name, def)]
-          | None => []
+          switch (find_mod_item_by_name(name, current)) {
+          | Some(item) => [mk_mod(~bc=name, item)]
+          | None =>
+            switch (find_binder_in_exp(name, current)) {
+            | Some((def, _)) => [focus_binder_def(~bc=name, def)]
+            | None => []
+            }
           }
         }
-      }
+      };
 
     /* name = % : select the definition of all binders named `name` */
     | [MatchName(name), MatchDelimiter("="), MatchFocus] =>
       find_all_binders_named(name, current)
-      |> List.map(((def, _body)) => mk_exp(~bc=name ++ " = ...", def))
+      |> List.map(((def, _body)) =>
+           focus_binder_def(~bc=name ++ " = ...", def)
+         )
 
     /* name = <more> : enter the definition of all binders named `name` */
     | [MatchName(name), MatchDelimiter("="), ...rest] =>
       find_all_binders_named(name, current)
-      |> List.concat_map(((def, _body)) => walk(rest, def))
+      |> List.concat_map(((def, _body)) =>
+           switch (def) {
+           | ExpDef(e) => walk(rest, e)
+           | TypDef(t) => walk_typ(rest, t)
+           }
+         )
 
     /* name ... in % : select the body of all binders named `name` */
     | [MatchName(name), MatchEllipsis, MatchKeyword("in"), MatchFocus] =>
@@ -915,7 +989,8 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         | ([MatchFocus], Some(item)) => [mk_mod(~bc=name, item)]
         | _ =>
           switch (find_binder_in_exp(name, current)) {
-          | Some((def, _)) => walk(rest, def)
+          | Some((ExpDef(e), _)) => walk(rest, e)
+          | Some((TypDef(t), _)) => walk_typ(rest, t)
           | None => []
           }
         }
@@ -930,7 +1005,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None =>
         switch (find_binder_indexed(name, idx, current)) {
         | Some((def, _)) => [
-            mk_exp(~bc=name ++ "#" ++ string_of_int(idx), def),
+            focus_binder_def(~bc=name ++ "#" ++ string_of_int(idx), def),
           ]
         | None => []
         }
@@ -939,14 +1014,18 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchNameIndex(name, idx), MatchDelimiter("="), MatchFocus] =>
       switch (find_binder_indexed(name, idx, current)) {
       | Some((def, _body)) => [
-          mk_exp(~bc=name ++ "#" ++ string_of_int(idx) ++ " = ...", def),
+          focus_binder_def(
+            ~bc=name ++ "#" ++ string_of_int(idx) ++ " = ...",
+            def,
+          ),
         ]
       | None => []
       }
 
     | [MatchNameIndex(name, idx), MatchDelimiter("="), ...rest] =>
       switch (find_binder_indexed(name, idx, current)) {
-      | Some((def, _body)) => walk(rest, def)
+      | Some((ExpDef(e), _body)) => walk(rest, e)
+      | Some((TypDef(t), _body)) => walk_typ(rest, t)
       | None => []
       }
 
@@ -977,7 +1056,8 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | Some(let_exp) => walk(rest, let_exp)
       | None =>
         switch (find_binder_indexed(name, idx, current)) {
-        | Some((def, _)) => walk(rest, def)
+        | Some((ExpDef(e), _)) => walk(rest, e)
+        | Some((TypDef(t), _)) => walk_typ(rest, t)
         | None => []
         }
       }
@@ -1027,13 +1107,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchKeyword("module"), MatchNameIndex(name, idx), ...after_name] =>
       let matching =
         find_all_modules(current)
-        |> List.filter(((name_opt, _, _, _, _)) =>
+        |> List.filter(((name_opt, _, _, _, _, _)) =>
              Option.equal(String.equal, name_opt, Some(name))
            );
       switch (List.nth_opt(matching, idx)) {
-      | Some((name_opt, def, whole, body_opt, mod_item_opt)) =>
+      | Some((name_opt, name_pat, def, whole, body_opt, mod_item_opt)) =>
         walk_after_module_kw(
           name_opt,
+          name_pat,
           def,
           whole,
           body_opt,
@@ -1043,63 +1124,21 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => []
       };
 
-    /* module keyword */
+    /* module keyword: search all module binders in chain */
     | [MatchKeyword("module"), ...rest] =>
-      switch (Exp.term_of(current)) {
-      | ModuleExp(mpat, def, body) =>
-        switch (mpat_name(mpat)) {
-        | Some(_name) =>
-          walk_after_module_kw(
-            mpat_name(mpat),
-            def,
-            current,
-            Some(body),
-            None,
-            rest,
-          )
-        | None => []
-        }
-      | Let(pat, def, body) =>
-        switch (Exp.term_of(def)) {
-        | Module(_) =>
-          switch (pat_name(pat)) {
-          | Some(_) =>
-            walk_after_module_kw(
-              pat_name(pat),
-              def,
-              current,
-              Some(body),
-              None,
-              rest,
-            )
-          | None => []
-          }
-        | _ => []
-        }
-      | Module(items) =>
-        /* Match ModuleMod items inside a module body */
-        List.concat_map(
-          (item: Mod.t) =>
-            switch (item.term) {
-            | ModuleMod(mpat, def) =>
-              switch (mpat_name(mpat)) {
-              | Some(_) =>
-                walk_after_module_kw(
-                  mpat_name(mpat),
-                  def,
-                  current,
-                  None,
-                  Some(item),
-                  rest,
-                )
-              | None => []
-              }
-            | _ => []
-            },
-          items,
-        )
-      | _ => []
-      }
+      find_all_modules(current)
+      |> List.concat_map(
+           ((name_opt, name_pat, def, whole, body_opt, mod_item_opt)) =>
+           walk_after_module_kw(
+             name_opt,
+             name_pat,
+             def,
+             whole,
+             body_opt,
+             mod_item_opt,
+             rest,
+           )
+         )
 
     /* type keyword: indexed disambiguation for shadowed type binders */
     | [MatchKeyword("type"), MatchNameIndex(name, idx), ...after_name] =>
@@ -1121,38 +1160,19 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => []
       };
 
-    /* type keyword */
+    /* type keyword: search all type binders in chain */
     | [MatchKeyword("type"), ...rest] =>
-      switch (Exp.term_of(current)) {
-      | TyAlias(tpat, tdef, body) =>
-        walk_after_type_kw(
-          tpat,
-          current,
-          Some(body),
-          Some(tdef),
-          None,
-          rest,
-        )
-      | Module(items) =>
-        /* Match ModType items inside a module body */
-        List.concat_map(
-          (item: Mod.t) =>
-            switch (item.term) {
-            | ModType(tpat, tdef) =>
-              walk_after_type_kw(
-                tpat,
-                current,
-                None,
-                Some(tdef),
-                Some(item),
-                rest,
-              )
-            | _ => []
-            },
-          items,
-        )
-      | _ => []
-      }
+      find_all_types(current)
+      |> List.concat_map(((tpat, whole, body_opt, tdef_opt, mod_item_opt)) =>
+           walk_after_type_kw(
+             tpat,
+             whole,
+             body_opt,
+             tdef_opt,
+             mod_item_opt,
+             rest,
+           )
+         )
 
     /* fun keyword */
     | [MatchKeyword("fun"), ...rest] =>
@@ -1190,11 +1210,12 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | _ => []
       }
 
-    /* Tuple ( ... ) — only matches actual Tuple nodes.
-       Parens(Tuple(...)) is transparent: descend_all will reach the Tuple. */
+    /* Tuple ( ... ) — matches Tuple and Parens(Tuple(...)) */
     | [MatchDelimiter("("), ...rest] =>
       switch (Exp.term_of(current)) {
       | Tuple(items) => walk_seq_spine(items, current, rest)
+      | Parens({term: Tuple(items), _} as inner) =>
+        walk_seq_spine(items, inner, rest)
       | _ => []
       }
 
@@ -1543,44 +1564,17 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchFocus, MatchName(name), MatchDelimiter("=>")]
     | [MatchFocus, MatchName(name)] =>
       rules
-      |> List.filter_map(((pat, _body)) => {
-           let matches =
-             switch (pat_name(pat)) {
-             | Some(n) when String.equal(n, name) => true
-             | _ =>
-               switch (Pat.term_of(pat)) {
-               | Ap({term: Constructor(cname, _), _}, _)
-                   when String.equal(cname, name) =>
-                 true
-               | Constructor(cname, _) when String.equal(cname, name) => true
-               | _ => false
-               }
-             };
-           matches ? Some(mk_pat(~bc="| " ++ name ++ " (pat)", pat)) : None;
-         })
+      |> List.filter_map(((pat, _body)) =>
+           pat_head_matches(name, pat)
+             ? Some(mk_pat(~bc="| " ++ name ++ " (pat)", pat)) : None
+         )
 
     /* | % <name> => <more> : focus on arm pattern, continue into it */
     | [MatchFocus, MatchName(name), MatchDelimiter("=>"), ...rest] =>
       rules
-      |> List.concat_map(((pat, _body)) => {
-           let matches =
-             switch (pat_name(pat)) {
-             | Some(n) when String.equal(n, name) => true
-             | _ =>
-               switch (Pat.term_of(pat)) {
-               | Ap({term: Constructor(cname, _), _}, _)
-                   when String.equal(cname, name) =>
-                 true
-               | Constructor(cname, _) when String.equal(cname, name) => true
-               | _ => false
-               }
-             };
-           if (matches) {
-             walk_pat(rest, pat);
-           } else {
-             [];
-           };
-         })
+      |> List.concat_map(((pat, _body)) =>
+           pat_head_matches(name, pat) ? walk_pat(rest, pat) : []
+         )
 
     /* | % => : slot-focus, pattern of each arm */
     | [MatchFocus, MatchDelimiter("=>")] =>
@@ -1590,48 +1584,20 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchFocus, MatchDelimiter("=>"), ...rest] =>
       rules |> List.concat_map(((pat, _body)) => walk_pat(rest, pat))
 
-    /* | <name> => % : find arm by constructor name */
+    /* | <name> => % : find arm by pattern head name */
     | [MatchName(name), MatchDelimiter("=>"), MatchFocus] =>
       rules
       |> List.filter_map(((pat, body)) =>
-           switch (pat_name(pat)) {
-           | Some(n) when String.equal(n, name) =>
-             Some(mk_exp(~bc="| " ++ name ++ " => ...", body))
-           | _ =>
-             /* Also check for constructor patterns like Foo(x) */
-             switch (Pat.term_of(pat)) {
-             | Ap({term: Constructor(cname, _), _}, _)
-                 when String.equal(cname, name) =>
-               Some(mk_exp(~bc="| " ++ name ++ "(...) => ...", body))
-             | Constructor(cname, _) when String.equal(cname, name) =>
-               Some(mk_exp(~bc="| " ++ name ++ " => ...", body))
-             | _ => None
-             }
-           }
+           pat_head_matches(name, pat)
+             ? Some(mk_exp(~bc="| " ++ name ++ " => ...", body)) : None
          )
 
     /* | <name> => <more steps> : find arm, continue */
     | [MatchName(name), MatchDelimiter("=>"), ...rest] =>
       rules
-      |> List.concat_map(((pat, body)) => {
-           let matches =
-             switch (pat_name(pat)) {
-             | Some(n) when String.equal(n, name) => true
-             | _ =>
-               switch (Pat.term_of(pat)) {
-               | Ap({term: Constructor(cname, _), _}, _)
-                   when String.equal(cname, name) =>
-                 true
-               | Constructor(cname, _) when String.equal(cname, name) => true
-               | _ => false
-               }
-             };
-           if (matches) {
-             walk(rest, body);
-           } else {
-             [];
-           };
-         })
+      |> List.concat_map(((pat, body)) =>
+           pat_head_matches(name, pat) ? walk(rest, body) : []
+         )
 
     /* | _ => % : wildcard, match any single arm body */
     | [MatchSlot, MatchDelimiter("=>"), MatchFocus] =>
@@ -1685,6 +1651,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   and walk_after_module_kw =
       (
         name_opt: option(string),
+        name_pat: Pat.t,
         def: Exp.t,
         whole: Exp.t,
         body_opt: option(Exp.t),
@@ -1767,15 +1734,13 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => []
       }
 
-    /* module % : focus on whole module expression */
-    | [MatchFocus] => [mk_exp(~bc="module " ++ name_str, whole)]
+    /* module % : focus on module name pattern */
+    | [MatchFocus] => [mk_pat(~bc="module (pat)", name_pat)]
 
-    /* module % <name> : implicit focus before name, return whole (fallback) */
-    | [MatchFocus, MatchName(name)] when name_matches(name) =>
-      switch (mod_item_opt) {
-      | Some(item) => [mk_mod(~bc="module " ++ name, item)]
-      | None => [mk_exp(~bc="module " ++ name, whole)]
-      }
+    /* module % <name> : focus on module name pattern when name matches */
+    | [MatchFocus, MatchName(name)] when name_matches(name) => [
+        mk_pat(~bc="module " ++ name ++ " (pat)", name_pat),
+      ]
 
     | _ => []
     };
@@ -1858,12 +1823,13 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => []
       }
 
-    /* type % : focus on whole type alias expression */
-    | [MatchFocus] => [mk_exp(~bc="type " ++ name_str, whole)]
+    /* type % : focus on tpat (type name pattern) */
+    | [MatchFocus] => [mk_pat(~bc="type (tpat)", tpat_to_pat(tpat))]
 
-    /* type % <name> : implicit focus before name, return whole (fallback) */
-    | [MatchFocus, MatchName(name)] when name_matches(name) =>
-      focus_whole_or_mod()
+    /* type % <name> : focus on tpat when name matches */
+    | [MatchFocus, MatchName(name)] when name_matches(name) => [
+        mk_pat(~bc="type " ++ name ++ " (tpat)", tpat_to_pat(tpat)),
+      ]
 
     | _ => []
     };
@@ -2013,6 +1979,9 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
           };
         here @ skipped;
 
+      /* Comma separator: transparent, just continue (spec 3.4) */
+      | [MatchDelimiter(","), ...rest] => walk_items(items, rest)
+
       /* Closing delimiter: done, ignore */
       | [MatchDelimiter("]")]
       | [MatchDelimiter(")")] => []
@@ -2151,6 +2120,10 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       walk(rest, def)
     /* let % : focus on pattern */
     | [MatchFocus] => [mk_pat(~bc="let (pat)", pat)]
+    /* let %<name> : focus on pattern if name matches */
+    | [MatchFocus, MatchName(name)] when name_matches(name) => [
+        mk_pat(~bc="let " ++ name ++ " (pat)", pat),
+      ]
     /* let _ = % : wildcard, focus on def */
     | [MatchSlot, MatchDelimiter("="), MatchFocus] => [
         mk_exp(~bc="let _ = ...", def),
@@ -2336,16 +2309,25 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
      Returns tuples matching walk_after_module_kw's parameters. */
   and find_all_modules =
       (e: Exp.t)
-      : list((option(string), Exp.t, Exp.t, option(Exp.t), option(Mod.t))) =>
+      : list(
+          (
+            option(string),
+            Pat.t,
+            Exp.t,
+            Exp.t,
+            option(Exp.t),
+            option(Mod.t),
+          ),
+        ) =>
     switch (Exp.term_of(e)) {
     | ModuleExp(mpat, def, body) => [
-        (mpat_name(mpat), def, e, Some(body), None),
+        (mpat_name(mpat), mpat_to_pat(mpat), def, e, Some(body), None),
         ...find_all_modules(body),
       ]
     | Let(pat, def, body) =>
       switch (Exp.term_of(def)) {
       | Module(_) => [
-          (pat_name(pat), def, e, Some(body), None),
+          (pat_name(pat), pat, def, e, Some(body), None),
           ...find_all_modules(body),
         ]
       | _ => find_all_modules(body)
@@ -2356,7 +2338,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         (item: Mod.t) =>
           switch (item.term) {
           | ModuleMod(mpat, def) => [
-              (mpat_name(mpat), def, e, None, Some(item)),
+              (
+                mpat_name(mpat),
+                mpat_to_pat(mpat),
+                def,
+                e,
+                None,
+                Some(item),
+              ),
             ]
           | _ => []
           },
@@ -2399,8 +2388,10 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* Recurse into children */
     let children =
       switch (Exp.term_of(e)) {
-      | Let(_, def, body) =>
-        descend_all(def, remaining) @ descend_all(body, remaining)
+      | Let(pat, def, body) =>
+        descend_all_pat(pat, remaining)
+        @ descend_all(def, remaining)
+        @ descend_all(body, remaining)
       | ModuleExp(_, def, body) =>
         descend_all(def, remaining) @ descend_all(body, remaining)
       | TyAlias(_, _, body) => descend_all(body, remaining)
@@ -2411,12 +2402,14 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | Match(scrut, rules) =>
         descend_all(scrut, remaining)
         @ List.concat_map(
-            ((_, body)) => descend_all(body, remaining),
+            ((pat, body)) =>
+              descend_all_pat(pat, remaining) @ descend_all(body, remaining),
             rules,
           )
       | Ap(_, fn, arg) =>
         descend_all(fn, remaining) @ descend_all(arg, remaining)
-      | Fun(_, body, _, _) => descend_all(body, remaining)
+      | Fun(pat, body, _, _) =>
+        descend_all_pat(pat, remaining) @ descend_all(body, remaining)
       | Test(body) => descend_all(body, remaining)
       | Tuple(es) => List.concat_map(e => descend_all(e, remaining), es)
       | ListLit(es) => List.concat_map(e => descend_all(e, remaining), es)
@@ -2455,6 +2448,40 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         },
       all,
     );
+  }
+
+  /* Descendant search in patterns: find atom matches (Var, Constructor)
+     within pattern trees. Used by descend_all to match bare names in
+     pattern positions (case arm patterns, let patterns, fun parameters). */
+  and descend_all_pat =
+      (p: Pat.t, remaining: sem_selector): list(match_result) => {
+    /* Only try atom matching — patterns are matched by name/constructor */
+    let here =
+      switch (remaining) {
+      | [MatchAtom(expected)] =>
+        switch (Pat.term_of(p)) {
+        | Var(name) when name == expected => [mk_pat(~bc=expected, p)]
+        | Constructor(name, _) when name == expected => [
+            mk_pat(~bc=expected, p),
+          ]
+        | _ => []
+        }
+      | _ => []
+      };
+    let children =
+      switch (Pat.term_of(p)) {
+      | Tuple(ps) => List.concat_map(p => descend_all_pat(p, remaining), ps)
+      | ListLit(ps) =>
+        List.concat_map(p => descend_all_pat(p, remaining), ps)
+      | Cons(p1, p2) =>
+        descend_all_pat(p1, remaining) @ descend_all_pat(p2, remaining)
+      | Ap(p1, p2) =>
+        descend_all_pat(p1, remaining) @ descend_all_pat(p2, remaining)
+      | Parens(inner) => descend_all_pat(inner, remaining)
+      | Asc(inner, _) => descend_all_pat(inner, remaining)
+      | _ => []
+      };
+    here @ children;
   };
 
   walk(steps, root);
