@@ -5,24 +5,32 @@ open Haz3lcore;
    of structural edit actions and path/selector resolution.
 
    Toggled via Nut Menu > Developer > Action Explorer.
-   Renders below the top bar. Provides:
-   - Action type selector:
-     - Path-based: Update/Insert/Delete (with target/direction sub-selectors)
-     - Selector-based: Sel Update/Sel Delete/Sel Insert Before/Sel Insert After
-     - Read: GetSyntax/GetStatics/GetContext/Select/GetCanonical/GetCompleteness
-   - Path text input with live highlight resolution (for path-based actions)
-   - Selector text input with live highlight resolution (for selector-based actions)
-   - Code text input (for Update/Insert variants)
-   - Execute button
-   - Result/error display */
+   Renders below the top bar. Provides two top-level tiers:
+
+   Selector (default):
+     Read (default): Syntax / Statics / Context / Canonical
+     Update / Delete / Insert Before / Insert After
+
+   Original:
+     Read: Syntax / Statics / Context / Completeness
+     Update / Insert / Delete
+
+   With text inputs for path/selector/code as appropriate,
+   execute button, and result/error display. */
 
 module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type tier =
+    | Selector
+    | Original;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action_kind =
     | Update
     | Insert
     | Delete
     | Read
+    | SelectorRead
     | SelectorUpdate
     | SelectorDelete
     | SelectorInsertBefore
@@ -41,21 +49,30 @@ module Model = {
     | Before
     | After;
 
+  /* Read sub-kinds for the Original tier (path-based) */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type read_kind =
     | GetSyntax
     | GetStatics
     | GetContext
-    | Select
-    | GetCanonical
     | GetCompleteness;
+
+  /* Read sub-kinds for the Selector tier */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type selector_read_kind =
+    | SelSyntax
+    | SelStatics
+    | SelContext
+    | SelCanonical;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    tier,
     action_kind,
     target,
     direction,
     read_kind,
+    selector_read_kind,
     path: string,
     selector: string,
     code: string,
@@ -64,16 +81,26 @@ module Model = {
   };
 
   let init = {
-    action_kind: Read,
+    tier: Selector,
+    action_kind: SelectorRead,
     target: Body,
     direction: Before,
     read_kind: GetSyntax,
+    selector_read_kind: SelSyntax,
     path: "",
     selector: "",
     code: "",
     highlight_ids: [],
     result_msg: None,
   };
+
+  /* Returns true when the current action_kind is a read variant */
+  let is_read = (model: t): bool =>
+    switch (model.action_kind) {
+    | Read
+    | SelectorRead => true
+    | _ => false
+    };
 
   let to_structural_action = (model: t): option(Action.Structural.t) =>
     switch (model.action_kind) {
@@ -110,7 +137,8 @@ module Model = {
       Some(SelectorInsertBefore(model.selector, model.code))
     | SelectorInsertAfter =>
       Some(SelectorInsertAfter(model.selector, model.code))
-    | Read => None /* Read actions handled separately */
+    | Read
+    | SelectorRead => None /* Read actions handled separately */
     };
 
   let to_read_action = (model: t): option(CompositionActions.read_action) =>
@@ -120,9 +148,14 @@ module Model = {
       | GetSyntax => Some(GetSyntax(model.path))
       | GetStatics => Some(GetStatics(model.path))
       | GetContext => Some(GetContext(model.path))
-      | Select => Some(Select(model.selector))
-      | GetCanonical => Some(GetCanonical(model.selector))
       | GetCompleteness => Some(GetCompleteness)
+      }
+    | SelectorRead =>
+      switch (model.selector_read_kind) {
+      | SelSyntax => Some(Select(model.selector))
+      | SelStatics => Some(SelectorGetStatics(model.selector))
+      | SelContext => Some(SelectorGetContext(model.selector))
+      | SelCanonical => Some(GetCanonical(model.selector))
       }
     | _ => None
     };
@@ -131,10 +164,12 @@ module Model = {
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | SetTier(Model.tier)
     | SetActionKind(Model.action_kind)
     | SetTarget(Model.target)
     | SetDirection(Model.direction)
     | SetReadKind(Model.read_kind)
+    | SetSelectorReadKind(Model.selector_read_kind)
     | SetPath(string)
     | SetSelector(string)
     | SetCode(string)
@@ -144,6 +179,18 @@ module Update = {
 
   let update = (~action: t, ~model: Model.t): Model.t =>
     switch (action) {
+    | SetTier(tier) =>
+      /* When switching tiers, select the default action_kind for that tier */
+      let action_kind =
+        switch (tier) {
+        | Selector => Model.SelectorRead
+        | Original => Read
+        };
+      {
+        ...model,
+        tier,
+        action_kind,
+      };
     | SetActionKind(action_kind) => {
         ...model,
         action_kind,
@@ -159,6 +206,10 @@ module Update = {
     | SetReadKind(read_kind) => {
         ...model,
         read_kind,
+      }
+    | SetSelectorReadKind(selector_read_kind) => {
+        ...model,
+        selector_read_kind,
       }
     | SetPath(path) => {
         ...model,
@@ -243,47 +294,65 @@ module View = {
     );
 
   let view = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+    /* --- Tier selector (top-level: Selector vs Original) --- */
+    let tier_str =
+      switch (model.tier) {
+      | Selector => "selector"
+      | Original => "original"
+      };
+
+    let tier_select =
+      select_input(
+        ~clss="ae-tier",
+        ~value=tier_str,
+        ~options=[("selector", "Selector"), ("original", "Original")],
+        ~on_change=v =>
+        inject(
+          SetTier(
+            switch (v) {
+            | "original" => Original
+            | _ => Selector
+            },
+          ),
+        )
+      );
+
+    /* --- Action kind selector (varies by tier) --- */
     let action_kind_str =
       switch (model.action_kind) {
       | Update => "update"
       | Insert => "insert"
       | Delete => "delete"
       | Read => "read"
+      | SelectorRead => "sel_read"
       | SelectorUpdate => "sel_update"
       | SelectorDelete => "sel_delete"
       | SelectorInsertBefore => "sel_insert_before"
       | SelectorInsertAfter => "sel_insert_after"
       };
 
-    let target_str =
-      switch (model.target) {
-      | Definition => "definition"
-      | Body => "body"
-      | Pattern => "pattern"
-      | BindingClause => "binding_clause"
-      | TypeAnnotation => "type_annotation"
-      };
-
-    let direction_str =
-      switch (model.direction) {
-      | Before => "before"
-      | After => "after"
+    let action_options =
+      switch (model.tier) {
+      | Selector => [
+          ("sel_read", "Read"),
+          ("sel_update", "Update"),
+          ("sel_delete", "Delete"),
+          ("sel_insert_before", "Insert Before"),
+          ("sel_insert_after", "Insert After"),
+        ]
+      | Original => [
+          ("read", "Read"),
+          ("update", "Update"),
+          ("insert", "Insert"),
+          ("delete", "Delete"),
+        ]
       };
 
     let action_select =
       select_input(
         ~clss="ae-action-kind",
         ~value=action_kind_str,
-        ~options=[
-          ("read", "Read"),
-          ("update", "Update"),
-          ("insert", "Insert"),
-          ("delete", "Delete"),
-          ("sel_update", "Sel Update"),
-          ("sel_delete", "Sel Delete"),
-          ("sel_insert_before", "Sel Insert Before"),
-          ("sel_insert_after", "Sel Insert After"),
-        ],
+        ~options=action_options,
         ~on_change=v =>
         inject(
           SetActionKind(
@@ -291,6 +360,8 @@ module View = {
             | "update" => Update
             | "insert" => Insert
             | "delete" => Delete
+            | "read" => Read
+            | "sel_read" => SelectorRead
             | "sel_update" => SelectorUpdate
             | "sel_delete" => SelectorDelete
             | "sel_insert_before" => SelectorInsertBefore
@@ -300,6 +371,16 @@ module View = {
           ),
         )
       );
+
+    /* --- Target selector (for Original Update/Delete) --- */
+    let target_str =
+      switch (model.target) {
+      | Definition => "definition"
+      | Body => "body"
+      | Pattern => "pattern"
+      | BindingClause => "binding_clause"
+      | TypeAnnotation => "type_annotation"
+      };
 
     let target_select =
       select_input(
@@ -326,6 +407,13 @@ module View = {
         )
       );
 
+    /* --- Direction selector (for Original Insert) --- */
+    let direction_str =
+      switch (model.direction) {
+      | Before => "before"
+      | After => "after"
+      };
+
     let direction_select =
       select_input(
         ~clss="ae-direction",
@@ -342,13 +430,12 @@ module View = {
         )
       );
 
+    /* --- Read kind selector (for Original > Read) --- */
     let read_kind_str =
       switch (model.read_kind) {
       | GetSyntax => "get_syntax"
       | GetStatics => "get_statics"
       | GetContext => "get_context"
-      | Select => "select"
-      | GetCanonical => "get_canonical"
       | GetCompleteness => "get_completeness"
       };
 
@@ -357,12 +444,10 @@ module View = {
         ~clss="ae-read-kind",
         ~value=read_kind_str,
         ~options=[
-          ("get_syntax", "GetSyntax"),
-          ("get_statics", "GetStatics"),
-          ("get_context", "GetContext"),
-          ("select", "Select"),
-          ("get_canonical", "GetCanonical"),
-          ("get_completeness", "GetCompleteness"),
+          ("get_syntax", "Syntax"),
+          ("get_statics", "Statics"),
+          ("get_context", "Context"),
+          ("get_completeness", "Completeness"),
         ],
         ~on_change=v =>
         inject(
@@ -370,8 +455,6 @@ module View = {
             switch (v) {
             | "get_statics" => GetStatics
             | "get_context" => GetContext
-            | "select" => Select
-            | "get_canonical" => GetCanonical
             | "get_completeness" => GetCompleteness
             | _ => GetSyntax
             },
@@ -379,6 +462,39 @@ module View = {
         )
       );
 
+    /* --- Selector read kind selector (for Selector > Read) --- */
+    let selector_read_kind_str =
+      switch (model.selector_read_kind) {
+      | SelSyntax => "sel_syntax"
+      | SelStatics => "sel_statics"
+      | SelContext => "sel_context"
+      | SelCanonical => "sel_canonical"
+      };
+
+    let selector_read_kind_select =
+      select_input(
+        ~clss="ae-selector-read-kind",
+        ~value=selector_read_kind_str,
+        ~options=[
+          ("sel_syntax", "Syntax"),
+          ("sel_statics", "Statics"),
+          ("sel_context", "Context"),
+          ("sel_canonical", "Canonical"),
+        ],
+        ~on_change=v =>
+        inject(
+          SetSelectorReadKind(
+            switch (v) {
+            | "sel_statics" => SelStatics
+            | "sel_context" => SelContext
+            | "sel_canonical" => SelCanonical
+            | _ => SelSyntax
+            },
+          ),
+        )
+      );
+
+    /* --- Text inputs --- */
     let path_input =
       text_field(
         ~clss="ae-path",
@@ -430,10 +546,63 @@ module View = {
         );
       };
 
-    /* Build the controls row based on action kind */
+    /* Build the controls row based on tier and action kind */
     let controls =
       switch (model.action_kind) {
+      /* --- Selector tier --- */
+      | SelectorRead => [
+          tier_select,
+          action_select,
+          selector_read_kind_select,
+          selector_input,
+          execute_button,
+          highlight_count,
+        ]
+      | SelectorUpdate => [
+          tier_select,
+          action_select,
+          selector_input,
+          code_input,
+          execute_button,
+          highlight_count,
+        ]
+      | SelectorDelete => [
+          tier_select,
+          action_select,
+          selector_input,
+          execute_button,
+          highlight_count,
+        ]
+      | SelectorInsertBefore
+      | SelectorInsertAfter => [
+          tier_select,
+          action_select,
+          selector_input,
+          code_input,
+          execute_button,
+          highlight_count,
+        ]
+      /* --- Original tier --- */
+      | Read =>
+        switch (model.read_kind) {
+        | GetCompleteness => [
+            tier_select,
+            action_select,
+            read_kind_select,
+            execute_button,
+            highlight_count,
+          ]
+        | _ => [
+            tier_select,
+            action_select,
+            read_kind_select,
+            path_input,
+            execute_button,
+            highlight_count,
+          ]
+        }
       | Update => [
+          tier_select,
           action_select,
           target_select,
           path_input,
@@ -442,6 +611,7 @@ module View = {
           highlight_count,
         ]
       | Insert => [
+          tier_select,
           action_select,
           direction_select,
           path_input,
@@ -450,57 +620,13 @@ module View = {
           highlight_count,
         ]
       | Delete => [
+          tier_select,
           action_select,
           target_select,
           path_input,
           execute_button,
           highlight_count,
         ]
-      | SelectorUpdate => [
-          action_select,
-          selector_input,
-          code_input,
-          execute_button,
-          highlight_count,
-        ]
-      | SelectorDelete => [
-          action_select,
-          selector_input,
-          execute_button,
-          highlight_count,
-        ]
-      | SelectorInsertBefore
-      | SelectorInsertAfter => [
-          action_select,
-          selector_input,
-          code_input,
-          execute_button,
-          highlight_count,
-        ]
-      | Read =>
-        switch (model.read_kind) {
-        | GetCompleteness => [
-            action_select,
-            read_kind_select,
-            execute_button,
-            highlight_count,
-          ]
-        | Select
-        | GetCanonical => [
-            action_select,
-            read_kind_select,
-            selector_input,
-            execute_button,
-            highlight_count,
-          ]
-        | _ => [
-            action_select,
-            read_kind_select,
-            path_input,
-            execute_button,
-            highlight_count,
-          ]
-        }
       };
 
     div(

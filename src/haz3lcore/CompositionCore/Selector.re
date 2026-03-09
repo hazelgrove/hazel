@@ -41,8 +41,12 @@ type token =
   | RBracket /* ] */
   | LParen /* ( */
   | RParen /* ) */
+  | LBrace /* { */
+  | RBrace /* } */
+  | Semi /* ; */
   | Chain(list(string), bool) /* A/B/C - binder chain; bool = trailing slash */
   | Operator(string) /* binary operator: +, -, **, <, <=, >, >=, ==, !=, &&, ||, ++, etc. */
+  | Literal(string) /* literal value: 42, 3.14, "hello", true, false */
   | Name(string) /* bare name */
   | NameIndex(string, int) /* x#0, x#1 - indexed name for shadowed bindings */
   | Index(int); /* #0, #1 - child index */
@@ -62,6 +66,7 @@ type sem_step =
   | MatchDelimiter(string) /* match a delimiter like | or => */
   | MatchName(string) /* match a binder/identifier name */
   | MatchNameIndex(string, int) /* match nth binder with given name (0-based) */
+  | MatchAtom(string) /* match a literal value by its string representation */
   | DescendInto /* descend into matched subtree */
   | EnterBinderDef(string) /* find binder by name, enter its def */
   | ChildIndex(int); /* descend into nth structural child */
@@ -179,6 +184,9 @@ let tokenize = (input: string): list(token) => {
       | "]" => RBracket
       | "(" => LParen
       | ")" => RParen
+      | "{" => LBrace
+      | "}" => RBrace
+      | ";" => Semi
       | s when is_binop_token(s) => Operator(s)
       | s when String.contains(s, '/') =>
         let len = String.length(s);
@@ -208,6 +216,12 @@ let tokenize = (input: string): list(token) => {
           }
         | _ => Name(s)
         };
+      /* Literal recognition: booleans, integers, floats, strings */
+      | "true" => Literal("true")
+      | "false" => Literal("false")
+      | s when Token.is_string(s) => Literal(s)
+      | s when Token.is_int(s) => Literal(s)
+      | s when Token.is_float(s) => Literal(s)
       | s => Name(s)
       },
     parts,
@@ -247,6 +261,9 @@ let elaborate = (sel: selector): sem_selector => {
     | [RBracket, ...rest] => [MatchDelimiter("]"), ...go(rest)]
     | [LParen, ...rest] => [MatchDelimiter("("), ...go(rest)]
     | [RParen, ...rest] => [MatchDelimiter(")"), ...go(rest)]
+    | [LBrace, ...rest] => [MatchDelimiter("{"), ...go(rest)]
+    | [RBrace, ...rest] => [MatchDelimiter("}"), ...go(rest)]
+    | [Semi, ...rest] => [MatchDelimiter(";"), ...go(rest)]
     | [Chain(segments, trailing_slash), ...rest] =>
       /* A/B/C  (no trailing slash): EnterBinderDef(A), EnterBinderDef(B), MatchName(C)
          A/B/C/ (trailing slash):    EnterBinderDef(A), EnterBinderDef(B), EnterBinderDef(C) */
@@ -267,6 +284,7 @@ let elaborate = (sel: selector): sem_selector => {
         MatchNameIndex(name, idx),
         ...go(rest),
       ]
+    | [Literal(s), ...rest] => [MatchAtom(s), ...go(rest)]
     | [Index(n), ...rest] => [ChildIndex(n), ...go(rest)]
     | [Name(s), ...rest] => [MatchName(s), ...go(rest)]
     };
@@ -281,7 +299,8 @@ let elaborate = (sel: selector): sem_selector => {
        (focus on the last-mentioned term). Otherwise append. */
     switch (List.rev(steps)) {
     | [MatchName(_) as last, ...rev_rest]
-    | [MatchNameIndex(_, _) as last, ...rev_rest] =>
+    | [MatchNameIndex(_, _) as last, ...rev_rest]
+    | [MatchAtom(_) as last, ...rev_rest] =>
       List.rev(rev_rest) @ [MatchFocus, last]
     | _ => steps @ [MatchFocus]
     };
@@ -308,6 +327,32 @@ let rec mpat_name = (mp: TermBase.mpat_t): option(string) =>
   | Var(name) => Some(name)
   | Asc(mp, _) => mpat_name(mp)
   | _ => None
+  };
+
+/* Helper: convert a TPat.t to a Pat.t for mk_pat results.
+   Preserves the ID from the TPat. */
+let tpat_to_pat = (tp: TPat.t): Pat.t =>
+  switch (tp.term) {
+  | Var(name) => IdTagged.fast_copy(TPat.rep_id(tp), Pat.fresh(Var(name)))
+  | _ => IdTagged.fast_copy(TPat.rep_id(tp), Pat.fresh(Wild))
+  };
+
+/* Helper: check if an Atom matches the expected selector string.
+   Handles float normalization: "3.14" matches Float(3.14) even though
+   Atom.to_literal gives "3.140000". */
+let atom_matches_str = (atom: Atom.t, expected: string): bool =>
+  if (Atom.to_literal(atom) == expected) {
+    true;
+  } else {
+    /* Try numeric comparison for floats */
+    switch (atom) {
+    | Float(f) =>
+      switch (float_of_string_opt(expected)) {
+      | Some(ef) => f == ef
+      | None => false
+      }
+    | _ => false
+    };
   };
 
 /* Match a binary operator expression against an operator string.
@@ -795,6 +840,28 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     /* Focus + more steps: focus on whatever the remaining steps select */
     | [MatchFocus, ...rest] => walk(rest, current)
 
+    /* MatchAtom: match a literal value at the current node.
+       Compares the printed form of the node against the expected string. */
+    | [MatchAtom(expected)] =>
+      switch (Exp.term_of(current)) {
+      | Atom(actual) when atom_matches_str(actual, expected) => [
+          mk_exp(~bc=expected, current),
+        ]
+      | Var(name) when name == expected => [mk_exp(~bc=expected, current)]
+      | Constructor(name, _) when name == expected => [
+          mk_exp(~bc=expected, current),
+        ]
+      | _ => []
+      }
+    | [MatchAtom(expected), ...rest] =>
+      switch (Exp.term_of(current)) {
+      | Atom(actual) when atom_matches_str(actual, expected) =>
+        walk(rest, current)
+      | Var(name) when name == expected => walk(rest, current)
+      | Constructor(name, _) when name == expected => walk(rest, current)
+      | _ => []
+      }
+
     /* EnterBinderDef: find binder by name, enter its definition.
        Tries all binders with that name (handles shadowed bindings). */
     | [EnterBinderDef(name), ...rest] =>
@@ -1128,6 +1195,13 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
     | [MatchDelimiter("("), ...rest] =>
       switch (Exp.term_of(current)) {
       | Tuple(items) => walk_seq_spine(items, current, rest)
+      | _ => []
+      }
+
+    /* Module body { ... ; ... } */
+    | [MatchDelimiter("{"), ...rest] =>
+      switch (Exp.term_of(current)) {
+      | Module(items) => walk_mod_spine(items, current, rest)
       | _ => []
       }
 
@@ -1954,6 +2028,197 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       (items: list(Exp.t), whole: Exp.t, steps: sem_selector) =>
     walk_seq_spine(items, whole, steps)
 
+  /* Walk a module spine: { item1 ; item2 ; ... }
+     Supports positional navigation (Slot, Ellipsis, Focus),
+     semicolons as separators, closing brace, and keyword-based
+     item matching (let/type/module). */
+  and walk_mod_spine =
+      (items: list(Mod.t), _whole: Exp.t, steps: sem_selector) => {
+    let rec walk_items = (items: list(Mod.t), steps: sem_selector) =>
+      switch (steps) {
+      /* Focus: return current (first remaining) item */
+      | [MatchFocus, ..._] =>
+        switch (items) {
+        | [item, ..._] => [mk_mod(item)]
+        | [] => []
+        }
+
+      /* Ellipsis + Focus: skip to last, focus on it */
+      | [MatchEllipsis, MatchFocus, ..._] =>
+        switch (List.rev(items)) {
+        | [last, ..._] => [mk_mod(last)]
+        | [] => []
+        }
+
+      /* Slot: skip one item, continue */
+      | [MatchSlot, ...rest] =>
+        switch (items) {
+        | [_, ...remaining] => walk_items(remaining, rest)
+        | [] => []
+        }
+
+      /* Ellipsis: try matching rest at current position (zero skip)
+         and also skip forward one at a time */
+      | [MatchEllipsis, ...rest] =>
+        let here = walk_items(items, rest);
+        let skipped =
+          switch (items) {
+          | [_, ...remaining] => walk_items(remaining, steps)
+          | [] => []
+          };
+        here @ skipped;
+
+      /* Semicolon separator: transparent, just continue */
+      | [MatchDelimiter(";"), ...rest] => walk_items(items, rest)
+
+      /* Closing brace: done */
+      | [MatchDelimiter("}")] => []
+
+      /* Keyword matching: delegate to item-specific spine walkers */
+      | [MatchKeyword("let"), ...rest] =>
+        switch (items) {
+        | [item, ..._] =>
+          switch (item.term) {
+          | ModLet(pat, def) =>
+            walk_mod_let_spine(pat, def, _whole, item, rest)
+          | _ => []
+          }
+        | [] => []
+        }
+
+      | [MatchKeyword("type"), ...rest] =>
+        switch (items) {
+        | [item, ..._] =>
+          switch (item.term) {
+          | ModType(tpat, tdef) =>
+            walk_mod_type_spine(tpat, tdef, _whole, item, rest)
+          | _ => []
+          }
+        | [] => []
+        }
+
+      | [MatchKeyword("module"), ...rest] =>
+        switch (items) {
+        | [item, ..._] =>
+          switch (item.term) {
+          | ModuleMod(mpat, def) =>
+            walk_mod_module_spine(mpat, def, _whole, item, rest)
+          | _ => []
+          }
+        | [] => []
+        }
+
+      | _ => []
+      };
+    let all = walk_items(items, steps);
+    /* Deduplicate by focused_id (ellipsis can reach same item from
+       multiple starting positions) */
+    let seen = Hashtbl.create(List.length(all));
+    List.filter(
+      ({focused_id, _}) =>
+        if (Hashtbl.mem(seen, focused_id)) {
+          false;
+        } else {
+          Hashtbl.add(seen, focused_id, ());
+          true;
+        },
+      all,
+    );
+  }
+
+  /* Walk a ModLet spine inside a module body.
+     Handles: let <name> = %, let %, let _ = % */
+  and walk_mod_let_spine =
+      (
+        pat: Pat.t,
+        def: Exp.t,
+        whole: Exp.t,
+        _item: Mod.t,
+        steps: sem_selector,
+      ) => {
+    let _ = whole;
+    let name_opt = pat_name(pat);
+    let name_matches = n => Option.equal(String.equal, name_opt, Some(n));
+    switch (steps) {
+    /* let <name> = % : named item, focus on def */
+    | [MatchName(name), MatchDelimiter("="), MatchFocus]
+        when name_matches(name) => [
+        mk_exp(~bc="let " ++ name ++ " = ...", def),
+      ]
+    /* let <name> = <more> : named, continue into def */
+    | [MatchName(name), MatchDelimiter("="), ...rest]
+        when name_matches(name) =>
+      walk(rest, def)
+    /* let % : focus on pattern */
+    | [MatchFocus] => [mk_pat(~bc="let (pat)", pat)]
+    /* let _ = % : wildcard, focus on def */
+    | [MatchSlot, MatchDelimiter("="), MatchFocus] => [
+        mk_exp(~bc="let _ = ...", def),
+      ]
+    /* let _ = <more> : wildcard, continue into def */
+    | [MatchSlot, MatchDelimiter("="), ...rest] => walk(rest, def)
+    | _ => []
+    };
+  }
+
+  /* Walk a ModType spine inside a module body.
+     Handles: type <name> = %, type <name> (tpat focus) */
+  and walk_mod_type_spine =
+      (
+        tpat: TPat.t,
+        tdef: Typ.t,
+        _whole: Exp.t,
+        _item: Mod.t,
+        steps: sem_selector,
+      ) => {
+    let name_opt = tpat_name(tpat);
+    let name_matches = n => Option.equal(String.equal, name_opt, Some(n));
+    switch (steps) {
+    /* type <name> = % : named, focus on type def */
+    | [MatchName(name), MatchDelimiter("="), MatchFocus]
+        when name_matches(name) => [
+        mk_typ(~bc="type " ++ name ++ " = ...", tdef),
+      ]
+    /* type <name> : focus on tpat */
+    | [MatchName(name)] when name_matches(name) => [
+        mk_pat(~bc="type " ++ name ++ " (tpat)", tpat_to_pat(tpat)),
+      ]
+    /* type % : focus on tpat */
+    | [MatchFocus] => [mk_pat(~bc="type (tpat)", tpat_to_pat(tpat))]
+    | _ => []
+    };
+  }
+
+  /* Walk a ModuleMod spine inside a module body.
+     Handles: module <name> = %, module <name> (focus) */
+  and walk_mod_module_spine =
+      (
+        mpat: TermBase.mpat_t,
+        def: Exp.t,
+        _whole: Exp.t,
+        _item: Mod.t,
+        steps: sem_selector,
+      ) => {
+    let name_opt = mpat_name(mpat);
+    let name_matches = n => Option.equal(String.equal, name_opt, Some(n));
+    switch (steps) {
+    /* module <name> = % : named, focus on def */
+    | [MatchName(name), MatchDelimiter("="), MatchFocus]
+        when name_matches(name) => [
+        mk_exp(~bc="module " ++ name ++ " = ...", def),
+      ]
+    /* module <name> = <more> : named, continue into def */
+    | [MatchName(name), MatchDelimiter("="), ...rest]
+        when name_matches(name) =>
+      walk(rest, def)
+    /* module <name> : focus on item */
+    | [MatchName(name)] when name_matches(name) => [
+        mk_exp(~bc="module " ++ name, def),
+      ]
+    | _ => []
+    };
+  }
+
   /* === Cross-sort walkers for ChildIndex traversal === */
 
   /* Walk selector steps against a pattern node */
@@ -2214,6 +2479,7 @@ let step_to_string = (step: sem_step): string =>
   | MatchEllipsis => "_..."
   | MatchName(s) => s
   | MatchNameIndex(s, idx) => s ++ "#" ++ string_of_int(idx)
+  | MatchAtom(s) => s
   | MatchKeyword(kw) => kw
   | MatchDelimiter(d) => d
   | EnterBinderDef(s) => s ++ "/"
@@ -3039,6 +3305,7 @@ let deparse = (steps: sem_selector): string => {
         | MatchDelimiter(d) => d
         | MatchName(n) => n
         | MatchNameIndex(n, i) => n ++ "#" ++ string_of_int(i)
+        | MatchAtom(s) => s
         | ChildIndex(n) => "#" ++ string_of_int(n)
         | DescendInto => "\\..."
         | EnterBinderDef(_) => "" /* unreachable */

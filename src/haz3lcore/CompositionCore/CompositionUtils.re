@@ -175,6 +175,10 @@ module Local = {
                 ),
               )
             | "get_completeness" => ReadAction(GetCompleteness)
+            | "selector_get_statics" =>
+              ReadAction(SelectorGetStatics(get_string(args, "selector")))
+            | "selector_get_context" =>
+              ReadAction(SelectorGetContext(get_string(args, "selector")))
             | "create_new_task" =>
               WorkbenchAction(
                 CreateNewTask(
@@ -271,6 +275,10 @@ module Local = {
     | ReadAction(GetCanonical(selector)) =>
       "get_canonical(\"" ++ selector ++ "\")"
     | ReadAction(GetCompleteness) => "get_completeness()"
+    | ReadAction(SelectorGetStatics(sel)) =>
+      "selector_get_statics(\"" ++ sel ++ "\")"
+    | ReadAction(SelectorGetContext(sel)) =>
+      "selector_get_context(\"" ++ sel ++ "\")"
     | EditorAction(Insert(After, path, code)) =>
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Insert(Before, path, code)) =>

@@ -1080,6 +1080,151 @@ module Local = {
           ++ ").",
         );
       };
+    | SelectorGetStatics(selector_str) =>
+      let term = MakeTerm.from_zip_for_sem(z).term;
+      switch (Selector.query_unique(selector_str, term)) {
+      | Error(e) =>
+        Error(Composition_action_failure("Selector error: " ++ e))
+      | Ok(m) =>
+        let id = m.focused_id;
+        switch (Id.Map.find_opt(id, info_map)) {
+        | None =>
+          Error(
+            Composition_action_failure(
+              "No statics info for selector-resolved node",
+            ),
+          )
+        | Some(info) =>
+          let result =
+            switch (info) {
+            | InfoExp({ana, status, _}) =>
+              "Selector: "
+              ++ selector_str
+              ++ "\nAnalytic (expected) type: "
+              ++ format_typ(ana)
+              ++ "\n"
+              ++ format_status_exp(status)
+            | InfoPat({ana, status, _}) =>
+              "Selector: "
+              ++ selector_str
+              ++ "\nAnalytic type: "
+              ++ format_typ(ana)
+              ++ "\nStatus: "
+              ++ (
+                switch (status) {
+                | NotInHole(_) => "ok"
+                | InHole(err) => "error: " ++ ErrorPrint.pat_error(err)
+                }
+              )
+            | info =>
+              "Selector: "
+              ++ selector_str
+              ++ "\nClass: "
+              ++ Cls.show(Info.cls_of(info))
+              ++ (
+                switch (Info.error_of(info)) {
+                | None => "\nStatus: ok"
+                | Some(err) =>
+                  "\nStatus: error: " ++ ErrorPrint.string_of(err)
+                }
+              )
+            };
+          /* Also gather errors from the subtree */
+          let subtree =
+            GeneralTreeUtils.subtree_of(
+              ~info,
+              ~orig_info_map=info_map,
+              ~of_pat=true,
+              ~of_def=true,
+              ~of_body=true,
+            );
+          let errors = ErrorPrint.all(subtree);
+          let result =
+            switch (errors) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nErrors in subtree:\n"
+              ++ String.concat("\n", errors)
+            };
+          Ok(result);
+        };
+      };
+    | SelectorGetContext(selector_str) =>
+      let term = MakeTerm.from_zip_for_sem(z).term;
+      switch (Selector.query_unique(selector_str, term)) {
+      | Error(e) =>
+        Error(Composition_action_failure("Selector error: " ++ e))
+      | Ok(m) =>
+        let id = m.focused_id;
+        switch (Id.Map.find_opt(id, info_map)) {
+        | None =>
+          Error(
+            Composition_action_failure(
+              "No statics info for selector-resolved node",
+            ),
+          )
+        | Some(info) =>
+          let ctx = Info.ctx_of(info) |> Ctx.filter_shadowed;
+          let vars =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.VarEntry(ve) => Some(ve)
+                 | _ => None
+                 }
+               );
+          let constructors =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.ConstructorEntry(ve) => Some(ve)
+                 | _ => None
+                 }
+               );
+          let type_aliases =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.TVarEntry(te) => Some(te)
+                 | _ => None
+                 }
+               );
+          let fmt_var = (ve: Ctx.var_entry) =>
+            "  " ++ ve.name ++ " : " ++ format_typ(ve.typ);
+          let fmt_tvar = (te: Ctx.tvar_entry) =>
+            switch (te.kind) {
+            | Singleton(ty) => "  " ++ te.name ++ " = " ++ format_typ(ty)
+            | Abstract => "  " ++ te.name ++ " (abstract)"
+            };
+          let result = "Context at selector: " ++ selector_str;
+          let result =
+            switch (vars) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nVariables:\n"
+              ++ String.concat("\n", List.map(fmt_var, vars))
+            };
+          let result =
+            switch (type_aliases) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nType aliases:\n"
+              ++ String.concat("\n", List.map(fmt_tvar, type_aliases))
+            };
+          let result =
+            switch (constructors) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nConstructors:\n"
+              ++ String.concat("\n", List.map(fmt_var, constructors))
+            };
+          Ok(result);
+        };
+      };
     | _ =>
       switch (build(z, info_map)) {
       | None => Error(Cant_derive_local_AST_information)
@@ -1222,7 +1367,9 @@ module Local = {
           Ok(result);
         | Select(_)
         | GetCanonical(_)
-        | GetCompleteness => assert(false) /* handled above */
+        | GetCompleteness
+        | SelectorGetStatics(_)
+        | SelectorGetContext(_) => assert(false) /* handled above */
         }
       }
     };

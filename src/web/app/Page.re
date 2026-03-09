@@ -391,7 +391,9 @@ module Update = {
           let results = List.map(Haz3lcore.Selector.print_match, matches);
           Ok((String.concat("\n", results), ids));
         };
-      | GetCanonical(selector_str) =>
+      | GetCanonical(selector_str)
+      | SelectorGetStatics(selector_str)
+      | SelectorGetContext(selector_str) =>
         /* Run via read_dispatch, then resolve selector for highlighting */
         let term = Haz3lcore.MakeTerm.from_zip_for_sem(z).term;
         switch (
@@ -478,7 +480,8 @@ module Update = {
       };
     | ActionExplorer(Execute) =>
       switch (model.action_explorer.action_kind) {
-      | Read =>
+      | Read
+      | SelectorRead =>
         switch (execute_read_action(model)) {
         | Ok((result_text, ids)) =>
           {

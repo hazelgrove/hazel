@@ -1628,6 +1628,73 @@ let selector_tests = (
       ~sel="A/B/x = %",
       ~expected="42",
     ),
+    /* === Module spine { ... } tests === */
+    sel_test(
+      ~name="{ % first item",
+      ~code="module M = { let x = 1; let y = 2 } in M.x",
+      ~sel="M = { %",
+      ~expected="let x = 1",
+    ),
+    sel_test(
+      ~name="{ _ % second item",
+      ~code="module M = { let x = 1; let y = 2 } in M.x",
+      ~sel="M = { _ %",
+      ~expected="let y = 2",
+    ),
+    sel_test(
+      ~name="{ _... % last item",
+      ~code="module M = { let x = 1; let y = 2; let z = 3 } in M.x",
+      ~sel="M = { _... %",
+      ~expected="let z = 3",
+    ),
+    sel_test(
+      ~name="{ let x = % named item def",
+      ~code="module M = { let x = 42; let y = 99 } in M.x",
+      ~sel="M = { let x = %",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="{ _... let y = % skip to named",
+      ~code="module M = { let x = 42; let y = 99 } in M.x",
+      ~sel="M = { _... let y = %",
+      ~expected="99",
+    ),
+    test_case(
+      "{ let _ = % matches all let defs",
+      `Quick,
+      () => {
+        let results =
+          selector_query(
+            "module M = { let x = 42; let y = 99 } in M.x",
+            "M = { _... let _ = %",
+          );
+        check(int, "match count", 2, List.length(results));
+      },
+    ),
+    sel_test(
+      ~name="{ type T = % inside module",
+      ~code="module M = { type T = Int; let x = 1 } in M.x",
+      ~sel="M = { type T = %",
+      ~expected="Int",
+    ),
+    sel_test(
+      ~name="{ module B = % inside module",
+      ~code="module A = { module B = { let x = 42 } } in A.B.x",
+      ~sel="A = { module B = %",
+      ~expected="{ let x = 42 }",
+    ),
+    sel_test(
+      ~name="{ _... let x = % (ellipsis matches first)",
+      ~code="module M = { let x = 42 } in M.x",
+      ~sel="M = { _... let x = %",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="{ _ _ % third item",
+      ~code="module M = { let a = 1; let b = 2; let c = 3 } in M.a",
+      ~sel="M = { _ _ %",
+      ~expected="let c = 3",
+    ),
     /* Descend through regular let chain should find unique match */
     sel_test(
       ~name="descend let chain unique",
@@ -2654,6 +2721,70 @@ let selector_tests = (
       ~code="let x = 1 :: [2, 3] in x",
       ~sel="x = % :: _",
       ~expected="1",
+    ),
+    /* === Literal/Atom matching === */
+    /* Integer literals */
+    sel_test(
+      ~name="\\... 42 (find int literal)",
+      ~code="let x = 42 in x",
+      ~sel="\\... 42",
+      ~expected="42",
+    ),
+    sel_test(
+      ~name="\\... 99 (find int literal nested)",
+      ~code="let x = 42 in let y = 99 in x + y",
+      ~sel="\\... 99",
+      ~expected="99",
+    ),
+    /* Boolean literals */
+    sel_test(
+      ~name="\\... true (find bool literal)",
+      ~code="let x = true in x",
+      ~sel="\\... true",
+      ~expected="true",
+    ),
+    sel_test(
+      ~name="\\... false (find bool literal)",
+      ~code="let x = false in x",
+      ~sel="\\... false",
+      ~expected="false",
+    ),
+    sel_test(
+      ~name="if true: descend find true",
+      ~code="if true then 1 else 0",
+      ~sel="\\... true",
+      ~expected="true",
+    ),
+    /* Multiple literal matches */
+    test_case(
+      "\\... 42 finds all occurrences",
+      `Quick,
+      () => {
+        let results =
+          selector_query("let x = 42 in let y = 42 in x + y", "\\... 42");
+        check(int, "match count", 2, List.length(results));
+      },
+    ),
+    /* Float literals */
+    sel_test(
+      ~name="\\... 3.14 (find float literal)",
+      ~code="let x = 3.14 in x",
+      ~sel="\\... 3.14",
+      ~expected="3.140000",
+    ),
+    /* Literal in context: let _ = <literal> */
+    sel_test(
+      ~name="let x = % still returns literal",
+      ~code="let x = 42 in x",
+      ~sel="let x = %",
+      ~expected="42",
+    ),
+    /* Literal matching doesn't break name matching */
+    sel_test(
+      ~name="name matching still works with literals present",
+      ~code="let x = 42 in let y = 99 in x + y",
+      ~sel="let y = %",
+      ~expected="99",
     ),
   ],
 );
