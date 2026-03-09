@@ -563,6 +563,16 @@ let insertion_tests = [
     ~acts=mk({|-> x¦|}) @ mv_l(4) @ string_to_ltr_actions("fun a "),
     ~goal={|fun a ¦-> x|},
   ),
+  /* REMOLDING REGRESSION: inserting ( to split a token into
+   * function application should not leave concave grout.
+   * Bug: `string_capitalize(1)` gets concave grout before `(`.
+   * The paren insertion splits the token but remolding should
+   * eliminate the need for grout between the function and its arg. */
+  test(
+    ~name="Insert ( to split fn application (no concave grout)",
+    ~acts=mk({|string_capitalize¦1)|}) @ [Insert("(")],
+    ~goal={|string_capitalize(¦1)|},
+  ),
 ];
 
 let destruct_tests = [
