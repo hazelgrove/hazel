@@ -2,21 +2,40 @@
 # Run benchmarks on current branch and a base branch, then compare.
 #
 # Usage:
-#   bench/run-comparison.sh              # compares against dev
-#   bench/run-comparison.sh main         # compares against main
-#   bench/run-comparison.sh abc123       # compares against a specific commit
+#   bench/run-comparison.sh                              # compares against dev
+#   bench/run-comparison.sh main                         # compares against main
+#   bench/run-comparison.sh abc123                       # compares against a commit
+#   bench/run-comparison.sh dev --filter Insert+Full     # only Insert+Full benchmarks
+#   bench/run-comparison.sh dev --filter memo --filter let500
 #
 # The current branch's benchmark code (bench/) is used for both branches,
 # matching the GitHub Actions /perf workflow behavior.
 #
-# NOTE: This script stashes uncommitted changes before switching branches.
-# If cleanup encounters conflicts (e.g., files deleted on one branch but
-# modified on another), it falls back to a hard reset to restore the
-# original branch cleanly.
+# NOTE: Requires a clean worktree (no uncommitted changes). The script
+# checks out the base branch as a detached HEAD, so uncommitted changes
+# would be lost.
 
 set -euo pipefail
 
-BASE_REF="${1:-dev}"
+# Parse arguments: first non-flag arg is BASE_REF, --filter flags are collected
+BASE_REF="dev"
+FILTER_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --filter)
+      FILTER_ARGS+=("$1" "${2:?--filter requires a pattern}")
+      shift 2
+      ;;
+    --*)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+    *)
+      BASE_REF="$1"
+      shift
+      ;;
+  esac
+done
 
 # Refuse to run with uncommitted changes — the branch switching is too
 # risky to rely on stash/restore, especially with delete/modify conflicts.
@@ -54,7 +73,7 @@ echo "==> Saving benchmark harness from current branch"
 cp -r "$SCRIPT_DIR" "$BENCH_DIR/bench"
 
 echo "==> Benchmarking current branch (head)"
-"$SCRIPT_DIR/build-and-run.sh" > "$RESULTS_DIR/head.json"
+"$SCRIPT_DIR/build-and-run.sh" ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"} > "$RESULTS_DIR/head.json"
 
 HEAD_SHA=$(git rev-parse --short HEAD)
 CURRENT_BRANCH=$(git branch --show-current)
@@ -77,7 +96,7 @@ if [ ! -f bench/hazel_bench.re ]; then
 fi
 
 echo "==> Benchmarking base ($BASE_REF)"
-bench/build-and-run.sh > "$RESULTS_DIR/base.json"
+bench/build-and-run.sh ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"} > "$RESULTS_DIR/base.json"
 
 BASE_SHA=$(git rev-parse --short HEAD)
 

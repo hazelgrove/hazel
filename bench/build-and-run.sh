@@ -3,8 +3,9 @@
 # Shared by both the local comparison script and the CI workflow.
 #
 # Usage:
-#   bench/build-and-run.sh                    # from repo root
-#   cd some-dir && path/to/build-and-run.sh   # from any checkout
+#   bench/build-and-run.sh                              # all benchmarks
+#   bench/build-and-run.sh --filter Insert+Full         # filtered
+#   bench/build-and-run.sh --filter memo --filter let500
 
 set -euo pipefail
 
@@ -23,7 +24,7 @@ echo "==> Running benchmarks" >&2
 # Capture all stdout to a temp file, then extract just the JSON array.
 # stderr passes through normally for warnings/errors.
 TMPOUT=$(mktemp)
-if node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json > "$TMPOUT"; then
+if node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json "$@" > "$TMPOUT"; then
   JSON=$(sed -n '/^\[/,/^\]/p' "$TMPOUT")
   if [ -n "$JSON" ]; then
     echo "$JSON"
