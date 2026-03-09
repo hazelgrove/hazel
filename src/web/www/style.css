@@ -23,6 +23,12 @@
 
 /* BASE ELEMENTS */
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 svg {
   overflow: visible;
 }
@@ -99,6 +105,10 @@ select {
   background-color: var(--main-bkg);
   display: flex;
   flex-direction: column;
+}
+
+#main > * {
+  min-width: 0;
 }
 
 #side-bar {
