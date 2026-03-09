@@ -2966,15 +2966,15 @@ let experimental_selector_tests = (
       ~expected="c",
     ),
     sel_test(
-      ~name="tuple pat: #0 #0 first via index",
+      ~name="tuple pat: #0 #0 #0 first via index",
       ~code=tuple_pat_program,
-      ~sel="#0 #0",
+      ~sel="#0 #0 #0",
       ~expected="a",
     ),
     sel_test(
-      ~name="tuple pat: #0 #2 third via index",
+      ~name="tuple pat: #0 #0 #2 third via index",
       ~code=tuple_pat_program,
-      ~sel="#0 #2",
+      ~sel="#0 #0 #2",
       ~expected="c",
     ),
 

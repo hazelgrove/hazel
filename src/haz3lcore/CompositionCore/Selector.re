@@ -172,9 +172,23 @@ let is_binop_token = (s: string): bool =>
   };
 
 let tokenize = (input: string): list(token) => {
+  /* Pre-process: insert spaces around brackets/parens/braces so that
+     "[]" becomes "[ ]", "(x,y)" becomes "( x , y )", etc. */
+  let preprocess = (s: string): string => {
+    let chars = List.init(String.length(s), i => s.[i]);
+    chars
+    |> List.map(c =>
+         switch (c) {
+         | '[' | ']' | '(' | ')' | '{' | '}' =>
+           " " ++ String.make(1, c) ++ " "
+         | _ => String.make(1, c)
+         }
+       )
+    |> String.concat("");
+  };
   /* Split on whitespace, then parse each token */
   let parts =
-    input
+    preprocess(input)
     |> String.split_on_char(' ')
     |> List.filter(s => String.length(String.trim(s)) > 0);
   List.map(
@@ -417,7 +431,17 @@ let elaborate = (sel: selector): sem_selector => {
       };
     };
 
-  /* Step 4: Collapse consecutive DescendInto */
+  /* Step 4: Bare name atom matching. When the selector is just
+     a bare name (MatchFocus + MatchName), prepend DescendInto
+     to search the entire tree for all occurrences (pattern bindings
+     + variable references). Per spec section 6. */
+  let steps =
+    switch (steps) {
+    | [MatchFocus, MatchName(_)] => [DescendInto, ...steps]
+    | _ => steps
+    };
+
+  /* Step 5: Collapse consecutive DescendInto */
   let rec collapse_descend = (steps: sem_selector): sem_selector =>
     switch (steps) {
     | [DescendInto, DescendInto, ...rest] =>
@@ -740,7 +764,8 @@ let decompose_mpat = (mp: MPat.t): decomposed =>
   };
 
 let decompose_rule = (pat: Pat.t, body: Exp.t): decomposed =>
-  Form([t("|"), c_pat(pat), t("=>"), c_exp(body)]);
+  /* No leading "|" — it's already in the case spine before each rule child */
+  Form([c_pat(pat), t("=>"), c_exp(body)]);
 
 let decompose = (target: focus_target): decomposed =>
   switch (target) {
@@ -777,30 +802,130 @@ let children_of = (target: focus_target): list(focus_target) =>
   | Hole => []
   };
 
-let nth_child = (n: int, target: focus_target): option(focus_target) => {
-  /* Use direct decompose (NOT decompose_through) so that Parens/Projector
-     are treated as single-child wrappers rather than being skipped */
-  switch (decompose(target)) {
-  | Form(positions) =>
-    let children =
-      positions
-      |> List.filter_map(
-           fun
-           | PosChild(c) => Some(c)
-           | PosToken(_) => None,
-         );
-    List.nth_opt(children, n);
-  | Transparent(inner) =>
-    /* Transparent wrappers have exactly one child */
-    if (n == 0) {
-      Some(inner);
-    } else {
-      None;
+/* Raw structural children: used by ChildIndex and canonical to navigate
+   the term tree WITHOUT Asc expansion. This gives the true syntactic
+   children (Let always has 3 children: pat, def, body) and treats
+   Parens/Projector/Filter/Closure as single-child wrappers. */
+let rec structural_children = (target: focus_target): list(focus_target) =>
+  switch (target) {
+  | FocusExp(e) =>
+    switch (Exp.term_of(e)) {
+    /* Transparent wrappers: single child */
+    | Parens(inner)
+    | Projector(_, inner)
+    | Filter(_, inner)
+    | Closure(_, inner) => [FocusExp(inner)]
+    /* Binding forms: always raw children, NO Asc expansion */
+    | Let(pat, def, body) => [FocusPat(pat), FocusExp(def), FocusExp(body)]
+    | Fun(pat, body, _, _) => [FocusPat(pat), FocusExp(body)]
+    | FixF(pat, body, _) => [FocusPat(pat), FocusExp(body)]
+    | TypFun(tpat, body, _) => [FocusTPat(tpat), FocusExp(body)]
+    | TyAlias(tpat, typ, body) => [
+        FocusTPat(tpat),
+        FocusTyp(typ),
+        FocusExp(body),
+      ]
+    | ModuleExp(mpat, def, body) => [
+        FocusMPat(mpat),
+        FocusExp(def),
+        FocusExp(body),
+      ]
+    | Theorem(pat, def, body) => [
+        FocusPat(pat),
+        FocusExp(def),
+        FocusExp(body),
+      ]
+    /* Control flow */
+    | If(cond, then_, else_) => [
+        FocusExp(cond),
+        FocusExp(then_),
+        FocusExp(else_),
+      ]
+    | Match(scrut, rules) =>
+      [FocusExp(scrut)]
+      @ List.map(((p, b)) => FocusRule(p, b), rules)
+    /* Collections */
+    | Tuple(items) => List.map(e => FocusExp(e), items)
+    | ListLit(items) => List.map(e => FocusExp(e), items)
+    | Module(items) => List.map(m => FocusMod(m), items)
+    /* Operators */
+    | BinOp(_, e1, e2) => [FocusExp(e1), FocusExp(e2)]
+    | UnOp(_, e1) => [FocusExp(e1)]
+    | Cons(hd, tl) => [FocusExp(hd), FocusExp(tl)]
+    | ListConcat(l, r) => [FocusExp(l), FocusExp(r)]
+    /* Application */
+    | Ap(_, fn, arg) => [FocusExp(fn), FocusExp(arg)]
+    /* Type annotation */
+    | Asc(expr, typ) => [FocusExp(expr), FocusTyp(typ)]
+    /* Sequence */
+    | Seq(e1, e2) => [FocusExp(e1), FocusExp(e2)]
+    /* Test */
+    | Test(body) => [FocusExp(body)]
+    | HintedTest(_, body) => [FocusExp(body)]
+    /* Dot access */
+    | Dot(obj, field) => [FocusExp(obj), FocusExp(field)]
+    /* Atoms and holes: no children */
+    | Var(_)
+    | Constructor(_, _)
+    | Atom(_)
+    | Label(_)
+    | BuiltinFun(_)
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | _ => []
     }
-  | AtomNode(_)
-  | Hole => None
+  | FocusPat(p) =>
+    switch (Pat.term_of(p)) {
+    | Parens(inner)
+    | Projector(_, inner) => [FocusPat(inner)]
+    | Tuple(items) => List.map(p => FocusPat(p), items)
+    | ListLit(items) => List.map(p => FocusPat(p), items)
+    | Cons(hd, tl) => [FocusPat(hd), FocusPat(tl)]
+    | Ap(ctor, arg) => [FocusPat(ctor), FocusPat(arg)]
+    | Asc(inner, typ) => [FocusPat(inner), FocusTyp(typ)]
+    | TupLabel(label, inner) => [FocusPat(label), FocusPat(inner)]
+    | _ => []
+    }
+  | FocusTyp(ty) =>
+    switch (Typ.term_of(ty)) {
+    | Parens(inner)
+    | Projector(_, inner) => [FocusTyp(inner)]
+    | Arrow(t1, t2) => [FocusTyp(t1), FocusTyp(t2)]
+    | Prod(items) => List.map(ty => FocusTyp(ty), items)
+    | List(inner) => [FocusTyp(inner)]
+    | Rec(tpat, body) => [FocusTPat(tpat), FocusTyp(body)]
+    | Poly(tpat, body) => [FocusTPat(tpat), FocusTyp(body)]
+    | Sig(items) => List.map(s => FocusSig(s), items)
+    | _ => []
+    }
+  | FocusMod(m) =>
+    switch (IdTagged.term_of(m)) {
+    | ModLet(pat, def) => [FocusPat(pat), FocusExp(def)]
+    | ModType(tpat, typ) => [FocusTPat(tpat), FocusTyp(typ)]
+    | ModuleMod(mpat, def) => [FocusMPat(mpat), FocusExp(def)]
+    | ModExp(e) => structural_children(FocusExp(e))
+    | _ => []
+    }
+  | FocusSig(s) =>
+    switch (IdTagged.term_of(s)) {
+    | SigLet(pat) => [FocusPat(pat)]
+    | SigType(tpat, typ) => [FocusTPat(tpat), FocusTyp(typ)]
+    | _ => []
+    }
+  | FocusTPat(_) => []
+  | FocusMPat(mp) =>
+    switch (IdTagged.term_of(mp)) {
+    | Asc(inner, typ) => [FocusMPat(inner), FocusTyp(typ)]
+    | _ => []
+    }
+  | FocusRule(p, e) => [FocusPat(p), FocusExp(e)]
   };
-};
+
+/* nth_child uses structural_children for consistent ChildIndex navigation.
+   Parens/Projector are single-child wrappers; Asc is NOT expanded inside Let. */
+let nth_child = (n: int, target: focus_target): option(focus_target) =>
+  List.nth_opt(structural_children(target), n);
 
 /* === Name extraction === */
 
@@ -1248,7 +1373,9 @@ and resolve_spine =
       switch (skip_tokens_to_child(positions)) {
       | Some((child, _)) => [mk_result(child)]
       | None =>
-        /* No child left: focus on the form itself */
+        /* No child left: focus on the form itself.
+           (Greedy ellipsis filters out form_target matches to
+           prevent selecting the whole form instead of last child.) */
         [mk_result(form_target)]
       }
     | _ =>
@@ -1261,18 +1388,17 @@ and resolve_spine =
         /* Try to find a child with this name */
         switch (find_named_child_in_positions(name, positions)) {
         | Some((child, _remaining)) =>
-          /* Found the named child. Now:
-             - If rest2 is empty, focus on the child (e.g., "let %x")
-             - If rest2 has spine steps, the Focus is predicate-style on form */
+          /* Focus on the named entity. For FocusRule, the name comes
+             from the pattern, so focus on the pattern part specifically
+             (e.g., "| % A =>" should focus on "A", not "A => 1"). */
+          let focus_child =
+            switch (child) {
+            | FocusRule(pat, _) => FocusPat(pat)
+            | _ => child
+            };
           switch (rest2) {
-          | [] => [mk_result(child)]
-          | [MatchDelimiter(_), ..._] =>
-            /* e.g., "% x =" or "% x -> " - rest describes more of the spine.
-               The % + name is checking the child, then continuing.
-               Actually, "let % x = ..." means focus on the pattern child named x.
-               Let's just focus on the child. */
-            [mk_result(child)]
-          | _ => [mk_result(child)]
+          | [] => [mk_result(focus_child)]
+          | _ => [mk_result(focus_child)]
           }
         | None => []
         }
@@ -1286,12 +1412,47 @@ and resolve_spine =
           | _ => false
           };
         if (starts_with_keyword) {
-          /* Form-level predicate: check rest against the entire form */
-          let form_check = resolve_steps(rest, form_target);
-          if (List.length(form_check) > 0) {
-            [mk_result(form_target)];
+          /* Form-level predicate: "% let x" means "focus on THIS form
+             IF it is a let-x form." Only match if the form's own
+             spine starts with the keyword (prevents ancestors from
+             matching just because they contain the keyword in children). */
+          let kw =
+            switch (rest) {
+            | [MatchKeyword(k), ..._] => Some(k)
+            | _ => None
+            };
+          let form_has_keyword =
+            switch (kw) {
+            | Some(k) =>
+              List.exists(
+                fun
+                | PosToken(s) => String.equal(s, k)
+                | PosChild(_) => false,
+                positions,
+              )
+            | None => false
+            };
+          if (form_has_keyword) {
+            let form_check = resolve_spine(rest, positions, form_target);
+            if (List.length(form_check) > 0) {
+              [mk_result(form_target)];
+            } else {
+              [];
+            };
           } else {
-            [];
+            /* Form doesn't have the keyword directly. Try entering each
+               child to find forms that start with the keyword (e.g.,
+               "% let" inside a module spine where ModLet children
+               start with "let"). */
+            positions
+            |> List.filter_map(
+                 fun
+                 | PosChild(child) => Some(child)
+                 | PosToken(_) => None,
+               )
+            |> List.concat_map(child =>
+                 resolve_steps([MatchFocus, ...rest], child)
+               );
           };
         } else {
           /* Child-level: focus on next child, using rest as spine predicate */
@@ -1339,7 +1500,26 @@ and resolve_spine =
     switch (skip_tokens_to_child(positions)) {
     | Some((child, remaining)) =>
       let spine_results = resolve_spine(rest, remaining, form_target);
-      if (List.length(spine_results) > 0) {
+      /* When spine continuation only returns form_target AND there are
+         trailing tokens with no more children in the remaining positions,
+         that means the continuation hit a dead end (e.g., MatchFocus with
+         only "end" remaining). In that case, enter the consumed child.
+         When remaining is empty, form_target is correct (whole form). */
+      let has_remaining_children =
+        remaining
+        |> List.exists(fun | PosChild(_) => true | PosToken(_) => false);
+      let form_id = id_of_target(form_target);
+      let only_form_target =
+        List.length(spine_results) > 0
+        && List.for_all(
+             (m: match_result) => m.focused_id == form_id,
+             spine_results,
+           );
+      if (only_form_target && !has_remaining_children && List.length(remaining) > 0) {
+        /* Spine returned form_target but only trailing tokens remain —
+           enter consumed child instead */
+        resolve_steps(rest, child);
+      } else if (List.length(spine_results) > 0) {
         spine_results;
       } else {
         /* Spine didn't match — enter the consumed child */
@@ -1393,11 +1573,26 @@ and resolve_spine =
   };
 }
 
-/* Match a keyword token against spine positions.
-   Keywords enter structural children (FocusMod, FocusSig, FocusRule, FocusTPat,
-   FocusMPat) but NOT expression/pattern/type children which have their own
-   keyword scoping. This prevents nested "in"/"then"/"else" false matches
-   while allowing "{ let x = %" to find items inside module bodies. */
+/* Is this a form-starting keyword (can begin a new syntactic form)?
+   Form-starting keywords may enter any child during matching.
+   Form-internal keywords (in, then, else, end) only enter structural children
+   to prevent false matches from nested expressions. */
+and is_form_starting_keyword = (kw: string): bool =>
+  switch (kw) {
+  | "let"
+  | "fun"
+  | "if"
+  | "case"
+  | "test"
+  | "module"
+  | "type"
+  | "theorem"
+  | "fix"
+  | "typfun" => true
+  | _ => false
+  }
+
+/* Match a keyword token against spine positions. */
 and match_keyword_in_spine =
     (kw: string, rest: sem_selector, positions: list(spine_pos),
      form_target: focus_target)
@@ -1405,15 +1600,49 @@ and match_keyword_in_spine =
   switch (positions) {
   | [PosToken(s), ...remaining] when String.equal(s, kw) =>
     let here = resolve_spine(rest, remaining, form_target);
-    let more = match_keyword_in_spine(kw, rest, remaining, form_target);
-    dedup_results(here @ more);
+    /* For multi-match (e.g., "let _ = %" matching all lets in a chain),
+       also descend into the LAST child (body) to find nested forms with
+       the same keyword. Only for FORM-STARTING keywords (let, fun, etc.)
+       — internal keywords (in, then, else, end) should NOT enter children
+       to avoid false nested matches. */
+    let last_child_results =
+      if (!is_form_starting_keyword(kw)) {
+        [];
+      } else {
+      let children =
+        remaining
+        |> List.filter_map(
+             fun
+             | PosChild(c) => Some(c)
+             | PosToken(_) => None,
+           );
+      switch (List.rev(children)) {
+      | [last, ..._] =>
+        resolve_steps([MatchKeyword(kw), ...rest], last)
+      | [] => []
+      };
+      };
+    dedup_results(here @ last_child_results);
   | [PosChild(child), ...remaining] =>
-    /* Only enter structural children (Mod/Sig/Rule/TPat/MPat) for keywords */
+    /* Form-starting keywords (let, fun, if, etc.) can enter ANY child to
+       find nested forms. Form-internal keywords (in, then, else, end) only
+       enter structural children (Mod/Sig/Rule/TPat/MPat) to prevent false
+       matches from nested sub-expressions. */
     let enter =
-      switch (child) {
-      | FocusMod(_) | FocusSig(_) | FocusRule(_, _) | FocusTPat(_) | FocusMPat(_) =>
-        resolve_steps([MatchKeyword(kw), ...rest], child)
-      | FocusExp(_) | FocusPat(_) | FocusTyp(_) => []
+      if (is_form_starting_keyword(kw)) {
+        resolve_steps([MatchKeyword(kw), ...rest], child);
+      } else {
+        switch (child) {
+        | FocusMod(_)
+        | FocusSig(_)
+        | FocusRule(_, _)
+        | FocusTPat(_)
+        | FocusMPat(_) =>
+          resolve_steps([MatchKeyword(kw), ...rest], child)
+        | FocusExp(_)
+        | FocusPat(_)
+        | FocusTyp(_) => []
+        };
       };
     let skip = match_keyword_in_spine(kw, rest, remaining, form_target);
     dedup_results(enter @ skip);
@@ -1423,9 +1652,52 @@ and match_keyword_in_spine =
   };
 }
 
+/* Try entering a child with progressively shorter prefixes of the steps.
+   For each prefix that produces results inside the child, try continuing
+   with the suffix in the outer spine. This handles cross-level matching
+   where some steps belong inside a child and others belong in the outer spine
+   (e.g., "| [] => %" where [] is inside the pattern but => is at rule level). */
+and try_child_prefix_split =
+    (steps: sem_selector, child: focus_target,
+     remaining: list(spine_pos), form_target: focus_target)
+    : list(match_result) => {
+  /* First try the full steps inside the child (no split needed) */
+  let full = resolve_steps(steps, child);
+  if (List.length(full) > 0) {
+    full;
+  } else {
+    /* Try progressively shorter prefixes */
+    let rec try_split = (n: int): list(match_result) =>
+      if (n <= 0) {
+        [];
+      } else {
+        let prefix = List.filteri((i, _) => i < n, steps);
+        let suffix = List.filteri((i, _) => i >= n, steps);
+        /* Check if prefix matches inside child (without appending
+           MatchFocus — we just need to confirm the prefix consumes
+           all its spine steps inside the child). */
+        let child_results = resolve_steps(prefix, child);
+        if (List.length(child_results) > 0) {
+          /* Prefix matched inside child. Continue with suffix in outer spine. */
+          let outer_results =
+            resolve_spine(suffix, remaining, form_target);
+          if (List.length(outer_results) > 0) {
+            outer_results;
+          } else {
+            try_split(n - 1);
+          };
+        } else {
+          try_split(n - 1);
+        };
+      };
+    try_split(List.length(steps) - 1);
+  };
+}
+
 /* Match a delimiter against spine positions.
    Returns results from ALL matching positions (not just the first).
-   For form-starting delimiters ({, [, (), tries entering child forms. */
+   For form-starting delimiters ({, [, (), tries entering child forms.
+   Uses prefix-split for cross-level matching. */
 and match_delimiter_in_spine =
     (d: string, rest: sem_selector, positions: list(spine_pos),
      form_target: focus_target)
@@ -1433,18 +1705,38 @@ and match_delimiter_in_spine =
   switch (positions) {
   | [PosToken(s), ...remaining] when String.equal(s, d) =>
     let here = resolve_spine(rest, remaining, form_target);
-    let more = match_delimiter_in_spine(d, rest, remaining, form_target);
+    /* For bracketing delimiters ({, [, (, }, ], )), don't scan for more
+       matches — these appear once per form. For other delimiters like |
+       and ,, continue scanning for multiple matches (e.g., | in case arms). */
+    let more =
+      switch (d) {
+      | "{" | "}" | "[" | "]" | "(" | ")" => []
+      | _ => match_delimiter_in_spine(d, rest, remaining, form_target)
+      };
     dedup_results(here @ more);
   | [PosChild(child), ...remaining] =>
-    /* For form-starting delimiters, try entering the child */
+    /* For form-starting delimiters and operators, try entering the child.
+       Uses prefix-split to handle cross-level matching (e.g., "| [] => %"
+       where [] is inside pat but => is at rule level).
+       First match wins: if entering the child succeeds, use that result
+       and don't try skipping to later children (prevents ambiguity
+       from matching in both pattern and expression children). */
     let enter =
       switch (d) {
-      | "{" | "[" | "(" | "|" =>
-        resolve_steps([MatchDelimiter(d), ...rest], child)
+      | "{" | "[" | "(" | "|" | "::" | "," =>
+        try_child_prefix_split(
+          [MatchDelimiter(d), ...rest],
+          child,
+          remaining,
+          form_target,
+        )
       | _ => []
       };
-    let skip = match_delimiter_in_spine(d, rest, remaining, form_target);
-    dedup_results(enter @ skip);
+    if (List.length(enter) > 0) {
+      enter;
+    } else {
+      match_delimiter_in_spine(d, rest, remaining, form_target);
+    };
   | [PosToken(_), ...remaining] =>
     match_delimiter_in_spine(d, rest, remaining, form_target)
   | [] => []
@@ -1452,78 +1744,120 @@ and match_delimiter_in_spine =
 }
 
 /* Match a name against spine children, with separator transparency.
-   When a name matches, try both continuing in the current spine AND
-   entering the matched child (for cases like module items where
-   the child's inner spine contains the relevant tokens like "=").
-   If no name matches in the current spine, try entering the LAST child
-   (for let-chain traversal: "let b = %" on nested lets). */
+   Collects ALL matches at the current spine level (not just the first),
+   then also descends into the last child for let-chain traversal.
+   This enables multi-match for shadowed bindings (e.g., "a = %" on
+   "let a = 4 in let a = 4 in a" returns both defs). */
 and match_name_in_spine_resolve =
     (name: string, idx_opt: option(int), rest: sem_selector,
      positions: list(spine_pos), form_target: focus_target)
     : list(match_result) => {
-  /* First scan: try to find a matching name in current positions.
-     Prefer spine continuation over entering the matched child
-     (same pattern as MatchSlot). Only enter if spine produces nothing. */
-  let rec scan = (pos: list(spine_pos)): list(match_result) =>
+  /* Scan ALL positions for name matches (not just the first) */
+  let rec scan_all = (pos: list(spine_pos)): list(match_result) =>
     switch (pos) {
     | [PosChild(child), ...remaining] =>
       switch (name_of_target(child)) {
       | Some(n) when name_matches_str(name, idx_opt, n) =>
-        let spine_results = resolve_spine(rest, remaining, form_target);
-        if (List.length(spine_results) > 0) {
-          spine_results;
-        } else {
-          resolve_steps(rest, child);
-        };
-      | _ => scan(remaining)
+        /* When rest starts with DescendInto, enter the matched child directly
+           rather than descending into remaining spine positions (which would
+           incorrectly search sibling children). */
+        let rest_enters_child =
+          switch (rest) {
+          | [DescendInto, ..._]
+          | [EnterBinderDef(_), ..._] => true
+          | _ => false
+          };
+        let here =
+          if (rest_enters_child) {
+            resolve_steps(rest, child);
+          } else {
+            let spine_results = resolve_spine(rest, remaining, form_target);
+            if (List.length(spine_results) > 0) {
+              spine_results;
+            } else {
+              resolve_steps(rest, child);
+            };
+          };
+        here @ scan_all(remaining);
+      | _ => scan_all(remaining)
       }
-    | [PosToken(_), ...remaining] => scan(remaining)
+    | [PosToken(_), ...remaining] => scan_all(remaining)
     | [] => []
     };
-  let direct = scan(positions);
-  if (List.length(direct) > 0) {
-    direct;
-  } else {
-    /* No match found: try entering the last child (let-chain traversal) */
-    let last_child =
-      positions
-      |> List.filter_map(
-           fun
-           | PosChild(c) => Some(c)
-           | PosToken(_) => None,
-         )
-      |> (children =>
-            switch (List.rev(children)) {
-            | [last, ..._] => Some(last)
-            | [] => None
-            });
+  let direct = scan_all(positions);
+  /* Also try entering the last child for let-chain traversal.
+     This enables matching nested let bindings with the same name. */
+  let last_child =
+    positions
+    |> List.filter_map(
+         fun
+         | PosChild(c) => Some(c)
+         | PosToken(_) => None,
+       )
+    |> (children =>
+          switch (List.rev(children)) {
+          | [last, ..._] => Some(last)
+          | [] => None
+          });
+  let below =
     switch (last_child) {
     | Some(child) =>
-      /* Descend into the last child with the full current steps */
       resolve_steps(
         [MatchName(name), ...rest],
         child,
       )
     | None => []
     };
-  };
+  dedup_results(direct @ below);
 }
 
-/* Try ellipsis: match rest_steps at each position, skipping forward */
+/* Try ellipsis: two modes depending on what follows.
+   - If next step is MatchFocus alone: GREEDY (prefer last match),
+     so `_... %` selects the LAST child.
+   - Otherwise: COLLECT ALL matches from all positions,
+     so `_... let _ = %` finds all matching bindings. */
 and try_ellipsis_spine =
     (rest_steps: sem_selector, positions: list(spine_pos),
      form_target: focus_target)
     : list(match_result) => {
-  /* Try matching the rest at the current position */
-  let here = resolve_spine(rest_steps, positions, form_target);
-  /* Try skipping one position and recursing */
-  let skip =
-    switch (positions) {
-    | [] => []
-    | [_, ...remaining] =>
-      try_ellipsis_spine(rest_steps, remaining, form_target)
+  let greedy =
+    switch (rest_steps) {
+    | [MatchFocus] => true
+    | _ => false
     };
-  dedup_results(here @ skip);
+  if (greedy) {
+    /* Greedy: try skipping more positions first */
+    let skip =
+      switch (positions) {
+      | [] => []
+      | [_, ...remaining] =>
+        try_ellipsis_spine(rest_steps, remaining, form_target)
+      };
+    /* Filter out results that match the form_target itself — those
+       mean we skipped too far past all children and MatchFocus fell
+       back to the form. We want actual children, not the whole form. */
+    let form_id = id_of_target(form_target);
+    let skip =
+      List.filter(
+        (m: match_result) => m.focused_id != form_id,
+        skip,
+      );
+    if (List.length(skip) > 0) {
+      skip;
+    } else {
+      resolve_spine(rest_steps, positions, form_target);
+    };
+  } else {
+    /* Collect all: match at current position AND at later positions */
+    let here = resolve_spine(rest_steps, positions, form_target);
+    let skip =
+      switch (positions) {
+      | [] => []
+      | [_, ...remaining] =>
+        try_ellipsis_spine(rest_steps, remaining, form_target)
+      };
+    dedup_results(here @ skip);
+  };
 }
 
 /* Try to match an atom in a spine's children */
@@ -1728,6 +2062,21 @@ and resolve_name_indexed =
     (steps: sem_selector, target: focus_target): list(match_result) => {
   switch (steps) {
   | [] => [mk_result(target)]
+  | [MatchKeyword(_), MatchNameIndex(name, idx), ...rest] =>
+    /* keyword + name#N: skip keyword, use indexed binder lookup */
+    let binders = find_all_binders_named(name, target);
+    switch (List.nth_opt(binders, idx)) {
+    | Some((def_target, mod_opt)) =>
+      switch (rest) {
+      | [] =>
+        switch (mod_opt) {
+        | Some(m) => [mk_mod(m)]
+        | None => [mk_result(def_target)]
+        }
+      | _ => resolve_name_index_continuation(name, idx, rest, target)
+      }
+    | None => []
+    }
   | [MatchNameIndex(name, idx), ...rest] =>
     /* Find all binders with this name */
     let binders = find_all_binders_named(name, target);
@@ -2143,20 +2492,16 @@ let rec canonical_numeric_ft =
   if (id_of_target(node) == target_id) {
     Some([MatchFocus]);
   } else {
-    /* Look through transparent wrappers */
-    let (actual, _) = decompose_through(node);
-    if (id_of_target(actual) != id_of_target(node)
-        && id_of_target(actual) == target_id) {
-      Some([MatchFocus]);
-    } else {
-      let children = children_of(actual);
-      children
-      |> List.mapi((i, child) =>
-           canonical_numeric_ft(target_id, child)
-           |> Option.map(k => [ChildIndex(i), ...k])
-         )
-      |> List.find_map(x => x);
-    };
+    /* Use structural_children for consistent ChildIndex numbering.
+       Parens/Projector count as levels (single child at index 0).
+       Asc is NOT expanded inside Let/Fun. */
+    let children = structural_children(node);
+    children
+    |> List.mapi((i, child) =>
+         canonical_numeric_ft(target_id, child)
+         |> Option.map(k => [ChildIndex(i), ...k])
+       )
+    |> List.find_map(x => x);
   };
 
 let canonical_numeric =
@@ -2165,28 +2510,32 @@ let canonical_numeric =
 
 /* === Named canonical === */
 
-/* Add shadow indices to MatchName steps where there are multiple
-   bindings with the same name */
-let add_shadow_indices =
-    (steps: sem_selector, root: Exp.t): sem_selector => {
-  steps
-  |> List.map(step =>
-       switch (step) {
-       | MatchName(name) =>
-         let binders = find_all_binders_named(name, FocusExp(root));
-         if (List.length(binders) > 1) {
-           step;
-         } else {
-           step;
-         }
-       | _ => step
-       }
-     );
-};
 
 /* Generate a human-readable canonical selector */
 let canonical_named =
     (target_id: Id.t, root: Exp.t): option(sem_selector) => {
+  /* Helper: generate MatchName or MatchNameIndex depending on shadows.
+     Searches from root for all bindings with the given name. If there are
+     multiple, finds the index of the one at def_child. */
+  let make_name_step =
+      (the_name: string, def_child: focus_target): sem_step => {
+    let all_binders = find_all_binders_named(the_name, FocusExp(root));
+    if (List.length(all_binders) <= 1) {
+      MatchName(the_name);
+    } else {
+      let (actual_def, _) = decompose_through(def_child);
+      let idx =
+        all_binders
+        |> List.mapi((i, (dt, _)) => (i, dt))
+        |> List.find_opt(((_, dt)) =>
+             id_of_target(dt) == id_of_target(actual_def)
+           )
+        |> Option.map(((i, _)) => i)
+        |> Option.value(~default=0);
+      MatchNameIndex(the_name, idx);
+    };
+  };
+
   let rec go = (node: focus_target): option(sem_selector) => {
     let (actual, dec) = decompose_through(node);
     if (id_of_target(actual) == target_id) {
@@ -2252,31 +2601,27 @@ let canonical_named =
 
       /* Check for Let-like forms */
       switch (all_positions) {
-      | [PosToken(kw), PosChild(_pat), PosToken("="), PosChild(_def), ..._]
+      | [PosToken(kw), PosChild(_pat), PosToken("="), PosChild(def_child), ..._]
           when kw == "let" || kw == "type" || kw == "module" =>
         let pat_child = List.nth(children, 0);
         let pat_nm = name_of_target(pat_child);
         switch (pat_nm) {
         | Some(pat_name) =>
-          /* Check for shadowed names: count all same-named bindings */
-          let all_names = collect_binder_names(FocusExp(Obj.magic(0)));
-          let _ = all_names;
+          let name_step = make_name_step(pat_name, def_child);
           if (child_idx == 0) {
-            /* Pattern focus */
-            Some([MatchKeyword(kw), MatchFocus, MatchName(pat_name)]);
+            /* Pattern focus: use keyword for disambiguation */
+            Some([MatchKeyword(kw), MatchFocus, name_step]);
           } else if (child_idx == 1) {
-            /* Definition focus */
+            /* Definition focus: name = % (no keyword needed) */
             Some([
-              MatchKeyword(kw),
-              MatchName(pat_name),
+              name_step,
               MatchDelimiter("="),
               MatchFocus,
             ]);
           } else if (child_idx == 2 && n_children >= 3) {
             /* Body focus */
             Some([
-              MatchKeyword(kw),
-              MatchName(pat_name),
+              name_step,
               MatchEllipsis,
               MatchKeyword("in"),
               MatchFocus,
@@ -2381,45 +2726,13 @@ let canonical_named =
         let pat_nm = name_of_target(pat_child);
         switch (pat_nm) {
         | Some(the_name) =>
-          /* Check for shadowed names */
-          let need_index =
-            switch (parent) {
-            | FocusExp(e) =>
-              let all_binders =
-                find_all_binders_named(the_name, FocusExp(e));
-              List.length(all_binders) > 1;
-            | _ => false
-            };
-          let (name_step, name_idx) =
-            if (need_index) {
-              /* Find which index this binding is */
-              switch (parent) {
-              | FocusExp(e) =>
-                let all_binders =
-                  find_all_binders_named(the_name, FocusExp(e));
-                let idx =
-                  all_binders
-                  |> List.mapi((i, (dt, _)) => (i, dt))
-                  |> List.find_opt(((_, dt)) => {
-                       let (actual_def, _) = decompose_through(def_child);
-                       id_of_target(dt) == id_of_target(actual_def);
-                     })
-                  |> Option.map(((i, _)) => i)
-                  |> Option.value(~default=0);
-                (MatchNameIndex(the_name, idx), Some(idx));
-              | _ => (MatchName(the_name), None)
-              };
-            } else {
-              (MatchName(the_name), None);
-            };
-          let _ = name_idx;
+          let name_step = make_name_step(the_name, def_child);
 
           /* Try to find target in def */
           let (actual_def, _) = decompose_through(def_child);
           switch (go(actual_def)) {
           | Some(inner_path) =>
             Some([
-              MatchKeyword(kw),
               name_step,
               MatchDelimiter("="),
               ...inner_path,
@@ -2601,7 +2914,7 @@ let canonical_named =
 
   /* If named canonical produced something, add shadowed-name indices */
   switch (result) {
-  | Some(steps) => Some(add_shadow_indices(steps, root))
+  | Some(steps) => Some(steps)
   | None =>
     /* Fallback to numeric */
     canonical_numeric(target_id, root)
