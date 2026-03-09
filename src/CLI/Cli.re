@@ -629,6 +629,7 @@ let gen_slides_clean_cmd = {
   Cmd.v(info, Term.(const(GenSlides.clean) $ const()));
 };
 
+
 let bench_parse_cmd = {
   let doc = "Benchmark parsing performance on one or more .hz files.";
   let iterations_arg = {
