@@ -25,13 +25,7 @@ module M: Projector = {
   let put = (info, exp: Language.Exp.t): Base.segment =>
     switch (
       info.utility.lift_syntax(
-        fun
-        | Exp(any) =>
-          Exp({
-            ...any,
-            term: exp.term,
-          })
-        | _ => failwith("ExoToolProj: put: not expression"),
+        Fun.const(Language.Grammar.Exp(Language.Exp.fresh(exp.term))),
         Inline.Inline,
         info.syntax,
       )
@@ -85,11 +79,10 @@ module M: Projector = {
         ~attrs=[
           Attr.class_("exotool-select"),
           Attr.on_change((_, value) => {
+            print_endline("value: " ++ value);
             let tuple_exp =
               Language.IdTagged.FreshGrammar.Exp.(
-                parens(
-                  tuple([tup_label(label("exotool_id"), string(value))]),
-                )
+                parens(tup_label(label("exotool_id"), string(value)))
               );
             let seg = put(info, tuple_exp);
             Effect.(
