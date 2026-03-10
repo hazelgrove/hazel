@@ -1,6 +1,6 @@
 (executable
  (name hazel_bench)
- (libraries core_bench.js web)
+ (libraries web js_of_ocaml)
  (modes js)
  (preprocess
   (pps ppx_deriving.show)))

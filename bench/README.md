@@ -1,52 +1,44 @@
 # Performance Benchmarks
 
-Measures key editor operations at various program sizes using
-[core_bench](https://github.com/janestreet/core_bench).
+Measures key editor operations at various program sizes using single-shot
+timing with `performance.now()`. Each measurement is repeated across
+multiple runs (default: 10) with structurally unique inputs, and the
+**median** is reported.
 
-## Benchmarks
+## Scenarios
 
-### Edit Cycle (per-keystroke pipeline phases)
+Each program size is benchmarked across four scenarios:
 
-Each phase of the editor pipeline is benchmarked individually using
-pre-computed inputs from the previous phase. Iteration 1 is a cold call;
-subsequent iterations may hit memo caches since the inputs are fixed.
+| Scenario | What it measures |
+|:---|:---|
+| **cold** | First run with fresh input — no memoization cache hits |
+| **warm** | Immediate re-run with identical input — measures cache-hit overhead |
+| **move** | After `Move(Left)` cursor movement — incremental update cost |
+| **modify** | After `Insert("x")` content edit — incremental update cost |
 
-The comparison output includes a computed **Total** row per program size
-that sums all pipeline phases.
+### Pipeline phases
 
 | Phase | What it measures |
 |:---|:---|
-| `Perform` | Insert a character into the zipper (action phase) |
+| `Perform` | Execute the action on the zipper (move/modify only) |
 | `MakeTerm` | Parse segment into AST |
 | `Measured` | Layout measurement (line/column coordinates) |
 | `Statics` | Type checking |
 | `Elaborate` | Elaboration (produce DHExp for evaluation) |
 | `Evaluate` | Program evaluation |
-| **Total** | Sum of all phases above (computed by compare.js) |
-
-### Memo-hit overhead
-
-These measure the hot path — repeated calls with identical inputs.
-Memoization caches always hit. Useful for understanding the cost of
-cache lookup itself (e.g., re-rendering without edits).
-
-| Benchmark | What it measures |
-|:---|:---|
-| `MakeTerm.go` | Memo lookup cost for term construction |
-| `Measured.of_segment` | Memo lookup cost for layout measurement |
-| `Statics.mk` | Memo lookup cost for type checking |
-| `Elaborator.elaborate` | Memo lookup cost for elaboration |
+| **Total** | Sum of all phases above |
 
 ### Program sizes
 
 - `let100` / `let500` — let-chains with 100/500 bindings (~5-10 AST nodes each)
 - `case100` — nested case expressions with 100 functions (~15 AST nodes each)
 
-### GC stabilization
+### Cache isolation
 
-`Gc.compact()` is run between each benchmark test (via core_bench's
-`~stabilize_gc_between_runs` flag) to prevent GC pressure from one
-benchmark contaminating measurements of the next.
+Each repetition generates programs with a unique variable prefix (a, b,
+c, ...) so that `Core.Memo.general` (structural equality) never hits
+across repetitions. `WeakMap`-based caches (physical identity) naturally
+miss on fresh allocations.
 
 ## Running locally
 
@@ -57,13 +49,15 @@ dune build bench/hazel_bench.bc.js
 node --stack-size=8192 _build/default/bench/hazel_bench.bc.js
 ```
 
-Add `--json` for machine-readable output.
+Add `--json` for machine-readable output. Add `--reps N` to change
+repetition count (default: 10).
 
 ### Filtering benchmarks
 
 ```
 node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --filter let500
-node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --filter Statics --filter Elaborate
+node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --filter cold --filter modify
+node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --filter let100/cold
 ```
 
 Filters match benchmark names as substrings (case-sensitive). Multiple
@@ -75,8 +69,7 @@ Filters match benchmark names as substrings (case-sensitive). Multiple
 bench/run-comparison.sh                              # compare against dev
 bench/run-comparison.sh main                         # compare against main
 bench/run-comparison.sh abc123                       # compare against a commit
-bench/run-comparison.sh dev --filter Statics         # filtered comparison
-bench/run-comparison.sh dev --filter memo --filter let500
+bench/run-comparison.sh dev --filter cold             # filtered comparison
 ```
 
 Requires a clean worktree (no uncommitted changes). Uses the current
@@ -102,5 +95,5 @@ Both local and CI flows use the same underlying scripts:
 | Script | Purpose |
 |:---|:---|
 | `bench/build-and-run.sh` | Install deps, build, run benchmarks (JSON to stdout) |
-| `bench/compare.js` | Compare two JSON result files, compute totals (`--markdown` for CI) |
+| `bench/compare.js` | Compare two JSON result files, group by scenario (`--markdown` for CI) |
 | `bench/run-comparison.sh` | Local orchestration (checkout, run both, compare) |

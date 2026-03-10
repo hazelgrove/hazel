@@ -2,8 +2,11 @@
 /* Compare two benchmark JSON files.
  *
  * Usage:
- *   node bench/compare.js base.json head.json              # terminal table + graph
+ *   node bench/compare.js base.json head.json              # terminal table
  *   node bench/compare.js base.json head.json --markdown   # GitHub markdown
+ *
+ * Expects benchmark names in the format: {size}/{scenario}/{phase}
+ * where scenario is one of: cold, warm, move, modify
  *
  * Shared by both the local comparison script and the CI workflow. */
 
@@ -60,100 +63,107 @@ function formatDelta(base, head) {
   }
 }
 
+/* Group results by scenario */
+const scenarios = ['cold', 'warm', 'move', 'modify'];
+const scenarioLabels = {
+  cold: 'Cold (first run, empty caches)',
+  warm: 'Warm (repeated call, cached)',
+  move: 'Move (cursor movement, incremental update)',
+  modify: 'Modify (content edit, incremental update)',
+};
 
-const editResults = headResults.filter(r => r.name.includes('/edit/'));
-const memoResults = headResults.filter(r => r.name.includes('/memo/'));
+function getScenario(name) {
+  for (const s of scenarios) {
+    if (name.includes('/' + s + '/')) return s;
+  }
+  return null;
+}
 
-/* Insert a Total row after each program-size group by summing pipeline phases. */
-const pipelinePhases = ['Perform', 'MakeTerm', 'Measured', 'Statics', 'Elaborate', 'Evaluate'];
-const editWithTotals = [];
-let curSize = null;
-let headSum = 0, baseSum = 0;
+function makeMarkdownTable(results) {
+  let table = '| Benchmark | Base | PR | Delta |\n';
+  table += '|:---|---:|---:|---:|\n';
+  for (const r of results) {
+    const baseTime = baseMap[r.name];
+    table += `| \`${r.name}\` | ${formatTime(baseTime)} | ${formatTime(r.time_ns)} | ${formatDelta(baseTime, r.time_ns)} |\n`;
+  }
+  return table;
+}
 
-function flushTotal() {
-  if (curSize !== null) {
-    const name = `${curSize}/edit/Total`;
-    editWithTotals.push({ name, time_ns: headSum });
-    baseMap[name] = baseSum;
+function printTerminalTable(title, results) {
+  if (results.length === 0) return;
+  console.log(`\n${title}`);
+
+  const nameWidth = Math.max(10, ...results.map(r => r.name.length));
+  const colWidth = 12;
+
+  const header = 'Benchmark'.padEnd(nameWidth) + '  ' +
+    'Base'.padStart(colWidth) + '  ' +
+    'Head'.padStart(colWidth) + '  ' +
+    'Delta'.padStart(colWidth);
+  console.log(header);
+  console.log('-'.repeat(header.length));
+
+  for (const r of results) {
+    const baseTime = baseMap[r.name];
+    console.log(
+      r.name.padEnd(nameWidth) + '  ' +
+      formatTime(baseTime).padStart(colWidth) + '  ' +
+      formatTime(r.time_ns).padStart(colWidth) + '  ' +
+      formatDelta(baseTime, r.time_ns).padStart(colWidth)
+    );
   }
 }
 
-for (const r of editResults) {
-  const slash = r.name.indexOf('/edit/');
-  if (slash < 0) { editWithTotals.push(r); continue; }
-  const size = r.name.slice(0, slash);
-  const phase = r.name.slice(slash + 6);
-  if (size !== curSize) {
-    flushTotal();
-    curSize = size;
-    headSum = 0;
-    baseSum = 0;
-  }
-  editWithTotals.push(r);
-  if (pipelinePhases.includes(phase)) {
-    headSum += r.time_ns || 0;
-    baseSum += baseMap[r.name] || 0;
-  }
-}
-flushTotal();
-
-if (markdown) {
-  function makeTable(results) {
-    let table = '| Benchmark | Base | PR | Delta |\n';
-    table += '|:---|---:|---:|---:|\n';
-    for (const r of results) {
-      const baseTime = baseMap[r.name];
-      table += `| \`${r.name}\` | ${formatTime(baseTime)} | ${formatTime(r.time_ns)} | ${formatDelta(baseTime, r.time_ns)} |\n`;
-    }
-    return table;
-  }
-
-  if (headResults.length === 0) {
+if (headResults.length === 0) {
+  if (markdown) {
     console.log(':x: Benchmarks failed to build or run.');
   } else {
-    console.log('### Edit Cycle (per-keystroke latency)\n');
-    console.log(makeTable(editWithTotals));
+    console.log('No benchmark results to compare.');
+  }
+  process.exit(0);
+}
 
-    if (memoResults.length > 0) {
-      console.log('<details><summary>Memo-hit overhead (repeated calls, same input)</summary>\n');
-      console.log(makeTable(memoResults));
+if (markdown) {
+  for (const scenario of scenarios) {
+    const results = headResults.filter(r => getScenario(r.name) === scenario);
+    if (results.length === 0) continue;
+
+    const label = scenarioLabels[scenario] || scenario;
+    if (scenario === 'cold' || scenario === 'modify') {
+      /* Primary scenarios shown expanded */
+      console.log(`### ${label}\n`);
+      console.log(makeMarkdownTable(results));
+    } else {
+      /* Secondary scenarios collapsed */
+      console.log(`<details><summary>${label}</summary>\n`);
+      console.log(makeMarkdownTable(results));
       console.log('</details>\n');
     }
-
-    console.log('<details><summary>Legend</summary>\n');
-    console.log('- :rocket: = >10% faster');
-    console.log('- :warning: = >10% slower');
-    console.log('- "new" = benchmark not present on base branch');
-    console.log('</details>');
   }
+
+  /* Any results that don't match a known scenario */
+  const other = headResults.filter(r => getScenario(r.name) === null);
+  if (other.length > 0) {
+    console.log('<details><summary>Other</summary>\n');
+    console.log(makeMarkdownTable(other));
+    console.log('</details>\n');
+  }
+
+  console.log('<details><summary>Legend</summary>\n');
+  console.log('- :rocket: = >10% faster');
+  console.log('- :warning: = >10% slower');
+  console.log('- "new" = benchmark not present on base branch');
+  console.log('</details>');
 } else {
-  // Terminal: table + graph
-  function printTable(title, results) {
-    if (results.length === 0) return;
-    console.log(`\n${title}`);
-
-    const nameWidth = Math.max(10, ...results.map(r => r.name.length));
-    const colWidth = 12;
-
-    const header = 'Benchmark'.padEnd(nameWidth) + '  ' +
-      'Base'.padStart(colWidth) + '  ' +
-      'Head'.padStart(colWidth) + '  ' +
-      'Delta'.padStart(colWidth);
-    console.log(header);
-    console.log('-'.repeat(header.length));
-
-    for (const r of results) {
-      const baseTime = baseMap[r.name];
-      console.log(
-        r.name.padEnd(nameWidth) + '  ' +
-        formatTime(baseTime).padStart(colWidth) + '  ' +
-        formatTime(r.time_ns).padStart(colWidth) + '  ' +
-        formatDelta(baseTime, r.time_ns).padStart(colWidth)
-      );
-    }
+  for (const scenario of scenarios) {
+    const results = headResults.filter(r => getScenario(r.name) === scenario);
+    if (results.length === 0) continue;
+    printTerminalTable(scenarioLabels[scenario] || scenario, results);
   }
 
-  printTable('Edit Cycle (per-keystroke latency)', editWithTotals);
-  printTable('Memo-hit overhead (repeated calls, same input)', memoResults);
+  const other = headResults.filter(r => getScenario(r.name) === null);
+  if (other.length > 0) {
+    printTerminalTable('Other', other);
+  }
   console.log();
 }
