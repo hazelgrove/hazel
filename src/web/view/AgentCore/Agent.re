@@ -1815,13 +1815,18 @@ module Agent = {
       ) {
       | Action(action) =>
         switch (
-          ToolCallHandler.update(
-            ~settings,
-            action,
-            model,
-            cell_editor.editor,
-            chat_id,
-          )
+          try(
+            ToolCallHandler.update(
+              ~settings,
+              action,
+              model,
+              cell_editor.editor,
+              chat_id,
+            )
+          ) {
+          | Failure(msg) => Error(Failure.Info(msg))
+          | exn => raise(exn)
+          }
         ) {
         | Ok((model, editor)) =>
           let model = update_context(model, editor, chat_id);
