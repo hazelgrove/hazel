@@ -30,7 +30,7 @@ module Info = {
 
   /* Find the sample most aligned with the cursor's call path.
    * Uses the same suffix-first principle as Selection.most_aligned_index
-   * but returns the sample directly. See plans/dynamic-cursor-conservatism.md. */
+   * but returns the sample directly. */
   let most_aligned_sample = (ap_id: option(Id.t), di: t): option(Sample.t) =>
     Sample.Selection.most_aligned_sample(
       ~ap_id,

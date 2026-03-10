@@ -24,26 +24,6 @@ let update_pinned_call =
  * inner selection so the "read side" (most_aligned_index) can recover it.
  * See Sample.Cursor module comment for the full mechanism. */
 let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
-  print_endline(
-    "[capture] id="
-    ++ (
-      switch (id) {
-      | Some(id) => Id.to_string(id)
-      | None => "None"
-      }
-    )
-    ++ " stack_len="
-    ++ string_of_int(List.length(data.call_stack))
-    ++ " old_indicated="
-    ++ (
-      switch (z.refractors.sample_cursor.indicated_call) {
-      | Some(id) => Id.to_string(id)
-      | None => "None"
-      }
-    )
-    ++ " old_call_stack_len="
-    ++ string_of_int(List.length(z.refractors.sample_cursor.call_stack)),
-  );
   update(z, sample_cursor =>
     {
       ...sample_cursor,

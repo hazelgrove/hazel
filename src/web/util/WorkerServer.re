@@ -53,10 +53,6 @@ let work = (req_value: Request.value): Response.value => {
        * massive amounts of unnecessary data (e.g., app_args can be 100MB+) */
       Ok((result, Language.EvaluatorState.clear_transient(state)))
     };
-  //TODO(andrew): rm profiling before final merge
-  // let eval_end = JsUtil.precise_timestamp();
-
-  // Printf.printf("  Eval only (ms): %.2f\n", eval_end -. eval_start);
   result;
 };
 

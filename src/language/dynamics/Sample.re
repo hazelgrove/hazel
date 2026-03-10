@@ -248,12 +248,10 @@ module Window = {
     };
 };
 
-/* The dynamic cursor points to a stage in evaluation, associated
+/* The sample cursor points to a stage in evaluation, associated
  * with probe sample collection. This is primarily reified as a call stack,
  * represented as a list of ids of function application forms which have
  * been called but have not yet returned.
- *
- * See plans/dynamic-cursor-conservatism.md for detailed design notes.
  *
  * CONSISTENCY AND INTENT PRESERVATION
  *
@@ -625,43 +623,6 @@ module Selection = {
           }
         }
       };
-    if (cursor.indicated_call != None && List.length(samples) > 1) {
-      let tier =
-        switch (full_match) {
-        | Some(_) => "1-suffix"
-        | None =>
-          switch (find(rel => rel.is_call_cursor)) {
-          | Some(_) => "2-call"
-          | None =>
-            switch (find(rel => rel.is_below_indicated_call == Some(0))) {
-            | Some(_) => "3-indicated"
-            | None => "4-fallback"
-            }
-          }
-        };
-      print_endline(
-        "[most_aligned] tier="
-        ++ tier
-        ++ " result="
-        ++ (
-          switch (result) {
-          | Some(i) => string_of_int(i)
-          | None => "None"
-          }
-        )
-        ++ " eff_len="
-        ++ string_of_int(List.length(eff))
-        ++ " stack_len="
-        ++ string_of_int(List.length(cursor.call_stack))
-        ++ " indicated="
-        ++ (
-          switch (cursor.indicated_call) {
-          | Some(id) => Id.to_string(id)
-          | None => "None"
-          }
-        ),
-      );
-    };
     result;
   };
 

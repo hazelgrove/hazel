@@ -70,11 +70,6 @@ module ViewCache = {
   let hits = ref(0);
   let misses = ref(0);
   let log_frame = () => {
-    let h = hits^;
-    let m = misses^;
-    if (h + m > 0) {
-      Printf.printf("ViewCache: %d hits, %d misses\n%!", h, m);
-    };
     hits := 0;
     misses := 0;
   };

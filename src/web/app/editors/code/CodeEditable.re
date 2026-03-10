@@ -439,31 +439,6 @@ module View = {
         ),
         model.editor.syntax.projector_list,
       );
-    // let t3 = JsUtil.precise_timestamp();
-    // let num_refractors =
-    //   Id.Map.cardinal(
-    //     Id.Map.union(
-    //       (_, _, b) => Some(b),
-    //       model.editor.state.zipper.refractors.manuals,
-    //       model.editor.state.zipper.refractors.multis.ephemerals,
-    //     ),
-    //   );
-    // if (num_refractors > 0) {
-    //   let visible_str =
-    //     switch (visible) {
-    //     | Some({first, last}) =>
-    //       Printf.sprintf(" visible_rows=%d-%d", first, last)
-    //     | None => ""
-    //     };
-    //   Printf.printf(
-    //     "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)%s\n",
-    //     t1 -. t0,
-    //     t2 -. t1,
-    //     t3 -. t2,
-    //     num_refractors,
-    //     visible_str,
-    //   );
-    // };
     ProjectorView.ViewCache.log_frame();
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]

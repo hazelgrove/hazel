@@ -210,9 +210,6 @@ let sort_ids_lexically =
 
 /* Set pending_probe_cursor so sample cursor aligns when dynamics arrive. */
 let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
-  print_endline(
-    "[set_pending_probe] num_ids=" ++ string_of_int(List.length(ids)),
-  );
   Zipper.update_refractors(z, r =>
     {
       ...r,
@@ -243,7 +240,7 @@ let has_no_probes = (z: Zipper.t): bool =>
   && Id.Map.is_empty(z.refractors.multis.ids);
 
 /* Reset the sample cursor if no probes remain.
- * This prevents stale dynamic cursor state from showing in the sidebar
+ * This prevents stale sample cursor state from showing in the sidebar
  * when all probes have been removed. */
 let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
   has_no_probes(z) ? SampleCursorPerform.reset(z) : z;
@@ -490,14 +487,6 @@ let add_ids_from_multi_term =
   switch (new_ids) {
   | [] => z
   | _ =>
-    print_endline(
-      "[add_ids_from_multi_term] setting pending! new_ids="
-      ++ string_of_int(List.length(new_ids))
-      ++ " old_ephemerals="
-      ++ string_of_int(Id.Map.cardinal(old_ephemerals))
-      ++ " total_ids="
-      ++ string_of_int(List.length(ids)),
-    );
     let sorted = sort_ids_lexically(~syntax, new_ids);
     set_pending_probe(sorted, z);
   };
@@ -943,20 +932,8 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
 let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
   let cursor = z.refractors.sample_cursor;
   if (cursor.call_stack == []) {
-    print_endline("[cursor_is_aligned] trivially aligned (empty call_stack)");
     true; /* Empty cursor is trivially aligned */
   } else {
-    print_endline(
-      "[cursor_is_aligned] non-empty call_stack len="
-      ++ string_of_int(List.length(cursor.call_stack))
-      ++ " indicated_call="
-      ++ (
-        switch (cursor.indicated_call) {
-        | Some(id) => Id.to_string(id)
-        | None => "None"
-        }
-      ),
-    );
     let all_probe_ids =
       List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
       @ List.map(fst, z.refractors.manuals);
@@ -1083,21 +1060,6 @@ let resolve_pending_probe_cursor =
         );
       switch (selected) {
       | Some(sample) =>
-        print_endline(
-          "[resolve_pending] re-capturing, is_pending="
-          ++ string_of_bool(is_pending)
-          ++ " ap_id="
-          ++ (
-            switch (ap_id) {
-            | Some(id) => Id.to_string(id)
-            | None => "None"
-            }
-          )
-          ++ " cursor_call_stack_len="
-          ++ string_of_int(
-               List.length(z.refractors.sample_cursor.call_stack),
-             ),
-        );
         let z =
           SampleCursorPerform.capture(
             z,
@@ -1302,9 +1264,6 @@ let clear_autoprobe =
   switch (z.refractors.autoprobe_target) {
   | None => z
   | Some(old_id) =>
-    print_endline(
-      "[clear_autoprobe] removing autoprobe_target=" ++ Id.to_string(old_id),
-    );
     /* Skip cursor reset here: the syntax cache still has the old probes
      * (since this isn't an edit, CachedSyntax won't recalculate until
      * the next is_edited cycle). If we reset the cursor now, the stale
@@ -1319,7 +1278,7 @@ let clear_autoprobe =
            ...r,
            autoprobe_target: None,
          }
-       );
+       )
   };
 
 /* Get the top-level definition body ID that the cursor is currently inside.
@@ -1355,24 +1314,6 @@ let update_autoprobe =
   let current_def = current_toplevel_def(info_map, z);
   let prev_def = z.refractors.autoprobe_target;
   /* If same definition, no change needed */
-  print_endline(
-    "[update_autoprobe] current_def="
-    ++ (
-      switch (current_def) {
-      | Some(id) => Id.to_string(id)
-      | None => "None"
-      }
-    )
-    ++ " prev_def="
-    ++ (
-      switch (prev_def) {
-      | Some(id) => Id.to_string(id)
-      | None => "None"
-      }
-    )
-    ++ " changed="
-    ++ string_of_bool(!Option.equal(Id.equal, current_def, prev_def)),
-  );
   if (Option.equal(Id.equal, current_def, prev_def)) {
     z;
   } else {
