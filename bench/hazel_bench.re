@@ -12,7 +12,7 @@
  * Usage:
  *   node bench/hazel_bench.bc.js            # table output
  *   node bench/hazel_bench.bc.js --json     # JSON output for CI comparison
- *   node bench/hazel_bench.bc.js --reps 5   # 5 repetitions (default: 3)
+ *   node bench/hazel_bench.bc.js --reps 10  # 10 repetitions (default: 7)
  *   node bench/hazel_bench.bc.js --filter cold --filter let100
  */
 
@@ -400,7 +400,7 @@ let is_substring = (haystack: string, needle: string): bool => {
 let () = {
   let argv = Array.to_list(Sys.argv);
   let json_mode = List.mem("--json", argv);
-  let reps = parse_int_arg(argv, "--reps", 3);
+  let reps = parse_int_arg(argv, "--reps", 7);
   let filters = parse_filters(argv);
 
   /* Parse all programs once (expensive). Subsequent repetitions clone

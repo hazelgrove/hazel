@@ -2,7 +2,7 @@
 
 Measures key editor operations at various program sizes using single-shot
 timing with `performance.now()`. Each measurement is repeated across
-multiple runs (default: 3) with structurally unique inputs, and the
+multiple runs (default: 7) with structurally unique inputs, and the
 **median** is reported.
 
 ## Scenarios
