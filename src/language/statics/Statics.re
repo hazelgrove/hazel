@@ -1062,6 +1062,7 @@ and uexp_to_info_map =
         m,
       );
     | Let(p, def, body) =>
+      let def_term = def;
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
@@ -1110,6 +1111,31 @@ and uexp_to_info_map =
             };
           let (def, m) = go'(~ctx=def_ctx, ~ana, def, m);
           (def, def_ctx, m, ty_p_ana);
+        };
+      /* Check for exotool livelit definition pattern:
+         let ^<name> = ^^exotool(<tool_id_string>) in body
+         If found, inject a LivelitEntry into the body's context. */
+      let p_ana_ctx =
+        switch (p.term, def_term.term) {
+        | (Var(pat_name), Projector({kind: ExoTool, _}, inner))
+            when
+              String.length(pat_name) > 1
+              && String.sub(pat_name, 0, 1) == "^" =>
+          let livelit_name =
+            String.sub(pat_name, 1, String.length(pat_name) - 1);
+          switch (inner.term) {
+          | Atom(String(tool_id)) when String.length(tool_id) > 0 =>
+            let ll = ExoToolLivelit.mk_exotool_livelit(tool_id);
+            Ctx.extend(
+              p_ana_ctx,
+              LivelitEntry({
+                ...ll,
+                name: livelit_name,
+              }),
+            );
+          | _ => p_ana_ctx
+          };
+        | _ => p_ana_ctx
         };
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */

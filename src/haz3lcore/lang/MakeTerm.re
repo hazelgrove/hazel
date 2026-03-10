@@ -611,6 +611,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+      | ([t], []) when Token.is_livelit(t) => ret(Var(t))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_wild(t) => ret(Wild)
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))

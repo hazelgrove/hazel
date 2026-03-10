@@ -31,6 +31,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Automerge => (module Cook(AutomergeProj.M))
   | AutomergeWriteBack => (module Cook(AutomergeWriteBackProj.M))
   | PatchworkTool => (module Cook(PatchworkToolProj.M))
+  | ExoTool => (module Cook(ExoToolProj.M))
   };
 
 let init =

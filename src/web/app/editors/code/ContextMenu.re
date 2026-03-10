@@ -426,6 +426,7 @@ module Projectors = {
     | Automerge => "Automerge"
     | AutomergeWriteBack => "AutomergeWriteBack"
     | PatchworkTool => "PatchworkTool"
+    | ExoTool => "ExoTool"
     | Exo(exo_kind) => Exo.name(exo_kind)
     };
 

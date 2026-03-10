@@ -31,7 +31,8 @@ type t =
   | Exo(exo)
   | Automerge
   | AutomergeWriteBack
-  | PatchworkTool;
+  | PatchworkTool
+  | ExoTool;
 
 let livelit_projectors: list(t) =
   [
@@ -57,6 +58,7 @@ let projectors: list(t) =
     Automerge,
     AutomergeWriteBack,
     PatchworkTool,
+    ExoTool,
   ];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
@@ -85,6 +87,7 @@ let name = (p: t): string =>
   | Automerge => "Automerge"
   | AutomergeWriteBack => "AutomergeWriteBack"
   | PatchworkTool => "PatchworkTool"
+  | ExoTool => "exotool"
   };
 
 /* This must be updated and kept 1-to-1 with the above
@@ -108,6 +111,7 @@ let of_name = (p: string): t =>
   | "Automerge" => Automerge
   | "AutomergeWriteBack" => AutomergeWriteBack
   | "PatchworkTool" => PatchworkTool
+  | "exotool" => ExoTool
   | _ => Exo(p |> Sexplib.Sexp.of_string |> exo_of_sexp)
   };
 
