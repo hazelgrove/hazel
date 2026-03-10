@@ -1115,7 +1115,9 @@ and uexp_to_info_map =
       /* Check for exotool livelit definition pattern:
          let ^<name> = (exotool_id=<tool_id_string>) in body
          If found, inject a LivelitEntry into the body's context.
-         The def may be wrapped in a Projector node (from ^^exotool). */
+         Detection: match Projector with ExoTool kind and extract
+         tool_id from the inner labeled tuple, or match a bare
+         labeled tuple without a projector wrapper. */
       let p_ana_ctx = {
         let def_inner =
           switch (def_term.term) {
@@ -1127,36 +1129,27 @@ and uexp_to_info_map =
             Var(pat_name),
             Parens({
               term:
-                Tuple([
-                  {
-                    term:
-                      TupLabel(
-                        {term: Label("exotool_id"), _},
-                        {term: Atom(String(tool_id)), _},
-                      ),
-                    _,
-                  },
-                ]),
+                TupLabel(
+                  {term: Label("exotool_id"), _},
+                  {term: Atom(String(tool_id)), _},
+                ),
               _,
             }),
           )
             when
               String.length(pat_name) > 1
-              && String.sub(pat_name, 0, 1) == "^" =>
+              && String.sub(pat_name, 0, 1) == "^"
+              && String.length(tool_id) > 0 =>
           let livelit_name =
             String.sub(pat_name, 1, String.length(pat_name) - 1);
-          if (String.length(tool_id) > 0) {
-            let ll = ExoToolLivelit.mk_exotool_livelit(tool_id);
-            Ctx.extend(
-              p_ana_ctx,
-              LivelitEntry({
-                ...ll,
-                name: livelit_name,
-              }),
-            );
-          } else {
-            p_ana_ctx;
-          };
+          let ll = ExoToolLivelit.mk_exotool_livelit(tool_id);
+          Ctx.extend(
+            p_ana_ctx,
+            LivelitEntry({
+              ...ll,
+              name: livelit_name,
+            }),
+          );
         | _ => p_ana_ctx
         };
       };
