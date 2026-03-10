@@ -30,3 +30,8 @@
     display: flex;
     flex-direction: column;
 }
+
+.livelit > *:has(> .exotool-livelit-wrapper) {
+    justify-content: flex-start;
+    align-items: flex-start;
+}
