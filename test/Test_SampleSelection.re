@@ -2,7 +2,7 @@ open Alcotest;
 open Language;
 
 /**
- * Unit tests for Sample.Selection and Sample.Cursor logic.
+ * Unit tests for Sample.Selection and Sample.Focus logic.
  *
  * These test the pure functions that determine which samples are visible
  * given a cursor position, pin state, and display mode. No evaluation needed.
@@ -67,7 +67,7 @@ let mk_cursor =
       ~step_range=None,
       stack: Sample.call_stack,
     )
-    : Sample.Cursor.t => {
+    : Sample.Focus.t => {
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,
@@ -83,7 +83,7 @@ let select_count =
     (
       ~mode=Sample.Window.Single,
       ~ap_id=None,
-      ~cursor: Sample.Cursor.t,
+      ~cursor: Sample.Focus.t,
       samples: list(Sample.t),
     )
     : int => {
@@ -104,7 +104,7 @@ let do_select =
     (
       ~mode=Sample.Window.Single,
       ~ap_id=None,
-      ~cursor: Sample.Cursor.t,
+      ~cursor: Sample.Focus.t,
       samples: list(Sample.t),
     )
     : list(Sample.t) => {
@@ -175,7 +175,7 @@ let relation_tests = [
       let cursor = mk_cursor(stack);
       let sample = mk_sample(stack);
       let rel =
-        Sample.Cursor.relation(~trimmed=false, ~ap_id=None, cursor, sample);
+        Sample.Focus.relation(~trimmed=false, ~ap_id=None, cursor, sample);
       check(bool, "is_call_cursor", true, rel.is_call_cursor);
       check(
         bool,
@@ -193,7 +193,7 @@ let relation_tests = [
       let cursor = mk_cursor([frame(id_a)]);
       let sample = mk_sample([named_frame(id_a, "f")]);
       let rel =
-        Sample.Cursor.relation(~trimmed=false, ~ap_id=None, cursor, sample);
+        Sample.Focus.relation(~trimmed=false, ~ap_id=None, cursor, sample);
       check(bool, "is_call_cursor should be true", true, rel.is_call_cursor);
       check(
         bool,
@@ -210,7 +210,7 @@ let relation_tests = [
       let cursor = mk_cursor([frame(id_b), frame(id_a)]);
       let sample = mk_sample([frame(id_a)]);
       let rel =
-        Sample.Cursor.relation(~trimmed=false, ~ap_id=None, cursor, sample);
+        Sample.Focus.relation(~trimmed=false, ~ap_id=None, cursor, sample);
       check(bool, "is_call_cursor", false, rel.is_call_cursor);
       check(
         bool,
@@ -230,7 +230,7 @@ let relation_tests = [
       let cursor = mk_cursor([frame(id_a)]);
       let sample = mk_sample([frame(id_b), frame(id_a)]);
       let rel =
-        Sample.Cursor.relation(~trimmed=false, ~ap_id=None, cursor, sample);
+        Sample.Focus.relation(~trimmed=false, ~ap_id=None, cursor, sample);
       check(
         bool,
         "relative_level is Below",
@@ -249,7 +249,7 @@ let relation_tests = [
       let cursor = mk_cursor([frame(id_a)]);
       let sample = mk_sample([frame(id_b)]);
       let rel =
-        Sample.Cursor.relation(~trimmed=false, ~ap_id=None, cursor, sample);
+        Sample.Focus.relation(~trimmed=false, ~ap_id=None, cursor, sample);
       check(
         bool,
         "relative_level is Unrelated",
@@ -265,7 +265,7 @@ let relation_tests = [
       let cursor = mk_cursor([]);
       let sample = mk_sample([]);
       let rel =
-        Sample.Cursor.relation(~trimmed=false, ~ap_id=None, cursor, sample);
+        Sample.Focus.relation(~trimmed=false, ~ap_id=None, cursor, sample);
       check(bool, "is_call_cursor", true, rel.is_call_cursor);
       check(
         bool,
@@ -595,7 +595,7 @@ let mk_cursor_at_index =
       ~index: int,
       stack: Sample.call_stack,
     )
-    : Sample.Cursor.t => {
+    : Sample.Focus.t => {
   call_stack: stack,
   index,
   pinned_stack: pinned,
@@ -903,7 +903,7 @@ let three_level_tests = [
       let m1 = frame(id_c);
       let n0 = frame(id_e);
       /* Start: cursor at inner level */
-      let cursor_inner: Sample.Cursor.t = {
+      let cursor_inner: Sample.Focus.t = {
         call_stack: [n0, m1, f_frame],
         index: 2,
         pinned_stack: None,
@@ -929,7 +929,7 @@ let three_level_tests = [
         );
       check(bool, "[M1,F] is suffix of [N0,M1,F]", true, is_suffix);
       /* capture keeps deeper stack, lowers index */
-      let cursor_mid: Sample.Cursor.t = {
+      let cursor_mid: Sample.Focus.t = {
         ...cursor_inner,
         call_stack: is_suffix ? cursor_inner.call_stack : mid_data.call_stack,
         index: List.length(mid_data.call_stack) - 1,
@@ -956,7 +956,7 @@ let three_level_tests = [
           cursor_mid.call_stack,
         );
       check(bool, "[F] is suffix of [N0,M1,F]", true, is_suffix2);
-      let cursor_top: Sample.Cursor.t = {
+      let cursor_top: Sample.Focus.t = {
         ...cursor_mid,
         call_stack: is_suffix2 ? cursor_mid.call_stack : top_data.call_stack,
         index: List.length(top_data.call_stack) - 1,

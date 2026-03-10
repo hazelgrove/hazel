@@ -43,7 +43,7 @@ type select =
   | SetFocus(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type sample_cursor =
+type sample_focus =
   | Capture(Language.Sample.Capture.t, option(Id.t))
   | TogglePin(Language.Sample.call_stack)
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
@@ -60,7 +60,7 @@ type chooser =
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type project =
-  | SampleCursor(sample_cursor)
+  | SampleFocus(sample_focus)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, Base.segment) /* Set underlying syntax */
@@ -155,7 +155,7 @@ let is_edit: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
-    | SampleCursor(_)
+    | SampleFocus(_)
     | Escape(_) => false
     }
   | Probe(_) => true;
@@ -183,7 +183,7 @@ let is_historic: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
-    | SampleCursor(_)
+    | SampleFocus(_)
     | Escape(_) => false
     }
   | Probe(_) => true;
@@ -210,7 +210,7 @@ let prevent_in_read_only_editor = (a: t) =>
     | SetIndicated(_)
     | RemoveIndicated
     | Focus(_)
-    | SampleCursor(_)
+    | SampleFocus(_)
     | Escape(_) => false
     }
   | Probe(_) => false

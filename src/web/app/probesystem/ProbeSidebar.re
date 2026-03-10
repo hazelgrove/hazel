@@ -52,71 +52,6 @@ let term_view =
   );
 };
 
-let probe_view = (font_metrics, refractor_data, id: Id.t) => {
-  let inject = _ => Ui_effect.Ignore;
-  let projector_data =
-    List.find_opt(
-      (p: ProjectorView.Model.projector_data) => p.p.id == id,
-      refractor_data,
-    );
-  switch (projector_data) {
-  | Some(projector_data) =>
-    let views =
-      ProjectorView.mk_view(inject, font_metrics, projector_data, [id]);
-    let offside_view = views.offside |> Option.to_list;
-    div(~attrs=[Attr.class_("probe-view")], offside_view);
-  | None => div([] /*text("Not Probed")*/)
-  };
-};
-
-let fancy =
-    (
-      ~refractor_data,
-      ~info_map: Statics.Map.t,
-      ~globals: Globals.t,
-      ~default,
-      id: Id.t,
-    ) => {
-  open Util.OptUtil.Syntax;
-  let any =
-    switch (Statics.Map.lookup(id, info_map)) {
-    | Some(InfoExp({term, _})) => Grammar.Exp(term)
-    | Some(InfoPat({term, _})) => Grammar.Pat(term)
-    | _ => Grammar.Any()
-    };
-  let+ term_view =
-    term_view(
-      ~globals,
-      ~default,
-      ~background=false,
-      ~text_only=true,
-      ~available=12,
-      any,
-    );
-  div(
-    ~attrs=[
-      Attr.class_("probe-entry"),
-      Attr.on_pointerdown(jump_to(~globals, id)),
-    ],
-    [term_view, probe_view(globals.font_metrics, refractor_data, id)],
-  );
-};
-
-let sort_ids_by_measurement = (~measured: Measured.t, ids: list((Id.t, _))) =>
-  ids
-  |> List.sort(((id1, _p1), (id2, _p2)) =>
-       compare(
-         switch (Measured.find_by_id(id1, measured)) {
-         | Some(m) => m.last.row
-         | None => 0
-         },
-         switch (Measured.find_by_id(id2, measured)) {
-         | Some(m) => m.last.row
-         | None => 0
-         },
-       )
-     );
-
 let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 
 let legend_sample =
@@ -147,7 +82,7 @@ let legend_sample =
   };
   let dynamics: Dynamics.Info.t = {
     samples: [sample],
-    sample_cursor: {
+    sample_focus: {
       call_stack: cursor_stack,
       index: List.length(cursor_stack) - 1,
       pinned_stack: None,
@@ -492,27 +427,6 @@ let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
   div(
     ~attrs=[clss(["settings"])],
     [
-      {
-        // Widgets.toggle_named(
-        //   ~tooltip="Auto-probe mode (Cmd/Ctrl+Shift+P)",
-        //   globals.settings.autoprobe_mode ? "A" : "M",
-        //   globals.settings.autoprobe_mode,
-        //   _ =>
-        //   globals.inject_global(Set(AutoprobeMode))
-        // ),
-        // toggle(
-        //   ~tooltip="One or Many Samples",
-        //   ~explain_this_inject,
-        //   ~label1="1",
-        //   ~label2="∞",
-        //   ~active=ProbeProj.Settings.s^.window == Single,
-        //   ~action=ToggleWindow,
-        // ),
-        /* Color scheme selector is now in the legend panel */
-        text(
-          "",
-        );
-      },
       toggle(
         ~tooltip="Samples Before/Above Focus",
         ~explain_this_inject,
@@ -561,140 +475,6 @@ let sketch_view = (~globals: Globals.t, ~explain_this_inject): Node.t =>
       div(~attrs=[clss(["sketch-body"])], []),
     ],
   );
-
-/* probe_type tracks whether a probe is manual or auto.
- * Auto probes include the list of ephemeral IDs they expand to. */
-type probe_type =
-  | Manual
-  | Auto(list(Id.t));
-
-let prep_refractors =
-    (~refractors: Zipper.Refractor.t, ~syntax: CachedSyntax.t) => {
-  refractors.manuals
-  |> List.map(((id, _)) => (id, Manual))
-  |> sort_ids_by_measurement(~measured=syntax.measured);
-};
-
-type refractor_group = {
-  top_pat: option(Pat.t),
-  entries: list((Id.t, probe_type)),
-};
-
-let top_level_pattern = (~info_map: Statics.Map.t, ~id: Id.t): option(Pat.t) =>
-  switch (StaticsBase.let_definition_path(~statics=info_map, ~id)) {
-  | [pat, ..._] => Some(pat)
-  | _ => None
-  };
-
-let same_top_level = (left: option(Pat.t), right: option(Pat.t)): bool =>
-  switch (left, right) {
-  | (Some(lpat), Some(rpat)) => Pat.equal(lpat, rpat)
-  | (None, None) => true
-  | _ => false
-  };
-
-let push_group =
-    (
-      ~label: option(Pat.t),
-      ~entries: list((Id.t, probe_type)),
-      groups: list(refractor_group),
-    )
-    : list(refractor_group) =>
-  switch (entries) {
-  | [] => groups
-  | _ => [
-      {
-        top_pat: label,
-        entries: List.rev(entries),
-      },
-      ...groups,
-    ]
-  };
-
-let group_refractors =
-    (~info_map: Statics.Map.t, entries: list((Id.t, probe_type)))
-    : list(refractor_group) => {
-  let rec loop =
-          (
-            remaining: list((Id.t, probe_type)),
-            current_label: option(Pat.t),
-            current_entries: list((Id.t, probe_type)),
-            groups: list(refractor_group),
-          )
-          : list(refractor_group) =>
-    switch (remaining) {
-    | [] =>
-      let final_groups =
-        push_group(~label=current_label, ~entries=current_entries, groups);
-      List.rev(final_groups);
-    | [(id, _) as entry, ...rest] =>
-      let label = top_level_pattern(~info_map, ~id);
-      if (same_top_level(label, current_label)) {
-        loop(rest, current_label, [entry, ...current_entries], groups);
-      } else {
-        let updated_groups =
-          push_group(~label=current_label, ~entries=current_entries, groups);
-        loop(rest, label, [entry], updated_groups);
-      };
-    };
-  loop(entries, None, [], []);
-};
-
-let render_entry = (~fancyd, entry) =>
-  switch (entry) {
-  | (id, Manual) => fancyd(id)
-  | (_, Auto(ephemeral_ids)) =>
-    let ephemerals = List.filter_map(fancyd, ephemeral_ids);
-    ephemerals == []
-      ? None : Some(div(~attrs=[clss(["auto"])], ephemerals));
-  };
-
-let render_group = (~globals: Globals.t, ~fancyd, group: refractor_group) => {
-  let body_nodes = List.filter_map(render_entry(~fancyd), group.entries);
-  switch (group.top_pat) {
-  | Some(pat) =>
-    let title_node =
-      term_view(
-        ~globals,
-        ~default=None,
-        ~background=false,
-        ~available=17,
-        ~text_only=false,
-        Grammar.Pat(pat),
-      )
-      |> Option.value(~default=div([text("Untitled definition")]));
-    [
-      div(
-        ~attrs=[clss(["top-level-group"])],
-        [
-          div(~attrs=[clss(["top-level-title"])], [title_node]),
-          div(~attrs=[clss(["top-level-body"])], body_nodes),
-        ],
-      ),
-    ];
-  | None => body_nodes
-  };
-};
-
-let probes_panel_view =
-    (
-      ~globals: Globals.t,
-      ~refractors: Zipper.Refractor.t,
-      ~info_map: Statics.Map.t,
-      ~syntax: CachedSyntax.t,
-      ~fancyd: Id.t => option(Node.t),
-    ) => {
-  let group_nodes =
-    prep_refractors(~refractors, ~syntax)
-    |> group_refractors(~info_map)
-    |> List.concat_map(render_group(~globals, ~fancyd));
-  group_nodes == []
-    ? div([])
-    : div(
-        ~attrs=[clss(["panel", "probes"])],
-        [div(~attrs=[clss(["title"])], [text("Probes")])] @ group_nodes,
-      );
-};
 
 type print_entry = {
   seq: int,
@@ -802,10 +582,6 @@ let render_print_entry = (entry: print_entry): Node.t =>
   div(
     ~attrs=[clss(["print-entry"])],
     [
-      // span(
-      //   ~attrs=[clss(["print-seq"])],
-      //   [text(string_of_int(entry.seq))],
-      // ),
       span(~attrs=[clss(["print-value"])], [text(entry.value_str)]),
       span(
         ~attrs=[clss(["print-line"])],
@@ -1049,20 +825,6 @@ let probearium =
     ),
     legend_view(~globals, ~explain_this_inject),
     sketch_view(~globals, ~explain_this_inject),
-    // probes_panel_view(
-    //   ~globals,
-    //   ~refractors,
-    //   ~info_map=editor.statics.info_map,
-    //   ~syntax=editor.editor.syntax,
-    //   ~fancyd=id =>
-    //   fancy(
-    //     ~refractor_data,
-    //     ~info_map=editor.statics.info_map,
-    //     ~default=None,
-    //     ~globals,
-    //     id,
-    //   )
-    // ),
   ];
 };
 

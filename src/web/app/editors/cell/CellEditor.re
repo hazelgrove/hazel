@@ -147,19 +147,11 @@ module Update = {
     /* Second pass: if there's a pending focus, pending_probe_cursor waiting
        for dynamics, or dynamics changed since the first pass */
     let has_pending_focus =
-      editor.editor.state.zipper.refractors.sample_cursor.pending_focus != None;
+      editor.editor.state.zipper.refractors.sample_focus.pending_focus != None;
     let has_pending_cursor =
       editor.editor.state.zipper.refractors.pending_probe_cursor != None;
     let needs_second_pass =
       has_pending_focus || has_pending_cursor || dynamics_changed;
-    if (needs_second_pass) {
-      Printf.printf(
-        "CellEditor: second pass (focus=%b, cursor=%b, dyn_changed=%b)\n%!",
-        has_pending_focus,
-        has_pending_cursor,
-        dynamics_changed,
-      );
-    };
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */

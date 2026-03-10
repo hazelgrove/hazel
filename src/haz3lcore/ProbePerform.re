@@ -208,11 +208,8 @@ let sort_ids_lexically =
   List.map(((id, _, _)) => id, sorted);
 };
 
-/* Set pending_probe_cursor so sample cursor aligns when dynamics arrive. */
+/* Set pending_probe_cursor so sample focus aligns when dynamics arrive. */
 let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
-  print_endline(
-    "[set_pending_probe] num_ids=" ++ string_of_int(List.length(ids)),
-  );
   Zipper.update_refractors(z, r =>
     {
       ...r,
@@ -228,7 +225,7 @@ let has_probe = (id: Id.t, z: Zipper.t): bool =>
 
 let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
   z =>
-    SampleCursorPerform.update_pinned_call(z, p =>
+    SampleFocusPerform.update_pinned_call(z, p =>
       switch (p) {
       | Some([{id: hd_id, _}, ..._] as call_stack) =>
         List.mem(hd_id, ids) && !has_probe(hd_id, z)
@@ -242,11 +239,11 @@ let has_no_probes = (z: Zipper.t): bool =>
   List.is_empty(z.refractors.manuals)
   && Id.Map.is_empty(z.refractors.multis.ids);
 
-/* Reset the sample cursor if no probes remain.
- * This prevents stale dynamic cursor state from showing in the sidebar
+/* Reset the sample focus if no probes remain.
+ * This prevents stale sample focus state from showing in the sidebar
  * when all probes have been removed. */
 let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
-  has_no_probes(z) ? SampleCursorPerform.reset(z) : z;
+  has_no_probes(z) ? SampleFocusPerform.reset(z) : z;
 
 let rm_multi =
     (
@@ -289,7 +286,7 @@ let rm_multi =
     |> maybe_rm_pin(
          List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
        );
-  /* Reset sample cursor if no probes remain (skipped when reset=false,
+  /* Reset sample focus if no probes remain (skipped when reset=false,
      e.g. during clear_autoprobe to avoid style flash) */
   reset ? maybe_reset_cursor(z) : z;
 };
@@ -301,7 +298,7 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   )
   /* If the probe has a pin we'll need to remove that too */
   |> maybe_rm_pin(ids)
-  /* Reset sample cursor if no probes remain */
+  /* Reset sample focus if no probes remain */
   |> maybe_reset_cursor;
 
 /* Remove colliding manual probes when two end up on the same line.
@@ -398,7 +395,7 @@ let add_manual =
       target_ids,
     );
 
-  /* Set pending_probe_cursor so sample cursor updates when eval returns */
+  /* Set pending_probe_cursor so sample focus updates when eval returns */
   let sorted_ids = sort_ids_lexically(~syntax, target_ids);
   set_pending_probe(sorted_ids, z);
 };
@@ -485,25 +482,17 @@ let add_ids_from_multi_term =
     );
   let z = Zipper.update_ephemerals(_ => new_ephemeral_map, z);
   /* If there are genuinely new ephemeral IDs, set pending_probe_cursor
-     so the sample cursor aligns when evaluation results arrive. */
+     so the sample focus aligns when evaluation results arrive. */
   let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
   switch (new_ids) {
   | [] => z
   | _ =>
-    print_endline(
-      "[add_ids_from_multi_term] setting pending! new_ids="
-      ++ string_of_int(List.length(new_ids))
-      ++ " old_ephemerals="
-      ++ string_of_int(Id.Map.cardinal(old_ephemerals))
-      ++ " total_ids="
-      ++ string_of_int(List.length(ids)),
-    );
     let sorted = sort_ids_lexically(~syntax, new_ids);
     set_pending_probe(sorted, z);
   };
 };
 
-/* Whether to update sample cursor when auto probe moves probes.
+/* Whether to update sample focus when auto probe moves probes.
  * Set to false to disable cursor following for auto probe. */
 let autoprobe_updates_cursor = true;
 
@@ -538,7 +527,7 @@ let add_multi =
     )
     |> add_ids_from_multi_term(~syntax, ~info_map);
 
-  /* Set pending_probe_cursor so sample cursor updates when eval returns */
+  /* Set pending_probe_cursor so sample focus updates when eval returns */
   if (set_pending_cursor) {
     /* Use the same target_ids that go into multis.ids, so the ephemeral IDs
        match what add_ids_from_multi_term computes for sample lookup. */
@@ -672,7 +661,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
  *    b. EvalResult.calculate processes worker results, updating dynamics
  *    c. Second pass (if pending_focus still set): resolve_pending_focus with fresh dynamics
  * 6. When resolve_pending_focus finds a matching sample:
- *    a. SampleCursorPerform.resolve_pending_focus updates sample_cursor, clears pending_focus
+ *    a. SampleFocusPerform.resolve_pending_focus updates sample_focus, clears pending_focus
  *    b. FocusEffect.schedule(probe_id) schedules DOM focus
  * 7. Main.re's after_display hook calls FocusEffect.execute()
  * 8. execute() calls elem##focus, triggering CSS :focus styles on the probe
@@ -680,14 +669,14 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
  * KEY FILES:
  * - ProbeProj.re: UI, step_into_sample action dispatch
  * - ProbePerform.re: step_into_sample, resolve_pending_focus, FocusEffect
- * - SampleCursorPerform.re: cursor update operations (sample matching)
+ * - SampleFocusPerform.re: cursor update operations (sample matching)
  * - CellEditor.re: Two-pass calculation for timing
  * - Sample.re: pending_focus type in Cursor.t
  * - Main.re: after_display calls FocusEffect.execute()
  */
 
 /* Step into from a specific sample, using the sample's call_stack
-   instead of the current sample_cursor's effective_stack. This ensures
+   instead of the current sample_focus's effective_stack. This ensures
    we maintain the exact execution context of the selected sample. */
 let step_into_call_stack =
     (
@@ -764,15 +753,15 @@ let step_into_call_stack =
   // NOTE(andrew): disabling this for now as it doesn't work right
   /* Set pending_focus using sample_probe_id (inner body), since that's where
    * the samples are stored in the dynamics map. */
-  // let pending_focus: Sample.Cursor.pending_focus = {
+  // let pending_focus: Sample.Focus.pending_focus = {
   //   probe_id: sample_probe_id,
   //   target_stack: new_stack,
   // };
 
   let z =
-    SampleCursorPerform.update(z, _ => {
+    SampleFocusPerform.update(z, _ => {
       {
-        ...z.refractors.sample_cursor,
+        ...z.refractors.sample_focus,
         call_stack: new_stack,
         index: List.length(call_stack),
         pinned_stack: Some(new_stack),
@@ -880,7 +869,7 @@ let go =
       | Suppressed(_)
       | Non => Zipper.add_manual(ap_id, Probe, z)
       };
-    SampleCursorPerform.toggle_pin_call(z, call_stack);
+    SampleFocusPerform.toggle_pin_call(z, call_stack);
   | RemoveAll =>
     z
     |> Zipper.update_manuals(_ => [])
@@ -894,7 +883,7 @@ let go =
            },
          }
        )
-    |> SampleCursorPerform.reset
+    |> SampleFocusPerform.reset
   };
 
 /* Note: has_probe is defined earlier (above maybe_rm_pin) */
@@ -920,16 +909,16 @@ let can_probe = (id: Id.t, info_map: Statics.Map.t): bool =>
    and focusing the one that matches target_stack. Called from Editor.calculate
    after dynamics are updated. See FocusEffect module comment for full flow. */
 let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
-  switch (z.refractors.sample_cursor.pending_focus) {
+  switch (z.refractors.sample_focus.pending_focus) {
   | None => z
   | Some({probe_id, target_stack}) =>
     switch (Dynamics.Map.lookup(probe_id, dynamics)) {
     | None => z
     | Some(samples) =>
       let z' =
-        SampleCursorPerform.resolve_pending_focus(z, samples, target_stack);
+        SampleFocusPerform.resolve_pending_focus(z, samples, target_stack);
       /* If pending_focus was cleared, schedule DOM focus on the probe */
-      if (z'.refractors.sample_cursor.pending_focus == None) {
+      if (z'.refractors.sample_focus.pending_focus == None) {
         FocusEffect.schedule(probe_id);
       };
       z';
@@ -941,22 +930,10 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
  * or if at least one probe has a sample matching the cursor via
  * most_aligned_index. */
 let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
-  let cursor = z.refractors.sample_cursor;
+  let cursor = z.refractors.sample_focus;
   if (cursor.call_stack == []) {
-    print_endline("[cursor_is_aligned] trivially aligned (empty call_stack)");
     true; /* Empty cursor is trivially aligned */
   } else {
-    print_endline(
-      "[cursor_is_aligned] non-empty call_stack len="
-      ++ string_of_int(List.length(cursor.call_stack))
-      ++ " indicated_call="
-      ++ (
-        switch (cursor.indicated_call) {
-        | Some(id) => Id.to_string(id)
-        | None => "None"
-        }
-      ),
-    );
     let all_probe_ids =
       List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
       @ List.map(fst, z.refractors.manuals);
@@ -1001,7 +978,7 @@ let caret_nearest_ephemeral =
   };
 };
 
-/* Ensure the sample cursor is aligned with current dynamics.
+/* Ensure the sample focus is aligned with current dynamics.
  *
  * Handles two cases uniformly:
  * 1. pending_probe_cursor is set (probe set changed via add_ids_from_multi_term
@@ -1072,34 +1049,19 @@ let resolve_pending_probe_cursor =
          is set correctly for both click and keyboard navigation */
       let ap_id =
         switch (Statics.Map.lookup(probe_id, info_map)) {
-        | Some(statics) => Sample.Cursor.cur_var_ap(statics)
+        | Some(statics) => Sample.Focus.cur_var_ap(statics)
         | None => None
         };
       let selected =
         Sample.Selection.most_aligned_sample(
           ~ap_id,
-          ~cursor=z.refractors.sample_cursor,
+          ~cursor=z.refractors.sample_focus,
           samples,
         );
       switch (selected) {
       | Some(sample) =>
-        print_endline(
-          "[resolve_pending] re-capturing, is_pending="
-          ++ string_of_bool(is_pending)
-          ++ " ap_id="
-          ++ (
-            switch (ap_id) {
-            | Some(id) => Id.to_string(id)
-            | None => "None"
-            }
-          )
-          ++ " cursor_call_stack_len="
-          ++ string_of_int(
-               List.length(z.refractors.sample_cursor.call_stack),
-             ),
-        );
         let z =
-          SampleCursorPerform.capture(
+          SampleFocusPerform.capture(
             z,
             Sample.capture_of_sample(sample),
             ap_id,
@@ -1127,7 +1089,7 @@ let resolve_pending_probe_cursor =
 
 /* After an edit, if the new-ID diff in add_ids_from_multi_term didn't set
  * pending_probe_cursor (e.g., because grout ID preservation kept the same ID
- * despite structural changes), align the sample cursor to an ephemeral probe
+ * despite structural changes), align the sample focus to an ephemeral probe
  * at or near the caret. This handles cases like completing `then` where the
  * hole moves from top-level sibling to then-branch without changing ID.
  *
@@ -1302,9 +1264,6 @@ let clear_autoprobe =
   switch (z.refractors.autoprobe_target) {
   | None => z
   | Some(old_id) =>
-    print_endline(
-      "[clear_autoprobe] removing autoprobe_target=" ++ Id.to_string(old_id),
-    );
     /* Skip cursor reset here: the syntax cache still has the old probes
      * (since this isn't an edit, CachedSyntax won't recalculate until
      * the next is_edited cycle). If we reset the cursor now, the stale
@@ -1319,7 +1278,7 @@ let clear_autoprobe =
            ...r,
            autoprobe_target: None,
          }
-       );
+       )
   };
 
 /* Get the top-level definition body ID that the cursor is currently inside.
@@ -1355,24 +1314,6 @@ let update_autoprobe =
   let current_def = current_toplevel_def(info_map, z);
   let prev_def = z.refractors.autoprobe_target;
   /* If same definition, no change needed */
-  print_endline(
-    "[update_autoprobe] current_def="
-    ++ (
-      switch (current_def) {
-      | Some(id) => Id.to_string(id)
-      | None => "None"
-      }
-    )
-    ++ " prev_def="
-    ++ (
-      switch (prev_def) {
-      | Some(id) => Id.to_string(id)
-      | None => "None"
-      }
-    )
-    ++ " changed="
-    ++ string_of_bool(!Option.equal(Id.equal, current_def, prev_def)),
-  );
   if (Option.equal(Id.equal, current_def, prev_def)) {
     z;
   } else {
