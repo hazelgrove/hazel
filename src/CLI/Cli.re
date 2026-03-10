@@ -633,14 +633,7 @@ let default_cmd = {
   let info = Cmd.info("hazel", ~doc);
   Cmd.group(
     info,
-    [
-      run_cmd,
-      format_cmd,
-      analyze_cmd,
-      probe_cmd,
-      test_cmd,
-      bench_parse_cmd,
-    ],
+    [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd, bench_parse_cmd],
   );
 };
 
