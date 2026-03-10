@@ -41,6 +41,8 @@ done
 # risky to rely on stash/restore, especially with delete/modify conflicts.
 if ! git diff --quiet HEAD 2>/dev/null || ! git diff --cached --quiet HEAD 2>/dev/null; then
   echo "Error: uncommitted changes detected. Please commit or stash first." >&2
+  echo "  (The comparison script checks out the base branch to run benchmarks" >&2
+  echo "  against it, which would overwrite uncommitted changes.)" >&2
   exit 1
 fi
 
