@@ -1825,7 +1825,9 @@ module Agent = {
             )
           ) {
           | Failure(msg) => Error(Failure.Info(msg))
-          | exn => raise(exn)
+          | exn =>
+            /* Catch all exceptions (e.g. Path not found) — report to agent, do not break state */
+            Error(Failure.Info(Printexc.to_string(exn)))
           }
         ) {
         | Ok((model, editor)) =>
@@ -1840,41 +1842,81 @@ module Agent = {
               ~new_editor=editor.editor,
               action,
             );
-          let tool_result: AgentToolResult.tool_result = {
-            tool_call,
-            success: true,
-            expanded: false,
-            diff:
-              mk_diff(
-                ~old_editor=cell_editor.editor.editor,
-                ~new_editor=editor.editor,
-                action,
+          let diff_result =
+            try(
+              Ok(
+                mk_diff(
+                  ~old_editor=cell_editor.editor.editor,
+                  ~new_editor=editor.editor,
+                  action,
+                ),
+              )
+            ) {
+            | exn => Error(exn)
+            };
+          switch (diff_result) {
+          | Error(exn) =>
+            /* mk_diff can raise (e.g. path_to_id); report to agent, keep state */
+            let msg = Printexc.to_string(exn);
+            let tool_result: AgentToolResult.tool_result = {
+              tool_call,
+              success: false,
+              expanded: false,
+              diff: None,
+              before_segment:
+                Some(
+                  Select.all(cell_editor.editor.editor.state.zipper).selection.
+                    content,
+                ),
+              after_segment: None,
+              content: msg,
+            };
+            let model =
+              add_tool_result_to_active_subtask(
+                ~tool_result,
+                ~action,
+                ~model,
+                ~chat_id,
+              );
+            schedule_action(
+              Action.SendMessage(
+                Message.Utils.mk_tool_result_message(tool_result),
+                chat_id,
               ),
-            before_segment,
-            after_segment,
-            content: success_message,
-          };
-          let model =
-            add_tool_result_to_active_subtask(
-              ~tool_result,
-              ~action,
-              ~model,
-              ~chat_id,
             );
-          schedule_action(
-            Action.SendMessage(
-              Message.Utils.mk_tool_result_message(tool_result),
-              chat_id,
-            ),
-          );
-          (
-            model,
-            {
-              ...cell_editor,
-              editor,
-            }
-            |> Updated.return,
-          );
+            (model, cell_editor |> Updated.return_quiet);
+          | Ok(diff) =>
+            let tool_result: AgentToolResult.tool_result = {
+              tool_call,
+              success: true,
+              expanded: false,
+              diff,
+              before_segment,
+              after_segment,
+              content: success_message,
+            };
+            let model =
+              add_tool_result_to_active_subtask(
+                ~tool_result,
+                ~action,
+                ~model,
+                ~chat_id,
+              );
+            schedule_action(
+              Action.SendMessage(
+                Message.Utils.mk_tool_result_message(tool_result),
+                chat_id,
+              ),
+            );
+            (
+              model,
+              {
+                ...cell_editor,
+                editor,
+              }
+              |> Updated.return,
+            );
+          };
         | Error(error) =>
           switch (error) {
           | Failure.Info(msg) =>
@@ -1963,7 +2005,10 @@ module Agent = {
           );
         } else {
           // Exhausted retries: show fallback message
-          let fallback_content = "(The assistant returned an empty response after retries. You can try rephrasing your message.)";
+          let fallback_content =
+            "(The assistant returned an empty response after retries. "
+            ++ "This often happens when the agent left a task or subtask active — the agent must close it (mark complete or failed) before responding. "
+            ++ "Never end the tool loop with an active task/subtask. You can try rephrasing your message.)";
           let new_message =
             Message.Utils.mk_agent_message(fallback_content, reply.usage);
           let chat_system =
@@ -2265,7 +2310,9 @@ module Agent = {
         let retry_msg =
           "[Retry "
           ++ string_of_int(attempt + 1)
-          ++ "/2] Your previous response was empty or invalid. Please respond with a message for the user—either directly answering their question or summarizing what you did.";
+          ++ "/2] Your previous response was empty or invalid. "
+          ++ "If a task or subtask is active, close it first: call mark_active_task_complete, mark_active_task_failed, mark_active_subtask_complete, or mark_active_subtask_failed. "
+          ++ "Never end your turn with an active task/subtask. Then respond with a message for the user—either directly answering their question or summarizing what you did.";
         let retry_message =
           Message.Utils.mk_retry_note_message(
             ~content=retry_msg,

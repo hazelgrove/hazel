@@ -20,6 +20,7 @@ let guidelines = [
   "If a request is ambiguous or complex, ask clarifying questions before making changes.",
   "Use markdown (bold, italic, inline code, headers, lists) to format responses for readability.",
   "CRITICAL: Always end your turn with a message for the user. Never send an empty response.",
+  "CRITICAL: Never end your turn with an active task or subtask. If one is active, close it first (mark_active_task_complete, mark_active_task_failed, mark_active_subtask_complete, or mark_active_subtask_failed) before responding.",
   "",
   "NEVER output meta-instructions, self-directives, or system-like messages in your responses.",
   "Do NOT output phrases like: \"Please continue with your work\", \"Go.\", \"Continue.\",",
