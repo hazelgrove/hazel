@@ -13,7 +13,8 @@ let (suite, _) =
     ~and_exit=false,
     ~argv=Sys.argv,
     "HazelTests",
-    [
+    Test_AgentTools.tests
+    @ [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
       Test_CsvUtil.tests,
@@ -38,7 +39,6 @@ let (suite, _) =
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests
-    @ Test_AgentTools.tests
     @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests

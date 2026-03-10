@@ -3,9 +3,10 @@ open Util;
 let expand_description = {|
 Reveals the definitions of collapsed bindings so their code is visible.
 Use this to inspect code before editing. Expand only what you need to keep context manageable.
+Works for both let bindings and module bindings (e.g. module M = { ... }).
 
 Parameters:
-paths: list(string) — paths to the bindings to expand
+paths: list(string) — paths to the bindings to expand (e.g. "a", "M", "outer/inner")
 
 Example:
 Given:
@@ -43,7 +44,9 @@ let expand: API.Json.t =
                     ("type", `String("array")),
                     (
                       "description",
-                      `String("The paths to the nodes/variables to expand."),
+                      `String(
+                        "The paths to the bindings to expand (let or module).",
+                      ),
                     ),
                     ("items", `Assoc([("type", `String("string"))])),
                   ]),
@@ -60,9 +63,10 @@ let expand: API.Json.t =
 let collapse_description = {|
 Hides the definitions of expanded bindings, showing ⋱ instead.
 Use this after editing to reduce clutter and keep context focused.
+Works for both let bindings and module bindings (e.g. module M = { ... }).
 
 Parameters:
-paths: list(string) — paths to the bindings to collapse
+paths: list(string) — paths to the bindings to collapse (e.g. "a", "M")
 
 Example:
 Given:
@@ -101,7 +105,7 @@ let collapse: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The paths to the nodes/variables to collapse.",
+                        "The paths to the bindings to collapse (let or module).",
                       ),
                     ),
                     ("items", `Assoc([("type", `String("string"))])),

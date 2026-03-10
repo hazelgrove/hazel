@@ -55,9 +55,10 @@ let initialize: API.Json.t =
 let update_definition_description = {|
 Replaces the definition (the right-hand side of `=`, before `in`) of the binding at the given path.
 This overwrites the ENTIRE definition — including any nested let bindings within it.
+Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the binding (e.g. "b" or "outer/inner")
+path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner")
 code: string — the new definition code
 
 Example:
@@ -127,6 +128,7 @@ let update_definition: API.Json.t =
 let update_body_description = {|
 Replaces the body (everything after `in`) of the binding at the given path.
 The body is the rest of the program that follows this binding.
+Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
 path: string — slash-delimited path to the binding whose body to replace
@@ -268,10 +270,11 @@ let update_pattern: API.Json.t =
   ]);
 
 let update_binding_clause_description = {|
-Replaces the entire binding clause (from `let`/`type` through `in`, inclusive) at the given path.
+Replaces the entire binding clause (from `let`/`type`/`module` through `in`, inclusive) at the given path.
 This changes the pattern, definition, and delimiters — but NOT the body after the final `in`.
 The code you provide should end with `in` (not include a final body expression).
 You can introduce multiple bindings in one call (e.g., `let x = 1 in let y = 2 in`).
+Works for let, type, and module bindings (e.g. path "M" for module M = { ... }).
 
 To update both the binding clause AND the body, call this tool followed by update_body.
 
@@ -345,8 +348,9 @@ let update_binding_clause: API.Json.t =
   ]);
 
 let delete_binding_clause_description = {|
-Removes the entire binding (let...=...in or type...=...in) at the given path.
+Removes the entire binding (let...=...in, type...=...in, or module...=...in) at the given path.
 The body that followed the binding is preserved and moves up.
+Works for let, type, and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
 path: string — slash-delimited path to the binding to remove

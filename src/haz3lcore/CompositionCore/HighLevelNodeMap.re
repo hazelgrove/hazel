@@ -104,7 +104,9 @@ module Utils = {
     | ProofObject(_)
     | Forall(_, _)
     | Projector(_, _)
-    | Var(_) => []
+    | Var(_)
+    | Module(_) => []
+    | ModuleExp(_, def, body) => [def, body]
     };
   };
 
@@ -116,6 +118,7 @@ module Utils = {
         switch (Exp.term_of(term)) {
         | Let(_) => Some(start_point) // if it is a let binding, then this term is a nominee
         | TyAlias(_) => Some(start_point) // if it is a type binding, then this term is a nominee
+        | ModuleExp(_) => Some(start_point) // if it is a module binding, then this term is a nominee
         | _ => None
         }
       | _ => None
@@ -156,6 +159,17 @@ module Utils = {
               if (Id.equal(tdef_id, Info.id_of(departure_point))
                   || Id.equal(body_id, Info.id_of(departure_point))
                   || Id.equal(tpat_id, Info.id_of(departure_point))) {
+                Some(candidate);
+              } else {
+                nominee;
+              };
+            | ModuleExp(mp, def, body) =>
+              let mp_id = MPat.rep_id(mp);
+              let def_id = Exp.rep_id(def);
+              let body_id = Exp.rep_id(body);
+              if (Id.equal(def_id, Info.id_of(departure_point))
+                  || Id.equal(body_id, Info.id_of(departure_point))
+                  || Id.equal(mp_id, Info.id_of(departure_point))) {
                 Some(candidate);
               } else {
                 nominee;
@@ -235,12 +249,23 @@ module Namer = {
     };
   };
 
+  let rec mk_name_from_mpat = (mp: MPat.t) => {
+    switch (mp.term) {
+    | Var(name) => name
+    | Asc(mp_inner, _) => mk_name_from_mpat(mp_inner)
+    | Invalid(name) => name
+    | EmptyHole => "{empty module pattern hole}"
+    | MultiHole(_) => "{multi module pattern hole}"
+    };
+  };
+
   let mk_name = (info: Info.t): string => {
     switch (info) {
     | InfoExp({term, _}) =>
       switch (Exp.term_of(term)) {
       | Let(pat, _, _) => mk_name_from_pat(pat)
       | TyAlias(tpat, _, _) => mk_name_from_tpat(tpat)
+      | ModuleExp(mp, _, _) => mk_name_from_mpat(mp)
       | _ => raise(Failure("Not a valid expression to make a name from"))
       }
     | _ => raise(Failure("Not a valid term to make a name from"))
@@ -465,6 +490,15 @@ let rec build_children =
         build_children(typ_to_info(typ), new_path, node_map, info_map);
       // 2. Find siblings
       // use "old" path for siblings!!
+      build_children(exp_to_info(body), path, node_map, info_map);
+    | ModuleExp(_, def, body) =>
+      // Add this node to the node map (module M = def in body)
+      let new_path = path @ [Info.id_of(candidate)];
+      let node_map = init_node(candidate, new_path, node_map);
+      // 1. Find children (the module body)
+      let node_map =
+        build_children(exp_to_info(def), new_path, node_map, info_map);
+      // 2. Find siblings (continuation after "in")
       build_children(exp_to_info(body), path, node_map, info_map);
     | _ =>
       let es = Utils.child_expressions_of_exp(term);

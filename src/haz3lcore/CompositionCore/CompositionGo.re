@@ -37,10 +37,16 @@ module Local = {
           | Def => Typ.rep_id(tdef)
           | Body => Exp.rep_id(body)
           }
+        | ModuleExp(mp, def, body) =>
+          switch (inner_term) {
+          | Pat => MPat.rep_id(mp)
+          | Def => Exp.rep_id(def)
+          | Body => Exp.rep_id(body)
+          }
         | _ =>
           raise(
             Failure(
-              "UNIMPLEMENTED_NODE_TYPE: Only let and type alias expressions are currently supported as nodes",
+              "UNIMPLEMENTED_NODE_TYPE: Only let, type alias, and module expressions are currently supported as nodes",
             ),
           )
         }

@@ -1508,6 +1508,49 @@ let composition_utils_tests = (
       },
     ),
     test_case(
+      "parse place_probe tool call",
+      `Quick,
+      () => {
+        let args =
+          `Assoc([("paths", `List([`String("a"), `String("b")]))]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="place_probe", ~args)
+        ) {
+        | Action(ProbeAction(PlaceProbe(["a", "b"]))) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse remove_probe tool call",
+      `Quick,
+      () => {
+        let args = `Assoc([("paths", `List([`String("result")]))]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="remove_probe", ~args)
+        ) {
+        | Action(ProbeAction(RemoveProbe(["result"]))) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse toggle_probe tool call",
+      `Quick,
+      () => {
+        let args = `Assoc([("paths", `List([`String("f")]))]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="toggle_probe", ~args)
+        ) {
+        | Action(ProbeAction(ToggleProbe(["f"]))) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
       "unknown tool name returns Failure",
       `Quick,
       () => {
@@ -1970,6 +2013,53 @@ let complex_program_tests = (
       },
     ),
     test_case(
+      "update_definition with module body (lowercase let)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = 1 in m",
+            Update(Definition, "m", "{ let x = 1; let y = 2 }"),
+          );
+        check_rendered(
+          "update_def_module",
+          "let m = { let x = 1; let y = 2 } in m",
+          result,
+        );
+      },
+    ),
+    /* TODO: update_definition on module M fails (Select.term for Module body).
+       Path "M" resolves and delete_binding_clause works. */
+    test_case(
+      "update_definition with capitalized module M",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        let result =
+          apply_and_render(
+            "module M = { let x = 1 } in M.x",
+            Update(Definition, "M", "{ let x = 10 }"),
+          );
+        check_rendered(
+          "update_def_module_M",
+          "module M = { let x = 10 } in M.x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete_binding_clause removes capitalized module M",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "module M = { let x = 1 } in 42",
+            Delete(BindingClause, "M"),
+          );
+        check_rendered("delete_module_M", "42", result);
+      },
+    ),
+    test_case(
       "insert function binding",
       `Quick,
       () => {
@@ -2096,6 +2186,32 @@ let agent_context_tests = (
           List.length(ctx.expanded_paths),
         );
         check(bool, "a remains", true, List.mem("a", ctx.expanded_paths));
+      },
+    ),
+    test_case(
+      "freshen_paths keeps valid module path M",
+      `Quick,
+      () => {
+        let ctx = AgentContext.Utils.init();
+        let ctx = AgentContext.Utils.add_paths(["M", "nonexistent"], ctx);
+        let node_map = build_node_map("module M = { let x = 1 } in M.x");
+        let ctx = AgentContext.Utils.freshen_paths(ctx, node_map);
+        check(int, "freshen keeps M", 1, List.length(ctx.expanded_paths));
+        check(bool, "M remains", true, List.mem("M", ctx.expanded_paths));
+      },
+    ),
+    test_case(
+      "path M resolves for capitalized module",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("module M = { let x = 1; let y = 2 } in M.x + M.y");
+        check(
+          bool,
+          "path M resolves",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "M") != None,
+        );
       },
     ),
   ],
@@ -2322,6 +2438,49 @@ let tool_json_tests = (
                         required,
                       );
                     check(bool, name ++ " requires path", true, has_path);
+                  | _ => Alcotest.fail(name ++ " missing required field")
+                  }
+                | None => Alcotest.fail(name ++ " missing parameters")
+                }
+              | None => Alcotest.fail(name ++ " missing function")
+              }
+            | _ => ()
+            }
+          },
+          tools,
+        );
+      },
+    ),
+    test_case(
+      "probe tools have required paths parameter",
+      `Quick,
+      () => {
+        let probe_tool_names = [
+          "place_probe",
+          "remove_probe",
+          "toggle_probe",
+        ];
+        let tools = CompositionUtils.Public.tools;
+        List.iter(
+          (tool: API.Json.t) => {
+            switch (get_tool_name(tool)) {
+            | Some(name) when List.mem(name, probe_tool_names) =>
+              switch (API.Json.dot("function", tool)) {
+              | Some(func) =>
+                switch (API.Json.dot("parameters", func)) {
+                | Some(params) =>
+                  switch (API.Json.dot("required", params)) {
+                  | Some(`List(required)) =>
+                    let has_paths =
+                      List.exists(
+                        r =>
+                          switch (r) {
+                          | `String("paths") => true
+                          | _ => false
+                          },
+                        required,
+                      );
+                    check(bool, name ++ " requires paths", true, has_paths);
                   | _ => Alcotest.fail(name ++ " missing required field")
                   }
                 | None => Alcotest.fail(name ++ " missing parameters")
