@@ -211,6 +211,12 @@
   gap: 0.75em;
 }
 
+.token-usage-display {
+  font-family: monospace;
+  font-size: 0.9em;
+  color: var(--BR4);
+}
+
 /* Toast notification for copy */
 .copy-toast {
   position: absolute;
