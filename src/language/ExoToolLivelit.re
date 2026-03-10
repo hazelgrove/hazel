@@ -5,7 +5,7 @@ open Virtual_dom.Vdom;
    The resulting livelit renders a <patchwork-view> element
    connected to a hardcoded automerge document. */
 
-let tldraw_doc_url = "automerge:Qq3G9LB5bNHwSVJ6m29Tz8zgb4E";
+let tldraw_doc_url = "automerge:2isSbJyZRp5WJmtCXS3QyY43Twpx";
 
 type tool_config = {
   id: string,
@@ -88,7 +88,7 @@ let mk_exotool_livelit = (tool_id: string): LivelitCtx.raw_livelit => {
     size:
       ProjectorShape.{
         horizontal: px_to_grid(tool_width, m.col_width) + 1,
-        vertical: Block(px_to_grid(tool_height, m.row_height)),
+        vertical: Tab(px_to_grid(tool_height, m.row_height)),
       },
   };
 };
