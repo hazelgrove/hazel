@@ -62,14 +62,14 @@ let get_fn_info =
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
 
-/* Set sample cursor to a specific index in the call stack */
-let set_cursor_index = (~globals: Globals.t, i: int, _) =>
-  globals.inject_global(ActiveEditor(Project(SampleCursor(SetIndex(i)))));
+/* Set sample focus to a specific index in the call stack */
+let set_focus_index = (~globals: Globals.t, i: int, _) =>
+  globals.inject_global(ActiveEditor(Project(SampleFocus(SetIndex(i)))));
 
 /* Remove a pin by toggling it off */
 let unpin = (~globals: Globals.t, pinned_stack: Sample.call_stack, _) =>
   globals.inject_global(
-    ActiveEditor(Project(SampleCursor(TogglePin(pinned_stack)))),
+    ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack)))),
   );
 
 /* Check if any probes exist */
@@ -279,11 +279,11 @@ let key_handler =
   | D("ArrowLeft") =>
     /* Move to shallower level (toward top-level) */
     let new_index = max(-1, index - 1);
-    Many([set_cursor_index(~globals, new_index, evt), Stop_propagation]);
+    Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("ArrowRight") =>
     /* Move to deeper level (toward innermost call) */
     let new_index = min(max_index, index + 1);
-    Many([set_cursor_index(~globals, new_index, evt), Stop_propagation]);
+    Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("Enter") =>
     /* Jump to call site of current entry, then refocus main editor. */
     JsUtil.focus_clipboard_shim();
@@ -314,14 +314,14 @@ let view =
    * (in auto-probe mode the bar stays visible to avoid flickering
    * as the cursor enters/exits function definitions) */
   if (!has_probes(refractors) && !globals.settings.autoprobe_mode) {
-    div(~attrs=[Attr.id("sample-cursor-bar"), Attr.class_("hidden")], []);
+    div(~attrs=[Attr.id("sample-focus-bar"), Attr.class_("hidden")], []);
   } else {
-    let sample_cursor = refractors.sample_cursor;
-    let call_stack = sample_cursor.call_stack |> List.rev;
-    let index = sample_cursor.index;
+    let sample_focus = refractors.sample_focus;
+    let call_stack = sample_focus.call_stack |> List.rev;
+    let index = sample_focus.index;
 
     /* Check if there's a pinned stack and get the head app_id */
-    let pinned_stack = sample_cursor.pinned_stack;
+    let pinned_stack = sample_focus.pinned_stack;
     let pinned_head_id =
       Option.bind(pinned_stack, stack =>
         Option.map(
@@ -340,7 +340,7 @@ let view =
     /* Compute dynamic capacity based on actual bar width and entry names */
     let bar_width_px =
       try(
-        Js_of_ocaml.Dom_html.getElementById("sample-cursor-bar")##.clientWidth
+        Js_of_ocaml.Dom_html.getElementById("sample-focus-bar")##.clientWidth
       ) {
       | _ => 600
       };
@@ -382,10 +382,10 @@ let view =
         switch (call_site_target) {
         | Some(target_id) =>
           Effect.Many([
-            set_cursor_index(~globals, i, evt),
+            set_focus_index(~globals, i, evt),
             jump_to(~globals, target_id, evt),
           ])
-        | None => set_cursor_index(~globals, i, evt)
+        | None => set_focus_index(~globals, i, evt)
         };
 
       let is_pinned = Some(app_id) == pinned_head_id;
@@ -485,7 +485,7 @@ let view =
 
     div(
       ~attrs=[
-        Attr.id("sample-cursor-bar"),
+        Attr.id("sample-focus-bar"),
         Attr.tabindex(0),
         Attr.on_keydown(
           key_handler(~globals, ~index, ~max_index, ~call_stack, ~info_map),

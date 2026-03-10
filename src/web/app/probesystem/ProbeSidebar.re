@@ -82,7 +82,7 @@ let legend_sample =
   };
   let dynamics: Dynamics.Info.t = {
     samples: [sample],
-    sample_cursor: {
+    sample_focus: {
       call_stack: cursor_stack,
       index: List.length(cursor_stack) - 1,
       pinned_stack: None,

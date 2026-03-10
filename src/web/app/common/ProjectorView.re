@@ -19,7 +19,7 @@ module ViewCache = {
   type entry = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
-    sample_cursor: Language.Sample.Cursor.t,
+    sample_focus: Language.Sample.Focus.t,
     settings_version: int,
     status: View.status,
     model: string,
@@ -28,14 +28,14 @@ module ViewCache = {
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
 
   let lookup =
-      (id, ~statics_map, ~dynamics_map, ~sample_cursor, ~status, ~model)
+      (id, ~statics_map, ~dynamics_map, ~sample_focus, ~status, ~model)
       : option(View.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
     | Some(e)
         when
           e.statics_map === statics_map
           && e.dynamics_map === dynamics_map
-          && Language.Sample.Cursor.equal(e.sample_cursor, sample_cursor)
+          && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
           && e.model == model =>
@@ -44,22 +44,14 @@ module ViewCache = {
     };
 
   let store =
-      (
-        id,
-        ~statics_map,
-        ~dynamics_map,
-        ~sample_cursor,
-        ~status,
-        ~model,
-        ~view,
-      ) =>
+      (id, ~statics_map, ~dynamics_map, ~sample_focus, ~status, ~model, ~view) =>
     Hashtbl.replace(
       cache,
       id,
       {
         statics_map,
         dynamics_map,
-        sample_cursor,
+        sample_focus,
         settings_version: ProbeProj.Settings.version^,
         status,
         model,
@@ -112,7 +104,7 @@ module Model = {
     /* Map refs for view cache identity comparison */
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
-    sample_cursor: Language.Sample.Cursor.t,
+    sample_focus: Language.Sample.Focus.t,
   };
 
   type t = list(projector_data);
@@ -161,7 +153,7 @@ module Model = {
         ~indicated: option(Indicated.piece),
         ~statics: Language.Statics.Map.t,
         ~dynamics: Language.Dynamics.Map.t,
-        ~sample_cursor: Language.Sample.Cursor.t,
+        ~sample_focus: Language.Sample.Focus.t,
         ~editor_active: bool,
       ) => {
     let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
@@ -170,7 +162,7 @@ module Model = {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
         let info =
-          ProjectorInfo.mk_info(p, ~sample_cursor, ~statics, ~dynamics);
+          ProjectorInfo.mk_info(p, ~sample_focus, ~statics, ~dynamics);
         {
           p,
           info,
@@ -189,7 +181,7 @@ module Model = {
             ),
           statics_map: statics,
           dynamics_map: dynamics,
-          sample_cursor,
+          sample_focus,
         };
       },
       Id.Map.bindings(projectors),
@@ -266,7 +258,7 @@ let handle = (idx, action: external_action): Action.t =>
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
   | SetSyntax(f) => Project(SetSyntax(idx, f))
-  | SampleCursor(sc) => Project(SampleCursor(sc))
+  | SampleFocus(sc) => Project(SampleFocus(sc))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };
@@ -377,7 +369,7 @@ let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
-      {p, info, status, statics_map, dynamics_map, sample_cursor, _}: Model.projector_data,
+      {p, info, status, statics_map, dynamics_map, sample_focus, _}: Model.projector_data,
       projector_list: list(Id.t),
     )
     : View.t =>
@@ -386,7 +378,7 @@ let mk_view =
       p.id,
       ~statics_map,
       ~dynamics_map,
-      ~sample_cursor,
+      ~sample_focus,
       ~status,
       ~model=p.model,
     )
@@ -433,7 +425,7 @@ let mk_view =
       p.id,
       ~statics_map,
       ~dynamics_map,
-      ~sample_cursor,
+      ~sample_focus,
       ~status,
       ~model=p.model,
       ~view,

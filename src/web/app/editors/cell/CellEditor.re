@@ -147,7 +147,7 @@ module Update = {
     /* Second pass: if there's a pending focus, pending_probe_cursor waiting
        for dynamics, or dynamics changed since the first pass */
     let has_pending_focus =
-      editor.editor.state.zipper.refractors.sample_cursor.pending_focus != None;
+      editor.editor.state.zipper.refractors.sample_focus.pending_focus != None;
     let has_pending_cursor =
       editor.editor.state.zipper.refractors.pending_probe_cursor != None;
     let needs_second_pass =

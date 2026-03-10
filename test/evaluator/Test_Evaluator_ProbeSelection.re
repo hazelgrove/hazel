@@ -38,7 +38,7 @@ let partition_by_depth =
 /* Make a cursor at a given stack, with optional pin */
 let mk_cursor =
     (~pinned=None, ~indicated_call=None, stack: Sample.call_stack)
-    : Sample.Cursor.t => {
+    : Sample.Focus.t => {
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,
@@ -54,7 +54,7 @@ let run_select =
     (
       ~mode=Sample.Window.Single,
       ~ap_id=None,
-      ~cursor: Sample.Cursor.t,
+      ~cursor: Sample.Focus.t,
       samples: list(Sample.t),
     )
     : (list(Sample.t), int) => {
@@ -331,14 +331,14 @@ in ^^probe(f(5))|};
       let top_sample = List.hd(top_samples);
       let inner_sample = List.hd(inner_samples);
       let top_rel =
-        Sample.Cursor.relation(
+        Sample.Focus.relation(
           ~trimmed=false,
           ~ap_id=None,
           cursor,
           top_sample,
         );
       let inner_rel =
-        Sample.Cursor.relation(
+        Sample.Focus.relation(
           ~trimmed=false,
           ~ap_id=None,
           cursor,
@@ -378,7 +378,7 @@ in f(5)|};
           call_stack: [],
         };
         let rel =
-          Sample.Cursor.relation(
+          Sample.Focus.relation(
             ~trimmed=false,
             ~ap_id=None,
             cursor,
@@ -448,7 +448,7 @@ let mk_cursor_at_index =
       ~index: int,
       stack: Sample.call_stack,
     )
-    : Sample.Cursor.t => {
+    : Sample.Focus.t => {
   call_stack: stack,
   index,
   pinned_stack: pinned,
@@ -701,7 +701,7 @@ in ^^probe(f(2))|};
       let probe_id = List.hd(probe_ids);
       switch (Statics.Map.lookup(probe_id, info_map)) {
       | Some(info) =>
-        let ap_id = Sample.Cursor.cur_var_ap(info);
+        let ap_id = Sample.Focus.cur_var_ap(info);
         check(
           bool,
           "cur_var_ap should return Some for probe on f(2)",
@@ -724,7 +724,7 @@ in f(2)|};
       let probe_id = List.hd(probe_ids);
       switch (Statics.Map.lookup(probe_id, info_map)) {
       | Some(info) =>
-        let ap_id = Sample.Cursor.cur_var_ap(info);
+        let ap_id = Sample.Focus.cur_var_ap(info);
         check(
           bool,
           "cur_var_ap should return None for probe on variable x",
@@ -758,7 +758,7 @@ in ^^probe(f(42))|};
         List.find(
           id => {
             switch (Statics.Map.lookup(id, info_map)) {
-            | Some(info) => Option.is_some(Sample.Cursor.cur_var_ap(info))
+            | Some(info) => Option.is_some(Sample.Focus.cur_var_ap(info))
             | None => false
             }
           },
@@ -768,7 +768,7 @@ in ^^probe(f(42))|};
         List.find(
           id => {
             switch (Statics.Map.lookup(id, info_map)) {
-            | Some(info) => Sample.Cursor.cur_var_ap(info) == None
+            | Some(info) => Sample.Focus.cur_var_ap(info) == None
             | None => false
             }
           },
@@ -777,7 +777,7 @@ in ^^probe(f(42))|};
       /* Get ap_id from call probe's statics */
       let ap_id =
         switch (Statics.Map.lookup(call_probe_id, info_map)) {
-        | Some(info) => Sample.Cursor.cur_var_ap(info)
+        | Some(info) => Sample.Focus.cur_var_ap(info)
         | None => None
         };
       check(

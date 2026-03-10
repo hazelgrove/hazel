@@ -406,7 +406,7 @@ module View = {
         ~indicated=Indicated.piece''(zipper),
         ~statics=model.statics.info_map,
         ~dynamics,
-        ~sample_cursor=zipper.refractors.sample_cursor,
+        ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
       );
     // let t1 = JsUtil.precise_timestamp();
@@ -434,7 +434,7 @@ module View = {
           ~indicated=Indicated.piece''(zipper),
           ~statics=model.statics.info_map,
           ~dynamics,
-          ~sample_cursor=zipper.refractors.sample_cursor,
+          ~sample_focus=zipper.refractors.sample_focus,
           ~editor_active=selected,
         ),
         model.editor.syntax.projector_list,
