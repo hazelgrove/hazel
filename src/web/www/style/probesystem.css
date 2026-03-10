@@ -194,7 +194,10 @@ body:not(:has(.live-offside:focus))
   opacity: 0.45;
 }
 /* ⌘E: dim when probe focused and no manual probe to remove */
-body:has(.live-offside:focus) #probe-sidebar .quick-ref:not(.has-manual) .qr-cmd-e {
+body:has(.live-offside:focus)
+  #probe-sidebar
+  .quick-ref:not(.has-manual)
+  .qr-cmd-e {
   opacity: 0.45;
 }
 
@@ -518,7 +521,7 @@ body:not(:has(.live-offside:focus))
 /* Keyboard shortcut badge */
 #probe-sidebar .kbd-badge {
   display: inline-block;
-  font-size: 0.78em;
+  font-size: 0.7em;
   padding: 1px 4px;
   border-radius: 3px;
   background: var(--BR1);
@@ -526,7 +529,9 @@ body:not(:has(.live-offside:focus))
   font-family: inherit;
   vertical-align: middle;
   line-height: 1.4;
-  height: 1.4em;
+  height: 1rem;
+  display: flex;
+  align-items: center;
 }
 
 /* Click-then-key pill: pointer icon (outline) joined to kbd badge (filled) */
