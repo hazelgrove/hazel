@@ -33,7 +33,7 @@ let mk_data =
       ~indicated: option(Indicated.piece),
       ~statics: Language.Statics.Map.t,
       ~dynamics: Language.Dynamics.Map.t,
-      ~sample_cursor: Language.Sample.Cursor.t,
+      ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
     )
     : list(ProjectorView.Model.projector_data) => {
@@ -44,8 +44,7 @@ let mk_data =
       /* Construct full Base.projector on demand for rendering */
       let p = Refractors.to_projector(id, entry);
       let+ measurement = measurement_of_term(id, term_data, measured);
-      let info =
-        ProjectorInfo.mk_info(p, ~sample_cursor, ~statics, ~dynamics);
+      let info = ProjectorInfo.mk_info(p, ~sample_focus, ~statics, ~dynamics);
       ProjectorView.Model.{
         p,
         info,
@@ -64,7 +63,7 @@ let mk_data =
           ),
         statics_map: statics,
         dynamics_map: dynamics,
-        sample_cursor,
+        sample_focus,
       };
     },
     Id.Map.bindings(refractors),

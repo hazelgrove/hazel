@@ -145,8 +145,8 @@ select {
   z-index: var(--top-bar-hover-z);
 }
 
-/* Closure Cursor Bar - overlays top of #main, slides in/out */
-#sample-cursor-bar {
+/* Sample Focus Bar - overlays top of #main, slides in/out */
+#sample-focus-bar {
   grid-row: 2 / span 1;
   grid-column: 1 / span 1;
   align-self: start;
@@ -163,7 +163,7 @@ select {
   height: 2.2em;
 }
 
-#sample-cursor-bar .title {
+#sample-focus-bar .title {
   font-size: 0.85em;
   font-family: var(--ui-font);
   color: rgb(255, 255, 255);
@@ -173,17 +173,17 @@ select {
   white-space: nowrap;
 }
 
-#sample-cursor-bar:empty,
-#sample-cursor-bar.hidden {
+#sample-focus-bar:empty,
+#sample-focus-bar.hidden {
   transform: translateY(-100%);
   pointer-events: none;
 }
 
-#sample-cursor-bar:focus {
+#sample-focus-bar:focus {
   outline: none;
 }
 
-#sample-cursor-bar .breadcrumbs {
+#sample-focus-bar .breadcrumbs {
   display: flex;
   align-items: center;
   gap: 0.25em;
@@ -191,7 +191,7 @@ select {
   min-width: 0;
 }
 
-#sample-cursor-bar .breadcrumb-entry {
+#sample-focus-bar .breadcrumb-entry {
   cursor: pointer;
   padding: 0 0.4em;
   border-radius: 1em;
@@ -200,45 +200,45 @@ select {
   position: relative;
 }
 
-#sample-cursor-bar .breadcrumb-entry:hover {
+#sample-focus-bar .breadcrumb-entry:hover {
   background-color: white;
 }
 
-#sample-cursor-bar .breadcrumb-entry.focused {
+#sample-focus-bar .breadcrumb-entry.focused {
   color: var(--G0);
   background-color: var(--G5);
   font-weight: 500;
   text-decoration: underline;
 }
 
-#sample-cursor-bar .breadcrumb-entry.indicated {
+#sample-focus-bar .breadcrumb-entry.indicated {
   outline: 1.5px solid var(--R1);
   border-radius: 3px;
 }
 
-#sample-cursor-bar .breadcrumb-entry.focused.indicated {
+#sample-focus-bar .breadcrumb-entry.focused.indicated {
   text-decoration: none;
 }
 
-#sample-cursor-bar .breadcrumb-entry.ghost {
+#sample-focus-bar .breadcrumb-entry.ghost {
   opacity: 0.7;
 }
 
 /* Color coding for call stack position - uses same colors as sample display */
-#sample-cursor-bar .breadcrumb-entry.above {
+#sample-focus-bar .breadcrumb-entry.above {
   color: var(--sample-above-text);
 }
-#sample-cursor-bar .breadcrumb-entry.below {
+#sample-focus-bar .breadcrumb-entry.below {
   color: var(--sample-below-text);
 }
-/* #sample-cursor-bar .breadcrumb-separator.above {
+/* #sample-focus-bar .breadcrumb-separator.above {
   color: var(--sample-above-text);
 }
-#sample-cursor-bar .breadcrumb-separator.below {
+#sample-focus-bar .breadcrumb-separator.below {
   color: var(--sample-below-text);
 } */
 
-#sample-cursor-bar .breadcrumb-separator {
+#sample-focus-bar .breadcrumb-separator {
   color: var(--BR2);
   font-size: 0.8em;
   cursor: default;
@@ -251,34 +251,34 @@ select {
   text-align: center;
 }
 
-#sample-cursor-bar .breadcrumb-separator.ghost {
+#sample-focus-bar .breadcrumb-separator.ghost {
   color: var(--BR1);
 }
 
 
-#sample-cursor-bar .more-indicator {
+#sample-focus-bar .more-indicator {
   color: var(--BR2);
   margin-left: 0.25em;
   opacity: 0.5;
 }
 
-#sample-cursor-bar .stack-icon {
+#sample-focus-bar .stack-icon {
   color: var(--BR4);
   margin-right: 0.5em;
   font-size: 0.9em;
 }
 
-#sample-cursor-bar .breadcrumb-entry.unknown {
+#sample-focus-bar .breadcrumb-entry.unknown {
   color: var(--BR1);
 }
 
-#sample-cursor-bar .breadcrumb-entry.unknown.focused {
+#sample-focus-bar .breadcrumb-entry.unknown.focused {
   color: var(--G0);
   background-color: var(--G5);
 }
 
 /* Pin icon - same style as sample pin but positioned for breadcrumb */
-#sample-cursor-bar .pin-icon {
+#sample-focus-bar .pin-icon {
   display: inline-block;
   width: 1em;
   height: 1em;
@@ -297,19 +297,19 @@ select {
   scale: 0.75;
 }
 
-#sample-cursor-bar .pin-icon:hover {
+#sample-focus-bar .pin-icon:hover {
   filter: brightness(1.2);
 }
 
 
-#sample-cursor-bar .breadcrumb-ellipsis {
+#sample-focus-bar .breadcrumb-ellipsis {
   color: var(--BR2);
   font-size: 0.85em;
   cursor: default;
   padding: 0 0.2em;
 }
 
-#sample-cursor-bar .clear-all {
+#sample-focus-bar .clear-all {
   margin-left: auto;
   flex-shrink: 0;
   color: var(--BR4);
@@ -323,7 +323,7 @@ select {
   transition: background-color 0.1s;
 }
 
-#sample-cursor-bar .clear-all:hover {
+#sample-focus-bar .clear-all:hover {
   background-color: var(--Y1);
 }
 

@@ -248,12 +248,10 @@ module Window = {
     };
 };
 
-/* The dynamic cursor points to a stage in evaluation, associated
+/* The sample focus points to a stage in evaluation, associated
  * with probe sample collection. This is primarily reified as a call stack,
  * represented as a list of ids of function application forms which have
  * been called but have not yet returned.
- *
- * See plans/dynamic-cursor-conservatism.md for detailed design notes.
  *
  * CONSISTENCY AND INTENT PRESERVATION
  *
@@ -294,7 +292,7 @@ module Window = {
  * The cursor stores (call_stack, index) where call_stack may be deeper
  * than index indicates. This is a two-part mechanism:
  *
- * Write side (SampleCursorPerform.capture): When clicking on a shallower
+ * Write side (SampleFocusPerform.capture): When clicking on a shallower
  * sample whose stack is a suffix of the current stack, we KEEP the deeper
  * stack but lower the index. This preserves the deeper selection info.
  *
@@ -306,7 +304,7 @@ module Window = {
  * for depth-relative comparisons.
  *
  * See also: Dynamics.Info.most_aligned_sample (same suffix logic). */
-module Cursor = {
+module Focus = {
   open OptUtil.Syntax;
 
   /* Pending focus state for step-into functionality.
@@ -318,7 +316,7 @@ module Cursor = {
     target_stack: call_stack /* The call stack to match */
   };
 
-  /* Cursor.t fields:
+  /* Focus.t fields:
    * - call_stack: Full call context; may be deeper than effective cursor
    * - index: Effective depth in call_stack (-1 = top-level, 0+ = inside calls)
    * - pinned_stack: If set, filters samples to those under this call context
@@ -572,7 +570,7 @@ module Selection = {
    *   3.  Any related sample (Above/Below/Same relative to effective stack).
    */
   let most_aligned_index =
-      (~ap_id: option(Id.t), cursor: Cursor.t, samples: list(t))
+      (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
       : option(int) => {
     let suffix_scan = (stack: call_stack): option(int) =>
       List.fold_left(
@@ -595,7 +593,7 @@ module Selection = {
       )
       |> Option.map(fst);
     /* Tier 1a: suffix match against effective stack (current intent) */
-    let eff = Cursor.effective_stack(cursor);
+    let eff = Focus.effective_stack(cursor);
     let effective_match = suffix_scan(eff);
     /* Tier 1b: suffix match against full stack (historical intent) */
     let full_match =
@@ -604,10 +602,10 @@ module Selection = {
       | None => suffix_scan(cursor.call_stack)
       };
     /* Fallback tiers use effective stack (depth-relative comparisons) */
-    let find = (predicate: Cursor.relation => bool): option(int) =>
+    let find = (predicate: Focus.relation => bool): option(int) =>
       List.find_index(
         (sample: t) =>
-          predicate(Cursor.relation(~trimmed=true, ~ap_id, cursor, sample)),
+          predicate(Focus.relation(~trimmed=true, ~ap_id, cursor, sample)),
         samples,
       );
     let result =
@@ -621,47 +619,10 @@ module Selection = {
           | Some(_) as result => result
           | None =>
             let indirect = find(rel => rel.is_below_indicated_call != None);
-            indirect == None ? find(Cursor.is_related) : indirect;
+            indirect == None ? find(Focus.is_related) : indirect;
           }
         }
       };
-    if (cursor.indicated_call != None && List.length(samples) > 1) {
-      let tier =
-        switch (full_match) {
-        | Some(_) => "1-suffix"
-        | None =>
-          switch (find(rel => rel.is_call_cursor)) {
-          | Some(_) => "2-call"
-          | None =>
-            switch (find(rel => rel.is_below_indicated_call == Some(0))) {
-            | Some(_) => "3-indicated"
-            | None => "4-fallback"
-            }
-          }
-        };
-      print_endline(
-        "[most_aligned] tier="
-        ++ tier
-        ++ " result="
-        ++ (
-          switch (result) {
-          | Some(i) => string_of_int(i)
-          | None => "None"
-          }
-        )
-        ++ " eff_len="
-        ++ string_of_int(List.length(eff))
-        ++ " stack_len="
-        ++ string_of_int(List.length(cursor.call_stack))
-        ++ " indicated="
-        ++ (
-          switch (cursor.indicated_call) {
-          | Some(id) => Id.to_string(id)
-          | None => "None"
-          }
-        ),
-      );
-    };
     result;
   };
 
@@ -671,8 +632,7 @@ module Selection = {
    * rather than the index. Uses the same suffix-first principle as
    * most_aligned_index. */
   let most_aligned_sample =
-      (~ap_id: option(Id.t), ~cursor: Cursor.t, samples: list(t))
-      : option(t) =>
+      (~ap_id: option(Id.t), ~cursor: Focus.t, samples: list(t)): option(t) =>
     switch (samples) {
     | [] => None
     | [first, ..._] =>
@@ -715,7 +675,7 @@ module Selection = {
         ~offset: int,
         ~ap_id: option(Id.t),
         ~pinned: option(call_stack),
-        ~cursor: Cursor.t,
+        ~cursor: Focus.t,
         samples: list(t),
       )
       : (list(t), int) => {

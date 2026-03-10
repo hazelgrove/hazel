@@ -18,7 +18,7 @@ type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
 type external_action =
-  | SampleCursor(Action.sample_cursor)
+  | SampleFocus(Action.sample_focus)
   | Probe(Action.probe) /* Probe actions like StepInto */
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */

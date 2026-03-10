@@ -318,34 +318,6 @@ body:not(:has(.live-offside:focus))
   opacity: 0.5;
 }
 
-#probe-sidebar .panel.probes {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  outline: none;
-  border-left: 1px solid var(--BR2);
-}
-
-#probe-sidebar .panel.probes .auto {
-  border-left: 1px solid var(--BR2);
-  padding: 0.5em;
-  border-radius: 0.3em;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-#probe-sidebar .panel.probes .top-level-body {
-  margin-left: 0.5em;
-  gap: 1px;
-  display: flex;
-  flex-direction: column;
-}
-
-#probe-sidebar .panel.probes .top-level-title {
-  position: relative;
-}
-
 #probe-sidebar .panel.panel.window-toggle .named-menu-item {
   display: flex;
   gap: 0.5em;

@@ -240,7 +240,7 @@ let go =
       | None => ()
       };
       let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
-      /* Set pending_probe_cursor so the sample cursor adapts to the
+      /* Set pending_probe_cursor so the sample focus adapts to the
          newly focused probe. For pointer clicks on a specific sample,
          the subsequent Capture action will override with more specific
          data; for probe-to-probe navigation, most_aligned_sample picks
@@ -275,6 +275,6 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SampleCursor(a) => Ok(SampleCursorPerform.go(z, a))
+  | SampleFocus(a) => Ok(SampleFocusPerform.go(z, a))
   };
 };

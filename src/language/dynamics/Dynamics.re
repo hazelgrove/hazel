@@ -10,17 +10,17 @@ module Info = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     samples: list(Sample.t),
-    sample_cursor: Sample.Cursor.t,
+    sample_focus: Sample.Focus.t,
   };
 
   let init = {
     samples: [],
-    sample_cursor: Sample.Cursor.init,
+    sample_focus: Sample.Focus.init,
   };
 
   let is_in = (di: t): option(Sample.t) => {
     let cursor_ids =
-      Sample.ids_of_stack(Sample.Cursor.effective_stack(di.sample_cursor));
+      Sample.ids_of_stack(Sample.Focus.effective_stack(di.sample_focus));
     List.find_opt(
       (sample: Sample.t) =>
         Sample.ids_of_stack(sample.call_stack) == cursor_ids,
@@ -30,11 +30,11 @@ module Info = {
 
   /* Find the sample most aligned with the cursor's call path.
    * Uses the same suffix-first principle as Selection.most_aligned_index
-   * but returns the sample directly. See plans/dynamic-cursor-conservatism.md. */
+   * but returns the sample directly. */
   let most_aligned_sample = (ap_id: option(Id.t), di: t): option(Sample.t) =>
     Sample.Selection.most_aligned_sample(
       ~ap_id,
-      ~cursor=di.sample_cursor,
+      ~cursor=di.sample_focus,
       di.samples,
     );
 };
