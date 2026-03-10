@@ -630,6 +630,7 @@ and uexp_to_info_map =
         | _ => replace_self(m, t2, TupleExtensionRequiresTuples)
         };
       };
+      let co_ctx = CoCtx.union([t1.co_ctx, t2.co_ctx]);
 
       switch (
         Typ.normalize(ctx, t1.ty).term,
@@ -662,20 +663,20 @@ and uexp_to_info_map =
 
         add(
           ~self=Just(ty), // TODO: fix this
-          ~co_ctx=CoCtx.empty,
+          ~co_ctx,
           m,
         );
       | (Unknown(_), _)
       | (_, Unknown(_)) =>
         add(
           ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
-          ~co_ctx=CoCtx.empty,
+          ~co_ctx,
           m,
         )
       | _ =>
         add(
           ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
-          ~co_ctx=CoCtx.empty,
+          ~co_ctx,
           m,
         )
       };
