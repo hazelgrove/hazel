@@ -20,6 +20,7 @@ type write_status =
 
 type write_state = {
   mutable last_json: option(string),
+  mutable last_sample: option(Language.Exp.t),
   mutable status: write_status,
 };
 
@@ -31,6 +32,7 @@ let get_write_state = (id: Id.t): write_state =>
   | None =>
     let ws = {
       last_json: None,
+      last_sample: None,
       status: Waiting,
     };
     write_states := Id.Map.add(id, ws, write_states^);
@@ -108,27 +110,38 @@ module M: Projector = {
       ({model, info, local, parent, _}: View.args(model, action)): View.t => {
     let ws = get_write_state(info.id);
 
-    /* Try to extract and write the evaluated value */
+    /* Try to extract and write the evaluated value.
+       Skip the expensive exp→JSON conversion when the sample expression
+       is physically identical to the last one we processed (common on
+       cursor moves where dynamics are cached). */
     if (String.length(model.url) > 0) {
       switch (select_sample(info)) {
       | Some(sample) =>
-        switch (Automerge.exp_to_json_string(sample.value)) {
-        | Ok(json_string) =>
-          /* Only write if the JSON has changed (loop prevention) */
-          let should_write =
-            switch (ws.last_json) {
-            | Some(prev) => prev != json_string
-            | None => true
-            };
-          if (should_write) {
-            Automerge.write_to_doc(model.url, json_string);
-            ws.last_json = Some(json_string);
-            ws.status = Wrote;
-          } else {
-            ws.status = Idle;
+        let same_sample =
+          switch (ws.last_sample) {
+          | Some(prev) => prev === sample.value
+          | None => false
           };
-        | Error(msg) => ws.status = Error(msg)
-        }
+        if (!same_sample) {
+          ws.last_sample = Some(sample.value);
+          switch (Automerge.exp_to_json_string(sample.value)) {
+          | Ok(json_string) =>
+            /* Only write if the JSON has changed (loop prevention) */
+            let should_write =
+              switch (ws.last_json) {
+              | Some(prev) => prev != json_string
+              | None => true
+              };
+            if (should_write) {
+              Automerge.write_to_doc(model.url, json_string);
+              ws.last_json = Some(json_string);
+              ws.status = Wrote;
+            } else {
+              ws.status = Idle;
+            };
+          | Error(msg) => ws.status = Error(msg)
+          };
+        };
       | None => ws.status = Waiting
       };
     };
