@@ -2028,25 +2028,28 @@ let complex_program_tests = (
         );
       },
     ),
-    /* TODO: update_definition on module M fails (Select.term for Module body).
-       Path "M" resolves and delete_binding_clause works. */
-    test_case(
-      "update_definition with capitalized module M",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        let result =
-          apply_and_render(
-            "module M = { let x = 1 } in M.x",
-            Update(Definition, "M", "{ let x = 10 }"),
-          );
+    test_case("update_definition with capitalized module M", `Quick, () => {
+      switch (
+        run_agent_action(
+          "module M = { let x = 1 } in M.x",
+          Update(Definition, "M", "{ let x = 10 }"),
+        )
+      ) {
+      | Ok(z) =>
+        let result = render_zipper(z);
         check_rendered(
           "update_def_module_M",
           "module M = { let x = 10 } in M.x",
           result,
         );
-      },
-    ),
+      | Error(err) =>
+        Alcotest.fail(
+          "Agent action failed: "
+          ++ Action.Failure.show(err)
+          ++ "\nCode: module M = { let x = 1 } in M.x",
+        )
+      }
+    }),
     test_case(
       "delete_binding_clause removes capitalized module M",
       `Quick,

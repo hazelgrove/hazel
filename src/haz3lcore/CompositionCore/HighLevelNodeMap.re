@@ -56,6 +56,18 @@ module Utils = {
     };
   };
 
+  let mpat_to_info = (term: MPat.t, info_map: Id.Map.t(Info.t)): Info.t => {
+    let e = MPat.rep_id(term);
+    Id.Map.find(e, info_map);
+  };
+
+  let mpat_to_mpat = (term: MPat.t, info_map: Id.Map.t(Info.t)): Info.mpat => {
+    switch (mpat_to_info(term, info_map)) {
+    | InfoMPat(mpat_info) => mpat_info
+    | _ => raise(Failure("No mpat info found"))
+    };
+  };
+
   let child_expressions_of_exp = (term: TermBase.exp_t): list(TermBase.exp_t) => {
     /*
      Returns the child expressions within the given expression.
