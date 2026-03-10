@@ -123,6 +123,37 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
+    /* Rebuild shape map with fresh statics: projector placeholder sizes
+       may depend on statics (e.g. livelit projectors look up their size
+       from the context), but the shape map above was built with stale
+       statics. Rebuild it now that statics are fresh. */
+    let editor =
+      if (is_edited) {
+        let projector_shapes =
+          ProjectorInfo.ShapeMapSemantics.mk(
+            editor.syntax.projectors,
+            editor.state.zipper.refractors,
+            statics.info_map,
+            dynamics,
+          );
+        let refractor_shape_map = Id.Map.empty;
+        let measured =
+          Measured.of_segment(
+            editor.syntax.segment,
+            projector_shapes,
+            refractor_shape_map,
+          );
+        Editor.Model.{
+          ...editor,
+          syntax: {
+            ...editor.syntax,
+            shape_map: projector_shapes,
+            measured,
+          },
+        };
+      } else {
+        editor;
+      };
     {
       editor,
       statics,
