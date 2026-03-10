@@ -207,26 +207,32 @@ let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
     container##.scrollTop := int_of_float(target);
   };
 
+/* Scroll vertically so that el_rect is visible within the container,
+ * with a 10% margin. Only adjusts scrollTop, never scrollLeft. */
+let scroll_vertically_into_view =
+    (container: Js.t(Dom_html.element), el: Js.t(Dom_html.element)) => {
+  let el_rect = el##getBoundingClientRect;
+  let container_rect = container##getBoundingClientRect;
+  let margin_ratio = 0.10;
+  let margin_px =
+    Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
+  let top_gap = el_rect##.top -. (container_rect##.top +. margin_px);
+  if (top_gap < 0.) {
+    adjust_scroll(container, top_gap);
+  } else {
+    let bottom_gap =
+      el_rect##.bottom -. (container_rect##.bottom -. margin_px);
+    if (bottom_gap > 0.) {
+      adjust_scroll(container, bottom_gap);
+    };
+  };
+};
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
     switch (find_scroll_container(caret_elem)) {
-    | Some(container) =>
-      let caret_rect = caret_elem##getBoundingClientRect;
-      let container_rect = container##getBoundingClientRect;
-      let margin_ratio = 0.10;
-      let margin_px =
-        Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
-      let top_gap = caret_rect##.top -. (container_rect##.top +. margin_px);
-      if (top_gap < 0.) {
-        adjust_scroll(container, top_gap);
-      } else {
-        let bottom_gap =
-          caret_rect##.bottom -. (container_rect##.bottom -. margin_px);
-        if (bottom_gap > 0.) {
-          adjust_scroll(container, bottom_gap);
-        };
-      };
+    | Some(container) => scroll_vertically_into_view(container, caret_elem)
     | None =>
       caret_elem##scrollIntoView(
         Js.Unsafe.obj([|
@@ -391,4 +397,108 @@ module QueryParams = {
            Js.some(Js.string(href)),
          );
        });
+};
+
+/* Navigate between probe elements in document order.
+   Finds all .live-offside[tabindex] elements, sorts by visual position,
+   and focuses the next/previous one relative to current_id.
+   When ~skip_unaligned is true, skips probes whose data-cursor-aligned
+   attribute is not "true" (i.e. probes with no samples related to
+   the current cursor).
+   Returns the target probe's Id.t (from data-probe-id attribute)
+   and gives it DOM focus. */
+let navigate_probes =
+    (
+      ~skip_unaligned: bool=false,
+      current_id: string,
+      direction: [
+        | `Up
+        | `Down
+      ],
+    )
+    : option(Id.t) => {
+  let elements =
+    Dom_html.document##querySelectorAll(
+      Js.string(".live-offside[tabindex]"),
+    );
+  let len = elements##.length;
+  /* Collect elements with their bounding rects */
+  let items = ref([]);
+  for (i in 0 to len - 1) {
+    switch (elements##item(i) |> Js.Opt.to_option) {
+    | Some(el) =>
+      let el = Js.Unsafe.coerce(el);
+      let rect = el##getBoundingClientRect;
+      items := [(el, rect##.top, rect##.left), ...items^];
+    | None => ()
+    };
+  };
+  /* Sort by top, then left */
+  let sorted =
+    List.sort(
+      ((_, t1, l1), (_, t2, l2)) => {
+        let c = compare(t1, t2);
+        if (c != 0) {
+          c;
+        } else {
+          compare(l1, l2);
+        };
+      },
+      items^,
+    );
+  /* Find current index */
+  let current_idx = ref(-1);
+  List.iteri(
+    (i, (el, _, _)) => {
+      let id: string = Js.to_string(el##.id);
+      if (id == current_id) {
+        current_idx := i;
+      };
+    },
+    sorted,
+  );
+  /* Find target, optionally skipping unaligned probes */
+  let offset =
+    switch (direction) {
+    | `Down => 1
+    | `Up => (-1)
+    };
+  let n = List.length(sorted);
+  let rec find_target = idx =>
+    if (idx < 0 || idx >= n) {
+      None;
+    } else {
+      let (el, _, _) = List.nth(sorted, idx);
+      let dominated =
+        skip_unaligned
+        && {
+          let attr =
+            el##getAttribute(Js.string("data-cursor-aligned"))
+            |> Js.Opt.to_option;
+          switch (attr) {
+          | Some(s) => Js.to_string(s) != "true"
+          | None => true
+          };
+        };
+      dominated ? find_target(idx + offset) : Some(el);
+    };
+  switch (find_target(current_idx^ + offset)) {
+  | Some(el) =>
+    el##focus(
+      Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+    );
+    switch (find_scroll_container(Js.Unsafe.coerce(el))) {
+    | Some(container) =>
+      scroll_vertically_into_view(container, Js.Unsafe.coerce(el))
+    | None => ()
+    };
+    /* Extract the full probe Id from data-probe-id attribute */
+    let probe_id_str =
+      el##getAttribute(Js.string("data-probe-id")) |> Js.Opt.to_option;
+    switch (probe_id_str) {
+    | Some(s) => Id.of_string(Js.to_string(s))
+    | None => None
+    };
+  | None => None
+  };
 };

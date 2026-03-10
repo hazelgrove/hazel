@@ -15,6 +15,7 @@ open Language;
 type action =
   | ChangeLength(int, int)
   | ToggleWindowMode
+  | ToggleShowEnv
   | ResetSettings;
 
 module Settings = {
@@ -51,6 +52,10 @@ module Settings = {
     callee_cutoff: None,
   };
 
+  /* When true, ArrowUp/Down skip probes that have no samples
+   * aligned with the current cursor. */
+  let skip_unaligned_nav = true;
+
   let update = (settings: settings, action: set_action): settings =>
     switch (action) {
     | ToggleWindow => {
@@ -82,13 +87,23 @@ module Settings = {
   let offset = Hashtbl.create(100);
 
   let s = ref(init);
+  let version = ref(0);
+
+  /* When true, the context menu dropdown is shown for the indicated sample
+   * without hovering. Toggled by '/' key. Persists across probe navigation. */
+  let show_env = ref(false);
 
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
+    version := version^ + 1;
+    show_env := false;
   };
 
-  let go = (a: set_action): unit => s := update(s^, a);
+  let go = (a: set_action): unit => {
+    s := update(s^, a);
+    version := version^ + 1;
+  };
 };
 
 open Settings;
@@ -175,15 +190,14 @@ let select_samples =
     | None =>
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=dynamics.sample_cursor.pinned_stack,
+        ~pinned=dynamics.sample_focus.pinned_stack,
         dynamics.samples,
       )
     };
   let first_idx =
-    Sample.Selection.first_related_index(
-      ~trimmed=true,
+    Sample.Selection.most_aligned_index(
       ~ap_id,
-      dynamics.sample_cursor,
+      dynamics.sample_focus,
       samples,
     );
   if (first_idx == None && settings.window == Single) {
@@ -249,10 +263,10 @@ let depth_clss =
     (~settings, ~ap_id, dynamics: Dynamics.Info.t, sample: Sample.t)
     : list(string) => {
   let relation =
-    Sample.Cursor.relation(
+    Sample.Focus.relation(
       ~trimmed=true,
       ~ap_id,
-      dynamics.sample_cursor,
+      dynamics.sample_focus,
       sample,
     );
   switch (relation.relative_level_to_cursor) {
@@ -277,8 +291,8 @@ let color_clss =
     : list(string) => {
   let step_range_clss = () =>
     switch (
-      Sample.Cursor.step_containment(
-        ~focus_range=dynamics.sample_cursor.step_range,
+      Sample.Focus.step_containment(
+        ~focus_range=dynamics.sample_focus.step_range,
         sample,
       )
     ) {
@@ -292,10 +306,10 @@ let color_clss =
   switch (settings.sample_base) {
   | Calls =>
     let relation =
-      Sample.Cursor.relation(
+      Sample.Focus.relation(
         ~trimmed=true,
         ~ap_id,
-        dynamics.sample_cursor,
+        dynamics.sample_focus,
         sample,
       );
     switch (
@@ -337,10 +351,10 @@ let color_clss =
       step_range_clss();
     } else {
       let relation =
-        Sample.Cursor.relation(
+        Sample.Focus.relation(
           ~trimmed=true,
           ~ap_id,
-          dynamics.sample_cursor,
+          dynamics.sample_focus,
           sample,
         );
       if (relation.is_call_cursor) {
@@ -373,7 +387,7 @@ module Debug = {
     ++ "\n"
     ++ "ap:"
     ++ (
-      switch (Sample.Cursor.cur_call(ap_id, sample)) {
+      switch (Sample.Focus.cur_call(ap_id, sample)) {
       | Some([{id: ap_id, _}, ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
@@ -404,7 +418,7 @@ let pin_call = (ctx: probe_ctx) =>
 let focus_call = (ctx: probe_ctx) =>
   switch (Dynamics.Info.is_in(ctx.dynamics)) {
   | Some(sample) when sample.call_stack != [] =>
-    ctx.parent(SampleCursor(TogglePin(sample.call_stack)))
+    ctx.parent(SampleFocus(TogglePin(sample.call_stack)))
   | _ => Effect.Ignore
   };
 
@@ -447,7 +461,7 @@ let value_view =
       ValueState.mousedown := Some(target);
     };
     ctx.parent(
-      SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)),
+      SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
     );
   };
 
@@ -530,7 +544,7 @@ let env_val = (ctx: probe_ctx, view_seg, sample, en: Sample.Env.entry): Node.t =
 };
 
 let show_pin = (ctx: probe_ctx, sample: Sample.t) => {
-  switch (ctx.ap_id, ctx.dynamics.sample_cursor.pinned_stack) {
+  switch (ctx.ap_id, ctx.dynamics.sample_focus.pinned_stack) {
   | (Some(ap_id), Some(pinned_stack)) =>
     /* Compare by ID only - function names may differ */
     Sample.ids_of_stack(pinned_stack)
@@ -540,7 +554,7 @@ let show_pin = (ctx: probe_ctx, sample: Sample.t) => {
 };
 
 let show_focus = (ctx: probe_ctx, sample: Sample.t) =>
-  switch (ctx.dynamics.sample_cursor.pinned_stack) {
+  switch (ctx.dynamics.sample_focus.pinned_stack) {
   | Some(pinned_stack) =>
     Sample.ids_of_stack(pinned_stack)
     == Sample.ids_of_stack(sample.call_stack)
@@ -877,7 +891,8 @@ let _formatted_value_section =
 };
 
 /* Sample context menu (dropdown) combining actions and environment */
-let sample_context_menu = (ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
+let sample_context_menu =
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
   /* Get variable names shown in call display to filter from environment */
   let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
@@ -887,7 +902,9 @@ let sample_context_menu = (ctx: probe_ctx, view_seg, sample: Sample.t): Node.t =
     ~attrs=
       [
         Attr.classes(
-          ["sample-context-menu"] @ (has_env || has_call ? [] : ["no-env"]),
+          ["sample-context-menu"]
+          @ (has_env || has_call ? [] : ["no-env"])
+          @ (show_env ? ["dropdown-active"] : []),
         ),
       ]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
@@ -910,10 +927,18 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
   };
 
 let sample_view =
-    (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
+    (
+      ctx: probe_ctx,
+      ~indicated_sample_id,
+      ~num_total,
+      view_seg,
+      local,
+      sample: Sample.t,
+    ) => {
   let hide_env = hide_env(ctx.statics);
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+  let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
   div(
     ~attrs=
       [Attr.classes(["sample"])]
@@ -924,31 +949,32 @@ let sample_view =
       ),
     [value_view(ctx, ~num_total, view_seg, local, sample)]
     @ pin_view(ctx, sample)
-    @ (has_dropdown ? [sample_context_menu(ctx, view_seg, sample)] : []),
+    @ (
+      has_dropdown
+        ? [sample_context_menu(~show_env, ctx, view_seg, sample)] : []
+    ),
   );
 };
 
 /* Select a default sample by preferring the closest match to the current
- * dynamic cursor. */
+ * sample focus. */
 let mv_least_distant_sample = (ctx: probe_ctx, _evt): Effect.t(unit) => {
   let {ap_id, dynamics, parent, _} = ctx;
   let samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=dynamics.sample_cursor.pinned_stack,
+      ~pinned=dynamics.sample_focus.pinned_stack,
       dynamics.samples,
     );
   switch (
-    Sample.Selection.closest_to_cursor(
+    Sample.Selection.most_aligned_sample(
       ~ap_id,
-      ~cursor=dynamics.sample_cursor,
+      ~cursor=dynamics.sample_focus,
       samples,
     )
   ) {
   | Some(selected) =>
-    parent(
-      SampleCursor(Capture(Sample.capture_of_sample(selected), ap_id)),
-    )
+    parent(SampleFocus(Capture(Sample.capture_of_sample(selected), ap_id)))
   | None => Effect.Ignore
   };
 };
@@ -979,7 +1005,7 @@ let empty_status_view =
       ~attrs=[
         Attr.classes(["empty-status", "hidden-by-pin"]),
         Attr.title("Samples hidden by pin — click to unpin"),
-        Attr.on_pointerdown(_ => ctx.parent(SampleCursor(Reset))),
+        Attr.on_pointerdown(_ => ctx.parent(SampleFocus(Reset))),
       ],
       [text("⍟")] //📌◌🔒
     )
@@ -988,7 +1014,7 @@ let empty_status_view =
     div(
       ~attrs=[
         Attr.classes(["empty-status", "not-aligned"]),
-        Attr.title("Samples not aligned with cursor — click to align"),
+        Attr.title("Samples not aligned with focus — click to align"),
         Attr.on_pointerdown(mv_least_distant_sample(ctx)),
         Attr.on_double_click(_ => local(ToggleWindowMode)),
       ],
@@ -1010,14 +1036,13 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   let samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=dynamics.sample_cursor.pinned_stack,
+      ~pinned=dynamics.sample_focus.pinned_stack,
       dynamics.samples,
     );
   let cursor_idx =
-    Sample.Selection.first_related_index(
-      ~trimmed=true,
+    Sample.Selection.most_aligned_index(
       ~ap_id,
-      dynamics.sample_cursor,
+      dynamics.sample_focus,
       samples,
     );
   switch (cursor_idx) {
@@ -1027,7 +1052,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
       let sample = List.nth(samples, next_idx_maybe);
       parent(
-        SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)),
+        SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
       );
     } else {
       Effect.Ignore;
@@ -1057,7 +1082,7 @@ let num_samples_view = (~ap_id: option(Id.t), dynamics: Dynamics.Info.t) => {
   let num_samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=dynamics.sample_cursor.pinned_stack,
+      ~pinned=dynamics.sample_focus.pinned_stack,
       dynamics.samples,
     )
     |> List.length;
@@ -1114,7 +1139,7 @@ let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
 };
 
 let indicated_sample = (ctx: probe_ctx): option(Sample.t) =>
-  Dynamics.Info.first_cursor_sample(ctx.ap_id, ctx.dynamics);
+  Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics);
 
 let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   let {ap_id, parent, _} = ctx;
@@ -1124,10 +1149,20 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([local(ResetSettings), parent(SampleCursor(Reset))]);
+    Many([local(ResetSettings), parent(SampleFocus(Reset))]);
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Ignore;
+    Many([Stop_propagation, Prevent_default]);
+  | D("Enter") when key.meta == Down || key.ctrl == Down =>
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    Many([Stop_propagation, Prevent_default]);
+  /* Cmd+Left (Mac) / Home (PC): bounce back to editor */
+  | D("ArrowLeft") when key.meta == Down || key.ctrl == Down =>
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    Many([Stop_propagation, Prevent_default]);
+  | D("Home") =>
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    Many([Stop_propagation, Prevent_default]);
   | D("ArrowRight") when key.shift == Down =>
     let effect =
       switch (indicated_sample(ctx)) {
@@ -1149,6 +1184,24 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default])
   | D("ArrowLeft") =>
     Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
+  | D("ArrowDown") =>
+    let skip = Settings.skip_unaligned_nav;
+    let effect =
+      switch (
+        JsUtil.navigate_probes(~skip_unaligned=skip, Id.cls(id), `Down)
+      ) {
+      | Some(target_id) => parent(FocusById(target_id))
+      | None => Ignore
+      };
+    Many([effect, Stop_propagation, Prevent_default]);
+  | D("ArrowUp") =>
+    let skip = Settings.skip_unaligned_nav;
+    let effect =
+      switch (JsUtil.navigate_probes(~skip_unaligned=skip, Id.cls(id), `Up)) {
+      | Some(target_id) => parent(FocusById(target_id))
+      | None => Ignore
+      };
+    Many([effect, Stop_propagation, Prevent_default]);
   | D(" ") =>
     Many([local(ToggleWindowMode), Stop_propagation, Prevent_default])
   | D("p") =>
@@ -1171,6 +1224,17 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       ])
     | _ => Many([Stop_propagation, Prevent_default])
     }
+  | D("/") => Many([local(ToggleShowEnv), Stop_propagation, Prevent_default])
+  | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
+    switch (indicated_sample(ctx)) {
+    | Some(sample) =>
+      let seg = ctx.utility.term_to_seg(Exp(sample.value));
+      let str = ctx.utility.seg_to_string(seg);
+      let _ =
+        Js.Unsafe.global##.navigator##.clipboard##writeText(Js.string(str));
+      Many([Stop_propagation, Prevent_default]);
+    | None => Many([Stop_propagation, Prevent_default])
+    }
   | D("z" | "Z") when Key.ctrl_held(evt) || Key.meta_held(evt) => Ignore // Defer to parent editor undo for now
   | _ => Many([Stop_propagation])
   };
@@ -1180,6 +1244,7 @@ let empty_view = (~id: Id.t, ~settings: settings) =>
   Node.div(
     ~attrs=[
       Attr.id(Id.cls(id)),
+      Attr.create("data-cursor-aligned", "false"),
       Attr.classes([
         "live-offside",
         settings.window |> Sample.Window.show_mode,
@@ -1201,7 +1266,7 @@ let offside_view =
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
-    let ap_id = Sample.Cursor.cur_var_ap(statics);
+    let ap_id = Sample.Focus.cur_var_ap(statics);
     let ctx = {
       ap_id,
       statics,
@@ -1214,10 +1279,17 @@ let offside_view =
     let filtered_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=dynamics.sample_cursor.pinned_stack,
+        ~pinned=dynamics.sample_focus.pinned_stack,
         dynamics.samples,
       );
     let num_total = List.length(filtered_samples);
+    let is_cursor_aligned =
+      Sample.Selection.most_aligned_index(
+        ~ap_id,
+        dynamics.sample_focus,
+        filtered_samples,
+      )
+      != None;
     let samples =
       select_samples(
         ~settings,
@@ -1230,7 +1302,7 @@ let offside_view =
 
     /* Check if this probe is the target of a pending step-into focus */
     let is_evaluating =
-      switch (dynamics.sample_cursor.pending_focus) {
+      switch (dynamics.sample_focus.pending_focus) {
       | Some({probe_id, _}) => probe_id == id
       | None => false
       };
@@ -1243,10 +1315,14 @@ let offside_view =
         ~is_evaluating,
         (),
       );
-
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(id)),
+        Attr.create("data-probe-id", Id.to_string(id)),
+        Attr.create(
+          "data-cursor-aligned",
+          is_cursor_aligned ? "true" : "false",
+        ),
         Attr.tabindex(0),
         Attr.on_keydown(key_handler(ctx, ~id, local)),
         Attr.classes([
@@ -1269,7 +1345,16 @@ let offside_view =
             Sort.Exp,
             segment,
           );
-        let sample_view = sample_view(ctx, ~num_total, view_seg_line, local);
+        let indicated_sample_id =
+          indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+        let sample_view =
+          sample_view(
+            ctx,
+            ~indicated_sample_id,
+            ~num_total,
+            view_seg_line,
+            local,
+          );
         let group_views =
           List.map(
             samples =>
@@ -1293,7 +1378,7 @@ let offside_view =
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
-    let ap_id = Sample.Cursor.cur_var_ap(statics);
+    let ap_id = Sample.Focus.cur_var_ap(statics);
     div(
       ~attrs=[
         Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),
@@ -1333,8 +1418,13 @@ module M: Projector = {
 
   let update = (_, _, a: action) => {
     switch (a) {
-    | ChangeLength(id, len) => SampleLength.set(id, len)
+    | ChangeLength(id, len) =>
+      SampleLength.set(id, len);
+      Settings.version := Settings.version^ + 1;
     | ToggleWindowMode => Settings.go(ToggleWindow)
+    | ToggleShowEnv =>
+      Settings.show_env := ! Settings.show_env^;
+      Settings.version := Settings.version^ + 1;
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();

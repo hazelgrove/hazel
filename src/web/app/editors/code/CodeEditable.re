@@ -101,7 +101,6 @@ module Update = {
       let new_state =
         ContextMenu.WithContext.update(
           ~info_map=model.statics.info_map,
-          ~autoprobe_mode=settings.autoprobe_mode,
           ~zipper=model.editor.state.zipper,
           action,
           model.context_menu,
@@ -146,11 +145,79 @@ module Selection = {
     };
   };
 
+  /* Focus the indicated probe (if any) */
+  let focus_indicated_probe = (model: Model.t): option(Update.t) => {
+    let z = model.editor.state.zipper;
+    let refractors =
+      z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
+    switch (Indicated.index(z)) {
+    | Some(id) =>
+      switch (List.find_index(((rid, _)) => rid == id, refractors)) {
+      | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
+      | None => None
+      }
+    | None => None
+    };
+  };
+
+  /* Focus a probe on the current line (for end-of-line bounce) */
+  let focus_probe_on_row = (model: Model.t): option(Update.t) => {
+    let z = model.editor.state.zipper;
+    let measured = model.editor.syntax.measured;
+    let caret_row = Zipper.Caret.point(measured, z).row;
+    let refractors =
+      z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
+    let probe_on_row =
+      refractors
+      |> List.find_index(((id, _)) =>
+           switch (Measured.find_by_id(id, measured)) {
+           | Some(m) => m.last.row == caret_row
+           | None => false
+           }
+         );
+    switch (probe_on_row) {
+    | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
+    | None => None
+    };
+  };
+
   let handle_key_event =
-      (~selection as (), _: Model.t): (Key.t => option(Update.t)) =>
+      (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.TAB)
+    /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
+    | {key: D("Enter"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("Enter"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      focus_indicated_probe(model)
+    /* Cmd+Right (Mac) / End (PC) at end of line: bounce into probe */
+    | {
+        key: D("ArrowRight"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+      }
+        when
+          Zipper.linebreak_on(
+            Right,
+            Zipper.generalized_neighbors(model.editor.state.zipper),
+          ) =>
+      switch (focus_probe_on_row(model)) {
+      | Some(_) as result => result
+      | None => Some(Update.Perform(Move(Line(Right))))
+      }
+    | {key: D("End"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Up}
+        when
+          Zipper.linebreak_on(
+            Right,
+            Zipper.generalized_neighbors(model.editor.state.zipper),
+          ) =>
+      switch (focus_probe_on_row(model)) {
+      | Some(_) as result => result
+      | None => Some(Update.Perform(Move(Line(Right))))
+      }
     /* Cmd+. (Mac) / Ctrl+. (PC) opens context menu - VS Code Quick Fix convention */
     | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
@@ -318,7 +385,6 @@ module View = {
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
                   ~font_metrics=globals.font_metrics,
-                  ~autoprobe_mode=globals.settings.autoprobe_mode,
                   ~selected_index,
                   model.editor.state.zipper,
                 ),
@@ -341,10 +407,9 @@ module View = {
         ~indicated=Indicated.piece''(zipper),
         ~statics=model.statics.info_map,
         ~dynamics,
-        ~sample_cursor=zipper.refractors.sample_cursor,
+        ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
       );
-    /* TODO(andrew): remove profilling before merge */
     // let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
@@ -370,36 +435,12 @@ module View = {
           ~indicated=Indicated.piece''(zipper),
           ~statics=model.statics.info_map,
           ~dynamics,
-          ~sample_cursor=zipper.refractors.sample_cursor,
+          ~sample_focus=zipper.refractors.sample_focus,
           ~editor_active=selected,
         ),
         model.editor.syntax.projector_list,
       );
-    // let t3 = JsUtil.precise_timestamp();
-    // let num_refractors =
-    //   Id.Map.cardinal(
-    //     Id.Map.union(
-    //       (_, _, b) => Some(b),
-    //       model.editor.state.zipper.refractors.manuals,
-    //       model.editor.state.zipper.refractors.multis.ephemerals,
-    //     ),
-    //   );
-    // if (num_refractors > 0) {
-    //   let visible_str =
-    //     switch (visible) {
-    //     | Some({first, last}) =>
-    //       Printf.sprintf(" visible_rows=%d-%d", first, last)
-    //     | None => ""
-    //     };
-    //   Printf.printf(
-    //     "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)%s\n",
-    //     t1 -. t0,
-    //     t2 -. t1,
-    //     t3 -. t2,
-    //     num_refractors,
-    //     visible_str,
-    //   );
-    // };
+    ProjectorView.ViewCache.log_frame();
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]

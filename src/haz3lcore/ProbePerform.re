@@ -116,6 +116,8 @@ type probe_status =
   | Manual(list(Id.t)) /* manual probe; ids are target IDs (for fun literals: pat and body) */
   | Statics(list(Id.t)) /* statics annotation; ids are target IDs */
   | Multi
+  | Ephemeral(list(Id.t)) /* target IDs present in ephemerals map */
+  | Suppressed(list(Id.t)) /* target IDs present in suppressed map */
   | Non;
 
 let probe_status =
@@ -144,7 +146,25 @@ let probe_status =
     (List.exists(id => Id.Map.mem(id, refractors.multis.ids), target_ids)) {
     Multi;
   } else {
-    Non;
+    let ephemeral_ids =
+      List.filter(
+        id => Id.Map.mem(id, refractors.multis.ephemerals),
+        target_ids,
+      );
+    if (ephemeral_ids != []) {
+      Ephemeral(ephemeral_ids);
+    } else {
+      let suppressed_ids =
+        List.filter(
+          id => Id.Map.mem(id, refractors.multis.suppressed),
+          target_ids,
+        );
+      if (suppressed_ids != []) {
+        Suppressed(suppressed_ids);
+      } else {
+        Non;
+      };
+    };
   };
 };
 
@@ -188,6 +208,16 @@ let sort_ids_lexically =
   List.map(((id, _, _)) => id, sorted);
 };
 
+/* Set pending_probe_cursor so sample focus aligns when dynamics arrive. */
+let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
+  Zipper.update_refractors(z, r =>
+    {
+      ...r,
+      pending_probe_cursor: Some(ids),
+    }
+  );
+};
+
 /* Check if id has either manual or ephemeral probe on it */
 let has_probe = (id: Id.t, z: Zipper.t): bool =>
   List.assoc_opt(id, z.refractors.manuals) != None
@@ -195,7 +225,7 @@ let has_probe = (id: Id.t, z: Zipper.t): bool =>
 
 let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
   z =>
-    SampleCursorPerform.update_pinned_call(z, p =>
+    SampleFocusPerform.update_pinned_call(z, p =>
       switch (p) {
       | Some([{id: hd_id, _}, ..._] as call_stack) =>
         List.mem(hd_id, ids) && !has_probe(hd_id, z)
@@ -209,15 +239,16 @@ let has_no_probes = (z: Zipper.t): bool =>
   List.is_empty(z.refractors.manuals)
   && Id.Map.is_empty(z.refractors.multis.ids);
 
-/* Reset the sample cursor if no probes remain.
- * This prevents stale dynamic cursor state from showing in the sidebar
+/* Reset the sample focus if no probes remain.
+ * This prevents stale sample focus state from showing in the sidebar
  * when all probes have been removed. */
 let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
-  has_no_probes(z) ? SampleCursorPerform.reset(z) : z;
+  has_no_probes(z) ? SampleFocusPerform.reset(z) : z;
 
 let rm_multi =
     (
       ~drill: bool=true,
+      ~reset: bool=true,
       ~syntax: CachedSyntax.t,
       ~info_map: Statics.Map.t,
       id: Id.t,
@@ -227,30 +258,37 @@ let rm_multi =
   /* Remove all target IDs from multis, like rm_manual does for manuals.
      When drill=false, remove just the ID directly (must match how it was added). */
   let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
-  Zipper.update_refractors(z, refractors =>
-    {
-      ...refractors,
-      multis: {
-        ids:
-          Id.Map.filter(
-            (id, _) => !List.mem(id, target_ids),
-            z.refractors.multis.ids,
-          ),
-        ephemerals:
-          Id.Map.filter(
-            (id', _) => !List.mem(id', target_ids),
-            z.refractors.multis.ephemerals,
-          ),
-      },
-    }
-  )
-  /* We need to check if any of the probed ids are pinned; if so
-     we'll need to remove that pin when we remove the auto */
-  |> maybe_rm_pin(
-       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
-     )
-  /* Reset sample cursor if no probes remain */
-  |> maybe_reset_cursor;
+  let z =
+    Zipper.update_refractors(z, refractors =>
+      {
+        ...refractors,
+        multis: {
+          ids:
+            Id.Map.filter(
+              (id, _) => !List.mem(id, target_ids),
+              z.refractors.multis.ids,
+            ),
+          suppressed:
+            Id.Map.filter(
+              (id, _) => !List.mem(id, target_ids),
+              z.refractors.multis.suppressed,
+            ),
+          ephemerals:
+            Id.Map.filter(
+              (id', _) => !List.mem(id', target_ids),
+              z.refractors.multis.ephemerals,
+            ),
+        },
+      }
+    )
+    /* We need to check if any of the probed ids are pinned; if so
+       we'll need to remove that pin when we remove the auto */
+    |> maybe_rm_pin(
+         List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
+       );
+  /* Reset sample focus if no probes remain (skipped when reset=false,
+     e.g. during clear_autoprobe to avoid style flash) */
+  reset ? maybe_reset_cursor(z) : z;
 };
 
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
@@ -260,7 +298,7 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   )
   /* If the probe has a pin we'll need to remove that too */
   |> maybe_rm_pin(ids)
-  /* Reset sample cursor if no probes remain */
+  /* Reset sample focus if no probes remain */
   |> maybe_reset_cursor;
 
 /* Remove colliding manual probes when two end up on the same line.
@@ -357,14 +395,9 @@ let add_manual =
       target_ids,
     );
 
-  /* Set pending_probe_cursor so sample cursor updates when eval returns */
+  /* Set pending_probe_cursor so sample focus updates when eval returns */
   let sorted_ids = sort_ids_lexically(~syntax, target_ids);
-  Zipper.update_refractors(z, r =>
-    {
-      ...r,
-      pending_probe_cursor: Some(sorted_ids),
-    }
-  );
+  set_pending_probe(sorted_ids, z);
 };
 
 let toggle_manual =
@@ -379,13 +412,67 @@ let toggle_manual =
   | Manual(ids) =>
     /* Remove manual probe */
     rm_manual(ids, z)
+  | Ephemeral(_)
+  | Suppressed(_)
   | Non => add_manual(~syntax, id, info_map, z)
   };
+
+let add_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
+  Zipper.update_suppressed(
+    suppressed =>
+      List.fold_left((map, id) => Id.Map.add(id, (), map), suppressed, ids),
+    z,
+  );
+
+let rm_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
+  Zipper.update_suppressed(
+    suppressed => Id.Map.filter((id, _) => !List.mem(id, ids), suppressed),
+    z,
+  );
 
 let add_ids_from_multi_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let auto_ids = Id.Map.bindings(z.refractors.multis.ids) |> List.map(fst);
-  let ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
+  let all_ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
+  /* Clean up suppressed: only keep IDs that are still in the would-be set */
+  let z =
+    Zipper.update_suppressed(
+      suppressed =>
+        Id.Map.filter((id, _) => List.mem(id, all_ids), suppressed),
+      z,
+    );
+  /* Filter out IDs that have manual probes or are suppressed */
+  let manual_ids = List.map(fst, z.refractors.manuals);
+  let ids =
+    List.filter(
+      id =>
+        !List.mem(id, manual_ids)
+        && !Id.Map.mem(id, z.refractors.multis.suppressed),
+      all_ids,
+    );
+  /* Filter out ephemerals that would render on the same line as a manual */
+  let manual_end_rows =
+    List.filter_map(
+      ((id, _)) =>
+        switch (
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+        ) {
+        | Some((_, end_loc)) => Some(end_loc.row)
+        | None => None
+        },
+      z.refractors.manuals,
+    );
+  let ids =
+    List.filter(
+      id =>
+        switch (
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+        ) {
+        | Some((_, end_loc)) => !List.mem(end_loc.row, manual_end_rows)
+        | None => true
+        },
+      ids,
+    );
   let old_ephemerals = z.refractors.multis.ephemerals;
   let new_ephemeral_map =
     List.fold_left(
@@ -395,22 +482,17 @@ let add_ids_from_multi_term =
     );
   let z = Zipper.update_ephemerals(_ => new_ephemeral_map, z);
   /* If there are genuinely new ephemeral IDs, set pending_probe_cursor
-     so the sample cursor aligns when evaluation results arrive. */
+     so the sample focus aligns when evaluation results arrive. */
   let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
   switch (new_ids) {
   | [] => z
   | _ =>
     let sorted = sort_ids_lexically(~syntax, new_ids);
-    Zipper.update_refractors(z, r =>
-      {
-        ...r,
-        pending_probe_cursor: Some(sorted),
-      }
-    );
+    set_pending_probe(sorted, z);
   };
 };
 
-/* Whether to update sample cursor when auto probe moves probes.
+/* Whether to update sample focus when auto probe moves probes.
  * Set to false to disable cursor following for auto probe. */
 let autoprobe_updates_cursor = true;
 
@@ -445,19 +527,14 @@ let add_multi =
     )
     |> add_ids_from_multi_term(~syntax, ~info_map);
 
-  /* Set pending_probe_cursor so sample cursor updates when eval returns */
+  /* Set pending_probe_cursor so sample focus updates when eval returns */
   if (set_pending_cursor) {
     /* Use the same target_ids that go into multis.ids, so the ephemeral IDs
        match what add_ids_from_multi_term computes for sample lookup. */
     let ephemeral_ids =
       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids);
     let sorted_ids = sort_ids_lexically(~syntax, ephemeral_ids);
-    Zipper.update_refractors(z, r =>
-      {
-        ...r,
-        pending_probe_cursor: Some(sorted_ids),
-      }
-    );
+    set_pending_probe(sorted_ids, z);
   } else {
     z;
   };
@@ -470,6 +547,8 @@ let toggle_multi =
   | Multi => rm_multi(~syntax, ~info_map, id, z)
   | Manual(ids)
   | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
+  | Ephemeral(_)
+  | Suppressed(_)
   | Non =>
     /* Use same gating as manual probes: if target_subterm_ids returns [],
        the term is not probeable. */
@@ -503,6 +582,8 @@ let toggle_probe =
     | Multi => rm_multi(~syntax, ~info_map, id, z)
     | Manual(ids) => rm_manual(ids, z)
     | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
+    | Ephemeral(ids) => add_suppression(ids, z)
+    | Suppressed(ids) => rm_suppression(ids, z)
     | Non =>
       switch (target_subterm_ids(id, info_map)) {
       | [] => z
@@ -512,9 +593,11 @@ let toggle_probe =
   } else {
     /* Non-definition: use manual probe */
     switch (probe_status(id, info_map, z.refractors)) {
-    | Manual(ids) => rm_manual(ids, z)
+    | Manual(ids) => rm_manual(ids, z) |> add_suppression(ids)
     | Multi => rm_multi(~syntax, ~info_map, id, z)
     | Statics(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
+    | Ephemeral(ids) => add_suppression(ids, z)
+    | Suppressed(ids) => rm_suppression(ids, z)
     | Non => add_manual(~syntax, id, info_map, z)
     };
   };
@@ -578,7 +661,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
  *    b. EvalResult.calculate processes worker results, updating dynamics
  *    c. Second pass (if pending_focus still set): resolve_pending_focus with fresh dynamics
  * 6. When resolve_pending_focus finds a matching sample:
- *    a. SampleCursorPerform.resolve_pending_focus updates sample_cursor, clears pending_focus
+ *    a. SampleFocusPerform.resolve_pending_focus updates sample_focus, clears pending_focus
  *    b. FocusEffect.schedule(probe_id) schedules DOM focus
  * 7. Main.re's after_display hook calls FocusEffect.execute()
  * 8. execute() calls elem##focus, triggering CSS :focus styles on the probe
@@ -586,14 +669,14 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
  * KEY FILES:
  * - ProbeProj.re: UI, step_into_sample action dispatch
  * - ProbePerform.re: step_into_sample, resolve_pending_focus, FocusEffect
- * - SampleCursorPerform.re: cursor update operations (sample matching)
+ * - SampleFocusPerform.re: cursor update operations (sample matching)
  * - CellEditor.re: Two-pass calculation for timing
  * - Sample.re: pending_focus type in Cursor.t
  * - Main.re: after_display calls FocusEffect.execute()
  */
 
 /* Step into from a specific sample, using the sample's call_stack
-   instead of the current sample_cursor's trimmed_stack. This ensures
+   instead of the current sample_focus's effective_stack. This ensures
    we maintain the exact execution context of the selected sample. */
 let step_into_call_stack =
     (
@@ -627,6 +710,8 @@ let step_into_call_stack =
     | Manual(_)
     | Statics(_) => z
     | Multi
+    | Ephemeral(_)
+    | Suppressed(_)
     | Non => Zipper.add_manual(ap_id, Probe, z)
     };
 
@@ -635,7 +720,9 @@ let step_into_call_stack =
     switch (probe_status(body_id, info_map, z.refractors)) {
     | Multi
     | Manual(_)
-    | Statics(_) => z
+    | Statics(_)
+    | Ephemeral(_) => z
+    | Suppressed(_)
     | Non => add_multi(body_id, ~syntax, ~info_map, z)
     };
 
@@ -666,15 +753,15 @@ let step_into_call_stack =
   // NOTE(andrew): disabling this for now as it doesn't work right
   /* Set pending_focus using sample_probe_id (inner body), since that's where
    * the samples are stored in the dynamics map. */
-  // let pending_focus: Sample.Cursor.pending_focus = {
+  // let pending_focus: Sample.Focus.pending_focus = {
   //   probe_id: sample_probe_id,
   //   target_stack: new_stack,
   // };
 
   let z =
-    SampleCursorPerform.update(z, _ => {
+    SampleFocusPerform.update(z, _ => {
       {
-        ...z.refractors.sample_cursor,
+        ...z.refractors.sample_focus,
         call_stack: new_stack,
         index: List.length(call_stack),
         pinned_stack: Some(new_stack),
@@ -717,6 +804,8 @@ let toggle_statics =
     | Multi =>
       /* Switch from multi probe to statics */
       rm_multi(~syntax, ~info_map, id, z) |> add_statics
+    | Ephemeral(_)
+    | Suppressed(_)
     | Non =>
       /* Add statics */
       add_statics(z)
@@ -776,9 +865,11 @@ let go =
       | Manual(_)
       | Statics(_) => z
       | Multi
+      | Ephemeral(_)
+      | Suppressed(_)
       | Non => Zipper.add_manual(ap_id, Probe, z)
       };
-    SampleCursorPerform.toggle_pin_call(z, call_stack);
+    SampleFocusPerform.toggle_pin_call(z, call_stack);
   | RemoveAll =>
     z
     |> Zipper.update_manuals(_ => [])
@@ -788,10 +879,11 @@ let go =
            multis: {
              ...r.multis,
              ids: Id.Map.empty,
+             suppressed: Id.Map.empty,
            },
          }
        )
-    |> SampleCursorPerform.reset
+    |> SampleFocusPerform.reset
   };
 
 /* Note: has_probe is defined earlier (above maybe_rm_pin) */
@@ -817,29 +909,129 @@ let can_probe = (id: Id.t, info_map: Statics.Map.t): bool =>
    and focusing the one that matches target_stack. Called from Editor.calculate
    after dynamics are updated. See FocusEffect module comment for full flow. */
 let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
-  switch (z.refractors.sample_cursor.pending_focus) {
+  switch (z.refractors.sample_focus.pending_focus) {
   | None => z
   | Some({probe_id, target_stack}) =>
     switch (Dynamics.Map.lookup(probe_id, dynamics)) {
     | None => z
     | Some(samples) =>
       let z' =
-        SampleCursorPerform.resolve_pending_focus(z, samples, target_stack);
+        SampleFocusPerform.resolve_pending_focus(z, samples, target_stack);
       /* If pending_focus was cleared, schedule DOM focus on the probe */
-      if (z'.refractors.sample_cursor.pending_focus == None) {
+      if (z'.refractors.sample_focus.pending_focus == None) {
         FocusEffect.schedule(probe_id);
       };
       z';
     }
   };
 
-/* Resolve pending_probe_cursor by finding the first probe ID with samples
- * and setting the sample cursor to the closest matching sample. */
+/* Check whether the cursor is aligned with any probe's samples.
+ * Returns true if the cursor has an empty call_stack (never captured)
+ * or if at least one probe has a sample matching the cursor via
+ * most_aligned_index. */
+let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
+  let cursor = z.refractors.sample_focus;
+  if (cursor.call_stack == []) {
+    true; /* Empty cursor is trivially aligned */
+  } else {
+    let all_probe_ids =
+      List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
+      @ List.map(fst, z.refractors.manuals);
+    List.exists(
+      id =>
+        switch (Dynamics.Map.lookup(id, dynamics)) {
+        | Some([_, ..._] as samples) =>
+          Sample.Selection.most_aligned_index(~ap_id=None, cursor, samples)
+          != None
+        | _ => false
+        },
+      all_probe_ids,
+    );
+  };
+};
+
+/* Find the caret-nearest ephemeral probe ID. Uses the same strategies
+ * as align_to_indicated_probe: direct match via Indicated.index,
+ * then spatial proximity on the same row. */
+let caret_nearest_ephemeral =
+    (~syntax: CachedSyntax.t, z: Zipper.t): option(Id.t) => {
+  switch (Indicated.index(z)) {
+  | Some(piece_id) when Id.Map.mem(piece_id, z.refractors.multis.ephemerals) =>
+    Some(piece_id)
+  | _ =>
+    let caret_pt = Zipper.Caret.point(syntax.measured, z);
+    Id.Map.bindings(z.refractors.multis.ephemerals)
+    |> List.find_map(((id, _)) =>
+         switch (
+           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+         ) {
+         | Some((start_pt, end_pt))
+             when
+               start_pt.row == caret_pt.row
+               && caret_pt.col >= start_pt.col
+               && caret_pt.col <= end_pt.col
+               + 1 =>
+           Some(id)
+         | _ => None
+         }
+       );
+  };
+};
+
+/* Ensure the sample focus is aligned with current dynamics.
+ *
+ * Handles two cases uniformly:
+ * 1. pending_probe_cursor is set (probe set changed via add_ids_from_multi_term
+ *    or align_to_indicated_probe): resolve by finding the first pending ID
+ *    with samples and capturing from it.
+ * 2. pending is None but cursor is stale (structural edit changed application
+ *    site tile IDs, so the cursor's call_stack frame IDs no longer match any
+ *    sample in the new dynamics): detect via cursor_is_aligned, then build
+ *    a target list from all probes.
+ *
+ * In both cases, the caret-nearest probe is prioritized to avoid capturing
+ * from a probe in a different case branch or distant expression. */
 let resolve_pending_probe_cursor =
-    (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
-  switch (z.refractors.pending_probe_cursor) {
+    (
+      ~dynamics: Dynamics.Map.t,
+      ~syntax: CachedSyntax.t,
+      ~info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : Zipper.t => {
+  /* Determine which IDs to try */
+  let (target_ids, is_pending) =
+    switch (z.refractors.pending_probe_cursor) {
+    | Some(ids) => (Some(ids), true)
+    | None =>
+      if (cursor_is_aligned(~dynamics, z)) {
+        (None, false);
+      } else {
+        /* Cursor is stale — treat all probes as candidates */
+        let all_ids =
+          List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
+          @ List.map(fst, z.refractors.manuals);
+        switch (all_ids) {
+        | [] => (None, false)
+        | _ => (Some(all_ids), false)
+        };
+      }
+    };
+
+  switch (target_ids) {
   | None => z
-  | Some(target_ids) =>
+  | Some(ids) =>
+    /* Prioritize caret-nearest probe */
+    let ids =
+      switch (caret_nearest_ephemeral(~syntax, z)) {
+      | Some(nearest) when List.mem(nearest, ids) => [
+          nearest,
+          ...List.filter(i => i != nearest, ids),
+        ]
+      | Some(nearest) => [nearest, ...ids]
+      | None => ids
+      };
+
     /* Find first ID that has samples */
     let first_with_samples =
       List.find_map(
@@ -849,29 +1041,31 @@ let resolve_pending_probe_cursor =
           | Some([]) => None
           | None => None
           },
-        target_ids,
+        ids,
       );
     switch (first_with_samples) {
-    | Some((_id, samples)) =>
-      /* Use closest_to_cursor to pick the best sample based on current cursor,
-       * rather than just the first sample. This preserves user's selection
-       * when adding new probes. */
+    | Some((probe_id, samples)) =>
+      /* Compute ap_id from the probe's statics so indicated_call
+         is set correctly for both click and keyboard navigation */
+      let ap_id =
+        switch (Statics.Map.lookup(probe_id, info_map)) {
+        | Some(statics) => Sample.Focus.cur_var_ap(statics)
+        | None => None
+        };
       let selected =
-        Sample.Selection.closest_to_cursor(
-          ~ap_id=None,
-          ~cursor=z.refractors.sample_cursor,
+        Sample.Selection.most_aligned_sample(
+          ~ap_id,
+          ~cursor=z.refractors.sample_focus,
           samples,
         );
       switch (selected) {
       | Some(sample) =>
-        /* Use capture to set sample cursor (preserves deeper stack if applicable) */
         let z =
-          SampleCursorPerform.capture(
+          SampleFocusPerform.capture(
             z,
             Sample.capture_of_sample(sample),
-            None,
+            ap_id,
           );
-        /* Clear pending_probe_cursor */
         Zipper.update_refractors(z, r =>
           {
             ...r,
@@ -879,7 +1073,6 @@ let resolve_pending_probe_cursor =
           }
         );
       | None =>
-        /* Clear pending anyway since we had samples */
         Zipper.update_refractors(z, r =>
           {
             ...r,
@@ -888,14 +1081,15 @@ let resolve_pending_probe_cursor =
         )
       };
     | None =>
-      /* No samples yet - keep pending for next eval cycle */
-      z
+      /* No samples yet — keep pending if it was pending, otherwise noop */
+      if (is_pending) {z} else {z}
     };
   };
+};
 
 /* After an edit, if the new-ID diff in add_ids_from_multi_term didn't set
  * pending_probe_cursor (e.g., because grout ID preservation kept the same ID
- * despite structural changes), align the sample cursor to an ephemeral probe
+ * despite structural changes), align the sample focus to an ephemeral probe
  * at or near the caret. This handles cases like completing `then` where the
  * hole moves from top-level sibling to then-branch without changing ID.
  *
@@ -942,22 +1136,10 @@ let align_to_indicated_probe =
       );
     };
     switch (direct_match) {
-    | Some(id) =>
-      Zipper.update_refractors(z, r =>
-        {
-          ...r,
-          pending_probe_cursor: Some([id]),
-        }
-      )
+    | Some(id) => set_pending_probe([id], z)
     | None =>
       switch (spatial_match()) {
-      | Some(id) =>
-        Zipper.update_refractors(z, r =>
-          {
-            ...r,
-            pending_probe_cursor: Some([id]),
-          }
-        )
+      | Some(id) => set_pending_probe([id], z)
       | None => z
       }
     };
@@ -980,7 +1162,7 @@ let editor_effects =
   |> add_ids_from_multi_term(~syntax, ~info_map)
   |> align_to_indicated_probe(~is_edited, ~syntax)
   |> resolve_pending_focus(~dynamics)
-  |> resolve_pending_probe_cursor(~dynamics)
+  |> resolve_pending_probe_cursor(~dynamics, ~syntax, ~info_map)
   |> maybe_reset_cursor;
 
 /* AUTO PROBE: automatically place a multi probe on the top-level
@@ -1082,7 +1264,15 @@ let clear_autoprobe =
   switch (z.refractors.autoprobe_target) {
   | None => z
   | Some(old_id) =>
-    rm_multi(~drill=false, ~syntax, ~info_map, old_id, z)
+    /* Skip cursor reset here: the syntax cache still has the old probes
+     * (since this isn't an edit, CachedSyntax won't recalculate until
+     * the next is_edited cycle). If we reset the cursor now, the stale
+     * probes render one last frame with a reset cursor, causing a brief
+     * color flash before they disappear. By preserving the cursor, the
+     * departing probes render with their original colors. The cursor
+     * will be reset on the next editor_effects call when the probes
+     * are actually gone from the syntax cache. */
+    rm_multi(~drill=false, ~reset=false, ~syntax, ~info_map, old_id, z)
     |> Zipper.update_refractors(_, r =>
          {
            ...r,

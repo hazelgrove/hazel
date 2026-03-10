@@ -103,6 +103,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode=false,
         ~is_edited,
+        ~statics_mode=CodeWithStatics.StaticsNormal,
         ~queue_worker,
         ~stitch,
         {editor, result}: Model.t,
@@ -114,11 +115,14 @@ module Update = {
         ~settings,
         ~autoprobe_mode,
         ~is_edited,
+        ~statics_mode,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
         ~is_dynamic_term=false,
         editor,
       );
+    /* Save probe results reference before result calculation */
+    let probes_before = EvalResult.Model.probe_results(result);
     /* Calculate result (may produce new dynamics from worker) */
     let result =
       EvalResult.Update.calculate(
@@ -131,11 +135,23 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
-    /* Second pass: if there's a pending focus or pending_probe_cursor waiting
-       for dynamics, recalculate editor with the (possibly new) dynamics */
+    /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
+     * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
+    let probes_after = EvalResult.Model.probe_results(result);
+    let dynamics_changed =
+      switch (probes_before, probes_after) {
+      | (None, None) => false
+      | (Some(a), Some(b)) => a !== b
+      | _ => true
+      };
+    /* Second pass: if there's a pending focus, pending_probe_cursor waiting
+       for dynamics, or dynamics changed since the first pass */
+    let has_pending_focus =
+      editor.editor.state.zipper.refractors.sample_focus.pending_focus != None;
+    let has_pending_cursor =
+      editor.editor.state.zipper.refractors.pending_probe_cursor != None;
     let needs_second_pass =
-      editor.editor.state.zipper.refractors.sample_cursor.pending_focus != None
-      || editor.editor.state.zipper.refractors.pending_probe_cursor != None;
+      has_pending_focus || has_pending_cursor || dynamics_changed;
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */

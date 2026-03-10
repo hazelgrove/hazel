@@ -117,22 +117,22 @@ let basic_tests = [
   ),
   test(
     ~name="Paste string duo-splitting empty tuple",
-    ~acts=mk("(¦)") @ [Paste(String({|"foo"|}))],
+    ~acts=mk("(¦)") @ [Paste({|"foo"|})],
     ~goal={|("foo"¦)|},
   ),
   test(
     ~name="Paste string splitting token",
-    ~acts=mk("1¦1") @ [Paste(String({|"foo"|}))],
+    ~acts=mk("1¦1") @ [Paste({|"foo"|})],
     ~goal={|1~"foo"¦~1|},
   ),
   test(
     ~name="Paste string splitting consecutive delimiters",
-    ~acts=mk("if¦then") @ [Paste(String({|"foo"|}))],
+    ~acts=mk("if¦then") @ [Paste({|"foo"|})],
     ~goal={|if"foo"¦then?|},
   ),
   test(
     ~name="Paste string with a backpack glom false friend",
-    ~acts=mk("¦") @ [Paste(String({|([)(|}))],
+    ~acts=mk("¦") @ [Paste({|([)(|})],
     ~goal={|([?)(¦?|},
   ),
   test(
@@ -215,7 +215,7 @@ let insertion_tests = [
   ),
   test(
     ~name="Paste emoji inside string",
-    ~acts=mk({|"¦"|}) @ [Paste(String("😄"))],
+    ~acts=mk({|"¦"|}) @ [Paste("😄")],
     ~goal={|"😄¦"|},
   ),
   test(
@@ -257,6 +257,13 @@ let insertion_tests = [
     ~name="Delimiter prefix molding 3",
     ~acts=mk({|let a = 1 in¦|}) @ [Insert(" ")],
     ~goal={|let a = 1 in ¦?|},
+  ),
+  /* INSERTION: SUPPRESSED SPACE TRACKING */
+  /* Space suppression tracking: space reappears when grout is consumed */
+  test(
+    ~name="Suppressed space reappears on grout fill",
+    ~acts=mk({|1¦1|}) @ [Insert(" "), Insert("+")],
+    ~goal={|1 +¦1|},
   ),
   /* INSERTION: TOKEN SPLITTING */
   test(
@@ -434,7 +441,7 @@ let insertion_tests = [
   test(
     ~name="Prepending to leading delimiter: if",
     ~acts=mk({|¦if 1 then 2 else 3|}) @ [Insert("x")],
-    ~goal={|x¦if~ 1 then 2 else 3|},
+    ~goal={|x¦~if 1 then 2 else 3|},
   ),
   test(
     ~name="Prepending to middle delimiter: if",
@@ -555,6 +562,16 @@ let insertion_tests = [
     ~name="Rescan: fun typed before existing standalone ->",
     ~acts=mk({|-> x¦|}) @ mv_l(4) @ string_to_ltr_actions("fun a "),
     ~goal={|fun a ¦-> x|},
+  ),
+  /* REMOLDING REGRESSION: inserting ( to split a token into
+   * function application should not leave concave grout.
+   * Bug: `string_capitalize(1)` gets concave grout before `(`.
+   * The paren insertion splits the token but remolding should
+   * eliminate the need for grout between the function and its arg. */
+  test(
+    ~name="Insert ( to split fn application (no concave grout)",
+    ~acts=mk({|string_capitalize¦1)|}) @ [Insert("(")],
+    ~goal={|string_capitalize(¦1)|},
   ),
 ];
 
@@ -1146,6 +1163,133 @@ let rescan_tests = [
   ),
 ];
 
+/* ===== PASTE CORRECTNESS TESTS =====
+   These test paste behavior in various contexts. Tests marked [VALIDATED]
+   produce WRONG results when the fast paste optimization is forced (guards
+   bypassed). Tests marked [BASELINE] are correctness checks that happen to
+   pass under both paths; their guards are either redundant with other guards
+   or their edge case doesn't manifest in text output differences. */
+let paste_tests = [
+  /* TOKEN MERGING: LEFT BOUNDARY [VALIDATED]
+     Clipboard first char merges with left neighbor token.
+     Fast paste would parse clipboard in isolation, producing separate
+     tokens with concave grout between them instead of merging. */
+  test(
+    ~name="Paste merging with left neighbor token",
+    ~acts=mk("foo¦") @ [Paste("bar")],
+    ~goal={|foobar¦|},
+  ),
+  test(
+    ~name="Paste single char merging left into number",
+    ~acts=mk("12¦") @ [Paste("3")],
+    ~goal={|123¦|},
+  ),
+  /* TOKEN MERGING: RIGHT BOUNDARY [VALIDATED]
+     Clipboard last char merges with right neighbor token.
+     Fast paste keeps them separate with grout. Slow path merges. */
+  test(
+    ~name="Paste merging with right neighbor token",
+    ~acts=mk("¦bar") @ [Paste("foo")],
+    ~goal={|foo¦bar|},
+  ),
+  test(
+    ~name="Paste number merging with right neighbor",
+    ~acts=mk("¦23") @ [Paste("1")],
+    ~goal={|1¦23|},
+  ),
+  /* INNER CARET (inside a token) [VALIDATED]
+     Caret is between characters of a token. Fast paste can't split
+     a token and produces a completely wrong structure. */
+  test(
+    ~name="Paste at inner caret position",
+    ~acts=mk("fo¦o") @ [Paste("x")],
+    ~goal={|fox¦o|},
+  ),
+  test(
+    ~name="Paste multiple chars at inner caret",
+    ~acts=mk("he¦o") @ [Paste("ll")],
+    ~goal={|hell¦o|},
+  ),
+  /* INSIDE NESTED STRUCTURE (ancestors non-empty) [VALIDATED]
+     Caret is inside parens/brackets. Fast paste splices at the wrong
+     level, placing content outside the delimiters instead of inside. */
+  test(
+    ~name="Paste expression inside parens",
+    ~acts=mk("(¦)") @ [Paste("1 + 2")],
+    ~goal={|(1 + 2¦)|},
+  ),
+  test(
+    ~name="Paste inside nested parens",
+    ~acts=mk("((¦))") @ [Paste("42")],
+    ~goal={|((42¦))|},
+  ),
+  test(
+    ~name="Paste inside list literal",
+    ~acts=mk("[¦]") @ [Paste("1, 2, 3")],
+    ~goal={|[1, 2, 3¦]|},
+  ),
+  /* NON-EMPTY BACKPACK [BASELINE]
+     Insert "(" puts caret inside parens (ancestors non-empty), so
+     fast_paste returns None via ancestors check before backpack check.
+     This tests correctness of paste inside an incomplete form. */
+  test(
+    ~name="Paste with pending close paren in backpack",
+    ~acts=mk("¦") @ [Insert("(")] @ [Paste("1 + 2")],
+    ~goal={|(1 + 2¦|},
+  ),
+  /* NON-EXP SORT [BASELINE]
+     At top level ancestors==[] implies sort==Exp, so the sort guard
+     is redundant with the ancestors guard. Inside a type ascription,
+     ancestors!=[] catches it first. This tests paste correctness in
+     type position regardless. */
+  test(
+    ~name="Paste type arrow in type annotation position",
+    ~acts=mk("1 : ¦") @ [Paste("Int -> Int")],
+    ~goal={|1 : Int -> Int¦|},
+  ),
+  /* UNBALANCED DELIMITERS IN CLIPBOARD [VALIDATED]
+     Clipboard with unmatched parens/brackets. Fast paste would lose
+     the unmatched delimiters (they end up in parsing backpack, which
+     is discarded during segment extraction). Slow path preserves
+     them in the target zipper's backpack. */
+  test(
+    ~name="Paste unbalanced parens (backpack glom)",
+    ~acts=mk("¦") @ [Paste({|([)(|})],
+    ~goal={|([?)(¦?|},
+  ),
+  test(
+    ~name="Paste unmatched open paren",
+    ~acts=mk("¦") @ [Paste("(1 + 2")],
+    ~goal={|(1 + 2¦|},
+  ),
+  /* NORMAL TOP-LEVEL PASTE (fast path eligible)
+     These work correctly regardless of which path is taken.
+     They serve as baseline correctness checks. */
+  test(
+    ~name="Paste simple expression at top level",
+    ~acts=mk("¦") @ [Paste("1 + 2")],
+    ~goal={|1 + 2¦|},
+  ),
+  test(
+    ~name="Paste let binding at top level",
+    ~acts=mk("¦") @ [Paste("let x = 1 in x")],
+    ~goal={|let x = 1 in x¦|},
+  ),
+  test(
+    ~name="Paste after complete expression with space separator",
+    ~acts=mk("1 + 2 ¦") @ [Paste("+ 3")],
+    ~goal={|1 + 2 + 3¦|},
+  ),
+  /* MULTI-LINE PASTE */
+  test(
+    ~name="Paste multi-line let bindings",
+    ~acts=mk("¦") @ [Paste("let x = 1 in\nlet y = 2 in\nx + y")],
+    ~goal={|let x = 1 in
+let y = 2 in
+x + y¦|},
+  ),
+];
+
 /* ===== MODULE EDITING TESTS =====
    NOTE: These test basic module syntax editing behavior.
    `{` is an instant-expanding delimiter that creates `{¦}`.
@@ -1180,6 +1324,294 @@ let module_tests = [
   ),
 ];
 
+/* ===== SHARD THEFT / PREPEND EDITING TESTS =====
+   These test scenarios where typing new code directly before existing
+   multi-delimiter forms (let/=/in, fun/->, if/then/else) causes delimiter
+   mis-association. The core issue: appending a character to an adjacent
+   shard of a complete tile disassembles it, and rescan greedily steals
+   the orphaned shards for the nearest incomplete tile.
+
+   The test_complete helper checks both printer output AND that no
+   incomplete tiles remain, which catches the structural breakage. */
+
+/* Helper: check that a zipper has a non-empty backpack (i.e. there are
+ * missing shards from incomplete tiles visible at the caret position).
+ * A non-empty backpack after entering what should be a complete program
+ * indicates structural breakage. */
+let zip_backpack_empty = (z: Zipper.t): bool =>
+  Zipper.local_backpack(z) == [];
+
+let shard_theft_tests = [
+  /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right
+   * should produce a complete program with no incomplete tiles. */
+  test_complete(
+    ~name="Baseline: nested let (left-to-right)",
+    ~acts=mk({|let y = 2 in let x = 1 in x¦|}),
+    ~goal={|let y = 2 in let x = 1 in x¦|},
+  ),
+  /* Core bug: type `let x = 1 in x`, move to start, type `let y = 2 in `.
+   * This should produce the same complete program as the baseline.
+   * Currently FAILS: the first `let` steals `=` and `in` from the
+   * original `let x = 1 in x` when `y` merges with the original `let`
+   * shard, and sort-specific expansion prevents recovery. */
+  test_complete(
+    ~name="Prepend let definition before existing let",
+    ~acts=mk({|¦let x = 1 in x|}) @ string_to_ltr_actions("let y = 2 in "),
+    ~goal={|let y = 2 in ¦let x = 1 in x|},
+  ),
+  /* Diagnostic: trace the zipper state after each character of "let y"
+   * typed before an existing `let x = 1 in x`. */
+  test_case(
+    "Prepend let y: trace intermediate states",
+    `Quick,
+    () => {
+      let init_acts = mk({|¦let x = 1 in x|});
+      let z0 = init_acts |> perform(Zipper.init());
+      let piece_summary = (p: Piece.t): string =>
+        switch (p) {
+        | Tile(t) =>
+          let eff = Tile.effective_label(t);
+          let sstr =
+            t.shards |> List.map(string_of_int) |> String.concat(",");
+          Printf.sprintf(
+            "T(%s shards=[%s]%s)",
+            String.concat(" ", eff),
+            sstr,
+            Tile.is_complete(t) ? "" : " INCOMPLETE",
+          );
+        | Secondary(s) =>
+          Printf.sprintf("S(%s)", Secondary.get_string(s.content))
+        | Grout(g) =>
+          Printf.sprintf(
+            "G(%s)",
+            switch (g.shape) {
+            | Convex => "convex"
+            | Concave => "concave"
+            },
+          )
+        | Projector(_) => "Proj"
+        };
+      let (l0, r0) = z0.relatives.siblings;
+      Printf.printf(
+        "INIT left=[%s] right=[%s]\n",
+        l0 |> List.map(piece_summary) |> String.concat(", "),
+        r0 |> List.map(piece_summary) |> String.concat(", "),
+      );
+      let (lt0, rt0) = Zipper.neighbor_tokens(z0);
+      Printf.printf(
+        "INIT neighbor_tokens: left=%s right=%s\n",
+        switch (lt0) {
+        | None => "None"
+        | Some(t) => Printf.sprintf("Some(%s)", t)
+        },
+        switch (rt0) {
+        | None => "None"
+        | Some(t) => Printf.sprintf("Some(%s)", t)
+        },
+      );
+      let chars = Token.to_list("let y = 2 in ");
+      let _ =
+        List.fold_left(
+          (z, c) => {
+            let z' = perform(z, [Action.Insert(c)]);
+            let text = printer(z');
+            let bp = Zipper.local_backpack(z');
+            let bp_labels =
+              bp
+              |> List.map((t: Tile.t) => String.concat(",", t.label))
+              |> String.concat("; ");
+            let global_seg = Relatives.zip(z'.relatives);
+            let global_bp =
+              Segment.global_missing_shards(global_seg)
+              |> List.map((t: Tile.t) => String.concat(",", t.label))
+              |> String.concat("; ");
+            let anc_info =
+              switch (z'.relatives.ancestors) {
+              | [] => "no ancestor"
+              | [(a, _), ..._] =>
+                let label = String.concat(",", a.label);
+                let (sl, sr) = a.shards;
+                let shards =
+                  sl @ sr |> List.map(string_of_int) |> String.concat(",");
+                Printf.sprintf("ancestor: %s shards=[%s]", label, shards);
+              };
+            let (ls, rs) = z'.relatives.siblings;
+            let l_summary =
+              ls |> List.map(piece_summary) |> String.concat(", ");
+            let r_summary =
+              rs |> List.map(piece_summary) |> String.concat(", ");
+            Printf.printf(
+              "After '%s': %s | local=[%s] | global=[%s] | %s\n  L=[%s]\n  R=[%s]\n",
+              c,
+              text,
+              bp_labels,
+              global_bp,
+              anc_info,
+              l_summary,
+              r_summary,
+            );
+            z';
+          },
+          z0,
+          chars,
+        );
+      let z_final =
+        mk({|¦let x = 1 in x|})
+        @ string_to_ltr_actions("let y = 2 in ")
+        |> perform(Zipper.init());
+      let has_incomplete = zip_has_incomplete(z_final);
+      Printf.printf(
+        "FINAL: %s | has_incomplete=%b\n",
+        printer(z_final),
+        has_incomplete,
+      );
+      if (has_incomplete) {
+        Alcotest.fail(
+          "Incomplete tiles remain after prepending let y = 2 in",
+        );
+      };
+    },
+  ),
+  /* Similar bug with fun/->: type `fun x -> e`, prepend `fun y -> `. */
+  test_complete(
+    ~name="Prepend fun definition before existing fun",
+    ~acts=mk({|¦fun x -> e|}) @ string_to_ltr_actions("fun y -> "),
+    ~goal={|fun y -> ¦fun x -> e|},
+  ),
+  /* Similar bug with if/then/else */
+  test_complete(
+    ~name="Prepend if before existing if",
+    ~acts=
+      mk({|¦if a then b else c|})
+      @ string_to_ltr_actions("if d then e else "),
+    ~goal={|if d then e else ¦if a then b else c|},
+  ),
+  /* Baseline: fresh-typed nested fun should be complete */
+  test_complete(
+    ~name="Baseline: nested fun (left-to-right)",
+    ~acts=mk({|fun y -> fun x -> e¦|}),
+    ~goal={|fun y -> fun x -> e¦|},
+  ),
+  /* Prepend type before existing type */
+  test_complete(
+    ~name="Prepend type before existing type",
+    ~acts=
+      mk({|¦type T = Int in T|})
+      @ string_to_ltr_actions("type S = Bool in "),
+    ~goal={|type S = Bool in ¦type T = Int in T|},
+  ),
+  /* Delete leading char of keyword, retype it.
+   * After deletion, tile decomposes (et is a monotile, not multi-shard),
+   * so the guard doesn't interfere. Retyping `l` creates a new let form
+   * that picks up orphaned = and in shards. Result has no incomplete tiles. */
+  test_complete(
+    ~name="Delete and retype leading char of let keyword",
+    ~acts=
+      mk({|let x = 1 in x¦|})
+      @ mv_l(14)
+      @ [Destruct(Right)]
+      @ [Insert("l")],
+    ~goal={|l¦et x = 1 in x|},
+  ),
+  /* Type identifier before complete let — guard blocks merge,
+   * identifier stays separate. Grout (~) inserted between y and let. */
+  test_complete(
+    ~name="Type identifier before complete let",
+    ~acts=mk({|¦let x = 1 in x|}) @ string_to_ltr_actions("y "),
+    ~goal={|y ¦~let x = 1 in x|},
+  ),
+];
+
+/* Segment paste cache tests.
+ * These test the internal optimization where copy/paste reuses the
+ * parsed segment tree instead of re-parsing from text. If this
+ * optimization is removed, these tests can be deleted.
+ *
+ * We test try_segment_paste directly since the cache is populated
+ * at the UI layer (Page.re) which isn't available in unit tests. */
+
+let segment_cache_test =
+    (~name, ~setup: string, ~cache_text: string, ~paste_text: string, ~expect)
+    : test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = perform(Zipper.init(), mk(setup));
+      /* Populate the segment cache */
+      let seg = Parser.to_segment(cache_text);
+      Parser.set_segment_cache(seg, cache_text);
+      let result = Parser.try_segment_paste(paste_text, z);
+      let got =
+        switch (result) {
+        | Some(_) => `Hit
+        | None => `Miss
+        };
+      check(
+        testable(Fmt.string, String.equal),
+        name,
+        switch (expect) {
+        | `Hit => "Hit"
+        | `Miss => "Miss"
+        },
+        switch (got) {
+        | `Hit => "Hit"
+        | `Miss => "Miss"
+        },
+      );
+    },
+  );
+
+let segment_cache_tests = [
+  segment_cache_test(
+    ~name="Cache hit: paste matching text at token boundary",
+    ~setup="1 + ¦",
+    ~cache_text="2 + 3",
+    ~paste_text="2 + 3",
+    ~expect=`Hit,
+  ),
+  segment_cache_test(
+    ~name="Cache miss: left token merge (foo + bar = foobar)",
+    ~setup="foo¦",
+    ~cache_text="bar",
+    ~paste_text="bar",
+    ~expect=`Miss,
+  ),
+  segment_cache_test(
+    ~name="Cache miss: right token merge (bar + foo = barfoo)",
+    ~setup="¦foo",
+    ~cache_text="bar",
+    ~paste_text="bar",
+    ~expect=`Miss,
+  ),
+  segment_cache_test(
+    ~name="Cache miss: inner caret",
+    ~setup="fo¦o",
+    ~cache_text="bar",
+    ~paste_text="bar",
+    ~expect=`Miss,
+  ),
+  segment_cache_test(
+    ~name="Cache miss: text doesn't match cache",
+    ~setup="1 + ¦",
+    ~cache_text="2 + 3",
+    ~paste_text="something else",
+    ~expect=`Miss,
+  ),
+  /* Verify the full paste pipeline produces correct results
+   * when segment cache is populated (integration-style) */
+  test(
+    ~name="Paste with warm cache produces same result as cold paste",
+    ~acts={
+      let text = "2 + 3";
+      let seg = Parser.to_segment(text);
+      Parser.set_segment_cache(seg, text);
+      mk("1 + ¦") @ [Paste(text)];
+    },
+    ~goal="1 + 2 + 3¦",
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -1187,5 +1619,8 @@ let tests = [
   ("Editing.Move", move_tests),
   ("Editing.Selection", selection_tests),
   ("Editing.Rescan", rescan_tests),
+  ("Editing.Paste", paste_tests),
   ("Editing.Module", module_tests),
+  ("Editing.ShardTheft", shard_theft_tests),
+  ("Editing.SegmentCache", segment_cache_tests),
 ];

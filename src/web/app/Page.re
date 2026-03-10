@@ -432,23 +432,9 @@ module Selection = {
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Globals(Undo))
-    /* Toggle auto-probe mode: Cmd+Shift+P (Mac) or Ctrl+Shift+P (PC) */
-    | {
-        key: D("P" | "p"),
-        sys: Mac,
-        shift: Down,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-      }
-    | {
-        key: D("P" | "p"),
-        sys: PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-      } =>
+    /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
+    | {key: D("P" | "p"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("P" | "p"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Globals(Set(AutoprobeMode)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
@@ -506,7 +492,8 @@ module View = {
         !selection_has_refractors(editor.state.zipper.refractors, selection)
       | _ => true
       };
-    should_set ? ClipboardCache.set(cursor.selection, str) : ();
+    should_set
+      ? Haz3lcore.Parser.set_segment_cache(cursor.selection, str) : ();
     JsUtil.copy(str);
   };
 
@@ -610,9 +597,10 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
+            let text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
             let action =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> ClipboardCache.get;
+              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Dom.preventDefault(evt);
             switch (cursor.editor_action(action)) {
             | None => Effect.Ignore
@@ -671,7 +659,7 @@ module View = {
 
   let autoprobe_indicator = (~globals: Globals.t, ~inject) => [
     Widgets.toggle(
-      ~tooltip="Auto-probe mode active (Cmd/Ctrl+Shift+P to toggle)",
+      ~tooltip="Auto-probe mode active (Cmd/Ctrl+P to toggle)",
       "🔬",
       globals.settings.autoprobe_mode,
       _ =>
@@ -763,7 +751,7 @@ module View = {
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
-      SampleCursorBar.view(
+      SampleFocusBar.view(
         ~globals,
         ~refractors=current_editor.editor.state.zipper.refractors,
         ~info_map=current_editor.statics.info_map,

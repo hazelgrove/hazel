@@ -368,6 +368,16 @@ let is_incomplete_tile = (candidate_id: Id.t, data: TermData.t): bool =>
   | None => false
   };
 
+/* Check if a candidate is a Rule tile (| pat => body).
+ * Rule tiles never have values — they're structural, not evaluable.
+ * When incomplete (just |), they appear as MultiHoles in the term map,
+ * so the term-level candidate_allowed_by_rule won't catch them. */
+let is_rule_tile = (candidate_id: Id.t, data: TermData.t): bool =>
+  switch (TermData.root_tile(candidate_id, data)) {
+  | Some({label: ["|", "=>"], _}) => true
+  | _ => false
+  };
+
 /* Keywords that introduce a "body" determining the form's value.
  * When an incomplete tile is missing a shard with one of these,
  * the form's value is hole-like (body not yet typed). */
@@ -412,6 +422,8 @@ let is_meaningful_alternative =
     (id: Id.t, terms: TermMap.t, data: TermData.t): bool =>
   if (is_delimiter_prefix(id, data)) {
     false;
+  } else if (is_rule_tile(id, data)) {
+    false;
   } else if (is_incomplete_tile(id, data)
              && !is_incomplete_binding_form(id, data)) {
     true;
@@ -448,7 +460,10 @@ let candidate_allowed_by_holes =
    * but deprioritize incomplete binding forms (like `let` missing `in`)
    * similar to how we handle lets with hole bodies. */
   if (is_incomplete_tile(candidate_id, env.data)) {
-    if (is_incomplete_binding_form(candidate_id, env.data)) {
+    if (is_rule_tile(candidate_id, env.data)) {
+      false;
+           /* Rule tiles (| => ) never have values, even when incomplete */
+    } else if (is_incomplete_binding_form(candidate_id, env.data)) {
       !
         row_has_non_hole_alternative(
           candidate_id,
@@ -547,6 +562,14 @@ let candidate_allowed_by_mod_declaration =
   | None => true
   };
 
+/* Rule tiles (case arms: | pat => body) never have values and
+ * should never be probed. Their children (pat, body) are valid. */
+let candidate_allowed_by_rule = (candidate_id: Id.t, env: selection_env): bool =>
+  switch (get_term(candidate_id, env.terms)) {
+  | Some(Rul(_)) => false
+  | _ => true
+  };
+
 let candidate_is_allowed =
     (
       candidate_id: Id.t,
@@ -558,6 +581,7 @@ let candidate_is_allowed =
   candidate_allowed_by_term_sort(candidate_id, env)
   && candidate_allowed_by_delimiter_prefix(candidate_id, env)
   && candidate_allowed_by_mod_declaration(candidate_id, env)
+  && candidate_allowed_by_rule(candidate_id, env)
   && candidate_allowed_by_holes(candidate_id, row, env)
   && candidate_allowed_by_function_types(candidate_id, row, env)
   && candidate_allowed_by_container(candidate_id, env)

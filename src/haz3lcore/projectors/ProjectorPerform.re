@@ -233,13 +233,26 @@ let go =
     let id = idx_to_id(kind, idx);
     switch (d) {
     | None =>
-      /* Focus by mouse click */
+      /* Focus by pointer click or probe-to-probe navigation */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.pointer) {
       | Some(focus) => focus(id)
       | None => ()
       };
-      Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
+      let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
+      /* Set pending_probe_cursor so the sample focus adapts to the
+         newly focused probe. For pointer clicks on a specific sample,
+         the subsequent Capture action will override with more specific
+         data; for probe-to-probe navigation, most_aligned_sample picks
+         the best match. */
+      let z =
+        Zipper.update_refractors(z, r =>
+          {
+            ...r,
+            pending_probe_cursor: Some([id]),
+          }
+        );
+      Ok(z);
     | Some(Right) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
@@ -262,6 +275,6 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SampleCursor(a) => Ok(SampleCursorPerform.go(z, a))
+  | SampleFocus(a) => Ok(SampleFocusPerform.go(z, a))
   };
 };

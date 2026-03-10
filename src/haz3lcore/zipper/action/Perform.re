@@ -29,13 +29,16 @@ let go =
          Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
        )
     |> return(CantIntroduce)
-  | Paste(String(clipboard)) =>
-    Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
-  | Paste(Segment(segment)) =>
-    z.caret == Outer
-      ? Ok(Zipper.insert_segment(z, segment))
-      : Parser.to_zipper(~zipper_init=z, Printer.of_segment(segment))
-        |> return(CantPaste)
+  | Paste(clipboard) =>
+    switch (Parser.try_segment_paste(clipboard, z)) {
+    | Some(z) => Ok(z)
+    | None =>
+      if (Parser.can_fast_paste(clipboard, z)) {
+        Parser.fast_paste(clipboard, z) |> return(CantPaste);
+      } else {
+        Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste);
+      }
+    }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z) |> return(Cant_destruct)

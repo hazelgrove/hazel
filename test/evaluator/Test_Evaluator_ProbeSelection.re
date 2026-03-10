@@ -38,7 +38,7 @@ let partition_by_depth =
 /* Make a cursor at a given stack, with optional pin */
 let mk_cursor =
     (~pinned=None, ~indicated_call=None, stack: Sample.call_stack)
-    : Sample.Cursor.t => {
+    : Sample.Focus.t => {
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,
@@ -54,7 +54,7 @@ let run_select =
     (
       ~mode=Sample.Window.Single,
       ~ap_id=None,
-      ~cursor: Sample.Cursor.t,
+      ~cursor: Sample.Focus.t,
       samples: list(Sample.t),
     )
     : (list(Sample.t), int) => {
@@ -331,14 +331,14 @@ in ^^probe(f(5))|};
       let top_sample = List.hd(top_samples);
       let inner_sample = List.hd(inner_samples);
       let top_rel =
-        Sample.Cursor.relation(
+        Sample.Focus.relation(
           ~trimmed=false,
           ~ap_id=None,
           cursor,
           top_sample,
         );
       let inner_rel =
-        Sample.Cursor.relation(
+        Sample.Focus.relation(
           ~trimmed=false,
           ~ap_id=None,
           cursor,
@@ -378,7 +378,7 @@ in f(5)|};
           call_stack: [],
         };
         let rel =
-          Sample.Cursor.relation(
+          Sample.Focus.relation(
             ~trimmed=false,
             ~ap_id=None,
             cursor,
@@ -438,6 +438,386 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
   ),
 ];
 
+/* --- Tests: intent preservation with nested function calls --- */
+
+/* Helper: mk_cursor with explicit index for intent preservation testing */
+let mk_cursor_at_index =
+    (
+      ~pinned=None,
+      ~indicated_call=None,
+      ~index: int,
+      stack: Sample.call_stack,
+    )
+    : Sample.Focus.t => {
+  call_stack: stack,
+  index,
+  pinned_stack: pinned,
+  indicated_call,
+  time: None,
+  seq: 0,
+  step_range: None,
+  pending_focus: None,
+};
+
+let intent_preservation_tests = [
+  test_case(
+    "Intent preservation: inner selection preserved when clicking outer probe",
+    `Quick,
+    () => {
+      /* Program: function called 3 times with probe inside.
+       * When user selects inner sample 1, then clicks outer probe
+       * (lowering cursor index), inner probe should still show sample 1. */
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
+in [f(1), f(2), f(3)]|};
+      let inner_samples = get_all_samples(code);
+      check(
+        int,
+        "should have 3 samples (one per call)",
+        3,
+        List.length(inner_samples),
+      );
+      /* All samples should have non-empty call stacks (inside f) */
+      check(
+        bool,
+        "all samples should have depth >= 1",
+        true,
+        List.for_all(
+          (s: Sample.t) => List.length(s.call_stack) >= 1,
+          inner_samples,
+        ),
+      );
+      /* Simulate: user selected inner sample 1, then clicked outer probe.
+       * Cursor has full stack from sample 1 but index lowered to outer level. */
+      let sample_1 = List.nth(inner_samples, 1);
+      let outer_index = max(0, List.length(sample_1.call_stack) - 2);
+      let cursor =
+        mk_cursor_at_index(~index=outer_index, sample_1.call_stack);
+      /* most_aligned_index should find sample 1, not 0 */
+      let found_idx =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      check(
+        bool,
+        "should preserve inner selection at index 1 (not reset to 0)",
+        true,
+        found_idx == Some(1),
+      );
+    },
+  ),
+  test_case(
+    "Intent preservation: arrow navigation from preserved position",
+    `Quick,
+    () => {
+      /* Same setup: verify that arrow navigation starts from the
+       * preserved position, not from 0. */
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
+in [f(10), f(20), f(30)]|};
+      let inner_samples = get_all_samples(code);
+      check(int, "should have 3 samples", 3, List.length(inner_samples));
+      /* Select sample 2, lower index to outer level */
+      let sample_2 = List.nth(inner_samples, 2);
+      let outer_index = max(0, List.length(sample_2.call_stack) - 2);
+      let cursor =
+        mk_cursor_at_index(~index=outer_index, sample_2.call_stack);
+      let cursor_idx =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      check(
+        bool,
+        "cursor should be at preserved position (index 2)",
+        true,
+        cursor_idx == Some(2),
+      );
+    },
+  ),
+];
+
+/* --- Tests: call-click alignment with real evaluation --- */
+/* Scenario: f called 3 times, probe inside f, probes on each call.
+ * Clicking on a call probe should align the inner probe to that call's sample.
+ * This tests whether indicated_call (set from ap_id) correctly discriminates. */
+
+let call_click_alignment_tests = [
+  test_case(
+    "Call-click: indicated_call from real app IDs aligns inner probe",
+    `Quick,
+    () => {
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
+in ^^probe(f(1))
++ ^^probe(f(2))
++ ^^probe(f(3))|};
+      let all_samples = get_all_samples(code);
+      let (_call_samples, inner_samples) = partition_by_depth(all_samples);
+      check(
+        int,
+        "should have 3 inner samples (one per call)",
+        3,
+        List.length(inner_samples),
+      );
+      /* Each inner sample has a 1-frame call stack. The frame ID is the
+       * application site ID. Setting indicated_call to that ID should
+       * cause most_aligned_index to find exactly that sample. */
+      List.iteri(
+        (i, inner_sample: Sample.t) => {
+          check(
+            bool,
+            "inner sample should have 1-frame call stack",
+            true,
+            List.length(inner_sample.call_stack) == 1,
+          );
+          let app_id = List.hd(inner_sample.call_stack).id;
+          let cursor = mk_cursor(~indicated_call=Some(app_id), []);
+          let result =
+            Sample.Selection.most_aligned_index(
+              ~ap_id=None,
+              cursor,
+              inner_samples,
+            );
+          switch (result) {
+          | Some(idx) =>
+            let found = List.nth(inner_samples, idx);
+            check(
+              bool,
+              Printf.sprintf(
+                "sample %d: aligned sample should match clicked call",
+                i,
+              ),
+              true,
+              List.hd(found.call_stack).id == app_id,
+            );
+          | None =>
+            fail(
+              Printf.sprintf(
+                "sample %d: should find an aligned inner sample",
+                i,
+              ),
+            )
+          };
+        },
+        inner_samples,
+      );
+    },
+  ),
+  test_case(
+    "Call-click: select Single returns correct sample with indicated_call",
+    `Quick,
+    () => {
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
+in ^^probe(f(10))
++ ^^probe(f(20))
++ ^^probe(f(30))|};
+      let all_samples = get_all_samples(code);
+      let (_call_samples, inner_samples) = partition_by_depth(all_samples);
+      check(
+        int,
+        "should have 3 inner samples",
+        3,
+        List.length(inner_samples),
+      );
+      /* Pick the second inner sample, set indicated_call to its app ID */
+      let target = List.nth(inner_samples, 1);
+      let app_id = List.hd(target.call_stack).id;
+      let cursor = mk_cursor(~indicated_call=Some(app_id), []);
+      let (selected, _) = run_select(~cursor, inner_samples);
+      check(
+        int,
+        "Single mode should show 1 sample",
+        1,
+        List.length(selected),
+      );
+      switch (selected) {
+      | [s] =>
+        check(
+          bool,
+          "selected sample should match target call",
+          true,
+          List.hd(s.call_stack).id == app_id,
+        )
+      | _ => fail("expected exactly 1 sample")
+      };
+    },
+  ),
+  test_case(
+    "Call-click: without indicated_call, no call discrimination",
+    `Quick,
+    () => {
+      /* Documents the limitation: without indicated_call, clicking
+       * different call probes all show the same inner sample (first one). */
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
+in ^^probe(f(1))
++ ^^probe(f(2))
++ ^^probe(f(3))|};
+      let all_samples = get_all_samples(code);
+      let (_call_samples, inner_samples) = partition_by_depth(all_samples);
+      check(
+        int,
+        "should have 3 inner samples",
+        3,
+        List.length(inner_samples),
+      );
+      /* Cursor with NO indicated_call */
+      let cursor = mk_cursor([]);
+      let result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      /* Without indicated_call, falls to is_related → always index 0 */
+      check(
+        bool,
+        "without indicated_call, always picks first",
+        true,
+        result == Some(0),
+      );
+    },
+  ),
+];
+
+/* --- Tests: cur_var_ap diagnostic ---
+ * Verifies that the probe's statics info has the right structure
+ * for cur_var_ap to return Some(ap_id) when the probe wraps an
+ * application like f(2). This is the critical link: if cur_var_ap
+ * returns None, then indicated_call won't be set on click, and
+ * the inner probe won't align. */
+
+let cur_var_ap_tests = [
+  test_case(
+    "cur_var_ap: returns Some for probe wrapping Ap(Var)",
+    `Quick,
+    () => {
+      let code = {|let f : (Int -> Int) = fun x -> x + 1
+in ^^probe(f(2))|};
+      let (_term, info_map, targets) = parse_with_probes(code);
+      /* There should be exactly one probe */
+      let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
+      check(int, "should have 1 probe", 1, List.length(probe_ids));
+      let probe_id = List.hd(probe_ids);
+      switch (Statics.Map.lookup(probe_id, info_map)) {
+      | Some(info) =>
+        let ap_id = Sample.Focus.cur_var_ap(info);
+        check(
+          bool,
+          "cur_var_ap should return Some for probe on f(2)",
+          true,
+          Option.is_some(ap_id),
+        );
+      | None => fail("no statics for probe ID")
+      };
+    },
+  ),
+  test_case(
+    "cur_var_ap: returns None for probe on variable",
+    `Quick,
+    () => {
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x) + 1
+in f(2)|};
+      let (_term, info_map, targets) = parse_with_probes(code);
+      let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
+      check(int, "should have 1 probe", 1, List.length(probe_ids));
+      let probe_id = List.hd(probe_ids);
+      switch (Statics.Map.lookup(probe_id, info_map)) {
+      | Some(info) =>
+        let ap_id = Sample.Focus.cur_var_ap(info);
+        check(
+          bool,
+          "cur_var_ap should return None for probe on variable x",
+          true,
+          ap_id == None,
+        );
+      | None => fail("no statics for probe ID")
+      };
+    },
+  ),
+  test_case(
+    "cur_var_ap: app ID matches call stack frame ID from evaluator",
+    `Quick,
+    () => {
+      /* The critical end-to-end test: verify that the ap_id from
+       * cur_var_ap (which would become indicated_call via capture)
+       * matches the call stack frame ID in the inner probe's samples. */
+      let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
+in ^^probe(f(42))|};
+      let (term, info_map, targets) = parse_with_probes(code);
+      /* Get probe IDs */
+      let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
+      check(int, "should have 2 probes", 2, List.length(probe_ids));
+      /* Evaluate to get samples */
+      let elaborated = elaborate_with_info(info_map, term);
+      let (_, state) =
+        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+      let probes_map = EvaluatorState.get_probes(state);
+      /* Find the call probe (wrapping f(42)) and inner probe (on x) */
+      let call_probe_id =
+        List.find(
+          id => {
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(info) => Option.is_some(Sample.Focus.cur_var_ap(info))
+            | None => false
+            }
+          },
+          probe_ids,
+        );
+      let inner_probe_id =
+        List.find(
+          id => {
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(info) => Sample.Focus.cur_var_ap(info) == None
+            | None => false
+            }
+          },
+          probe_ids,
+        );
+      /* Get ap_id from call probe's statics */
+      let ap_id =
+        switch (Statics.Map.lookup(call_probe_id, info_map)) {
+        | Some(info) => Sample.Focus.cur_var_ap(info)
+        | None => None
+        };
+      check(
+        bool,
+        "call probe should have ap_id",
+        true,
+        Option.is_some(ap_id),
+      );
+      let ap_id = Option.get(ap_id);
+      /* Get inner probe's samples */
+      let inner_samples =
+        switch (Id.Map.find_opt(inner_probe_id, probes_map)) {
+        | Some(samples) => samples
+        | None => []
+        };
+      check(
+        int,
+        "inner probe should have 1 sample",
+        1,
+        List.length(inner_samples),
+      );
+      /* The inner sample's call stack frame ID should match ap_id */
+      let inner_sample = List.hd(inner_samples);
+      check(
+        bool,
+        "inner sample should have 1-frame call stack",
+        true,
+        List.length(inner_sample.call_stack) == 1,
+      );
+      let frame_id = List.hd(inner_sample.call_stack).id;
+      check(
+        bool,
+        "call stack frame ID should match ap_id from cur_var_ap",
+        true,
+        frame_id == ap_id,
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -446,5 +826,8 @@ let tests = (
     pin_integration_tests,
     relation_integration_tests,
     mode_tests,
+    intent_preservation_tests,
+    call_click_alignment_tests,
+    cur_var_ap_tests,
   ]),
 );

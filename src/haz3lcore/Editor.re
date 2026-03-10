@@ -166,6 +166,12 @@ module Update = {
         {syntax, state}: Model.t,
       )
       : Model.t => {
+    print_endline(
+      "[Editor.calculate] is_edited="
+      ++ string_of_bool(is_edited)
+      ++ " autoprobe_mode="
+      ++ string_of_bool(autoprobe_mode),
+    );
     /* 1. Recalculate the autocomplete buffer if necessary */
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
@@ -209,7 +215,12 @@ module Update = {
           );
         /* Resolve pending_probe_cursor again since update_autoprobe
            may have set it after editor_effects already ran */
-        ProbePerform.resolve_pending_probe_cursor(~dynamics=new_dynamics, z);
+        ProbePerform.resolve_pending_probe_cursor(
+          ~dynamics=new_dynamics,
+          ~syntax,
+          ~info_map=new_statics.info_map,
+          z,
+        );
       } else {
         /* If mode is off, clear any existing auto probe */
         ProbePerform.clear_autoprobe(

@@ -23,6 +23,12 @@
 
 /* BASE ELEMENTS */
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 svg {
   overflow: visible;
 }
@@ -78,8 +84,8 @@ select {
   height: 100vh;
   width: 100vw;
   display: grid;
-  /* Row 1: top-bar, Row 2: closure-cursor-bar (auto collapses when empty), Row 3: main, Row 4: bottom-bar */
-  grid-template: 2em auto minmax(0, 1fr) 2em / 1fr fit-content(18em);
+  /* Row 1: top-bar, Row 2: main, Row 3: bottom-bar */
+  grid-template: 2em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--STONE);
   user-select: none;
@@ -92,13 +98,17 @@ select {
 
 #main {
   /* Backpack uses position:fixed + FloatingElement to escape overflow clipping */
-  grid-row: 3 / span 1;
+  grid-row: 2 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
   background-color: var(--main-bkg);
   display: flex;
   flex-direction: column;
+}
+
+#main > * {
+  min-width: 0;
 }
 
 #side-bar {
@@ -114,7 +124,7 @@ select {
 }
 
 #sidebars {
-  grid-row: 2 / span 2;
+  grid-row: 2 / span 1;
   grid-column: 2 / span 1;
   display: flex;
   justify-content: space-between;
@@ -135,41 +145,45 @@ select {
   z-index: var(--top-bar-hover-z);
 }
 
-/* Closure Cursor Bar - breadcrumbs display for call stack */
-#closure-cursor-bar {
+/* Sample Focus Bar - overlays top of #main, slides in/out */
+#sample-focus-bar {
   grid-row: 2 / span 1;
   grid-column: 1 / span 1;
+  align-self: start;
   z-index: calc(var(--top-bar-z) - 1);
   display: flex;
   align-items: center;
   gap: 0.5em;
   background-color: var(--ui-bkg);
   border-bottom: 0.6px solid var(--BR2);
-  padding: 0.25em 0.75em;
-  min-height: 0;
+  padding: 0 0.75em 0 0.3em;
   font-family: var(--code-font);
-  /* font-size: 0.85em; */
+  transform: translateY(0);
+  transition: transform 125ms ease-out;
+  height: 2.2em;
 }
 
-#closure-cursor-bar .title {
+#sample-focus-bar .title {
   font-size: 0.85em;
   font-family: var(--ui-font);
   color: rgb(255, 255, 255);
   background-color: var(--G0);
-  border-radius: 0.2em;
-  padding: 0px 2px 1px 2px;
+  border-radius: 0.3em 1.5em 1.3em 1.3em;
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
-#closure-cursor-bar:empty,
-#closure-cursor-bar.hidden {
-  display: none;
+#sample-focus-bar:empty,
+#sample-focus-bar.hidden {
+  transform: translateY(-100%);
+  pointer-events: none;
 }
 
-#closure-cursor-bar:focus {
+#sample-focus-bar:focus {
   outline: none;
 }
 
-#closure-cursor-bar .breadcrumbs {
+#sample-focus-bar .breadcrumbs {
   display: flex;
   align-items: center;
   gap: 0.25em;
@@ -177,7 +191,7 @@ select {
   min-width: 0;
 }
 
-#closure-cursor-bar .breadcrumb-entry {
+#sample-focus-bar .breadcrumb-entry {
   cursor: pointer;
   padding: 0 0.4em;
   border-radius: 1em;
@@ -186,45 +200,45 @@ select {
   position: relative;
 }
 
-#closure-cursor-bar .breadcrumb-entry:hover {
+#sample-focus-bar .breadcrumb-entry:hover {
   background-color: white;
 }
 
-#closure-cursor-bar .breadcrumb-entry.focused {
+#sample-focus-bar .breadcrumb-entry.focused {
   color: var(--G0);
   background-color: var(--G5);
   font-weight: 500;
   text-decoration: underline;
 }
 
-#closure-cursor-bar .breadcrumb-entry.indicated {
+#sample-focus-bar .breadcrumb-entry.indicated {
   outline: 1.5px solid var(--R1);
   border-radius: 3px;
 }
 
-#closure-cursor-bar .breadcrumb-entry.focused.indicated {
+#sample-focus-bar .breadcrumb-entry.focused.indicated {
   text-decoration: none;
 }
 
-#closure-cursor-bar .breadcrumb-entry.ghost {
+#sample-focus-bar .breadcrumb-entry.ghost {
   opacity: 0.7;
 }
 
 /* Color coding for call stack position - uses same colors as sample display */
-#closure-cursor-bar .breadcrumb-entry.above {
+#sample-focus-bar .breadcrumb-entry.above {
   color: var(--sample-above-text);
 }
-#closure-cursor-bar .breadcrumb-entry.below {
+#sample-focus-bar .breadcrumb-entry.below {
   color: var(--sample-below-text);
 }
-/* #closure-cursor-bar .breadcrumb-separator.above {
+/* #sample-focus-bar .breadcrumb-separator.above {
   color: var(--sample-above-text);
 }
-#closure-cursor-bar .breadcrumb-separator.below {
+#sample-focus-bar .breadcrumb-separator.below {
   color: var(--sample-below-text);
 } */
 
-#closure-cursor-bar .breadcrumb-separator {
+#sample-focus-bar .breadcrumb-separator {
   color: var(--BR2);
   font-size: 0.8em;
   cursor: default;
@@ -237,52 +251,34 @@ select {
   text-align: center;
 }
 
-#closure-cursor-bar .breadcrumb-separator.ghost {
+#sample-focus-bar .breadcrumb-separator.ghost {
   color: var(--BR1);
 }
 
-#closure-cursor-bar .top-level {
-  color: var(--BR4);
-  padding: 0.1em 0.4em;
-  cursor: pointer;
-  border-radius: 1em;
-  transition: background-color 0.1s;
-}
 
-#closure-cursor-bar .top-level:hover {
-  background-color: var(--SAND);
-}
-
-#closure-cursor-bar .top-level.focused {
-  color: var(--G0);
-  background-color: var(--G5);
-  font-weight: 500;
-  text-decoration: underline;
-}
-
-#closure-cursor-bar .more-indicator {
+#sample-focus-bar .more-indicator {
   color: var(--BR2);
   margin-left: 0.25em;
   opacity: 0.5;
 }
 
-#closure-cursor-bar .stack-icon {
+#sample-focus-bar .stack-icon {
   color: var(--BR4);
   margin-right: 0.5em;
   font-size: 0.9em;
 }
 
-#closure-cursor-bar .breadcrumb-entry.unknown {
+#sample-focus-bar .breadcrumb-entry.unknown {
   color: var(--BR1);
 }
 
-#closure-cursor-bar .breadcrumb-entry.unknown.focused {
+#sample-focus-bar .breadcrumb-entry.unknown.focused {
   color: var(--G0);
   background-color: var(--G5);
 }
 
 /* Pin icon - same style as sample pin but positioned for breadcrumb */
-#closure-cursor-bar .pin-icon {
+#sample-focus-bar .pin-icon {
   display: inline-block;
   width: 1em;
   height: 1em;
@@ -301,31 +297,19 @@ select {
   scale: 0.75;
 }
 
-#closure-cursor-bar .pin-icon:hover {
+#sample-focus-bar .pin-icon:hover {
   filter: brightness(1.2);
 }
 
-/* Body icon - jump to innermost function body */
-#closure-cursor-bar .breadcrumb-body {
-  cursor: pointer;
-  padding: 0 0.4em;
-  border-radius: 1em;
-  color: var(--BR3);
-  transition: background-color 0.1s;
-}
 
-#closure-cursor-bar .breadcrumb-body:hover {
-  background-color: white;
-}
-
-#closure-cursor-bar .breadcrumb-ellipsis {
+#sample-focus-bar .breadcrumb-ellipsis {
   color: var(--BR2);
   font-size: 0.85em;
   cursor: default;
   padding: 0 0.2em;
 }
 
-#closure-cursor-bar .clear-all {
+#sample-focus-bar .clear-all {
   margin-left: auto;
   flex-shrink: 0;
   color: var(--BR4);
@@ -339,13 +323,13 @@ select {
   transition: background-color 0.1s;
 }
 
-#closure-cursor-bar .clear-all:hover {
+#sample-focus-bar .clear-all:hover {
   background-color: var(--Y1);
 }
 
 #bottom-bar {
   z-index: var(--bottom-bar-z);
-  grid-row: 4 / span 1;
+  grid-row: 3 / span 1;
   grid-column: 1 / span 2;
   display: flex;
   align-items: center;

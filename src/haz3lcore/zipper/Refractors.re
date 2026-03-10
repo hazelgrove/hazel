@@ -9,8 +9,9 @@ open Util;
  * | Manual probes    | Refractors.manuals             | Per-editor | Yes        |
  * | Multi probe IDs  | Refractors.multis.ids           | Per-editor | No         |
  * | Multi ephemerals | Refractors.multis.ephemerals    | Per-editor | No         |
+ * | Multi suppressed | Refractors.multis.suppressed    | Per-editor | No         |
  * | Auto probe target| Refractors.autoprobe_target    | Per-editor | No         |
- * | Sample cursor    | Refractors.sample_cursor       | Per-editor | No         |
+ * | Sample focus    | Refractors.sample_focus       | Per-editor | No         |
  * | Display settings | ProbeProj.Settings.s           | Global     | No         |
  * | Window offsets   | ProbeProj.Settings.offset      | Per-probe  | No         |
  * | Sample lengths   | ProbeProj.SampleLength.lengths | Per-sample | No         |
@@ -51,11 +52,13 @@ module RefractorList = {
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type multi_state = {
   ids: Id.Map.t(unit),
+  suppressed: Id.Map.t(unit),
   ephemerals: Map.t,
 };
 
 let empty_multi_state = {
   ids: Id.Map.empty,
+  suppressed: Id.Map.empty,
   ephemerals: Id.Map.empty,
 };
 
@@ -63,13 +66,13 @@ let empty_multi_state = {
 type t = {
   manuals: RefractorList.t,
   multis: multi_state,
-  sample_cursor: Language.Sample.Cursor.t,
+  sample_focus: Language.Sample.Focus.t,
   /* For auto probe: the body ID of the top-level definition currently
      being probed (if any). When the cursor moves to a different top-level
      def, a multi probe is placed on its body. */
   autoprobe_target: option(Id.t),
   /* When a probe is added, this stores the target IDs (in lexical order)
-     so that when evaluation results return, we can set the sample cursor
+     so that when evaluation results return, we can set the sample focus
      to the first sample of the first probe that has samples. */
   pending_probe_cursor: option(list(Id.t)),
 };
@@ -77,7 +80,7 @@ type t = {
 let init = {
   manuals: [],
   multis: empty_multi_state,
-  sample_cursor: Language.Sample.Cursor.init,
+  sample_focus: Language.Sample.Focus.init,
   autoprobe_target: None,
   pending_probe_cursor: None,
 };

@@ -1,42 +1,51 @@
 open Util;
 open Language;
 
-let update = (z: Zipper.t, f: Sample.Cursor.t => Sample.Cursor.t) =>
+let update = (z: Zipper.t, f: Sample.Focus.t => Sample.Focus.t) =>
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      sample_cursor: f(refractors.sample_cursor),
+      sample_focus: f(refractors.sample_focus),
     }
   );
 
 let update_pinned_call =
     (z: Zipper.t, f: option(Sample.call_stack) => option(Sample.call_stack)) =>
-  update(z, sample_cursor =>
+  update(z, sample_focus =>
     {
-      ...sample_cursor,
-      pinned_stack: f(sample_cursor.pinned_stack),
+      ...sample_focus,
+      pinned_stack: f(sample_focus.pinned_stack),
     }
   );
 
-let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t =>
-  update(z, sample_cursor =>
+/* "Write side" of intent preservation: when clicking on a shallower
+ * sample whose stack is a suffix of the current (deeper) stack, we keep
+ * the deeper stack but lower the index. This retains the user's prior
+ * inner selection so the "read side" (most_aligned_index) can recover it.
+ * See Sample.Focus module comment for the full mechanism. */
+let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
+  update(z, sample_focus =>
     {
-      ...sample_cursor,
+      ...sample_focus,
       time: Some(data.time),
       seq: data.seq,
-      indicated_call: id /*!= None ? id : z.refractors.sample_cursor.indicated_call*/,
+      indicated_call:
+        id != None ? id : z.refractors.sample_focus.indicated_call,
       call_stack:
-        !
-          ListUtil.is_suffix_of(
-            ~eq=Sample.equal_stack_frame,
-            data.call_stack,
-            sample_cursor.call_stack,
-          )
-          ? data.call_stack : sample_cursor.call_stack,
+        id != None
+          ? data.call_stack
+          : !
+              ListUtil.is_suffix_of(
+                ~eq=Sample.equal_stack_frame,
+                data.call_stack,
+                sample_focus.call_stack,
+              )
+              ? data.call_stack : sample_focus.call_stack,
       index: List.length(data.call_stack) - 1,
       step_range: Some((data.step_start, data.step_end)),
     }
   );
+};
 
 let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
   update_pinned_call(z, pinned_call => {
@@ -50,7 +59,7 @@ let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
   });
 
 let reset = (z: Zipper.t): Zipper.t =>
-  update(z, _ => Language.Sample.Cursor.init);
+  update(z, _ => Language.Sample.Focus.init);
 
 /* Resolve pending focus after step-into by finding and focusing
    the sample that matches the target stack. Called from Probes
@@ -67,9 +76,9 @@ let resolve_pending_focus =
     );
   switch (matching_sample) {
   | Some(sample) =>
-    update(z, sample_cursor =>
+    update(z, sample_focus =>
       {
-        ...sample_cursor,
+        ...sample_focus,
         time: Some(sample.time),
         seq: sample.seq,
         indicated_call: None,
@@ -86,18 +95,18 @@ let resolve_pending_focus =
 let set_index = (z: Zipper.t, i: int): Zipper.t =>
   update(
     z,
-    sample_cursor => {
-      let max_index = List.length(sample_cursor.call_stack) - 1;
+    sample_focus => {
+      let max_index = List.length(sample_focus.call_stack) - 1;
       /* Allow -1 for top-level (outside all calls) */
       let clamped_index = max(-1, min(i, max_index));
       {
-        ...sample_cursor,
+        ...sample_focus,
         index: clamped_index,
       };
     },
   );
 
-let go = (z: Zipper.t, a: Action.sample_cursor): Zipper.t =>
+let go = (z: Zipper.t, a: Action.sample_focus): Zipper.t =>
   switch (a) {
   | Capture(sample, id) => capture(z, sample, id)
   | TogglePin(call_stack) => toggle_pin_call(z, call_stack)
