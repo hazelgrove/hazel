@@ -2,8 +2,9 @@ open Util;
 
 let initialize_description = {|
 Replaces the entire program with the given code.
-ONLY use this when the program has no let/type bindings (e.g., it is just `?` or a standalone expression).
-Once the program has let/type bindings, use the other edit tools instead.
+Use this when the program is EMPTY — just `?` or a standalone expression with no let/type/module bindings.
+When empty, you MUST use initialize to write code; update_definition and update_body will fail (they require an existing binding).
+Once the program has let/type/module bindings, use the other edit tools instead.
 
 Parameters:
 code: string — the complete new program
