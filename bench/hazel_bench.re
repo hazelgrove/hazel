@@ -12,7 +12,7 @@
  * Usage:
  *   node bench/hazel_bench.bc.js            # table output
  *   node bench/hazel_bench.bc.js --json     # JSON output for CI comparison
- *   node bench/hazel_bench.bc.js --reps 20  # 20 repetitions (default: 10)
+ *   node bench/hazel_bench.bc.js --reps 5   # 5 repetitions (default: 3)
  *   node bench/hazel_bench.bc.js --filter cold --filter let100
  */
 
@@ -37,66 +37,50 @@ let time_call = (f: unit => 'a): (float, 'a) => {
 
 /* --- Program generators --- */
 
-/* Generate a let-chain with n bindings using the given variable prefix.
- * Different prefixes produce structurally distinct programs, ensuring
- * Core.Memo.general cache misses across repetitions. */
-let gen_let_chain = (n: int, prefix: string): string => {
+/* Generate a let-chain program string with n bindings.
+ * Each binding adds ~5-10 AST nodes. */
+let gen_let_chain = (n: int): string => {
   let buf = Stdlib.Buffer.create(n * 30);
   for (i in 0 to n - 1) {
     if (i == 0) {
-      Stdlib.Buffer.add_string(buf, "let " ++ prefix ++ "0 = 0 in\n");
+      Stdlib.Buffer.add_string(buf, "let x0 = 0 in\n");
     } else {
       Stdlib.Buffer.add_string(
         buf,
-        "let "
-        ++ prefix
+        "let x"
         ++ string_of_int(i)
-        ++ " = "
-        ++ prefix
+        ++ " = x"
         ++ string_of_int(i - 1)
         ++ " + 1 in\n",
       );
     };
   };
-  Stdlib.Buffer.add_string(buf, prefix ++ string_of_int(n - 1));
+  Stdlib.Buffer.add_string(buf, "x" ++ string_of_int(n - 1));
   Stdlib.Buffer.contents(buf);
 };
 
-/* Generate nested case expressions with n functions. */
-let gen_case_chain = (n: int, prefix: string): string => {
+/* Generate a program with nested case expressions.
+ * Each function adds ~15 AST nodes. */
+let gen_case_chain = (n: int): string => {
   let buf = Stdlib.Buffer.create(n * 80);
   for (i in 0 to n - 1) {
     let prev =
       if (i == 0) {
         "x";
       } else {
-        prefix ++ string_of_int(i - 1) ++ "(x)";
+        "f" ++ string_of_int(i - 1) ++ "(x)";
       };
     Stdlib.Buffer.add_string(
       buf,
-      "let "
-      ++ prefix
+      "let f"
       ++ string_of_int(i)
       ++ " = fun x -> case x | 0 => 0 | _ => "
       ++ prev
       ++ " end in\n",
     );
   };
-  Stdlib.Buffer.add_string(buf, prefix ++ string_of_int(n - 1) ++ "(0)");
+  Stdlib.Buffer.add_string(buf, "f" ++ string_of_int(n - 1) ++ "(0)");
   Stdlib.Buffer.contents(buf);
-};
-
-/* Variable prefix for each repetition to ensure structural uniqueness.
- * rep 0 -> "a", rep 1 -> "b", ..., rep 25 -> "z",
- * rep 26 -> "aa", rep 27 -> "ab", ... */
-let prefix_for_rep = (rep: int): string => {
-  let c = Char.chr(Char.code('a') + rep mod 26);
-  if (rep < 26) {
-    String.make(1, c);
-  } else {
-    let c0 = Char.chr(Char.code('a') + (rep / 26 - 1) mod 26);
-    String.make(1, c0) ++ String.make(1, c);
-  };
 };
 
 /* --- Parsing --- */
@@ -169,37 +153,38 @@ let time_pipeline_with_action =
   [{name: label ++ "/Perform", time_ns: t_perf}, ...pipeline];
 };
 
+/* --- Cache isolation --- */
+
+/* Clone a zipper with fresh IDs on every piece. This ensures
+ * Core.Memo.general (structural equality) and WeakMap (physical identity)
+ * caches miss, giving true cold-start measurements each repetition.
+ * Uses Segment.IDs.replace_piece which recursively freshens children. */
+let fresh_ids = (z: Zipper.t): Zipper.t =>
+  ZipperBase.MapPiece.go(p => [Segment.IDs.replace_piece(p)], z);
+
 /* --- Scenario runner --- */
 
-type program_def = {
+type parsed_program = {
   label: string,
-  gen: (int, string) => string,
-  size: int,
+  z: Zipper.t,
 };
 
-let programs: list(program_def) = [
-  {label: "let100", gen: gen_let_chain, size: 100},
-  {label: "let500", gen: gen_let_chain, size: 500},
-  {label: "case100", gen: gen_case_chain, size: 100},
-];
-
 /* Run all four scenarios for one program at one repetition. */
-let run_scenarios = (prog: program_def, rep: int): list(measurement) => {
-  let prefix = prefix_for_rep(rep);
-  let program = prog.gen(prog.size, prefix);
-  let z = parse_to_zipper(program);
+let run_scenarios = (prog: parsed_program): list(measurement) => {
+  let z = fresh_ids(prog.z);
   let syntax = CachedSyntax.init(z);
+  let label = prog.label;
 
   /* Cold: first run with this input, all caches empty for these values */
-  let cold = time_pipeline(prog.label ++ "/cold", z);
+  let cold = time_pipeline(label ++ "/cold", z);
 
   /* Warm: identical inputs, caches now populated from cold run */
-  let warm = time_pipeline(prog.label ++ "/warm", z);
+  let warm = time_pipeline(label ++ "/warm", z);
 
   /* Move: cursor movement then full pipeline */
   let move =
     time_pipeline_with_action(
-      prog.label ++ "/move",
+      label ++ "/move",
       z,
       syntax,
       Move(Local(Left, ByChar)),
@@ -208,7 +193,7 @@ let run_scenarios = (prog: program_def, rep: int): list(measurement) => {
   /* Modify: content edit then full pipeline */
   let modify =
     time_pipeline_with_action(
-      prog.label ++ "/modify",
+      label ++ "/modify",
       z,
       syntax,
       Insert("x"),
@@ -415,8 +400,61 @@ let is_substring = (haystack: string, needle: string): bool => {
 let () = {
   let argv = Array.to_list(Sys.argv);
   let json_mode = List.mem("--json", argv);
-  let reps = parse_int_arg(argv, "--reps", 10);
+  let reps = parse_int_arg(argv, "--reps", 3);
   let filters = parse_filters(argv);
+
+  /* Parse all programs once (expensive). Subsequent repetitions clone
+   * the zipper with fresh IDs instead of re-parsing. */
+  let programs = [
+    ("let100", gen_let_chain(100)),
+    ("let500", gen_let_chain(500)),
+    ("case100", gen_case_chain(100)),
+  ];
+  /* Only parse programs that match the filter (parsing is expensive).
+   * A filter like "let100" or "let100/cold" targets a specific program;
+   * a filter like "cold" or "MakeTerm" doesn't target any program and
+   * requires all programs to be parsed. */
+  let all_labels = List.map(((label, _)) => label, programs);
+  let filter_targets_any_program = (pat: string): bool =>
+    List.exists(
+      label =>
+        is_substring(label, pat)
+        || String.length(pat) >= String.length(label)
+        && String.sub(pat, 0, String.length(label)) == label,
+      all_labels,
+    );
+  let programs =
+    switch (filters) {
+    | [] => programs
+    | _ =>
+      List.filter(
+        ((label, _)) =>
+          List.exists(
+            pat =>
+              /* Pattern matches this program's label */
+              is_substring(label, pat)
+              /* Pattern starts with this program's label (e.g. "let100/cold") */
+              || String.length(pat) >= String.length(label)
+              && String.sub(pat, 0, String.length(label)) == label
+              /* Pattern targets scenarios/phases, not a specific program */
+              || !filter_targets_any_program(pat),
+            filters,
+          ),
+        programs,
+      )
+    };
+
+  let parsed =
+    List.map(
+      ((label, program)) => {
+        let t0 = now_ms();
+        let z = parse_to_zipper(program);
+        let t1 = now_ms();
+        Printf.eprintf("==> Parsed %s in %.0f ms\n%!", label, t1 -. t0);
+        {label, z};
+      },
+      programs,
+    );
 
   Printf.eprintf("==> Running %d repetitions\n%!", reps);
 
@@ -424,7 +462,7 @@ let () = {
   let all_reps =
     List.init(reps, rep => {
       Printf.eprintf("==> Repetition %d/%d\n%!", rep + 1, reps);
-      List.flatten(List.map(prog => run_scenarios(prog, rep), programs));
+      List.flatten(List.map(prog => run_scenarios(prog), parsed));
     });
 
   /* Take median across repetitions */

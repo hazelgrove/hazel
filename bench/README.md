@@ -2,7 +2,7 @@
 
 Measures key editor operations at various program sizes using single-shot
 timing with `performance.now()`. Each measurement is repeated across
-multiple runs (default: 10) with structurally unique inputs, and the
+multiple runs (default: 3) with structurally unique inputs, and the
 **median** is reported.
 
 ## Scenarios
@@ -35,10 +35,11 @@ Each program size is benchmarked across four scenarios:
 
 ### Cache isolation
 
-Each repetition generates programs with a unique variable prefix (a, b,
-c, ...) so that `Core.Memo.general` (structural equality) never hits
-across repetitions. `WeakMap`-based caches (physical identity) naturally
-miss on fresh allocations.
+Each program is parsed once and then cloned with fresh IDs per repetition
+(via `Segment.IDs.replace_piece`). Fresh IDs ensure `Core.Memo.general`
+(structural equality) misses across repetitions, and fresh allocations
+ensure `WeakMap`-based caches (physical identity) also miss. This avoids
+the cost of re-parsing large programs each repetition.
 
 ## Running locally
 
