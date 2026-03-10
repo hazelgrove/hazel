@@ -5,7 +5,7 @@ open Js_of_ocaml;
 
 /* ExoTool Projector: a tool selector that lets the user pick
    a Patchwork tool (TLDraw, Petrinaut, CatColab). The underlying
-   syntax becomes a String literal with the selected tool ID. */
+   syntax becomes a labeled tuple (exotool_id=<tool_id_string>). */
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -85,8 +85,13 @@ module M: Projector = {
         ~attrs=[
           Attr.class_("exotool-select"),
           Attr.on_change((_, value) => {
-            let str_exp = Language.IdTagged.FreshGrammar.Exp.string(value);
-            let seg = put(info, str_exp);
+            let tuple_exp =
+              Language.IdTagged.FreshGrammar.Exp.(
+                parens(
+                  tuple([tup_label(label("exotool_id"), string(value))]),
+                )
+              );
+            let seg = put(info, tuple_exp);
             Effect.(
               Many([local(SetTool(value)), parent(SetSyntax(seg))])
             );

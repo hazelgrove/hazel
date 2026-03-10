@@ -1113,18 +1113,39 @@ and uexp_to_info_map =
           (def, def_ctx, m, ty_p_ana);
         };
       /* Check for exotool livelit definition pattern:
-         let ^<name> = ^^exotool(<tool_id_string>) in body
-         If found, inject a LivelitEntry into the body's context. */
-      let p_ana_ctx =
-        switch (p.term, def_term.term) {
-        | (Var(pat_name), Projector({kind: ExoTool, _}, inner))
+         let ^<name> = (exotool_id=<tool_id_string>) in body
+         If found, inject a LivelitEntry into the body's context.
+         The def may be wrapped in a Projector node (from ^^exotool). */
+      let p_ana_ctx = {
+        let def_inner =
+          switch (def_term.term) {
+          | Projector(_, inner) => inner
+          | _ => def_term
+          };
+        switch (p.term, def_inner.term) {
+        | (
+            Var(pat_name),
+            Parens({
+              term:
+                Tuple([
+                  {
+                    term:
+                      TupLabel(
+                        {term: Label("exotool_id"), _},
+                        {term: Atom(String(tool_id)), _},
+                      ),
+                    _,
+                  },
+                ]),
+              _,
+            }),
+          )
             when
               String.length(pat_name) > 1
               && String.sub(pat_name, 0, 1) == "^" =>
           let livelit_name =
             String.sub(pat_name, 1, String.length(pat_name) - 1);
-          switch (inner.term) {
-          | Atom(String(tool_id)) when String.length(tool_id) > 0 =>
+          if (String.length(tool_id) > 0) {
             let ll = ExoToolLivelit.mk_exotool_livelit(tool_id);
             Ctx.extend(
               p_ana_ctx,
@@ -1133,10 +1154,12 @@ and uexp_to_info_map =
                 name: livelit_name,
               }),
             );
-          | _ => p_ana_ctx
+          } else {
+            p_ana_ctx;
           };
         | _ => p_ana_ctx
         };
+      };
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, m) =
