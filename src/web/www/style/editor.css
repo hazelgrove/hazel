@@ -22,13 +22,13 @@
   white-space: pre;
 }
 
-.line-numbers{
+.line-numbers {
   background-color: var(--ui-bkg);
   left: 0;
-  position: sticky; 
+  position: sticky;
   display: flex;
   padding: 0 1em 0 0.2em;
-  margin: -2px -0.6em -2px 0;
+  margin: -2px -0.6em -2px 1.5em;
   min-width: 31px; /*The width of three digits*/
   text-align: right;
   justify-content: flex-end;
@@ -39,22 +39,22 @@
 
 /* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
 #main.Documentation .line-numbers,
-#main.Scratch .line-numbers{
+#main.Scratch .line-numbers {
   background-color: var(--cell-active);
   border-color: var(--cell-active);
 }
 
-.line-numbers.line-numbers-selected{
+.line-numbers.line-numbers-selected {
   background-color: var(--cell-active);
   border-color: var(--cell-active);
 }
 
-.code .code-text.line-numbers-text :not(.line-numbers-bold){
+.code .code-text.line-numbers-text :not(.line-numbers-bold) {
   color: var(--BR1);
 }
 
-.code .code-text.line-numbers-text .line-numbers-bold{
-  font-weight: bolder; 
+.code .code-text.line-numbers-text .line-numbers-bold {
+  font-weight: bolder;
   color: var(--BR2);
 }
 
@@ -67,8 +67,6 @@
 .code-text:after {
   content: "​";
 }
-
-
 
 /* TOKEN COLORS */
 
@@ -517,20 +515,44 @@ svg:has(.child-line) {
 
 /* Open animations for each direction - scale from origin while maintaining translate */
 @keyframes context-menu-open-down-right {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @keyframes context-menu-open-down-left {
-  from { opacity: 0; transform: translateX(-100%) scale(0.95); }
-  to { opacity: 1; transform: translateX(-100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateX(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-100%) scale(1);
+  }
 }
 @keyframes context-menu-open-up-right {
-  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
-  to { opacity: 1; transform: translateY(-100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%) scale(1);
+  }
 }
 @keyframes context-menu-open-up-left {
-  from { opacity: 0; transform: translate(-100%, -100%) scale(0.95); }
-  to { opacity: 1; transform: translate(-100%, -100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translate(-100%, -100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-100%, -100%) scale(1);
+  }
 }
 
 .context-menu .group .contents {
