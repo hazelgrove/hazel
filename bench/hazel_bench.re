@@ -59,29 +59,6 @@ let gen_let_chain = (n: int): string => {
   Stdlib.Buffer.contents(buf);
 };
 
-/* Generate a program with nested case expressions.
- * Each function adds ~15 AST nodes. */
-let gen_case_chain = (n: int): string => {
-  let buf = Stdlib.Buffer.create(n * 80);
-  for (i in 0 to n - 1) {
-    let prev =
-      if (i == 0) {
-        "x";
-      } else {
-        "f" ++ string_of_int(i - 1) ++ "(x)";
-      };
-    Stdlib.Buffer.add_string(
-      buf,
-      "let f"
-      ++ string_of_int(i)
-      ++ " = fun x -> case x | 0 => 0 | _ => "
-      ++ prev
-      ++ " end in\n",
-    );
-  };
-  Stdlib.Buffer.add_string(buf, "f" ++ string_of_int(n - 1) ++ "(0)");
-  Stdlib.Buffer.contents(buf);
-};
 
 /* --- Parsing --- */
 
@@ -408,7 +385,6 @@ let () = {
   let programs = [
     ("let100", gen_let_chain(100)),
     ("let500", gen_let_chain(500)),
-    ("case100", gen_case_chain(100)),
   ];
   /* Only parse programs that match the filter (parsing is expensive).
    * A filter like "let100" or "let100/cold" targets a specific program;
