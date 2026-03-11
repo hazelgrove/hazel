@@ -18,11 +18,17 @@ let update_pinned_call =
     }
   );
 
-/* "Write side" of intent preservation: when clicking on a shallower
- * sample whose stack is a suffix of the current (deeper) stack, we keep
- * the deeper stack but lower the index. This retains the user's prior
- * inner selection so the "read side" (most_aligned_index) can recover it.
- * See Sample.Focus module comment for the full mechanism. */
+/* Sightline write side: updates the sightline on click/navigation.
+ *
+ * Suffix preservation: when the new sample's stack is a suffix of the
+ * current sightline, keep the full sightline and lower the index.
+ * This retains below-focus frames for alignment recovery.
+ *
+ * Perspective extension: when clicking an app probe (id = Some(ap_id)),
+ * prepend the application as a frame below the focus. This extends
+ * the sightline downward (peeking into a call without entering it).
+ *
+ * See Sample.Focus module comment and plans/sample-focus-sightline.md. */
 let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
   update(z, sample_focus =>
     {
