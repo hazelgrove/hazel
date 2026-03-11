@@ -255,7 +255,6 @@ select {
   color: var(--BR1);
 }
 
-
 #sample-focus-bar .more-indicator {
   color: var(--BR2);
   margin-left: 0.25em;
@@ -301,7 +300,6 @@ select {
   filter: brightness(1.2);
 }
 
-
 #sample-focus-bar .breadcrumb-body {
   cursor: pointer;
   padding: 0 0.4em;
@@ -310,8 +308,13 @@ select {
   transition: background-color 0.1s;
 }
 
+#sample-focus-bar .breadcrumb-body.ghost {
+  color: var(--BR1);
+}
+
 #sample-focus-bar .breadcrumb-body:hover {
   background-color: white;
+  color: var(--BR3);
 }
 
 #sample-focus-bar .breadcrumb-ellipsis {
