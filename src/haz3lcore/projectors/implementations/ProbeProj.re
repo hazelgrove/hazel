@@ -1170,6 +1170,7 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     Many([effect, Stop_propagation, Prevent_default]);
   | D(" ") =>
     Many([local(ToggleWindowMode), Stop_propagation, Prevent_default])
+  | D("p" | "P") when key.meta == Down || key.ctrl == Down => Ignore /* Defer to page-level handler for auto-probe toggle */
   | D("p") =>
     /* Pin/Unpin the indicated sample, or Focus/Unfocus for non-ap probes */
     switch (indicated_sample(ctx), ap_id) {

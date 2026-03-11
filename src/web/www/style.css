@@ -31,6 +31,7 @@
 
 svg {
   overflow: visible;
+  box-sizing: content-box;
 }
 
 body {
@@ -138,7 +139,7 @@ select {
   display: flex;
   align-items: center;
   background-color: var(--ui-bkg);
-  outline: 0.6px solid var(--BR2);
+  border-bottom: 0.6px solid var(--BR2);
 }
 
 #top-bar:hover {

@@ -389,7 +389,13 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
           [
             div(
               ~attrs=[clss(["toggle-label"])],
-              [text("Samples"), click_kbd({js|␣|js})],
+              [
+                text("Samples"),
+                span(
+                  ~attrs=[clss(["qr-when-focused", "kbd-badge"])],
+                  [text({js|␣|js})],
+                ),
+              ],
             ),
             div(
               ~attrs=[clss(["segmented-control"])],
