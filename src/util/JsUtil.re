@@ -300,8 +300,17 @@ let delay = (delay: float, callback: unit => unit) => {
 /* Scroll compensation for sample focus bar:
  * When the bar's height changes (appearing/disappearing), adjust #main's
  * scrollTop so visible code doesn't shift. Only compensates when scrolled
- * down (at scroll 0, the shift is unavoidable). */
+ * down (at scroll 0, the shift is unavoidable).
+ *
+ * Uses float arithmetic throughout: scrollTop is sub-pixel (especially with
+ * trackpad scrolling), and OCaml int ops compile to JS `| 0` which truncates
+ * the fractional part, causing visible drift on each toggle. */
 let focus_bar_observer_installed = ref(false);
+let get_height = el =>
+  Js.Unsafe.get(
+    Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+    "height",
+  );
 let setup_focus_bar_scroll_compensation = () =>
   if (! focus_bar_observer_installed^) {
     let bar =
@@ -315,16 +324,18 @@ let setup_focus_bar_scroll_compensation = () =>
     switch (bar, main) {
     | (Some(bar_el), Some(main_el)) =>
       focus_bar_observer_installed := true;
-      let bar: Js.t('a) = Js.Unsafe.coerce(bar_el);
-      let main: Js.t('a) = Js.Unsafe.coerce(main_el);
-      let last_height = ref(bar##.offsetHeight);
+      let bar = Js.Unsafe.coerce(bar_el);
+      let main = Js.Unsafe.coerce(main_el);
+      let last_height: ref(float) = ref(get_height(bar));
       let callback =
         Js.wrap_callback(_entries => {
-          let new_height = bar##.offsetHeight;
-          let delta = new_height - last_height^;
+          let new_height: float = get_height(bar);
+          let delta = new_height -. last_height^;
           last_height := new_height;
-          if (delta != 0 && main##.scrollTop > 0) {
-            main##.scrollTop :=  main##.scrollTop + delta;
+          let scroll_top: float =
+            Js.Unsafe.get(main, Js.string("scrollTop"));
+          if (delta != 0.0 && scroll_top > 0.0) {
+            Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
           };
         });
       let observer =
