@@ -471,6 +471,42 @@ let view =
 
     let max_index = List.length(call_stack) - 1;
 
+    /* Body icon (●) at end of breadcrumbs: jumps to definition of the
+     * deepest function in the call stack. With perspective extension
+     * (ap_id prepended to call_stack in capture), this naturally covers
+     * both the "inside a function" and "on an application" cases. */
+    let body_icon =
+      switch (ListUtil.last_opt(call_stack)) {
+      | Some(last_frame) =>
+        let def_target =
+          get_definition_target(
+            ~info_map,
+            ~app_id=last_frame.id,
+            ~fn_def_id=last_frame.fn_def_id,
+            ~stack_name=last_frame.name,
+          );
+        switch (def_target) {
+        | Some(target_id) =>
+          let on_body_click = evt => jump_to(~globals, target_id, evt);
+          [
+            span(
+              ~attrs=[Attr.classes(["breadcrumb-separator"])],
+              [text({js|❯|js})],
+            ),
+            span(
+              ~attrs=[
+                Attr.classes(["breadcrumb-body"]),
+                Attr.title("Jump to function body"),
+                Attr.on_pointerdown(on_body_click),
+              ],
+              [text({js|●|js})],
+            ),
+          ];
+        | None => []
+        };
+      | None => []
+      };
+
     let clear_all_button =
       span(
         ~attrs=[
@@ -499,7 +535,7 @@ let view =
           ],
           [text("probe focus")],
         ),
-        div(~attrs=[Attr.class_("breadcrumbs")], entries),
+        div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
         clear_all_button,
       ],
     );

@@ -302,6 +302,18 @@ select {
 }
 
 
+#sample-focus-bar .breadcrumb-body {
+  cursor: pointer;
+  padding: 0 0.4em;
+  border-radius: 1em;
+  color: var(--BR3);
+  transition: background-color 0.1s;
+}
+
+#sample-focus-bar .breadcrumb-body:hover {
+  background-color: white;
+}
+
 #sample-focus-bar .breadcrumb-ellipsis {
   color: var(--BR2);
   font-size: 0.85em;

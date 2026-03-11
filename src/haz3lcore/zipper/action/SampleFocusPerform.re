@@ -32,15 +32,30 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
       indicated_call:
         id != None ? id : z.refractors.sample_focus.indicated_call,
       call_stack:
-        id != None
-          ? data.call_stack
-          : !
-              ListUtil.is_suffix_of(
-                ~eq=Sample.equal_stack_frame,
-                data.call_stack,
-                sample_focus.call_stack,
-              )
-              ? data.call_stack : sample_focus.call_stack,
+        switch (id) {
+        | Some(ap_id) =>
+          /* Perspective extension: prepend the app as a frame so the
+             call_stack tracks the call we're looking at, not just the
+             calls we're inside of. Index stays at the original depth,
+             so this frame appears "below" (ghosted) in the breadcrumbs. */
+          let extended: Sample.call_stack = [
+            {
+              id: ap_id,
+              name: None,
+              fn_def_id: None,
+            },
+            ...data.call_stack,
+          ];
+          extended;
+        | None =>
+          !
+            ListUtil.is_suffix_of(
+              ~eq=Sample.equal_stack_frame,
+              data.call_stack,
+              sample_focus.call_stack,
+            )
+            ? data.call_stack : sample_focus.call_stack
+        },
       index: List.length(data.call_stack) - 1,
       step_range: Some((data.step_start, data.step_end)),
     }
