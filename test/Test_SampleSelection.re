@@ -1363,6 +1363,177 @@ let call_click_alignment_tests = [
   ),
 ];
 
+/* --- Test: perspective extension (app probe click) ---
+ *
+ * Perspective extension is when clicking an app probe prepends the app's
+ * ID as a frame to the call_stack, with index = List.length(data.call_stack) - 1.
+ * This means the extended frame is always below the index (ghosted in the UI).
+ * We test this by constructing cursors that represent the post-extension state
+ * and verifying alignment behavior. */
+
+let perspective_extension_tests = [
+  test_case(
+    "extension: app probe at top level creates ghost frame",
+    `Quick,
+    () => {
+      /* Simulate: clicking celsius(72.5) at top level.
+       * data.call_stack was [], so index = len([]) - 1 = -1.
+       * The extension prepends frame(id_a) to the call_stack.
+       * effective_stack at index=-1 is empty → tier 1a finds nothing.
+       * Tier 1b scans the full stack [frame(id_a)] and finds the suffix match. */
+      let cursor = mk_cursor_at_index(~index=-1, [frame(id_a)]);
+      let inner_samples = [
+        mk_sample(~seq=0, [named_frame(id_a, "celsius")]),
+      ];
+      let result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      check(
+        bool,
+        "should find sample via full-sightline fallback (tier 1b)",
+        true,
+        result == Some(0),
+      );
+    },
+  ),
+  test_case(
+    "extension: app probe inside a function creates ghost frame",
+    `Quick,
+    () => {
+      /* Simulate: inside outer (index=0), clicking inner(x*2) app probe.
+       * data.call_stack was [frame(id_a)], so index = len([frame(id_a)]) - 1 = 0.
+       * Extension prepends id_b → call_stack = [frame(id_b), frame(id_a)].
+       * effective_stack at index=0 is [frame(id_a)] (the outer frame only).
+       * Tier 1a: [frame(id_a)] doesn't suffix-match a 2-element sample → nothing.
+       * Tier 1b: full stack [frame(id_b), frame(id_a)] matches the sample. */
+      let cursor =
+        mk_cursor_at_index(~index=0, [frame(id_b), frame(id_a)]);
+      let inner_samples = [
+        mk_sample(
+          ~seq=0,
+          [named_frame(id_b, "inner"), named_frame(id_a, "outer")],
+        ),
+      ];
+      let result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          cursor,
+          inner_samples,
+        );
+      check(
+        bool,
+        "should find sample via full-sightline fallback (tier 1b)",
+        true,
+        result == Some(0),
+      );
+    },
+  ),
+  test_case(
+    "extension: peek then navigate in produces same alignment",
+    `Quick,
+    () => {
+      /* Peeking (after extension) and being-there should both find the sample.
+       * Peek cursor: call_stack = [frame(id_a)], index = -1
+       *   → effective_stack = [], tier 1a: nothing. Tier 1b: [frame(id_a)] matches.
+       * Navigate-in cursor: call_stack = [frame(id_a)], index = 0
+       *   → effective_stack = [frame(id_a)], tier 1a: suffix match directly. */
+      let samples = [mk_sample(~seq=0, [named_frame(id_a, "celsius")])];
+      let peek_cursor = mk_cursor_at_index(~index=-1, [frame(id_a)]);
+      let navigate_cursor = mk_cursor_at_index(~index=0, [frame(id_a)]);
+      let peek_result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          peek_cursor,
+          samples,
+        );
+      let nav_result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          navigate_cursor,
+          samples,
+        );
+      check(
+        bool,
+        "peek should find sample (index 0)",
+        true,
+        peek_result == Some(0),
+      );
+      check(
+        bool,
+        "navigate-in should find same sample (index 0)",
+        true,
+        nav_result == Some(0),
+      );
+    },
+  ),
+  test_case(
+    "extension: multiple inner samples, extension picks correct branch",
+    `Quick,
+    () => {
+      /* Simulate: top-level with two app probes (celsius and fahrenheit).
+       * Extension for celsius: call_stack = [frame(id_a)], index = -1.
+       * Samples inside the function body have different call stack frames.
+       * Tier 1b should pick the sample whose stack matches the extended frame. */
+      let cursor = mk_cursor_at_index(~index=-1, [frame(id_a)]);
+      let samples = [
+        mk_sample(~seq=0, [named_frame(id_a, "celsius")]),
+        mk_sample(~seq=1, [named_frame(id_b, "fahrenheit")]),
+      ];
+      let result =
+        Sample.Selection.most_aligned_index(~ap_id=None, cursor, samples);
+      check(
+        bool,
+        "should pick celsius (index 0), not fahrenheit (index 1)",
+        true,
+        result == Some(0),
+      );
+    },
+  ),
+  test_case(
+    "extension: suffix preservation after peek",
+    `Quick,
+    () => {
+      /* After peeking at celsius (extension), the inner sample's stack
+       * [frame(id_a)] IS a suffix of cursor's [frame(id_a)].
+       * After navigating to the inner sample, the cursor would become
+       * index=0 (same stack, higher index).
+       * Both states should give consistent results. */
+      let samples = [mk_sample(~seq=0, [named_frame(id_a, "celsius")])];
+      /* Extended cursor (peeking) */
+      let extended_cursor = mk_cursor_at_index(~index=-1, [frame(id_a)]);
+      let ext_result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          extended_cursor,
+          samples,
+        );
+      /* After navigating in (same stack, index bumped up) */
+      let navigated_cursor = mk_cursor_at_index(~index=0, [frame(id_a)]);
+      let nav_result =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          navigated_cursor,
+          samples,
+        );
+      check(
+        bool,
+        "extended cursor should find sample",
+        true,
+        ext_result == Some(0),
+      );
+      check(
+        bool,
+        "navigated cursor should find same sample",
+        true,
+        nav_result == Some(0),
+      );
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -1377,5 +1548,6 @@ let tests = (
     three_level_tests,
     recursive_tests,
     call_click_alignment_tests,
+    perspective_extension_tests,
   ]),
 );

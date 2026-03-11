@@ -18,11 +18,17 @@ let update_pinned_call =
     }
   );
 
-/* "Write side" of intent preservation: when clicking on a shallower
- * sample whose stack is a suffix of the current (deeper) stack, we keep
- * the deeper stack but lower the index. This retains the user's prior
- * inner selection so the "read side" (most_aligned_index) can recover it.
- * See Sample.Focus module comment for the full mechanism. */
+/* Sightline write side: updates the sightline on click/navigation.
+ *
+ * Suffix preservation: when the new sample's stack is a suffix of the
+ * current sightline, keep the full sightline and lower the index.
+ * This retains below-focus frames for alignment recovery.
+ *
+ * Perspective extension: when clicking an app probe (id = Some(ap_id)),
+ * prepend the application as a frame below the focus. This extends
+ * the sightline downward (peeking into a call without entering it).
+ *
+ * See Sample.Focus module comment and plans/sample-focus-sightline.md. */
 let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
   update(z, sample_focus =>
     {
@@ -32,15 +38,30 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
       indicated_call:
         id != None ? id : z.refractors.sample_focus.indicated_call,
       call_stack:
-        id != None
-          ? data.call_stack
-          : !
-              ListUtil.is_suffix_of(
-                ~eq=Sample.equal_stack_frame,
-                data.call_stack,
-                sample_focus.call_stack,
-              )
-              ? data.call_stack : sample_focus.call_stack,
+        switch (id) {
+        | Some(ap_id) =>
+          /* Perspective extension: prepend the app as a frame so the
+             call_stack tracks the call we're looking at, not just the
+             calls we're inside of. Index stays at the original depth,
+             so this frame appears "below" (ghosted) in the breadcrumbs. */
+          let extended: Sample.call_stack = [
+            {
+              id: ap_id,
+              name: None,
+              fn_def_id: None,
+            },
+            ...data.call_stack,
+          ];
+          extended;
+        | None =>
+          !
+            ListUtil.is_suffix_of(
+              ~eq=Sample.equal_stack_frame,
+              data.call_stack,
+              sample_focus.call_stack,
+            )
+            ? data.call_stack : sample_focus.call_stack
+        },
       index: List.length(data.call_stack) - 1,
       step_range: Some((data.step_start, data.step_end)),
     }

@@ -297,6 +297,46 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
+/* Scroll compensation for sample focus bar:
+ * When the bar's height changes (appearing/disappearing), adjust #main's
+ * scrollTop so visible code doesn't shift. Only compensates when scrolled
+ * down (at scroll 0, the shift is unavoidable). */
+let focus_bar_observer_installed = ref(false);
+let setup_focus_bar_scroll_compensation = () =>
+  if (! focus_bar_observer_installed^) {
+    let bar =
+      try(Some(get_elem_by_id("sample-focus-bar"))) {
+      | _ => None
+      };
+    let main =
+      try(Some(get_elem_by_id("main"))) {
+      | _ => None
+      };
+    switch (bar, main) {
+    | (Some(bar_el), Some(main_el)) =>
+      focus_bar_observer_installed := true;
+      let bar: Js.t('a) = Js.Unsafe.coerce(bar_el);
+      let main: Js.t('a) = Js.Unsafe.coerce(main_el);
+      let last_height = ref(bar##.offsetHeight);
+      let callback =
+        Js.wrap_callback(_entries => {
+          let new_height = bar##.offsetHeight;
+          let delta = new_height - last_height^;
+          last_height := new_height;
+          if (delta != 0 && main##.scrollTop > 0) {
+            main##.scrollTop :=  main##.scrollTop + delta;
+          };
+        });
+      let observer =
+        Js.Unsafe.new_obj(
+          Js.Unsafe.global##._ResizeObserver,
+          [|Js.Unsafe.inject(callback)|],
+        );
+      Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(bar)|]);
+    | _ => ()
+    };
+  };
+
 let set_select_value = (select_id, value) => {
   Js_of_ocaml.Js.Unsafe.set(
     get_elem_by_id(select_id),
