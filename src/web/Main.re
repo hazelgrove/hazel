@@ -193,6 +193,8 @@ let start = {
         };
         /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* Scroll-compensate when focus bar appears/disappears */
+        JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
         model.model.current.current.globals.settings.core.statics
