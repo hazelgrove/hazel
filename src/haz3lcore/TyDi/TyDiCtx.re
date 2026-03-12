@@ -253,11 +253,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     | List(ty) =>
       List.map(restrategize(" )::"), exp_aps(ty))
       @ List.map(restrategize("::"), exp_refs(ty))
-    | Prod([ty, ...tys]) =>
-      let commas =
-        List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), exp_aps(ty))
-      @ List.map(restrategize(commas), exp_refs(ty));
+    /* Prod case removed: scaffold handles tuple comma display */
     | Atom(Bool) =>
       /* TODO: Find a UI to make these less confusing */
       exp_refs(Atom(Int) |> Typ.fresh)
@@ -279,11 +275,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     | List(ty) =>
       List.map(restrategize(" )::"), pat_aps(ty))
       @ List.map(restrategize("::"), pat_refs(ty))
-    | Prod([ty, ...tys]) =>
-      let commas =
-        List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), pat_aps(ty))
-      @ List.map(restrategize(commas), pat_refs(ty));
+    /* Prod case removed: scaffold handles tuple comma display */
     | _ => []
     };
   | InfoTyp(_) => []
