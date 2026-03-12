@@ -19,6 +19,7 @@ let documentation_slides =
       Petrinaut.out,
       // Tiling.out,
       TLDraw.out,
+      BrushPath.out,
       BasicReference.out,
       // Projectors.out,
       // ADTs.out,
