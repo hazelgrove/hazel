@@ -104,6 +104,20 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Select(SetFocus(Right)))),
     ),
     mk_shortcut(
+      ~mdIcon="chevron_left",
+      ~section="Selection",
+      ~hotkey="alt+shift+left",
+      "Extend Selection Left by Token",
+      Globals(ActiveEditor(Select(Resize(Local(Left, ByToken))))),
+    ),
+    mk_shortcut(
+      ~mdIcon="chevron_right",
+      ~section="Selection",
+      ~hotkey="alt+shift+right",
+      "Extend Selection Right by Token",
+      Globals(ActiveEditor(Select(Resize(Local(Right, ByToken))))),
+    ),
+    mk_shortcut(
       ~hotkey="alt+f",
       ~mdIcon="camera",
       ~section="Projection",
