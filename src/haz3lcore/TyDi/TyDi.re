@@ -254,58 +254,81 @@ let inside_parens = (z: Zipper.t): bool => {
 
 /* Determine the expected tuple type inside parentheses.
  *
- * When inside `f(`, the `(` shard's CI has cls=Application with
- * ana=Unknown (for the Application result), not the argument type.
- * To get the argument type for function application, we look at
- * the function token's type and extract matched_arrow.
- *
- * For explicit parens like `let t : (Int,Bool) = (`, the `(` shard
- * itself has ana = Prod([Int, Bool]) from the type annotation.
+ * Two cases:
+ * 1. Both parens placed (ancestor case): the paren tile is the nearest
+ *    ancestor. Its ana reflects the expected type from context (function
+ *    argument type via Ap analysis, or type annotation).
+ * 2. Only open paren placed (shard case): the `(` shard is in left
+ *    siblings. For function application we look at the function token's
+ *    type and extract matched_arrow. For explicit parens we use the
+ *    `(` shard's ana.
  *
  * Returns the expected argument type (which should be checked for Prod). */
 let scaffold_expected_type =
     (z: Zipper.t, info_map: Statics.Map.t): option(Typ.t) => {
-  /* Find the `(` shard and the piece to its left (if any).
-   * Left siblings are stored in reverse order: head = farthest,
-   * tail = nearest to caret. The `(` shard is at or near the tail. */
-  let l = fst(z.relatives.siblings) |> List.rev; /* now head = nearest */
-  /* Find the `(` shard in the list (nearest to caret first).
-   * There may be content pieces (like `1`) between the caret and `(`.
-   * Returns the `(` shard and optionally the piece to its left (the function). */
-  let rec find_paren_and_left =
-          (pieces: list(Piece.t)): option((option(Piece.t), Piece.t)) =>
-    switch (pieces) {
-    | [] => None
-    | [Tile({label: ["(", ")"], shards: [0], _}) as p] =>
-      /* `(` shard with nothing to its left */
-      Some((None, p))
-    | [Tile({label: ["(", ")"], shards: [0], _}) as p, left, ..._] =>
-      /* `(` shard with a piece to its left */
-      Some((Some(left), p))
-    | [_, ...rest] =>
-      /* Skip content pieces between caret and `(` */
-      find_paren_and_left(rest)
-    };
-  switch (find_paren_and_left(l)) {
-  | None => None
-  | Some((maybe_fn, paren_piece)) =>
-    switch (maybe_fn) {
-    | Some(fn_piece) when !Piece.is_secondary(fn_piece) =>
-      /* Function application: look up function's type */
-      switch (Id.Map.find_opt(Piece.id(fn_piece), info_map)) {
-      | Some(InfoExp({ty, ctx, _})) =>
-        let (arg_ty, _) = Typ.matched_arrow(ctx, ty);
-        Some(arg_ty);
-      | _ => None
-      }
-    | _ =>
-      /* Explicit parens: use the `(` shard's ana type */
-      switch (Id.Map.find_opt(Piece.id(paren_piece), info_map)) {
-      | Some(InfoExp({ana, _})) => Some(ana)
-      | Some(InfoPat({ana, _})) => Some(ana)
-      | _ => None
-      }
+  /* Case 1: Both parens placed — paren tile is nearest ancestor.
+   * For function application, MakeTerm assigns the paren tile's ID
+   * to the Ap node (cls=Application, ana=Unknown). We need to find
+   * the function token in the ancestor's left context and use
+   * matched_arrow to get the argument type.
+   * For explicit parens, the paren tile maps to a Parens node
+   * whose ana is the expected type from context. */
+  switch (z.relatives.ancestors) {
+  | [(ancestor, (anc_left, _)), ..._]
+      when ancestor.label == ["(", ")"] =>
+    switch (Id.Map.find_opt(ancestor.id, info_map)) {
+    | Some(InfoExp({cls: Exp(Ap), _})) =>
+      /* Function application: find function in ancestor left context */
+      let l = List.rev(anc_left);
+      let rec find_fn =
+        fun
+        | [] => None
+        | [p, ..._] when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
+          switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+          | Some(InfoExp({ty, ctx, _})) =>
+            let (arg_ty, _) = Typ.matched_arrow(ctx, ty);
+            Some(arg_ty);
+          | _ => None
+          }
+        | [_, ...rest] => find_fn(rest);
+      find_fn(l);
+    | Some(InfoExp({ana, _})) => Some(ana)
+    | Some(InfoPat({ana, _})) => Some(ana)
+    | _ => None
     }
+  | _ =>
+    /* Case 2: Only open paren placed — shard in left siblings */
+    let l = fst(z.relatives.siblings) |> List.rev;
+    let rec find_paren_and_left =
+            (pieces: list(Piece.t)): option((option(Piece.t), Piece.t)) =>
+      switch (pieces) {
+      | [] => None
+      | [Tile({label: ["(", ")"], shards: [0], _}) as p] =>
+        Some((None, p))
+      | [Tile({label: ["(", ")"], shards: [0], _}) as p, left, ..._] =>
+        Some((Some(left), p))
+      | [_, ...rest] =>
+        find_paren_and_left(rest)
+      };
+    switch (find_paren_and_left(l)) {
+    | None => None
+    | Some((maybe_fn, paren_piece)) =>
+      switch (maybe_fn) {
+      | Some(fn_piece) when !Piece.is_secondary(fn_piece) =>
+        switch (Id.Map.find_opt(Piece.id(fn_piece), info_map)) {
+        | Some(InfoExp({ty, ctx, _})) =>
+          let (arg_ty, _) = Typ.matched_arrow(ctx, ty);
+          Some(arg_ty);
+        | _ => None
+        }
+      | _ =>
+        switch (Id.Map.find_opt(Piece.id(paren_piece), info_map)) {
+        | Some(InfoExp({ana, _})) => Some(ana)
+        | Some(InfoPat({ana, _})) => Some(ana)
+        | _ => None
+        }
+      }
+    };
   };
 };
 
