@@ -567,22 +567,33 @@ let progressive_tests = (
       ~expect=None,
     ),
     /* Nested: f(( → after opening inner paren.
-     * KNOWN LIMITATION: multiple unmatched ( shards can't determine
-     * inner expected type. The innermost ( finds the outer ( as its
-     * "function" piece, which isn't a function. Scaffold returns None.
-     * DESIRED: Some(hole_char ++ ", ") for inner (Int, Int) scaffold */
+     * Nested ( shards: inner ( finds outer (, which finds f.
+     * Peels first Prod element: (Int, Int) from ((Int, Int), String). */
     scaffold_test(
-      ~name="Nested f((: no scaffold (known limitation)",
+      ~name="Nested f((: inner scaffold",
       ~code=
         "let f : ((Int, Int), String) -> Bool = fun x -> true in f((¦",
-      ~expect=None,
+      ~expect=Some(hole_char ++ ", "),
     ),
-    /* Nested: f((1 → inside inner parens with content.
-     * Same limitation as above. DESIRED: Some(", " ++ hole_char) */
+    /* Nested: f((1 → inside inner parens with content. */
     scaffold_test(
-      ~name="Nested f((1: no scaffold (known limitation)",
+      ~name="Nested f((1: inner scaffold",
       ~code=
         "let f : ((Int, Int), String) -> Bool = fun x -> true in f((1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Nested: f((1, → inner comma placed, no more needed */
+    scaffold_test(
+      ~name="Nested f((1,: no scaffold",
+      ~code=
+        "let f : ((Int, Int), String) -> Bool = fun x -> true in f((1, ¦",
+      ~expect=None,
+    ),
+    /* Nested: f((1, 2 → inner tuple complete, no scaffold */
+    scaffold_test(
+      ~name="Nested f((1, 2: no scaffold",
+      ~code=
+        "let f : ((Int, Int), String) -> Bool = fun x -> true in f((1, 2¦",
       ~expect=None,
     ),
   ],

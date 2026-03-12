@@ -322,36 +322,63 @@ let scaffold_expected_type =
     | _ => None
     }
   | _ =>
-    /* Case 2: Only open paren placed — shard in left siblings */
+    /* Case 2: Only open paren placed — shard in left siblings.
+     * Handles nested ( shards: for f((¦, the innermost ( finds the
+     * outer ( as neighbor, which finds f as the function piece.
+     * Each nesting level peels one Prod element (first element). */
     let l = fst(z.relatives.siblings) |> List.rev;
-    let rec find_paren_and_left =
-            (pieces: list(Piece.t)): option((option(Piece.t), Piece.t)) =>
+    /* Find the chain of ( shards and the piece beyond them.
+     * Returns (nesting_depth, maybe_fn_piece, innermost_paren_piece). */
+    let rec find_paren_chain =
+            (pieces: list(Piece.t), depth: int)
+            : option((int, option(Piece.t), Piece.t)) =>
       switch (pieces) {
       | [] => None
       | [Tile({label: ["(", ")"], shards: [0], _}) as p] =>
-        Some((None, p))
+        Some((depth, None, p))
+      | [
+          Tile({label: ["(", ")"], shards: [0], _}) as p,
+          Tile({label: ["(", ")"], shards: [0], _}) as _outer,
+          ...rest,
+        ] =>
+        /* Nested paren: recurse to find function beyond the chain */
+        find_paren_chain([_outer, ...rest], depth + 1)
+        |> Option.map(((d, fn, _)) => (d, fn, p))
       | [Tile({label: ["(", ")"], shards: [0], _}) as p, left, ..._] =>
-        Some((Some(left), p))
-      | [_, ...rest] => find_paren_and_left(rest)
+        Some((depth, Some(left), p))
+      | [_, ...rest] => find_paren_chain(rest, depth)
       };
-    switch (find_paren_and_left(l)) {
+    /* Peel nested Prod elements: for each nesting level, take the
+     * first element of the Prod type (the inner paren groups it). */
+    let rec peel_prod = (ty: Typ.t, depth: int): Typ.t =>
+      if (depth <= 0) {
+        ty;
+      } else {
+        switch (Typ.term_of(ty)) {
+        | Prod([first, ..._]) => peel_prod(first, depth - 1)
+        | _ => ty /* Not a Prod — inner paren is just grouping */
+        };
+      };
+    switch (find_paren_chain(l, 0)) {
     | None => None
-    | Some((maybe_fn, paren_piece)) =>
-      switch (maybe_fn) {
-      | Some(fn_piece) when !Piece.is_secondary(fn_piece) =>
-        switch (Id.Map.find_opt(Piece.id(fn_piece), info_map)) {
-        | Some(InfoExp({ty, ctx, _})) =>
-          let (arg_ty, _) = Typ.matched_arrow(ctx, ty);
-          Some(arg_ty);
-        | _ => None
-        }
-      | _ =>
-        switch (Id.Map.find_opt(Piece.id(paren_piece), info_map)) {
-        | Some(InfoExp({ana, _})) => Some(ana)
-        | Some(InfoPat({ana, _})) => Some(ana)
-        | _ => None
-        }
-      }
+    | Some((depth, maybe_fn, paren_piece)) =>
+      let base_ty =
+        switch (maybe_fn) {
+        | Some(fn_piece) when !Piece.is_secondary(fn_piece) =>
+          switch (Id.Map.find_opt(Piece.id(fn_piece), info_map)) {
+          | Some(InfoExp({ty, ctx, _})) =>
+            let (arg_ty, _) = Typ.matched_arrow(ctx, ty);
+            Some(arg_ty);
+          | _ => None
+          }
+        | _ =>
+          switch (Id.Map.find_opt(Piece.id(paren_piece), info_map)) {
+          | Some(InfoExp({ana, _})) => Some(ana)
+          | Some(InfoPat({ana, _})) => Some(ana)
+          | _ => None
+          }
+        };
+      Option.map(ty => peel_prod(ty, depth), base_ty);
     };
   };
 };
