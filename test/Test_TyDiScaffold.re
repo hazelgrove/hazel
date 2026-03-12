@@ -270,26 +270,26 @@ let labeled_tests = (
   "TyDiScaffold.Labeled",
   [
     /* Labeled tuple: f expects (x=Int, y=String). After first arg,
-     * should show scaffold for remaining element */
+     * should show scaffold with label: ", y=○" */
     scaffold_test(
       ~name="Labeled tuple: after first arg",
       ~code=
         "let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", y=" ++ hole_char),
     ),
-    /* 3-element labeled: after first arg */
+    /* 3-element labeled: after first arg, shows labels for remaining */
     scaffold_test(
       ~name="Labeled 3-elem: after first arg",
       ~code=
         "let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(1¦)",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some(", b=" ++ hole_char ++ ", c=" ++ hole_char),
     ),
-    /* Labeled with both parens */
+    /* Unlabeled elements in a mixed tuple should show ○ without label */
     scaffold_test(
-      ~name="Labeled: both parens",
+      ~name="Mixed labeled/unlabeled",
       ~code=
-        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
-      ~expect=Some(", " ++ hole_char),
+        "let f : (Int, y=String) -> Bool = fun a -> true in f(1¦)",
+      ~expect=Some(", y=" ++ hole_char),
     ),
   ],
 );

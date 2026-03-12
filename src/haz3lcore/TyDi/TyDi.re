@@ -159,16 +159,19 @@ let is_scaffold = (text: Token.t): bool => {
   check(0);
 };
 
-/* Strip scaffold display chars (○ and spaces) to get insertable text.
- * e.g. ", ○" → ","  or  "c, ○, ○" → "c,," */
+/* Strip scaffold display chars to get insertable text.
+ * Keeps only commas (the structurally meaningful part).
+ * Strips: ○ placeholders, spaces, label prefixes (e.g. "y=").
+ * e.g. ", ○" → ","  or  ", y=○, z=○" → ",," */
 let strip_scaffold_display = (text: Token.t): Token.t => {
   /* Use Stdlib.Buffer to avoid conflict with haz3lcore Buffer module */
   let buf = Stdlib.Buffer.create(String.length(text));
   let i = ref(0);
   while (i^ < String.length(text)) {
     let c = text.[i^];
-    if (c == ' ') {
-      /* Skip spaces */
+    if (c == ',') {
+      /* Keep commas */
+      Stdlib.Buffer.add_char(buf, c);
       incr(i);
     } else if (i^
                + 2 < String.length(text)
@@ -178,14 +181,22 @@ let strip_scaffold_display = (text: Token.t): Token.t => {
       /* Skip ○ (3-byte UTF-8 sequence: E2 97 8B) */
       i := i^ + 3;
     } else {
-      Stdlib.Buffer.add_char(buf, c);
+      /* Skip everything else (spaces, label prefixes) */
       incr(i);
     };
   };
   Stdlib.Buffer.contents(buf);
 };
 
-/* Build the scaffold display string for a given number of remaining commas.
+/* Extract label from a Prod element type, if present.
+ * e.g. TupLabel(Label("x"), Int) → Some("x"), Int → None */
+let label_of_prod_elem = (ty: Typ.t): option(string) =>
+  switch (Typ.match_tup_label(ty)) {
+  | Some((name, _)) => Some(name)
+  | None => None
+  };
+
+/* Build the scaffold display string for remaining commas.
  *
  * When there's grout (a real hole) to the right of the caret, the scaffold
  * places the hole placeholder BEFORE the comma so it reads naturally:
@@ -194,15 +205,29 @@ let strip_scaffold_display = (text: Token.t): Token.t => {
  *
  * When the caret follows a convex piece (no grout to right), commas lead:
  *   grout_right=false: remaining=1 → ", ○"   remaining=2 → ", ○, ○"
- *   e.g. f(1, ○)  — value already typed, scaffold shows what's next */
-let mk_scaffold_display = (~grout_right: bool, remaining: int): string =>
+ *   e.g. f(1, ○)  — value already typed, scaffold shows what's next
+ *
+ * When labels are provided, they appear before the hole placeholder:
+ *   e.g. ", y=○" for a labeled element */
+let mk_scaffold_display =
+    (~grout_right: bool, ~labels: list(option(string)), remaining: int)
+    : string => {
+  let mk_hole = (i: int): string => {
+    let label_prefix =
+      switch (List.nth_opt(labels, i)) {
+      | Some(Some(name)) => name ++ "="
+      | _ => ""
+      };
+    label_prefix ++ scaffold_hole;
+  };
   if (grout_right) {
-    let parts = List.init(remaining, _ => scaffold_hole ++ ", ");
+    let parts = List.init(remaining, i => mk_hole(i) ++ ", ");
     String.concat("", parts);
   } else {
-    let parts = List.init(remaining, _ => ", " ++ scaffold_hole);
+    let parts = List.init(remaining, i => ", " ++ mk_hole(i));
     String.concat("", parts);
   };
+};
 
 /* Count comma tiles in sibling segments */
 let count_commas = ((l, r): Siblings.t): int => {
@@ -456,7 +481,13 @@ let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
                 );
                 skip_secondary(snd(z.relatives.siblings));
               };
-              let display = mk_scaffold_display(~grout_right, remaining);
+              /* Extract labels from the remaining Prod elements */
+              let filled = arity - remaining;
+              let remaining_tys = List.filteri((i, _) => i >= filled, tys);
+              let labels =
+                List.map(label_of_prod_elem, remaining_tys);
+              let display =
+                mk_scaffold_display(~grout_right, ~labels, remaining);
               let content = mk_unparsed_buffer(display);
               Zipper.set_buffer(z, ~content, ~mode=Unparsed);
             };
