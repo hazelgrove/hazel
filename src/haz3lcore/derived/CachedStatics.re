@@ -127,7 +127,10 @@ let init =
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z);
+  /* Reify scaffold buffer: virtually insert scaffold commas so statics
+   * sees the tuple structure (e.g., Ap(f, Tuple([1, ⬚])) not Ap(f, 1)) */
+  let z_for_sem = TyDi.reify_scaffold(z);
+  let make_term_result = MakeTerm.from_zip_for_sem(z_for_sem);
   let term = make_term_result.term |> stitch;
   /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
    * Map values to unit since we only need the IDs as keys. */
