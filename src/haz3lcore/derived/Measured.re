@@ -413,6 +413,11 @@ let of_segment_cache:
   ) =
   Util.WeakMap.mk();
 
+let () =
+  Util.ResettableMemo.register_resetter(() =>
+    Util.WeakMap.clear(of_segment_cache)
+  );
+
 let of_segment =
     (
       ~indent_level=Id.Map.empty,

@@ -48,8 +48,8 @@ let is_primitive_representation: 'a. 'a => bool =
   x => Js.to_bool(is_primitive_representation_impl(Obj.magic(x)));
 
 type t('k, 'v) = {
-  primitive_keys: JsMap.t('k, 'v),
-  non_primitive_keys: JsWeakMap.t('k, 'v),
+  mutable primitive_keys: JsMap.t('k, 'v),
+  mutable non_primitive_keys: JsWeakMap.t('k, 'v),
 };
 
 let mk = (): t('k, 'v) => {
@@ -57,6 +57,11 @@ let mk = (): t('k, 'v) => {
     primitive_keys: JsMap.mk(),
     non_primitive_keys: JsWeakMap.mk(),
   };
+};
+
+let clear = (t: t('k, 'v)): unit => {
+  t.primitive_keys = JsMap.mk();
+  t.non_primitive_keys = JsWeakMap.mk();
 };
 
 let get = (t: t('k, 'v), k: 'k): option('v) => {

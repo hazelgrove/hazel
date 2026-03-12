@@ -20,7 +20,7 @@ dune build bench/hazel_bench.bc.js >&2
 
 echo "==> Running benchmarks" >&2
 # The harness writes JSON directly to stdout; progress goes to stderr.
-if ! node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --json "$@"; then
+if ! node --stack-size=8192 --expose-gc _build/default/bench/hazel_bench.bc.js --json "$@"; then
   echo "==> Warning: benchmark process failed" >&2
   echo "[]"
 fi

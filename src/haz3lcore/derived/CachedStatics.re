@@ -27,7 +27,7 @@ let empty: t = {
 };
 
 let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+  ResettableMemo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
@@ -92,21 +92,35 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let info_map = Statics.mk(~ana?, settings, ctx_init, term);
-  let error_ids = Statics.Map.error_ids(info_map);
-  let warning_ids = Statics.Map.warning_ids(info_map);
+  let info_map =
+    PhaseTiming.record("statics/Statics", () =>
+      Statics.mk(~ana?, settings, ctx_init, term)
+    );
+  let error_ids =
+    PhaseTiming.record("statics/ErrorIds", () =>
+      Statics.Map.error_ids(info_map)
+    );
+  let warning_ids =
+    PhaseTiming.record("statics/WarningIds", () =>
+      Statics.Map.warning_ids(info_map)
+    );
   let elaborated =
-    switch () {
-    | _ when !settings.statics => dh_err("Statics disabled")
-    | _ when !settings.dynamics && !settings.elaborate =>
-      dh_err("Dynamics & Elaboration disabled")
-    | _ =>
-      switch (elaborate(info_map, term)) {
-      | DoesNotElaborate => dh_err("Elaboration returns None")
-      | Elaborates(d, _) => d
+    PhaseTiming.record("statics/Elaborate", () =>
+      switch () {
+      | _ when !settings.statics => dh_err("Statics disabled")
+      | _ when !settings.dynamics && !settings.elaborate =>
+        dh_err("Dynamics & Elaboration disabled")
+      | _ =>
+        switch (elaborate(info_map, term)) {
+        | DoesNotElaborate => dh_err("Elaboration returns None")
+        | Elaborates(d, _) => d
+        }
       }
-    };
-  let targets = compute_targets(~settings, ~info_map, ~probe_ids);
+    );
+  let targets =
+    PhaseTiming.record("statics/Targets", () =>
+      compute_targets(~settings, ~info_map, ~probe_ids)
+    );
   {
     term,
     elaborated,
@@ -127,8 +141,14 @@ let init =
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z);
-  let term = make_term_result.term |> stitch;
+  let make_term_result =
+    PhaseTiming.record("statics/MakeTerm", () =>
+      MakeTerm.from_zip_for_sem(z)
+    );
+  let term =
+    PhaseTiming.record("statics/Stitch", () =>
+      make_term_result.term |> stitch
+    );
   /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
    * Map values to unit since we only need the IDs as keys. */
   let probe_ids =

@@ -1202,7 +1202,7 @@ let consolidate_adopted = (): unit => {
 };
 
 let go =
-  Core.Memo.general(
+  ResettableMemo.general(
     ~cache_size_bound=1000,
     seg => {
       map := TermMap.empty;
@@ -1276,4 +1276,4 @@ let for_projection =
 let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
 
 let from_zip_for_sem =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+  ResettableMemo.general(~cache_size_bound=1000, from_zip_for_sem);

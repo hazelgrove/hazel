@@ -1,23 +1,25 @@
 /* Hazel performance benchmarks with scenario-based timing.
  *
- * Measures pipeline phases across four scenarios:
- *   cold   - fresh input, no memoization cache hits
- *   warm   - same input as cold, caches populated
- *   move   - after cursor movement (Move Left)
- *   modify - after content edit (Insert "x")
+ * Measures CachedSyntax and CachedStatics pipeline phases across four scenarios:
+ *   cold   - caches cleared before each iteration
+ *   warm   - caches primed, measuring steady-state
+ *   move   - caches primed with original, measuring after cursor movement
+ *   modify - caches primed with original, measuring after content edit
  *
- * Each scenario times: MakeTerm, Measured, Statics, Elaborate, Evaluate
- * (plus Perform for move/modify). Totals are computed per size/scenario.
+ * Phases instrumented via PhaseTiming (syntax and statics groups).
+ * Cache control via ResettableMemo.clear_all().
+ * 10 iterations per scenario, report median per phase.
  *
  * Usage:
  *   node bench/hazel_bench.bc.js            # table output
  *   node bench/hazel_bench.bc.js --json     # JSON output for CI comparison
- *   node bench/hazel_bench.bc.js --reps 10  # 10 repetitions (default: 7)
+ *   node bench/hazel_bench.bc.js --reps 10  # 10 repetitions (default: 10)
  *   node bench/hazel_bench.bc.js --filter cold --filter let100
  */
 
 open Haz3lcore;
 open Language;
+open Util;
 
 /* --- High-resolution timing via performance.now() --- */
 
@@ -27,18 +29,16 @@ let now_ms = (): float => {
   Js_of_ocaml.Js.Unsafe.meth_call(perf, "now", [||]);
 };
 
-/* Time a single function call. Returns (nanoseconds, result). */
-let time_call = (f: unit => 'a): (float, 'a) => {
-  let t0 = now_ms();
-  let result = f();
-  let t1 = now_ms();
-  ((t1 -. t0) *. 1e6, result);
-};
+/* Force Node.js garbage collection. Requires --expose-gc flag. */
+let force_gc = (): unit =>
+  Js_of_ocaml.Js.Unsafe.meth_call(
+    Js_of_ocaml.Js.Unsafe.global,
+    "gc",
+    [||],
+  );
 
 /* --- Program generators --- */
 
-/* Generate a let-chain program string with n bindings.
- * Each binding adds ~5-10 AST nodes. */
 let gen_let_chain = (n: int): string => {
   let buf = Stdlib.Buffer.create(n * 30);
   for (i in 0 to n - 1) {
@@ -59,7 +59,6 @@ let gen_let_chain = (n: int): string => {
   Stdlib.Buffer.contents(buf);
 };
 
-
 /* --- Parsing --- */
 
 let parse_to_zipper = (program: string): Zipper.t =>
@@ -70,112 +69,136 @@ let parse_to_zipper = (program: string): Zipper.t =>
     failwith("Failed to parse: " ++ String.sub(program, 0, len));
   };
 
-/* --- Pipeline timing --- */
+/* --- Pipeline --- */
+
+let settings = CoreSettings.on;
+
+/* Run CachedSyntax + CachedStatics with PhaseTiming enabled.
+ * Returns the list of (phase_name, nanoseconds) pairs. */
+let run_measured = (z: Zipper.t): list((string, float)) => {
+  PhaseTiming.recordings := [];
+  PhaseTiming.enabled := true;
+  let _syntax = CachedSyntax.init(z);
+  let _statics =
+    CachedStatics.init(
+      ~settings,
+      ~is_dynamic_term=true,
+      ~stitch=Fun.id,
+      z,
+    );
+  PhaseTiming.enabled := false;
+  PhaseTiming.get_and_clear();
+};
+
+/* Run pipeline without timing to populate caches. */
+let prime = (z: Zipper.t): unit => {
+  PhaseTiming.enabled := false;
+  let _syntax = CachedSyntax.init(z);
+  let _statics =
+    CachedStatics.init(
+      ~settings,
+      ~is_dynamic_term=true,
+      ~stitch=Fun.id,
+      z,
+    );
+  ();
+};
+
+/* Perform an editor action on a zipper. */
+let perform_action =
+    (z: Zipper.t, syntax: CachedSyntax.t, action: Action.t): Zipper.t =>
+  switch (
+    Perform.go(
+      ~statics=CachedStatics.empty,
+      ~syntax,
+      action,
+      {zipper: z, col_target: None},
+    )
+  ) {
+  | Ok(new_z) => new_z
+  | Error(_) => z
+  };
+
+/* --- Scenario runners --- */
+
+/* Each returns a list of (phase_name, nanoseconds) for one iteration. */
+
+let run_cold_iter = (z: Zipper.t): list((string, float)) => {
+  ResettableMemo.clear_all();
+  force_gc();
+  run_measured(z);
+};
+
+let run_warm_iter = (z: Zipper.t): list((string, float)) => {
+  force_gc();
+  run_measured(z);
+};
+
+/* For move/modify: clear caches, prime with original z, then measure on z'. */
+let run_incremental_iter =
+    (z_original: Zipper.t, z_modified: Zipper.t): list((string, float)) => {
+  ResettableMemo.clear_all();
+  prime(z_original);
+  force_gc();
+  run_measured(z_modified);
+};
+
+/* --- Data types --- */
 
 type measurement = {
   name: string,
   time_ns: float,
 };
 
-/* Run the full pipeline on a zipper, timing each phase individually.
- * Each phase feeds its real output to the next phase. */
-let time_pipeline = (label: string, z: Zipper.t): list(measurement) => {
-  let segment = Zipper.unselect_and_zip(z);
-
-  let (t_mt, make_term_result) = time_call(() => MakeTerm.go(segment));
-  let term = make_term_result.term;
-
-  let (t_meas, _) =
-    time_call(() => Measured.of_segment(segment, Id.Map.empty, Id.Map.empty));
-
-  let ctx = Builtins.ctx_init(Some(Int));
-  let (t_stat, info_map) =
-    time_call(() => Statics.mk(CoreSettings.on, ctx, term));
-
-  let (t_elab, (dhexp, _)) =
-    time_call(() => Elaborator.elaborate(info_map, term));
-
-  let (t_eval, _) =
-    time_call(() => Evaluator.evaluate(~env=Builtins.env_init, dhexp));
-
-  [
-    {name: label ++ "/MakeTerm", time_ns: t_mt},
-    {name: label ++ "/Measured", time_ns: t_meas},
-    {name: label ++ "/Statics", time_ns: t_stat},
-    {name: label ++ "/Elaborate", time_ns: t_elab},
-    {name: label ++ "/Evaluate", time_ns: t_eval},
-  ];
-};
-
-/* Run pipeline with a Perform action as the first timed phase. */
-let time_pipeline_with_action =
-    (label: string, z: Zipper.t, syntax: CachedSyntax.t, action: Action.t)
-    : list(measurement) => {
-  let (t_perf, acted_z) =
-    time_call(() =>
-      switch (
-        Perform.go(
-          ~statics=CachedStatics.empty,
-          ~syntax,
-          action,
-          {zipper: z, col_target: None},
-        )
-      ) {
-      | Ok(new_z) => new_z
-      | Error(_) => z
-      }
-    );
-
-  let pipeline = time_pipeline(label, acted_z);
-  [{name: label ++ "/Perform", time_ns: t_perf}, ...pipeline];
-};
-
-/* --- Cache isolation --- */
-
-/* Clone a zipper with fresh IDs on every piece. This ensures
- * Core.Memo.general (structural equality) and WeakMap (physical identity)
- * caches miss, giving true cold-start measurements each repetition.
- * Uses Segment.IDs.replace_piece which recursively freshens children. */
-let fresh_ids = (z: Zipper.t): Zipper.t =>
-  ZipperBase.MapPiece.go(p => [Segment.IDs.replace_piece(p)], z);
-
-/* --- Scenario runner --- */
-
 type parsed_program = {
   label: string,
   z: Zipper.t,
 };
 
-/* Run all four scenarios for one program at one repetition. */
-let run_scenarios = (prog: parsed_program): list(measurement) => {
-  let z = fresh_ids(prog.z);
-  let syntax = CachedSyntax.init(z);
+/* --- Scenario orchestration --- */
+
+let run_scenario =
+    (label: string, scenario: string, reps: int, run_iter: unit => list((string, float)))
+    : list(list(measurement)) =>
+  List.init(reps, _rep => {
+    let phases = run_iter();
+    List.map(
+      ((phase, ns)) => {name: label ++ "/" ++ scenario ++ "/" ++ phase, time_ns: ns},
+      phases,
+    );
+  });
+
+let run_all_scenarios =
+    (prog: parsed_program, reps: int): list(list(measurement)) => {
+  let z = prog.z;
   let label = prog.label;
 
-  /* Cold: first run with this input, all caches empty for these values */
-  let cold = time_pipeline(label ++ "/cold", z);
+  /* Cold: clear caches before each iteration */
+  Printf.eprintf("  cold...%!");
+  let cold = run_scenario(label, "cold", reps, () => run_cold_iter(z));
 
-  /* Warm: identical inputs, caches now populated from cold run */
-  let warm = time_pipeline(label ++ "/warm", z);
+  /* Warm: prime once, then measure repeated runs */
+  Printf.eprintf(" warm...%!");
+  ResettableMemo.clear_all();
+  prime(z);
+  let warm = run_scenario(label, "warm", reps, () => run_warm_iter(z));
 
-  /* Move: cursor movement then full pipeline */
+  /* Move: prime with original, measure after cursor movement */
+  Printf.eprintf(" move...%!");
+  let syntax = CachedSyntax.init(z);
+  let z_moved = perform_action(z, syntax, Move(Local(Left, ByChar)));
   let move =
-    time_pipeline_with_action(
-      label ++ "/move",
-      z,
-      syntax,
-      Move(Local(Left, ByChar)),
-    );
+    run_scenario(label, "move", reps, () => run_incremental_iter(z, z_moved));
 
-  /* Modify: content edit then full pipeline */
+  /* Modify: prime with original, measure after content edit */
+  Printf.eprintf(" modify...%!");
+  let z_modified = perform_action(z, syntax, Insert("x"));
   let modify =
-    time_pipeline_with_action(
-      label ++ "/modify",
-      z,
-      syntax,
-      Insert("x"),
+    run_scenario(label, "modify", reps, () =>
+      run_incremental_iter(z, z_modified)
     );
 
+  Printf.eprintf(" done\n%!");
   cold @ warm @ move @ modify;
 };
 
@@ -195,45 +218,47 @@ let median = (values: array(float)): float => {
 };
 
 /* Aggregate measurements across repetitions by taking the median. */
-let aggregate = (all_reps: list(list(measurement)), reps: int): list(measurement) => {
-  let tbl: Hashtbl.t(string, array(float)) = Hashtbl.create(128);
+let aggregate = (all_reps: list(list(measurement))): list(measurement) => {
+  let tbl: Hashtbl.t(string, list(float)) = Hashtbl.create(128);
   let order: ref(list(string)) = ref([]);
 
-  List.iteri(
-    (rep_idx, results) =>
+  List.iter(
+    results =>
       List.iter(
-        (m: measurement) => {
-          let arr =
-            switch (Hashtbl.find_opt(tbl, m.name)) {
-            | Some(a) => a
-            | None =>
-              let a = Array.make(reps, 0.0);
-              Hashtbl.replace(tbl, m.name, a);
-              order := [m.name, ...order^];
-              a;
-            };
-          arr[rep_idx] = m.time_ns;
-        },
+        (m: measurement) =>
+          switch (Hashtbl.find_opt(tbl, m.name)) {
+          | Some(vs) => Hashtbl.replace(tbl, m.name, [m.time_ns, ...vs])
+          | None =>
+            Hashtbl.replace(tbl, m.name, [m.time_ns]);
+            order := [m.name, ...order^];
+          },
         results,
       ),
     all_reps,
   );
 
   List.rev(order^)
-  |> List.map(name => {name, time_ns: median(Hashtbl.find(tbl, name))});
+  |> List.map(name => {
+       let vs = Hashtbl.find(tbl, name);
+       {name, time_ns: median(Array.of_list(vs))};
+     });
 };
 
 /* Insert Total rows after each {size}/{scenario} group. */
 let add_totals = (results: list(measurement)): list(measurement) => {
   let get_group = (name: string): string => {
-    /* Find the last '/' and return everything before it */
-    let last = ref(0);
+    /* Find second '/' — group is "{size}/{scenario}" */
+    let slash_count = ref(0);
+    let pos = ref(String.length(name));
     for (i in 0 to String.length(name) - 1) {
       if (name.[i] == '/') {
-        last := i;
+        slash_count := slash_count^ + 1;
+        if (slash_count^ == 2) {
+          pos := i;
+        };
       };
     };
-    String.sub(name, 0, last^);
+    String.sub(name, 0, pos^);
   };
 
   let output = ref([]);
@@ -296,23 +321,37 @@ let output_json = (results: list(measurement), reps: int): unit => {
 
 let output_table = (results: list(measurement)): unit => {
   let name_w =
-    List.fold_left((acc, m: measurement) => max(acc, String.length(m.name)), 10, results);
+    List.fold_left(
+      (acc, m: measurement) => max(acc, String.length(m.name)),
+      10,
+      results,
+    );
   let col_w = 12;
 
-  Printf.printf("\n%-*s  %*s\n", name_w, "Benchmark", col_w, "Time (median)");
+  Printf.printf(
+    "\n%-*s  %*s\n",
+    name_w,
+    "Benchmark",
+    col_w,
+    "Time (median)",
+  );
   Printf.printf("%s\n", String.make(name_w + col_w + 2, '-'));
 
   let prev_group = ref("");
   List.iter(
     (m: measurement) => {
       let group = {
-        let last = ref(0);
+        let slash_count = ref(0);
+        let pos = ref(String.length(m.name));
         for (i in 0 to String.length(m.name) - 1) {
           if (m.name.[i] == '/') {
-            last := i;
+            slash_count := slash_count^ + 1;
+            if (slash_count^ == 2) {
+              pos := i;
+            };
           };
         };
-        String.sub(m.name, 0, last^);
+        String.sub(m.name, 0, pos^);
       };
       if (group != prev_group^) {
         if (prev_group^ != "") {
@@ -320,7 +359,13 @@ let output_table = (results: list(measurement)): unit => {
         };
         prev_group := group;
       };
-      Printf.printf("%-*s  %*s\n", name_w, m.name, col_w, format_time(m.time_ns));
+      Printf.printf(
+        "%-*s  %*s\n",
+        name_w,
+        m.name,
+        col_w,
+        format_time(m.time_ns),
+      );
     },
     results,
   );
@@ -377,19 +422,12 @@ let is_substring = (haystack: string, needle: string): bool => {
 let () = {
   let argv = Array.to_list(Sys.argv);
   let json_mode = List.mem("--json", argv);
-  let reps = parse_int_arg(argv, "--reps", 7);
+  let reps = parse_int_arg(argv, "--reps", 10);
   let filters = parse_filters(argv);
 
-  /* Parse all programs once (expensive). Subsequent repetitions clone
-   * the zipper with fresh IDs instead of re-parsing. */
-  let programs = [
-    ("let100", gen_let_chain(100)),
-    ("let500", gen_let_chain(500)),
-  ];
-  /* Only parse programs that match the filter (parsing is expensive).
-   * A filter like "let100" or "let100/cold" targets a specific program;
-   * a filter like "cold" or "MakeTerm" doesn't target any program and
-   * requires all programs to be parsed. */
+  let programs = [("let100", gen_let_chain(100)), ("let500", gen_let_chain(500))];
+
+  /* Only parse programs that match the filter. */
   let all_labels = List.map(((label, _)) => label, programs);
   let filter_targets_any_program = (pat: string): bool =>
     List.exists(
@@ -407,12 +445,9 @@ let () = {
         ((label, _)) =>
           List.exists(
             pat =>
-              /* Pattern matches this program's label */
               is_substring(label, pat)
-              /* Pattern starts with this program's label (e.g. "let100/cold") */
               || String.length(pat) >= String.length(label)
               && String.sub(pat, 0, String.length(label)) == label
-              /* Pattern targets scenarios/phases, not a specific program */
               || !filter_targets_any_program(pat),
             filters,
           ),
@@ -432,22 +467,27 @@ let () = {
       programs,
     );
 
-  Printf.eprintf("==> Running %d repetitions\n%!", reps);
+  Printf.eprintf("==> Running %d iterations per scenario\n%!", reps);
 
-  /* Collect results from all repetitions */
-  let all_reps =
-    List.init(reps, rep => {
-      Printf.eprintf("==> Repetition %d/%d\n%!", rep + 1, reps);
-      List.flatten(List.map(prog => run_scenarios(prog), parsed));
-    });
+  /* Run all scenarios for each program, collecting per-iteration results. */
+  let all_reps: list(list(measurement)) =
+    List.flatten(
+      List.map(
+        prog => {
+          Printf.eprintf("==> %s:", prog.label);
+          run_all_scenarios(prog, reps);
+        },
+        parsed,
+      ),
+    );
 
-  /* Take median across repetitions */
-  let results = aggregate(all_reps, reps);
+  /* Take median across iterations */
+  let results = aggregate(all_reps);
 
   /* Add Total rows */
   let results = add_totals(results);
 
-  /* Apply filters */
+  /* Apply filters to output */
   let results =
     switch (filters) {
     | [] => results

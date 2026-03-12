@@ -2608,7 +2608,7 @@ and variant_to_info_map =
 };
 
 let mk =
-  Core.Memo.general(~cache_size_bound=1000, (ana, ctx, e) => {
+  Util.ResettableMemo.general(~cache_size_bound=1000, (ana, ctx, e) => {
     uexp_to_info_map(
       ~ana,
       ~ctx,
