@@ -55,8 +55,11 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
     | Some(display) when TyDi.is_scaffold(display) =>
-      /* Scaffold buffer: emit one comma's worth progressively */
+      /* Scaffold buffer: emit one comma's worth progressively.
+       * Add a trailing space after the comma for readability:
+       * f(1,?) → f(1, ?) instead of f(1,?) */
       let to_emit = scaffold_emit_text(display);
+      let to_emit = to_emit ++ " ";
       let z = Zipper.clear_unparsed_buffer(z);
       Parser.to_zipper(~zipper_init=z, to_emit);
     | Some(completion)

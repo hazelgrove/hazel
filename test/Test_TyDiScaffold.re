@@ -424,29 +424,29 @@ let reification_tests = (
 let acceptance_tests = (
   "TyDiScaffold.Acceptance",
   [
-    /* Shard case: f(1▎ → Tab → f(1,¦? */
+    /* Shard case: f(1▎ → Tab → f(1, ¦? (with space after comma) */
     accept_test(
-      ~name="Shard: 2-arg Tab inserts comma",
+      ~name="Shard: 2-arg Tab inserts comma+space",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦",
-      ~goal="let f : (Int, String) -> Int = fun x -> 0 in f(1,¦?",
+      ~goal="let f : (Int, String) -> Int = fun x -> 0 in f(1, ¦?",
     ),
-    /* Shard case: g(1▎ → Tab → g(1,¦? */
+    /* Shard case: g(1▎ → Tab → g(1, ¦? */
     accept_test(
-      ~name="Shard: 3-arg Tab inserts one comma",
+      ~name="Shard: 3-arg Tab inserts one comma+space",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1¦",
-      ~goal="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1,¦?",
+      ~goal="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦?",
     ),
-    /* Ancestor case: f(1▎) → Tab → f(1,¦?) */
+    /* Ancestor case: f(1▎) → Tab → f(1, ¦?) */
     accept_test(
-      ~name="Ancestor: 2-arg Tab inserts comma",
+      ~name="Ancestor: 2-arg Tab inserts comma+space",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦)",
-      ~goal="let f : (Int, String) -> Int = fun x -> 0 in f(1,¦?)",
+      ~goal="let f : (Int, String) -> Int = fun x -> 0 in f(1, ¦?)",
     ),
-    /* Explicit parens: (1▎) → Tab → (1,¦?) */
+    /* Explicit parens: (1▎) → Tab → (1, ¦?) */
     accept_test(
-      ~name="Explicit parens: Tab inserts comma",
+      ~name="Explicit parens: Tab inserts comma+space",
       ~code="let t : (Int, Bool) = (1¦) in t",
-      ~goal="let t : (Int, Bool) = (1,¦?) in t",
+      ~goal="let t : (Int, Bool) = (1, ¦?) in t",
     ),
   ],
 );
