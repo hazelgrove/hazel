@@ -80,14 +80,28 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
       /* Scaffold buffer: emit one chunk progressively.
        * Add a trailing space after commas for readability
        * (f(1, ?) instead of f(1,?)), but not after label
-       * prefixes (f(x=¦ not f(x= ¦)). */
-      let to_emit = scaffold_emit_text(display);
-      let ends_with_comma =
-        String.length(to_emit) > 0
-        && to_emit.[String.length(to_emit) - 1] == ',';
-      let to_emit = ends_with_comma ? to_emit ++ " " : to_emit;
-      let z = Zipper.clear_unparsed_buffer(z);
-      Parser.to_zipper(~zipper_init=z, to_emit);
+       * prefixes (f(x=¦ not f(x= ¦)).
+       *
+       * When caret is Inner (e.g., inside a string literal),
+       * the scaffold renders at the token-level gap (after the
+       * string), but the character cursor is inside the token.
+       * Tab advances the caret to Outer so the scaffold becomes
+       * directly actionable; the next Tab press accepts it. */
+      if (z.caret != Outer) {
+        /* Clear buffer, then advance caret past current token to
+         * exit the string/delimiter. Move.local handles the proper
+         * traversal from Inner to the next Outer position. */
+        let z = Zipper.clear_unparsed_buffer(z);
+        Move.local(ByToken, Right, z);
+      } else {
+        let to_emit = scaffold_emit_text(display);
+        let ends_with_comma =
+          String.length(to_emit) > 0
+          && to_emit.[String.length(to_emit) - 1] == ',';
+        let to_emit = ends_with_comma ? to_emit ++ " " : to_emit;
+        let z = Zipper.clear_unparsed_buffer(z);
+        Parser.to_zipper(~zipper_init=z, to_emit);
+      };
     | Some(completion)
         when Token.match(Token.regexp(".*\\)::$"), completion) =>
       /* Slightly hacky. There's currently only one genre of completion

@@ -469,9 +469,7 @@ let should_suppress =
  * Returns None if no scaffold applies. */
 let scaffold_display =
     (~info_map: Statics.Map.t, z: Zipper.t): option(string) =>
-  if (z.caret != Outer) {
-    None;
-  } else if (!inside_parens(z)) {
+  if (!inside_parens(z)) {
     None;
   } else {
     switch (z.selection.mode) {
