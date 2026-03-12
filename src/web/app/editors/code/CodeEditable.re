@@ -403,7 +403,7 @@ module View = {
             zipper.refractors.multis.ephemerals,
           ),
         ~syntax=model.editor.syntax,
-        ~indicated=Indicated.piece''(zipper),
+        ~indicated=Indicated.for_decoration(zipper),
         ~statics=model.statics.info_map,
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
@@ -431,7 +431,7 @@ module View = {
         ~visible?,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
-          ~indicated=Indicated.piece''(zipper),
+          ~indicated=Indicated.for_decoration(zipper),
           ~statics=model.statics.info_map,
           ~dynamics,
           ~sample_focus=zipper.refractors.sample_focus,

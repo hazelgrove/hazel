@@ -357,7 +357,7 @@ module Projectors = {
     switch (z.selection.content) {
     | [] =>
       switch (Indicated.for_index(z)) {
-      | Some((Projector({syntax, _}), _, _)) =>
+      | Some({piece: Projector({syntax, _}), _}) =>
         MakeTerm.for_projection(Piece.unparenthesize(syntax))
       | _ =>
         let* info = Indicated.ci_of(z, info_map);
@@ -384,7 +384,7 @@ module Projectors = {
 
   /* Get the kind of projector on the indicated piece, if any */
   let indicated_kind = (z: Zipper.t): option(ProjectorCore.Kind.t) => {
-    let* (piece, _, _) = Indicated.for_index(z);
+    let* {piece, _} = Indicated.for_index(z);
     switch (piece) {
     | Projector({kind, _}) => Some(kind)
     | _ => None
