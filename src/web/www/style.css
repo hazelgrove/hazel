@@ -108,9 +108,6 @@ select {
   flex-direction: column;
 }
 
-#main > * {
-  min-width: 0;
-}
 
 #side-bar {
   display: flex;
