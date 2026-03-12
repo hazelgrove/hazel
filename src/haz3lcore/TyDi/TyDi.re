@@ -160,28 +160,30 @@ let is_scaffold = (text: Token.t): bool => {
 };
 
 /* Strip scaffold display chars to get insertable text.
- * Keeps only commas (the structurally meaningful part).
- * Strips: ○ placeholders, spaces, label prefixes (e.g. "y=").
- * e.g. ", ○" → ","  or  ", y=○, z=○" → ",," */
+ * Keeps commas and label prefixes (e.g. "x=") — both are
+ * syntactically meaningful for tuple structure.
+ * Strips: ○ placeholders and spaces.
+ * e.g. ", ○" → ","  or  ", y=○, z=○" → ",y=,z="
+ *      "x=○, " → "x=," */
 let strip_scaffold_display = (text: Token.t): Token.t => {
   /* Use Stdlib.Buffer to avoid conflict with haz3lcore Buffer module */
   let buf = Stdlib.Buffer.create(String.length(text));
   let i = ref(0);
   while (i^ < String.length(text)) {
     let c = text.[i^];
-    if (c == ',') {
-      /* Keep commas */
-      Stdlib.Buffer.add_char(buf, c);
-      incr(i);
-    } else if (i^
-               + 2 < String.length(text)
-               && Char.code(text.[i^]) == 0xe2
-               && Char.code(text.[i^ + 1]) == 0x97
-               && Char.code(text.[i^ + 2]) == 0x8b) {
+    if (i^
+        + 2 < String.length(text)
+        && Char.code(text.[i^]) == 0xe2
+        && Char.code(text.[i^ + 1]) == 0x97
+        && Char.code(text.[i^ + 2]) == 0x8b) {
       /* Skip ○ (3-byte UTF-8 sequence: E2 97 8B) */
       i := i^ + 3;
+    } else if (c == ' ') {
+      /* Skip spaces */
+      incr(i);
     } else {
-      /* Skip everything else (spaces, label prefixes) */
+      /* Keep everything else: commas, label chars, = signs */
+      Stdlib.Buffer.add_char(buf, c);
       incr(i);
     };
   };
@@ -456,29 +458,28 @@ let should_suppress =
           | _ => Typ.is_consistent(ctx, syn_ty, expected_ty)
           }
         | None => false
-        };
+        }
       | _ => false
       };
     };
   | _ => false
   };
 
-let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
-  /* Only at Outer caret position */
+/* Compute the scaffold display string without modifying the zipper.
+ * Returns None if no scaffold applies. */
+let scaffold_display = (~info_map: Statics.Map.t, z: Zipper.t): option(string) =>
   if (z.caret != Outer) {
-    z;
+    None;
   } else if (!inside_parens(z)) {
-    z;
+    None;
   } else {
-    /* Don't override existing buffer */
     switch (z.selection.mode) {
-    | Buffer(Parsed | Unparsed) => z
-    | Normal when !Selection.is_empty(z.selection) => z
+    | Buffer(Parsed | Unparsed) => None
+    | Normal when !Selection.is_empty(z.selection) => None
     | _ =>
       switch (scaffold_expected_type(z, info_map)) {
-      | None => z
+      | None => None
       | Some(expected_ty) =>
-        /* Unwrap Parens to get at the Prod type underneath */
         let rec unwrap_parens = (ty: Typ.t): Typ.t =>
           switch (Typ.term_of(ty)) {
           | Parens(inner) => unwrap_parens(inner)
@@ -489,13 +490,13 @@ let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
         | Prod(tys) when List.length(tys) >= 2 =>
           let l = fst(z.relatives.siblings) |> List.rev;
           if (should_suppress(l, expected_ty, info_map)) {
-            z;
+            None;
           } else {
             let arity = List.length(tys);
             let existing_commas = count_commas(z.relatives.siblings);
             let remaining = arity - 1 - existing_commas;
             if (remaining <= 0) {
-              z;
+              None;
             } else {
               let grout_right = {
                 let rec skip_secondary = (
@@ -506,12 +507,6 @@ let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
                 );
                 skip_secondary(snd(z.relatives.siblings));
               };
-              /* Extract labels for the scaffold holes from the Prod elements.
-               * When grout_right, scaffold holes represent elements starting
-               * from existing_commas (element 0 when no commas yet). When
-               * not grout_right, scaffold holes start after the current
-               * content (existing_commas + 1). Take exactly `remaining`
-               * labels to match the number of holes. */
               let label_start =
                 grout_right ? existing_commas : existing_commas + 1;
               let remaining_tys =
@@ -519,16 +514,21 @@ let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
                 |> List.filteri((i, _) => i >= label_start)
                 |> (lst => List.filteri((i, _) => i < remaining, lst));
               let labels = List.map(label_of_prod_elem, remaining_tys);
-              let display =
-                mk_scaffold_display(~grout_right, ~labels, remaining);
-              let content = mk_unparsed_buffer(display);
-              Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+              Some(mk_scaffold_display(~grout_right, ~labels, remaining));
             };
           };
-        | _ => z
+        | _ => None
         };
       }
     };
+  };
+
+let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
+  switch (scaffold_display(~info_map, z)) {
+  | None => z
+  | Some(display) =>
+    let content = mk_unparsed_buffer(display);
+    Zipper.set_buffer(z, ~content, ~mode=Unparsed);
   };
 
 /* Reify the scaffold buffer into the zipper by inserting the

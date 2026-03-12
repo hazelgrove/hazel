@@ -26,25 +26,47 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   | Some(content) => Zipper.set_buffer(z, ~content, ~mode=Parsed)
   };
 
-/* For scaffold buffers, extract the text to emit on Tab:
- * up to and including the first comma in the insertable text.
- * e.g. display ", ○" → insertable "," → emit ","
- *      display ", ○, ○" → insertable ",," → emit ","
- *      display "c, ○" → insertable "c," → emit "c,"  */
+/* For scaffold buffers, extract the text to emit on Tab.
+ * Emits one "chunk" at a time for progressive acceptance:
+ *
+ * - If the insertable starts with a label (e.g. "x=,..."):
+ *   emit just the label prefix "x=" so the user can fill in the value
+ * - Otherwise: emit up to and including the first comma
+ *
+ * e.g. display ", ○"     → insertable ","    → emit ","
+ *      display ", ○, ○"  → insertable ",,"   → emit ","
+ *      display "x=○, "   → insertable "x=,"  → emit "x="
+ *      display ", y=○"   → insertable ",y="  → emit ","  */
 let scaffold_emit_text = (display: string): string => {
   let insertable = TyDi.strip_scaffold_display(display);
-  /* Find first comma and emit up to and including it */
   let len = String.length(insertable);
-  let rec find_comma = (i: int): int =>
+  /* Check if the insertable starts with a label prefix (chars before '=').
+   * If so, emit just the label prefix (up to and including '='). */
+  let rec find_eq_before_comma = (i: int): option(int) =>
     if (i >= len) {
-      len; /* No comma found — emit everything */
+      None;
+    } else if (insertable.[i] == '=') {
+      Some(i + 1);
     } else if (insertable.[i] == ',') {
-      i + 1; /* Include the comma */
+      None; /* Comma comes before any '=' */
     } else {
-      find_comma(i + 1);
+      find_eq_before_comma(i + 1);
     };
-  let end_pos = find_comma(0);
-  String.sub(insertable, 0, end_pos);
+  switch (find_eq_before_comma(0)) {
+  | Some(end_pos) => String.sub(insertable, 0, end_pos)
+  | None =>
+    /* No leading label — emit up to and including the first comma */
+    let rec find_comma = (i: int): int =>
+      if (i >= len) {
+        len;
+      } else if (insertable.[i] == ',') {
+        i + 1;
+      } else {
+        find_comma(i + 1);
+      };
+    let end_pos = find_comma(0);
+    String.sub(insertable, 0, end_pos);
+  };
 };
 
 let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
@@ -55,11 +77,15 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
     | Some(display) when TyDi.is_scaffold(display) =>
-      /* Scaffold buffer: emit one comma's worth progressively.
-       * Add a trailing space after the comma for readability:
-       * f(1,?) → f(1, ?) instead of f(1,?) */
+      /* Scaffold buffer: emit one chunk progressively.
+       * Add a trailing space after commas for readability
+       * (f(1, ?) instead of f(1,?)), but not after label
+       * prefixes (f(x=¦ not f(x= ¦)). */
       let to_emit = scaffold_emit_text(display);
-      let to_emit = to_emit ++ " ";
+      let ends_with_comma =
+        String.length(to_emit) > 0
+        && to_emit.[String.length(to_emit) - 1] == ',';
+      let to_emit = ends_with_comma ? to_emit ++ " " : to_emit;
       let z = Zipper.clear_unparsed_buffer(z);
       Parser.to_zipper(~zipper_init=z, to_emit);
     | Some(completion)

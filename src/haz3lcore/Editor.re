@@ -175,10 +175,25 @@ module Update = {
             Indicated.ci_of(state.zipper, new_statics.info_map),
             state.zipper,
           );
-        /* If no text completion was set, try scaffold (tuple commas) */
-        switch (TyDi.get_unparsed_buffer(z)) {
-        | Some(_) => z
-        | None => TyDi.set_scaffold(~info_map=new_statics.info_map, z)
+        /* Try scaffold on the original (bufferless) zipper.
+         * If both text completion and scaffold apply, combine them
+         * into a single buffer (e.g., "ue, ○" for completion "ue"
+         * plus scaffold ", ○"). Tab acceptance is incremental:
+         * first Tab accepts the completion, second Tab the comma. */
+        let scaffold =
+          TyDi.scaffold_display(
+            ~info_map=new_statics.info_map,
+            state.zipper,
+          );
+        switch (TyDi.get_unparsed_buffer(z), scaffold) {
+        | (Some(completion), Some(scaffold_text)) =>
+          let combined = completion ++ scaffold_text;
+          let content = TyDi.mk_unparsed_buffer(combined);
+          Zipper.set_buffer(state.zipper, ~content, ~mode=Unparsed);
+        | (Some(_), None) => z
+        | (None, Some(_)) =>
+          TyDi.set_scaffold(~info_map=new_statics.info_map, z)
+        | (None, None) => z
         };
       } else {
         state.zipper;

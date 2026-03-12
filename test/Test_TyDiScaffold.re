@@ -31,7 +31,8 @@ let scaffold_suggest_stale =
     (code_full: string, split_at: int): option(string) => {
   let actions_all = Test_Editing.mk(code_full);
   /* Split actions at the boundary */
-  let (actions_stale, actions_rest) = Util.ListUtil.split_n(split_at, actions_all);
+  let (actions_stale, actions_rest) =
+    Util.ListUtil.split_n(split_at, actions_all);
   /* Build zipper up to stale point */
   let z_stale = Test_Editing.perform(Zipper.init(), actions_stale);
   /* Compute stale statics */
@@ -448,6 +449,20 @@ let acceptance_tests = (
       ~code="let t : (Int, Bool) = (1¦) in t",
       ~goal="let t : (Int, Bool) = (1, ¦?) in t",
     ),
+    /* Labeled grout-right: f(▎ → Tab → f(x=▎ — emits label prefix */
+    accept_test(
+      ~name="Labeled grout-right: Tab inserts label",
+      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
+      ~goal=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
+    ),
+    /* Labeled after value: f(1▎ → Tab → f(1, y=▎ — comma + label */
+    accept_test(
+      ~name="Labeled after value: Tab inserts comma+label",
+      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
+      ~goal=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(1, ¦?)",
+    ),
   ],
 );
 
@@ -456,16 +471,13 @@ let acceptance_tests = (
 /* stale_test: type code_full up to split_at, compute statics, then
  * type the rest. Scaffold runs with the stale statics on the final zipper. */
 let stale_test = (~name, ~code, ~split_at, ~expect) =>
-  test_case(
-    name,
-    `Quick,
-    () =>
-      check(
-        option(string),
-        name,
-        expect,
-        scaffold_suggest_stale(code, split_at),
-      ),
+  test_case(name, `Quick, () =>
+    check(
+      option(string),
+      name,
+      expect,
+      scaffold_suggest_stale(code, split_at),
+    )
   );
 
 let def2 = "let f : (Int, String) -> Int = fun x -> 0 in ";
@@ -571,22 +583,19 @@ let progressive_tests = (
      * Peels first Prod element: (Int, Int) from ((Int, Int), String). */
     scaffold_test(
       ~name="Nested f((: inner scaffold",
-      ~code=
-        "let f : ((Int, Int), String) -> Bool = fun x -> true in f((¦",
+      ~code="let f : ((Int, Int), String) -> Bool = fun x -> true in f((¦",
       ~expect=Some(hole_char ++ ", "),
     ),
     /* Nested: f((1 → inside inner parens with content. */
     scaffold_test(
       ~name="Nested f((1: inner scaffold",
-      ~code=
-        "let f : ((Int, Int), String) -> Bool = fun x -> true in f((1¦",
+      ~code="let f : ((Int, Int), String) -> Bool = fun x -> true in f((1¦",
       ~expect=Some(", " ++ hole_char),
     ),
     /* Nested: f((1, → inner comma placed, no more needed */
     scaffold_test(
       ~name="Nested f((1,: no scaffold",
-      ~code=
-        "let f : ((Int, Int), String) -> Bool = fun x -> true in f((1, ¦",
+      ~code="let f : ((Int, Int), String) -> Bool = fun x -> true in f((1, ¦",
       ~expect=None,
     ),
     /* Nested: f((1, 2 → inner tuple complete, no scaffold */
@@ -629,6 +638,133 @@ let pattern_tests = (
   ],
 );
 
+/* ---- Combined completion + scaffold ---- */
+
+/* Test that scaffold_display returns a value even when there's
+ * a text completion prefix. In the web UI, these get concatenated. */
+let combined_test = (~name, ~code, ~completion_prefix, ~scaffold_expect) =>
+  test_case(name, `Quick, () => {
+    let actions = Test_Editing.mk(code);
+    let z = Test_Editing.perform(Zipper.init(), actions);
+    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
+    let info_map =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+    /* Get scaffold on the original (bufferless) zipper */
+    let scaffold = TyDi.scaffold_display(~info_map, z);
+    /* Verify scaffold independently */
+    check(
+      option(string),
+      name ++ " scaffold",
+      scaffold_expect,
+      scaffold,
+    );
+    /* Verify combined display would contain both */
+    switch (scaffold) {
+    | Some(s) =>
+      let combined = completion_prefix ++ s;
+      check(
+        testable(Fmt.bool, Bool.equal),
+        name ++ " combined has scaffold",
+        true,
+        TyDi.is_scaffold(combined),
+      );
+    | None => ()
+    };
+  });
+
+let combined_tests = (
+  "TyDiScaffold.Combined",
+  [
+    /* g(1111, tr → completion "ue" + scaffold ", ○" */
+    combined_test(
+      ~name="Completion + scaffold: g(1111, tr",
+      ~code=
+        "let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1111, tr¦",
+      ~completion_prefix="ue",
+      ~scaffold_expect=Some(", " ++ hole_char),
+    ),
+    /* f(tr → completion "ue" + scaffold ", ○" */
+    combined_test(
+      ~name="Completion + scaffold: f(tr",
+      ~code="let f : (Int, String) -> Bool = fun x -> true in f(tr¦",
+      ~completion_prefix="ue",
+      ~scaffold_expect=Some(", " ++ hole_char),
+    ),
+    /* f(1 → no completion, just scaffold ", ○" */
+    combined_test(
+      ~name="No completion, just scaffold: f(1",
+      ~code="let f : (Int, String) -> Bool = fun x -> true in f(1¦",
+      ~completion_prefix="",
+      ~scaffold_expect=Some(", " ++ hole_char),
+    ),
+  ],
+);
+
+/* ---- Labeled acceptance: progressive Tab ---- */
+
+let labeled_accept_tests = (
+  "TyDiScaffold.LabeledAcceptance",
+  [
+    /* f( with labeled → Tab inserts x= (label prefix) */
+    accept_test(
+      ~name="Labeled: Tab on f( inserts label",
+      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
+      ~goal=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
+    ),
+    /* After user types value: f(x=1▎) → scaffold ", y=○" → Tab inserts , */
+    accept_test(
+      ~name="Labeled: Tab after value inserts comma",
+      ~code=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1¦)",
+      ~goal=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦?)",
+    ),
+    /* 3-labeled: f( → Tab → f(a= */
+    accept_test(
+      ~name="Labeled 3-elem: Tab on f( inserts first label",
+      ~code="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(¦",
+      ~goal=
+        "let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(a=¦?",
+    ),
+  ],
+);
+
+/* ---- Scaffold after comma (Issue 2 behavior) ---- */
+
+let after_comma_tests = (
+  "TyDiScaffold.AfterComma",
+  [
+    /* After typing comma in 3-arg: g(1, ¦ → scaffold "○, " because
+     * there's grout to right and 1 remaining comma */
+    scaffold_test(
+      ~name="After comma 3-arg: g(1, shows scaffold",
+      ~code=def3 ++ "g(1, ¦",
+      ~expect=Some(hole_char ++ ", "),
+    ),
+    /* After typing all commas: g(1, true, ¦ → no scaffold */
+    scaffold_test(
+      ~name="After all commas: no scaffold",
+      ~code=def3 ++ "g(1, true, ¦",
+      ~expect=None,
+    ),
+    /* After comma in 2-arg: f(1, ¦ → no scaffold (all commas placed) */
+    scaffold_test(
+      ~name="After comma 2-arg: no scaffold",
+      ~code=def2 ++ "f(1, ¦",
+      ~expect=None,
+    ),
+    /* Labeled: after typing comma, scaffold for next position.
+     * f(x=1, ¦ → no scaffold (all commas present in 2-elem tuple) */
+    scaffold_test(
+      ~name="Labeled after comma: no scaffold",
+      ~code=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦",
+      ~expect=None,
+    ),
+  ],
+);
+
 let tests = [
   shard_tests,
   ancestor_tests,
@@ -638,6 +774,9 @@ let tests = [
   edge_tests,
   reification_tests,
   acceptance_tests,
+  labeled_accept_tests,
+  combined_tests,
+  after_comma_tests,
   stale_tests,
   progressive_tests,
   pattern_tests,

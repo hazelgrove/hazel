@@ -173,10 +173,12 @@ module Update = {
              editor.state.zipper.refractors.multis.ephemerals,
            );
 
-    let statics =
+    let statics_refreshed =
       statics_mode == StaticsForce
       || (is_edited || probes_changed)
-      && statics_mode != StaticsDefer
+      && statics_mode != StaticsDefer;
+    let statics =
+      statics_refreshed
         ? CachedStatics.init(
             ~settings,
             ~stitch,
@@ -186,6 +188,50 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
+    /* When statics are refreshed after debounce (not during an edit),
+     * regenerate the scaffold buffer with the fresh statics.
+     * This handles the case where typing (e.g., f(1) happened during
+     * debounce — scaffold couldn't be set with stale statics, but now
+     * we have fresh statics and can try again. */
+    let editor =
+      if (statics_refreshed
+          && !is_edited
+          && settings.assist
+          && settings.statics) {
+        let zipper = editor.state.zipper;
+        switch (TyDi.get_unparsed_buffer(zipper)) {
+        | Some(_) => editor /* Don't override existing buffer */
+        | None =>
+          switch (
+            TyDi.scaffold_display(~info_map=statics.info_map, zipper)
+          ) {
+          | None => editor
+          | Some(display) =>
+            let content = TyDi.mk_unparsed_buffer(display);
+            let zipper =
+              Zipper.set_buffer(zipper, ~content, ~mode=Unparsed);
+            /* Mark syntax old so CachedSyntax recalculates with the
+             * new buffer content (needed for correct caret_point). */
+            let syntax = CachedSyntax.mark_old(editor.syntax);
+            let syntax =
+              CachedSyntax.calculate(
+                zipper,
+                statics.info_map,
+                dynamics,
+                syntax,
+              );
+            Editor.Model.{
+              state: {
+                ...editor.state,
+                zipper,
+              },
+              syntax,
+            };
+          }
+        };
+      } else {
+        editor;
+      };
     {
       editor,
       statics,
