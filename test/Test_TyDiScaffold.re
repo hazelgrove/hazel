@@ -287,6 +287,78 @@ let nested_tests = (
         "let f : ((Int, Int), String, Bool) -> Int = fun x -> 0 in f((1, 2)¦)",
       ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
     ),
+    /* --- Right-nested: tuple on the right side of outer Prod --- */
+    /* f expects (Bool, (Int, String)). Inside inner parens with one arg. */
+    scaffold_test(
+      ~name="Right-nested: f(true, (4|",
+      ~code=
+        "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (4¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Right-nested: just the inner open paren */
+    scaffold_test(
+      ~name="Right-nested: f(true, (|",
+      ~code=
+        "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (¦",
+      ~expect=Some(hole_char ++ ", "),
+    ),
+    /* Right-nested: inner tuple complete, no scaffold */
+    scaffold_test(
+      ~name="Right-nested: f(true, (4, | complete",
+      ~code=
+        "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (4, ¦",
+      ~expect=None,
+    ),
+    /* Right-nested: outer scaffold when only first arg typed */
+    scaffold_test(
+      ~name="Right-nested: f(true| outer scaffold",
+      ~code=
+        "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Right-nested with both parens: f(true, (4|)) */
+    scaffold_test(
+      ~name="Right-nested both parens: f(true, (4|))",
+      ~code=
+        "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (4¦))",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Deeply nested: (Int, (String, (Bool, Float))) */
+    scaffold_test(
+      ~name="Deep right-nested: inner-most",
+      ~code=
+        "let f : (Int, (String, (Bool, Float))) -> Int = fun x -> 0 in f(1, (\"a\", (true¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Deep right-nested: middle level */
+    scaffold_test(
+      ~name="Deep right-nested: middle level",
+      ~code=
+        "let f : (Int, (String, (Bool, Float))) -> Int = fun x -> 0 in f(1, (\"a\"¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Middle-nested: (Int, (String, Bool), Float) */
+    scaffold_test(
+      ~name="Middle-nested: inside inner parens",
+      ~code=
+        "let f : (Int, (String, Bool), Float) -> Int = fun x -> 0 in f(1, (\"a\"¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Middle-nested: outer level after inner complete */
+    scaffold_test(
+      ~name="Middle-nested: outer after inner typed",
+      ~code=
+        "let f : (Int, (String, Bool), Float) -> Int = fun x -> 0 in f(1, (\"a\", true)¦)",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Right-nested Tab acceptance */
+    accept_test(
+      ~name="Right-nested: Tab inside inner parens",
+      ~code=
+        "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (4¦",
+      ~goal=
+        "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (4, ¦?",
+    ),
   ],
 );
 

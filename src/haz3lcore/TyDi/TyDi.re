@@ -232,14 +232,38 @@ let mk_scaffold_display =
 };
 
 /* Count comma tiles in sibling segments */
-let count_commas = ((l, r): Siblings.t): int => {
-  let is_comma = (p: Piece.t): bool =>
-    switch (p) {
-    | Tile({label: [","], _}) => true
-    | _ => false
-    };
+let is_comma = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label: [","], _}) => true
+  | _ => false
+  };
+
+let count_commas = ((l, r): Siblings.t): int =>
   List.length(List.filter(is_comma, l))
   + List.length(List.filter(is_comma, r));
+
+/* Count commas in a list of pieces (single-sided). */
+let count_commas_in = (pieces: list(Piece.t)): int =>
+  List.length(List.filter(is_comma, pieces));
+
+/* Get the left siblings between the caret and the nearest ( shard
+ * (excluding the ( shard itself). Returns in the same order as the
+ * original left siblings (left-to-right / farthest-first).
+ * For ancestor case (no ( shard in siblings), returns all left siblings.
+ *
+ * Left siblings are stored in left-to-right order (farthest from caret
+ * first). We reverse to walk nearest-first, collect until hitting a
+ * ( shard, then reverse back. */
+let inner_left_siblings = (z: Zipper.t): list(Piece.t) => {
+  let l_nearest = List.rev(fst(z.relatives.siblings));
+  let rec take_until_paren = (acc, pieces) =>
+    switch (pieces) {
+    | [] => acc
+    | [Piece.Tile({label: ["(", ")"], shards: [0], _}), ..._] => acc
+    | [p, ...rest] => take_until_paren([p, ...acc], rest)
+    };
+  /* acc is built by consing, so it ends up in farthest-first order */
+  take_until_paren([], l_nearest);
 };
 
 /* Check if we're inside parentheses. Three cases:
@@ -325,62 +349,100 @@ let scaffold_expected_type =
     }
   | _ =>
     /* Case 2: Only open paren placed — shard in left siblings.
-     * Handles nested ( shards: for f((¦, the innermost ( finds the
-     * outer ( as neighbor, which finds f as the function piece.
-     * Each nesting level peels one Prod element (first element). */
-    let l = fst(z.relatives.siblings) |> List.rev;
-    /* Find the chain of ( shards and the piece beyond them.
-     * Returns (nesting_depth, maybe_fn_piece, innermost_paren_piece). */
-    let rec find_paren_chain =
-            (pieces: list(Piece.t), depth: int)
-            : option((int, option(Piece.t), Piece.t)) =>
-      switch (pieces) {
-      | [] => None
-      | [Tile({label: ["(", ")"], shards: [0], _}) as p] =>
-        Some((depth, None, p))
-      | [
-          Tile({label: ["(", ")"], shards: [0], _}) as p,
-          Tile({label: ["(", ")"], shards: [0], _}) as _outer,
-          ...rest,
-        ] =>
-        /* Nested paren: recurse to find function beyond the chain */
-        find_paren_chain([_outer, ...rest], depth + 1)
-        |> Option.map(((d, fn, _)) => (d, fn, p))
-      | [Tile({label: ["(", ")"], shards: [0], _}) as p, left, ..._] =>
-        Some((depth, Some(left), p))
-      | [_, ...rest] => find_paren_chain(rest, depth)
-      };
-    /* Peel nested Prod elements: for each nesting level, take the
-     * first element of the Prod type (the inner paren groups it). */
-    let rec peel_prod = (ty: Typ.t, depth: int): Typ.t =>
-      if (depth <= 0) {
-        ty;
-      } else {
-        switch (Typ.term_of(ty)) {
-        | Prod([first, ..._]) => peel_prod(first, depth - 1)
-        | _ => ty /* Not a Prod — inner paren is just grouping */
-        };
-      };
-    switch (find_paren_chain(l, 0)) {
-    | None => None
-    | Some((depth, maybe_fn, paren_piece)) =>
-      let base_ty =
-        switch (maybe_fn) {
-        | Some(fn_piece) when !Piece.is_secondary(fn_piece) =>
+     * Find the nearest ( shard to the caret and determine the expected
+     * type inside it. For function application parens (cls=Ap), find
+     * the function token and use matched_arrow. For other parens
+     * (grouping, nested), use the paren shard's ana type directly. */
+    /* Left siblings are in left-to-right order (farthest first).
+     * Reverse to search nearest-first for the innermost ( shard. */
+    let l_nearest = List.rev(fst(z.relatives.siblings));
+    /* For a ( shard, determine the expected type inside it.
+     * For Ap: find the function and use matched_arrow.
+     * For Parens with known ana: use ana directly.
+     * For Parens with Unknown ana: the inner paren is nested inside
+     * an outer context whose type hasn't propagated. Find the outer
+     * paren, determine which element position the inner paren occupies
+     * (by counting commas between outer and inner), and index into
+     * the outer type. */
+    let type_for_paren =
+        (paren_piece: Piece.t, pieces_after: list(Piece.t))
+        : option(Typ.t) =>
+      switch (Id.Map.find_opt(Piece.id(paren_piece), info_map)) {
+      | Some(InfoExp({cls: Exp(Ap), _})) =>
+        /* Function application: find function token beyond paren */
+        let rec find_fn = (
+          fun
+          | [] => None
+          | [p, ...rest] =>
+            if (Piece.is_secondary(p)) {
+              find_fn(rest);
+            } else {
+              Some(p);
+            }
+        );
+        switch (find_fn(pieces_after)) {
+        | Some(fn_piece) =>
           switch (Id.Map.find_opt(Piece.id(fn_piece), info_map)) {
           | Some(InfoExp({ty, ctx, _})) =>
             let (arg_ty, _) = Typ.matched_arrow(ctx, ty);
             Some(arg_ty);
           | _ => None
           }
-        | _ =>
-          switch (Id.Map.find_opt(Piece.id(paren_piece), info_map)) {
-          | Some(InfoExp({ana, _})) => Some(ana)
-          | Some(InfoPat({ana, _})) => Some(ana)
-          | _ => None
-          }
+        | None => None
         };
-      Option.map(ty => peel_prod(ty, depth), base_ty);
+      | Some(InfoExp({ana, _})) =>
+        switch (Typ.term_of(ana)) {
+        | Unknown(_) => None /* Will trigger fallback below */
+        | _ => Some(ana)
+        }
+      | Some(InfoPat({ana, _})) => Some(ana)
+      | _ => None
+      };
+    /* Walk nearest-first from some position to find the next ( shard.
+     * Returns (paren_piece, pieces_after_paren, commas_skipped). */
+    let rec find_next_paren = (pieces, commas) =>
+      switch (pieces) {
+      | [] => None
+      | [Piece.Tile({label: ["(", ")"], shards: [0], _}) as p, ...rest] =>
+        Some((p, rest, commas))
+      | [p, ...rest] =>
+        find_next_paren(rest, is_comma(p) ? commas + 1 : commas)
+      };
+    /* Find the nearest ( shard */
+    switch (find_next_paren(l_nearest, 0)) {
+    | None => None
+    | Some((inner_paren, after_inner, _)) =>
+      switch (type_for_paren(inner_paren, after_inner)) {
+      | Some(ty) => Some(ty)
+      | None =>
+        /* Inner paren has Unknown ana — try the outer paren.
+         * Count commas between inner and outer to find element index. */
+        switch (find_next_paren(after_inner, 0)) {
+        | None => None
+        | Some((outer_paren, after_outer, commas_between)) =>
+          switch (type_for_paren(outer_paren, after_outer)) {
+          | None => None
+          | Some(outer_ty) =>
+            let rec unwrap_parens = (ty: Typ.t): Typ.t =>
+              switch (Typ.term_of(ty)) {
+              | Parens(inner) => unwrap_parens(inner)
+              | _ => ty
+              };
+            let outer_ty = unwrap_parens(outer_ty);
+            switch (Typ.term_of(outer_ty)) {
+            | Prod(tys) =>
+              /* The inner paren is at element index (commas_between).
+               * This is 0-indexed: 0 commas = first element, etc. */
+              let idx = commas_between;
+              switch (List.nth_opt(tys, idx)) {
+              | Some(elem_ty) => Some(elem_ty)
+              | None => None
+              };
+            | _ => None
+            };
+          }
+        }
+      }
     };
   };
 };
@@ -489,12 +551,18 @@ let scaffold_display =
         let expected_ty = unwrap_parens(expected_ty);
         switch (Typ.term_of(expected_ty)) {
         | Prod(tys) when List.length(tys) >= 2 =>
-          let l = fst(z.relatives.siblings) |> List.rev;
+          /* Scope to the innermost paren: only consider siblings
+           * between the nearest ( shard and the caret. For the
+           * ancestor case (no ( shard), this is all left siblings. */
+          let scoped_l = inner_left_siblings(z);
+          let l = List.rev(scoped_l);
           if (should_suppress(l, expected_ty, info_map)) {
             None;
           } else {
             let arity = List.length(tys);
-            let existing_commas = count_commas(z.relatives.siblings);
+            let existing_commas =
+              count_commas_in(scoped_l)
+              + count_commas_in(snd(z.relatives.siblings));
             let remaining = arity - 1 - existing_commas;
             if (remaining <= 0) {
               None;
@@ -519,12 +587,12 @@ let scaffold_display =
                   skip_secondary(snd(z.relatives.siblings));
                 };
                 let left_has_no_content = {
-                  /* Left siblings are stored farthest-first. Reverse to
-                   * check from caret outward. True if the first
-                   * non-secondary piece is a delimiter (comma, ( shard),
-                   * grout, or nothing — meaning no content at current
-                   * element position. */
-                  let l = List.rev(fst(z.relatives.siblings));
+                  /* Check from caret outward (nearest-first). True if
+                   * the first non-secondary piece is a delimiter (comma,
+                   * ( shard), grout, or nothing — meaning no content at
+                   * current element position. Uses scoped left siblings
+                   * so nested parens don't see outer content. */
+                  let l_nearest = List.rev(scoped_l);
                   let rec check = (
                     fun
                     | [] => true
@@ -536,7 +604,7 @@ let scaffold_display =
                       true
                     | _ => false
                   );
-                  check(l);
+                  check(l_nearest);
                 };
                 right_is_grout && left_has_no_content;
               };
