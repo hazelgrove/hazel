@@ -45,6 +45,7 @@ let (suite, _) =
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ Test_TyDi.tests
+    @ Test_TyDiScaffold.tests
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
     @ [Test_VarHighlight.tests],

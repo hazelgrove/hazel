@@ -139,6 +139,275 @@ let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
   | _ => None
   };
 
+/* Unicode circle used as hole placeholder in scaffold display strings.
+ * Stripped before insertion. */
+let scaffold_hole = "\xe2\x97\x8b"; /* ○ U+25CB, 3 bytes in UTF-8 */
+
+/* Check if an unparsed buffer contains scaffold content (has ○ placeholder) */
+let is_scaffold = (text: Token.t): bool => {
+  let len = String.length(text);
+  let rec check = (i: int): bool =>
+    if (i + 2 >= len) {
+      false;
+    } else if (Char.code(text.[i]) == 0xe2
+               && Char.code(text.[i + 1]) == 0x97
+               && Char.code(text.[i + 2]) == 0x8b) {
+      true;
+    } else {
+      check(i + 1);
+    };
+  check(0);
+};
+
+/* Strip scaffold display chars (○ and spaces) to get insertable text.
+ * e.g. ", ○" → ","  or  "c, ○, ○" → "c,," */
+let strip_scaffold_display = (text: Token.t): Token.t => {
+  /* Use Stdlib.Buffer to avoid conflict with haz3lcore Buffer module */
+  let buf = Stdlib.Buffer.create(String.length(text));
+  let i = ref(0);
+  while (i^ < String.length(text)) {
+    let c = text.[i^];
+    if (c == ' ') {
+      /* Skip spaces */
+      incr(i);
+    } else if (i^
+               + 2 < String.length(text)
+               && Char.code(text.[i^]) == 0xe2
+               && Char.code(text.[i^ + 1]) == 0x97
+               && Char.code(text.[i^ + 2]) == 0x8b) {
+      /* Skip ○ (3-byte UTF-8 sequence: E2 97 8B) */
+      i := i^ + 3;
+    } else {
+      Stdlib.Buffer.add_char(buf, c);
+      incr(i);
+    };
+  };
+  Stdlib.Buffer.contents(buf);
+};
+
+/* Build the scaffold display string for a given number of remaining commas.
+ *
+ * When there's grout (a real hole) to the right of the caret, the scaffold
+ * places the hole placeholder BEFORE the comma so it reads naturally:
+ *   grout_right=true:  remaining=1 → "○, "   remaining=2 → "○, ○, "
+ *   e.g. f(○, ?)  — scaffold ○ for current position, real ? for next
+ *
+ * When the caret follows a convex piece (no grout to right), commas lead:
+ *   grout_right=false: remaining=1 → ", ○"   remaining=2 → ", ○, ○"
+ *   e.g. f(1, ○)  — value already typed, scaffold shows what's next */
+let mk_scaffold_display = (~grout_right: bool, remaining: int): string =>
+  if (grout_right) {
+    let parts = List.init(remaining, _ => scaffold_hole ++ ", ");
+    String.concat("", parts);
+  } else {
+    let parts = List.init(remaining, _ => ", " ++ scaffold_hole);
+    String.concat("", parts);
+  };
+
+/* Count comma tiles in sibling segments */
+let count_commas = ((l, r): Siblings.t): int => {
+  let is_comma = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile({label: [","], _}) => true
+    | _ => false
+    };
+  List.length(List.filter(is_comma, l))
+  + List.length(List.filter(is_comma, r));
+};
+
+/* Check if we're inside parentheses. Three cases:
+ * 1. Ancestor has label ["(", ")"] — both parens placed, caret inside child
+ * 2. Backpack has a ")" shard — open paren placed, close paren deferred
+ * 3. Left sibling is a "(" shard — caret right after open paren
+ * The union of these covers all parenthesized contexts. */
+let inside_parens = (z: Zipper.t): bool => {
+  /* Case 1: ancestors */
+  let ancestor_check =
+    switch (z.relatives.ancestors) {
+    | [(ancestor, _), ..._] => ancestor.label == ["(", ")"]
+    | _ => false
+    };
+  /* Case 2: backpack has ")" */
+  let backpack_check =
+    List.exists(
+      (t: Tile.t) =>
+        switch (t) {
+        | {label: ["(", ")"], shards: [1], _} => true
+        | _ => false
+        },
+      Zipper.local_backpack(z),
+    );
+  /* Case 3: left siblings contain "(" shard */
+  let left_paren_check = {
+    let (l, _) = z.relatives.siblings;
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile({label: ["(", ")"], shards: [0], _}) => true
+        | _ => false
+        },
+      l,
+    );
+  };
+  ancestor_check || backpack_check || left_paren_check;
+};
+
+/* Determine the expected tuple type inside parentheses.
+ *
+ * When inside `f(`, the `(` shard's CI has cls=Application with
+ * ana=Unknown (for the Application result), not the argument type.
+ * To get the argument type for function application, we look at
+ * the function token's type and extract matched_arrow.
+ *
+ * For explicit parens like `let t : (Int,Bool) = (`, the `(` shard
+ * itself has ana = Prod([Int, Bool]) from the type annotation.
+ *
+ * Returns the expected argument type (which should be checked for Prod). */
+let scaffold_expected_type =
+    (z: Zipper.t, info_map: Statics.Map.t): option(Typ.t) => {
+  /* Find the `(` shard and the piece to its left (if any).
+   * Left siblings are stored in reverse order: head = farthest,
+   * tail = nearest to caret. The `(` shard is at or near the tail. */
+  let l = fst(z.relatives.siblings) |> List.rev; /* now head = nearest */
+  /* Find the `(` shard in the list (nearest to caret first).
+   * There may be content pieces (like `1`) between the caret and `(`.
+   * Returns the `(` shard and optionally the piece to its left (the function). */
+  let rec find_paren_and_left =
+          (pieces: list(Piece.t)): option((option(Piece.t), Piece.t)) =>
+    switch (pieces) {
+    | [] => None
+    | [Tile({label: ["(", ")"], shards: [0], _}) as p] =>
+      /* `(` shard with nothing to its left */
+      Some((None, p))
+    | [Tile({label: ["(", ")"], shards: [0], _}) as p, left, ..._] =>
+      /* `(` shard with a piece to its left */
+      Some((Some(left), p))
+    | [_, ...rest] =>
+      /* Skip content pieces between caret and `(` */
+      find_paren_and_left(rest)
+    };
+  switch (find_paren_and_left(l)) {
+  | None => None
+  | Some((maybe_fn, paren_piece)) =>
+    switch (maybe_fn) {
+    | Some(fn_piece) when !Piece.is_secondary(fn_piece) =>
+      /* Function application: look up function's type */
+      switch (Id.Map.find_opt(Piece.id(fn_piece), info_map)) {
+      | Some(InfoExp({ty, ctx, _})) =>
+        let (arg_ty, _) = Typ.matched_arrow(ctx, ty);
+        Some(arg_ty);
+      | _ => None
+      }
+    | _ =>
+      /* Explicit parens: use the `(` shard's ana type */
+      switch (Id.Map.find_opt(Piece.id(paren_piece), info_map)) {
+      | Some(InfoExp({ana, _})) => Some(ana)
+      | Some(InfoPat({ana, _})) => Some(ana)
+      | _ => None
+      }
+    }
+  };
+};
+
+/* Scaffold generation: produces a display string like ", ○" when
+ * the caret is inside parentheses and the expected type is a Prod
+ * (tuple) with more elements than commas already present.
+ *
+ * Unlike text completion (set_buffer), scaffold:
+ * - Triggers on empty holes (no min_prefix_len)
+ * - Only triggers inside parentheses
+ * - Uses the ana type to determine tuple arity
+ * - Takes info_map directly (not a pre-computed ci) */
+let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
+  /* Only at Outer caret position */
+  if (z.caret != Outer) {
+    z;
+  } else if (!inside_parens(z)) {
+    z;
+  } else {
+    /* Don't override existing buffer */
+    switch (z.selection.mode) {
+    | Buffer(Parsed | Unparsed) => z
+    | Normal when !Selection.is_empty(z.selection) => z
+    | _ =>
+      switch (scaffold_expected_type(z, info_map)) {
+      | None => z
+      | Some(expected_ty) =>
+        /* Unwrap Parens to get at the Prod type underneath */
+        let rec unwrap_parens = (ty: Typ.t): Typ.t =>
+          switch (Typ.term_of(ty)) {
+          | Parens(inner) => unwrap_parens(inner)
+          | _ => ty
+          };
+        let expected_ty = unwrap_parens(expected_ty);
+        switch (Typ.term_of(expected_ty)) {
+        | Prod(tys) when List.length(tys) >= 2 =>
+          /* Check if the expression at caret already satisfies the Prod */
+          let l = fst(z.relatives.siblings) |> List.rev;
+          let suppress =
+            switch (l) {
+            | [p, ..._] when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
+              switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+              | Some(InfoExp({self, ctx, _})) =>
+                /* Use synthesized type (not derived ty) for suppression.
+                 * ty reflects the expected type on error, but we want to
+                 * know the actual type of what the user typed. */
+                switch (Self.typ_of_exp(self)) {
+                | Some(syn_ty) =>
+                  switch (Typ.term_of(syn_ty)) {
+                  | Unknown(_) => false
+                  | _ => Typ.is_consistent(ctx, syn_ty, expected_ty)
+                  }
+                | None => false
+                }
+              | _ => false
+              }
+            | _ => false
+            };
+          if (suppress) {
+            z;
+          } else {
+            let arity = List.length(tys);
+            let existing_commas = count_commas(z.relatives.siblings);
+            let remaining = arity - 1 - existing_commas;
+            if (remaining <= 0) {
+              z;
+            } else {
+              let grout_right = {
+                let rec skip_secondary = (
+                  fun
+                  | [Piece.Secondary(_), ...rest] => skip_secondary(rest)
+                  | [p, ..._] => Piece.is_grout(p)
+                  | [] => false
+                );
+                skip_secondary(snd(z.relatives.siblings));
+              };
+              let display = mk_scaffold_display(~grout_right, remaining);
+              let content = mk_unparsed_buffer(display);
+              Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+            };
+          };
+        | _ => z
+        };
+      }
+    };
+  };
+
+/* Reify the scaffold buffer into the zipper by inserting the
+ * stripped scaffold text. Called before dumping for statics so
+ * that statics sees the tuple structure. */
+let reify_scaffold = (z: Zipper.t): Zipper.t =>
+  switch (get_unparsed_buffer(z)) {
+  | Some(text) when is_scaffold(text) =>
+    let insertable = strip_scaffold_display(text);
+    let z = Zipper.clear_unparsed_buffer(z);
+    switch (Parser.to_zipper(~zipper_init=z, insertable)) {
+    | Some(z) => z
+    | None => z
+    };
+  | _ => z
+  };
+
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
   let* ci = ci;

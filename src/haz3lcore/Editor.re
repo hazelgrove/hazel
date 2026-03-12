@@ -170,10 +170,16 @@ module Update = {
     /* 1. Recalculate the autocomplete buffer if necessary */
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
-        Buffer.set_tydi_buffer(
-          Indicated.ci_of(state.zipper, new_statics.info_map),
-          state.zipper,
-        );
+        let z =
+          Buffer.set_tydi_buffer(
+            Indicated.ci_of(state.zipper, new_statics.info_map),
+            state.zipper,
+          );
+        /* If no text completion was set, try scaffold (tuple commas) */
+        switch (TyDi.get_unparsed_buffer(z)) {
+        | Some(_) => z
+        | None => TyDi.set_scaffold(~info_map=new_statics.info_map, z)
+        };
       } else {
         state.zipper;
       };

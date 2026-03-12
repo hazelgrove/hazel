@@ -26,6 +26,27 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   | Some(content) => Zipper.set_buffer(z, ~content, ~mode=Parsed)
   };
 
+/* For scaffold buffers, extract the text to emit on Tab:
+ * up to and including the first comma in the insertable text.
+ * e.g. display ", ○" → insertable "," → emit ","
+ *      display ", ○, ○" → insertable ",," → emit ","
+ *      display "c, ○" → insertable "c," → emit "c,"  */
+let scaffold_emit_text = (display: string): string => {
+  let insertable = TyDi.strip_scaffold_display(display);
+  /* Find first comma and emit up to and including it */
+  let len = String.length(insertable);
+  let rec find_comma = (i: int): int =>
+    if (i >= len) {
+      len; /* No comma found — emit everything */
+    } else if (insertable.[i] == ',') {
+      i + 1; /* Include the comma */
+    } else {
+      find_comma(i + 1);
+    };
+  let end_pos = find_comma(0);
+  String.sub(insertable, 0, end_pos);
+};
+
 let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   switch (z.selection.mode) {
   | Normal => None
@@ -33,6 +54,11 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   | Buffer(Unparsed) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
+    | Some(display) when TyDi.is_scaffold(display) =>
+      /* Scaffold buffer: emit one comma's worth progressively */
+      let to_emit = scaffold_emit_text(display);
+      let z = Zipper.clear_unparsed_buffer(z);
+      Parser.to_zipper(~zipper_init=z, to_emit);
     | Some(completion)
         when Token.match(Token.regexp(".*\\)::$"), completion) =>
       /* Slightly hacky. There's currently only one genre of completion
