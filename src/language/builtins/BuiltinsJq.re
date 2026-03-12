@@ -10,10 +10,11 @@ open BuiltinsADT;
 // Every combinator has type JSON -> [JSON] (a "filter"), and pipe composes via flat_map.
 
 let builtins: list(hazel_fn) = [
-  // ---- Tier 1: Basic Filters (JSON -> [JSON]) ----
-
-  // jq_identity: . — returns [json]
   {
+    // ---- Tier 1: Basic Filters (JSON -> [JSON]) ----
+
+    // jq_identity: . — returns [json]
+
     name: "jq_identity",
     str: {|fix jq_identity -> fun json -> [json]|},
     arg: Typ.term_of(JSON.t),
@@ -35,9 +36,9 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_iterate: .[] — List -> elements; Assoc -> values; else []
   {
+    // jq_iterate: .[] — List -> elements; Assoc -> values; else []
+
     name: "jq_iterate",
     str: {|fix jq_iterate -> fun json -> case json
              | List(xs) => xs
@@ -56,10 +57,7 @@ let builtins: list(hazel_fn) = [
               match(
                 var("json"),
                 [
-                  (
-                    Pat.ap(JSON.pat_json_list, Pat.var("xs")),
-                    var("xs"),
-                  ),
+                  (Pat.ap(JSON.pat_json_list, Pat.var("xs")), var("xs")),
                   (
                     Pat.ap(JSON.pat_json_assoc, Pat.var("pairs")),
                     ap(
@@ -88,9 +86,9 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_keys: keys — Assoc -> [List([String(k1), ...])]; List -> [List([Int(0), ...])]; else [Null]
   {
+    // jq_keys: keys — Assoc -> [List([String(k1), ...])]; List -> [List([Int(0), ...])]; else [Null]
+
     name: "jq_keys",
     str: {|fix jq_keys -> fun json -> case json
              | Assoc(pairs) => [List(map(pairs, fun pair -> case pair | (k, _) => String(k) end))]
@@ -165,9 +163,9 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_values: values — Assoc -> [List(values)]; List -> [List(elements)]; else [Null]
   {
+    // jq_values: values — Assoc -> [List(values)]; List -> [List(elements)]; else [Null]
+
     name: "jq_values",
     str: {|fix jq_values -> fun json -> case json
              | Assoc(pairs) => [List(map(pairs, fun pair -> case pair | (_, v) => v end))]
@@ -224,9 +222,9 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_length: length — Assoc/List -> [Int(len)]; String -> [Int(len)]; Null -> [Int(0)]; else [Null]
   {
+    // jq_length: length — Assoc/List -> [Int(len)]; String -> [Int(len)]; Null -> [Int(0)]; else [Null]
+
     name: "jq_length",
     str: {|fix jq_length -> fun json -> case json
              | Assoc(pairs) => [Int(length(pairs))]
@@ -277,7 +275,10 @@ let builtins: list(hazel_fn) = [
                       ),
                     ]),
                   ),
-                  (JSON.pat_json_null, list_lit([ap(Forward, JSON.json_int, int(0))])),
+                  (
+                    JSON.pat_json_null,
+                    list_lit([ap(Forward, JSON.json_int, int(0))]),
+                  ),
                   (Pat.wild(), list_lit([JSON.json_null])),
                 ],
               ),
@@ -290,9 +291,9 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_type: type — returns [String("null")], [String("boolean")], etc.
   {
+    // jq_type: type — returns [String("null")], [String("boolean")], etc.
+
     name: "jq_type",
     str: {|fix jq_type -> fun json -> case json
              | Null => [String("null")]
@@ -317,31 +318,45 @@ let builtins: list(hazel_fn) = [
                 [
                   (
                     JSON.pat_json_null,
-                    list_lit([ap(Forward, JSON.json_string, string("null"))]),
+                    list_lit([
+                      ap(Forward, JSON.json_string, string("null")),
+                    ]),
                   ),
                   (
                     Pat.ap(JSON.pat_json_bool, Pat.wild()),
-                    list_lit([ap(Forward, JSON.json_string, string("boolean"))]),
+                    list_lit([
+                      ap(Forward, JSON.json_string, string("boolean")),
+                    ]),
                   ),
                   (
                     Pat.ap(JSON.pat_json_int, Pat.wild()),
-                    list_lit([ap(Forward, JSON.json_string, string("number"))]),
+                    list_lit([
+                      ap(Forward, JSON.json_string, string("number")),
+                    ]),
                   ),
                   (
                     Pat.ap(JSON.pat_json_float, Pat.wild()),
-                    list_lit([ap(Forward, JSON.json_string, string("number"))]),
+                    list_lit([
+                      ap(Forward, JSON.json_string, string("number")),
+                    ]),
                   ),
                   (
                     Pat.ap(JSON.pat_json_string, Pat.wild()),
-                    list_lit([ap(Forward, JSON.json_string, string("string"))]),
+                    list_lit([
+                      ap(Forward, JSON.json_string, string("string")),
+                    ]),
                   ),
                   (
                     Pat.ap(JSON.pat_json_list, Pat.wild()),
-                    list_lit([ap(Forward, JSON.json_string, string("array"))]),
+                    list_lit([
+                      ap(Forward, JSON.json_string, string("array")),
+                    ]),
                   ),
                   (
                     Pat.ap(JSON.pat_json_assoc, Pat.wild()),
-                    list_lit([ap(Forward, JSON.json_string, string("object"))]),
+                    list_lit([
+                      ap(Forward, JSON.json_string, string("object")),
+                    ]),
                   ),
                 ],
               ),
@@ -354,12 +369,12 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // ---- Tier 2: Parameterized Filters ----
-
-  // jq_field: String -> JSON -> [JSON] — .foo
-  // Assoc -> look up key, return [value] or [Null]; else [Null]
   {
+    // ---- Tier 2: Parameterized Filters ----
+
+    // jq_field: String -> JSON -> [JSON] — .foo
+    // Assoc -> look up key, return [value] or [Null]; else [Null]
+
     name: "jq_field",
     str: {|fix jq_field -> fun key -> fun json -> case json
              | Assoc(pairs) => case assoc_opt(pairs, key)
@@ -369,8 +384,7 @@ let builtins: list(hazel_fn) = [
              | _ => [Null]
            end|},
     arg: Atom(String),
-    ret:
-      Arrow(JSON.t, list(JSON.t)),
+    ret: Arrow(JSON.t, list(JSON.t)),
     imp: {
       Fresh.(
         Exp.(
@@ -415,10 +429,10 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_index: Int -> JSON -> [JSON] — .[n]
-  // List -> nth element or [Null]; else [Null]
   {
+    // jq_index: Int -> JSON -> [JSON] — .[n]
+    // List -> nth element or [Null]; else [Null]
+
     name: "jq_index",
     str: {|fix jq_index -> fun n -> fun json -> case json
              | List(xs) => case nth_opt(xs, n)
@@ -428,8 +442,7 @@ let builtins: list(hazel_fn) = [
              | _ => [Null]
            end|},
     arg: Atom(Int),
-    ret:
-      Arrow(JSON.t, list(JSON.t)),
+    ret: Arrow(JSON.t, list(JSON.t)),
     imp: {
       Fresh.(
         Exp.(
@@ -474,18 +487,17 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_has: String -> JSON -> [JSON] — has("k")
-  // Assoc -> [Bool(true/false)]; else [Bool(false)]
   {
+    // jq_has: String -> JSON -> [JSON] — has("k")
+    // Assoc -> [Bool(true/false)]; else [Bool(false)]
+
     name: "jq_has",
     str: {|fix jq_has -> fun key -> fun json -> case json
              | Assoc(pairs) => [Bool(mem_assoc(pairs, key))]
              | _ => [Bool(false)]
            end|},
     arg: Atom(String),
-    ret:
-      Arrow(JSON.t, list(JSON.t)),
+    ret: Arrow(JSON.t, list(JSON.t)),
     imp: {
       Fresh.(
         Exp.(
@@ -530,21 +542,16 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // ---- Tier 3: Higher-Order Combinators ----
-
-  // jq_pipe: (JSON -> [JSON], JSON -> [JSON]) -> JSON -> [JSON]
-  // jq_pipe(f, g)(x) = flat_map(f(x), g)
   {
+    // ---- Tier 3: Higher-Order Combinators ----
+
+    // jq_pipe: (JSON -> [JSON], JSON -> [JSON]) -> JSON -> [JSON]
+    // jq_pipe(f, g)(x) = flat_map(f(x), g)
+
     name: "jq_pipe",
     str: {|fix jq_pipe -> fun (f, g) -> fun json -> flat_map(f(json), g)|},
-    arg:
-      Prod([
-        arrow(JSON.t, list(JSON.t)),
-        arrow(JSON.t, list(JSON.t)),
-      ]),
-    ret:
-      Arrow(JSON.t, list(JSON.t)),
+    arg: Prod([arrow(JSON.t, list(JSON.t)), arrow(JSON.t, list(JSON.t))]),
+    ret: Arrow(JSON.t, list(JSON.t)),
     imp: {
       Fresh.(
         Exp.(
@@ -557,10 +564,7 @@ let builtins: list(hazel_fn) = [
                 ap(
                   Forward,
                   var("flat_map"),
-                  tuple([
-                    ap(Forward, var("f"), var("json")),
-                    var("g"),
-                  ]),
+                  tuple([ap(Forward, var("f"), var("json")), var("g")]),
                 ),
                 None,
                 None,
@@ -574,10 +578,10 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_select: (JSON -> [JSON]) -> JSON -> [JSON]
-  // Keep input if f(input) produces any truthy value (not Null/Bool(false)), else []
   {
+    // jq_select: (JSON -> [JSON]) -> JSON -> [JSON]
+    // Keep input if f(input) produces any truthy value (not Null/Bool(false)), else []
+
     name: "jq_select",
     str: {|fix jq_select -> fun pred -> fun json ->
              let results = pred(json) in
@@ -588,10 +592,8 @@ let builtins: list(hazel_fn) = [
                 end)
              then [json]
              else []|},
-    arg:
-      Arrow(JSON.t, list(JSON.t)),
-    ret:
-      Arrow(JSON.t, list(JSON.t)),
+    arg: Arrow(JSON.t, list(JSON.t)),
+    ret: Arrow(JSON.t, list(JSON.t)),
     imp: {
       Fresh.(
         Exp.(
@@ -644,22 +646,20 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
-
-  // jq_map: (JSON -> [JSON]) -> JSON -> [JSON]
-  // Apply filter to each element, collect into [List(results)]
-  // For List: apply f to each element, flat_map results, wrap in List
-  // For Assoc: apply f to each value, flat_map results, wrap in List
   {
+    // jq_map: (JSON -> [JSON]) -> JSON -> [JSON]
+    // Apply filter to each element, collect into [List(results)]
+    // For List: apply f to each element, flat_map results, wrap in List
+    // For Assoc: apply f to each value, flat_map results, wrap in List
+
     name: "jq_map",
     str: {|fix jq_map -> fun f -> fun json -> case json
              | List(xs) => [List(flat_map(xs, f))]
              | Assoc(pairs) => [List(flat_map(map(pairs, fun p -> case p | (_, v) => v end), f))]
              | _ => [Null]
            end|},
-    arg:
-      Arrow(JSON.t, list(JSON.t)),
-    ret:
-      Arrow(JSON.t, list(JSON.t)),
+    arg: Arrow(JSON.t, list(JSON.t)),
+    ret: Arrow(JSON.t, list(JSON.t)),
     imp: {
       Fresh.(
         Exp.(
@@ -723,6 +723,54 @@ let builtins: list(hazel_fn) = [
               ),
               None,
               Some("jq_map+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq: [JSON -> [JSON]] -> JSON -> [JSON]
+    // Compose a list of filters left-to-right via fold_left + flat_map.
+    // jq([f1, f2, f3])(json) = fold_left([f1, f2, f3], (acc, f) => flat_map(acc, f), [json])
+
+    name: "jq",
+    str: {|fix jq -> fun filters -> fun json -> fold_left(filters, fun (acc, f) -> flat_map(acc, f), [json])|},
+    arg: List(arrow(JSON.t, list(JSON.t))),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq"),
+            fn(
+              Pat.var("filters"),
+              fn(
+                Pat.var("json"),
+                ap(
+                  Forward,
+                  var("fold_left"),
+                  tuple([
+                    var("filters"),
+                    fn(
+                      Pat.tuple([Pat.var("acc"), Pat.var("f")]),
+                      ap(
+                        Forward,
+                        var("flat_map"),
+                        tuple([var("acc"), var("f")]),
+                      ),
+                      None,
+                      None,
+                    ),
+                    list_lit([var("json")]),
+                  ]),
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq+"),
             ),
             None,
           )
