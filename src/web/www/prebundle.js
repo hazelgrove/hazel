@@ -85,7 +85,7 @@ moduleWatcher.loadModules([
   "automerge:Qq3G9LB5bNHwSVJ6m29Tz8zgb4E"
 ])
 
-registerPatchworkViewElement({repo, moduleWatcher})
+registerPatchworkViewElement({repo})
 
 window.Algebrite = Algebrite
 window.Plot = Plot
