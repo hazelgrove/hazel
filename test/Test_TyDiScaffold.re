@@ -20,10 +20,25 @@ let scaffold_suggest = (code: string): option(string) => {
   TyDi.get_unparsed_buffer(z);
 };
 
-let scaffold_test = (~name, ~code, ~expect) =>
-  test_case(name, `Quick, () =>
-    check(option(string), name, expect, scaffold_suggest(code))
+let scaffold_debug = (code: string): unit => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  Printf.printf(
+    "DBG caret=%s anc=%d inside=%b printer=[%s]\n",
+    z.caret == Outer ? "O" : "I",
+    List.length(z.relatives.ancestors),
+    TyDi.inside_parens(z),
+    Test_Editing.printer(z),
   );
+};
+
+let scaffold_test = (~name, ~code, ~expect) =>
+  test_case(name, `Quick, () => {
+    if (expect != scaffold_suggest(code)) {
+      scaffold_debug(code);
+    };
+    check(option(string), name, expect, scaffold_suggest(code));
+  });
 
 /* Print the zipper state after accepting the scaffold buffer via Tab.
  * Uses the same printer as editing tests (? for holes, ¦ for caret). */
@@ -211,6 +226,74 @@ let midexpr_tests = (
   ],
 );
 
+/* ---- Scaffold generation: nested tuples (Phase 5) ---- */
+
+let nested_tests = (
+  "TyDiScaffold.Nested",
+  [
+    /* f expects ((Int, Int), String). After typing first nested tuple,
+     * scaffold should show remaining outer element: `, ○` */
+    scaffold_test(
+      ~name="Nested tuple: after inner tuple value",
+      ~code=
+        "let f : ((Int, Int), String) -> Bool = fun x -> true in f((1, 2)¦)",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* f expects (Int, (String, Bool)). After typing first element,
+     * scaffold should show `, ○` for the remaining element */
+    scaffold_test(
+      ~name="Nested tuple: second element is tuple",
+      ~code=
+        "let f : (Int, (String, Bool)) -> Bool = fun x -> true in f(1¦)",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Genuine match: (1, "a") matches (Int, String) — should suppress */
+    scaffold_test(
+      ~name="Nested: genuine match suppresses scaffold",
+      ~code=
+        "let f : (Int, String) -> Bool = fun x -> true in f((1, \"a\")¦)",
+      ~expect=None,
+    ),
+    /* 3-element nested: ((Int,Int), String, Bool) with inner tuple typed */
+    scaffold_test(
+      ~name="Nested 3-elem: after inner tuple",
+      ~code=
+        "let f : ((Int, Int), String, Bool) -> Int = fun x -> 0 in f((1, 2)¦)",
+      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+  ],
+);
+
+/* ---- Scaffold generation: labeled tuples (Phase 6) ---- */
+
+let labeled_tests = (
+  "TyDiScaffold.Labeled",
+  [
+    /* Labeled tuple: f expects (x=Int, y=String). After first arg,
+     * should show scaffold for remaining element */
+    scaffold_test(
+      ~name="Labeled tuple: after first arg",
+      ~code=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* 3-element labeled: after first arg */
+    scaffold_test(
+      ~name="Labeled 3-elem: after first arg",
+      ~code=
+        "let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(1¦)",
+      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+    /* Labeled with both parens */
+    scaffold_test(
+      ~name="Labeled: both parens",
+      ~code=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
+      ~expect=Some(", " ++ hole_char),
+    ),
+  ],
+);
+
 /* ---- Scaffold generation: pattern position (Phase 7) ---- */
 
 /* Phase 7: Pattern scaffolds need work. The caret ends up at Inner
@@ -231,6 +314,62 @@ let midexpr_tests = (
 
 /* ---- Tab acceptance tests ---- */
 
+/* ---- Statics reification: ana type after virtual scaffold insertion ---- */
+
+/* Check that the ana at caret is an Int atom (decomposed from Prod) */
+let ana_is_int = (code: string): bool =>
+  switch (scaffold_ana(code)) {
+  | Some(ty) =>
+    switch (Typ.term_of(ty)) {
+    | Atom(Int) => true
+    | _ => false
+    }
+  | None => false
+  };
+
+/* Check that the ana at caret is a Prod (remains as Prod, no decomposition) */
+let ana_is_prod = (code: string): bool =>
+  switch (scaffold_ana(code)) {
+  | Some(ty) =>
+    switch (Typ.term_of(ty)) {
+    | Prod(_) => true
+    | _ => false
+    }
+  | None => false
+  };
+
+let reification_tests = (
+  "TyDiScaffold.Reification",
+  [
+    /* After scaffold: f(1▎⟨, ○⟩ → statics sees Tuple([1, ⬚])
+     * ana at 1 should be Int (decomposed from Prod([Int, String])) */
+    test_case("Reified ana: first elem is Int", `Quick, () =>
+      check(
+        testable(Fmt.bool, Bool.equal),
+        "ana should be Int",
+        true,
+        ana_is_int(
+          "let f : (Int, String) -> Int = fun x -> 0 in f(1¦",
+        ),
+      )
+    ),
+    /* Without scaffold, ana at 1 would be Prod([Int, String]) */
+    test_case("Without scaffold: ana is Prod", `Quick, () =>
+      check(
+        testable(Fmt.bool, Bool.equal),
+        "ana without scaffold should be Prod",
+        true,
+        ana_is_prod(
+          "let f : Int -> Bool = fun x -> true in f(1¦",
+        )
+        |> (!),  /* No scaffold for non-Prod → ana is NOT Prod */
+      )
+    ),
+  ],
+);
+
+/* ---- Tab acceptance tests ---- */
+
 let acceptance_tests = (
   "TyDiScaffold.Acceptance",
   [
@@ -246,6 +385,18 @@ let acceptance_tests = (
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1¦",
       ~goal="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1,¦?",
     ),
+    /* Ancestor case: f(1▎) → Tab → f(1,¦?) */
+    accept_test(
+      ~name="Ancestor: 2-arg Tab inserts comma",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦)",
+      ~goal="let f : (Int, String) -> Int = fun x -> 0 in f(1,¦?)",
+    ),
+    /* Explicit parens: (1▎) → Tab → (1,¦?) */
+    accept_test(
+      ~name="Explicit parens: Tab inserts comma",
+      ~code="let t : (Int, Bool) = (1¦) in t",
+      ~goal="let t : (Int, Bool) = (1,¦?) in t",
+    ),
   ],
 );
 
@@ -253,5 +404,8 @@ let tests = [
   shard_tests,
   ancestor_tests,
   midexpr_tests,
+  nested_tests,
+  labeled_tests,
+  reification_tests,
   acceptance_tests,
 ];

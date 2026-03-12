@@ -341,6 +341,78 @@ let scaffold_expected_type =
  * - Only triggers inside parentheses
  * - Uses the ana type to determine tuple arity
  * - Takes info_map directly (not a pre-computed ci) */
+/* Check if a complete paren tile has any inner content pieces with
+ * type errors. Used to detect nested tuple false suppression:
+ * when Tuple self types are contaminated by bidirectional checking
+ * (element ty falls back to ana on error), the overall self type
+ * can match the expected Prod even when inner elements don't. */
+let has_inner_errors =
+    (children: list(Segment.t), info_map: Statics.Map.t): bool => {
+  switch (children) {
+  | [inner_seg] =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(_) when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
+          switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+          | Some(InfoExp({status: InHole(_), _})) => true
+          | _ => false
+          }
+        | _ => false
+        },
+      inner_seg,
+    )
+  | _ => false
+  };
+};
+
+/* Check if the piece to the left of the caret already satisfies the
+ * expected Prod type. If so, suppress scaffold generation.
+ *
+ * Uses Self.typ_of_exp (synthesized type) when available, falling back
+ * to ty (derived type) when self is Unknown. For complete paren tiles
+ * wrapping tuples, also checks inner element statuses to avoid false
+ * suppression from bidirectional type contamination. */
+let should_suppress =
+    (l: list(Piece.t), expected_ty: Typ.t, info_map: Statics.Map.t): bool =>
+  switch (l) {
+  | [p, ..._] when Piece.is_convex(p) =>
+    /* For complete paren tiles, check inner elements for errors.
+     * Tuple self types are built from element ty fields which fall
+     * back to ana on inconsistency, making self = expected even when
+     * inner elements don't match. Checking inner statuses catches this. */
+    let inner_ok =
+      switch (p) {
+      | Tile({label: ["(", ")"], children, _})
+          when List.length(children) > 0 =>
+        !has_inner_errors(children, info_map)
+      | _ => true
+      };
+    if (!inner_ok) {
+      false;
+    } else {
+      switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+      | Some(InfoExp({self, ty, ctx, _})) =>
+        let syn_opt = Self.typ_of_exp(self);
+        let check_ty =
+          switch (syn_opt) {
+          | Some(syn_ty) =>
+            switch (Typ.term_of(syn_ty)) {
+            | Unknown(_) => ty
+            | _ => syn_ty
+            }
+          | None => ty
+          };
+        switch (Typ.term_of(check_ty)) {
+        | Unknown(_) => false
+        | _ => Typ.is_consistent(ctx, check_ty, expected_ty)
+        };
+      | _ => false
+      };
+    };
+  | _ => false
+  };
+
 let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
   /* Only at Outer caret position */
   if (z.caret != Outer) {
@@ -365,35 +437,8 @@ let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
         let expected_ty = unwrap_parens(expected_ty);
         switch (Typ.term_of(expected_ty)) {
         | Prod(tys) when List.length(tys) >= 2 =>
-          /* Check if the expression at caret already satisfies the Prod.
-           * Try self (synthesized) type first. If self is Unknown — which
-           * happens for variables from let bindings with type annotations
-           * (bare pattern gets Unknown in context) — fall back to ty
-           * (derived type that incorporates the annotation). */
           let l = fst(z.relatives.siblings) |> List.rev;
-          let suppress =
-            switch (l) {
-            | [p, ..._] when Piece.is_convex(p) =>
-              switch (Id.Map.find_opt(Piece.id(p), info_map)) {
-              | Some(InfoExp({self, ty, ctx, _})) =>
-                let check_ty =
-                  switch (Self.typ_of_exp(self)) {
-                  | Some(syn_ty) =>
-                    switch (Typ.term_of(syn_ty)) {
-                    | Unknown(_) => ty /* self is Unknown, use derived ty */
-                    | _ => syn_ty /* self is known, use it */
-                    }
-                  | None => ty /* no self type, use derived ty */
-                  };
-                switch (Typ.term_of(check_ty)) {
-                | Unknown(_) => false
-                | _ => Typ.is_consistent(ctx, check_ty, expected_ty)
-                };
-              | _ => false
-              }
-            | _ => false
-            };
-          if (suppress) {
+          if (should_suppress(l, expected_ty, info_map)) {
             z;
           } else {
             let arity = List.length(tys);
