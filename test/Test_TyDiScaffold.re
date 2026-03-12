@@ -294,6 +294,43 @@ let labeled_tests = (
   ],
 );
 
+/* ---- Scaffold generation: edge cases ---- */
+
+let edge_tests = (
+  "TyDiScaffold.Edge",
+  [
+    /* 4-arg function: full scaffold from empty */
+    scaffold_test(
+      ~name="4-arg: empty after open paren",
+      ~code=
+        "let f : (Int, String, Bool, Float) -> Int = fun x -> 0 in f(¦",
+      ~expect=
+        Some(
+          hole_char
+          ++ ", "
+          ++ hole_char
+          ++ ", "
+          ++ hole_char
+          ++ ", ",
+        ),
+    ),
+    /* Function returning a function: scaffold for inner call */
+    scaffold_test(
+      ~name="Higher-order: scaffold for returned function",
+      ~code=
+        "let f : (Int, String) -> (Bool, Float) -> Int = fun x -> fun y -> 0 in f(1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Caret on empty hole between commas: no scaffold (all commas present) */
+    scaffold_test(
+      ~name="Between existing commas: no scaffold",
+      ~code=
+        "let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦, true",
+      ~expect=None,
+    ),
+  ],
+);
+
 /* ---- Scaffold generation: pattern position (Phase 7) ---- */
 
 /* Phase 7: Pattern scaffolds need work. The caret ends up at Inner
@@ -406,6 +443,7 @@ let tests = [
   midexpr_tests,
   nested_tests,
   labeled_tests,
+  edge_tests,
   reification_tests,
   acceptance_tests,
 ];
