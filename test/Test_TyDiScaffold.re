@@ -724,10 +724,17 @@ let combined_test = (~name, ~code, ~completion_prefix, ~scaffold_expect) =>
         Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
       /* Get scaffold on the original (bufferless) zipper */
       let scaffold = TyDi.scaffold_display(~info_map, z);
-      /* Verify scaffold independently */
-      check(option(string), name ++ " scaffold", scaffold_expect, scaffold);
+      /* Verify scaffold independently (convert segment to string) */
+      let scaffold_str =
+        Option.map(TyDi.scaffold_segment_to_string, scaffold);
+      check(
+        option(string),
+        name ++ " scaffold",
+        scaffold_expect,
+        scaffold_str,
+      );
       /* Verify combined display would contain both */
-      switch (scaffold) {
+      switch (scaffold_str) {
       | Some(s) =>
         let combined = completion_prefix ++ s;
         check(
@@ -894,8 +901,7 @@ let incomplete_tests = (
     /* 3-arg incomplete let */
     scaffold_test(
       ~name="let-no-in: 3-arg",
-      ~code=
-        "let g : (Int, String, Bool) -> Int = fun x -> 0 in let x = g(1¦",
+      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in let x = g(1¦",
       ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
     ),
     /* Labeled in incomplete let */
@@ -911,8 +917,7 @@ let incomplete_tests = (
     accept_test(
       ~name="let-no-in: Tab acceptance",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦",
-      ~goal=
-        "let f : (Int, String) -> Int = fun x -> 0 in let x = f(1, ¦?",
+      ~goal="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1, ¦?",
     ),
   ],
 );
@@ -936,12 +941,16 @@ let pattern_ancestor_tests = (
      *     its content (commas, grout, pieces) directly.
      *
      * Both approaches are non-trivial. Skipped for now. */
-    test_case("Pattern ancestor: let (|) caret=Inner", `Quick, () => {
-      let code = "let (¦) : (Int, Bool) = (1, true) in 0";
-      let result = scaffold_suggest(code);
-      /* Currently returns None -- documenting actual behavior */
-      check(option(string), "pattern ancestor returns None", None, result);
-    }),
+    test_case(
+      "Pattern ancestor: let (|) caret=Inner",
+      `Quick,
+      () => {
+        let code = "let (¦) : (Int, Bool) = (1, true) in 0";
+        let result = scaffold_suggest(code);
+        /* Currently returns None -- documenting actual behavior */
+        check(option(string), "pattern ancestor returns None", None, result);
+      },
+    ),
   ],
 );
 

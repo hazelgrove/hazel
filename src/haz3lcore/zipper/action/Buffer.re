@@ -27,18 +27,43 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   };
 
 /* For scaffold buffers, extract the text to emit on Tab.
- * Emits one "chunk" at a time for progressive acceptance:
+ * Emits one "chunk" at a time for progressive acceptance.
+ * Walks the buffer segment's Comment pieces (skipping Grout),
+ * concatenates their text, then extracts the first chunk:
  *
  * - If the insertable starts with a label (e.g. "x=,..."):
  *   emit just the label prefix "x=" so the user can fill in the value
  * - Otherwise: emit up to and including the first comma
  *
- * e.g. display ", ○"     → insertable ","    → emit ","
- *      display ", ○, ○"  → insertable ",,"   → emit ","
- *      display "x=○, "   → insertable "x=,"  → emit "x="
- *      display ", y=○"   → insertable ",y="  → emit ","  */
-let scaffold_emit_text = (display: string): string => {
-  let insertable = TyDi.strip_scaffold_display(display);
+ * e.g. [", ", ○]         → insertable ","    → emit ","
+ *      [", ", ○, ", ", ○] → insertable ",,"   → emit ","
+ *      ["x=", ○, ", "]   → insertable "x=,"  → emit "x="
+ *      [", ", "y=", ○]   → insertable ",y="  → emit ","  */
+let scaffold_emit_text = (content: Segment.t): string => {
+  /* Extract text from Comment pieces, skip Grout and whitespace */
+  let insertable =
+    String.concat(
+      "",
+      List.filter_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Secondary({content: Comment(s), _}) =>
+            /* Strip spaces from text (same as strip_scaffold_display) */
+            let buf = Stdlib.Buffer.create(String.length(s));
+            String.iter(
+              c =>
+                if (c != ' ') {
+                  Stdlib.Buffer.add_char(buf, c);
+                },
+              s,
+            );
+            let stripped = Stdlib.Buffer.contents(buf);
+            stripped == "" ? None : Some(stripped);
+          | _ => None
+          },
+        content,
+      ),
+    );
   let len = String.length(insertable);
   /* Check if the insertable starts with a label prefix (chars before '=').
    * If so, emit just the label prefix (up to and including '='). */
@@ -73,21 +98,21 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   switch (z.selection.mode) {
   | Normal => None
   | Buffer(Parsed) => Some(Zipper.directional_unselect(Right, z))
+  | Buffer(Unparsed) when TyDi.is_scaffold_buffer(z) =>
+    /* Scaffold buffer: emit one chunk progressively.
+     * Add a trailing space after commas for readability
+     * (f(1, ?) instead of f(1,?)), but not after label
+     * prefixes (f(x=¦ not f(x= ¦)). */
+    let to_emit = scaffold_emit_text(z.selection.content);
+    let ends_with_comma =
+      String.length(to_emit) > 0
+      && to_emit.[String.length(to_emit) - 1] == ',';
+    let to_emit = ends_with_comma ? to_emit ++ " " : to_emit;
+    let z = Zipper.clear_unparsed_buffer(z);
+    Parser.to_zipper(~zipper_init=z, to_emit);
   | Buffer(Unparsed) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
-    | Some(display) when TyDi.is_scaffold(display) =>
-      /* Scaffold buffer: emit one chunk progressively.
-       * Add a trailing space after commas for readability
-       * (f(1, ?) instead of f(1,?)), but not after label
-       * prefixes (f(x=¦ not f(x= ¦)). */
-      let to_emit = scaffold_emit_text(display);
-      let ends_with_comma =
-        String.length(to_emit) > 0
-        && to_emit.[String.length(to_emit) - 1] == ',';
-      let to_emit = ends_with_comma ? to_emit ++ " " : to_emit;
-      let z = Zipper.clear_unparsed_buffer(z);
-      Parser.to_zipper(~zipper_init=z, to_emit);
     | Some(completion)
         when Token.match(Token.regexp(".*\\)::$"), completion) =>
       /* Slightly hacky. There's currently only one genre of completion

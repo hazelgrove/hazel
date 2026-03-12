@@ -212,9 +212,11 @@ module Update = {
           | None =>
             print_endline("[scaffold-refresh] no scaffold applies");
             editor;
-          | Some(display) =>
-            print_endline("[scaffold-refresh] setting scaffold: " ++ display);
-            let content = TyDi.mk_unparsed_buffer(display);
+          | Some(content) =>
+            print_endline(
+              "[scaffold-refresh] setting scaffold: "
+              ++ TyDi.scaffold_segment_to_string(content),
+            );
             let zipper = Zipper.set_buffer(zipper, ~content, ~mode=Unparsed);
             let syntax = CachedSyntax.mark_old(editor.syntax);
             let syntax =

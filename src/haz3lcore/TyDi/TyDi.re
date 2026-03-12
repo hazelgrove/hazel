@@ -131,11 +131,29 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
   candidate_suffix == "" ? None : Some(candidate_suffix);
 };
 
-/* Returns the text content of the suggestion buffer */
+/* Convert buffer segment pieces to a display string.
+ * Comment text is kept as-is, Grout becomes ○. */
+let buffer_to_string = (seg: Segment.t): string =>
+  String.concat(
+    "",
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary({content: Comment(s), _}) => s
+        | Grout(_) => "\xe2\x97\x8b" /* ○ U+25CB */
+        | _ => ""
+        },
+      seg,
+    ),
+  );
+
+/* Returns the text content of the suggestion buffer.
+ * For scaffold buffers (mixed Comment + Grout), reconstructs the
+ * display string. For completion buffers (single Comment), returns text. */
 let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
-  switch (z.selection.mode, z.selection.content) {
-  | (Buffer(Unparsed), [Secondary({content: Comment(completion), _})]) =>
-    Some(completion)
+  switch (z.selection.mode) {
+  | Buffer(Unparsed) when z.selection.content != [] =>
+    Some(buffer_to_string(z.selection.content))
   | _ => None
   };
 
@@ -143,7 +161,23 @@ let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
  * Stripped before insertion. */
 let scaffold_hole = "\xe2\x97\x8b"; /* ○ U+25CB, 3 bytes in UTF-8 */
 
-/* Check if an unparsed buffer contains scaffold content (has ○ placeholder) */
+/* Check if an unparsed buffer contains scaffold content.
+ * Scaffolds contain Grout pieces; completions are pure Comment text. */
+let is_scaffold_buffer = (z: Zipper.t): bool =>
+  switch (z.selection.mode) {
+  | Buffer(Unparsed) =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout(_) => true
+        | _ => false
+        },
+      z.selection.content,
+    )
+  | _ => false
+  };
+
+/* Legacy string-based scaffold check (for backward compat with tests) */
 let is_scaffold = (text: Token.t): bool => {
   let len = String.length(text);
   let rec check = (i: int): bool =>
@@ -198,38 +232,48 @@ let label_of_prod_elem = (ty: Typ.t): option(string) =>
   | None => None
   };
 
-/* Build the scaffold display string for remaining commas.
+/* Build the scaffold buffer segment for remaining tuple elements.
+ * Uses actual Grout pieces for holes instead of text placeholders,
+ * with Comment secondaries for commas and label prefixes.
  *
  * When there's grout (a real hole) to the right of the caret, the scaffold
- * places the hole placeholder BEFORE the comma so it reads naturally:
- *   grout_right=true:  remaining=1 → "○, "   remaining=2 → "○, ○, "
- *   e.g. f(○, ?)  — scaffold ○ for current position, real ? for next
+ * places the hole BEFORE the comma so it reads naturally:
+ *   grout_right=true:  remaining=1 → [○, ", "]   remaining=2 → [○, ", ", ○, ", "]
  *
  * When the caret follows a convex piece (no grout to right), commas lead:
- *   grout_right=false: remaining=1 → ", ○"   remaining=2 → ", ○, ○"
- *   e.g. f(1, ○)  — value already typed, scaffold shows what's next
+ *   grout_right=false: remaining=1 → [", ", ○]   remaining=2 → [", ", ○, ", ", ○]
  *
- * When labels are provided, they appear before the hole placeholder:
- *   e.g. ", y=○" for a labeled element */
-let mk_scaffold_display =
+ * When labels are provided, they appear before the hole:
+ *   e.g. [", ", "y=", ○] for a labeled element */
+let mk_scaffold_segment =
     (~grout_right: bool, ~labels: list(option(string)), remaining: int)
-    : string => {
-  let mk_hole = (i: int): string => {
-    let label_prefix =
-      switch (List.nth_opt(labels, i)) {
-      | Some(Some(name)) => name ++ "="
-      | _ => ""
-      };
-    label_prefix ++ scaffold_hole;
-  };
+    : Segment.t => {
+  let mk_comment = (s: string): Piece.t =>
+    Secondary({id: Id.mk(), content: Comment(s)});
+  let mk_hole = (): Piece.t =>
+    Grout({id: Id.mk(), shape: Convex});
+  let mk_label_prefix = (i: int): list(Piece.t) =>
+    switch (List.nth_opt(labels, i)) {
+    | Some(Some(name)) => [mk_comment(name ++ "=")]
+    | _ => []
+    };
   if (grout_right) {
-    let parts = List.init(remaining, i => mk_hole(i) ++ ", ");
-    String.concat("", parts);
+    List.concat(
+      List.init(remaining, i =>
+        mk_label_prefix(i) @ [mk_hole(), mk_comment(", ")]
+      ),
+    );
   } else {
-    let parts = List.init(remaining, i => ", " ++ mk_hole(i));
-    String.concat("", parts);
+    List.concat(
+      List.init(remaining, i =>
+        [mk_comment(", ")] @ mk_label_prefix(i) @ [mk_hole()]
+      ),
+    );
   };
 };
+
+/* Alias for debug logging. */
+let scaffold_segment_to_string = buffer_to_string;
 
 /* Count comma tiles in sibling segments */
 let is_comma = (p: Piece.t): bool =>
@@ -365,8 +409,7 @@ let scaffold_expected_type =
      * (by counting commas between outer and inner), and index into
      * the outer type. */
     let type_for_paren =
-        (paren_piece: Piece.t, pieces_after: list(Piece.t))
-        : option(Typ.t) =>
+        (paren_piece: Piece.t, pieces_after: list(Piece.t)): option(Typ.t) =>
       switch (Id.Map.find_opt(Piece.id(paren_piece), info_map)) {
       | Some(InfoExp({cls: Exp(Ap), _})) =>
         /* Function application: find function token beyond paren */
@@ -527,10 +570,11 @@ let should_suppress =
   | _ => false
   };
 
-/* Compute the scaffold display string without modifying the zipper.
- * Returns None if no scaffold applies. */
+/* Compute the scaffold buffer segment without modifying the zipper.
+ * Returns None if no scaffold applies. The segment contains Comment
+ * secondaries for text (commas, labels) and Grout for hole placeholders. */
 let scaffold_display =
-    (~info_map: Statics.Map.t, z: Zipper.t): option(string) =>
+    (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) =>
   if (z.caret != Outer) {
     None;
   } else if (!inside_parens(z)) {
@@ -615,7 +659,7 @@ let scaffold_display =
                 |> List.filteri((i, _) => i >= label_start)
                 |> (lst => List.filteri((i, _) => i < remaining, lst));
               let labels = List.map(label_of_prod_elem, remaining_tys);
-              Some(mk_scaffold_display(~grout_right, ~labels, remaining));
+              Some(mk_scaffold_segment(~grout_right, ~labels, remaining));
             };
           };
         | _ => None
@@ -627,9 +671,7 @@ let scaffold_display =
 let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
   switch (scaffold_display(~info_map, z)) {
   | None => z
-  | Some(display) =>
-    let content = mk_unparsed_buffer(display);
-    Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+  | Some(content) => Zipper.set_buffer(z, ~content, ~mode=Unparsed)
   };
 
 /* Reify the scaffold buffer into the zipper by inserting the
