@@ -467,7 +467,8 @@ let should_suppress =
 
 /* Compute the scaffold display string without modifying the zipper.
  * Returns None if no scaffold applies. */
-let scaffold_display = (~info_map: Statics.Map.t, z: Zipper.t): option(string) =>
+let scaffold_display =
+    (~info_map: Statics.Map.t, z: Zipper.t): option(string) =>
   if (z.caret != Outer) {
     None;
   } else if (!inside_parens(z)) {
@@ -498,14 +499,46 @@ let scaffold_display = (~info_map: Statics.Map.t, z: Zipper.t): option(string) =
             if (remaining <= 0) {
               None;
             } else {
+              /* grout_right: true when the caret is on an empty hole
+               * (grout to right, no typed content to left). This controls
+               * display style — grout_right puts ○ before commas.
+               * After typing content (e.g., x= at f(x=¦?), grout_right
+               * must be false so scaffold shows remaining elements
+               * after the current one, not a duplicate of it.
+               *
+               * Left is "empty" if nothing between caret and the nearest
+               * structural delimiter (comma or ( shard) is content. */
               let grout_right = {
-                let rec skip_secondary = (
-                  fun
-                  | [Piece.Secondary(_), ...rest] => skip_secondary(rest)
-                  | [p, ..._] => Piece.is_grout(p)
-                  | [] => false
-                );
-                skip_secondary(snd(z.relatives.siblings));
+                let right_is_grout = {
+                  let rec skip_secondary = (
+                    fun
+                    | [Piece.Secondary(_), ...rest] => skip_secondary(rest)
+                    | [p, ..._] => Piece.is_grout(p)
+                    | [] => false
+                  );
+                  skip_secondary(snd(z.relatives.siblings));
+                };
+                let left_has_no_content = {
+                  /* Left siblings are stored farthest-first. Reverse to
+                   * check from caret outward. True if the first
+                   * non-secondary piece is a delimiter (comma, ( shard),
+                   * grout, or nothing — meaning no content at current
+                   * element position. */
+                  let l = List.rev(fst(z.relatives.siblings));
+                  let rec check = (
+                    fun
+                    | [] => true
+                    | [Piece.Secondary(_), ...rest] => check(rest)
+                    | [Piece.Grout(_), ..._] => true
+                    | [Piece.Tile({label: [","], _}), ..._] => true
+                    | [Piece.Tile({label: ["(", ")"], shards, _}), ..._]
+                        when List.mem(0, shards) =>
+                      true
+                    | _ => false
+                  );
+                  check(l);
+                };
+                right_is_grout && left_has_no_content;
               };
               let label_start =
                 grout_right ? existing_commas : existing_commas + 1;

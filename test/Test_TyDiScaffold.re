@@ -453,15 +453,13 @@ let acceptance_tests = (
     accept_test(
       ~name="Labeled grout-right: Tab inserts label",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
-      ~goal=
-        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
+      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
     ),
     /* Labeled after value: f(1▎ → Tab → f(1, y=▎ — comma + label */
     accept_test(
       ~name="Labeled after value: Tab inserts comma+label",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
-      ~goal=
-        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(1, ¦?)",
+      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1, ¦?)",
     ),
   ],
 );
@@ -643,34 +641,33 @@ let pattern_tests = (
 /* Test that scaffold_display returns a value even when there's
  * a text completion prefix. In the web UI, these get concatenated. */
 let combined_test = (~name, ~code, ~completion_prefix, ~scaffold_expect) =>
-  test_case(name, `Quick, () => {
-    let actions = Test_Editing.mk(code);
-    let z = Test_Editing.perform(Zipper.init(), actions);
-    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-    let info_map =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-    /* Get scaffold on the original (bufferless) zipper */
-    let scaffold = TyDi.scaffold_display(~info_map, z);
-    /* Verify scaffold independently */
-    check(
-      option(string),
-      name ++ " scaffold",
-      scaffold_expect,
-      scaffold,
-    );
-    /* Verify combined display would contain both */
-    switch (scaffold) {
-    | Some(s) =>
-      let combined = completion_prefix ++ s;
-      check(
-        testable(Fmt.bool, Bool.equal),
-        name ++ " combined has scaffold",
-        true,
-        TyDi.is_scaffold(combined),
-      );
-    | None => ()
-    };
-  });
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let actions = Test_Editing.mk(code);
+      let z = Test_Editing.perform(Zipper.init(), actions);
+      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
+      let info_map =
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+      /* Get scaffold on the original (bufferless) zipper */
+      let scaffold = TyDi.scaffold_display(~info_map, z);
+      /* Verify scaffold independently */
+      check(option(string), name ++ " scaffold", scaffold_expect, scaffold);
+      /* Verify combined display would contain both */
+      switch (scaffold) {
+      | Some(s) =>
+        let combined = completion_prefix ++ s;
+        check(
+          testable(Fmt.bool, Bool.equal),
+          name ++ " combined has scaffold",
+          true,
+          TyDi.is_scaffold(combined),
+        );
+      | None => ()
+      };
+    },
+  );
 
 let combined_tests = (
   "TyDiScaffold.Combined",
@@ -678,8 +675,7 @@ let combined_tests = (
     /* g(1111, tr → completion "ue" + scaffold ", ○" */
     combined_test(
       ~name="Completion + scaffold: g(1111, tr",
-      ~code=
-        "let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1111, tr¦",
+      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1111, tr¦",
       ~completion_prefix="ue",
       ~scaffold_expect=Some(", " ++ hole_char),
     ),
@@ -709,23 +705,26 @@ let labeled_accept_tests = (
     accept_test(
       ~name="Labeled: Tab on f( inserts label",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
-      ~goal=
-        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
+      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
     ),
     /* After user types value: f(x=1▎) → scaffold ", y=○" → Tab inserts , */
     accept_test(
       ~name="Labeled: Tab after value inserts comma",
-      ~code=
-        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1¦)",
-      ~goal=
-        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦?)",
+      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1¦)",
+      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦?)",
     ),
     /* 3-labeled: f( → Tab → f(a= */
     accept_test(
       ~name="Labeled 3-elem: Tab on f( inserts first label",
       ~code="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(¦",
-      ~goal=
-        "let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(a=¦?",
+      ~goal="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(a=¦?",
+    ),
+    /* After accepting label: f(x=¦ should show ", y=○" not "x=○, "
+     * (no label duplication — grout_right is false with content to left) */
+    scaffold_test(
+      ~name="Labeled after label accept: no duplication",
+      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦",
+      ~expect=Some(", y=" ++ hole_char),
     ),
   ],
 );
@@ -758,8 +757,7 @@ let after_comma_tests = (
      * f(x=1, ¦ → no scaffold (all commas present in 2-elem tuple) */
     scaffold_test(
       ~name="Labeled after comma: no scaffold",
-      ~code=
-        "let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦",
+      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦",
       ~expect=None,
     ),
   ],
