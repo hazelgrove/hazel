@@ -101,10 +101,7 @@ let generation_tests = (
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦",
       ~expect=Some(hole_char ++ ", "),
     ),
-    /* Single-value match suppression: f(p▎ where p satisfies the whole Prod.
-     * NOTE: This test passes but suppression does NOT work in the editor.
-     * The editor's zipper state differs from the test harness in some way
-     * that causes the suppression check to fail. Needs investigation. */
+    /* Single-value match suppression: f(p▎ where p satisfies the whole Prod */
     scaffold_test(
       ~name="Suppress when value already matches full Prod type",
       ~code=

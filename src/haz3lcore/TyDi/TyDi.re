@@ -342,24 +342,30 @@ let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
         let expected_ty = unwrap_parens(expected_ty);
         switch (Typ.term_of(expected_ty)) {
         | Prod(tys) when List.length(tys) >= 2 =>
-          /* Check if the expression at caret already satisfies the Prod */
+          /* Check if the expression at caret already satisfies the Prod.
+           * Try self (synthesized) type first. If self is Unknown — which
+           * happens for variables from let bindings with type annotations
+           * (bare pattern gets Unknown in context) — fall back to ty
+           * (derived type that incorporates the annotation). */
           let l = fst(z.relatives.siblings) |> List.rev;
           let suppress =
             switch (l) {
-            | [p, ..._] when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
+            | [p, ..._] when Piece.is_convex(p) =>
               switch (Id.Map.find_opt(Piece.id(p), info_map)) {
-              | Some(InfoExp({self, ctx, _})) =>
-                /* Use synthesized type (not derived ty) for suppression.
-                 * ty reflects the expected type on error, but we want to
-                 * know the actual type of what the user typed. */
-                switch (Self.typ_of_exp(self)) {
-                | Some(syn_ty) =>
-                  switch (Typ.term_of(syn_ty)) {
-                  | Unknown(_) => false
-                  | _ => Typ.is_consistent(ctx, syn_ty, expected_ty)
-                  }
-                | None => false
-                }
+              | Some(InfoExp({self, ty, ctx, _})) =>
+                let check_ty =
+                  switch (Self.typ_of_exp(self)) {
+                  | Some(syn_ty) =>
+                    switch (Typ.term_of(syn_ty)) {
+                    | Unknown(_) => ty /* self is Unknown, use derived ty */
+                    | _ => syn_ty /* self is known, use it */
+                    }
+                  | None => ty /* no self type, use derived ty */
+                  };
+                switch (Typ.term_of(check_ty)) {
+                | Unknown(_) => false
+                | _ => Typ.is_consistent(ctx, check_ty, expected_ty)
+                };
               | _ => false
               }
             | _ => false
