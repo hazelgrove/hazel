@@ -599,6 +599,36 @@ let progressive_tests = (
   ],
 );
 
+let pattern_tests = (
+  "TyDiScaffold.Pattern",
+  [
+    /* Pattern: fun (¦ — open paren shard in pattern, tuple expected */
+    scaffold_test(
+      ~name="Pattern fun (: scaffold",
+      ~code="let f : (Int, String) -> Bool = fun (¦",
+      ~expect=Some(hole_char ++ ", "),
+    ),
+    /* Pattern: fun (x¦ — content in pattern paren */
+    scaffold_test(
+      ~name="Pattern fun (x: scaffold",
+      ~code="let f : (Int, String) -> Bool = fun (x¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Pattern: fun (x,¦ — comma placed, no more needed */
+    scaffold_test(
+      ~name="Pattern fun (x,: no scaffold",
+      ~code="let f : (Int, String) -> Bool = fun (x, ¦",
+      ~expect=None,
+    ),
+    /* Pattern: 3-element function arg */
+    scaffold_test(
+      ~name="Pattern fun ( 3-arg: scaffold",
+      ~code="let g : (Int, String, Bool) -> Bool = fun (x¦",
+      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+  ],
+);
+
 let tests = [
   shard_tests,
   ancestor_tests,
@@ -610,4 +640,5 @@ let tests = [
   acceptance_tests,
   stale_tests,
   progressive_tests,
+  pattern_tests,
 ];
