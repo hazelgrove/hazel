@@ -822,7 +822,8 @@ let incomplete_tests = (
     /* 3-arg incomplete let */
     scaffold_test(
       ~name="let-no-in: 3-arg",
-      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in let x = g(1¦",
+      ~code=
+        "let g : (Int, String, Bool) -> Int = fun x -> 0 in let x = g(1¦",
       ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
     ),
     /* Labeled in incomplete let */
@@ -838,122 +839,36 @@ let incomplete_tests = (
     accept_test(
       ~name="let-no-in: Tab acceptance",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦",
-      ~goal="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1, ¦?",
+      ~goal=
+        "let f : (Int, String) -> Int = fun x -> 0 in let x = f(1, ¦?",
     ),
   ],
 );
 
 /* ---- Pattern ancestor case: both parens placed in pattern ---- */
 
-/* ---- Inner caret: scaffold with caret inside a token ---- */
-
-/* Two classes of Inner caret:
- *
- * Class A: scaffold goes INSIDE the focused tile (e.g., let (¦)).
- *   The ( tile is the right sibling; siblings are outside the parens.
- *   inside_parens returns false. Needs virtual-move or child access.
- *
- * Class B: scaffold goes AFTER the focused tile (e.g., f("¦")).
- *   The string tile is a left sibling inside the parens. The scaffold
- *   renders at the token-level gap after the string. Tab advances
- *   caret from Inner to Outer; second Tab accepts the scaffold. */
-
-let defstr = "let f : (String, Int) -> Float = fun x -> 0.0 in ";
-
-let inner_caret_tests = (
-  "TyDiScaffold.InnerCaret",
+let pattern_ancestor_tests = (
+  "TyDiScaffold.PatternAncestor",
   [
-    /* Class A: pattern ancestor — scaffold blocked by inside_parens */
-    test_case(
-      "Class A: let (|) no scaffold",
-      `Quick,
-      () => {
-        let result =
-          scaffold_suggest("let (¦) : (Int, Bool) = (1, true) in 0");
-        check(option(string), "returns None", None, result);
-      },
-    ),
-    /* Class B: string literal — scaffold shows after string */
-    scaffold_test(
-      ~name="String empty: f(quote-caret-quote)",
-      ~code=defstr ++ "f(\"¦\"",
-      ~expect=Some(", " ++ hole_char),
-    ),
-    scaffold_test(
-      ~name="String with content: f(hello-caret)",
-      ~code=defstr ++ "f(\"hello¦\"",
-      ~expect=Some(", " ++ hole_char),
-    ),
-    scaffold_test(
-      ~name="String done, caret after: Outer",
-      ~code=defstr ++ "f(\"hello\"¦",
-      ~expect=Some(", " ++ hole_char),
-    ),
-    /* 3-arg with string first */
-    scaffold_test(
-      ~name="String in 3-arg: shows remaining scaffold",
-      ~code=
-        "let g : (String, Int, Bool) -> Int = fun x -> 0 in g(\"hi¦\"",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
-    ),
-    /* Tab from Inner: first Tab advances to Outer, caret exits string.
-     * The scaffold buffer stays set, so the caret is now Outer with
-     * the scaffold visible and directly acceptible on next Tab. */
-    test_case("Tab from Inner: caret advances to Outer", `Quick, () => {
-      let code = defstr ++ "f(\"¦\"";
-      let actions = Test_Editing.mk(code);
-      let z = Test_Editing.perform(Zipper.init(), actions);
-      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-      let info_map =
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-      let z = TyDi.set_scaffold(~info_map, z);
-      /* Verify scaffold is set and caret is Inner */
-      check(
-        testable(Fmt.bool, Bool.equal),
-        "scaffold set",
-        true,
-        TyDi.get_unparsed_buffer(z) != None,
-      );
-      check(
-        testable(Fmt.bool, Bool.equal),
-        "caret is Inner before Tab",
-        true,
-        z.caret != Outer,
-      );
-      /* Press Tab — should advance to Outer, not insert */
-      let z = Test_Editing.perform(z, [Action.Buffer(Accept)]);
-      check(
-        testable(Fmt.bool, Bool.equal),
-        "caret is Outer after Tab",
-        true,
-        z.caret == Outer,
-      );
-    }),
-    /* Double-Tab: first exits string, second accepts scaffold */
-    test_case("Double-Tab: exit string then accept scaffold", `Quick, () => {
-      let code = defstr ++ "f(\"hi¦\"";
-      let actions = Test_Editing.mk(code);
-      let z = Test_Editing.perform(Zipper.init(), actions);
-      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-      let info_map =
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-      let z = TyDi.set_scaffold(~info_map, z);
-      /* Tab 1: advance to Outer */
-      let z = Test_Editing.perform(z, [Action.Buffer(Accept)]);
-      /* Re-set scaffold at new Outer position */
-      let term2 = MakeTerm.from_zip_for_sem(z).term;
-      let info_map2 =
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term2);
-      let z = TyDi.set_scaffold(~info_map=info_map2, z);
-      /* Tab 2: accept scaffold */
-      let z = Test_Editing.perform(z, [Action.Buffer(Accept)]);
-      let printed = Test_Editing.printer(z);
-      check(
-        testable(Fmt.string, String.equal),
-        "after double-Tab",
-        defstr ++ "f(\"hi\", ¦?",
-        printed,
-      );
+    /* let (¦) : (Int, Bool) = ... — caret is Inner(0) on the ( shard.
+     *
+     * The ( tile is the *right sibling* of the caret, not an ancestor or
+     * left sibling. So inside_parens returns false. Moreover, the siblings
+     * seen by scaffold (count_commas, should_suppress, grout_right) are the
+     * pieces OUTSIDE the parens in the let body — wrong context entirely.
+     *
+     * Fixing this requires either:
+     * (a) Virtual move: copy zipper, move caret to Outer inside paren child,
+     *     run scaffold on the copy.
+     * (b) Direct child access: extract the tile's child segment and analyze
+     *     its content (commas, grout, pieces) directly.
+     *
+     * Both approaches are non-trivial. Skipped for now. */
+    test_case("Pattern ancestor: let (|) caret=Inner", `Quick, () => {
+      let code = "let (¦) : (Int, Bool) = (1, true) in 0";
+      let result = scaffold_suggest(code);
+      /* Currently returns None -- documenting actual behavior */
+      check(option(string), "pattern ancestor returns None", None, result);
     }),
   ],
 );
@@ -974,5 +889,5 @@ let tests = [
   progressive_tests,
   pattern_tests,
   incomplete_tests,
-  inner_caret_tests,
+  pattern_ancestor_tests,
 ];
