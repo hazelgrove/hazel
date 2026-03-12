@@ -185,7 +185,24 @@ module Update = {
             ~info_map=new_statics.info_map,
             state.zipper,
           );
-        switch (TyDi.get_unparsed_buffer(z), scaffold) {
+        let completion = TyDi.get_unparsed_buffer(z);
+        print_endline(
+          "[scaffold-edit] completion="
+          ++ (
+            switch (completion) {
+            | Some(c) => c
+            | None => "none"
+            }
+          )
+          ++ " scaffold="
+          ++ (
+            switch (scaffold) {
+            | Some(s) => s
+            | None => "none"
+            }
+          ),
+        );
+        switch (completion, scaffold) {
         | (Some(completion), Some(scaffold_text)) =>
           let combined = completion ++ scaffold_text;
           let content = TyDi.mk_unparsed_buffer(combined);
