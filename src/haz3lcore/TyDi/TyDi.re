@@ -299,13 +299,12 @@ let scaffold_expected_type =
    * For explicit parens, the paren tile maps to a Parens node
    * whose ana is the expected type from context. */
   switch (z.relatives.ancestors) {
-  | [(ancestor, (anc_left, _)), ..._]
-      when ancestor.label == ["(", ")"] =>
+  | [(ancestor, (anc_left, _)), ..._] when ancestor.label == ["(", ")"] =>
     switch (Id.Map.find_opt(ancestor.id, info_map)) {
     | Some(InfoExp({cls: Exp(Ap), _})) =>
       /* Function application: find function in ancestor left context */
       let l = List.rev(anc_left);
-      let rec find_fn =
+      let rec find_fn = (
         fun
         | [] => None
         | [p, ..._] when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
@@ -315,7 +314,8 @@ let scaffold_expected_type =
             Some(arg_ty);
           | _ => None
           }
-        | [_, ...rest] => find_fn(rest);
+        | [_, ...rest] => find_fn(rest)
+      );
       find_fn(l);
     | Some(InfoExp({ana, _})) => Some(ana)
     | Some(InfoPat({ana, _})) => Some(ana)
@@ -332,8 +332,7 @@ let scaffold_expected_type =
         Some((None, p))
       | [Tile({label: ["(", ")"], shards: [0], _}) as p, left, ..._] =>
         Some((Some(left), p))
-      | [_, ...rest] =>
-        find_paren_and_left(rest)
+      | [_, ...rest] => find_paren_and_left(rest)
       };
     switch (find_paren_and_left(l)) {
     | None => None
@@ -417,20 +416,19 @@ let should_suppress =
       false;
     } else {
       switch (Id.Map.find_opt(Piece.id(p), info_map)) {
-      | Some(InfoExp({self, ty, ctx, _})) =>
-        let syn_opt = Self.typ_of_exp(self);
-        let check_ty =
-          switch (syn_opt) {
-          | Some(syn_ty) =>
-            switch (Typ.term_of(syn_ty)) {
-            | Unknown(_) => ty
-            | _ => syn_ty
-            }
-          | None => ty
-          };
-        switch (Typ.term_of(check_ty)) {
-        | Unknown(_) => false
-        | _ => Typ.is_consistent(ctx, check_ty, expected_ty)
+      | Some(InfoExp({self, ctx, _})) =>
+        /* Use ONLY the synthesized type for suppression. Never fall
+         * back to the reconciled `ty` field, which can be stale
+         * (e.g., when the piece inherits a grout's ID via
+         * preserve_grout_id, the stale info_map entry has ty = ana
+         * from the previous grout hole, not the current piece). */
+        switch (Self.typ_of_exp(self)) {
+        | Some(syn_ty) =>
+          switch (Typ.term_of(syn_ty)) {
+          | Unknown(_) => false
+          | _ => Typ.is_consistent(ctx, syn_ty, expected_ty)
+          }
+        | None => false
         };
       | _ => false
       };
@@ -481,11 +479,19 @@ let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
                 );
                 skip_secondary(snd(z.relatives.siblings));
               };
-              /* Extract labels from the remaining Prod elements */
-              let filled = arity - remaining;
-              let remaining_tys = List.filteri((i, _) => i >= filled, tys);
-              let labels =
-                List.map(label_of_prod_elem, remaining_tys);
+              /* Extract labels for the scaffold holes from the Prod elements.
+               * When grout_right, scaffold holes represent elements starting
+               * from existing_commas (element 0 when no commas yet). When
+               * not grout_right, scaffold holes start after the current
+               * content (existing_commas + 1). Take exactly `remaining`
+               * labels to match the number of holes. */
+              let label_start =
+                grout_right ? existing_commas : existing_commas + 1;
+              let remaining_tys =
+                tys
+                |> List.filteri((i, _) => i >= label_start)
+                |> (lst => List.filteri((i, _) => i < remaining, lst));
+              let labels = List.map(label_of_prod_elem, remaining_tys);
               let display =
                 mk_scaffold_display(~grout_right, ~labels, remaining);
               let content = mk_unparsed_buffer(display);
