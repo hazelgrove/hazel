@@ -19,6 +19,7 @@ module Model = {
     autoprobe_mode: bool,
     line_numbers: bool,
     relative_line_numbers: bool,
+    cap_undo_stack: bool,
   };
 
   let init = {
@@ -70,6 +71,7 @@ module Model = {
     autoprobe_mode: false,
     line_numbers: false,
     relative_line_numbers: false,
+    cap_undo_stack: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -135,7 +137,8 @@ module Update = {
     | FlipAnimations
     | AutoprobeMode
     | ToggleLineNumbers
-    | ToggleRelativeLineNumbers;
+    | ToggleRelativeLineNumbers
+    | CapUndoStack;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -377,6 +380,10 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | CapUndoStack => {
+          ...settings,
+          cap_undo_stack: !settings.cap_undo_stack,
         }
       }
     )

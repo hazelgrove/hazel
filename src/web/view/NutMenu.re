@@ -124,6 +124,12 @@ let dev_group = (~globals: Globals.t) => {
       ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
       ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll),
+      (
+        "↩",
+        "Cap Undo Stack",
+        globals.settings.cap_undo_stack,
+        CapUndoStack,
+      ),
     ]
     @ (
       ExerciseSettings.show_instructor
