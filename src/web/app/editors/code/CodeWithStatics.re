@@ -213,12 +213,9 @@ module Update = {
             print_endline("[scaffold-refresh] no scaffold applies");
             editor;
           | Some(display) =>
-            print_endline(
-              "[scaffold-refresh] setting scaffold: " ++ display,
-            );
+            print_endline("[scaffold-refresh] setting scaffold: " ++ display);
             let content = TyDi.mk_unparsed_buffer(display);
-            let zipper =
-              Zipper.set_buffer(zipper, ~content, ~mode=Unparsed);
+            let zipper = Zipper.set_buffer(zipper, ~content, ~mode=Unparsed);
             let syntax = CachedSyntax.mark_old(editor.syntax);
             let syntax =
               CachedSyntax.calculate(
@@ -234,7 +231,7 @@ module Update = {
               },
               syntax,
             };
-          }
+          };
         };
       } else {
         if (statics_refreshed && !is_edited) {

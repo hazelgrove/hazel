@@ -763,6 +763,116 @@ let after_comma_tests = (
   ],
 );
 
+/* ---- Incomplete forms: scaffold inside unclosed let/fun/if ---- */
+
+/* These test scaffold behavior when the caret is inside incomplete
+ * syntax — e.g., a let without its `in`, or a function body without
+ * closing delimiters. This is the common case when writing new code
+ * above existing lines. The Dump step completes these forms before
+ * statics, so scaffold should still work. */
+
+let incomplete_tests = (
+  "TyDiScaffold.Incomplete",
+  [
+    /* let without in: let x = f(1¦ — incomplete let, open paren shard */
+    scaffold_test(
+      ~name="let-no-in: shard case",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* let without in: ancestor case with both parens */
+    scaffold_test(
+      ~name="let-no-in: ancestor case",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦)",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* fun body: fun x -> f(1¦ — incomplete fun, open paren */
+    scaffold_test(
+      ~name="fun-body: shard case",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in fun x -> f(1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* if-then: if true then f(1¦ — incomplete if, no else */
+    scaffold_test(
+      ~name="if-then: shard case",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in if true then f(1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Nested incomplete let: let y = 0 in let x = f(1¦ */
+    scaffold_test(
+      ~name="nested-let: shard case",
+      ~code=
+        "let f : (Int, String) -> Int = fun x -> 0 in let y = 0 in let x = f(1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Writing above existing code: let x = f(1¦ followed by more code.
+     * The trailing let simulates code on the next line. */
+    scaffold_test(
+      ~name="above-existing-code: shard",
+      ~code=
+        "let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦\nlet y = 2 in y",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Grout-right in incomplete let */
+    scaffold_test(
+      ~name="let-no-in: grout-right",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(¦",
+      ~expect=Some(hole_char ++ ", "),
+    ),
+    /* 3-arg incomplete let */
+    scaffold_test(
+      ~name="let-no-in: 3-arg",
+      ~code=
+        "let g : (Int, String, Bool) -> Int = fun x -> 0 in let x = g(1¦",
+      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+    /* Labeled in incomplete let */
+    scaffold_test(
+      ~name="let-no-in: labeled",
+      ~code=
+        "let f : (x=Int, y=String) -> Bool = fun a -> true in let r = f(1¦",
+      ~expect=Some(", y=" ++ hole_char),
+    ),
+    /* Tab acceptance in incomplete form.
+     * Note: printer doesn't show Dump-completed `in` — it only renders
+     * the zipper's actual content, not backpack shards. */
+    accept_test(
+      ~name="let-no-in: Tab acceptance",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦",
+      ~goal=
+        "let f : (Int, String) -> Int = fun x -> 0 in let x = f(1, ¦?",
+    ),
+  ],
+);
+
+/* ---- Pattern ancestor case: both parens placed in pattern ---- */
+
+let pattern_ancestor_tests = (
+  "TyDiScaffold.PatternAncestor",
+  [
+    /* let (¦) : (Int, Bool) = ... — caret is Inner(0) on the ( shard.
+     *
+     * The ( tile is the *right sibling* of the caret, not an ancestor or
+     * left sibling. So inside_parens returns false. Moreover, the siblings
+     * seen by scaffold (count_commas, should_suppress, grout_right) are the
+     * pieces OUTSIDE the parens in the let body — wrong context entirely.
+     *
+     * Fixing this requires either:
+     * (a) Virtual move: copy zipper, move caret to Outer inside paren child,
+     *     run scaffold on the copy.
+     * (b) Direct child access: extract the tile's child segment and analyze
+     *     its content (commas, grout, pieces) directly.
+     *
+     * Both approaches are non-trivial. Skipped for now. */
+    test_case("Pattern ancestor: let (|) caret=Inner", `Quick, () => {
+      let code = "let (¦) : (Int, Bool) = (1, true) in 0";
+      let result = scaffold_suggest(code);
+      /* Currently returns None -- documenting actual behavior */
+      check(option(string), "pattern ancestor returns None", None, result);
+    }),
+  ],
+);
+
 let tests = [
   shard_tests,
   ancestor_tests,
@@ -778,4 +888,6 @@ let tests = [
   stale_tests,
   progressive_tests,
   pattern_tests,
+  incomplete_tests,
+  pattern_ancestor_tests,
 ];
