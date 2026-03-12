@@ -1220,8 +1220,7 @@ let selection_tests = [
   test(
     ~name="Triple-click on infix without spaces: select expression",
     ~acts=
-      mk({|1¦+2|})
-      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+      mk({|1¦+2|}) @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
     ~goal={|§1+2¦|},
   ),
   /* --- More Smart(3) tests: escalation from term to parent --- */
@@ -1292,8 +1291,7 @@ let selection_tests = [
   test(
     ~name="Triple-click on function name in app: select whole app",
     ~acts=
-      mk({|¦f(x)|})
-      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+      mk({|¦f(x)|}) @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
     ~goal={|§f(x)¦|},
   ),
   test(
@@ -1304,8 +1302,7 @@ let selection_tests = [
   test(
     ~name="Triple-click on argument inside app parens: select whole app",
     ~acts=
-      mk({|f(¦x)|})
-      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+      mk({|f(¦x)|}) @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
     ~goal={|§f(x)¦|},
   ),
   /* --- App at designated position (between fn name and app parens) --- */
@@ -1317,8 +1314,7 @@ let selection_tests = [
   test(
     ~name="Triple-click between fn and app parens: select whole app",
     ~acts=
-      mk({|f¦(x)|})
-      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+      mk({|f¦(x)|}) @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
     ~goal={|§f(x)¦|},
   ),
   test(
@@ -1382,8 +1378,7 @@ let selection_tests = [
   test(
     ~name="Cmd+D from term selection: escalate to parent",
     ~acts=
-      mk({|1 + ¦2|})
-      @ [Select(Term(Current)), Select(Term(Current))],
+      mk({|1 + ¦2|}) @ [Select(Term(Current)), Select(Term(Current))],
     ~goal={|§1 + 2¦|},
   ),
   test(
@@ -1406,23 +1401,19 @@ let selection_tests = [
   ),
   test(
     ~name="Cmd+D from Smart(2) token: round up to containing term",
-    ~acts=
-      mk({|1 ¦+ 2|})
-      @ [Select(Smart(2)), Select(Term(Current))],
+    ~acts=mk({|1 ¦+ 2|}) @ [Select(Smart(2)), Select(Term(Current))],
     ~goal={|§1 + 2¦|},
   ),
   test(
     ~name="Cmd+D on function name: select fn, then escalate to app",
     ~acts=
-      mk({|¦f(x)|})
-      @ [Select(Term(Current)), Select(Term(Current))],
+      mk({|¦f(x)|}) @ [Select(Term(Current)), Select(Term(Current))],
     ~goal={|§f(x)¦|},
   ),
   test(
     ~name="Cmd+D on arg inside app: select arg, then app",
     ~acts=
-      mk({|f(¦x)|})
-      @ [Select(Term(Current)), Select(Term(Current))],
+      mk({|f(¦x)|}) @ [Select(Term(Current)), Select(Term(Current))],
     ~goal={|§f(x)¦|},
   ),
   test(
@@ -1450,9 +1441,7 @@ let selection_tests = [
   ),
   test(
     ~name="Cmd+D on nested let body: select body",
-    ~acts=
-      mk({|let x = 1 in let y = 2 in ¦y|})
-      @ [Select(Term(Current))],
+    ~acts=mk({|let x = 1 in let y = 2 in ¦y|}) @ [Select(Term(Current))],
     ~goal={|let x = 1 in let y = 2 in §y¦|},
   ),
   test(
@@ -1477,10 +1466,7 @@ let selection_tests = [
     ~name="Cmd+D on def header then full let: no cycling",
     ~acts=
       mk({|¦let x = 1 in x|})
-      @ [
-        Select(Term(Current)),
-        Select(Term(Current)),
-      ],
+      @ [Select(Term(Current)), Select(Term(Current))],
     ~goal={|§let x = 1 in x¦|},
   ),
   test(
@@ -1492,9 +1478,7 @@ let selection_tests = [
   ),
   test(
     ~name="Cmd+D in case rule body: select body",
-    ~acts=
-      mk({|case x | A => ¦1 | B => 2 end|})
-      @ [Select(Term(Current))],
+    ~acts=mk({|case x | A => ¦1 | B => 2 end|}) @ [Select(Term(Current))],
     ~goal={|case x | A => §1¦ | B => 2 end|},
   ),
   test(
@@ -1518,41 +1502,32 @@ let selection_tests = [
   test(
     ~name="Cmd+D nested case: body then inner rule",
     ~acts=
-      mk(
-        {|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|},
-      )
+      mk({|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|})
       @ [Select(Term(Current)), Select(Term(Current))],
-    ~goal=
-      {|case x | A => case y §| C => 1¦ | D => 2 end | B => 3 end|},
+    ~goal={|case x | A => case y §| C => 1¦ | D => 2 end | B => 3 end|},
   ),
   test(
     ~name="Cmd+D nested case: inner rule then inner case",
     ~acts=
-      mk(
-        {|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|},
-      )
+      mk({|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|})
       @ [
         Select(Term(Current)),
         Select(Term(Current)),
         Select(Term(Current)),
       ],
-    ~goal=
-      {|case x | A => §case y | C => 1 | D => 2 end¦ | B => 3 end|},
+    ~goal={|case x | A => §case y | C => 1 | D => 2 end¦ | B => 3 end|},
   ),
   test(
     ~name="Cmd+D nested case: inner case then outer rule",
     ~acts=
-      mk(
-        {|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|},
-      )
+      mk({|case x | A => case y | C => ¦1 | D => 2 end | B => 3 end|})
       @ [
         Select(Term(Current)),
         Select(Term(Current)),
         Select(Term(Current)),
         Select(Term(Current)),
       ],
-    ~goal=
-      {|case x §| A => case y | C => 1 | D => 2 end¦ | B => 3 end|},
+    ~goal={|case x §| A => case y | C => 1 | D => 2 end¦ | B => 3 end|},
   ),
   test(
     ~name="Cmd+D nested case in last rule: step 1 cursor to inner case",
@@ -1575,24 +1550,20 @@ let selection_tests = [
       {|case x | A => 1 | B => 2 §| C => case y | D => 3 | E => 4 end¦ end|},
   ),
   test(
-    ~name=
-      "Cmd+D nested let compound body: step 1 cursor to x",
+    ~name="Cmd+D nested let compound body: step 1 cursor to x",
     ~acts=
-      mk({|let x = 1 in let y = 2 in ¦x + y|})
-      @ [Select(Term(Current))],
+      mk({|let x = 1 in let y = 2 in ¦x + y|}) @ [Select(Term(Current))],
     ~goal={|let x = 1 in let y = 2 in §x¦ + y|},
   ),
   test(
-    ~name=
-      "Cmd+D nested let compound body: step 2 x to x+y",
+    ~name="Cmd+D nested let compound body: step 2 x to x+y",
     ~acts=
       mk({|let x = 1 in let y = 2 in ¦x + y|})
       @ [Select(Term(Current)), Select(Term(Current))],
     ~goal={|let x = 1 in let y = 2 in §x + y¦|},
   ),
   test(
-    ~name=
-      "Cmd+D nested let compound body: step 3 x+y to inner let",
+    ~name="Cmd+D nested let compound body: step 3 x+y to inner let",
     ~acts=
       mk({|let x = 1 in let y = 2 in ¦x + y|})
       @ [
@@ -1603,8 +1574,7 @@ let selection_tests = [
     ~goal={|let x = 1 in §let y = 2 in x + y¦|},
   ),
   test(
-    ~name=
-      "Cmd+D nested let compound body: step 4 inner let to outer let",
+    ~name="Cmd+D nested let compound body: step 4 inner let to outer let",
     ~acts=
       mk({|let x = 1 in let y = 2 in ¦x + y|})
       @ [
@@ -1695,8 +1665,7 @@ let selection_tests = [
     ~acts=
       mk({|case x | A => let y = 1 in ¦y | B => 2 end|})
       @ [Select(Term(Current)), Select(Term(Current))],
-    ~goal=
-      {|case x | A => §let y = 1 in y¦ | B => 2 end|},
+    ~goal={|case x | A => §let y = 1 in y¦ | B => 2 end|},
   ),
   test(
     ~name="Cmd+D let in case rule: let to rule",
@@ -1707,8 +1676,7 @@ let selection_tests = [
         Select(Term(Current)),
         Select(Term(Current)),
       ],
-    ~goal=
-      {|case x §| A => let y = 1 in y¦ | B => 2 end|},
+    ~goal={|case x §| A => let y = 1 in y¦ | B => 2 end|},
   ),
   test(
     ~name="Cmd+D let in case rule: rule to case",
@@ -1720,8 +1688,7 @@ let selection_tests = [
         Select(Term(Current)),
         Select(Term(Current)),
       ],
-    ~goal=
-      {|§case x | A => let y = 1 in y | B => 2 end¦|},
+    ~goal={|§case x | A => let y = 1 in y | B => 2 end¦|},
   ),
   /* --- Case with single rule --- */
   test(
