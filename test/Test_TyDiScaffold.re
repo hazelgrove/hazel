@@ -16,7 +16,7 @@ let scaffold_suggest = (code: string): option(string) => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDiScaffold.set_scaffold(~info_map, z);
+  let z = TyDiScaffold.set(~info_map, z);
   TyDi.get_unparsed_buffer(z);
 };
 
@@ -44,7 +44,7 @@ let scaffold_suggest_stale =
   /* Clear any buffer that might have been set during earlier edits */
   let z_current = Zipper.clear_unparsed_buffer(z_current);
   /* Run scaffold with stale info_map on current zipper */
-  let z = TyDiScaffold.set_scaffold(~info_map=info_map_stale, z_current);
+  let z = TyDiScaffold.set(~info_map=info_map_stale, z_current);
   TyDi.get_unparsed_buffer(z);
 };
 
@@ -80,7 +80,7 @@ let scaffold_accept = (code: string): string => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDiScaffold.set_scaffold(~info_map, z);
+  let z = TyDiScaffold.set(~info_map, z);
   /* Accept the buffer (Tab) */
   let z = Test_Editing.perform(z, [Action.Buffer(Accept)]);
   Test_Editing.printer(z);
@@ -105,9 +105,9 @@ let scaffold_ana = (code: string): option(Typ.t) => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDiScaffold.set_scaffold(~info_map, z);
+  let z = TyDiScaffold.set(~info_map, z);
   /* Second pass: reify scaffold into zipper, then dump for statics */
-  let z_reified = TyDiScaffold.reify_scaffold(z);
+  let z_reified = TyDiScaffold.reify(z);
   let term = MakeTerm.from_zip_for_sem(z_reified).term;
   let info_map2 =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
@@ -785,10 +785,9 @@ let combined_test = (~name, ~code, ~completion_prefix, ~scaffold_expect) =>
       let info_map =
         Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
       /* Get scaffold on the original (bufferless) zipper */
-      let scaffold = TyDiScaffold.scaffold_display(~info_map, z);
+      let scaffold = TyDiScaffold.display(~info_map, z);
       /* Verify scaffold independently (convert segment to string) */
-      let scaffold_str =
-        Option.map(TyDiScaffold.scaffold_segment_to_string, scaffold);
+      let scaffold_str = Option.map(TyDiScaffold.segment_to_string, scaffold);
       check(
         option(string),
         name ++ " scaffold",
@@ -1035,7 +1034,7 @@ let scaffold_segment_ok = (code: string): bool => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDiScaffold.set_scaffold(~info_map, z);
+  let z = TyDiScaffold.set(~info_map, z);
   /* This is what CachedSyntax.mk does — if it crashes, the UI crashes */
   let segment = Zipper.unselect_and_zip(z);
   switch (MakeTerm.go(segment)) {
@@ -1056,7 +1055,7 @@ let scaffold_segment_ok_stale = (code: string, split_at: int): bool => {
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let z_current = Test_Editing.perform(z_stale, actions_rest);
   let z_current = Zipper.clear_unparsed_buffer(z_current);
-  let z = TyDiScaffold.set_scaffold(~info_map=info_map_stale, z_current);
+  let z = TyDiScaffold.set(~info_map=info_map_stale, z_current);
   let segment = Zipper.unselect_and_zip(z);
   switch (MakeTerm.go(segment)) {
   | _ => true

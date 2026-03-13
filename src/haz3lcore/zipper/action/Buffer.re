@@ -40,7 +40,7 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
  *      ["x=", ?, ", "]   → insertable "x=,"  → emit "x="
  *      [", ", "y=", ?]   → insertable ",y="  → emit ","  */
 let scaffold_emit_text = (content: Segment.t): string => {
-  let insertable = TyDiScaffold.scaffold_insertable(content);
+  let insertable = TyDiScaffold.insertable(content);
   let len = String.length(insertable);
   /* Check if the insertable starts with a label prefix (chars before '=').
    * If so, emit just the label prefix (up to and including '='). */
@@ -75,7 +75,7 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   switch (z.selection.mode) {
   | Normal => None
   | Buffer(Parsed) => Some(Zipper.directional_unselect(Right, z))
-  | Buffer(Unparsed) when TyDiScaffold.is_scaffold_buffer(z) =>
+  | Buffer(Unparsed) when TyDiScaffold.is_scaffold(z) =>
     /* Scaffold buffer: emit one chunk progressively.
      * Add a trailing space after commas for readability
      * (f(1, ?) instead of f(1,?)), but not after label

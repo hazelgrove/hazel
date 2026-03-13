@@ -263,7 +263,7 @@ let clear_unparsed_buffer = (z: t) =>
 let unselect = (~erase_buffer=false, z: t): t => {
   /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer.
    * Scaffold buffers with structural tiles (e.g. comma Tiles) are
-   * handled by TyDiScaffold.set_scaffold, which strips conflicting grout
+   * handled by TyDiScaffold.set, which strips conflicting grout
    * from siblings at buffer-set time before this splice runs. */
   let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let relatives =

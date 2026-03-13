@@ -181,10 +181,7 @@ module Update = {
          * plus scaffold ", ?"). Tab acceptance is incremental:
          * first Tab accepts the completion, second Tab the comma. */
         let scaffold =
-          TyDiScaffold.scaffold_display(
-            ~info_map=new_statics.info_map,
-            state.zipper,
-          );
+          TyDiScaffold.display(~info_map=new_statics.info_map, state.zipper);
         let completion = TyDi.get_unparsed_buffer(z);
         print_endline(
           "[scaffold-edit] completion="
@@ -197,7 +194,7 @@ module Update = {
           ++ " scaffold="
           ++ (
             switch (scaffold) {
-            | Some(s) => TyDiScaffold.scaffold_segment_to_string(s)
+            | Some(s) => TyDiScaffold.segment_to_string(s)
             | None => "none"
             }
           ),
@@ -210,7 +207,7 @@ module Update = {
           Zipper.set_buffer(state.zipper, ~content, ~mode=Unparsed);
         | (Some(_), None) => z
         | (None, Some(_)) =>
-          TyDiScaffold.set_scaffold(~info_map=new_statics.info_map, z)
+          TyDiScaffold.set(~info_map=new_statics.info_map, z)
         | (None, None) => z
         };
       } else {
