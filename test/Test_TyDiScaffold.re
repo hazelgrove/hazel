@@ -444,6 +444,44 @@ let edge_tests = (
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦, true",
       ~expect=None,
     ),
+    /* Shape fitting: ( is concave-right, 1 is convex-left → start with hole.
+     * Caret between ( and existing content: scaffold must fit both sides. */
+    scaffold_test(
+      ~name="Shape fit: f(|1 → ○, (not , ○)",
+      ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦1",
+      ~expect=Some(hole_char ++ ", "),
+    ),
+    /* 3-arg shape fit: g(|1 → ○, ○,  */
+    scaffold_test(
+      ~name="Shape fit: g(|1 → ○, ○, ",
+      ~code="let g : (Bool, Int, String) -> Float = fun x -> 0.0 in g(¦1",
+      ~expect=Some(hole_char ++ ", " ++ hole_char ++ ", "),
+    ),
+    /* Trailing hole omitted: convex tile past grout on right.
+     * f(1|~ 1 → just ", " (no trailing ○ since 1 fills that position) */
+    scaffold_test(
+      ~name="Trailing hole: f(1| 1 → , (no hole)",
+      ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(1¦ 1",
+      ~expect=Some(", "),
+    ),
+    /* Trailing hole kept: only grout to right, no tile */
+    scaffold_test(
+      ~name="Trailing hole: f(1| → , ○ (hole needed)",
+      ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* 3-arg trailing hole omitted: g(1| 2 → , ○, (interior hole kept) */
+    scaffold_test(
+      ~name="Trailing hole: g(1| 2 → , ○, (interior kept)",
+      ~code="let g : (Bool, Int, String) -> Float = fun x -> 0.0 in g(1¦ 2",
+      ~expect=Some(", " ++ hole_char ++ ", "),
+    ),
+    /* holes_first with tile on right: f(| 1 → ○,  */
+    scaffold_test(
+      ~name="Holes first + trailing: f(| 1 → ○, ",
+      ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦ 1",
+      ~expect=Some(hole_char ++ ", "),
+    ),
   ],
 );
 

@@ -236,17 +236,22 @@ let label_of_prod_elem = (ty: Typ.t): option(string) =>
  * Uses actual Grout pieces for holes instead of text placeholders,
  * with Comment secondaries for commas and label prefixes.
  *
- * When there's grout (a real hole) to the right of the caret, the scaffold
- * places the hole BEFORE the comma so it reads naturally:
- *   grout_right=true:  remaining=1 → [○, ", "]   remaining=2 → [○, ", ", ○, ", "]
+ * holes_first: controls whether holes precede or follow commas.
+ *   true:  [○, ", "]^n  — e.g. f(|? or f(|1 (left boundary is empty)
+ *   false: [", ", ○]^n  — e.g. f(1|  or f(1|) (left has content)
  *
- * When the caret follows a convex piece (no grout to right), commas lead:
- *   grout_right=false: remaining=1 → [", ", ○]   remaining=2 → [", ", ○, ", ", ○]
+ * trailing_hole: when false and holes_first=false, the final hole is
+ *   omitted because a convex tile to the right already fills that
+ *   position.  e.g. f(1|~ 1 → ", " instead of ", ○"
  *
- * When labels are provided, they appear before the hole:
- *   e.g. [", ", "y=", ○] for a labeled element */
+ * Labels appear before their hole: [", ", "y=", ○] */
 let mk_scaffold_segment =
-    (~grout_right: bool, ~labels: list(option(string)), remaining: int)
+    (
+      ~holes_first: bool,
+      ~trailing_hole: bool,
+      ~labels: list(option(string)),
+      remaining: int,
+    )
     : Segment.t => {
   let mk_comment = (s: string): Piece.t =>
     Secondary({
@@ -263,7 +268,7 @@ let mk_scaffold_segment =
     | Some(Some(name)) => [mk_comment(name ++ "=")]
     | _ => []
     };
-  if (grout_right) {
+  if (holes_first) {
     List.concat(
       List.init(remaining, i =>
         mk_label_prefix(i) @ [mk_hole(), mk_comment(", ")]
@@ -271,8 +276,15 @@ let mk_scaffold_segment =
     );
   } else {
     List.concat(
-      List.init(remaining, i =>
-        [mk_comment(", ")] @ mk_label_prefix(i) @ [mk_hole()]
+      List.init(
+        remaining,
+        i => {
+          let is_last = i == remaining - 1;
+          let hole =
+            is_last && !trailing_hole
+              ? [] : mk_label_prefix(i) @ [mk_hole()];
+          [mk_comment(", ")] @ hole;
+        },
       ),
     );
   };
@@ -621,55 +633,56 @@ let scaffold_display =
             if (remaining <= 0) {
               None;
             } else {
-              /* grout_right: true when the caret is on an empty hole
-               * (grout to right, no typed content to left). This controls
-               * display style — grout_right puts ○ before commas.
-               * After typing content (e.g., x= at f(x=¦?), grout_right
-               * must be false so scaffold shows remaining elements
-               * after the current one, not a duplicate of it.
+              /* holes_first: true when the left boundary is structurally
+               * empty — the nearest tile (skipping grout and secondary)
+               * is a delimiter (open paren, comma) or absent.
                *
-               * Left is "empty" if nothing between caret and the nearest
-               * structural delimiter (comma or ( shard) is content. */
-              let grout_right = {
-                let right_is_grout = {
-                  let rec skip_secondary = (
-                    fun
-                    | [Piece.Secondary(_), ...rest] => skip_secondary(rest)
-                    | [p, ..._] => Piece.is_grout(p)
-                    | [] => false
-                  );
-                  skip_secondary(snd(z.relatives.siblings));
-                };
-                let left_has_no_content = {
-                  /* Check from caret outward (nearest-first). True if
-                   * the first non-secondary piece is a delimiter (comma,
-                   * ( shard), grout, or nothing — meaning no content at
-                   * current element position. Uses scoped left siblings
-                   * so nested parens don't see outer content. */
-                  let l_nearest = List.rev(scoped_l);
-                  let rec check = (
-                    fun
-                    | [] => true
-                    | [Piece.Secondary(_), ...rest] => check(rest)
-                    | [Piece.Grout(_), ..._] => true
-                    | [Piece.Tile({label: [","], _}), ..._] => true
-                    | [Piece.Tile({label: ["(", ")"], shards, _}), ..._]
-                        when List.mem(0, shards) =>
-                      true
-                    | _ => false
-                  );
-                  check(l_nearest);
-                };
-                right_is_grout && left_has_no_content;
+               * When the left has content (e.g., f(1|, f(x=|), the user
+               * is mid-edit on an element, so commas come first. */
+              let holes_first = {
+                let l_nearest = List.rev(scoped_l);
+                let rec check = (
+                  fun
+                  | [] => true
+                  | [Piece.Secondary(_), ...rest]
+                  | [Piece.Grout(_), ...rest] => check(rest)
+                  | [Piece.Tile({label: [","], _}), ..._] => true
+                  | [Piece.Tile({label: ["(", ")"], shards: [0], _}), ..._] =>
+                    true
+                  | _ => false
+                );
+                check(l_nearest);
+              };
+              /* trailing_hole: false when a convex tile (not grout) exists
+               * to the right of the buffer. That tile already fills the
+               * last element position, so no trailing hole is needed.
+               * Grout is skipped because it gets absorbed when the comma
+               * is accepted (comma is concave, replaces concave grout). */
+              let trailing_hole = {
+                let rec check = (
+                  fun
+                  | [] => true
+                  | [Piece.Secondary(_), ...rest]
+                  | [Piece.Grout(_), ...rest] => check(rest)
+                  | [p, ..._] => !Piece.is_convex(p)
+                );
+                check(snd(z.relatives.siblings));
               };
               let label_start =
-                grout_right ? existing_commas : existing_commas + 1;
+                holes_first ? existing_commas : existing_commas + 1;
               let remaining_tys =
                 tys
                 |> List.filteri((i, _) => i >= label_start)
                 |> (lst => List.filteri((i, _) => i < remaining, lst));
               let labels = List.map(label_of_prod_elem, remaining_tys);
-              Some(mk_scaffold_segment(~grout_right, ~labels, remaining));
+              Some(
+                mk_scaffold_segment(
+                  ~holes_first,
+                  ~trailing_hole,
+                  ~labels,
+                  remaining,
+                ),
+              );
             };
           };
         | _ => None
@@ -711,14 +724,19 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     | Normal => None
     };
   let* tok_to_left = token_to_left(z);
-  /* Only show completions after typing enough characters */
-  let* _ = String.length(tok_to_left) >= min_prefix_len ? Some() : None;
+  let prefix_len = String.length(tok_to_left);
+  let* _ = prefix_len >= 1 ? Some() : None;
   let suggestions = suggest(ci, z);
   let suggestions =
     suggestions
     |> List.filter(({content, _}: TyDiSuggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        );
+  /* Require min_prefix_len characters before showing completions,
+   * unless there is exactly one match (unambiguous). */
+  let* _ =
+    prefix_len >= min_prefix_len || List.length(suggestions) == 1
+      ? Some() : None;
   /* If any suggestion is an exact match for the current token, suppress
    * all suggestions. This check must scan the full list, not just the
    * top suggestion, because exact-match variables and keyword suggestions
