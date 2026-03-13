@@ -138,8 +138,8 @@ let run_warm_iter = (z: Zipper.t): list((string, float)) => {
 let run_incremental_iter =
     (z_original: Zipper.t, z_modified: Zipper.t): list((string, float)) => {
   ResettableMemo.clear_all();
-  prime(z_original);
   force_gc();
+  prime(z_original);
   run_measured(z_modified);
 };
 

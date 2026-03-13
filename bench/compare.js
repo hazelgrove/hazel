@@ -49,17 +49,22 @@ function formatTime(ns) {
   return ns.toFixed(0) + ' ns';
 }
 
+const FLAG_PCT = 10;           // flag when % change exceeds this
+const FLAG_ABS_NS = 0.5e6;    // ... AND absolute delta exceeds 0.5 ms
+
 function formatDelta(base, head) {
   if (!base || base === 0 || isNaN(base)) return 'new';
   if (head === 0 || isNaN(head)) return '-';
   const pct = ((head - base) / base * 100);
+  const abs = Math.abs(head - base);
   const sign = pct >= 0 ? '+' : '';
+  const significant = Math.abs(pct) > FLAG_PCT && abs > FLAG_ABS_NS;
   if (markdown) {
-    const emoji = pct > 10 ? ' :warning:' : pct < -10 ? ' :rocket:' : '';
-    return `${sign}${pct.toFixed(1)}%${emoji}`;
+    const emoji = significant ? (pct > 0 ? ':warning: ' : ':rocket: ') : '';
+    return `${emoji}${sign}${pct.toFixed(1)}%`;
   } else {
-    const emoji = pct > 10 ? ' ⚠️' : pct < -10 ? ' 🚀' : '';
-    return `${sign}${pct.toFixed(1)}%${emoji}`;
+    const emoji = significant ? (pct > 0 ? '⚠️  ' : '🚀 ') : '';
+    return `${emoji}${sign}${pct.toFixed(1)}%`;
   }
 }
 
