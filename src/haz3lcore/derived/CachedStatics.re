@@ -26,8 +26,7 @@ let empty: t = {
   targets: Sample.no_targets,
 };
 
-let elaborate =
-  ResettableMemo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+let elaborate = Elaborator.uexp_elab;
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
