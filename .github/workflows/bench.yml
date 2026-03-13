@@ -1,0 +1,60 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [perf-bench]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to benchmark (leave blank to use the branch HEAD)"
+        required: false
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - name: Install node/npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: "latest"
+
+      - name: Install NPM dependencies
+        run: npm install
+
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.2.0
+          dune-cache: true
+
+      - name: Cache opam switch
+        uses: actions/cache@v4
+        with:
+          path: _opam
+          key: ${{ runner.os }}-opam-${{ hashFiles('hazel.opam.locked') }}
+          restore-keys: |
+            ${{ runner.os }}-opam-
+
+      - name: Add opam repository archive
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+
+      - name: Setup zarith
+        run: opam exec -- make setup-zarith
+
+      - name: Build and run benchmarks
+        run: bash bench/build-and-run.sh > results.json
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ inputs.sha || github.sha }}
+          path: results.json
+          retention-days: 90
