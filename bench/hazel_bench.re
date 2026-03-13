@@ -31,11 +31,7 @@ let now_ms = (): float => {
 
 /* Force Node.js garbage collection. Requires --expose-gc flag. */
 let force_gc = (): unit =>
-  Js_of_ocaml.Js.Unsafe.meth_call(
-    Js_of_ocaml.Js.Unsafe.global,
-    "gc",
-    [||],
-  );
+  Js_of_ocaml.Js.Unsafe.meth_call(Js_of_ocaml.Js.Unsafe.global, "gc", [||]);
 
 /* --- Program generators --- */
 
@@ -80,12 +76,7 @@ let run_measured = (z: Zipper.t): list((string, float)) => {
   PhaseTiming.enabled := true;
   let _syntax = CachedSyntax.init(z);
   let _statics =
-    CachedStatics.init(
-      ~settings,
-      ~is_dynamic_term=true,
-      ~stitch=Fun.id,
-      z,
-    );
+    CachedStatics.init(~settings, ~is_dynamic_term=true, ~stitch=Fun.id, z);
   PhaseTiming.enabled := false;
   PhaseTiming.get_and_clear();
 };
@@ -95,12 +86,7 @@ let prime = (z: Zipper.t): unit => {
   PhaseTiming.enabled := false;
   let _syntax = CachedSyntax.init(z);
   let _statics =
-    CachedStatics.init(
-      ~settings,
-      ~is_dynamic_term=true,
-      ~stitch=Fun.id,
-      z,
-    );
+    CachedStatics.init(~settings, ~is_dynamic_term=true, ~stitch=Fun.id, z);
   ();
 };
 
@@ -112,7 +98,10 @@ let perform_action =
       ~statics=CachedStatics.empty,
       ~syntax,
       action,
-      {zipper: z, col_target: None},
+      {
+        zipper: z,
+        col_target: None,
+      },
     )
   ) {
   | Ok(new_z) => new_z
@@ -158,15 +147,27 @@ type parsed_program = {
 /* --- Scenario orchestration --- */
 
 let run_scenario =
-    (label: string, scenario: string, reps: int, run_iter: unit => list((string, float)))
+    (
+      label: string,
+      scenario: string,
+      reps: int,
+      run_iter: unit => list((string, float)),
+    )
     : list(list(measurement)) =>
-  List.init(reps, _rep => {
-    let phases = run_iter();
-    List.map(
-      ((phase, ns)) => {name: label ++ "/" ++ scenario ++ "/" ++ phase, time_ns: ns},
-      phases,
-    );
-  });
+  List.init(
+    reps,
+    _rep => {
+      let phases = run_iter();
+      List.map(
+        ((phase, ns)) =>
+          {
+            name: label ++ "/" ++ scenario ++ "/" ++ phase,
+            time_ns: ns,
+          },
+        phases,
+      );
+    },
+  );
 
 let run_all_scenarios =
     (prog: parsed_program, reps: int): list(list(measurement)) => {
@@ -240,7 +241,10 @@ let aggregate = (all_reps: list(list(measurement))): list(measurement) => {
   List.rev(order^)
   |> List.map(name => {
        let vs = Hashtbl.find(tbl, name);
-       {name, time_ns: median(Array.of_list(vs))};
+       {
+         name,
+         time_ns: median(Array.of_list(vs)),
+       };
      });
 };
 
@@ -268,7 +272,13 @@ let add_totals = (results: list(measurement)): list(measurement) => {
   let flush = () =>
     if (cur_group^ != "") {
       output :=
-        [{name: cur_group^ ++ "/Total", time_ns: cur_sum^}, ...output^];
+        [
+          {
+            name: cur_group^ ++ "/Total",
+            time_ns: cur_sum^,
+          },
+          ...output^,
+        ];
     };
 
   List.iter(
@@ -328,13 +338,7 @@ let output_table = (results: list(measurement)): unit => {
     );
   let col_w = 12;
 
-  Printf.printf(
-    "\n%-*s  %*s\n",
-    name_w,
-    "Benchmark",
-    col_w,
-    "Time (median)",
-  );
+  Printf.printf("\n%-*s  %*s\n", name_w, "Benchmark", col_w, "Time (median)");
   Printf.printf("%s\n", String.make(name_w + col_w + 2, '-'));
 
   let prev_group = ref("");
@@ -409,7 +413,7 @@ let is_substring = (haystack: string, needle: string): bool => {
   } else {
     let found = ref(false);
     for (i in 0 to hlen - nlen) {
-      if (!found^ && String.sub(haystack, i, nlen) == needle) {
+      if (! found^ && String.sub(haystack, i, nlen) == needle) {
         found := true;
       };
     };
@@ -425,7 +429,10 @@ let () = {
   let reps = parse_int_arg(argv, "--reps", 10);
   let filters = parse_filters(argv);
 
-  let programs = [("let100", gen_let_chain(100)), ("let500", gen_let_chain(500))];
+  let programs = [
+    ("let100", gen_let_chain(100)),
+    ("let500", gen_let_chain(500)),
+  ];
 
   /* Only parse programs that match the filter. */
   let all_labels = List.map(((label, _)) => label, programs);
@@ -462,7 +469,10 @@ let () = {
         let z = parse_to_zipper(program);
         let t1 = now_ms();
         Printf.eprintf("==> Parsed %s in %.0f ms\n%!", label, t1 -. t0);
-        {label, z};
+        {
+          label,
+          z,
+        };
       },
       programs,
     );

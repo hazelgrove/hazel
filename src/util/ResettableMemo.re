@@ -18,7 +18,13 @@ let general = (~cache_size_bound=?, f) => {
     | None => Core.Memo.general(f)
     };
   let current = ref(make());
-  resetters := [() => {current := make()}, ...resetters^];
+  resetters :=
+    [
+      () => {
+        current := make();
+      },
+      ...resetters^,
+    ];
   x => current^(x);
 };
 
