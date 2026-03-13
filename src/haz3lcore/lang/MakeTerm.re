@@ -1201,7 +1201,10 @@ let consolidate_adopted = (): unit => {
      });
 };
 
-let go =
+let go_cache: WeakMap.t(Segment.t, t) = WeakMap.mk();
+let () = ResettableMemo.register_resetter(() => WeakMap.clear(go_cache));
+
+let go_inner =
   ResettableMemo.general(
     ~cache_size_bound=1000,
     seg => {
@@ -1222,6 +1225,15 @@ let go =
       };
     },
   );
+
+let go = (seg: Segment.t): t =>
+  switch (WeakMap.get(go_cache, seg)) {
+  | Some(result) => result
+  | None =>
+    let result = go_inner(seg);
+    WeakMap.set(go_cache, seg, result);
+    result;
+  };
 
 let for_projection =
   /* Returns Nul() unless segment represents a well-structured term in isolation.
