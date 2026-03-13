@@ -34,6 +34,7 @@ module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
 module FloatingElement = FloatingElement;
+module WeakMap = WeakMap;
 module PhaseTiming = PhaseTiming;
 module ResettableMemo = ResettableMemo;
 
