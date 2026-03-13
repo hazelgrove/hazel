@@ -122,8 +122,8 @@
   color: var(--token-buffer);
 }
 
-.code .in-parsed-buffer {
-  opacity: 0.5;
+.code .token.in-parsed-buffer {
+  color: var(--token-buffer);
 }
 
 .code .in-buffer-hole path {

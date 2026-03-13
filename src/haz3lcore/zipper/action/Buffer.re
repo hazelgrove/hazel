@@ -40,7 +40,7 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
  *      ["x=", ○, ", "]   → insertable "x=,"  → emit "x="
  *      [", ", "y=", ○]   → insertable ",y="  → emit ","  */
 let scaffold_emit_text = (content: Segment.t): string => {
-  /* Extract text from Comment pieces, skip Grout and whitespace */
+  /* Extract text from Comment and Tile pieces, skip Grout and whitespace */
   let insertable =
     String.concat(
       "",
@@ -59,6 +59,7 @@ let scaffold_emit_text = (content: Segment.t): string => {
             );
             let stripped = Stdlib.Buffer.contents(buf);
             stripped == "" ? None : Some(stripped);
+          | Tile({label: [","], _}) => Some(",")
           | _ => None
           },
         content,

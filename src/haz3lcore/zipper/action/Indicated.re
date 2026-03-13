@@ -46,6 +46,16 @@ let caret_facing_shape = (d: Direction.t, p: Piece.t): option(Nib.Shape.t) =>
    - ign: predicate for pieces to skip (typically is_secondary) */
 let indicated =
     (~no_ws: bool, ~ign: Piece.t => bool, z: ZipperBase.t): option(piece) => {
+  /* Buffer pieces (tiles in the selection buffer) should never be
+   * indicated — they are ephemeral preview content. Fold buffer
+   * membership into the ignore predicate so all branches skip them. */
+  let ign =
+    switch (z.selection.mode) {
+    | Buffer(_) =>
+      let buf_ids = List.map(Piece.id, z.selection.content);
+      (p => ign(p) || List.mem(Piece.id(p), buf_ids));
+    | Normal => ign
+    };
   switch (
     Siblings.neighbors(ZipperBase.sibs_with_sel(z)),
     ZipperBase.parent(z),

@@ -140,7 +140,9 @@ let buffer_to_string = (seg: Segment.t): string =>
       (p: Piece.t) =>
         switch (p) {
         | Secondary({content: Comment(s), _}) => s
+        | Secondary({content: Whitespace(s), _}) => s
         | Grout(_) => "○" /* ○ U+25CB */
+        | Tile({label: [","], _}) => ","
         | _ => ""
         },
       seg,
@@ -162,14 +164,16 @@ let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
 let scaffold_hole = "\xe2\x97\x8b"; /* ○ U+25CB, 3 bytes in UTF-8 */
 
 /* Check if an unparsed buffer contains scaffold content.
- * Scaffolds contain Grout pieces; completions are pure Comment text. */
+ * Scaffolds contain Grout and/or Tile pieces (commas);
+ * completions are pure Comment text. */
 let is_scaffold_buffer = (z: Zipper.t): bool =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) =>
     List.exists(
       (p: Piece.t) =>
         switch (p) {
-        | Grout(_) => true
+        | Grout(_)
+        | Tile(_) => true
         | _ => false
         },
       z.selection.content,
@@ -258,11 +262,17 @@ let mk_scaffold_segment =
       id: Id.mk(),
       content: Comment(s),
     });
+  let mk_space = (): Piece.t =>
+    Secondary({
+      id: Id.mk(),
+      content: Whitespace(" "),
+    });
   let mk_hole = (): Piece.t =>
     Grout({
       id: Id.mk(),
       shape: Convex,
     });
+  let mk_comma = (): Piece.t => Piece.mk_tile(Form.get(CommaExp), []);
   let mk_label_prefix = (i: int): list(Piece.t) =>
     switch (List.nth_opt(labels, i)) {
     | Some(Some(name)) => [mk_comment(name ++ "=")]
@@ -271,7 +281,7 @@ let mk_scaffold_segment =
   if (holes_first) {
     List.concat(
       List.init(remaining, i =>
-        mk_label_prefix(i) @ [mk_hole(), mk_comment(", ")]
+        mk_label_prefix(i) @ [mk_hole(), mk_comma(), mk_space()]
       ),
     );
   } else {
@@ -283,7 +293,7 @@ let mk_scaffold_segment =
           let hole =
             is_last && !trailing_hole
               ? [] : mk_label_prefix(i) @ [mk_hole()];
-          [mk_comment(", ")] @ hole;
+          [mk_comma(), mk_space()] @ hole;
         },
       ),
     );
@@ -532,12 +542,8 @@ let has_inner_errors =
   | [inner_seg] =>
     List.exists(
       (p: Piece.t) =>
-        switch (p) {
-        | Tile(_) when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
-          switch (Id.Map.find_opt(Piece.id(p), info_map)) {
-          | Some(InfoExp({status: InHole(_), _})) => true
-          | _ => false
-          }
+        switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+        | Some(InfoExp({status: InHole(_), _})) => true
         | _ => false
         },
       inner_seg,
@@ -691,10 +697,58 @@ let scaffold_display =
     };
   };
 
+/* Strip the first concave grout from a piece list, skipping over
+ * whitespace. Used to resolve concave-concave shape conflicts
+ * between buffer edges and adjacent sibling grout at buffer-set
+ * time, keeping zipper IDs consistent with Measured. */
+let strip_first_concave_grout = (pieces: list(Piece.t)): list(Piece.t) => {
+  let rec go =
+    fun
+    | [Piece.Secondary(_) as s, ...rest] => [s, ...go(rest)]
+    | [Piece.Grout({shape: Concave, _}), ...rest] => rest
+    | pieces => pieces;
+  go(pieces);
+};
+
+/* Strip trailing concave grout (same logic, applied from the end). */
+let strip_last_concave_grout = (pieces: list(Piece.t)): list(Piece.t) =>
+  List.rev(strip_first_concave_grout(List.rev(pieces)));
+
 let set_scaffold = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
   switch (scaffold_display(~info_map, z)) {
   | None => z
-  | Some(content) => Zipper.set_buffer(z, ~content, ~mode=Unparsed)
+  | Some(content) =>
+    /* Buffer content gets spliced into the segment via unselect_and_zip.
+     * If a buffer edge is concave (comma tile) and the adjacent sibling
+     * has concave grout, we get a concave-concave shape conflict that
+     * crashes Skel. Strip conflicting grout from siblings at buffer-set
+     * time to keep the segment well-formed and IDs consistent. */
+    let concave_edge = (pieces: list(Piece.t)): bool => {
+      let rec check = (
+        fun
+        | [] => false
+        | [Piece.Secondary(_), ...rest] => check(rest)
+        | [p, ..._] =>
+          switch (Piece.shapes(p)) {
+          | Some((Concave(_), _)) => true
+          | _ => false
+          }
+      );
+      check(pieces);
+    };
+    let has_concave_left_edge = concave_edge(content);
+    let has_concave_right_edge = concave_edge(List.rev(content));
+    let (l, r) = z.relatives.siblings;
+    let l = has_concave_left_edge ? strip_last_concave_grout(l) : l;
+    let r = has_concave_right_edge ? strip_first_concave_grout(r) : r;
+    let z = {
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (l, r),
+      },
+    };
+    Zipper.set_buffer(z, ~content, ~mode=Unparsed);
   };
 
 /* Reify the scaffold buffer into the zipper by inserting the

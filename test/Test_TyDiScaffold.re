@@ -1016,6 +1016,155 @@ let pattern_ancestor_tests = (
   ],
 );
 
+/* ---- Segment well-formedness: buffer splice must not crash Skel ---- */
+
+/* After set_scaffold, the buffer content gets spliced into the segment
+ * via unselect_and_zip. If the resulting segment has shape conflicts
+ * (e.g. concave-concave adjacency), MakeTerm.go → Segment.skel → Skel.mk
+ * will crash with "split_kids: index out of bounds".
+ *
+ * These tests verify that the segment produced by unselect_and_zip is
+ * well-formed for every scaffold scenario — including deletion cases
+ * where concave grout may be adjacent to buffer comma tiles. */
+
+/* Build zipper, set scaffold, then verify unselect_and_zip produces
+ * a segment that MakeTerm.go can process without crashing. */
+let scaffold_segment_ok = (code: string): bool => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
+  let info_map =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let z = TyDi.set_scaffold(~info_map, z);
+  /* This is what CachedSyntax.mk does — if it crashes, the UI crashes */
+  let segment = Zipper.unselect_and_zip(z);
+  switch (MakeTerm.go(segment)) {
+  | _ => true
+  | exception (Failure(_)) => false
+  };
+};
+
+/* Like scaffold_segment_ok but uses stale statics (the common web UI
+ * scenario where statics lags behind editing by one action). */
+let scaffold_segment_ok_stale = (code: string, split_at: int): bool => {
+  let actions_all = Test_Editing.mk(code);
+  let (actions_stale, actions_rest) =
+    Util.ListUtil.split_n(split_at, actions_all);
+  let z_stale = Test_Editing.perform(Zipper.init(), actions_stale);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z_stale);
+  let info_map_stale =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let z_current = Test_Editing.perform(z_stale, actions_rest);
+  let z_current = Zipper.clear_unparsed_buffer(z_current);
+  let z = TyDi.set_scaffold(~info_map=info_map_stale, z_current);
+  let segment = Zipper.unselect_and_zip(z);
+  switch (MakeTerm.go(segment)) {
+  | _ => true
+  | exception (Failure(_)) => false
+  };
+};
+
+let segment_ok_test = (~name, ~code) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.bool, Bool.equal),
+      name ++ ": segment must be Skel-safe",
+      true,
+      scaffold_segment_ok(code),
+    )
+  );
+
+let segment_ok_stale_test = (~name, ~code, ~split_at) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.bool, Bool.equal),
+      name ++ ": segment must be Skel-safe (stale)",
+      true,
+      scaffold_segment_ok_stale(code, split_at),
+    )
+  );
+
+let segment_wellformedness_tests = (
+  "TyDiScaffold.SegmentOk",
+  [
+    /* Basic shard cases: buffer spliced into right siblings */
+    segment_ok_test(
+      ~name="Shard: f(1| buffer=', ○'",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦",
+    ),
+    segment_ok_test(
+      ~name="Shard: f(| buffer='○, '",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(¦",
+    ),
+    segment_ok_test(
+      ~name="Shard 3-arg: g(1| buffer=', ○, '",
+      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1¦",
+    ),
+    /* Ancestor cases: both parens placed */
+    segment_ok_test(
+      ~name="Ancestor: f(1|) buffer=', ○'",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦)",
+    ),
+    segment_ok_test(
+      ~name="Ancestor: g(1, 2|) buffer=', ○'",
+      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, 2¦)",
+    ),
+    /* Edge case: caret between two args with concave grout.
+     * After deleting a comma, regrout inserts concave grout.
+     * The buffer's comma tile creates concave-concave conflict. */
+    segment_ok_test(
+      ~name="Between args: f(1| 2) concave grout conflict",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦ 2)",
+    ),
+    segment_ok_test(
+      ~name="Between args: f(1 |2) concave grout conflict",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1 ¦2)",
+    ),
+    /* Incomplete forms */
+    segment_ok_test(
+      ~name="Incomplete let: let x = f(1|",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦",
+    ),
+    segment_ok_test(
+      ~name="Incomplete fun: fun x -> f(1|",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in fun x -> f(1¦",
+    ),
+    /* Labeled tuples */
+    segment_ok_test(
+      ~name="Labeled: f(1| y=○)",
+      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
+    ),
+    /* Holes-first patterns (grout-right): left edge is convex (hole),
+     * right edge is concave (comma). Need to strip right-side grout. */
+    segment_ok_test(
+      ~name="Grout-right: f(| grout",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(¦",
+    ),
+    segment_ok_test(
+      ~name="Grout-right 3-arg: g(| grout",
+      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(¦",
+    ),
+    /* Trailing code after parens */
+    segment_ok_test(
+      ~name="Trailing: f(1|) + 2",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦) + 2",
+    ),
+    /* Nested calls */
+    segment_ok_test(
+      ~name="Nested: h(f(1|))",
+      ~code=
+        "let f : (Int, String) -> Int = fun x -> 0 in let h : Int -> Int = fun y -> y in h(f(1¦))",
+    ),
+    /* Stale statics: the common case where statics is one edit behind */
+    segment_ok_stale_test(
+      ~name="Stale: f( -> f(1|",
+      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦",
+      ~split_at=
+        String.length("let f : (Int, String) -> Int = fun x -> 0 in f("),
+    ),
+  ],
+);
+
 let tests = [
   shard_tests,
   ancestor_tests,
@@ -1033,4 +1182,5 @@ let tests = [
   pattern_tests,
   incomplete_tests,
   pattern_ancestor_tests,
+  segment_wellformedness_tests,
 ];

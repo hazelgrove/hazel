@@ -261,10 +261,10 @@ let clear_unparsed_buffer = (z: t) =>
   };
 
 let unselect = (~erase_buffer=false, z: t): t => {
-  /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
-   * that is, the buffer style that just contains a single flat token.
-   * Erasing a buffer that contains arbitrary tiles would be more complex
-   * as we can't just empty the selection without regrouting */
+  /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer.
+   * Scaffold buffers with structural tiles (e.g. comma Tiles) are
+   * handled by TyDi.set_scaffold, which strips conflicting grout
+   * from siblings at buffer-set time before this splice runs. */
   let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let relatives =
     z.relatives
