@@ -355,12 +355,120 @@ let tests = (
         {|jq_del("x")(Int(5))|},
       )
     ),
+    // ---- Tier 5: Structural Combinators ----
+    test_case("jq_to_entries on Assoc", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[List([Assoc([("key", String("name")), ("value", String("Alice"))]), Assoc([("key", String("age")), ("value", Int(30))])])]|},
+        {|jq_to_entries(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_to_entries on non-Assoc", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_to_entries(Int(5))|},
+      )
+    ),
+    test_case("jq_from_entries on List of entry objects", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Assoc([("name", String("Alice")), ("age", Int(30))])]|},
+        {|jq_from_entries(List([Assoc([("key", String("name")), ("value", String("Alice"))]), Assoc([("key", String("age")), ("value", Int(30))])]))|},
+      )
+    ),
+    test_case("jq_from_entries on non-List", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_from_entries(Int(5))|},
+      )
+    ),
+    test_case("jq_to_entries then jq_from_entries roundtrip", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[|} ++ obj ++ {|]|},
+        {|jq([jq_to_entries, jq_from_entries])(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_startswith true", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(true)]|},
+        {|jq_startswith("hel")(String("hello"))|},
+      )
+    ),
+    test_case("jq_startswith false", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(false)]|},
+        {|jq_startswith("world")(String("hello"))|},
+      )
+    ),
+    test_case("jq_startswith on non-String", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(false)]|},
+        {|jq_startswith("x")(Int(5))|},
+      )
+    ),
+    test_case("jq_startswith empty prefix", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(true)]|},
+        {|jq_startswith("")(String("hello"))|},
+      )
+    ),
+    test_case("jq_startswith longer than string", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(false)]|},
+        {|jq_startswith("hello world")(String("hello"))|},
+      )
+    ),
+    test_case("jq_endswith true", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(true)]|},
+        {|jq_endswith("llo")(String("hello"))|},
+      )
+    ),
+    test_case("jq_endswith false", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(false)]|},
+        {|jq_endswith("world")(String("hello"))|},
+      )
+    ),
+    test_case("jq_endswith on non-String", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(false)]|},
+        {|jq_endswith("x")(Int(5))|},
+      )
+    ),
+    test_case("jq_endswith empty suffix", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(true)]|},
+        {|jq_endswith("")(String("hello"))|},
+      )
+    ),
     // ---- Integration: pipeline with mutation ----
     test_case("jq pipeline with select and field", `Quick, () =>
       parse_and_evaluate_test(
         ~ignore_constructor_types=true,
         {|[String("Alice"), String("Bob")]|},
         {|jq([jq_field("users"), jq_iterate, jq_select(jq_has("age")), jq_field("name")])(|}
+        ++ nested
+        ++ {|)|},
+      )
+    ),
+    test_case("jq pipeline with startswith filter", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("Alice")]|},
+        {|jq([jq_field("users"), jq_iterate, jq_field("name"), jq_select(jq_startswith("Al"))])(|}
         ++ nested
         ++ {|)|},
       )
