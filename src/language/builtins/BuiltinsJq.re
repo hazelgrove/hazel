@@ -976,4 +976,367 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
+  {
+    // ---- Tier 5: Structural Combinators ----
+
+    // jq_to_entries: JSON -> [JSON]
+    // Assoc([("k", v), ...]) => [List([Assoc([("key", String("k")), ("value", v)]), ...])]
+    // Like jq's to_entries
+
+    name: "jq_to_entries",
+    str: {|fix jq_to_entries -> fun json -> case json
+             | Assoc(pairs) => [List(map(pairs, fun pair -> case pair | (k, v) => Assoc([("key", String(k)), ("value", v)]) end))]
+             | _ => [Null]
+           end|},
+    arg: Typ.term_of(JSON.t),
+    ret: List(JSON.t),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_to_entries"),
+            fn(
+              Pat.var("json"),
+              match(
+                var("json"),
+                [
+                  (
+                    Pat.ap(JSON.pat_json_assoc, Pat.var("pairs")),
+                    list_lit([
+                      ap(
+                        Forward,
+                        JSON.json_list,
+                        ap(
+                          Forward,
+                          var("map"),
+                          tuple([
+                            var("pairs"),
+                            fn(
+                              Pat.tuple([Pat.var("k"), Pat.var("v")]),
+                              ap(
+                                Forward,
+                                JSON.json_assoc,
+                                list_lit([
+                                  tuple([
+                                    string("key"),
+                                    ap(Forward, JSON.json_string, var("k")),
+                                  ]),
+                                  tuple([string("value"), var("v")]),
+                                ]),
+                              ),
+                              None,
+                              None,
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  (Pat.wild(), list_lit([JSON.json_null])),
+                ],
+              ),
+              None,
+              Some("jq_to_entries+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_from_entries: JSON -> [JSON]
+    // List([Assoc([("key", String("k")), ("value", v)]), ...]) => [Assoc([("k", v), ...])]
+    // Like jq's from_entries
+
+    name: "jq_from_entries",
+    str: {|fix jq_from_entries -> fun json -> case json
+             | List(entries) => [Assoc(map(entries, fun entry -> case entry
+               | Assoc(pairs) => case (assoc_opt(pairs, "key"), assoc_opt(pairs, "value"))
+                 | (Some(String(k)), Some(v)) => (k, v)
+                 | _ => ("", Null)
+               end
+               | _ => ("", Null)
+             end))]
+             | _ => [Null]
+           end|},
+    arg: Typ.term_of(JSON.t),
+    ret: List(JSON.t),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_from_entries"),
+            fn(
+              Pat.var("json"),
+              match(
+                var("json"),
+                [
+                  (
+                    Pat.ap(JSON.pat_json_list, Pat.var("entries")),
+                    list_lit([
+                      ap(
+                        Forward,
+                        JSON.json_assoc,
+                        ap(
+                          Forward,
+                          var("map"),
+                          tuple([
+                            var("entries"),
+                            fn(
+                              Pat.var("entry"),
+                              match(
+                                var("entry"),
+                                [
+                                  (
+                                    Pat.ap(
+                                      JSON.pat_json_assoc,
+                                      Pat.var("pairs"),
+                                    ),
+                                    match(
+                                      tuple([
+                                        ap(
+                                          Forward,
+                                          var("assoc_opt"),
+                                          tuple([
+                                            var("pairs"),
+                                            string("key"),
+                                          ]),
+                                        ),
+                                        ap(
+                                          Forward,
+                                          var("assoc_opt"),
+                                          tuple([
+                                            var("pairs"),
+                                            string("value"),
+                                          ]),
+                                        ),
+                                      ]),
+                                      [
+                                        (
+                                          Pat.tuple([
+                                            Pat.ap(
+                                              Option.pat_some,
+                                              Pat.ap(
+                                                JSON.pat_json_string,
+                                                Pat.var("k"),
+                                              ),
+                                            ),
+                                            Pat.ap(
+                                              Option.pat_some,
+                                              Pat.var("v"),
+                                            ),
+                                          ]),
+                                          tuple([var("k"), var("v")]),
+                                        ),
+                                        (
+                                          Pat.wild(),
+                                          tuple([
+                                            string(""),
+                                            JSON.json_null,
+                                          ]),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  (
+                                    Pat.wild(),
+                                    tuple([string(""), JSON.json_null]),
+                                  ),
+                                ],
+                              ),
+                              None,
+                              None,
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  (Pat.wild(), list_lit([JSON.json_null])),
+                ],
+              ),
+              None,
+              Some("jq_from_entries+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_startswith: String -> JSON -> [JSON]
+    // String(s) where s starts with prefix => [Bool(true)]; else [Bool(false)]
+    // Like jq's startswith("prefix")
+
+    name: "jq_startswith",
+    str: {|fix jq_startswith -> fun prefix -> fun json -> case json
+             | String(s) =>
+               let plen = string_length(prefix) in
+               let slen = string_length(s) in
+               if slen >= plen
+               then [Bool(string_sub(s, 0, plen) $== prefix)]
+               else [Bool(false)]
+             | _ => [Bool(false)]
+           end|},
+    arg: Atom(String),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_startswith"),
+            fn(
+              Pat.var("prefix"),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_string, Pat.var("s")),
+                      let_(
+                        Pat.var("plen"),
+                        ap(Forward, var("string_length"), var("prefix")),
+                        let_(
+                          Pat.var("slen"),
+                          ap(Forward, var("string_length"), var("s")),
+                          if_(
+                            bin_op(
+                              Int(GreaterThanOrEqual),
+                              var("slen"),
+                              var("plen"),
+                            ),
+                            list_lit([
+                              ap(
+                                Forward,
+                                JSON.json_bool,
+                                bin_op(
+                                  String(Equals),
+                                  ap(
+                                    Forward,
+                                    var("string_sub"),
+                                    tuple([var("s"), int(0), var("plen")]),
+                                  ),
+                                  var("prefix"),
+                                ),
+                              ),
+                            ]),
+                            list_lit([
+                              ap(Forward, JSON.json_bool, bool(false)),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                    (
+                      Pat.wild(),
+                      list_lit([ap(Forward, JSON.json_bool, bool(false))]),
+                    ),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_startswith+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_endswith: String -> JSON -> [JSON]
+    // String(s) where s ends with suffix => [Bool(true)]; else [Bool(false)]
+    // Like jq's endswith("suffix")
+
+    name: "jq_endswith",
+    str: {|fix jq_endswith -> fun suffix -> fun json -> case json
+             | String(s) =>
+               let sfxlen = string_length(suffix) in
+               let slen = string_length(s) in
+               if slen >= sfxlen
+               then [Bool(string_sub(s, slen - sfxlen, sfxlen) $== suffix)]
+               else [Bool(false)]
+             | _ => [Bool(false)]
+           end|},
+    arg: Atom(String),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_endswith"),
+            fn(
+              Pat.var("suffix"),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_string, Pat.var("s")),
+                      let_(
+                        Pat.var("sfxlen"),
+                        ap(Forward, var("string_length"), var("suffix")),
+                        let_(
+                          Pat.var("slen"),
+                          ap(Forward, var("string_length"), var("s")),
+                          if_(
+                            bin_op(
+                              Int(GreaterThanOrEqual),
+                              var("slen"),
+                              var("sfxlen"),
+                            ),
+                            list_lit([
+                              ap(
+                                Forward,
+                                JSON.json_bool,
+                                bin_op(
+                                  String(Equals),
+                                  ap(
+                                    Forward,
+                                    var("string_sub"),
+                                    tuple([
+                                      var("s"),
+                                      bin_op(
+                                        Int(Minus),
+                                        var("slen"),
+                                        var("sfxlen"),
+                                      ),
+                                      var("sfxlen"),
+                                    ]),
+                                  ),
+                                  var("suffix"),
+                                ),
+                              ),
+                            ]),
+                            list_lit([
+                              ap(Forward, JSON.json_bool, bool(false)),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                    (
+                      Pat.wild(),
+                      list_lit([ap(Forward, JSON.json_bool, bool(false))]),
+                    ),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_endswith+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
 ];
