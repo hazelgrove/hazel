@@ -52,19 +52,37 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
     }
   };
 
+/* Piece-level tile interning: after a cursor move, sibling pieces may
+   contain tiles that were disassembled and reassembled (new allocations
+   with the same ID and structure). Interning recovers pointer identity. */
+let intern_piece = (p: Piece.t): Piece.t =>
+  switch (p) {
+  | Tile(t) =>
+    let interned = Ancestors.intern_tile(t);
+    if (interned === t) {
+      p;
+    } else {
+      Tile(interned);
+    };
+  | _ => p
+  };
+
 /* Innermost segment interning: reuse a previously cached segment
-   from siblings zip if all pieces are pointer-identical. */
+   from siblings zip if all pieces are pointer-identical (after
+   per-piece tile interning). */
 let innermost_cache: ref(option(Segment.t)) = ref(None);
 let () =
   ResettableMemo.register_resetter(() => innermost_cache := None);
 
-let intern_innermost = (seg: Segment.t): Segment.t =>
+let intern_innermost = (seg: Segment.t): Segment.t => {
+  let seg = List.map(intern_piece, seg);
   switch (innermost_cache^) {
   | Some(prev) when Ancestors.shallow_eq_seg(prev, seg) => prev
   | _ =>
     innermost_cache := Some(seg);
     seg;
   };
+};
 
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
   Ancestors.zip(
