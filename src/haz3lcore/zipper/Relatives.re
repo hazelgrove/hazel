@@ -52,8 +52,25 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
     }
   };
 
+/* Innermost segment interning: reuse a previously cached segment
+   from siblings zip if all pieces are pointer-identical. */
+let innermost_cache: ref(option(Segment.t)) = ref(None);
+let () =
+  ResettableMemo.register_resetter(() => innermost_cache := None);
+
+let intern_innermost = (seg: Segment.t): Segment.t =>
+  switch (innermost_cache^) {
+  | Some(prev) when Ancestors.shallow_eq_seg(prev, seg) => prev
+  | _ =>
+    innermost_cache := Some(seg);
+    seg;
+  };
+
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
-  Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
+  Ancestors.zip(
+    intern_innermost(Siblings.zip(~sel, siblings)),
+    ancestors,
+  );
 
 let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
   Siblings.local_missing_shards(siblings)

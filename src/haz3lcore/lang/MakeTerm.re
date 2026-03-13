@@ -1204,33 +1204,29 @@ let consolidate_adopted = (): unit => {
 let go_cache: WeakMap.t(Segment.t, t) = WeakMap.mk();
 let () = ResettableMemo.register_resetter(() => WeakMap.clear(go_cache));
 
-let go_inner =
-  ResettableMemo.general(
-    ~cache_size_bound=1000,
-    seg => {
-      map := TermMap.empty;
-      term_data := Id.Map.empty;
-      projectors := Id.Map.empty;
-      projector_list := [];
-      adopted_ids := [];
-      secondary_map := Segment.SecondaryCollection.collect(seg);
-      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
-      consolidate_adopted();
-      {
-        term,
-        term_data: term_data^,
-        terms: map^,
-        projectors: projectors^,
-        projector_list: projector_list^,
-      };
-    },
-  );
+let go_compute = (seg: Segment.t): t => {
+  map := TermMap.empty;
+  term_data := Id.Map.empty;
+  projectors := Id.Map.empty;
+  projector_list := [];
+  adopted_ids := [];
+  secondary_map := Segment.SecondaryCollection.collect(seg);
+  let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+  consolidate_adopted();
+  {
+    term,
+    term_data: term_data^,
+    terms: map^,
+    projectors: projectors^,
+    projector_list: projector_list^,
+  };
+};
 
 let go = (seg: Segment.t): t =>
   switch (WeakMap.get(go_cache, seg)) {
   | Some(result) => result
   | None =>
-    let result = go_inner(seg);
+    let result = go_compute(seg);
     WeakMap.set(go_cache, seg, result);
     result;
   };

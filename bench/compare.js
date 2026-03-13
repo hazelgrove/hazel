@@ -52,20 +52,22 @@ function formatTime(ns) {
 const FLAG_PCT = 10;           // flag when % change exceeds this
 const FLAG_ABS_NS = 0.5e6;    // ... AND absolute delta exceeds 0.5 ms
 
-function formatDelta(base, head) {
-  if (!base || base === 0 || isNaN(base)) return 'new';
-  if (head === 0 || isNaN(head)) return '-';
+function deltaParts(base, head) {
+  if (!base || base === 0 || isNaN(base)) return { text: 'new', flag: '' };
+  if (head === 0 || isNaN(head)) return { text: '-', flag: '' };
   const pct = ((head - base) / base * 100);
   const abs = Math.abs(head - base);
   const sign = pct >= 0 ? '+' : '';
+  const text = `${sign}${pct.toFixed(1)}%`;
   const significant = Math.abs(pct) > FLAG_PCT && abs > FLAG_ABS_NS;
-  if (markdown) {
-    const emoji = significant ? (pct > 0 ? ':warning: ' : ':rocket: ') : '';
-    return `${emoji}${sign}${pct.toFixed(1)}%`;
-  } else {
-    const emoji = significant ? (pct > 0 ? '⚠️  ' : '🚀 ') : '';
-    return `${emoji}${sign}${pct.toFixed(1)}%`;
-  }
+  const flag = significant ? (pct > 0 ? 'warn' : 'fast') : '';
+  return { text, flag };
+}
+
+function formatDeltaMarkdown(base, head) {
+  const { text, flag } = deltaParts(base, head);
+  const emoji = flag === 'warn' ? ':warning: ' : flag === 'fast' ? ':rocket: ' : '';
+  return `${emoji}${text}`;
 }
 
 /* Group results by scenario */
@@ -89,7 +91,7 @@ function makeMarkdownTable(results) {
   table += '|:---|---:|---:|---:|\n';
   for (const r of results) {
     const baseTime = baseMap[r.name];
-    table += `| \`${r.name}\` | ${formatTime(baseTime)} | ${formatTime(r.time_ns)} | ${formatDelta(baseTime, r.time_ns)} |\n`;
+    table += `| \`${r.name}\` | ${formatTime(baseTime)} | ${formatTime(r.time_ns)} | ${formatDeltaMarkdown(baseTime, r.time_ns)} |\n`;
   }
   return table;
 }
@@ -110,11 +112,13 @@ function printTerminalTable(title, results) {
 
   for (const r of results) {
     const baseTime = baseMap[r.name];
+    const { text, flag } = deltaParts(baseTime, r.time_ns);
+    const prefix = flag === 'warn' ? '⚠️ ' : flag === 'fast' ? '🚀' : '  ';
     console.log(
       r.name.padEnd(nameWidth) + '  ' +
       formatTime(baseTime).padStart(colWidth) + '  ' +
-      formatTime(r.time_ns).padStart(colWidth) + '  ' +
-      formatDelta(baseTime, r.time_ns).padStart(colWidth)
+      formatTime(r.time_ns).padStart(colWidth) + ' ' +
+      prefix + text.padStart(colWidth)
     );
   }
 }

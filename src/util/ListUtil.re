@@ -588,6 +588,13 @@ let assoc_update = (key, f, assoc) => {
 let remove_assoc = (key, assoc) =>
   List.filter(((k, _)) => k != key, assoc);
 
+let rec phys_equal_pointwise = (l1: list('a), l2: list('a)): bool =>
+  switch (l1, l2) {
+  | ([], []) => true
+  | ([a, ...r1], [b, ...r2]) => a === b && phys_equal_pointwise(r1, r2)
+  | _ => false
+  };
+
 let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
   switch (xs) {
   | [] => None

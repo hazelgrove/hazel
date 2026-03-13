@@ -728,16 +728,35 @@ and remold_mpat = (shape, seg: t): t =>
     }
   };
 
-/* Note: This was previously memoized via Core.Memo.general(~cache_size_bound=10000, ...).
-   The ~sort parameter (added for Mod/Sig grout precedence) broke the single-arg cache.
-   Memoization is likely not a net win here anyway: the cache key is a full segment list
-   (expensive structural comparison) and segments change on every edit, so hit rates
-   are low. Revisit with profiling data if performance is a concern. */
-let skel = (~sort=Sort.Exp, seg) => {
+/* WeakMap cache for skel: keyed on segment pointer (physical identity).
+   Stores an assoc list of (sort, skel) pairs since the same segment may
+   be queried with different sort parameters. With pointer-stable zip-up,
+   child segments hit this cache on every non-edit action. */
+let skel_cache: WeakMap.t(t, list((Sort.t, Skel.t))) = WeakMap.mk();
+let () = ResettableMemo.register_resetter(() => WeakMap.clear(skel_cache));
+
+let skel_inner = (~sort=Sort.Exp, seg) => {
   seg
   |> List.mapi((i, p) => (i, p))
   |> List.filter(((_, p)) => !Piece.is_secondary(p))
   |> Skel.mk(~sort);
+};
+
+let skel = (~sort=Sort.Exp, seg) => {
+  switch (WeakMap.get(skel_cache, seg)) {
+  | Some(entries) =>
+    switch (List.assoc_opt(sort, entries)) {
+    | Some(result) => result
+    | None =>
+      let result = skel_inner(~sort, seg);
+      WeakMap.set(skel_cache, seg, [(sort, result), ...entries]);
+      result;
+    }
+  | None =>
+    let result = skel_inner(~sort, seg);
+    WeakMap.set(skel_cache, seg, [(sort, result)]);
+    result;
+  };
 };
 
 let sorted_children = List.concat_map(Piece.sorted_children);
