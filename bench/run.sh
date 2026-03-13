@@ -11,10 +11,26 @@
 
 set -euo pipefail
 
+usage() {
+  cat <<'HELP'
+Usage: bench/run.sh [OPTIONS]
+
+Run benchmarks on HEAD, store results as a git note, and display a table.
+
+Options:
+  --quiet              Store results only (no table output)
+  --filter PATTERN     Filter benchmarks by name substring (repeatable)
+  --reps N             Number of iterations per scenario
+  -h, --help           Show this help message
+HELP
+  exit 0
+}
+
 QUIET=false
 BENCH_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -h|--help) usage ;;
     --quiet) QUIET=true; shift ;;
     *) BENCH_ARGS+=("$1"); shift ;;
   esac

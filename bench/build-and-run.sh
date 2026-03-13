@@ -7,6 +7,24 @@
 #   bench/build-and-run.sh --filter Insert+Full         # filtered
 #   bench/build-and-run.sh --filter memo --filter let500
 
+usage() {
+  cat <<'HELP'
+Usage: bench/build-and-run.sh [OPTIONS]
+
+Install deps, build, and run benchmarks. Outputs JSON to stdout.
+
+Options:
+  --filter PATTERN     Filter benchmarks by name substring (repeatable)
+  --reps N             Number of iterations per scenario
+  -h, --help           Show this help message
+
+All options are passed through to the benchmark harness.
+HELP
+  exit 0
+}
+
+case "${1:-}" in -h|--help) usage ;; esac
+
 set -euo pipefail
 
 eval $(opam env) 2>/dev/null || true

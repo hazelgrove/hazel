@@ -11,6 +11,23 @@
 
 set -euo pipefail
 
+usage() {
+  cat <<'HELP'
+Usage: bench/compare.sh [BASE] [HEAD] [OPTIONS]
+
+Compare stored benchmark results for two commits.
+
+Arguments:
+  BASE                 Base commit ref (default: dev)
+  HEAD                 Head commit ref (default: HEAD)
+
+Options:
+  --markdown           Output as GitHub-flavored markdown
+  -h, --help           Show this help message
+HELP
+  exit 0
+}
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BASE_REF="dev"
 HEAD_REF="HEAD"
@@ -19,6 +36,7 @@ COMPARE_ARGS=()
 positional=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -h|--help) usage ;;
     --markdown) COMPARE_ARGS+=("--markdown"); shift ;;
     --*) echo "Unknown option: $1" >&2; exit 1 ;;
     *) positional+=("$1"); shift ;;

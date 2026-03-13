@@ -13,6 +13,22 @@
 
 set -euo pipefail
 
+usage() {
+  cat <<'HELP'
+Usage: bench/run-and-compare.sh [OPTIONS]
+
+Run benchmarks on two commits and compare the results.
+Uses git worktrees for non-HEAD commits.
+
+Options:
+  --head REF           Head commit ref (default: HEAD)
+  --base REF           Base commit ref (default: dev)
+  --filter PATTERN     Filter benchmarks by name substring (repeatable)
+  -h, --help           Show this help message
+HELP
+  exit 0
+}
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HEAD_REF="HEAD"
 BASE_REF="dev"
@@ -20,6 +36,7 @@ FILTER_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -h|--help) usage ;;
     --head)  HEAD_REF="${2:?--head requires a ref}"; shift 2 ;;
     --base)  BASE_REF="${2:?--base requires a ref}"; shift 2 ;;
     --filter) FILTER_ARGS+=("--filter" "${2:?--filter requires a pattern}"); shift 2 ;;
