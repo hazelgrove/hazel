@@ -46,6 +46,13 @@ jobs:
           export OPAMYES=1
           opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 
+      - name: Install opam dependencies
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          export DUNE_CACHE=enabled
+          opam install . --deps-only --locked
+
       - name: Setup zarith
         run: opam exec -- make setup-zarith
 
