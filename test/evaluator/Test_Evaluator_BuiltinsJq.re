@@ -1,0 +1,369 @@
+open Alcotest;
+open Test_Evaluator_Prelude;
+
+// Helper: a small JSON object for reuse across tests
+let obj = {|Assoc([("name", String("Alice")), ("age", Int(30))])|};
+let arr = {|List([Int(1), Int(2), Int(3)])|};
+let nested = {|Assoc([("users", List([
+  Assoc([("name", String("Alice")), ("age", Int(31))]),
+  Assoc([("name", String("Bob")), ("age", Int(25))])
+]))])|};
+
+let tests = (
+  "Evaluator.BuiltinsJq",
+  [
+    // ---- Tier 1: Basic Filters ----
+    test_case("jq_identity on Int", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(42)]|},
+        {|jq_identity(Int(42))|},
+      )
+    ),
+    test_case("jq_identity on Null", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_identity(Null)|},
+      )
+    ),
+    test_case("jq_iterate on List", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(1), Int(2), Int(3)]|},
+        {|jq_iterate(|} ++ arr ++ {|)|},
+      )
+    ),
+    test_case("jq_iterate on Assoc returns values", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("Alice"), Int(30)]|},
+        {|jq_iterate(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_iterate on Int returns empty", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[]|},
+        {|jq_iterate(Int(5))|},
+      )
+    ),
+    test_case("jq_keys on Assoc", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[List([String("name"), String("age")])]|},
+        {|jq_keys(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_keys on List returns indices", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[List([Int(0), Int(1), Int(2)])]|},
+        {|jq_keys(|} ++ arr ++ {|)|},
+      )
+    ),
+    test_case("jq_values on Assoc", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[List([String("Alice"), Int(30)])]|},
+        {|jq_values(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_values on List", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[List([Int(1), Int(2), Int(3)])]|},
+        {|jq_values(|} ++ arr ++ {|)|},
+      )
+    ),
+    test_case("jq_length on Assoc", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(2)]|},
+        {|jq_length(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_length on List", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(3)]|},
+        {|jq_length(|} ++ arr ++ {|)|},
+      )
+    ),
+    test_case("jq_length on String", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(5)]|},
+        {|jq_length(String("hello"))|},
+      )
+    ),
+    test_case("jq_length on Null returns 0", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(0)]|},
+        {|jq_length(Null)|},
+      )
+    ),
+    test_case("jq_type on Null", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("null")]|},
+        {|jq_type(Null)|},
+      )
+    ),
+    test_case("jq_type on Bool", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("boolean")]|},
+        {|jq_type(Bool(true))|},
+      )
+    ),
+    test_case("jq_type on Int", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("number")]|},
+        {|jq_type(Int(42))|},
+      )
+    ),
+    test_case("jq_type on String", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("string")]|},
+        {|jq_type(String("hi"))|},
+      )
+    ),
+    test_case("jq_type on List", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("array")]|},
+        {|jq_type(|} ++ arr ++ {|)|},
+      )
+    ),
+    test_case("jq_type on Assoc", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("object")]|},
+        {|jq_type(|} ++ obj ++ {|)|},
+      )
+    ),
+    // ---- Tier 2: Parameterized Filters ----
+    test_case("jq_field on Assoc hit", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("Alice")]|},
+        {|jq_field("name")(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_field on Assoc miss", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_field("missing")(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_field on non-Assoc", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_field("name")(Int(5))|},
+      )
+    ),
+    test_case("jq_index on List hit", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(2)]|},
+        {|jq_index(1)(|} ++ arr ++ {|)|},
+      )
+    ),
+    test_case("jq_index on List out of bounds", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_index(10)(|} ++ arr ++ {|)|},
+      )
+    ),
+    test_case("jq_index on non-List", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_index(0)(Null)|},
+      )
+    ),
+    test_case("jq_has on Assoc true", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(true)]|},
+        {|jq_has("name")(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_has on Assoc false", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(false)]|},
+        {|jq_has("missing")(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_has on non-Assoc", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Bool(false)]|},
+        {|jq_has("x")(Int(5))|},
+      )
+    ),
+    // ---- Tier 3: Higher-Order Combinators ----
+    test_case("jq_pipe composes two filters", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("Alice")]|},
+        {|jq_pipe(jq_field("name"), jq_identity)(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_pipe: field then iterate", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(1), Int(2), Int(3)]|},
+        {|jq_pipe(jq_field("items"), jq_iterate)(Assoc([("items", |}
+        ++ arr
+        ++ {|)]))|},
+      )
+    ),
+    test_case("jq_select keeps matching", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(42)]|},
+        {|jq_select(jq_identity)(Int(42))|},
+      )
+    ),
+    test_case("jq_select drops Null", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[]|},
+        {|jq_select(jq_identity)(Null)|},
+      )
+    ),
+    test_case("jq_select drops Bool(false)", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[]|},
+        {|jq_select(fun json -> [Bool(false)])(Int(1))|},
+      )
+    ),
+    test_case("jq_map on List", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[List([String("Alice"), Int(30)])]|},
+        {|jq_map(jq_identity)(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_map with field on List of objects", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[List([String("Alice"), String("Bob")])]|},
+        {|jq_map(jq_field("name"))(List([
+            Assoc([("name", String("Alice"))]),
+            Assoc([("name", String("Bob"))])
+          ]))|},
+      )
+    ),
+    // ---- jq pipeline combinator ----
+    test_case("jq pipeline: single filter", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("Alice")]|},
+        {|jq([jq_field("name")])(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq pipeline: field then iterate", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("Alice"), String("Bob")]|},
+        {|jq([jq_field("users"), jq_iterate, jq_field("name")])(|}
+        ++ nested
+        ++ {|)|},
+      )
+    ),
+    test_case("jq pipeline: empty filter list is identity", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Int(42)]|},
+        {|jq([])(Int(42))|},
+      )
+    ),
+    // ---- Tier 4: Mutation Combinators ----
+    test_case("jq_set adds new field", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Assoc([("email", String("a@b.c")), ("name", String("Alice")), ("age", Int(30))])]|},
+        {|jq_set("email", String("a@b.c"))(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_set overwrites existing field", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Assoc([("name", String("Bob")), ("age", Int(30))])]|},
+        {|jq_set("name", String("Bob"))(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_set on non-Assoc returns Null", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_set("x", Int(1))(Int(5))|},
+      )
+    ),
+    test_case("jq_update existing field", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Assoc([("name", String("ALICE")), ("age", Int(30))])]|},
+        {|jq_update("name", fun v -> case v | String(s) => [String(string_uppercase(s))] | _ => [v] end)(|}
+        ++ obj
+        ++ {|)|},
+      )
+    ),
+    test_case("jq_update missing field returns unchanged", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[|} ++ obj ++ {|]|},
+        {|jq_update("missing", fun v -> [Int(0)])(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_update on non-Assoc returns Null", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_update("x", fun v -> [v])(Int(5))|},
+      )
+    ),
+    test_case("jq_del removes field", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Assoc([("age", Int(30))])]|},
+        {|jq_del("name")(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_del missing field returns same object", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[|} ++ obj ++ {|]|},
+        {|jq_del("missing")(|} ++ obj ++ {|)|},
+      )
+    ),
+    test_case("jq_del on non-Assoc returns Null", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[Null]|},
+        {|jq_del("x")(Int(5))|},
+      )
+    ),
+    // ---- Integration: pipeline with mutation ----
+    test_case("jq pipeline with select and field", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|[String("Alice"), String("Bob")]|},
+        {|jq([jq_field("users"), jq_iterate, jq_select(jq_has("age")), jq_field("name")])(|}
+        ++ nested
+        ++ {|)|},
+      )
+    ),
+  ],
+);

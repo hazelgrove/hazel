@@ -20,6 +20,7 @@ let tests =
     Test_Evaluator_Poly_Equal.tests,
     Test_Evaluator_Sum_Types.tests,
     Test_Evaluator_BuiltinsTupleOperations.tests,
+    Test_Evaluator_BuiltinsJq.tests,
     Test_Evaluator_TypAp.tests,
     Test_Stepper.tests,
     Test_StepperBase.tests,
