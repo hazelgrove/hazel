@@ -33,6 +33,7 @@ depends: [
   "ppx_deriving_qcheck"
   "bignum"
   "csv"
+  "ts2ocaml-jsoo-stdlib"
   "odoc" {with-doc}
 ]
 build: [
