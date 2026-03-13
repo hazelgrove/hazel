@@ -207,7 +207,7 @@ module Update = {
           editor;
         | None =>
           let scaffold =
-            TyDi.scaffold_display(~info_map=statics.info_map, zipper);
+            TyDiScaffold.scaffold_display(~info_map=statics.info_map, zipper);
           switch (scaffold) {
           | None =>
             print_endline("[scaffold-refresh] no scaffold applies");
@@ -215,7 +215,7 @@ module Update = {
           | Some(content) =>
             print_endline(
               "[scaffold-refresh] setting scaffold: "
-              ++ TyDi.scaffold_segment_to_string(content),
+              ++ TyDiScaffold.scaffold_segment_to_string(content),
             );
             let zipper = Zipper.set_buffer(zipper, ~content, ~mode=Unparsed);
             let syntax = CachedSyntax.mark_old(editor.syntax);

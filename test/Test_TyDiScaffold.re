@@ -2,13 +2,13 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Unicode circle used as hole placeholder in scaffold display strings */
-let hole_char = "○"; /* U+25CB */
+/* Hole placeholder in scaffold display strings (matches printer convention) */
+let hole_char = "?";
 
 /* Build a zipper from code string with caret position (¦),
  * compute statics, and return the scaffold buffer display string.
  *
- * The scaffold system generates a buffer like ", ○" when the caret
+ * The scaffold system generates a buffer like ", ?" when the caret
  * is inside parentheses and the expected type is a Prod (tuple). */
 let scaffold_suggest = (code: string): option(string) => {
   let actions = Test_Editing.mk(code);
@@ -16,7 +16,7 @@ let scaffold_suggest = (code: string): option(string) => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDi.set_scaffold(~info_map, z);
+  let z = TyDiScaffold.set_scaffold(~info_map, z);
   TyDi.get_unparsed_buffer(z);
 };
 
@@ -44,7 +44,7 @@ let scaffold_suggest_stale =
   /* Clear any buffer that might have been set during earlier edits */
   let z_current = Zipper.clear_unparsed_buffer(z_current);
   /* Run scaffold with stale info_map on current zipper */
-  let z = TyDi.set_scaffold(~info_map=info_map_stale, z_current);
+  let z = TyDiScaffold.set_scaffold(~info_map=info_map_stale, z_current);
   TyDi.get_unparsed_buffer(z);
 };
 
@@ -55,7 +55,7 @@ let scaffold_debug = (code: string): unit => {
     "DBG caret=%s anc=%d inside=%b printer=[%s]\n",
     z.caret == Outer ? "O" : "I",
     List.length(z.relatives.ancestors),
-    TyDi.inside_parens(z),
+    TyDiScaffold.inside_parens(z),
     Test_Editing.printer(z),
   );
 };
@@ -80,7 +80,7 @@ let scaffold_accept = (code: string): string => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDi.set_scaffold(~info_map, z);
+  let z = TyDiScaffold.set_scaffold(~info_map, z);
   /* Accept the buffer (Tab) */
   let z = Test_Editing.perform(z, [Action.Buffer(Accept)]);
   Test_Editing.printer(z);
@@ -105,9 +105,9 @@ let scaffold_ana = (code: string): option(Typ.t) => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDi.set_scaffold(~info_map, z);
+  let z = TyDiScaffold.set_scaffold(~info_map, z);
   /* Second pass: reify scaffold into zipper, then dump for statics */
-  let z_reified = TyDi.reify_scaffold(z);
+  let z_reified = TyDiScaffold.reify_scaffold(z);
   let term = MakeTerm.from_zip_for_sem(z_reified).term;
   let info_map2 =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
@@ -124,25 +124,25 @@ let scaffold_ana = (code: string): option(Typ.t) => {
 let shard_tests = (
   "TyDiScaffold.Shard",
   [
-    /* Grout to right: f(○, ?) */
+    /* Grout to right: f(?, ?) */
     scaffold_test(
       ~name="2-arg: empty hole after open paren",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(¦",
       ~expect=Some(hole_char ++ ", "),
     ),
-    /* Convex left (no grout): f(1, ○) */
+    /* Convex left (no grout): f(1, ?) */
     scaffold_test(
       ~name="2-arg: after first arg",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦",
       ~expect=Some(", " ++ hole_char),
     ),
-    /* Grout to right: g(○, ○, ?) */
+    /* Grout to right: g(?, ?, ?) */
     scaffold_test(
       ~name="3-arg: empty hole after open paren",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(¦",
       ~expect=Some(hole_char ++ ", " ++ hole_char ++ ", "),
     ),
-    /* g(1, ○, ?) */
+    /* g(1, ?, ?) */
     scaffold_test(
       ~name="3-arg: one comma already present",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦",
@@ -155,7 +155,7 @@ let shard_tests = (
         "let f : (Int, String) -> Int = fun x -> 0 in let p : (Int, String) = (1, \"a\") in f(p¦",
       ~expect=None,
     ),
-    /* Explicit parens: (○, ?) */
+    /* Explicit parens: (?, ?) */
     scaffold_test(
       ~name="Explicit parens: let binding",
       ~code="let t : (Int, Bool) = (¦",
@@ -284,7 +284,7 @@ let nested_tests = (
   "TyDiScaffold.Nested",
   [
     /* f expects ((Int, Int), String). After typing first nested tuple,
-     * scaffold should show remaining outer element: `, ○` */
+     * scaffold should show remaining outer element: `, ?` */
     scaffold_test(
       ~name="Nested tuple: after inner tuple value",
       ~code=
@@ -292,7 +292,7 @@ let nested_tests = (
       ~expect=Some(", " ++ hole_char),
     ),
     /* f expects (Int, (String, Bool)). After typing first element,
-     * scaffold should show `, ○` for the remaining element */
+     * scaffold should show `, ?` for the remaining element */
     scaffold_test(
       ~name="Nested tuple: second element is tuple",
       ~code="let f : (Int, (String, Bool)) -> Bool = fun x -> true in f(1¦)",
@@ -392,7 +392,7 @@ let labeled_tests = (
   "TyDiScaffold.Labeled",
   [
     /* Labeled tuple: f expects (x=Int, y=String). After first arg,
-     * should show scaffold with label: ", y=○" */
+     * should show scaffold with label: ", y=?" */
     scaffold_test(
       ~name="Labeled tuple: after first arg",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
@@ -404,7 +404,7 @@ let labeled_tests = (
       ~code="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(1¦)",
       ~expect=Some(", b=" ++ hole_char ++ ", c=" ++ hole_char),
     ),
-    /* Unlabeled elements in a mixed tuple should show ○ without label */
+    /* Unlabeled elements in a mixed tuple should show ? without label */
     scaffold_test(
       ~name="Mixed labeled/unlabeled",
       ~code="let f : (Int, y=String) -> Bool = fun a -> true in f(1¦)",
@@ -447,18 +447,18 @@ let edge_tests = (
     /* Shape fitting: ( is concave-right, 1 is convex-left → start with hole.
      * Caret between ( and existing content: scaffold must fit both sides. */
     scaffold_test(
-      ~name="Shape fit: f(|1 → ○, (not , ○)",
+      ~name="Shape fit: f(|1 → ?, (not , ?)",
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦1",
       ~expect=Some(hole_char ++ ", "),
     ),
-    /* 3-arg shape fit: g(|1 → ○, ○,  */
+    /* 3-arg shape fit: g(|1 → ?, ?,  */
     scaffold_test(
-      ~name="Shape fit: g(|1 → ○, ○, ",
+      ~name="Shape fit: g(|1 → ?, ?, ",
       ~code="let g : (Bool, Int, String) -> Float = fun x -> 0.0 in g(¦1",
       ~expect=Some(hole_char ++ ", " ++ hole_char ++ ", "),
     ),
     /* Trailing hole omitted: convex tile past grout on right.
-     * f(1|~ 1 → just ", " (no trailing ○ since 1 fills that position) */
+     * f(1|~ 1 → just ", " (no trailing ? since 1 fills that position) */
     scaffold_test(
       ~name="Trailing hole: f(1| 1 → , (no hole)",
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(1¦ 1",
@@ -466,19 +466,19 @@ let edge_tests = (
     ),
     /* Trailing hole kept: only grout to right, no tile */
     scaffold_test(
-      ~name="Trailing hole: f(1| → , ○ (hole needed)",
+      ~name="Trailing hole: f(1| → , ? (hole needed)",
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(1¦",
       ~expect=Some(", " ++ hole_char),
     ),
-    /* 3-arg trailing hole omitted: g(1| 2 → , ○, (interior hole kept) */
+    /* 3-arg trailing hole omitted: g(1| 2 → , ?, (interior hole kept) */
     scaffold_test(
-      ~name="Trailing hole: g(1| 2 → , ○, (interior kept)",
+      ~name="Trailing hole: g(1| 2 → , ?, (interior kept)",
       ~code="let g : (Bool, Int, String) -> Float = fun x -> 0.0 in g(1¦ 2",
       ~expect=Some(", " ++ hole_char ++ ", "),
     ),
-    /* holes_first with tile on right: f(| 1 → ○,  */
+    /* holes_first with tile on right: f(| 1 → ?,  */
     scaffold_test(
-      ~name="Holes first + trailing: f(| 1 → ○, ",
+      ~name="Holes first + trailing: f(| 1 → ?, ",
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦ 1",
       ~expect=Some(hole_char ++ ", "),
     ),
@@ -532,7 +532,7 @@ let ana_is_prod = (code: string): bool =>
 let reification_tests = (
   "TyDiScaffold.Reification",
   [
-    /* After scaffold: f(1▎⟨, ○⟩ → statics sees Tuple([1, ⬚])
+    /* After scaffold: f(1▎⟨, ?⟩ → statics sees Tuple([1, ⬚])
      * ana at 1 should be Int (decomposed from Prod([Int, String])) */
     test_case("Reified ana: first elem is Int", `Quick, () =>
       check(
@@ -658,13 +658,13 @@ let progressive_tests = (
   [
     /* f( → scaffold for 2-arg */
     scaffold_test(
-      ~name="f(: shows ○, ",
+      ~name="f(: shows ?, ",
       ~code=def2 ++ "f(¦",
       ~expect=Some(hole_char ++ ", "),
     ),
     /* f(1 → scaffold should still show */
     scaffold_test(
-      ~name="f(1: shows , ○",
+      ~name="f(1: shows , ?",
       ~code=def2 ++ "f(1¦",
       ~expect=Some(", " ++ hole_char),
     ),
@@ -676,31 +676,31 @@ let progressive_tests = (
     ),
     /* 3-arg progressive: g( */
     scaffold_test(
-      ~name="g(: shows ○, ○, ",
+      ~name="g(: shows ?, ?, ",
       ~code=def3 ++ "g(¦",
       ~expect=Some(hole_char ++ ", " ++ hole_char ++ ", "),
     ),
     /* g(1 */
     scaffold_test(
-      ~name="g(1: shows , ○, ○",
+      ~name="g(1: shows , ?, ?",
       ~code=def3 ++ "g(1¦",
       ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
     ),
     /* g(1, */
     scaffold_test(
-      ~name="g(1,: shows ○, ",
+      ~name="g(1,: shows ?, ",
       ~code=def3 ++ "g(1, ¦",
       ~expect=Some(hole_char ++ ", "),
     ),
     /* g(1, t */
     scaffold_test(
-      ~name="g(1, t: shows , ○",
+      ~name="g(1, t: shows , ?",
       ~code=def3 ++ "g(1, t¦",
       ~expect=Some(", " ++ hole_char),
     ),
     /* g(1, true */
     scaffold_test(
-      ~name="g(1, true: shows , ○ (suppressed if type matches?)",
+      ~name="g(1, true: shows , ? (suppressed if type matches?)",
       ~code=def3 ++ "g(1, true¦",
       ~expect=Some(", " ++ hole_char),
     ),
@@ -785,10 +785,10 @@ let combined_test = (~name, ~code, ~completion_prefix, ~scaffold_expect) =>
       let info_map =
         Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
       /* Get scaffold on the original (bufferless) zipper */
-      let scaffold = TyDi.scaffold_display(~info_map, z);
+      let scaffold = TyDiScaffold.scaffold_display(~info_map, z);
       /* Verify scaffold independently (convert segment to string) */
       let scaffold_str =
-        Option.map(TyDi.scaffold_segment_to_string, scaffold);
+        Option.map(TyDiScaffold.scaffold_segment_to_string, scaffold);
       check(
         option(string),
         name ++ " scaffold",
@@ -803,7 +803,7 @@ let combined_test = (~name, ~code, ~completion_prefix, ~scaffold_expect) =>
           testable(Fmt.bool, Bool.equal),
           name ++ " combined has scaffold",
           true,
-          TyDi.is_scaffold(combined),
+          String.contains(combined, '?'),
         );
       | None => ()
       };
@@ -813,21 +813,21 @@ let combined_test = (~name, ~code, ~completion_prefix, ~scaffold_expect) =>
 let combined_tests = (
   "TyDiScaffold.Combined",
   [
-    /* g(1111, tr → completion "ue" + scaffold ", ○" */
+    /* g(1111, tr → completion "ue" + scaffold ", ?" */
     combined_test(
       ~name="Completion + scaffold: g(1111, tr",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1111, tr¦",
       ~completion_prefix="ue",
       ~scaffold_expect=Some(", " ++ hole_char),
     ),
-    /* f(tr → completion "ue" + scaffold ", ○" */
+    /* f(tr → completion "ue" + scaffold ", ?" */
     combined_test(
       ~name="Completion + scaffold: f(tr",
       ~code="let f : (Int, String) -> Bool = fun x -> true in f(tr¦",
       ~completion_prefix="ue",
       ~scaffold_expect=Some(", " ++ hole_char),
     ),
-    /* f(1 → no completion, just scaffold ", ○" */
+    /* f(1 → no completion, just scaffold ", ?" */
     combined_test(
       ~name="No completion, just scaffold: f(1",
       ~code="let f : (Int, String) -> Bool = fun x -> true in f(1¦",
@@ -848,7 +848,7 @@ let labeled_accept_tests = (
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
       ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
     ),
-    /* After user types value: f(x=1▎) → scaffold ", y=○" → Tab inserts , */
+    /* After user types value: f(x=1▎) → scaffold ", y=?" → Tab inserts , */
     accept_test(
       ~name="Labeled: Tab after value inserts comma",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1¦)",
@@ -860,7 +860,7 @@ let labeled_accept_tests = (
       ~code="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(¦",
       ~goal="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(a=¦?",
     ),
-    /* After accepting label: f(x=¦ should show ", y=○" not "x=○, "
+    /* After accepting label: f(x=¦ should show ", y=?" not "x=?, "
      * (no label duplication — grout_right is false with content to left) */
     scaffold_test(
       ~name="Labeled after label accept: no duplication",
@@ -875,7 +875,7 @@ let labeled_accept_tests = (
 let after_comma_tests = (
   "TyDiScaffold.AfterComma",
   [
-    /* After typing comma in 3-arg: g(1, ¦ → scaffold "○, " because
+    /* After typing comma in 3-arg: g(1, ¦ → scaffold "?, " because
      * there's grout to right and 1 remaining comma */
     scaffold_test(
       ~name="After comma 3-arg: g(1, shows scaffold",
@@ -1035,7 +1035,7 @@ let scaffold_segment_ok = (code: string): bool => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDi.set_scaffold(~info_map, z);
+  let z = TyDiScaffold.set_scaffold(~info_map, z);
   /* This is what CachedSyntax.mk does — if it crashes, the UI crashes */
   let segment = Zipper.unselect_and_zip(z);
   switch (MakeTerm.go(segment)) {
@@ -1056,7 +1056,7 @@ let scaffold_segment_ok_stale = (code: string, split_at: int): bool => {
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let z_current = Test_Editing.perform(z_stale, actions_rest);
   let z_current = Zipper.clear_unparsed_buffer(z_current);
-  let z = TyDi.set_scaffold(~info_map=info_map_stale, z_current);
+  let z = TyDiScaffold.set_scaffold(~info_map=info_map_stale, z_current);
   let segment = Zipper.unselect_and_zip(z);
   switch (MakeTerm.go(segment)) {
   | _ => true
@@ -1089,24 +1089,24 @@ let segment_wellformedness_tests = (
   [
     /* Basic shard cases: buffer spliced into right siblings */
     segment_ok_test(
-      ~name="Shard: f(1| buffer=', ○'",
+      ~name="Shard: f(1| buffer=', ?'",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦",
     ),
     segment_ok_test(
-      ~name="Shard: f(| buffer='○, '",
+      ~name="Shard: f(| buffer='?, '",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(¦",
     ),
     segment_ok_test(
-      ~name="Shard 3-arg: g(1| buffer=', ○, '",
+      ~name="Shard 3-arg: g(1| buffer=', ?, '",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1¦",
     ),
     /* Ancestor cases: both parens placed */
     segment_ok_test(
-      ~name="Ancestor: f(1|) buffer=', ○'",
+      ~name="Ancestor: f(1|) buffer=', ?'",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦)",
     ),
     segment_ok_test(
-      ~name="Ancestor: g(1, 2|) buffer=', ○'",
+      ~name="Ancestor: g(1, 2|) buffer=', ?'",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, 2¦)",
     ),
     /* Edge case: caret between two args with concave grout.
@@ -1131,7 +1131,7 @@ let segment_wellformedness_tests = (
     ),
     /* Labeled tuples */
     segment_ok_test(
-      ~name="Labeled: f(1| y=○)",
+      ~name="Labeled: f(1| y=?)",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
     ),
     /* Holes-first patterns (grout-right): left edge is convex (hole),

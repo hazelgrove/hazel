@@ -35,36 +35,12 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
  *   emit just the label prefix "x=" so the user can fill in the value
  * - Otherwise: emit up to and including the first comma
  *
- * e.g. [", ", ○]         → insertable ","    → emit ","
- *      [", ", ○, ", ", ○] → insertable ",,"   → emit ","
- *      ["x=", ○, ", "]   → insertable "x=,"  → emit "x="
- *      [", ", "y=", ○]   → insertable ",y="  → emit ","  */
+ * e.g. [", ", ?]         → insertable ","    → emit ","
+ *      [", ", ?, ", ", ?] → insertable ",,"   → emit ","
+ *      ["x=", ?, ", "]   → insertable "x=,"  → emit "x="
+ *      [", ", "y=", ?]   → insertable ",y="  → emit ","  */
 let scaffold_emit_text = (content: Segment.t): string => {
-  /* Extract text from Comment and Tile pieces, skip Grout and whitespace */
-  let insertable =
-    String.concat(
-      "",
-      List.filter_map(
-        (p: Piece.t) =>
-          switch (p) {
-          | Secondary({content: Comment(s), _}) =>
-            /* Strip spaces from text (same as strip_scaffold_display) */
-            let buf = Stdlib.Buffer.create(String.length(s));
-            String.iter(
-              c =>
-                if (c != ' ') {
-                  Stdlib.Buffer.add_char(buf, c);
-                },
-              s,
-            );
-            let stripped = Stdlib.Buffer.contents(buf);
-            stripped == "" ? None : Some(stripped);
-          | Tile({label: [","], _}) => Some(",")
-          | _ => None
-          },
-        content,
-      ),
-    );
+  let insertable = TyDiScaffold.scaffold_insertable(content);
   let len = String.length(insertable);
   /* Check if the insertable starts with a label prefix (chars before '=').
    * If so, emit just the label prefix (up to and including '='). */
@@ -99,7 +75,7 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   switch (z.selection.mode) {
   | Normal => None
   | Buffer(Parsed) => Some(Zipper.directional_unselect(Right, z))
-  | Buffer(Unparsed) when TyDi.is_scaffold_buffer(z) =>
+  | Buffer(Unparsed) when TyDiScaffold.is_scaffold_buffer(z) =>
     /* Scaffold buffer: emit one chunk progressively.
      * Add a trailing space after commas for readability
      * (f(1, ?) instead of f(1,?)), but not after label

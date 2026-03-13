@@ -177,11 +177,14 @@ module Update = {
           );
         /* Try scaffold on the original (bufferless) zipper.
          * If both text completion and scaffold apply, combine them
-         * into a single buffer (e.g., "ue, ○" for completion "ue"
-         * plus scaffold ", ○"). Tab acceptance is incremental:
+         * into a single buffer (e.g., "ue, ?" for completion "ue"
+         * plus scaffold ", ?"). Tab acceptance is incremental:
          * first Tab accepts the completion, second Tab the comma. */
         let scaffold =
-          TyDi.scaffold_display(~info_map=new_statics.info_map, state.zipper);
+          TyDiScaffold.scaffold_display(
+            ~info_map=new_statics.info_map,
+            state.zipper,
+          );
         let completion = TyDi.get_unparsed_buffer(z);
         print_endline(
           "[scaffold-edit] completion="
@@ -194,7 +197,7 @@ module Update = {
           ++ " scaffold="
           ++ (
             switch (scaffold) {
-            | Some(s) => TyDi.scaffold_segment_to_string(s)
+            | Some(s) => TyDiScaffold.scaffold_segment_to_string(s)
             | None => "none"
             }
           ),
@@ -207,7 +210,7 @@ module Update = {
           Zipper.set_buffer(state.zipper, ~content, ~mode=Unparsed);
         | (Some(_), None) => z
         | (None, Some(_)) =>
-          TyDi.set_scaffold(~info_map=new_statics.info_map, z)
+          TyDiScaffold.set_scaffold(~info_map=new_statics.info_map, z)
         | (None, None) => z
         };
       } else {
