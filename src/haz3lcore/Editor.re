@@ -61,25 +61,6 @@ module Update = {
     };
   };
 
-  let should_clear_buffer =
-      (~settings: Language.CoreSettings.t, ~a: Action.t, state: Model.state) => {
-    /* We clear the TyDi (unparsed) buffer on every action except Accept.
-     * For the LLM (parsed) buffer, we accept resize actions to permit
-     * incremental acceptance token-by-token or line-by-line. */
-    let is_local_resize = (a: Action.t) =>
-      switch (a) {
-      | Select(Resize(Local(_))) => true
-      | _ => false
-      };
-    settings.assist
-    && settings.statics
-    && a != Buffer(Accept)
-    && !(
-         Selection.non_empty_parsed_buffer(state.zipper.selection)
-         && is_local_resize(a)
-       );
-  };
-
   let clear_buffer =
       (
         ~settings: Language.CoreSettings.t,
@@ -91,7 +72,7 @@ module Update = {
         syntax: CachedSyntax.t,
       )
       : (Model.state, CachedSyntax.t) =>
-    if (should_clear_buffer(~settings, ~a, state)) {
+    if (Buffer.should_clear(~settings, ~a, state.zipper)) {
       let syntax =
         if (Selection.non_empty_parsed_buffer(old_zipper.selection)) {
           /* If a buffer clear happens above then we must recalculate the
@@ -170,46 +151,10 @@ module Update = {
     /* 1. Recalculate the autocomplete buffer if necessary */
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
-        let z =
-          Buffer.set_tydi_buffer(
-            Indicated.ci_of(state.zipper, new_statics.info_map),
-            state.zipper,
-          );
-        /* Try scaffold on the original (bufferless) zipper.
-         * If both text completion and scaffold apply, combine them
-         * into a single buffer (e.g., "ue, ?" for completion "ue"
-         * plus scaffold ", ?"). Tab acceptance is incremental:
-         * first Tab accepts the completion, second Tab the comma. */
-        let scaffold =
-          TyDiScaffold.display(~info_map=new_statics.info_map, state.zipper);
-        let completion = TyDi.get_unparsed_buffer(z);
-        print_endline(
-          "[scaffold-edit] completion="
-          ++ (
-            switch (completion) {
-            | Some(c) => c
-            | None => "none"
-            }
-          )
-          ++ " scaffold="
-          ++ (
-            switch (scaffold) {
-            | Some(s) => TyDiScaffold.segment_to_string(s)
-            | None => "none"
-            }
-          ),
+        Buffer.set_assist_buffer(
+          ~info_map=new_statics.info_map,
+          state.zipper,
         );
-        switch (completion, scaffold) {
-        | (Some(completion), Some(scaffold_seg)) =>
-          /* Combine completion text with scaffold segment:
-           * completion as Comment secondary, then scaffold pieces */
-          let content = TyDi.mk_unparsed_buffer(completion) @ scaffold_seg;
-          Zipper.set_buffer(state.zipper, ~content, ~mode=Unparsed);
-        | (Some(_), None) => z
-        | (None, Some(_)) =>
-          TyDiScaffold.set(~info_map=new_statics.info_map, z)
-        | (None, None) => z
-        };
       } else {
         state.zipper;
       };

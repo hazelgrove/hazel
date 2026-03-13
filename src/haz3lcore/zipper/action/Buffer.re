@@ -8,11 +8,53 @@ let buffer_clear = (z: Zipper.t): Zipper.t =>
   | Normal => z
   };
 
+/* Should we clear the assist buffer before performing this action?
+ * Clear on every action except Accept (which consumes the buffer).
+ * For parsed (LLM) buffers, also preserve on resize actions to
+ * permit incremental acceptance token-by-token or line-by-line. */
+let should_clear =
+    (~settings: Language.CoreSettings.t, ~a: Action.t, z: Zipper.t): bool =>
+  settings.assist
+  && settings.statics
+  && a != Buffer(Accept)
+  && !(
+       Selection.non_empty_parsed_buffer(z.selection)
+       && (
+         switch (a) {
+         | Select(Resize(Local(_))) => true
+         | _ => false
+         }
+       )
+     );
+
 let set_tydi_buffer = (ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
   switch (TyDi.set_buffer(~ci, z)) {
   | None => z
   | Some(z) => z
   };
+
+/* Set the assist buffer, combining text completion and scaffold.
+ * Runs both systems on the original zipper and merges:
+ * - Both apply: concatenate completion text + scaffold segment
+ *   (e.g., "ue, ?" for completion "ue" + scaffold ", ?")
+ * - Only completion: use completion buffer
+ * - Only scaffold: use scaffold buffer (with grout stripping)
+ * - Neither: return zipper unchanged */
+let set_assist_buffer =
+    (~info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t => {
+  let ci = Indicated.ci_of(z, info_map);
+  let z_with_completion = set_tydi_buffer(ci, z);
+  let scaffold = TyDiScaffold.display(~info_map, z);
+  let completion = TyDi.get_unparsed_buffer(z_with_completion);
+  switch (completion, scaffold) {
+  | (Some(completion_text), Some(scaffold_seg)) =>
+    let content = TyDi.mk_unparsed_buffer(completion_text) @ scaffold_seg;
+    Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+  | (Some(_), None) => z_with_completion
+  | (None, Some(_)) => TyDiScaffold.set(~info_map, z)
+  | (None, None) => z
+  };
+};
 
 let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   switch (
