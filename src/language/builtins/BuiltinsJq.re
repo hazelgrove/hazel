@@ -778,4 +778,202 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
+  {
+    // ---- Tier 4: Mutation Combinators ----
+
+    // jq_set: (String, JSON) -> JSON -> [JSON]
+    // Set or add a field in an object.
+    // jq_set("name", String("Alice"))(obj) => [Assoc(("name", String("Alice")) :: remove_assoc(pairs, "name"))]
+
+    name: "jq_set",
+    str: {|fix jq_set -> fun (key, val) -> fun json -> case json
+             | Assoc(pairs) => [Assoc((key, val) :: remove_assoc(pairs, key))]
+             | _ => [Null]
+           end|},
+    arg: Prod([string(), JSON.t]),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_set"),
+            fn(
+              Pat.tuple([Pat.var("key"), Pat.var("val")]),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_assoc, Pat.var("pairs")),
+                      list_lit([
+                        ap(
+                          Forward,
+                          JSON.json_assoc,
+                          cons(
+                            tuple([var("key"), var("val")]),
+                            ap(
+                              Forward,
+                              var("remove_assoc"),
+                              tuple([var("pairs"), var("key")]),
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                    (Pat.wild(), list_lit([JSON.json_null])),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_set+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_update: (String, JSON -> [JSON]) -> JSON -> [JSON]
+    // Update a field by applying a filter to its current value (like jq's |=).
+    // Takes first result of filter. If field missing, returns object unchanged.
+
+    name: "jq_update",
+    str: {|fix jq_update -> fun (key, f) -> fun json -> case json
+             | Assoc(pairs) => case assoc_opt(pairs, key)
+               | None => [json]
+               | Some(v) => case f(v)
+                 | new_v :: _ => [Assoc((key, new_v) :: remove_assoc(pairs, key))]
+                 | [] => [json]
+               end
+             end
+             | _ => [Null]
+           end|},
+    arg: Prod([string(), arrow(JSON.t, list(JSON.t))]),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_update"),
+            fn(
+              Pat.tuple([Pat.var("key"), Pat.var("f")]),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_assoc, Pat.var("pairs")),
+                      match(
+                        ap(
+                          Forward,
+                          var("assoc_opt"),
+                          tuple([var("pairs"), var("key")]),
+                        ),
+                        [
+                          (Option.pat_none, list_lit([var("json")])),
+                          (
+                            Pat.ap(Option.pat_some, Pat.var("v")),
+                            match(
+                              ap(Forward, var("f"), var("v")),
+                              [
+                                (
+                                  Pat.cons(Pat.var("new_v"), Pat.wild()),
+                                  list_lit([
+                                    ap(
+                                      Forward,
+                                      JSON.json_assoc,
+                                      cons(
+                                        tuple([var("key"), var("new_v")]),
+                                        ap(
+                                          Forward,
+                                          var("remove_assoc"),
+                                          tuple([var("pairs"), var("key")]),
+                                        ),
+                                      ),
+                                    ),
+                                  ]),
+                                ),
+                                (
+                                  Pat.list_lit([]),
+                                  list_lit([var("json")]),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    (Pat.wild(), list_lit([JSON.json_null])),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_update+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_del: String -> JSON -> [JSON]
+    // Delete a field from an object.
+    // jq_del("name")(obj) => [Assoc(remove_assoc(pairs, "name"))]
+
+    name: "jq_del",
+    str: {|fix jq_del -> fun key -> fun json -> case json
+             | Assoc(pairs) => [Assoc(remove_assoc(pairs, key))]
+             | _ => [Null]
+           end|},
+    arg: Atom(String),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_del"),
+            fn(
+              Pat.var("key"),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_assoc, Pat.var("pairs")),
+                      list_lit([
+                        ap(
+                          Forward,
+                          JSON.json_assoc,
+                          ap(
+                            Forward,
+                            var("remove_assoc"),
+                            tuple([var("pairs"), var("key")]),
+                          ),
+                        ),
+                      ]),
+                    ),
+                    (Pat.wild(), list_lit([JSON.json_null])),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_del+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
 ];
