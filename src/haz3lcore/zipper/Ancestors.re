@@ -23,8 +23,7 @@ let sort =
 /* Tile interning: reuse a previously cached tile if its children
    are all pointer-identical. Keyed by tile ID. */
 let tile_cache: Hashtbl.t(Id.t, Tile.t) = Hashtbl.create(128);
-let () =
-  ResettableMemo.register_resetter(() => Hashtbl.clear(tile_cache));
+let () = ResettableMemo.register_resetter(() => Hashtbl.clear(tile_cache));
 
 let shallow_eq_tile = (t1: Tile.t, t2: Tile.t): bool =>
   t1.label == t2.label
@@ -43,8 +42,7 @@ let intern_tile = (tile: Tile.t): Tile.t =>
 /* Segment interning: reuse a previously cached segment at each
    ancestor level if all pieces are pointer-identical. Keyed by ancestor ID. */
 let seg_cache: Hashtbl.t(Id.t, Segment.t) = Hashtbl.create(128);
-let () =
-  ResettableMemo.register_resetter(() => Hashtbl.clear(seg_cache));
+let () = ResettableMemo.register_resetter(() => Hashtbl.clear(seg_cache));
 
 let shallow_eq_piece = (p1: Piece.t, p2: Piece.t): bool =>
   switch (p1, p2) {

@@ -155,39 +155,33 @@ let kids_of_unsorted =
 // not just the ones recognized in Statics.
 // TODO unhack
 let map: ref(TermMap.t) = ref(Id.Map.empty);
-let return = (wrap, ids, tm) => {
-  map := TermMap.add_all(ids, wrap(tm), map^);
-  tm;
-};
 
 let term_data: ref(TermData.t) = ref(Id.Map.empty);
-let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
-  term_data :=
-    Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
-    |> List.fold_left(
-         (map, p) =>
-           Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
-         term_data^,
-       );
 
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 let projector_list: ref(list(Id.t)) = ref([]);
 
-/* Map from tile IDs to their outer secondary (before, after) */
-let secondary_map: ref(Segment.SecondaryCollection.secondary_map) =
-  ref(Id.Map.empty);
-
-/* Look up outer secondary for a term by its representative ID */
-let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
-  switch (ids) {
-  | [id, ..._] =>
-    switch (Id.Map.find_opt(id, secondary_map^)) {
-    | Some(sec) => sec
-    | None => IdTagged.IdTag.empty_secondary
-    }
-  | [] => IdTagged.IdTag.empty_secondary
-  };
+/* Compute the (before, after) secondary for the root pieces of a skeleton node,
+   using the same ownership rules as SecondaryCollection. */
+let compute_root_secondary =
+    (seg: Segment.t, skel: Skel.t): IdTagged.IdTag.secondary_runs => {
+  let (start_idx, end_idx) = Skel.range(skel);
+  let (collect_before_boundary, collect_after_boundary) =
+    switch (skel) {
+    | Op(_) => (true, true)
+    | Pre(_, _) => (true, false)
+    | Post(_, _) => (false, true)
+    | Bin(_, _, _) => (false, false)
+    };
+  let before =
+    collect_before_boundary
+      ? Segment.SecondaryCollection.collect_before(seg, start_idx) : [];
+  let after =
+    collect_after_boundary
+      ? Segment.SecondaryCollection.collect_after(seg, end_idx) : [];
+  (before, after);
+};
 
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
  *
@@ -226,10 +220,57 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
  * forms, but this targeted fix avoids that complexity. */
 let adopted_ids: ref(list(Id.t)) = ref([]);
 
+/* Side-effect logging for go_s caching (Phase 3B).
+   All mutations to global refs during go_s are logged so they can be
+   replayed on cache hit. */
+type side_effect =
+  | AddTerm(list(Id.t), Any.t)
+  | AddTermData(Id.t, TermData.data)
+  | AddProjector(Piece.projector)
+  | AddAdoptedIds(list(Id.t));
+
+let effects: ref(list(side_effect)) = ref([]);
+
+let log_effect = (eff: side_effect): unit => effects := [eff, ...effects^];
+
+let return = (wrap, ids, tm) => {
+  let any = wrap(tm);
+  map := TermMap.add_all(ids, any, map^);
+  log_effect(AddTerm(ids, any));
+  tm;
+};
+
+let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
+  Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
+  |> List.iter(p => {
+       let id = Piece.id(p);
+       let data = TermData.mk(p, sort, skel, seg);
+       term_data := Id.Map.add(id, data, term_data^);
+       log_effect(AddTermData(id, data));
+     });
+
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
   projector_list := [pr.id, ...projector_list^];
+  log_effect(AddProjector(pr));
+};
+
+let adopt_ids = (ids: list(Id.t)): unit => {
+  log_effect(AddAdoptedIds(ids));
+  adopted_ids := ids @ adopted_ids^;
+};
+
+let replay_effect = (eff: side_effect): unit => {
+  log_effect(eff);
+  switch (eff) {
+  | AddTerm(ids, any) => map := TermMap.add_all(ids, any, map^)
+  | AddTermData(id, data) => term_data := Id.Map.add(id, data, term_data^)
+  | AddProjector(pr) =>
+    projectors := Id.Map.add(pr.id, pr, projectors^);
+    projector_list := [pr.id, ...projector_list^];
+  | AddAdoptedIds(ids) => adopted_ids := ids @ adopted_ids^
+  };
 };
 
 /* Convert IdTagged secondary to ConstructorMap secondary.
@@ -279,28 +320,85 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     )
   | t => BadEntry(t);
 
-let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
-    term: Var(ctr),
-  };
-  switch (value) {
-  | None => t
-  | Some(u) => Unknown(Hole(MultiHole([Typ(t), Typ(u)]))) |> Typ.fresh
-  };
-};
-
 let is_hole_label = (t: string) =>
   t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
+/* Per-child WeakMap cache for go_s (Phase 3B).
+   Only caches calls where skel is derived from the segment (child segments
+   of tiles and projector content). Sub-skeleton calls within the same parent
+   segment are NOT cached because the same (seg, sort) maps to different skels. */
+type cached_result = {
+  result: Any.t,
+  effect_log: list(side_effect),
+};
+
+let go_s_cache: WeakMap.t(Segment.t, list((Sort.t, cached_result))) =
+  WeakMap.mk();
+
+let rec take_until = (lst: list('a), stop: list('a)): list('a) =>
+  if (lst === stop) {
+    [];
+  } else {
+    switch (lst) {
+    | [] => []
+    | [x, ...rest] => [x, ...take_until(rest, stop)]
+    };
+  }
+
+/* Cached go_s for child segments where skel = Segment.skel(~sort, seg).
+   Used for tile children and projector content. */
+and go_s_cached = (s: Sort.t, child_seg: Segment.t): Any.t =>
+  switch (WeakMap.get(go_s_cache, child_seg)) {
+  | Some(entries) =>
+    switch (List.assoc_opt(s, entries)) {
+    | Some({result, effect_log}) =>
+      List.iter(replay_effect, List.rev(effect_log));
+      result;
+    | None => go_s_cached_compute(s, child_seg)
+    }
+  | None => go_s_cached_compute(s, child_seg)
+  }
+
+and go_s_cached_compute = (s: Sort.t, child_seg: Segment.t): Any.t => {
+  let old_effects = effects^;
+  let skel = Segment.skel(~sort=s, child_seg);
+  let result = go_s(s, skel, child_seg);
+  let effect_log = take_until(effects^, old_effects);
+  let entries =
+    switch (WeakMap.get(go_s_cache, child_seg)) {
+    | Some(es) => [
+        (
+          s,
+          {
+            result,
+            effect_log,
+          },
+        ),
+        ...es,
+      ]
+    | None => [
+        (
+          s,
+          {
+            result,
+            effect_log,
+          },
+        ),
+      ]
+    };
+  WeakMap.set(go_s_cache, child_seg, entries);
+  result;
+}
+
+/* Uncached go_s — used for sub-skeleton calls within the same segment. */
+and go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(Pat, skel, seg)))
   | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
   | Typ => Typ(typ(unsorted(Typ, skel, seg)))
   | Exp => Exp(exp(unsorted(Exp, skel, seg)))
   | Rul => Rul(rul(unsorted(Rul, skel, seg)))
-  | Mod => Mod(mod_(unsorted(Mod, skel, seg))) /* Phase 1.2: proper module parsing */
+  | Mod => Mod(mod_(unsorted(Mod, skel, seg)))
   | Sig => Sig(sig_(unsorted(Sig, skel, seg)))
   | MPat => MPat(mpat(unsorted(MPat, skel, seg)))
   | Any =>
@@ -312,12 +410,12 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
     };
   }
 
-and exp = unsorted => {
+and exp = ((unsorted, sec)) => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
 
   let e: TermBase.exp_t =
-    return(e => Exp(e), ids, IdTagged.mk(ids, get_secondary(ids), term));
+    return(e => Exp(e), ids, IdTagged.mk(ids, sec, term));
   switch (term) {
   | TupLabel(_) =>
     // The tile id is the id of the tuple not the tuplabel
@@ -364,7 +462,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         switch (body) {
         | {term: EmptyHole, _} => ret(Module([body]))
         | {annotation: {ids, _}, term: MultiHole(_)} =>
-          adopted_ids := ids @ adopted_ids^;
+          adopt_ids(ids);
           (Module(flatten_mod(body)), ids);
         | _ => ret(Module(flatten_mod(body)))
         }
@@ -378,7 +476,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
            which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
         | {annotation: {ids, _}, term: Tuple(es)} =>
-          adopted_ids := ids @ adopted_ids^;
+          adopt_ids(ids);
           // Addresses tup_labels in lists like: [l=32, 1]
           (
             ListLit(
@@ -410,7 +508,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
            which expects List.hd = case/end, List.tl = rules. */
         switch (term) {
         | Rules(scrut, rules) =>
-          adopted_ids := ids @ adopted_ids^;
+          adopt_ids(ids);
           (Match(scrut, rules), ids);
         // If the rule parser is correct, below should be impossible
         | MultiHole(anys) => (MultiHole(anys), ids)
@@ -495,7 +593,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               annotation:
                 IdTagged.IdTag.mk(
                   [Id.nullary_ap_flag],
-                  get_secondary([Id.nullary_ap_flag]),
+                  IdTagged.IdTag.empty_secondary,
                 ),
               term: Tuple([]),
             },
@@ -506,7 +604,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           let deferral_ids = IdTagged.ids(arg);
           {
             annotation:
-              IdTagged.IdTag.mk(deferral_ids, get_secondary(deferral_ids)),
+              IdTagged.IdTag.mk(deferral_ids, arg.annotation.secondary),
             term: Deferral(InAp),
           };
         };
@@ -648,12 +746,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-and pat = unsorted => {
+and pat = ((unsorted, sec)) => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
 
-  let p =
-    return(p => Pat(p), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  let p = return(p => Pat(p), ids, IdTagged.mk(ids, sec, term));
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -691,7 +788,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
            which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
         | {term: Tuple(ps), annotation: {ids, _}} =>
-          adopted_ids := ids @ adopted_ids^;
+          adopt_ids(ids);
           (ListLit(ps), ids);
         | term => ret(ListLit([term]))
         }
@@ -774,11 +871,10 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-and typ = unsorted => {
+and typ = ((unsorted, sec)) => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let t =
-    return(ty => Typ(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  let t = return(ty => Typ(ty), ids, IdTagged.mk(ids, sec, term));
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -795,7 +891,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       switch (body) {
       | {term: EmptyHole, _} => ret(Sig([]))
       | {annotation: {ids, _}, term: MultiHole(_)} =>
-        adopted_ids := ids @ adopted_ids^;
+        adopt_ids(ids);
         (Sig(flatten_sig(body)), ids);
       | _ => ret(Sig(flatten_sig(body)))
       }
@@ -906,10 +1002,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-and tpat = unsorted => {
+and tpat = ((unsorted, sec)) => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(ty => TPat(ty), ids, IdTagged.mk(ids, sec, term));
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -933,15 +1029,15 @@ and tpat_term: unsorted => TPat.term = {
   | tm => ret(hole(tm));
 }
 /* Phase 1.2: Module parsing - placeholder implementation */
-and mod_ = unsorted => {
-  let term = mod_term(unsorted);
+and mod_ = ((unsorted, sec)) => {
+  let term = mod_term(unsorted, sec);
   let ids = ids(unsorted);
-  return(m => Mod(m), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(m => Mod(m), ids, IdTagged.mk(ids, sec, term));
 }
-and mod_term: unsorted => TermBase.Mod.term = {
+and mod_term = (unsorted, sec) => {
   let ret = (term: TermBase.Mod.term) => term;
   let hole = unsorted => Mod.hole(kids_of_unsorted(unsorted));
-  fun
+  switch (unsorted) {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
@@ -949,7 +1045,7 @@ and mod_term: unsorted => TermBase.Mod.term = {
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
       | _ =>
         /* Try parsing as expression and wrap as ModExp */
-        let e = exp(Op(tiles));
+        let e = exp((Op(tiles), sec));
         switch (e.term) {
         | EmptyHole
         | MultiHole(_)
@@ -981,15 +1077,16 @@ and mod_term: unsorted => TermBase.Mod.term = {
   | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
     ret(ModType(tp, ty))
   /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
-  | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp((tm, sec))))
+  | Pre(_, Exp(_)) as tm => ret(ModExp(exp((tm, sec))))
+  | Post(Exp(_), _) as tm => ret(ModExp(exp((tm, sec))))
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm))
+  };
 }
-and sig_ = unsorted => {
+and sig_ = ((unsorted, sec)) => {
   let term = sig_term(unsorted);
   let ids = ids(unsorted);
-  return(s => Sig(s), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(s => Sig(s), ids, IdTagged.mk(ids, sec, term));
 }
 and sig_term: unsorted => TermBase.Sig.term = {
   let ret = (term: TermBase.Sig.term) => term;
@@ -1024,10 +1121,10 @@ and sig_term: unsorted => TermBase.Sig.term = {
     ret(SigType(tp, ty))
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
-and mpat = unsorted => {
+and mpat = ((unsorted, sec)) => {
   let term = mpat_term(unsorted);
   let ids = ids(unsorted);
-  return(mp => MPat(mp), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(mp => MPat(mp), ids, IdTagged.mk(ids, sec, term));
 }
 and mpat_term: unsorted => TermBase.MPat.term = {
   let ret = (term: TermBase.MPat.term) => term;
@@ -1049,11 +1146,11 @@ and mpat_term: unsorted => TermBase.MPat.term = {
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 
-and rul = (unsorted): Rul.t => {
-  let e = exp(unsorted);
+and rul = ((unsorted, sec)): Rul.t => {
+  let e = exp((unsorted, sec));
   let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
     term: Rules(scrut, rules),
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+    annotation: IdTagged.IdTag.mk(ids, sec),
   };
   switch (e) {
   | {term: MultiHole(_), _} =>
@@ -1074,7 +1171,11 @@ and rul = (unsorted): Rul.t => {
   };
 }
 
-and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted =
+    (sort: Sort.t, skel: Skel.t, seg: Segment.t)
+    : (unsorted, IdTagged.IdTag.secondary_runs) => {
+  let root_sec = compute_root_secondary(seg, skel);
+
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let tile_kids = (p: Piece.t): list(Any.t) =>
@@ -1085,7 +1186,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
-      let inner = go_s(sort, Segment.skel(seg), seg);
+      let inner = go_s_cached(sort, seg);
       /* Construct Projector term with proper annotation, preserving
        * projector metadata (kind, model) in the term for round-tripping */
       let projector_data: Grammar.projector_data = {
@@ -1097,17 +1198,17 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
         | Grammar.Exp(e) =>
           Grammar.Exp({
             term: Projector(projector_data, e),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation: IdTagged.IdTag.mk([id], root_sec),
           })
         | Grammar.Pat(p) =>
           Grammar.Pat({
             term: Projector(projector_data, p),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation: IdTagged.IdTag.mk([id], root_sec),
           })
         | Grammar.Typ(t) =>
           Grammar.Typ({
             term: Projector(projector_data, t),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation: IdTagged.IdTag.mk([id], root_sec),
           })
         | _ => inner
         };
@@ -1116,7 +1217,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
            let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
-           go_s(s, Segment.skel(~sort=s, kid), kid);
+           go_s_cached(s, kid);
          })
     };
 
@@ -1149,12 +1250,15 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     (l.sort, r.sort);
   };
 
-  switch (skel) {
-  | Op(_) => Op(tiles)
-  | Pre(_, r) => Pre(tiles, go_s(r_sort, r, seg))
-  | Post(l, _) => Post(go_s(l_sort, l, seg), tiles)
-  | Bin(l, _, r) => Bin(go_s(l_sort, l, seg), tiles, go_s(r_sort, r, seg))
-  };
+  let result =
+    switch (skel) {
+    | Op(_) => Op(tiles)
+    | Pre(_, r) => Pre(tiles, go_s(r_sort, r, seg))
+    | Post(l, _) => Post(go_s(l_sort, l, seg), tiles)
+    | Bin(l, _, r) =>
+      Bin(go_s(l_sort, l, seg), tiles, go_s(r_sort, r, seg))
+    };
+  (result, root_sec);
 };
 
 /* Consolidate term_data for adopted IDs (see adopted_ids comment above).
@@ -1202,7 +1306,12 @@ let consolidate_adopted = (): unit => {
 };
 
 let go_cache: WeakMap.t(Segment.t, t) = WeakMap.mk();
-let () = ResettableMemo.register_resetter(() => WeakMap.clear(go_cache));
+let () =
+  ResettableMemo.register_resetter(() => {
+    WeakMap.clear(go_cache);
+    WeakMap.clear(go_s_cache);
+    effects := [];
+  });
 
 let go_compute = (seg: Segment.t): t => {
   map := TermMap.empty;
@@ -1210,7 +1319,7 @@ let go_compute = (seg: Segment.t): t => {
   projectors := Id.Map.empty;
   projector_list := [];
   adopted_ids := [];
-  secondary_map := Segment.SecondaryCollection.collect(seg);
+  effects := [];
   let term = exp(unsorted(Exp, Segment.skel(seg), seg));
   consolidate_adopted();
   {

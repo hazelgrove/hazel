@@ -71,8 +71,7 @@ let intern_piece = (p: Piece.t): Piece.t =>
    from siblings zip if all pieces are pointer-identical (after
    per-piece tile interning). */
 let innermost_cache: ref(option(Segment.t)) = ref(None);
-let () =
-  ResettableMemo.register_resetter(() => innermost_cache := None);
+let () = ResettableMemo.register_resetter(() => innermost_cache := None);
 
 let intern_innermost = (seg: Segment.t): Segment.t => {
   let seg = List.map(intern_piece, seg);
@@ -85,10 +84,7 @@ let intern_innermost = (seg: Segment.t): Segment.t => {
 };
 
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
-  Ancestors.zip(
-    intern_innermost(Siblings.zip(~sel, siblings)),
-    ancestors,
-  );
+  Ancestors.zip(intern_innermost(Siblings.zip(~sel, siblings)), ancestors);
 
 let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
   Siblings.local_missing_shards(siblings)
