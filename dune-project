@@ -56,7 +56,8 @@
   qcheck-alcotest
   ppx_deriving_qcheck
   bignum
-  csv))
+  csv
+  ts2ocaml-jsoo-stdlib))
 
 ; After upgrading to opam 2.2 use with-dev https://opam.ocaml.org/blog/opam-2-2-0/
 
