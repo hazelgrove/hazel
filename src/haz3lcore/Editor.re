@@ -203,8 +203,7 @@ module Update = {
         | (Some(completion), Some(scaffold_seg)) =>
           /* Combine completion text with scaffold segment:
            * completion as Comment secondary, then scaffold pieces */
-          let content =
-            TyDi.mk_unparsed_buffer(completion) @ scaffold_seg;
+          let content = TyDi.mk_unparsed_buffer(completion) @ scaffold_seg;
           Zipper.set_buffer(state.zipper, ~content, ~mode=Unparsed);
         | (Some(_), None) => z
         | (None, Some(_)) =>

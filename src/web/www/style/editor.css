@@ -126,6 +126,11 @@
   opacity: 0.5;
 }
 
+.code .in-buffer-hole path {
+  fill: oklch(0.85 0.07 89.64);
+  stroke: oklch(0.85 0.07 89.64);
+}
+
 .code .token.sort-inconsistent {
   color: var(--token-inconsistent);
 }

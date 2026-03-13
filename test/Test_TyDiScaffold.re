@@ -161,6 +161,24 @@ let shard_tests = (
       ~code="let t : (Int, Bool) = (¦",
       ~expect=Some(hole_char ++ ", "),
     ),
+    /* Type alias: type Toop = (Int, Bool) in let x: Toop = (¦ */
+    scaffold_test(
+      ~name="Type alias: let binding with alias",
+      ~code="type Toop = (Int, Bool) in let x : Toop = (¦",
+      ~expect=Some(hole_char ++ ", "),
+    ),
+    /* Type alias with labels */
+    scaffold_test(
+      ~name="Type alias: labeled tuple alias",
+      ~code="type Toop = (zoo=Bool, yoop=(Int, String)) in let x : Toop = (¦",
+      ~expect=Some("zoo=" ++ hole_char ++ ", "),
+    ),
+    /* Type alias: after first arg */
+    scaffold_test(
+      ~name="Type alias: after first arg",
+      ~code="type Toop = (Int, Bool) in let x : Toop = (1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
     /* Bare tuple: no scaffold */
     scaffold_test(
       ~name="No scaffold for bare tuple",
@@ -209,6 +227,12 @@ let ancestor_tests = (
     scaffold_test(
       ~name="Explicit parens: let binding, both parens",
       ~code="let t : (Int, Bool) = (1¦) in t",
+      ~expect=Some(", " ++ hole_char),
+    ),
+    /* Type alias with both parens */
+    scaffold_test(
+      ~name="Type alias: both parens",
+      ~code="type Toop = (Int, Bool) in let x : Toop = (1¦) in x",
       ~expect=Some(", " ++ hole_char),
     ),
     /* Suppression with both parens: f(p¦) where p matches Prod */

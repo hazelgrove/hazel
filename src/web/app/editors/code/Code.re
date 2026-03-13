@@ -85,9 +85,15 @@ let view =
   let g_concave = EmptyHoleDec.view(font_metrics, Concave);
 
   let of_grout = (g: Grout.t): t => {
-    switch (g.shape) {
-    | Convex => g_convex
-    | Concave => g_concave
+    let node =
+      switch (g.shape) {
+      | Convex => g_convex
+      | Concave => g_concave
+      };
+    if (List.mem(g.id, buffer_ids)) {
+      Node.span(~attrs=[Attr.classes(["in-buffer-hole"])], [node]);
+    } else {
+      node;
     };
   };
 

@@ -140,7 +140,7 @@ let buffer_to_string = (seg: Segment.t): string =>
       (p: Piece.t) =>
         switch (p) {
         | Secondary({content: Comment(s), _}) => s
-        | Grout(_) => "\xe2\x97\x8b" /* ○ U+25CB */
+        | Grout(_) => "○" /* ○ U+25CB */
         | _ => ""
         },
       seg,
@@ -249,9 +249,15 @@ let mk_scaffold_segment =
     (~grout_right: bool, ~labels: list(option(string)), remaining: int)
     : Segment.t => {
   let mk_comment = (s: string): Piece.t =>
-    Secondary({id: Id.mk(), content: Comment(s)});
+    Secondary({
+      id: Id.mk(),
+      content: Comment(s),
+    });
   let mk_hole = (): Piece.t =>
-    Grout({id: Id.mk(), shape: Convex});
+    Grout({
+      id: Id.mk(),
+      shape: Convex,
+    });
   let mk_label_prefix = (i: int): list(Piece.t) =>
     switch (List.nth_opt(labels, i)) {
     | Some(Some(name)) => [mk_comment(name ++ "=")]
@@ -387,8 +393,10 @@ let scaffold_expected_type =
         | [_, ...rest] => find_fn(rest)
       );
       find_fn(l);
-    | Some(InfoExp({ana, _})) => Some(ana)
-    | Some(InfoPat({ana, _})) => Some(ana)
+    | Some(InfoExp({ana, ctx, _})) =>
+      Some(Typ.weak_head_normalize(ctx, ana))
+    | Some(InfoPat({ana, ctx, _})) =>
+      Some(Typ.weak_head_normalize(ctx, ana))
     | _ => None
     }
   | _ =>
@@ -433,12 +441,14 @@ let scaffold_expected_type =
           }
         | None => None
         };
-      | Some(InfoExp({ana, _})) =>
+      | Some(InfoExp({ana, ctx, _})) =>
+        let ana = Typ.weak_head_normalize(ctx, ana);
         switch (Typ.term_of(ana)) {
         | Unknown(_) => None /* Will trigger fallback below */
         | _ => Some(ana)
-        }
-      | Some(InfoPat({ana, _})) => Some(ana)
+        };
+      | Some(InfoPat({ana, ctx, _})) =>
+        Some(Typ.weak_head_normalize(ctx, ana))
       | _ => None
       };
     /* Walk nearest-first from some position to find the next ( shard.
