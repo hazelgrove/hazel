@@ -39,7 +39,7 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
 let mk = (~info_map, ~dyn_map, z): t => {
   let segment =
-    Util.PhaseTiming.record("syntax/Unzip", () => Zipper.unselect_and_zip(z));
+    Util.PhaseTiming.record("syntax/Zip", () => Zipper.unselect_and_zip(z));
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     Util.PhaseTiming.record("syntax/MakeTerm", () => MakeTerm.go(segment));
   let projector_shapes =

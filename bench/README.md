@@ -1,9 +1,8 @@
 # Performance Benchmarks
 
-Measures key editor operations at various program sizes using single-shot
-timing with `performance.now()`. Each measurement is repeated across
-multiple runs (default: 7) with structurally unique inputs, and the
-**median** is reported.
+Measures CachedSyntax and CachedStatics pipeline phases at various program
+sizes. Each measurement is repeated across multiple iterations (default: 10)
+and the **median** is reported.
 
 ## Scenarios
 
@@ -11,35 +10,48 @@ Each program size is benchmarked across four scenarios:
 
 | Scenario | What it measures |
 |:---|:---|
-| **cold** | First run with fresh input — no memoization cache hits |
-| **warm** | Immediate re-run with identical input — measures cache-hit overhead |
-| **move** | After `Move(Left)` cursor movement — incremental update cost |
-| **modify** | After `Insert("x")` content edit — incremental update cost |
+| **cold** | Caches cleared before each iteration |
+| **warm** | Caches primed, measuring steady-state performance |
+| **move** | Caches primed with original input, measuring after cursor movement |
+| **modify** | Caches primed with original input, measuring after content edit |
 
 ### Pipeline phases
 
+Phases are instrumented via `PhaseTiming` inside the library code. When
+running on a branch without instrumentation, the bench harness falls back
+to timing `CachedSyntax` and `CachedStatics` as whole units.
+
+**Syntax phases** (CachedSyntax):
+
 | Phase | What it measures |
 |:---|:---|
-| `Perform` | Execute the action on the zipper (move/modify only) |
-| `MakeTerm` | Parse segment into AST |
-| `Measured` | Layout measurement (line/column coordinates) |
-| `Statics` | Type checking |
-| `Elaborate` | Elaboration (produce DHExp for evaluation) |
-| `Evaluate` | Program evaluation |
-| **Total** | Sum of all phases above |
+| `syntax/Zip` | Convert zipper to segment |
+| `syntax/MakeTerm` | Parse segment into AST |
+| `syntax/ProjectorShapes` | Compute projector shapes |
+| `syntax/Measured` | Layout measurement (line/column coordinates) |
+
+**Statics phases** (CachedStatics):
+
+| Phase | What it measures |
+|:---|:---|
+| `statics/MakeTerm` | Parse zipper for semantics |
+| `statics/Stitch` | Stitch term into context |
+| `statics/Statics` | Type checking |
+| `statics/ErrorIds` | Collect error IDs from info map |
+| `statics/WarningIds` | Collect warning IDs from info map |
+| `statics/Elaborate` | Elaboration (produce DHExp) |
+| `statics/Targets` | Compute probe targets |
 
 ### Program sizes
 
-- `let100` / `let500` — let-chains with 100/500 bindings (~5-10 AST nodes each)
-- `case100` — nested case expressions with 100 functions (~15 AST nodes each)
+- `let100` / `let500` — let-chains with 100/500 bindings
 
-### Cache isolation
+### Cache control
 
-Each program is parsed once and then cloned with fresh IDs per repetition
-(via `Segment.IDs.replace_piece`). Fresh IDs ensure `Core.Memo.general`
-(structural equality) misses across repetitions, and fresh allocations
-ensure `WeakMap`-based caches (physical identity) also miss. This avoids
-the cost of re-parsing large programs each repetition.
+Cold runs use `ResettableMemo.clear_all()` to reset all memoization caches
+(including `Core.Memo.general` wrappers and `WeakMap`-based caches). Warm
+runs leave caches populated from a priming pass. Move/modify runs prime
+with the original input, then measure on the modified input.
 
 ## Running locally
 
@@ -47,54 +59,75 @@ the cost of re-parsing large programs each repetition.
 
 ```
 dune build bench/hazel_bench.bc.js
-node --stack-size=8192 _build/default/bench/hazel_bench.bc.js
+node --stack-size=8192 --expose-gc _build/default/bench/hazel_bench.bc.js
 ```
 
 Add `--json` for machine-readable output. Add `--reps N` to change
-repetition count (default: 10).
+iteration count (default: 10).
 
 ### Filtering benchmarks
 
 ```
-node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --filter let500
-node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --filter cold --filter modify
-node --stack-size=8192 _build/default/bench/hazel_bench.bc.js --filter let100/cold
+node ... --filter let500
+node ... --filter cold --filter modify
+node ... --filter let100/cold
 ```
 
-Filters match benchmark names as substrings (case-sensitive). Multiple
-`--filter` flags are OR'd together.
+Filters match benchmark names as substrings. Multiple `--filter` flags
+are OR'd together.
 
-### Comparison against a base branch
+### Run and store results
 
 ```
-bench/run-comparison.sh                              # compare against dev
-bench/run-comparison.sh main                         # compare against main
-bench/run-comparison.sh abc123                       # compare against a commit
-bench/run-comparison.sh dev --filter cold             # filtered comparison
+bench/run.sh                    # run, store as git note, display table
+bench/run.sh --quiet            # run and store only (no table)
+bench/run.sh --filter let100    # filtered run
 ```
 
-Requires a clean worktree (no uncommitted changes). Uses the current
-branch's benchmark code for both branches (matching CI behavior), checks
-out the base as a detached HEAD (to avoid worktree conflicts), and prints
-a comparison table. Restores the head branch and its dependencies on exit.
+Results are stored as git notes (`refs/notes/benchmarks`) keyed by commit
+SHA. Retrieve with: `git notes --ref=benchmarks show <sha>`
+
+### Compare stored results
+
+```
+bench/compare.sh                          # compare dev vs HEAD
+bench/compare.sh main HEAD               # compare main vs HEAD
+bench/compare.sh abc123 def456           # compare two specific commits
+bench/compare.sh dev HEAD --markdown     # GitHub markdown output
+```
+
+Looks up stored benchmark results for both commits (from git notes).
+If no stored results exist for a commit, exits with instructions.
+
+### Run and compare
+
+```
+bench/run-and-compare.sh                          # run HEAD vs dev
+bench/run-and-compare.sh --base main              # run HEAD vs main
+bench/run-and-compare.sh --head my-branch --base dev
+bench/run-and-compare.sh --filter let100          # pass filter to benchmarks
+```
+
+Runs benchmarks on both commits (using git worktrees for non-HEAD), stores
+results as git notes, then compares.
 
 ## GitHub Actions (`/perf`)
 
 Comment `/perf` on a PR to trigger the benchmark workflow. It will:
 
-1. Post a comment with a link to the running workflow
-2. Build and run benchmarks on both the base and PR branches
-3. Update the comment with a comparison table
+1. Build and run benchmarks on the PR branch
+2. Build and run benchmarks on the base branch
+3. Post a comparison table as a PR comment
 
-The workflow lives at `.github/workflows/perf.yml` and must exist on the
-repo's default branch to be triggered by PR comments.
+The workflow lives at `.github/workflows/perf.yml`.
 
-## Shared scripts
-
-Both local and CI flows use the same underlying scripts:
+## Scripts
 
 | Script | Purpose |
 |:---|:---|
-| `bench/build-and-run.sh` | Install deps, build, run benchmarks (JSON to stdout) |
-| `bench/compare.js` | Compare two JSON result files, group by scenario (`--markdown` for CI) |
-| `bench/run-comparison.sh` | Local orchestration (checkout, run both, compare) |
+| `bench/run.sh` | Run benchmarks, store as git note, display table |
+| `bench/compare.sh` | Look up stored results for two commits and compare |
+| `bench/run-and-compare.sh` | Run benchmarks on two commits (via worktrees), then compare |
+| `bench/build-and-run.sh` | Low-level: install deps, build, run benchmarks (JSON to stdout) |
+| `bench/compare.js` | Low-level: compare two JSON files (`--markdown` for CI) |
+| `bench/format-table.js` | Low-level: format single JSON result file as a table |
