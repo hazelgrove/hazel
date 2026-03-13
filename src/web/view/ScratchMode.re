@@ -276,11 +276,23 @@ module Update = {
       | None => model |> return_quiet
       | Some(new_name) =>
         let new_sp =
-          ListUtil.put_nth(
-            model.current,
-            (new_name, snd(current)),
+          List.exists(
+            element =>
+              switch (element) {
+              | (element_name, _) when element_name == new_name => true
+              | (_, _) => false
+              },
             model.scratchpads,
-          );
+          )
+            ? {
+              JsUtil.alert("There is already a scratchpad with this name!");
+              model.scratchpads;
+            }
+            : ListUtil.put_nth(
+                model.current,
+                (new_name, snd(current)),
+                model.scratchpads,
+              );
         Updated.return({
           ...model,
           scratchpads: new_sp,
