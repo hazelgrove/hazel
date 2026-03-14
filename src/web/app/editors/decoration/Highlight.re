@@ -54,15 +54,20 @@ let multiline_shard =
   )
   |> List.concat;
 
-let of_segment =
+/* Traverse a segment computing per-row measurement and tip data.
+ * We divide/partition the shards into linebreak-separated segments,
+ * then combine the measurements and shapes of the first and last
+ * shard of each segment. Ideally we could just get this info from
+ * the row measurements, but we have no current way of figuring out
+ * shapes for whitespace without traversing */
+let rows_of_segment =
     (
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~font_metrics: FontMetrics.t,
       ~shape_init: ShardDec.tip,
-      ~clss: list(string),
       segment: Segment.t,
-    ) => {
+    )
+    : list((Measured.measurement, (ShardDec.tip, ShardDec.tip))) => {
   let find_g = Measured.find_g(~msg="Highlight.of_piece", _, measured);
   let find_w = Measured.find_w(~msg="Highlight.of_piece", _, measured);
   let rec of_piece =
@@ -137,11 +142,6 @@ let of_segment =
        * edged lines vertical edge placement doesn't account for whether
        * the initial/final rows begin/end as concave/convex, and hence are
        * of slightly different lengths than is desirable */
-      // multiline_shard(
-      //   StringUtil.num_linebreaks(token),
-      //   m,
-      //   (Some(Convex), Some(Convex)),
-      // );
       let num_lb =
         switch (shape.vertical) {
         | Inline => 0
@@ -164,36 +164,255 @@ let of_segment =
     }
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
-    seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten
-  and go = (segment: Segment.t, shape_init: ShardDec.tip, clss): list(Node.t) =>
-    /* We draw a single deco per row by dividing partionining the shards
-     * into linebreak-seperated segments, then combining the measurements
-     * and shapes of the first and last shard of each segment. Ideally we
-     * could just get this info from the row measurements, but we have no
-     * current way of figuring out shapes for whitespace without traversing */
-    of_segment(shape_init, segment)
-    |> ListUtil.split_at_nones
-    |> ListUtil.first_and_last
-    |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
-         (
-           Measured.{
-             origin: m1.origin,
-             last: m2.last,
-           },
-           (l1, r2),
-         )
+    seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten;
+  of_segment(shape_init, segment)
+  |> ListUtil.split_at_nones
+  |> ListUtil.first_and_last
+  |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
+       (
+         Measured.{
+           origin: m1.origin,
+           last: m2.last,
+         },
+         (l1, r2),
        )
-    |> List.map(((measurement, tips)) =>
-         ShardDec.simple(
-           {
-             font_metrics,
-             measurement,
-             tips,
-           },
-           clss,
-         )
-       );
-  go(segment, shape_init, clss);
+     );
+};
+
+/* --- Unified outline path construction ---
+ *
+ * Instead of drawing one SVG per row (which gives per-row outlines when
+ * stroked), we trace a single path around the exterior of all connected
+ * rows, eliminating shared interior edges. The path preserves chevron
+ * nib shapes on every row's left and right edges. */
+
+type row_data = {
+  row_num: int,
+  left_col: int,
+  right_col: int,
+  left_tip: option(Direction.t),
+  right_tip: option(Direction.t),
+};
+
+let row_data_of =
+    (measurement: Measured.measurement, tips: (ShardDec.tip, ShardDec.tip))
+    : row_data => {
+  let (l, r) = tips;
+  {
+    row_num: measurement.origin.row,
+    left_col: measurement.origin.col,
+    right_col: measurement.last.col,
+    left_tip: Option.map(Nib.Shape.direction_of(Left), l),
+    right_tip: Option.map(Nib.Shape.direction_of(Right), r),
+  };
+};
+
+let left_x = (row: row_data): float =>
+  float_of_int(row.left_col) -. ShardDec.shape_adjust(Left, row.left_tip);
+
+let right_x = (row: row_data): float =>
+  float_of_int(row.right_col) -. ShardDec.shape_adjust(Right, row.right_tip);
+
+/* Group rows into connected components (consecutive row_num values) */
+let group_consecutive = (rows: list(row_data)): list(list(row_data)) => {
+  let rec go =
+          (acc_group: list(row_data), acc_groups, remaining)
+          : list(list(row_data)) =>
+    switch (remaining) {
+    | [] =>
+      switch (acc_group) {
+      | [] => List.rev(acc_groups)
+      | _ => List.rev([List.rev(acc_group), ...acc_groups])
+      }
+    | [row, ...rest] =>
+      switch (acc_group) {
+      | [] => go([row], acc_groups, rest)
+      | [prev, ..._] =>
+        if (row.row_num == prev.row_num + 1) {
+          go([row, ...acc_group], acc_groups, rest);
+        } else {
+          go([row], [List.rev(acc_group), ...acc_groups], rest);
+        }
+      }
+    };
+  go([], [], rows);
+};
+
+/* Build a single closed path around a connected group of rows.
+ * Traces clockwise: top edge, right side down (chevrons + steps),
+ * bottom edge, left side up (chevrons + steps). */
+let outline_path =
+    (~origin_col: float, ~origin_row: int, rows: list(row_data))
+    : list(SvgUtil.Path.cmd) => {
+  switch (rows) {
+  | [] => []
+  | [first, ..._] =>
+    let last = ListUtil.last(rows);
+    let n = List.length(rows);
+
+    let lx = (row: row_data) => left_x(row) -. origin_col;
+    let rx = (row: row_data) => right_x(row) -. origin_col;
+    let ty = (row: row_data) => float_of_int(row.row_num - origin_row);
+
+    let top =
+      SvgUtil.Path.[
+        M({
+          x: lx(first),
+          y: ty(first),
+        }),
+        H({x: rx(first)}),
+      ];
+
+    let right_side =
+      rows
+      |> List.mapi((i, row) => {
+           let chevron = ShardDec.chevron(row.right_tip, Right);
+           let step =
+             if (i < n - 1) {
+               let next = List.nth(rows, i + 1);
+               let rx_cur = rx(row);
+               let rx_next = rx(next);
+               if (rx_cur == rx_next) {
+                 [];
+               } else {
+                 [SvgUtil.Path.H({x: rx_next})];
+               };
+             } else {
+               [];
+             };
+           chevron @ step;
+         })
+      |> List.flatten;
+
+    let bottom = [SvgUtil.Path.H({x: lx(last)})];
+
+    let rows_rev = List.rev(rows);
+    let left_side =
+      rows_rev
+      |> List.mapi((i, row) => {
+           let chevron = ShardDec.chevron(row.left_tip, Left);
+           let step =
+             if (i < n - 1) {
+               let next_up = List.nth(rows_rev, i + 1);
+               let lx_cur = lx(row);
+               let lx_next = lx(next_up);
+               if (lx_cur == lx_next) {
+                 [];
+               } else {
+                 [SvgUtil.Path.H({x: lx_next})];
+               };
+             } else {
+               [];
+             };
+           chevron @ step;
+         })
+      |> List.flatten;
+
+    top @ right_side @ bottom @ left_side @ [SvgUtil.Path.Z];
+  };
+};
+
+type bbox = {
+  min_col: float,
+  max_col: float,
+  min_row: int,
+  max_row: int,
+};
+
+let bbox_of = (rows: list(row_data)): option(bbox) =>
+  switch (rows) {
+  | [] => None
+  | [first, ...rest] =>
+    let row_bounds = (row: row_data) => {
+      let l_tip_x =
+        left_x(row) -. abs_float(ShardDec.caret_run(row.left_tip));
+      let r_tip_x =
+        right_x(row) +. abs_float(ShardDec.caret_run(row.right_tip));
+      (min(left_x(row), l_tip_x), max(right_x(row), r_tip_x));
+    };
+    let (l0, r0) = row_bounds(first);
+    Some(
+      List.fold_left(
+        (bb, row) => {
+          let (l, r) = row_bounds(row);
+          {
+            min_col: min(bb.min_col, l),
+            max_col: max(bb.max_col, r),
+            min_row: min(bb.min_row, row.row_num),
+            max_row: max(bb.max_row, row.row_num),
+          };
+        },
+        {
+          min_col: l0,
+          max_col: r0,
+          min_row: first.row_num,
+          max_row: first.row_num,
+        },
+        rest,
+      ),
+    );
+  };
+
+let svg_of_group =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~clss: list(string),
+      rows: list(row_data),
+    )
+    : option(Node.t) =>
+  switch (bbox_of(rows)) {
+  | None => None
+  | Some(bb) =>
+    let width_f = bb.max_col -. bb.min_col;
+    let height = bb.max_row - bb.min_row + 1;
+    let height_f = float_of_int(height);
+
+    let path_cmds =
+      outline_path(~origin_col=bb.min_col, ~origin_row=bb.min_row, rows);
+
+    Some(
+      Node.create_svg(
+        "svg",
+        ~attrs=[
+          Attr.classes(["shard"] @ clss),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
+              bb.min_col *. font_metrics.col_width,
+              float_of_int(bb.min_row) *. font_metrics.row_height,
+              width_f *. font_metrics.col_width,
+              height_f *. font_metrics.row_height,
+            ),
+          ),
+          Attr.create(
+            "viewBox",
+            Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
+          ),
+          Attr.create("preserveAspectRatio", "none"),
+        ],
+        [SvgUtil.Path.view(~attrs=[], path_cmds)],
+      ),
+    );
+  };
+
+/* --- Public API --- */
+
+let of_segment =
+    (
+      ~measured: Measured.t,
+      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~font_metrics: FontMetrics.t,
+      ~shape_init: ShardDec.tip,
+      ~clss: list(string),
+      segment: Segment.t,
+    )
+    : list(Node.t) => {
+  let rows =
+    rows_of_segment(~measured, ~shape_map, ~shape_init, segment)
+    |> List.map(((m, tips)) => row_data_of(m, tips));
+  let groups = group_consecutive(rows);
+  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
 };
 
 let selection =
@@ -215,7 +434,7 @@ let selection =
     ),
   );
 
-// Explands selection to make it a subtree of the exp
+// Expands selection to make it a subtree of the exp
 let selection_expanded =
     (
       ~measured: Measured.t,
