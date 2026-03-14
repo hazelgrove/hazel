@@ -52,46 +52,31 @@ let error_row =
 };
 
 let legend_view =
-    (~has_syntax: bool, ~has_static: bool, ~has_warnings: bool): Node.t => {
+    (categories: list((SidebarModel.Settings.error_category, list('a))))
+    : Node.t => {
   let items =
-    (
-      has_syntax
-        ? [
-          span(
-            ~attrs=[clss(["legend-item"])],
-            [
-              span(~attrs=[clss(["legend-swatch", "syntax"])], []),
-              text("Syntax"),
-            ],
-          ),
-        ]
-        : []
-    )
-    @ (
-      has_static
-        ? [
-          span(
-            ~attrs=[clss(["legend-item"])],
-            [
-              span(~attrs=[clss(["legend-swatch", "static"])], []),
-              text("Static"),
-            ],
-          ),
-        ]
-        : []
-    )
-    @ (
-      has_warnings
-        ? [
-          span(
-            ~attrs=[clss(["legend-item"])],
-            [
-              span(~attrs=[clss(["legend-swatch", "warning"])], []),
-              text("Warning"),
-            ],
-          ),
-        ]
-        : []
+    List.filter_map(
+      ((cat, rows)) =>
+        rows != []
+          ? Some(
+              span(
+                ~attrs=[clss(["legend-item"])],
+                [
+                  span(
+                    ~attrs=[
+                      clss([
+                        "legend-swatch",
+                        SidebarModel.Settings.category_cls(cat),
+                      ]),
+                    ],
+                    [],
+                  ),
+                  text(SidebarModel.Settings.category_short_label(cat)),
+                ],
+              ),
+            )
+          : None,
+      categories,
     );
   div(~attrs=[clss(["error-legend"])], items);
 };
@@ -112,11 +97,8 @@ let section_view =
     @ (collapsed ? [] : items),
   );
 
-type categorized_errors = {
-  syntax: list((int, Node.t)),
-  static: list((int, Node.t)),
-  warnings: list((int, Node.t)),
-};
+type categorized_errors =
+  list((SidebarModel.Settings.error_category, list((int, Node.t))));
 
 let collect_errors =
     (
@@ -230,11 +212,14 @@ let collect_errors =
   /* Combine and sort syntax rows */
   let sort_tagged = rows =>
     List.sort(((a, _), (b, _)) => compare(a, b), rows);
-  {
-    syntax: grout_rows @ incomplete_rows @ syntax_info_rows |> sort_tagged,
-    static: static_rows |> sort_tagged,
-    warnings: warning_rows |> sort_tagged,
-  };
+  [
+    (
+      SidebarModel.Settings.Syntax,
+      grout_rows @ incomplete_rows @ syntax_info_rows |> sort_tagged,
+    ),
+    (Static, static_rows |> sort_tagged),
+    (Warning, warning_rows |> sort_tagged),
+  ];
 };
 
 let view =
@@ -249,12 +234,9 @@ let view =
     | Some(ci) => Some(Language.Info.id_of(ci))
     | None => None
     };
-  let {syntax, static, warnings} =
-    collect_errors(~globals, ~cursor_id, ~editor);
-  let syntax_rows = List.map(snd, syntax);
-  let static_rows = List.map(snd, static);
-  let warning_rows = List.map(snd, warnings);
+  let categories = collect_errors(~globals, ~cursor_id, ~editor);
   let errors_settings = globals.settings.sidebar.errors;
+  let has_any_errors = List.exists(((_, rows)) => rows != [], categories);
   let toggle_view =
     div(
       ~attrs=[clss(["error-view-toggle"])],
@@ -293,81 +275,48 @@ let view =
     );
   div(
     ~attrs=[clss(["errors-panel"])],
-    switch (syntax_rows, static_rows, warning_rows) {
-    | ([], [], []) => [
+    if (!has_any_errors) {
+      [
         div(
           ~attrs=[clss(["no-errors-message"])],
           [text("No errors or warnings")],
         ),
-      ]
-    | _ =>
-      [
-        legend_view(
-          ~has_syntax=syntax_rows != [],
-          ~has_static=static_rows != [],
-          ~has_warnings=warning_rows != [],
-        ),
-        toggle_view,
-      ]
+      ];
+    } else {
+      [legend_view(categories), toggle_view]
       @ (
         if (errors_settings.flat) {
           let sort_tagged = rows =>
             List.sort(((a, _), (b, _)) => compare(a, b), rows);
-          syntax @ static @ warnings |> sort_tagged |> List.map(snd);
+          List.concat_map(snd, categories) |> sort_tagged |> List.map(snd);
         } else {
-          (
-            syntax_rows != []
-              ? [
-                section_view(
-                  ~title="Syntax Errors",
-                  ~cls="syntax-errors",
-                  ~collapsed=errors_settings.syntax_collapsed,
-                  ~on_toggle=
-                    _ =>
-                      globals.inject_global(
-                        Set(Sidebar(Errors(ToggleSyntaxCollapsed))),
-                      ),
-                  syntax_rows,
-                ),
-              ]
-              : []
-          )
-          @ (
-            static_rows != []
-              ? [
-                section_view(
-                  ~title="Static Errors",
-                  ~cls="static-errors",
-                  ~collapsed=errors_settings.static_collapsed,
-                  ~on_toggle=
-                    _ =>
-                      globals.inject_global(
-                        Set(Sidebar(Errors(ToggleStaticCollapsed))),
-                      ),
-                  static_rows,
-                ),
-              ]
-              : []
-          )
-          @ (
-            warning_rows != []
-              ? [
-                section_view(
-                  ~title="Warnings",
-                  ~cls="warning-errors",
-                  ~collapsed=errors_settings.warnings_collapsed,
-                  ~on_toggle=
-                    _ =>
-                      globals.inject_global(
-                        Set(Sidebar(Errors(ToggleWarningsCollapsed))),
-                      ),
-                  warning_rows,
-                ),
-              ]
-              : []
+          List.filter_map(
+            ((cat, tagged)) => {
+              let rows = List.map(snd, tagged);
+              rows != []
+                ? Some(
+                    section_view(
+                      ~title=SidebarModel.Settings.category_label(cat),
+                      ~cls=SidebarModel.Settings.category_section_cls(cat),
+                      ~collapsed=
+                        SidebarModel.Settings.is_collapsed(
+                          cat,
+                          errors_settings,
+                        ),
+                      ~on_toggle=
+                        _ =>
+                          globals.inject_global(
+                            Set(Sidebar(Errors(ToggleCollapsed(cat)))),
+                          ),
+                      rows,
+                    ),
+                  )
+                : None;
+            },
+            categories,
           );
         }
-      )
+      );
     },
   );
 };

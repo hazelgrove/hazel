@@ -58,9 +58,7 @@ module Model = {
       panel: LanguageDocumentation,
       show: true,
       errors: {
-        syntax_collapsed: false,
-        static_collapsed: false,
-        warnings_collapsed: false,
+        collapsed: [],
         flat: false,
       },
     },
@@ -281,34 +279,15 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
-      | Sidebar(Errors(ToggleSyntaxCollapsed)) => {
+      | Sidebar(Errors(ToggleCollapsed(cat))) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            errors: {
-              ...settings.sidebar.errors,
-              syntax_collapsed: !settings.sidebar.errors.syntax_collapsed,
-            },
-          },
-        }
-      | Sidebar(Errors(ToggleStaticCollapsed)) => {
-          ...settings,
-          sidebar: {
-            ...settings.sidebar,
-            errors: {
-              ...settings.sidebar.errors,
-              static_collapsed: !settings.sidebar.errors.static_collapsed,
-            },
-          },
-        }
-      | Sidebar(Errors(ToggleWarningsCollapsed)) => {
-          ...settings,
-          sidebar: {
-            ...settings.sidebar,
-            errors: {
-              ...settings.sidebar.errors,
-              warnings_collapsed: !settings.sidebar.errors.warnings_collapsed,
-            },
+            errors:
+              SidebarModel.Settings.toggle_collapsed(
+                cat,
+                settings.sidebar.errors,
+              ),
           },
         }
       | Sidebar(Errors(ToggleFlat)) => {
