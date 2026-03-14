@@ -532,14 +532,15 @@ let ana_is_prod = (code: string): bool =>
 let reification_tests = (
   "TyDiScaffold.Reification",
   [
-    /* After scaffold: f(1▎⟨, ?⟩ → statics sees Tuple([1, ⬚])
-     * ana at 1 should be Int (decomposed from Prod([Int, String])) */
-    test_case("Reified ana: first elem is Int", `Quick, () =>
+    /* After scaffold: f(1▎⟨, ?⟩ → the comma (buffer piece) gets
+     * indicated via concave-left-nib rule. The comma is the tuple
+     * separator, so its ana is the full Prod type. */
+    test_case("After first arg: comma indicated, ana is Prod", `Quick, () =>
       check(
         testable(Fmt.bool, Bool.equal),
-        "ana should be Int",
+        "ana should be Prod (comma indicated)",
         true,
-        ana_is_int("let f : (Int, String) -> Int = fun x -> 0 in f(1¦"),
+        ana_is_prod("let f : (Int, String) -> Int = fun x -> 0 in f(1¦"),
       )
     ),
     /* Without scaffold, ana at 1 would be Prod([Int, String]) */
@@ -549,6 +550,16 @@ let reification_tests = (
         "ana without scaffold should be Prod",
         true,
         ana_is_prod("let f : Int -> Bool = fun x -> true in f(1¦") |> (!) /* No scaffold for non-Prod → ana is NOT Prod */
+      )
+    ),
+    /* At f(¦ with scaffold ⟨?, , ?⟩: ci_of should show the first
+     * buffer grout's type (Int), not the application or Prod type */
+    test_case("Empty paren: ci_of shows first arg type", `Quick, () =>
+      check(
+        testable(Fmt.bool, Bool.equal),
+        "ana at f( should be Int (first arg)",
+        true,
+        ana_is_int("let f : (Int, String) -> Int = fun x -> 0 in f(¦"),
       )
     ),
   ],

@@ -132,7 +132,8 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
 };
 
 /* Convert buffer segment pieces to a display string.
- * Comment text is kept as-is, Grout becomes ?. */
+ * Comment text is kept as-is, Grout becomes ?,
+ * structural label/operator tiles show their token. */
 let buffer_to_string = (seg: Segment.t): string =>
   String.concat(
     "",
@@ -142,7 +143,7 @@ let buffer_to_string = (seg: Segment.t): string =>
         | Secondary({content: Comment(s), _}) => s
         | Secondary({content: Whitespace(s), _}) => s
         | Grout(_) => "?"
-        | Tile({label: [","], _}) => ","
+        | Tile({label: [tok], _}) => tok
         | _ => ""
         },
       seg,

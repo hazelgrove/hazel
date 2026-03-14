@@ -46,11 +46,11 @@ let is_scaffold = (z: Zipper.t): bool =>
   };
 
 /* Extract insertable text from a scaffold buffer segment.
- * Keeps commas and label prefixes (e.g. "x=") — both are
+ * Keeps commas, label names, and label = operators — all are
  * syntactically meaningful for tuple structure.
- * Skips Grout (holes), Whitespace, and non-comma Tiles.
+ * Skips Grout (holes), Whitespace, and non-label/non-comma Tiles.
  * e.g. [,, " ", ?]  => ","
- *      [,, " ", y=, ?] => ",y="  */
+ *      [,, " ", x, =, ?] => ",x="  */
 let insertable = (content: Segment.t): Token.t =>
   String.concat(
     "",
@@ -70,6 +70,14 @@ let insertable = (content: Segment.t): Token.t =>
           let stripped = Stdlib.Buffer.contents(buf);
           stripped == "" ? None : Some(stripped);
         | Tile({label: [","], _}) => Some(",")
+        | Tile({label: ["="], _}) => Some("=")
+        | Tile({
+            label: [tok],
+            mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+            _,
+          }) =>
+          /* Operand tile: label name token */
+          Some(tok)
         | _ => None
         },
       content,
@@ -108,11 +116,6 @@ let mk_segment =
       remaining: int,
     )
     : Segment.t => {
-  let mk_comment = (s: string): Piece.t =>
-    Secondary({
-      id: Id.mk(),
-      content: Comment(s),
-    });
   let mk_space = (): Piece.t =>
     Secondary({
       id: Id.mk(),
@@ -126,7 +129,16 @@ let mk_segment =
   let mk_comma = (): Piece.t => Piece.mk_tile(Form.get(CommaExp), []);
   let mk_label_prefix = (i: int): list(Piece.t) =>
     switch (List.nth_opt(labels, i)) {
-    | Some(Some(name)) => [mk_comment(name ++ "=")]
+    | Some(Some(name)) => [
+        Tile({
+          id: Id.mk(),
+          label: [Token.quote_label_when_necessary(name)],
+          mold: Mold.mk_op(Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+        Piece.mk_tile(Form.get(TupleLabeledExp), []),
+      ]
     | _ => []
     };
   if (holes_first) {
@@ -488,13 +500,49 @@ let set = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
     Zipper.set_buffer(z, ~content, ~mode=Unparsed);
   };
 
+/* Split buffer content into leading completion text (Comment pieces)
+ * and the structural scaffold remainder (commas, labels, grout). */
+let split_leading_comments = (content: Segment.t): (string, Segment.t) => {
+  let rec go = (acc_text, pieces) =>
+    switch (pieces) {
+    | [Piece.Secondary({content: Comment(s), _}), ...rest] =>
+      go(acc_text ++ s, rest)
+    | _ => (acc_text, pieces)
+    };
+  go("", content);
+};
+
 let reify = (z: Zipper.t): Zipper.t =>
   if (is_scaffold(z)) {
-    let text = insertable(z.selection.content);
+    let (leading_text, structural) =
+      split_leading_comments(z.selection.content);
+    /* Clear the buffer */
     let z = Zipper.clear_unparsed_buffer(z);
-    switch (Parser.to_zipper(~zipper_init=z, text)) {
-    | Some(z) => z
-    | None => z
+    /* Handle any leading completion text via Parser (appends to left token) */
+    let z =
+      switch (leading_text) {
+      | "" => z
+      | text =>
+        switch (Parser.to_zipper(~zipper_init=z, text)) {
+        | Some(z) => z
+        | None => z
+        }
+      };
+    /* Splice structural scaffold pieces directly, preserving IDs.
+     * Set as a Normal selection with focus=Left (buffer convention)
+     * so unselect places content to the right of the caret. */
+    switch (structural) {
+    | [] => z
+    | _ =>
+      let z = {
+        ...z,
+        selection: {
+          content: structural,
+          mode: Normal,
+          focus: Left,
+        },
+      };
+      Zipper.directional_unselect(Left, z);
     };
   } else {
     z;

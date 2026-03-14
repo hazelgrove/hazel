@@ -200,23 +200,13 @@ module Update = {
           && settings.statics) {
         let zipper = editor.state.zipper;
         switch (TyDi.get_unparsed_buffer(zipper)) {
-        | Some(buf) =>
-          print_endline(
-            "[scaffold-refresh] skipped: buffer already set (" ++ buf ++ ")",
-          );
-          editor;
+        | Some(_) => editor
         | None =>
           let scaffold =
             TyDiScaffold.display(~info_map=statics.info_map, zipper);
           switch (scaffold) {
-          | None =>
-            print_endline("[scaffold-refresh] no scaffold applies");
-            editor;
+          | None => editor
           | Some(content) =>
-            print_endline(
-              "[scaffold-refresh] setting scaffold: "
-              ++ TyDiScaffold.segment_to_string(content),
-            );
             let zipper = Zipper.set_buffer(zipper, ~content, ~mode=Unparsed);
             let syntax = CachedSyntax.mark_old(editor.syntax);
             let syntax =
@@ -236,14 +226,6 @@ module Update = {
           };
         };
       } else {
-        if (statics_refreshed && !is_edited) {
-          print_endline(
-            "[scaffold-refresh] skipped: assist="
-            ++ string_of_bool(settings.assist)
-            ++ " statics="
-            ++ string_of_bool(settings.statics),
-          );
-        };
         editor;
       };
     {
