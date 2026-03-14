@@ -2390,6 +2390,85 @@ let segment_cache_tests = [
   ),
 ];
 
+/* ===== REMOLD SORT TESTS =====
+   These test that tile mold sorts remain correct after editing operations.
+   The bug: editing inside a child segment (e.g., inserting a space inside
+   parentheses in type position) can cause the parentheses to be remolded
+   as Exp instead of Typ. */
+
+/* Recursively find all tiles with a given label in a segment. */
+let rec find_tiles_by_label =
+        (label: list(string), seg: Segment.t): list(Tile.t) =>
+  List.concat_map(
+    fun
+    | Piece.Tile(t) => {
+        let matches = t.label == label ? [t] : [];
+        let child_matches =
+          List.concat_map(find_tiles_by_label(label), t.children);
+        matches @ child_matches;
+      }
+    | _ => [],
+    seg,
+  );
+
+let remold_sort_tests = [
+  /* BUG: Type `1:(Int)`, place caret inside parens at `1:(Int|)`,
+   * press space. The parentheses should remain molded as Typ (they
+   * are in the type position of an ascription), but they get
+   * incorrectly remolded as Exp. */
+  test_case(
+    "Remold: space inside type parens preserves Typ sort",
+    `Quick,
+    () => {
+      let z = mk({|1:(Int¦)|}) @ [Insert(" ")] |> perform(Zipper.init());
+      let seg = Zipper.zip(z);
+      let paren_tiles = find_tiles_by_label(["(", ")"], seg);
+      switch (paren_tiles) {
+      | [] => Alcotest.fail("No paren tiles found in segment")
+      | _ =>
+        List.iter(
+          (t: Tile.t) =>
+            if (t.mold.out != Sort.Typ) {
+              Alcotest.fail(
+                Printf.sprintf(
+                  "Paren tile has mold.out=%s, expected Typ",
+                  Sort.show(t.mold.out),
+                ),
+              );
+            },
+          paren_tiles,
+        )
+      };
+    },
+  ),
+  /* Baseline: the same program without the space edit should have Typ parens. */
+  test_case(
+    "Baseline: type parens in 1:(Int) have Typ sort",
+    `Quick,
+    () => {
+      let z = mk({|1:(Int¦)|}) |> perform(Zipper.init());
+      let seg = Zipper.zip(z);
+      let paren_tiles = find_tiles_by_label(["(", ")"], seg);
+      switch (paren_tiles) {
+      | [] => Alcotest.fail("No paren tiles found in segment")
+      | _ =>
+        List.iter(
+          (t: Tile.t) =>
+            if (t.mold.out != Sort.Typ) {
+              Alcotest.fail(
+                Printf.sprintf(
+                  "Paren tile has mold.out=%s, expected Typ",
+                  Sort.show(t.mold.out),
+                ),
+              );
+            },
+          paren_tiles,
+        )
+      };
+    },
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -2401,4 +2480,5 @@ let tests = [
   ("Editing.Module", module_tests),
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
+  ("Editing.RemoldSort", remold_sort_tests),
 ];

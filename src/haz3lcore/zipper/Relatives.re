@@ -113,7 +113,25 @@ let remold_parent = (ancestors: Ancestors.t): Ancestors.t =>
   switch (ancestors) {
   | [] => []
   | [(a, sibs), ...rest] =>
-    let sort = Ancestors.sort(rest);
+    let outer_sort = Ancestors.sort(rest);
+    let (pre, _) = sibs;
+    let sort = {
+      let rec find_last_tile = (
+        fun
+        | [] => None
+        | [p, ...rest] =>
+          switch (Piece.is_tile(p)) {
+          | Some(t) => Some(t)
+          | None => find_last_tile(rest)
+          }
+      );
+      switch (find_last_tile(List.rev(pre))) {
+      | None => outer_sort
+      | Some(t) =>
+        let (_, r) = Tile.nibs(t);
+        r.sort;
+      };
+    };
     switch (Form.Molds.try_get(sort, a.label)) {
     | None
     | Some([_]) => [(a, sibs), ...rest]
