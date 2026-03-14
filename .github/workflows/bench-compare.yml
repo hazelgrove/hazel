@@ -1,0 +1,169 @@
+name: Benchmark Comparison
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  compare:
+    # Trigger on comments like: /bench-compare abc1234 def5678
+    if: >
+      contains(github.event.comment.body, '/bench-compare')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Parse commit SHAs from comment
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.comment.body;
+            const match = body.match(/\/bench-compare\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)/);
+            if (!match) {
+              core.setFailed('Could not parse two commit SHAs from comment. Expected: /bench-compare <sha1> <sha2>');
+              return;
+            }
+            core.setOutput('base_sha', match[1]);
+            core.setOutput('head_sha', match[2]);
+
+      - name: Post in-progress comment
+        id: status_comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const baseSha = '${{ steps.parse.outputs.base_sha }}'.slice(0, 7);
+            const headSha = '${{ steps.parse.outputs.head_sha }}'.slice(0, 7);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: comment } = await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## Benchmark Comparison\n\n:hourglass_flowing_sand: Comparing \`${baseSha}\` vs \`${headSha}\`... [View workflow](${runUrl})`
+            });
+            core.setOutput('comment_id', comment.id);
+
+      - name: Download base benchmark artifact
+        id: dl_base
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ steps.parse.outputs.base_sha }}';
+
+            // List artifacts matching the bench- prefix for this SHA
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: `bench-${sha}`,
+              per_page: 1,
+            });
+
+            if (artifacts.data.total_count === 0) {
+              core.setFailed(`No benchmark artifact found for commit ${sha}. Make sure benchmarks ran on that commit.`);
+              return;
+            }
+
+            const artifact = artifacts.data.artifacts[0];
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+            });
+
+            const fs = require('fs');
+            fs.writeFileSync('base_artifact.zip', Buffer.from(download.data));
+            core.info(`Downloaded base artifact: ${artifact.name} (id: ${artifact.id})`);
+
+      - name: Download head benchmark artifact
+        id: dl_head
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ steps.parse.outputs.head_sha }}';
+
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: `bench-${sha}`,
+              per_page: 1,
+            });
+
+            if (artifacts.data.total_count === 0) {
+              core.setFailed(`No benchmark artifact found for commit ${sha}. Make sure benchmarks ran on that commit.`);
+              return;
+            }
+
+            const artifact = artifacts.data.artifacts[0];
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+            });
+
+            const fs = require('fs');
+            fs.writeFileSync('head_artifact.zip', Buffer.from(download.data));
+            core.info(`Downloaded head artifact: ${artifact.name} (id: ${artifact.id})`);
+
+      - name: Extract artifacts
+        run: |
+          mkdir -p base_dir head_dir
+          unzip -o base_artifact.zip -d base_dir
+          unzip -o head_artifact.zip -d head_dir
+
+      - name: Checkout bench/compare.js
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: bench/compare.js
+          sparse-checkout-cone-mode: false
+
+      - name: Compare and post results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+
+            const baseSha = '${{ steps.parse.outputs.base_sha }}'.slice(0, 7);
+            const headSha = '${{ steps.parse.outputs.head_sha }}'.slice(0, 7);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            let body = `## Benchmark Comparison\n\n`;
+            body += `**Base:** [\`${baseSha}\`](../commit/${{ steps.parse.outputs.base_sha }})\n`;
+            body += `**Head:** [\`${headSha}\`](../commit/${{ steps.parse.outputs.head_sha }})\n\n`;
+
+            try {
+              const table = execSync(
+                'node bench/compare.js base_dir/results.json head_dir/results.json --markdown',
+                { encoding: 'utf8' }
+              );
+              body += table;
+            } catch (e) {
+              body += `:x: Comparison failed. Check the [workflow log](${runUrl}).\n\n`;
+              body += `\`\`\`\n${e.stderr || e.message}\n\`\`\``;
+            }
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ steps.status_comment.outputs.comment_id }},
+              body: body
+            });
+
+      - name: Update comment on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentId = '${{ steps.status_comment.outputs.comment_id }}';
+            if (!commentId) return;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: parseInt(commentId),
+              body: `## Benchmark Comparison\n\n:x: Failed. Check the [workflow log](${runUrl}).`
+            });
