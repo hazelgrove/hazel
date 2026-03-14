@@ -7,7 +7,20 @@ let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
 
 let error_status_view = (~globals, ci: Language.Info.t): Node.t =>
-  div(CursorInspector.view_of_info(~globals, ci));
+  switch (ci) {
+  | InfoExp({cls, status, _} as ie) =>
+    CursorInspector.exp_view(~globals, cls, status, ie)
+  | InfoPat({cls, status, _} as ip) =>
+    CursorInspector.pat_view(~globals, cls, status, ip)
+  | InfoTyp({cls, status, _}) =>
+    CursorInspector.typ_view(~globals, cls, status)
+  | InfoTPat({cls, status, _}) =>
+    CursorInspector.tpat_view(~globals, cls, status)
+  | Secondary(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_) => div([])
+  };
 
 let line_num_view = (id: Id.t, measured: Haz3lcore.Measured.t): Node.t =>
   switch (Haz3lcore.Measured.find_by_id(id, measured)) {
@@ -91,6 +104,13 @@ let legend_view: Node.t =
         [
           span(~attrs=[clss(["legend-swatch", "static"])], []),
           text("Static"),
+        ],
+      ),
+      span(
+        ~attrs=[clss(["legend-item"])],
+        [
+          span(~attrs=[clss(["legend-swatch", "warning"])], []),
+          text("Warning"),
         ],
       ),
     ],
@@ -233,14 +253,41 @@ let view =
       error_ids,
       ([], []),
     );
+  /* Collect warnings (respecting display_warnings setting) */
+  let warning_ids =
+    globals.settings.core.display_warnings ? editor.statics.warning_ids : [];
+  let warning_ids =
+    List.sort((a, b) => compare(pos(a), pos(b)), warning_ids);
+  let warning_rows =
+    List.filter_map(
+      id =>
+        switch (Language.Statics.Map.lookup(id, info_map)) {
+        | Some(ci) when Language.Info.is_warning(ci) =>
+          Some((
+            pos(id),
+            error_row(
+              ~globals,
+              ~cursor_id,
+              ~measured,
+              ~error_cls="error-warning",
+              id,
+              ci,
+            ),
+          ))
+        | _ => None
+        },
+      warning_ids,
+    );
   /* Combine and sort syntax rows */
   let sort_tagged = rows =>
     List.sort(((a, _), (b, _)) => compare(a, b), rows);
   let syntax_tagged =
     grout_rows @ incomplete_rows @ syntax_info_rows |> sort_tagged;
   let static_tagged = static_rows |> sort_tagged;
+  let warning_tagged = warning_rows |> sort_tagged;
   let syntax_rows = List.map(snd, syntax_tagged);
   let static_rows = List.map(snd, static_tagged);
+  let warning_rows = List.map(snd, warning_tagged);
   let errors_flat = globals.settings.sidebar.errors_flat;
   let toggle_view =
     div(
@@ -276,15 +323,22 @@ let view =
     );
   div(
     ~attrs=[clss(["errors-panel"])],
-    switch (syntax_rows, static_rows) {
-    | ([], []) => [
-        div(~attrs=[clss(["no-errors-message"])], [text("No errors")]),
+    switch (syntax_rows, static_rows, warning_rows) {
+    | ([], [], []) => [
+        div(
+          ~attrs=[clss(["no-errors-message"])],
+          [text("No errors or warnings")],
+        ),
       ]
     | _ =>
       [legend_view, toggle_view]
       @ (
         if (errors_flat) {
-          syntax_tagged @ static_tagged |> sort_tagged |> List.map(snd);
+          syntax_tagged
+          @ static_tagged
+          @ warning_tagged
+          |> sort_tagged
+          |> List.map(snd);
         } else {
           (
             syntax_rows != []
@@ -316,6 +370,23 @@ let view =
                         Set(Sidebar(ToggleStaticCollapsed)),
                       ),
                   static_rows,
+                ),
+              ]
+              : []
+          )
+          @ (
+            warning_rows != []
+              ? [
+                section_view(
+                  ~title="Warnings",
+                  ~cls="warning-errors",
+                  ~collapsed=globals.settings.sidebar.warnings_collapsed,
+                  ~on_toggle=
+                    _ =>
+                      globals.inject_global(
+                        Set(Sidebar(ToggleWarningsCollapsed)),
+                      ),
+                  warning_rows,
                 ),
               ]
               : []

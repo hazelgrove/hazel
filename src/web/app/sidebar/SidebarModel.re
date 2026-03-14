@@ -15,6 +15,7 @@ module Settings = {
     panel,
     syntax_collapsed: bool,
     static_collapsed: bool,
+    warnings_collapsed: bool,
     errors_flat: bool,
   };
 
@@ -24,5 +25,6 @@ module Settings = {
     | SwitchPanel(panel)
     | ToggleSyntaxCollapsed
     | ToggleStaticCollapsed
+    | ToggleWarningsCollapsed
     | ToggleErrorsFlat;
 };

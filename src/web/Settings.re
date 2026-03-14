@@ -59,6 +59,7 @@ module Model = {
       show: true,
       syntax_collapsed: false,
       static_collapsed: false,
+      warnings_collapsed: false,
       errors_flat: false,
     },
     agent_globals: AgentGlobals.init(),
@@ -290,6 +291,13 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             static_collapsed: !settings.sidebar.static_collapsed,
+          },
+        }
+      | Sidebar(ToggleWarningsCollapsed) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            warnings_collapsed: !settings.sidebar.warnings_collapsed,
           },
         }
       | Sidebar(ToggleErrorsFlat) => {
