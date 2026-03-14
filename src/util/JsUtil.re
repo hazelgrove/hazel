@@ -183,6 +183,37 @@ let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
     container##.scrollTop := int_of_float(target);
   };
 
+let last_active_error: ref(option(Js.t(Dom_html.element))) = ref(None);
+
+let scroll_active_error_into_view = () =>
+  try({
+    let el =
+      Dom_html.document##querySelector(Js.string(".error-row.active"));
+    let current = Js.Opt.to_option(el);
+    let changed =
+      switch (last_active_error^, current) {
+      | (None, None) => false
+      | (Some(_), None)
+      | (None, Some(_)) => true
+      | (Some(a), Some(b)) => a !== b
+      };
+    if (changed) {
+      last_active_error := current;
+      switch (current) {
+      | Some(el) =>
+        Js.Unsafe.coerce(el)##scrollIntoView(
+          Js.Unsafe.obj([|
+            ("block", Js.Unsafe.inject(Js.string("nearest"))),
+            ("inline", Js.Unsafe.inject(Js.string("nearest"))),
+          |]),
+        )
+      | None => ()
+      };
+    };
+  }) {
+  | _ => ()
+  };
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");

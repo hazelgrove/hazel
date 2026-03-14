@@ -57,6 +57,9 @@ module Model = {
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
+      syntax_collapsed: false,
+      static_collapsed: false,
+      errors_flat: false,
     },
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -267,11 +270,33 @@ module Update = {
       | Sidebar(SwitchPanel(windowToSwitchTo)) => {
           ...settings,
           sidebar: {
+            ...settings.sidebar,
             show:
               !settings.sidebar.show
                 ? true
                 : settings.sidebar.panel == windowToSwitchTo ? false : true,
             panel: windowToSwitchTo,
+          },
+        }
+      | Sidebar(ToggleSyntaxCollapsed) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            syntax_collapsed: !settings.sidebar.syntax_collapsed,
+          },
+        }
+      | Sidebar(ToggleStaticCollapsed) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            static_collapsed: !settings.sidebar.static_collapsed,
+          },
+        }
+      | Sidebar(ToggleErrorsFlat) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            errors_flat: !settings.sidebar.errors_flat,
           },
         }
       | ExplainThis(ToggleShowFeedback) => {

@@ -99,3 +99,142 @@
   z-index: 1000; /* Ensure resize handle is above other content */
   pointer-events: auto;
 }
+
+/* Errors Panel */
+
+.errors-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5em;
+  gap: 0.25em;
+  overflow-y: auto;
+}
+
+.error-section-header {
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0.5em;
+  user-select: none;
+}
+
+.error-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.5em;
+  padding-left: 0.75em;
+  margin-bottom: 3px;
+  border-bottom: 1px solid var(--BR2);
+  border-left: 3px solid color-mix(in srgb, var(--R1) 40%, transparent);
+  background-color: color-mix(in srgb, var(--R0) 50%, transparent);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.error-line-num {
+  font-family: var(--mono-font);
+  font-size: 0.85em;
+  color: var(--TXT2);
+  min-width: 2.5em;
+  flex-shrink: 0;
+}
+
+.error-row:hover {
+  background-color: var(--R0);
+  filter: brightness(0.95);
+}
+
+.error-row.active {
+  border-left: 5px solid var(--R2);
+  background-color: var(--ci-status-error-bkg);
+  box-shadow: inset 0 0 0 1px var(--R1);
+  font-weight: 600;
+}
+
+.syntax-errors .error-row,
+.error-row.error-syntax {
+  border-left: 3px solid color-mix(in srgb, var(--Y1) 60%, transparent);
+  background-color: color-mix(in srgb, var(--Y0) 50%, transparent);
+}
+
+.syntax-errors .error-row:hover,
+.error-row.error-syntax:hover {
+  background-color: var(--Y0);
+}
+
+.syntax-errors .error-row.active,
+.error-row.error-syntax.active {
+  border-left: 5px solid var(--Y2);
+  background-color: color-mix(in srgb, var(--Y0) 80%, transparent);
+  box-shadow: inset 0 0 0 1px var(--Y1);
+}
+
+.error-description {
+  font-size: 0.9em;
+}
+
+.error-legend {
+  display: flex;
+  gap: 0.75em;
+  padding: 0.4em 0.5em;
+  border-bottom: 1px solid var(--BR2);
+  font-size: 0.8em;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.legend-swatch.syntax {
+  background-color: var(--Y1);
+}
+
+.legend-swatch.static {
+  background-color: var(--R1);
+}
+
+.error-view-toggle {
+  display: flex;
+  gap: 0;
+  padding: 0.25em 0.5em;
+  border-bottom: 1px solid var(--BR2);
+}
+
+.toggle-option {
+  padding: 0.2em 0.6em;
+  font-size: 0.8em;
+  cursor: pointer;
+  border: 1px solid var(--BR2);
+  user-select: none;
+  color: var(--TXT2);
+  background: transparent;
+}
+
+.toggle-option:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+.toggle-option:last-child {
+  border-radius: 0 3px 3px 0;
+  border-left: none;
+}
+
+.toggle-option.active {
+  background-color: var(--BR2);
+  color: var(--TXT1);
+  font-weight: 600;
+}
+
+.no-errors-message {
+  text-align: center;
+  color: var(--BR3);
+  padding: 1em;
+}

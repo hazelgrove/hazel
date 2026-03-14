@@ -82,6 +82,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let errors_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Errors,
+    ~cls=["errors-button"],
+    ~icon=Icons.magnify,
+    ~tooltip="Switch to Errors Panel",
+    ~globals,
+  );
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -102,6 +111,7 @@ let persistent_view = (~globals: Globals.t) =>
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
+          errors_tab(~globals),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
@@ -238,6 +248,7 @@ let view =
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )
+            | Errors => ErrorSidebar.view(~globals, ~cursor, ~editor)
             },
           ],
         )
