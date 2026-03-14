@@ -37,84 +37,64 @@ let error_row =
       ~globals: Globals.t,
       ~cursor_id: option(Id.t),
       ~measured: Haz3lcore.Measured.t,
-      ~error_cls: string,
+      ~cls: string,
       id: Id.t,
-      ci: Language.Info.t,
+      content: Node.t,
     )
     : Node.t => {
   let is_active =
-    switch (cursor_id) {
-    | Some(cid) => Id.equal(cid, id)
-    | None => false
-    };
-  let classes = ["error-row", error_cls] @ (is_active ? ["active"] : []);
+    Option.map(Id.equal(id), cursor_id) |> Option.value(~default=false);
+  let classes = ["error-row", cls] @ (is_active ? ["active"] : []);
   div(
     ~attrs=[clss(classes), Attr.on_pointerdown(jump_to(~globals, id))],
-    [line_num_view(id, measured), error_status_view(~globals, ci)],
+    [line_num_view(id, measured), content],
   );
 };
 
-let syntax_error_row =
+let legend_view =
+    (~has_syntax: bool, ~has_static: bool, ~has_warnings: bool): Node.t => {
+  let items =
     (
-      ~globals: Globals.t,
-      ~cursor_id: option(Id.t),
-      ~measured: Haz3lcore.Measured.t,
-      id: Id.t,
-      description: string,
+      has_syntax
+        ? [
+          span(
+            ~attrs=[clss(["legend-item"])],
+            [
+              span(~attrs=[clss(["legend-swatch", "syntax"])], []),
+              text("Syntax"),
+            ],
+          ),
+        ]
+        : []
     )
-    : Node.t => {
-  let is_active =
-    switch (cursor_id) {
-    | Some(cid) => Id.equal(cid, id)
-    | None => false
-    };
-  let classes =
-    ["error-row", "error-syntax"] @ (is_active ? ["active"] : []);
-  div(
-    ~attrs=[clss(classes), Attr.on_pointerdown(jump_to(~globals, id))],
-    [
-      line_num_view(id, measured),
-      span(~attrs=[clss(["error-description"])], [text(description)]),
-    ],
-  );
+    @ (
+      has_static
+        ? [
+          span(
+            ~attrs=[clss(["legend-item"])],
+            [
+              span(~attrs=[clss(["legend-swatch", "static"])], []),
+              text("Static"),
+            ],
+          ),
+        ]
+        : []
+    )
+    @ (
+      has_warnings
+        ? [
+          span(
+            ~attrs=[clss(["legend-item"])],
+            [
+              span(~attrs=[clss(["legend-swatch", "warning"])], []),
+              text("Warning"),
+            ],
+          ),
+        ]
+        : []
+    );
+  div(~attrs=[clss(["error-legend"])], items);
 };
-
-let is_syntax_error = (ci: Language.Info.t): bool =>
-  switch (ci) {
-  | InfoExp({status: InHole(Common(NoType(BadToken(_)))), _}) => true
-  | InfoPat({status: InHole(Common(NoType(BadToken(_)))), _}) => true
-  | InfoTyp({status: InHole(BadToken(_)), _}) => true
-  | InfoTyp({status: InHole(ParseFailure), _}) => true
-  | _ => false
-  };
-
-let legend_view: Node.t =
-  div(
-    ~attrs=[clss(["error-legend"])],
-    [
-      span(
-        ~attrs=[clss(["legend-item"])],
-        [
-          span(~attrs=[clss(["legend-swatch", "syntax"])], []),
-          text("Syntax"),
-        ],
-      ),
-      span(
-        ~attrs=[clss(["legend-item"])],
-        [
-          span(~attrs=[clss(["legend-swatch", "static"])], []),
-          text("Static"),
-        ],
-      ),
-      span(
-        ~attrs=[clss(["legend-item"])],
-        [
-          span(~attrs=[clss(["legend-swatch", "warning"])], []),
-          text("Warning"),
-        ],
-      ),
-    ],
-  );
 
 let section_view =
     (~title: string, ~cls: string, ~collapsed: bool, ~on_toggle, items) =>
@@ -132,18 +112,24 @@ let section_view =
     @ (collapsed ? [] : items),
   );
 
-let view =
+type categorized_errors = {
+  syntax: list((int, Node.t)),
+  static: list((int, Node.t)),
+  warnings: list((int, Node.t)),
+};
+
+let collect_errors =
     (
       ~globals: Globals.t,
-      ~cursor: Cursor.cursor(Editors.Update.t),
+      ~cursor_id: option(Id.t),
       ~editor: CodeWithStatics.Model.t,
     )
-    : Node.t => {
+    : categorized_errors => {
   let info_map = editor.statics.info_map;
   let error_ids = editor.statics.error_ids;
   let segment = editor.editor.syntax.segment;
   let measured = editor.editor.syntax.measured;
-  /* Sort error_ids by document order using piece_rows from measured layout */
+  /* Build position map for document-order sorting */
   let position_map = {
     let piece_ids =
       measured.piece_rows
@@ -163,24 +149,21 @@ let view =
     | None => max_int
     };
   let error_ids = List.sort((a, b) => compare(pos(a), pos(b)), error_ids);
-  let cursor_id =
-    switch (cursor.info) {
-    | Some(ci) => Some(Language.Info.id_of(ci))
-    | None => None
-    };
+  let mk_row = (~cls, id, content) => (
+    pos(id),
+    error_row(~globals, ~cursor_id, ~measured, ~cls, id, content),
+  );
   /* Collect concave grout (missing operators) */
   let grout_rows =
     Haz3lcore.Segment.holes(segment)
     |> List.filter((g: Haz3lcore.Grout.t) => g.shape == Concave)
     |> List.map((g: Haz3lcore.Grout.t) =>
-         (
-           pos(g.id),
-           syntax_error_row(
-             ~globals,
-             ~cursor_id,
-             ~measured,
-             g.id,
-             "Missing operator",
+         mk_row(
+           ~cls="error-syntax",
+           g.id,
+           span(
+             ~attrs=[clss(["error-description"])],
+             [text("Missing operator")],
            ),
          )
        );
@@ -194,14 +177,12 @@ let view =
            |> List.map(i => List.nth(t.label, i));
          let description =
            "Incomplete: missing " ++ String.concat(", ", missing_labels);
-         (
-           pos(t.id),
-           syntax_error_row(
-             ~globals,
-             ~cursor_id,
-             ~measured,
-             t.id,
-             description,
+         mk_row(
+           ~cls="error-syntax",
+           t.id,
+           span(
+             ~attrs=[clss(["error-description"])],
+             [text(description)],
            ),
          );
        });
@@ -211,43 +192,15 @@ let view =
       (id, (syn, stat)) =>
         switch (Language.Statics.Map.lookup(id, info_map)) {
         | Some(ci) when Language.Info.is_error(ci) =>
-          if (is_syntax_error(ci)) {
-            (
-              [
-                (
-                  pos(id),
-                  error_row(
-                    ~globals,
-                    ~cursor_id,
-                    ~measured,
-                    ~error_cls="error-syntax",
-                    id,
-                    ci,
-                  ),
-                ),
-                ...syn,
-              ],
-              stat,
-            );
+          let cls =
+            Language.Info.is_syntax_error(ci)
+              ? "error-syntax" : "error-static";
+          let row = mk_row(~cls, id, error_status_view(~globals, ci));
+          if (Language.Info.is_syntax_error(ci)) {
+            ([row, ...syn], stat);
           } else {
-            (
-              syn,
-              [
-                (
-                  pos(id),
-                  error_row(
-                    ~globals,
-                    ~cursor_id,
-                    ~measured,
-                    ~error_cls="error-static",
-                    id,
-                    ci,
-                  ),
-                ),
-                ...stat,
-              ],
-            );
-          }
+            (syn, [row, ...stat]);
+          };
         | _ => (syn, stat)
         },
       error_ids,
@@ -263,17 +216,13 @@ let view =
       id =>
         switch (Language.Statics.Map.lookup(id, info_map)) {
         | Some(ci) when Language.Info.is_warning(ci) =>
-          Some((
-            pos(id),
-            error_row(
-              ~globals,
-              ~cursor_id,
-              ~measured,
-              ~error_cls="error-warning",
+          Some(
+            mk_row(
+              ~cls="error-warning",
               id,
-              ci,
+              error_status_view(~globals, ci),
             ),
-          ))
+          )
         | _ => None
         },
       warning_ids,
@@ -281,24 +230,43 @@ let view =
   /* Combine and sort syntax rows */
   let sort_tagged = rows =>
     List.sort(((a, _), (b, _)) => compare(a, b), rows);
-  let syntax_tagged =
-    grout_rows @ incomplete_rows @ syntax_info_rows |> sort_tagged;
-  let static_tagged = static_rows |> sort_tagged;
-  let warning_tagged = warning_rows |> sort_tagged;
-  let syntax_rows = List.map(snd, syntax_tagged);
-  let static_rows = List.map(snd, static_tagged);
-  let warning_rows = List.map(snd, warning_tagged);
-  let errors_flat = globals.settings.sidebar.errors_flat;
+  {
+    syntax: grout_rows @ incomplete_rows @ syntax_info_rows |> sort_tagged,
+    static: static_rows |> sort_tagged,
+    warnings: warning_rows |> sort_tagged,
+  };
+};
+
+let view =
+    (
+      ~globals: Globals.t,
+      ~cursor: Cursor.cursor(Editors.Update.t),
+      ~editor: CodeWithStatics.Model.t,
+    )
+    : Node.t => {
+  let cursor_id =
+    switch (cursor.info) {
+    | Some(ci) => Some(Language.Info.id_of(ci))
+    | None => None
+    };
+  let {syntax, static, warnings} =
+    collect_errors(~globals, ~cursor_id, ~editor);
+  let syntax_rows = List.map(snd, syntax);
+  let static_rows = List.map(snd, static);
+  let warning_rows = List.map(snd, warnings);
+  let errors_settings = globals.settings.sidebar.errors;
   let toggle_view =
     div(
       ~attrs=[clss(["error-view-toggle"])],
       [
         span(
           ~attrs=[
-            clss(["toggle-option"] @ (errors_flat ? [] : ["active"])),
+            clss(
+              ["toggle-option"] @ (errors_settings.flat ? [] : ["active"]),
+            ),
             Attr.on_click(_ =>
-              if (errors_flat) {
-                globals.inject_global(Set(Sidebar(ToggleErrorsFlat)));
+              if (errors_settings.flat) {
+                globals.inject_global(Set(Sidebar(Errors(ToggleFlat))));
               } else {
                 Virtual_dom.Vdom.Effect.Ignore;
               }
@@ -308,10 +276,12 @@ let view =
         ),
         span(
           ~attrs=[
-            clss(["toggle-option"] @ (errors_flat ? ["active"] : [])),
+            clss(
+              ["toggle-option"] @ (errors_settings.flat ? ["active"] : []),
+            ),
             Attr.on_click(_ =>
-              if (!errors_flat) {
-                globals.inject_global(Set(Sidebar(ToggleErrorsFlat)));
+              if (!errors_settings.flat) {
+                globals.inject_global(Set(Sidebar(Errors(ToggleFlat))));
               } else {
                 Virtual_dom.Vdom.Effect.Ignore;
               }
@@ -331,14 +301,19 @@ let view =
         ),
       ]
     | _ =>
-      [legend_view, toggle_view]
+      [
+        legend_view(
+          ~has_syntax=syntax_rows != [],
+          ~has_static=static_rows != [],
+          ~has_warnings=warning_rows != [],
+        ),
+        toggle_view,
+      ]
       @ (
-        if (errors_flat) {
-          syntax_tagged
-          @ static_tagged
-          @ warning_tagged
-          |> sort_tagged
-          |> List.map(snd);
+        if (errors_settings.flat) {
+          let sort_tagged = rows =>
+            List.sort(((a, _), (b, _)) => compare(a, b), rows);
+          syntax @ static @ warnings |> sort_tagged |> List.map(snd);
         } else {
           (
             syntax_rows != []
@@ -346,11 +321,11 @@ let view =
                 section_view(
                   ~title="Syntax Errors",
                   ~cls="syntax-errors",
-                  ~collapsed=globals.settings.sidebar.syntax_collapsed,
+                  ~collapsed=errors_settings.syntax_collapsed,
                   ~on_toggle=
                     _ =>
                       globals.inject_global(
-                        Set(Sidebar(ToggleSyntaxCollapsed)),
+                        Set(Sidebar(Errors(ToggleSyntaxCollapsed))),
                       ),
                   syntax_rows,
                 ),
@@ -363,11 +338,11 @@ let view =
                 section_view(
                   ~title="Static Errors",
                   ~cls="static-errors",
-                  ~collapsed=globals.settings.sidebar.static_collapsed,
+                  ~collapsed=errors_settings.static_collapsed,
                   ~on_toggle=
                     _ =>
                       globals.inject_global(
-                        Set(Sidebar(ToggleStaticCollapsed)),
+                        Set(Sidebar(Errors(ToggleStaticCollapsed))),
                       ),
                   static_rows,
                 ),
@@ -380,11 +355,11 @@ let view =
                 section_view(
                   ~title="Warnings",
                   ~cls="warning-errors",
-                  ~collapsed=globals.settings.sidebar.warnings_collapsed,
+                  ~collapsed=errors_settings.warnings_collapsed,
                   ~on_toggle=
                     _ =>
                       globals.inject_global(
-                        Set(Sidebar(ToggleWarningsCollapsed)),
+                        Set(Sidebar(Errors(ToggleWarningsCollapsed))),
                       ),
                   warning_rows,
                 ),

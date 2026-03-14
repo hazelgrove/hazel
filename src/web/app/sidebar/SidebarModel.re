@@ -10,21 +10,30 @@ module Settings = {
     | Errors;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    show: bool,
-    panel,
+  type errors_settings = {
     syntax_collapsed: bool,
     static_collapsed: bool,
     warnings_collapsed: bool,
-    errors_flat: bool,
+    flat: bool,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type errors_action =
+    | ToggleSyntaxCollapsed
+    | ToggleStaticCollapsed
+    | ToggleWarningsCollapsed
+    | ToggleFlat;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    show: bool,
+    panel,
+    errors: errors_settings,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
     | SwitchPanel(panel)
-    | ToggleSyntaxCollapsed
-    | ToggleStaticCollapsed
-    | ToggleWarningsCollapsed
-    | ToggleErrorsFlat;
+    | Errors(errors_action);
 };

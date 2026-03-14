@@ -873,6 +873,17 @@ let is_error = (ci: t): bool => {
 
 let is_warning = (ci: t): bool => warning_of(ci) != None;
 
+/* Determines whether an error is a syntax error (bad token or parse failure)
+   as opposed to a static type error. */
+let is_syntax_error = (ci: t): bool =>
+  switch (ci) {
+  | InfoExp({status: InHole(Common(NoType(BadToken(_)))), _}) => true
+  | InfoPat({status: InHole(Common(NoType(BadToken(_)))), _}) => true
+  | InfoTyp({status: InHole(BadToken(_)), _}) => true
+  | InfoTyp({status: InHole(ParseFailure), _}) => true
+  | _ => false
+  };
+
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */

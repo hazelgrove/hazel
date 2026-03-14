@@ -57,10 +57,12 @@ module Model = {
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
-      syntax_collapsed: false,
-      static_collapsed: false,
-      warnings_collapsed: false,
-      errors_flat: false,
+      errors: {
+        syntax_collapsed: false,
+        static_collapsed: false,
+        warnings_collapsed: false,
+        flat: false,
+      },
     },
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -279,32 +281,44 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
-      | Sidebar(ToggleSyntaxCollapsed) => {
+      | Sidebar(Errors(ToggleSyntaxCollapsed)) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            syntax_collapsed: !settings.sidebar.syntax_collapsed,
+            errors: {
+              ...settings.sidebar.errors,
+              syntax_collapsed: !settings.sidebar.errors.syntax_collapsed,
+            },
           },
         }
-      | Sidebar(ToggleStaticCollapsed) => {
+      | Sidebar(Errors(ToggleStaticCollapsed)) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            static_collapsed: !settings.sidebar.static_collapsed,
+            errors: {
+              ...settings.sidebar.errors,
+              static_collapsed: !settings.sidebar.errors.static_collapsed,
+            },
           },
         }
-      | Sidebar(ToggleWarningsCollapsed) => {
+      | Sidebar(Errors(ToggleWarningsCollapsed)) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            warnings_collapsed: !settings.sidebar.warnings_collapsed,
+            errors: {
+              ...settings.sidebar.errors,
+              warnings_collapsed: !settings.sidebar.errors.warnings_collapsed,
+            },
           },
         }
-      | Sidebar(ToggleErrorsFlat) => {
+      | Sidebar(Errors(ToggleFlat)) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            errors_flat: !settings.sidebar.errors_flat,
+            errors: {
+              ...settings.sidebar.errors,
+              flat: !settings.sidebar.errors.flat,
+            },
           },
         }
       | ExplainThis(ToggleShowFeedback) => {
