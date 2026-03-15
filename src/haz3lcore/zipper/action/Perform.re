@@ -11,6 +11,7 @@ let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
 
 let go =
     (
+      ~settings: Language.CoreSettings.t,
       ~statics: CachedStatics.t,
       ~syntax: CachedSyntax.t,
       a: Action.t,
@@ -137,11 +138,17 @@ let go =
     }
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
-  | Destruct(d) => Destruct.go(d, z) |> return(Cant_destruct)
+  | Destruct(d) =>
+    let maybe_reassoc =
+      settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
+    Destruct.go(d, z) |> Option.map(maybe_reassoc) |> return(Cant_destruct);
   | Insert(char) =>
+    let maybe_reassoc =
+      settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
-    |> return(Cant_insert)
+    |> Option.map(maybe_reassoc)
+    |> return(Cant_insert);
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))

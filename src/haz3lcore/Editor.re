@@ -145,7 +145,8 @@ module Update = {
     let state = update_col_target(~measured=syntax.measured, a, state);
 
     /* 3. Update the zipper */
-    let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state);
+    let+ zipper =
+      Perform.go(~settings, ~statics=old_statics, ~syntax, a, state);
 
     Model.{
       state: {
