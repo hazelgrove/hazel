@@ -89,6 +89,63 @@ let rescan_reassemble = (d: Direction.t, z: t): t => {
   };
 };
 
+/* Deep reassociate: flatten all ancestors into siblings,
+   rescan for delimiter reassociation, and reassemble.
+   This eliminates history-sensitive states where the segment
+   tree structure differs from what a fresh parse would produce
+   (e.g. mismatched parentheses after inserting a new delimiter).
+   The cursor position is naturally preserved since we operate
+   on the (left, right) sibling split directly. */
+let deep_reassociate = (z: t): t => {
+  /* Give fresh IDs to ancestor shard pieces on the right side.
+     This prevents duplicate (id, shard_index) after rescan converts
+     a newly-inserted delimiter to the ancestor's ID. The left-side
+     shards keep their original IDs (first-seen in L-to-R order).
+     If no new delimiter steals the match, rescan converts the
+     freshened shards back to the original ID anyway. */
+  let freshen_ancestor_shards = (ancestor_id: Id.t, seg: Segment.t) =>
+    seg
+    |> List.map(p =>
+         switch (p) {
+         | Piece.Tile(t) when t.id == ancestor_id =>
+           Piece.Tile({
+             ...t,
+             id: Id.mk(),
+           })
+         | _ => p
+         }
+       );
+  /* Flatten all ancestors into siblings */
+  let rec flatten_all = (siblings, ancestors) =>
+    switch (ancestors) {
+    | [] => (siblings, [])
+    | [(ancestor, parent_sibs), ...rest] =>
+      let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
+      let right_dis = freshen_ancestor_shards(ancestor.id, right_dis);
+      let siblings =
+        Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
+      flatten_all(siblings, rest);
+    };
+  let (siblings, ancestors) =
+    flatten_all(z.relatives.siblings, z.relatives.ancestors);
+  /* Rescan + reassemble. Remold/regrout are unnecessary here:
+     deep reassociation only re-nests shards without reordering,
+     so each shard's left-context (which determines its mold) is
+     unchanged. Rescan's target_shard mechanism preserves the
+     correct mold from the incomplete tile's frame. */
+  let siblings = Siblings.rescan(siblings);
+  let relatives =
+    {
+      Relatives.siblings,
+      ancestors,
+    }
+    |> Relatives.reassemble;
+  {
+    ...z,
+    relatives,
+  };
+};
+
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {
