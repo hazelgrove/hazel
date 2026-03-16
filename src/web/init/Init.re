@@ -20,6 +20,7 @@ let documentation_slides =
       // Tiling.out,
       TLDraw.out,
       BrushPath.out,
+      DrawPetri.out,
       BasicReference.out,
       // Projectors.out,
       // ADTs.out,

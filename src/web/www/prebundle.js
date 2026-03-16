@@ -48,18 +48,15 @@ window.hazelWriteToDoc = async (docUrl, jsonString) => {
 		const parsed = JSON.parse(jsonString)
 
 		handle.change(doc => {
-			// Only sync top-level keys in doc.store (where tldraw keeps shapes)
-			if (parsed.store && doc.store) {
-				// Delete keys in doc.store that aren't in parsed.store
-				for (const key of Object.keys(doc.store)) {
-					if (!(key in parsed.store)) {
-						delete doc.store[key]
-					}
+			if (!parsed || typeof parsed !== "object") return
+			// Sync all top-level keys from parsed into doc
+			for (const key of Object.keys(doc)) {
+				if (!(key in parsed)) {
+					delete doc[key]
 				}
-				// Add/update keys from parsed.store
-				for (const [key, value] of Object.entries(parsed.store)) {
-					doc.store[key] = value
-				}
+			}
+			for (const [key, value] of Object.entries(parsed)) {
+				doc[key] = value
 			}
 		})
 	} catch (e) {
