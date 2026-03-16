@@ -15,25 +15,22 @@ import {
 	MessageChannelNetworkAdapter,
 	Repo,
 } from "@automerge/vanillajs/slim"
+import {WebSocketClientAdapter} from "@automerge/automerge-repo-network-websocket"
 
 const repo = new Repo({
 	storage: new IndexedDBStorageAdapter(),
-	async sharePolicy(peerId) {
-		return peerId.includes("service-worker")
-	},
+	network: [new WebSocketClientAdapter("wss://sync3.automerge.org")],
 	enableRemoteHeadsGossiping: true,
 })
 
 window.repo = repo
 
 const result = await setup()
-if (!result) {
-	throw new Error("Failed to set up service worker")
+if (result?.port) {
+	repo.networkSubsystem.addNetworkAdapter(
+		new MessageChannelNetworkAdapter(result.port)
+	)
 }
-
-repo.networkSubsystem.addNetworkAdapter(
-	new MessageChannelNetworkAdapter(result.port)
-)
 await repo.networkSubsystem.whenReady()
 
 window.getRepoChannel = () => {
