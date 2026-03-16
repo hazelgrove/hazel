@@ -94,6 +94,27 @@ moduleWatcher.loadModules([
 
 registerPatchworkViewElement({repo})
 
+// Prevent tldraw popover focus from scrolling #main.
+// When Radix UI opens a popover (e.g. the "More" tools menu), it focuses the
+// popover content, which causes the browser to scroll the nearest scrollable
+// ancestor (#main) to bring it into view. We save and restore the scroll
+// position to counteract this.
+document.addEventListener("focusin", (e) => {
+	if (e.target && e.target.closest && e.target.closest("patchwork-view")) {
+		const main = document.getElementById("main")
+		if (main) {
+			const top = main.scrollTop
+			const left = main.scrollLeft
+			requestAnimationFrame(() => {
+				if (main.scrollTop !== top || main.scrollLeft !== left) {
+					main.scrollTop = top
+					main.scrollLeft = left
+				}
+			})
+		}
+	}
+}, true)
+
 window.Algebrite = Algebrite
 window.Plot = Plot
 
