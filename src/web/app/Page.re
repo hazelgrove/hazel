@@ -525,23 +525,38 @@ module View = {
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
         : Effect.t(unit) => {
-      let meta_effects = update_meta(evt);
-      Effect.(
-        switch (
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=Key.mk(dir, evt),
-            model,
-          )
-        ) {
-        | None => meta_effects == [] ? Ignore : Many(meta_effects)
-        | Some(action) =>
-          Many(
-            [Prevent_default, Stop_propagation, inject(action)]
-            @ meta_effects,
-          )
-        }
-      );
+      /* Let patchwork-view elements (e.g. TLDraw canvas) handle
+         their own keyboard input without Hazel intercepting it */
+      let target = Js.Opt.to_option(evt##.target);
+      let in_patchwork_view =
+        switch (target) {
+        | Some(el) =>
+          let el = Js.Unsafe.coerce(el);
+          let result = el##closest(Js.string("patchwork-view"));
+          Js.Opt.test(result);
+        | None => false
+        };
+      if (in_patchwork_view) {
+        Effect.Ignore;
+      } else {
+        let meta_effects = update_meta(evt);
+        Effect.(
+          switch (
+            Selection.handle_key_event(
+              ~selection=Some(model.selection),
+              ~event=Key.mk(dir, evt),
+              model,
+            )
+          ) {
+          | None => meta_effects == [] ? Ignore : Many(meta_effects)
+          | Some(action) =>
+            Many(
+              [Prevent_default, Stop_propagation, inject(action)]
+              @ meta_effects,
+            )
+          }
+        );
+      };
     };
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
