@@ -134,7 +134,9 @@ module M: Projector = {
        the tool pane below overflows via CSS */
     let url_len = String.length(model.url);
     let display_len = max(String.length(url_placeholder), url_len);
-    let horizontal = display_len + 12;
+    /* +12 for focus dot, reload btn, hot reload toggle, status, margins;
+       +14 for tool selector dropdown (longest option "Select tool...") */
+    let horizontal = display_len + 26;
     let rows =
       if (String.length(model.tool) > 0) {
         px_to_grid(tool_height, m.row_height);
