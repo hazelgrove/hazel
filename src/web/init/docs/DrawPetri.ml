@@ -52,9 +52,14 @@ let out : string * Haz3lcore.PersistentSegment.t =
          else \"transition__\" ++ shape_id\n\
          in\n\n\
          let label_of = fun default_label -> fun entry ->\n\
-         let text = str(jq1([jq_field(\"value\"), jq_field(\"props\"), \
+         let rt = str(jq1([jq_field(\"value\"), jq_field(\"props\"), \
+         jq_field(\"richText\"), jq_field(\"content\"), jq_index(0), \
+         jq_field(\"content\"), jq_index(0), jq_field(\"text\")])(entry)) in\n\
+         let plain = str(jq1([jq_field(\"value\"), jq_field(\"props\"), \
          jq_field(\"text\")])(entry)) in\n\
-         if text $== \"\" then default_label else text\n\
+         if !(rt $== \"\") then rt\n\
+         else if !(plain $== \"\") then plain\n\
+         else default_label\n\
          in\n\n\
          let make_place = fun entry ->\n\
          let v = jq1([jq_field(\"value\")])(entry) in\n\
