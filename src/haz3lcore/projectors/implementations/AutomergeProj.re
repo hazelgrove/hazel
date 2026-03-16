@@ -322,7 +322,10 @@ module M: Projector = {
       );
 
     let on_data = (exp: Language.Exp.t) => {
-      let seg = put(info, exp);
+      ProjectorCore.set_bypass(info.id, exp);
+      let null_exp =
+        Language.IdTagged.FreshGrammar.Exp.constructor("Null", None);
+      let seg = put(info, null_exp);
       let effects =
         if (model.hot_reload) {
           [local(SetLastLoad(Succeeded)), parent(SetSyntax(seg))];
@@ -403,7 +406,13 @@ module M: Projector = {
               | Some({handle: Some(h), _}) =>
                 switch (Automerge.doc_to_exp(h)) {
                 | Ok(exp) =>
-                  let seg = put(info, exp);
+                  ProjectorCore.set_bypass(info.id, exp);
+                  let null_exp =
+                    Language.IdTagged.FreshGrammar.Exp.constructor(
+                      "Null",
+                      None,
+                    );
+                  let seg = put(info, null_exp);
                   Bonsai.Effect.Expert.handle(parent(SetSyntax(seg)));
                   Effect.Ignore;
                 | Error(_) => Effect.Ignore

@@ -889,9 +889,14 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     | Grout(_) => []
     | Projector({id, kind, model, syntax} as pr) =>
       let _ = log_projector(pr);
-      let sort = Piece.sort(syntax) |> fst;
-      let seg = Piece.unparenthesize(syntax);
-      let inner = go_s(sort, Segment.skel(seg), seg);
+      let inner =
+        switch (ProjectorCore.get_bypass(id)) {
+        | Some(exp) => Grammar.Exp(exp)
+        | None =>
+          let sort = Piece.sort(syntax) |> fst;
+          let seg = Piece.unparenthesize(syntax);
+          go_s(sort, Segment.skel(seg), seg);
+        };
       /* Construct Projector term with proper annotation, preserving
        * projector metadata (kind, model) in the term for round-tripping */
       let projector_data: Grammar.projector_data = {

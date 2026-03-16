@@ -35,3 +35,16 @@ let mk = (~id=Id.mk(), kind, syntax, model) => {
 module Shape = Util.ProjectorShape;
 /* Projectors currently are all convex */
 let shapes = (_: t('a)): Nibs.shapes => Nib.Shape.(Convex, Convex);
+
+/* Serialization bypass: projectors store their Exp.t here instead of
+   round-tripping through segment/term serialization. Keyed by projector piece ID. */
+let bypass_table: ref(Id.Map.t(Language.Exp.t)) = ref(Id.Map.empty);
+
+let set_bypass = (id: Id.t, exp: Language.Exp.t): unit =>
+  bypass_table := Id.Map.add(id, exp, bypass_table^);
+
+let get_bypass = (id: Id.t): option(Language.Exp.t) =>
+  Id.Map.find_opt(id, bypass_table^);
+
+let remove_bypass = (id: Id.t): unit =>
+  bypass_table := Id.Map.remove(id, bypass_table^);
