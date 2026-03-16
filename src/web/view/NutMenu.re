@@ -124,6 +124,12 @@ let dev_group = (~globals: Globals.t) => {
         Settings.Update.Benchmark,
       ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
+      (
+        "↩",
+        "Cap Undo Stack",
+        globals.settings.cap_undo_stack,
+        CapUndoStack,
+      ),
     ]
     @ (
       ExerciseSettings.show_instructor

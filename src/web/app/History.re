@@ -1,5 +1,7 @@
 open Util;
 
+let capped_undo_stack_size = 100;
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = Page.Model.t;
@@ -97,17 +99,24 @@ module Update = {
           model.current,
         );
       if (Page.Update.can_undo(action)) {
+        let new_stack = [
+          {
+            ...current,
+            model: model.current,
+          },
+          ...model.undo_stack,
+        ];
+        let undo_stack =
+          if (model.current.globals.settings.cap_undo_stack) {
+            List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
+          } else {
+            new_stack;
+          };
         {
           ...current,
           model: {
             current: current.model,
-            undo_stack: [
-              {
-                ...current,
-                model: model.current,
-              },
-              ...model.undo_stack,
-            ],
+            undo_stack,
             redo_stack: [],
           },
         };

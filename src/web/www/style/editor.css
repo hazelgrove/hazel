@@ -546,6 +546,10 @@ svg:has(.child-line) {
   background-color: var(--SAND);
   border-radius: 0.2em;
 }
+/* When hovering any item, suppress keyboard-selected highlight */
+.context-menu .group .contents:hover .named-menu-item.selected:not(:hover) {
+  background-color: transparent;
+}
 .context-menu .named-menu-item .menu-shortcut {
   margin-left: auto;
   padding-left: 1em;
