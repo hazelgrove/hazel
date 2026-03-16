@@ -138,9 +138,18 @@ let ensure_subscribed =
     ) =>
   if (String.length(url) > 0) {
     switch (Id.Map.find_opt(id, subscriptions^)) {
-    | Some(sub) when sub.url == url =>
+    | Some(sub) when sub.url == url && sub.handle != None =>
       sub.on_data = on_data;
       sub.on_error = on_error;
+    | Some(sub) when sub.url == url =>
+      /* Subscription exists but handle is None — the repo wasn't ready
+         when we first tried. Retry now if the repo is available. */
+      sub.on_data = on_data;
+      sub.on_error = on_error;
+      if (Automerge.repo_is_ready()) {
+        subscriptions := Id.Map.remove(id, subscriptions^);
+        subscribe_to_doc(id, url, on_data, on_error);
+      };
     | Some(sub) =>
       Option.iter(f => f(), sub.cleanup);
       subscriptions := Id.Map.remove(id, subscriptions^);
