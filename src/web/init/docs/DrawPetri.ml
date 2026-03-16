@@ -15,7 +15,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          | _ => \"\"\n\
          end\n\
          in\n\n\
-         let doc = ^^PatchworkTool(Null) in\n\n\
+         let tldraw_to_petrinet = fun doc ->\n\
          let shapes = jq([jq_field(\"store\"), jq_to_entries, \
          jq_iterate])(doc) in\n\n\
          let circles = flat_map(shapes, fun entry ->\n\
@@ -113,7 +113,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          let transitions = map(rects, make_transition) in\n\
          let arcs = flat_map(arrows, make_arc) in\n\
          let nodes = places @ transitions in\n\n\
-         let result = Assoc([\n\
+         Assoc([\n\
          (\"@patchwork\", Assoc([\n\
          (\"suggestedImportUrl\", \
          String(\"automerge:3phkB7HzGoQ67w2ahmj9gepELErw\")),\n\
@@ -125,7 +125,11 @@ let out : string * Haz3lcore.PersistentSegment.t =
          (\"color\", String(\"#3498db\")),\n\
          (\"id\", String(\"default\")),\n\
          (\"name\", String(\"Default\"))])]))])),\n\
-         (\"title\", String(\"TLDraw to Petri Net\"))]) in\n\n\
-         ^^AutomergeWriteBack(result)";
+         (\"title\", String(\"TLDraw to Petri Net\"))])\n\
+         in\n\n\
+         let tldraw_doc = ^^PatchworkTool(Null) in\n\n\
+         let petrinet = tldraw_to_petrinet(tldraw_doc) in\n\n\
+         let _ = ^^AutomergeWriteBack(petrinet) in\n\n\
+         ^^PatchworkTool(petrinet)";
       refractors = "()";
     } )
