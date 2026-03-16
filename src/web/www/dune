@@ -5,9 +5,10 @@
  (copy ../worker.bc.js worker.js))
 
 (rule
- (targets bundled.js)
+ (targets bundled.js service-worker.js)
  (deps
   prebundle.js
+  service-worker-template.js
   (source_tree %{workspace_root}/node_modules))
  (action
   (chdir

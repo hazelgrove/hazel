@@ -1,94 +1,108 @@
-import {
-	IndexedDBStorageAdapter,
-	MessageChannelNetworkAdapter,
-	Repo,
-} from "@automerge/vanillajs"
-async function installServiceWorker() {
-	const sw = await navigator.serviceWorker
-		.register("service-worker.js", {type: "classic"})
-		.then(registration => {
-			const installing = registration.installing
-			if (installing) {
-				console.log("%c spawing new service worker", "color: pink")
-				return new Promise(resolve => {
-					installing.onstatechange = event => {
-						const serviceWorker = event.target
-						if (serviceWorker.state === "activated") {
-							resolve(serviceWorker)
-						}
-					}
-				})
-			}
-			return registration.active
-		})
-	setInterval(() => {
-		sw.postMessage({type: "PING"})
-	}, 5e3)
-	return sw
+const key = "patchworkServiceWorkerCacheVersion"
+
+function bumpServiceWorkerCacheVersion() {
+	const version = new Date().valueOf().toString(36)
+	localStorage.setItem(key, version)
+	return getServiceWorkerCacheVersion()
 }
-async function createRepo(storage) {
-	const peerIdSuffix = `patchwork-${Math.random().toString(36).slice(2)}`
-	const peerId = peerIdSuffix
-	const repo = new Repo({
-		network: [],
-		storage,
-		peerId,
-		enableRemoteHeadsGossiping: true,
+
+function getServiceWorkerCacheVersion() {
+	return localStorage.getItem(key)
+}
+
+function getOrCreateServiceWorkerCacheVersion() {
+	const existing = getServiceWorkerCacheVersion()
+	if (existing) return existing
+	return bumpServiceWorkerCacheVersion()
+}
+
+function setServiceWorkerCacheName(sw) {
+	if (!sw) {
+		throw new Error("no service worker!")
+	}
+	sw.postMessage({
+		type: "cachename",
+		cachename: getOrCreateServiceWorkerCacheVersion(),
 	})
-	self.repo = repo
-	repo.subscribeToRemotes(["3760df37-a4c6-4f66-9ecd-732039a9385d"])
-	return {repo}
 }
-let globalMessageChannelAdapter
-function connectServiceWorkerToRepo(serviceWorker, repo) {
-	const messageChannel = new MessageChannel()
-	if (globalMessageChannelAdapter) {
-		repo.networkSubsystem.removeNetworkAdapter(globalMessageChannelAdapter)
+
+export function bumpServiceWorkerCache(
+	sw = navigator.serviceWorker.controller
+) {
+	bumpServiceWorkerCacheVersion()
+	setServiceWorkerCacheName(sw)
+}
+
+window.bumpServiceWorkerCache = bumpServiceWorkerCache
+
+/** Wait for a registration to have an active worker */
+function waitForActive(reg) {
+	if (reg.active) return Promise.resolve(reg.active)
+	const worker = reg.installing || reg.waiting
+	if (!worker)
+		return Promise.reject(new Error("no service worker in registration"))
+	return new Promise(resolve => {
+		worker.addEventListener("statechange", () => {
+			if (worker.state === "activated") resolve(worker)
+		})
+	})
+}
+
+export default async function setupServiceWorker(options) {
+	// Backwards compat: if an old service worker sends handoff "request" messages,
+	// immediately reject them so its fetch handler doesn't hang forever.
+	navigator.serviceWorker.addEventListener("message", event => {
+		if (event.data?.type === "request" && event.data.id != null) {
+			navigator.serviceWorker.controller?.postMessage({
+				type: "response",
+				id: event.data.id,
+				response: {
+					body: "service worker upgraded, please refresh",
+					status: 503,
+					headers: {"content-type": "text/plain"},
+				},
+			})
+		}
+	})
+
+	navigator.serviceWorker.addEventListener("controllerchange", function () {
+		console.info(
+			"%cnew service worker took control, reloading...",
+			"color: pink; font-weight: bold"
+		)
+		location.reload()
+	})
+
+	const path = options?.path ?? "/service-worker.js"
+	const reg = await navigator.serviceWorker.register(path, {type: "module"})
+
+	// If there's an update waiting or installing, wait for it to activate
+	if (reg.installing || reg.waiting) {
+		await waitForActive(reg)
 	}
-	globalMessageChannelAdapter = new MessageChannelNetworkAdapter(
-		messageChannel.port1
+
+	const active = reg.active
+	active.postMessage({type: "debug", debug: false})
+
+	// Wait for the controller to be available
+	if (!navigator.serviceWorker.controller) {
+		await new Promise(resolve => {
+			navigator.serviceWorker.addEventListener(
+				"controllerchange",
+				() => resolve(),
+				{once: true}
+			)
+		})
+	}
+
+	// Send a MessagePort so the SW's repo can sync with clients
+	const {port1, port2} = new MessageChannel()
+	navigator.serviceWorker.controller.postMessage({type: "port"}, [port2])
+
+	console.log(
+		"service worker alive, loading %c patchwork system ",
+		"background: #fcf2f0; color: #333; border: 2px solid; border-radius: 4px"
 	)
-	repo.networkSubsystem.addNetworkAdapter(globalMessageChannelAdapter)
-	serviceWorker.postMessage({type: "INIT"}, [messageChannel.port2])
-	console.log("%c Connected to service worker", "color: blue")
-}
-async function bootstrap() {
-	let sw = await installServiceWorker()
-	const storage = new IndexedDBStorageAdapter()
-	const {repo, hive} = await createRepo(storage)
-	const {promise: serviceWorkerInitEcho, resolve} = Promise.withResolvers()
-	if (!hive) {
-		navigator.serviceWorker.addEventListener("message", event => {
-			switch (event.data.type) {
-				case "SERVICE_WORKER_RESTARTED":
-					console.log(
-						"establishMessageChannel: SERVICE_WORKER_RESTARTED message"
-					)
-					connectServiceWorkerToRepo(sw, repo)
-					break
-				case "SERVICE_WORKER_READY":
-					resolve()
-					break
-			}
-		})
-		navigator.serviceWorker.addEventListener("controllerchange", event => {
-			const newServiceWorker = event.target.controller
-			if (newServiceWorker !== sw) {
-				console.log(
-					"establishMessageChannel: controllerchange to new service worker"
-				)
-				sw = newServiceWorker
-				connectServiceWorkerToRepo(newServiceWorker, repo)
-			}
-		})
-		connectServiceWorkerToRepo(sw, repo)
-		await serviceWorkerInitEcho
-	}
-	return {repo, hive}
-}
-export {
-	connectServiceWorkerToRepo,
-	createRepo,
-	bootstrap as default,
-	installServiceWorker,
+
+	return {port: port1}
 }
