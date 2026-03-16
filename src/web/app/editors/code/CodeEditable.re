@@ -15,7 +15,8 @@ module Update = {
     | Perform(Action.t)
     | TAB
     | ContextMenu(ContextMenu.Model.action)
-    | DebugConsole(string);
+    | DebugConsole(string)
+    | SetVimMode(Model.vim_modes);
 
   exception CantReset;
 
@@ -25,6 +26,7 @@ module Update = {
     | TAB => true
     | ContextMenu(_) => false
     | DebugConsole(_) => false
+    | SetVimMode(_) => false
     };
   };
 
@@ -46,6 +48,7 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: None,
+            vim_mode: model.vim_mode,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
@@ -122,6 +125,12 @@ module Update = {
           ? Buffer(Accept)
           : Zipper.can_put_down(z) ? Put_down : Move(Goal(Hole(Right)));
       perform(action, model);
+    | SetVimMode(vim_mode) =>
+      {
+        ...model,
+        vim_mode,
+      }
+      |> Updated.return_quiet
     };
   };
 

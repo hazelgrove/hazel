@@ -54,7 +54,8 @@ module Update = {
       )
     | DebugConsole(_)
     | ContextMenu(_)
-    | TAB => None;
+    | TAB
+    | SetVimMode(_) => None;
 
   let calculate = CodeEditable.Update.calculate;
 };
