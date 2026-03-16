@@ -280,6 +280,161 @@ let import_hazel =
   };
 };
 
+/* Check all slides for parse and static errors using their PersistentSegment data */
+let check_slides_hazel =
+    (filter: option(string), verbose: bool)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let all_slides =
+    [
+      BasicReference.out,
+      Projectors.out,
+      ADTs.out,
+      Tuples.out,
+      Tables.out,
+      Polymorphism.out,
+      Cards.out,
+      Probes.out,
+      Livelits.out,
+    ]
+    @ B2t2.Slides.all_slides;
+
+  let slides =
+    switch (filter) {
+    | None => all_slides
+    | Some(f) =>
+      List.filter(
+        ((name, _)) => {
+          let name_lower = String.lowercase_ascii(name);
+          let f_lower = String.lowercase_ascii(f);
+          Core.String.is_substring(name_lower, ~substring=f_lower);
+        },
+        all_slides,
+      )
+    };
+
+  let total_errors = ref(0);
+  let slides_with_errors = ref([]);
+
+  List.iter(
+    ((name, persistent_segment: Haz3lcore.PersistentSegment.t)) => {
+      let zipper = Haz3lcore.PersistentSegment.restore(persistent_segment);
+      let segment =
+        Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+      let errors = ref([]);
+
+      /* Parse check: missing shards */
+      let missing_shards = Haz3lcore.Zipper.local_backpack(zipper);
+      if (List.length(missing_shards) > 0) {
+        errors :=
+          [
+            "Incomplete tiles (missing shards): "
+            ++ string_of_int(List.length(missing_shards)),
+            ...errors^,
+          ];
+      };
+
+      /* Parse check: concave grout */
+      let all_grout = Haz3lcore.Segment.holes(segment);
+      let concave_grout =
+        List.filter((g: Haz3lcore.Grout.t) => g.shape == Concave, all_grout);
+      if (List.length(concave_grout) > 0) {
+        errors :=
+          [
+            "Concave grout found: "
+            ++ string_of_int(List.length(concave_grout)),
+            ...errors^,
+          ];
+      };
+
+      /* Static analysis */
+      let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+
+      /* Get source text for error locations */
+      let source =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          ~indent=" ",
+          ~refractors=zipper.refractors.manuals,
+          segment,
+        );
+      let measured =
+        Haz3lcore.Measured.of_segment(
+          segment,
+          Haz3lcore.ProjectorCore.Shape.Map.empty,
+          Util.Id.Map.empty,
+        );
+
+      let static_map =
+        Language.Statics.mk(
+          Language.CoreSettings.on,
+          Language.Builtins.ctx_init(Some(Int)),
+          term,
+        );
+
+      let static_errors =
+        Util.Id.Map.fold(
+          (_id, info, acc) =>
+            switch (
+              format_error_with_location(~source, ~path=name, measured, info)
+            ) {
+            | None => acc
+            | Some(err) => [err, ...acc]
+            },
+          static_map,
+          [],
+        )
+        |> List.sort_uniq(compare);
+
+      let all_errors = errors^ @ static_errors;
+      let error_count = List.length(all_errors);
+
+      if (error_count > 0) {
+        total_errors := total_errors^ + error_count;
+        slides_with_errors := [name, ...slides_with_errors^];
+        prerr_endline(
+          "FAIL: "
+          ++ name
+          ++ " ("
+          ++ string_of_int(error_count)
+          ++ " error(s))",
+        );
+        if (verbose) {
+          List.iter(
+            err => {
+              prerr_endline("  " ++ err);
+              prerr_endline("");
+            },
+            all_errors,
+          );
+        };
+      } else {
+        print_endline("OK:   " ++ name);
+      };
+    },
+    slides,
+  );
+
+  print_endline("");
+  print_endline(
+    "Checked "
+    ++ string_of_int(List.length(slides))
+    ++ " slide(s): "
+    ++ string_of_int(List.length(slides_with_errors^))
+    ++ " failed, "
+    ++ string_of_int(total_errors^)
+    ++ " total error(s)",
+  );
+
+  if (total_errors^ > 0) {
+    `Error((false, "Slide check failed"));
+  } else {
+    `Ok();
+  };
+};
+
 /* Check a Hazel program for parse incompleteness */
 let parse_check_hazel =
     (path: string)
@@ -415,6 +570,23 @@ let parse_check_cmd = {
   Cmd.v(info, Term.ret(Term.(const(parse_check_hazel) $ input_arg)));
 };
 
+let check_slides_cmd = {
+  let doc = "Check all slides for parse and static errors using their PersistentSegment data.";
+  let filter_arg = {
+    let doc = "Only check slides whose name contains this string.";
+    Arg.(value & opt(some(string), None) & info(["filter", "f"], ~doc));
+  };
+  let verbose_arg = {
+    let doc = "Show detailed error messages.";
+    Arg.(value & flag & info(["verbose", "v"], ~doc));
+  };
+  let info = Cmd.info("check-slides", ~doc);
+  Cmd.v(
+    info,
+    Term.ret(Term.(const(check_slides_hazel) $ filter_arg $ verbose_arg)),
+  );
+};
+
 let import_cmd = {
   let doc = "Import a .hz file into a .ml slide file.";
   let name_arg = {
@@ -453,6 +625,7 @@ let default_cmd = {
       probe_cmd,
       export_cmd,
       import_cmd,
+      check_slides_cmd,
       parse_check_cmd,
     ],
   );
