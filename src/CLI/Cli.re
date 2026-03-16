@@ -192,6 +192,94 @@ let export_hazel = (format, width, strip, filter, output_dir) => {
   };
 };
 
+/* Extract slide name from an existing .ml slide file.
+   Looks for the pattern: ( "slide name", on a line */
+let extract_slide_name = (ml_path: string): option(string) =>
+  if (Sys.file_exists(ml_path)) {
+    let content = Core.In_channel.read_all(ml_path);
+    let lines = String.split_on_char('\n', content);
+    List.fold_left(
+      (acc, line) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          let trimmed = String.trim(line);
+          if (Core.String.is_prefix(trimmed, ~prefix="( \"")) {
+            /* Extract between first " and next " */
+            let after_quote =
+              String.sub(trimmed, 3, String.length(trimmed) - 3);
+            switch (String.index_opt(after_quote, '"')) {
+            | Some(end_idx) => Some(String.sub(after_quote, 0, end_idx))
+            | None => None
+            };
+          } else {
+            None;
+          };
+        },
+      None,
+      lines,
+    );
+  } else {
+    None;
+  };
+
+/* Import a .hz file into a .ml slide file */
+let import_hazel =
+    (name_opt: option(string), input_path: string, output_path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let program = read_input(input_path);
+
+  /* Determine slide name */
+  let name =
+    switch (name_opt) {
+    | Some(n) => n
+    | None =>
+      switch (extract_slide_name(output_path)) {
+      | Some(n) => n
+      | None =>
+        /* Fall back to filename without extension */
+        Filename.basename(input_path) |> Filename.remove_extension
+      }
+    };
+
+  switch (parse_to_zipper(program)) {
+  | None =>
+    prerr_endline("Failed to parse: " ++ input_path);
+    `Error((false, "Parse error"));
+  | Some(zipper) =>
+    let persisted = Haz3lcore.PersistentSegment.persist(zipper);
+
+    /* Generate the .ml file content */
+    let ml_content =
+      "let out : string * Haz3lcore.PersistentSegment.t =\n"
+      ++ "  ( \""
+      ++ String.escaped(name)
+      ++ "\",\n"
+      ++ "    {\n"
+      ++ "      segment =\n"
+      ++ "        \""
+      ++ String.escaped(persisted.segment)
+      ++ "\";\n"
+      ++ "      backup_text =\n"
+      ++ "        \""
+      ++ String.escaped(persisted.backup_text)
+      ++ "\";\n"
+      ++ "      refractors =\n"
+      ++ "        \""
+      ++ String.escaped(persisted.refractors)
+      ++ "\";\n"
+      ++ "    } )\n";
+
+    Core.Out_channel.write_all(output_path, ~data=ml_content);
+    print_endline("Imported: " ++ input_path ++ " -> " ++ output_path);
+    print_endline("Slide name: " ++ name);
+    `Ok();
+  };
+};
+
 /* Check a Hazel program for parse incompleteness */
 let parse_check_hazel =
     (path: string)
@@ -327,6 +415,31 @@ let parse_check_cmd = {
   Cmd.v(info, Term.ret(Term.(const(parse_check_hazel) $ input_arg)));
 };
 
+let import_cmd = {
+  let doc = "Import a .hz file into a .ml slide file.";
+  let name_arg = {
+    let doc = "Slide name. If omitted, extracted from existing .ml file or input filename.";
+    Arg.(value & opt(some(string), None) & info(["name", "n"], ~doc));
+  };
+  let input_arg = {
+    let doc = "Path to .hz input file.";
+    Arg.(
+      required & pos(0, some(string), None) & info([], ~docv="INPUT", ~doc)
+    );
+  };
+  let output_arg = {
+    let doc = "Path to .ml output file.";
+    Arg.(
+      required & pos(1, some(string), None) & info([], ~docv="OUTPUT", ~doc)
+    );
+  };
+  let info = Cmd.info("import", ~doc);
+  Cmd.v(
+    info,
+    Term.ret(Term.(const(import_hazel) $ name_arg $ input_arg $ output_arg)),
+  );
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
@@ -339,6 +452,7 @@ let default_cmd = {
       analyze_cmd,
       probe_cmd,
       export_cmd,
+      import_cmd,
       parse_check_cmd,
     ],
   );
