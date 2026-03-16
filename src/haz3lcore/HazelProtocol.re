@@ -534,25 +534,8 @@ module JsonADT = {
     switch (json) {
     | `Null => Ok(ctr("Null"))
     | `Bool(b) => Ok(ap_ctr("Bool", Fresh.Exp.bool(b)))
-    | `Int(i) =>
-      let exp =
-        if (i < 0) {
-          Fresh.Exp.un_op(
-            Int(Minus),
-            Fresh.Exp.big_int(Bigint.of_int(- i)),
-          );
-        } else {
-          Fresh.Exp.big_int(Bigint.of_int(i));
-        };
-      Ok(ap_ctr("Int", exp));
-    | `Float(f) =>
-      let exp =
-        if (f < 0.0) {
-          Fresh.Exp.un_op(Float(Minus), Fresh.Exp.float(-. f));
-        } else {
-          Fresh.Exp.float(f);
-        };
-      Ok(ap_ctr("Float", exp));
+    | `Int(i) => Ok(ap_ctr("Int", Fresh.Exp.big_int(Bigint.of_int(i))))
+    | `Float(f) => Ok(ap_ctr("Float", Fresh.Exp.float(f)))
     | `String(s) => Ok(ap_ctr("String", Fresh.Exp.string(s)))
     | `List(elements) =>
       elements
@@ -637,19 +620,6 @@ module JsonADT = {
       | Constructor("Float", _) =>
         switch (Exp.term_of(arg)) {
         | Atom(Float(f)) => Ok(`Float(f))
-        | UnOp(
-            Int(Minus) | Float(Minus) | SInt(Minus) | Nat(Minus),
-            neg_arg,
-          ) =>
-          let neg_arg = strip_wrappers(neg_arg);
-          switch (Exp.term_of(neg_arg)) {
-          | Atom(Float(f)) => Ok(`Float(-. f))
-          | _other =>
-            Error(
-              "JsonADT: Float(-) expects float, got: "
-              ++ cls_name(strip_wrappers(neg_arg)),
-            )
-          };
         | _ =>
           Error(
             "JsonADT: Float expects float literal, got: " ++ cls_name(arg),
