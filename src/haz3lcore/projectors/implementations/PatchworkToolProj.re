@@ -126,12 +126,6 @@ module M: Projector = {
   let url_placeholder = "automerge:<doc-url>";
 
   let placeholder = (model, _info) => {
-    let tool_config = find_tool(model.tool);
-    let tool_height =
-      switch (tool_config) {
-      | Some(t) => t.height
-      | None => 200
-      };
     let m = font_metrics^;
     let px_to_grid = (value: int, multiple: float): int =>
       int_of_float(ceil(float_of_int(value) /. multiple));
@@ -142,11 +136,22 @@ module M: Projector = {
     /* +12 for focus dot, reload btn, hot reload toggle, status, margins;
        +14 for tool selector dropdown (longest option "Select tool...") */
     let horizontal = display_len + 26;
+    /* Only reserve vertical space for the tool pane when the tool is
+       connected (or hasn't failed yet). Otherwise just the tab bar. */
+    let has_tool = String.length(model.tool) > 0;
+    let has_url = String.length(model.url) > 0;
+    let url_failed = model.last_load == Some(Failed);
     let rows =
-      if (String.length(model.tool) > 0) {
+      if (has_tool && has_url && !url_failed) {
+        let tool_config = find_tool(model.tool);
+        let tool_height =
+          switch (tool_config) {
+          | Some(t) => t.height
+          | None => 200
+          };
         px_to_grid(tool_height, m.row_height);
       } else {
-        2;
+        1;
       };
     ProjectorCore.Shape.{
       horizontal,
