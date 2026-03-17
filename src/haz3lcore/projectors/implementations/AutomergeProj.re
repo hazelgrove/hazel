@@ -16,6 +16,7 @@ type subscription = {
   mutable cleanup: option(unit => unit),
   mutable handle: option(Js.t(Automerge.handle)),
   mutable last_json: option(string),
+  mutable failed: bool,
 };
 
 let subscriptions: ref(Id.Map.t(subscription)) = ref(Id.Map.empty);
@@ -34,6 +35,7 @@ let subscribe_to_doc =
     cleanup: None,
     handle: None,
     last_json: None,
+    failed: false,
   };
   subscriptions := Id.Map.add(id, sub, subscriptions^);
 
@@ -118,7 +120,9 @@ let subscribe_to_doc =
           Js.Unsafe.inject(
             Js.wrap_callback((_err: Js.Unsafe.any) => {
               switch (Id.Map.find_opt(id, subscriptions^)) {
-              | Some(s) => s.on_error("Failed to find document")
+              | Some(s) =>
+                s.failed = true;
+                s.on_error("Failed to find document");
               | None => ()
               }
             }),
@@ -138,12 +142,18 @@ let ensure_subscribed =
     ) =>
   if (String.length(url) > 0) {
     switch (Id.Map.find_opt(id, subscriptions^)) {
-    | Some(sub) when sub.url == url && sub.handle != None =>
+    | Some(sub) when sub.url == url && (sub.handle != None || sub.failed) =>
+      /* Already connected, or already failed for this URL — just
+         update the callbacks. Don't retry failed subscriptions to
+         avoid an infinite render loop (reject → on_error → re-render
+         → retry → reject → …). A new attempt will happen if the
+         user changes the URL. */
       sub.on_data = on_data;
       sub.on_error = on_error;
     | Some(sub) when sub.url == url =>
-      /* Subscription exists but handle is None — the repo wasn't ready
-         when we first tried. Retry now if the repo is available. */
+      /* Subscription exists but handle is None and not failed — the
+         repo wasn't ready when we first tried. Retry now if the
+         repo is available. */
       sub.on_data = on_data;
       sub.on_error = on_error;
       if (Automerge.repo_is_ready()) {
@@ -345,12 +355,7 @@ module M: Projector = {
     };
 
     let on_error = (_msg: string) => {
-      let null_exp =
-        Language.IdTagged.FreshGrammar.Exp.constructor("Null", None);
-      let seg = put(info, null_exp);
-      Bonsai.Effect.Expert.handle(
-        Effect.Many([local(SetLastLoad(Failed)), parent(SetSyntax(seg))]),
-      );
+      Bonsai.Effect.Expert.handle(local(SetLastLoad(Failed)));
     };
 
     ensure_subscribed(info.id, model.url, on_data, on_error);

@@ -307,12 +307,7 @@ module M: Projector = {
     };
 
     let on_error = (_msg: string) => {
-      let null_exp =
-        Language.IdTagged.FreshGrammar.Exp.constructor("Null", None);
-      let seg = put(info, null_exp);
-      Bonsai.Effect.Expert.handle(
-        Effect.Many([local(SetLastLoad(Failed)), parent(SetSyntax(seg))]),
-      );
+      Bonsai.Effect.Expert.handle(local(SetLastLoad(Failed)));
     };
 
     AutomergeProj.ensure_subscribed(info.id, model.url, on_data, on_error);
