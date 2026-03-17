@@ -8,7 +8,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   secondary: AutoFormat,
   parenthesization: Defensive,
   label_format: QuoteWhenNecessary,
-  inline: true,
+  inline: Inline,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
@@ -356,6 +356,32 @@ let tests = (
         ),
       )
     }),
+    test_case(
+      "Float negation produces 0.0 -. e",
+      `Quick,
+      () => {
+        /* UnOp(Float(Minus), e) should be rewritten to 0.0 -. e
+           so it round-trips through MakeTerm correctly (MakeTerm
+           parses unary - as Int(Minus), breaking float evaluation) */
+        let seg =
+          exp_to_segment(
+            IdTagged.FreshGrammar.Exp.(un_op(Float(Minus), float(3.14))),
+          );
+        let serialized = print_seg(seg);
+        check(
+          string,
+          "Float negation text",
+          "0.000000 -. 3.140000",
+          serialized,
+        );
+        /* Verify round-trip: segment → term → segment preserves float minus */
+        switch (MakeTerm.for_projection(seg)) {
+        | Some(Exp({term: BinOp(Float(Minus), _, _), _})) => ()
+        | _ =>
+          Alcotest.fail("Expected BinOp(Float(Minus), ...) after round-trip")
+        };
+      },
+    ),
     test_case("Dot operator on float", `Quick, () => {
       check(
         string,
@@ -438,7 +464,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   secondary: PreserveExact,
   parenthesization: Structural, /* Don't add defensive parens for round-tripping */
   label_format: QuoteWhenNecessary, /* Only quote labels that need it */
-  inline: true, /* ignored when secondary = PreserveExact */
+  inline: Inline, /* ignored when secondary = PreserveExact */
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
@@ -1051,7 +1077,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   secondary: PreserveExact,
   parenthesization: Structural,
   label_format: QuoteWhenNecessary,
-  inline: true,
+  inline: Inline,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,

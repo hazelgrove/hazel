@@ -57,6 +57,11 @@ let replace_selection_and_unselect =
   |> Zipper.directional_unselect(focus);
 
 let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
+  /* Clean up serialization bypass entry */
+  switch (piece) {
+  | Projector(pr) => ProjectorCore.remove_bypass(pr.id)
+  | _ => ()
+  };
   let seg = Piece.unparenthesize(piece);
   /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
   switch (seg) {

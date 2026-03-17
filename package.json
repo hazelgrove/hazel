@@ -10,15 +10,24 @@
   },
   "homepage": "https://hazel.org",
   "dependencies": {
+    "@automerge/automerge-repo-keyhive": "^0.0.0-alpha.53",
+    "@automerge/vanillajs": "^2.5.0",
     "@esbuild-plugins/node-resolve": "^0.2.2",
+    "@inkandswitch/patchwork-bootloader": "^0.0.4",
+    "@inkandswitch/patchwork-elements": "^0.0.5",
+    "@inkandswitch/patchwork-filesystem": "^0.0.3",
+    "@inkandswitch/patchwork-plugins": "^0.0.5",
+    "@observablehq/plot": "^0.6.17",
+    "algebrite": "^1.4.0",
     "hotkeys-js": "^3.8.7",
     "ninja-keys": "^1.2.2",
-    "algebrite": "^1.4.0",
+    "resolve.exports": "^2.0.3",
     "web-worker": "^1.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "esbuild": "^0.25.1",
+    "esbuild-plugin-wasm": "^1.1.0",
     "vite": "^6.4.1",
     "vite-plugin-static-copy": "^2.3.0"
   }

@@ -503,6 +503,81 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
+let tldraw_fns: list(BuiltinsUtil.fn) = [
+  {
+    name: "tldraw_decode_path",
+    arg: Atom(String),
+    ret:
+      List({
+        ...float(),
+        term: Prod([float(), float()]),
+      }),
+    imp: d => {
+      let-unbox s = (Atom(String), d);
+      try({
+        let decode_fn =
+          Js_of_ocaml.Js.Unsafe.eval_string(
+            "(function(b64){"
+            ++ "if(!b64||b64.length===0)return'';"
+            ++ "var raw=atob(b64);"
+            ++ "var bytes=new Uint8Array(raw.length);"
+            ++ "for(var i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);"
+            ++ "var view=new DataView(bytes.buffer);"
+            ++ "if(bytes.length<12)return'';"
+            ++ "function f16(bits){"
+            ++ "var sign=bits>>15,exp=(bits>>10)&0x1f,frac=bits&0x3ff;"
+            ++ "if(exp===0){var s=Math.pow(2,-14)/1024;"
+            ++ "return sign?-frac*s:frac*s;}"
+            ++ "if(exp===31)return frac?NaN:(sign?-Infinity:Infinity);"
+            ++ "var mag=Math.pow(2,exp-15)*(1+frac/1024);"
+            ++ "return sign?-mag:mag;}"
+            ++ "var x=view.getFloat32(0,true),y=view.getFloat32(4,true);"
+            ++ "view.getFloat32(8,true);"
+            ++ "var r=x.toFixed(10)+','+y.toFixed(10);"
+            ++ "for(var off=12;off+5<bytes.length;off+=6){"
+            ++ "x+=f16(view.getUint16(off,true));"
+            ++ "y+=f16(view.getUint16(off+2,true));"
+            ++ "view.getUint16(off+4,true);"
+            ++ "r+=';'+x.toFixed(10)+','+y.toFixed(10);}"
+            ++ "return r;})",
+          );
+        let js_result =
+          Js_of_ocaml.Js.Unsafe.fun_call(
+            decode_fn,
+            [|Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(s))|],
+          );
+        let result_str = Js_of_ocaml.Js.to_string(js_result);
+        if (result_str == "") {
+          Some(Exp.list_lit([]));
+        } else {
+          let pairs = String.split_on_char(';', result_str);
+          let points =
+            List.filter_map(
+              pair =>
+                switch (String.split_on_char(',', pair)) {
+                | [x_str, y_str] =>
+                  switch (
+                    float_of_string_opt(x_str),
+                    float_of_string_opt(y_str),
+                  ) {
+                  | (Some(x), Some(y)) =>
+                    Some(Exp.tuple([Exp.float(x), Exp.float(y)]))
+                  | _ => None
+                  }
+                | _ => None
+                },
+              pairs,
+            );
+          Some(Exp.list_lit(points));
+        };
+      }) {
+      | _ => Some(Exp.list_lit([]))
+      };
+    },
+    custom_statics: None,
+  },
+];
+
 let pair_fns: list(BuiltinsUtil.fn) = [
   {
     name: "fst",

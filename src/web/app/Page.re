@@ -525,23 +525,38 @@ module View = {
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
         : Effect.t(unit) => {
-      let meta_effects = update_meta(evt);
-      Effect.(
-        switch (
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=Key.mk(dir, evt),
-            model,
-          )
-        ) {
-        | None => meta_effects == [] ? Ignore : Many(meta_effects)
-        | Some(action) =>
-          Many(
-            [Prevent_default, Stop_propagation, inject(action)]
-            @ meta_effects,
-          )
-        }
-      );
+      /* Let patchwork-view elements (e.g. TLDraw canvas) handle
+         their own keyboard input without Hazel intercepting it */
+      let target = Js.Opt.to_option(evt##.target);
+      let in_patchwork_view =
+        switch (target) {
+        | Some(el) =>
+          let el = Js.Unsafe.coerce(el);
+          let result = el##closest(Js.string("patchwork-view"));
+          Js.Opt.test(result);
+        | None => false
+        };
+      if (in_patchwork_view) {
+        Effect.Ignore;
+      } else {
+        let meta_effects = update_meta(evt);
+        Effect.(
+          switch (
+            Selection.handle_key_event(
+              ~selection=Some(model.selection),
+              ~event=Key.mk(dir, evt),
+              model,
+            )
+          ) {
+          | None => meta_effects == [] ? Ignore : Many(meta_effects)
+          | Some(action) =>
+            Many(
+              [Prevent_default, Stop_propagation, inject(action)]
+              @ meta_effects,
+            )
+          }
+        );
+      };
     };
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
@@ -801,6 +816,68 @@ module View = {
     ];
   };
 
+  let rec deep_piece_count = (seg: Haz3lcore.Segment.t): int =>
+    List.fold_left(
+      (acc, piece: Haz3lcore.Piece.t) =>
+        switch (piece) {
+        | Tile(t) =>
+          acc
+          + 1
+          + List.fold_left(
+              (a, child) => a + deep_piece_count(child),
+              0,
+              t.children,
+            )
+        | Projector(pr) =>
+          acc
+          + 1
+          + deep_piece_count(Haz3lcore.Piece.unparenthesize(pr.syntax))
+        | Grout(_)
+        | Secondary(_) => acc + 1
+        },
+      0,
+      seg,
+    );
+
+  let ast_hud = (model: Model.t) => {
+    let editor = Update.get_editor(model);
+    let segment = editor.editor.syntax.segment;
+    let top_count = List.length(segment);
+    let deep_count = deep_piece_count(segment);
+    div(
+      ~attrs=[
+        Attr.style(
+          Css_gen.concat([
+            Css_gen.position(~top=`Px(8), ~right=`Px(8), `Fixed),
+            Css_gen.z_index(9999),
+            Css_gen.background_color(`Name("rgba(0,0,0,0.75)")),
+            Css_gen.color(`Name("white")),
+            Css_gen.padding(
+              ~top=`Px(4),
+              ~bottom=`Px(4),
+              ~left=`Px(8),
+              ~right=`Px(8),
+              (),
+            ),
+            Css_gen.font_size(`Px(11)),
+            Css_gen.create(~field="font-family", ~value="monospace"),
+            Css_gen.create(~field="border-radius", ~value="4px"),
+            Css_gen.create(~field="pointer-events", ~value="none"),
+          ]),
+        ),
+      ],
+      [
+        Node.text(
+          "AST: "
+          ++ string_of_int(deep_count)
+          ++ " pieces (top: "
+          ++ string_of_int(top_count)
+          ++ ")",
+        ),
+      ],
+    );
+  };
+
   let view =
       (
         ~log_model,
@@ -811,7 +888,7 @@ module View = {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
+      [FontSpecimen.view, JsUtil.clipboard_shim, ast_hud(model)]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };

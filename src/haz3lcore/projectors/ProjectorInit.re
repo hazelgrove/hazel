@@ -16,6 +16,22 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
   | Csv => (module Cook(CSVProjector.M))
+  | Exo(a) =>
+    (module
+     Cook(
+
+         ExoProj.M({
+           let exo = Exo.module_of_kind(a);
+         }),
+
+     ))
+  | Graph => (module Cook(GraphProj.M))
+  | Patchwork => (module Cook(PatchworkProj.M))
+  | ObservablePlot => (module Cook(ObservablePlotProj.M))
+  | Automerge => (module Cook(AutomergeProj.M))
+  | AutomergeWriteBack => (module Cook(AutomergeWriteBackProj.M))
+  | PatchworkTool => (module Cook(PatchworkToolProj.M))
+  | ExoTool => (module Cook(ExoToolProj.M))
   };
 
 let init =

@@ -2,15 +2,9 @@ open Util;
 open Js_of_ocaml;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  row_height: float,
-  col_width: float,
-};
+type t = Util.font_metrics;
 
-let init = {
-  row_height: 10.,
-  col_width: 10.,
-};
+let init = Util.font_metrics_init;
 
 let get_goal =
     (~font_metrics: t, text_box: Js.t(Dom_html.element), loc: Point.t)

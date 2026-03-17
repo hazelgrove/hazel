@@ -679,6 +679,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+      | ([t], []) when Token.is_livelit(t) => ret(Var(t))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_wild(t) => ret(Wild)
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
@@ -1083,9 +1084,14 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     | Grout(_) => []
     | Projector({id, kind, model, syntax} as pr) =>
       let _ = log_projector(pr);
-      let sort = Piece.sort(syntax) |> fst;
-      let seg = Piece.unparenthesize(syntax);
-      let inner = go_s(sort, Segment.skel(seg), seg);
+      let inner =
+        switch (ProjectorCore.get_bypass(id)) {
+        | Some(exp) => Grammar.Exp(exp)
+        | None =>
+          let sort = Piece.sort(syntax) |> fst;
+          let seg = Piece.unparenthesize(syntax);
+          go_s(sort, Segment.skel(seg), seg);
+        };
       /* Construct Projector term with proper annotation, preserving
        * projector metadata (kind, model) in the term for round-tripping */
       let projector_data: Grammar.projector_data = {
@@ -1244,17 +1250,17 @@ let for_projection =
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {
-          | {term: Tuple(_), _} => None
+          | {term: Tuple(xs), _} when List.length(xs) > 0 => None
           | _ => Some(Grammar.Exp(exp(unsorted)))
           }
         | Pat =>
           switch (pat(unsorted)) {
-          | {term: Tuple(_), _} => None
+          | {term: Tuple(xs), _} when List.length(xs) > 0 => None
           | _ => Some(Pat(pat(unsorted)))
           }
         | Typ =>
           switch (typ(unsorted)) {
-          | {term: Prod(_), _} => None
+          | {term: Prod(xs), _} when List.length(xs) > 0 => None
           | _ => Some(Typ(typ(unsorted)))
           }
         | TPat =>

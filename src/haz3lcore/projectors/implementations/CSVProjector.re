@@ -81,6 +81,7 @@ module M: Projector = {
             term: exp,
           })
         | _any => failwith("csv: put: not string literal"),
+        Inline.Block,
         info.syntax,
       )
     ) {

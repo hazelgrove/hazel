@@ -62,6 +62,7 @@ let is_new = (x: t('a)): bool =>
 
 let old_if_same = (~eq: ('a, 'a) => bool=(==), x: 'a, y: t('a)): t('a) =>
   switch (y) {
+  | NewValue(y) when x === y => OldValue(x) /* Physical equality fast path */
   | NewValue(y) when eq(x, y) => OldValue(x)
   | _ => NewValue(x)
   };
@@ -137,6 +138,7 @@ let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
 let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
   switch (y) {
   | Pending => NewValue(x)
+  | Calculated(x') when x === x' => OldValue(x) /* Physical equality fast path */
   | Calculated(x') when eq(x, x') => OldValue(x)
   | Calculated(_) => NewValue(x)
   };
@@ -164,6 +166,7 @@ let saved_to_option = get_saved_opt;
 let old_if_same' =
     (~eq: ('a, 'a) => bool=(==), x: saved('a), y: t('a)): t('a) =>
   switch (y, x) {
+  | (NewValue(y), Calculated(x)) when y === x => OldValue(y) /* Physical equality fast path */
   | (NewValue(y), Calculated(x)) when eq(y, x) => OldValue(y)
   | (NewValue(y), _) => NewValue(y)
   | (OldValue(y), _) => OldValue(y)

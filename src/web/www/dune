@@ -5,11 +5,12 @@
  (copy ../worker.bc.js worker.js))
 
 (rule
- (targets bundled.js)
- (deps prebundle.js)
+ (targets bundled.js service-worker.js)
+ (deps
+  prebundle.js
+  service-worker-template.js
+  (source_tree %{workspace_root}/node_modules))
  (action
-  (run
-   %{project_root}/node_modules/esbuild/bin/esbuild
-   prebundle.js
-   --bundle
-   --outfile=bundled.js)))
+  (chdir
+   %{workspace_root}
+   (run node %{dep:build-prebundle.mjs}))))

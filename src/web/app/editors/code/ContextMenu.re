@@ -420,20 +420,24 @@ module Projectors = {
     | Csv => "CSV"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
+    | Graph => "Graph"
+    | Patchwork => "Patchwork"
+    | ObservablePlot => "Plot"
+    | Automerge => "Automerge"
+    | AutomergeWriteBack => "AutomergeWriteBack"
+    | PatchworkTool => "PatchworkTool"
+    | ExoTool => "ExoTool"
+    | Exo(exo_kind) => Exo.name(exo_kind)
     };
 
-  /* Get applicable projector kinds */
+  /* Get applicable projector kinds - iterates over all projectors */
   let applicable_kinds =
       (z: Zipper.t, info_map: Language.Statics.Map.t)
-      : list(ProjectorCore.Kind.t) => {
-    let fold_applicable = is_applicable(z, info_map, Fold);
-    let livelit_applicable =
-      List.find_map(
-        is_applicable(z, info_map),
-        ProjectorCore.Kind.livelit_projectors,
-      );
-    List.filter_map(Fun.id, [fold_applicable, livelit_applicable]);
-  };
+      : list(ProjectorCore.Kind.t) =>
+    List.filter_map(
+      is_applicable(z, info_map),
+      ProjectorCore.Kind.projectors,
+    );
 
   /* Data-returning version for keyboard navigation */
   let actions_data =

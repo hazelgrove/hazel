@@ -89,11 +89,13 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Editor(Tutorial.pos, CellEditor.Update.t)
+    | RefreshStatics
     | ResetEditor(Tutorial.pos)
     | ResetTutorial
     | MoveToNextExercise
     | MoveToPrevExercise
     | Change_report_view;
+
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
@@ -184,6 +186,9 @@ module Update = {
         cells: Tutorial.put_stitched(pos, model.cells, new_cell),
       };
     | Editor(_, ResultAction(_)) => Updated.raise_invalid_action(model) // TODO: I think this case should never happen
+    | RefreshStatics =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      model |> Updated.return_quiet(~recalculate=true);
     | ResetEditor(pos) =>
       let spec = Tutorial.main_editor_of_state(~selection=pos, model.spec);
       let new_editor = Editor.Model.mk(spec);
@@ -215,6 +220,7 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | Editor(_, action) => CellEditor.Update.can_undo(action)
+    | RefreshStatics => false
     | ResetEditor(_) => true
     | ResetTutorial => true
     | MoveToNextExercise
@@ -225,6 +231,11 @@ module Update = {
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+    let statics_mode =
+      CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
+
     let stitched_elabs = Tutorial.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
@@ -246,6 +257,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
                term

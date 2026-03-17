@@ -37,7 +37,8 @@ type utility = {
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
+  lift_syntax:
+    (Any.t => Any.t, Inline.t, Base.segment) => option(Base.segment),
 };
 
 module Focusable = {
@@ -113,7 +114,8 @@ module View = {
     indication: option(Direction.t), /* Is the parent editor caret adjacent? */
     selected: bool, /* Is the projector contained within a selection? */
     error: bool, /* Is there an error mark on the projector? */
-    warning: bool /* Is there a warning mark on the projector? */
+    warning: bool, /* Is there a warning mark on the projector? */
+    shape: ProjectorCore.Shape.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

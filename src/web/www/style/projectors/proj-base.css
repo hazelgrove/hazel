@@ -9,7 +9,11 @@
 @import "proj-checkbox.css";
 @import "proj-slider.css";
 @import "proj-livelit.css";
+@import "proj-graph.css";
 @import "proj-csv.css";
+@import "proj-automerge.css";
+@import "proj-automerge-writeback.css";
+@import "proj-patchwork-tool.css";
 
 /* Default projector styles */
 
@@ -20,6 +24,15 @@
   align-items: center;
   color: var(--BR2);
   z-index: var(--projector-z);
+}
+
+.projector.Tab {
+  align-items: flex-start;
+}
+
+.refractors .projector {
+  /* TODO(andrew) */
+  /* z-index: 1; */
 }
 
 .refractors .projector.probe.indicated {

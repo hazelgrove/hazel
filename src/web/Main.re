@@ -63,6 +63,8 @@ let apply =
     );
   };
   if (updated.scroll_active) {
+    // print_endline("scroll_to_caret: true");
+    // print_endline("action: " ++ Page.Update.show(action));
     scroll_to_caret := true;
   };
   model';
@@ -123,8 +125,8 @@ let start = {
       () => JsUtil.get_elem_by_id("font-specimen"),
       ~default=
         BonsaiUtil.SizeObserver.Size.{
-          width: 10.,
-          height: 10.,
+          width: Util.font_metrics_init.col_width,
+          height: Util.font_metrics_init.row_height,
         },
     );
   let%sub () =
@@ -136,14 +138,12 @@ let start = {
       ~callback=
         app_inject
         |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
-             i(
-               Page.Update.Globals(
-                 SetFontMetrics({
-                   row_height: rect.height,
-                   col_width: rect.width,
-                 }),
-               ),
-             )
+             font_metrics :=
+               {
+                 row_height: rect.height,
+                 col_width: rect.width,
+               };
+             i(Page.Update.Globals(SetFontMetrics(font_metrics^)));
            }),
     );
 
@@ -155,6 +155,7 @@ let start = {
       )
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
+    Haz3lcore.ExternalProjectorBridge.init(Bonsai.Effect.Expert.handle);
     Haz3lcore.PatchworkComm.init_iframe(a =>
       schedule_action(
         Editors(Scratch(CellAction(MainEditor(Perform(a))))),

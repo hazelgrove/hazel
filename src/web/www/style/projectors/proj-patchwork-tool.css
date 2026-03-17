@@ -1,0 +1,167 @@
+/* PROJECTOR: PATCHWORK TOOL */
+
+/* Turn off caret when patchwork tool projector is focused */
+.code-deco:has(~ .projectors .projector.PatchworkTool *:focus) #caret .caret-path {
+  fill: #0000;
+}
+
+.projector.PatchworkTool {
+  cursor: default;
+  overflow: visible;
+}
+
+.projector.PatchworkTool > svg {
+  stroke-width: 0.5px;
+  stroke: var(--BR2);
+}
+
+.projector.PatchworkTool .patchwork-tool-wrapper {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: 0.1em;
+  overflow: visible;
+}
+
+.projector.PatchworkTool .patchwork-tool-tab-bar {
+  height: var(--line-height);
+  display: flex;
+  align-items: center;
+  color: var(--SAND);
+  margin-left: 2px;
+  margin-right: 2px;
+  gap: 4px;
+}
+
+.projector.PatchworkTool.indicated .patchwork-tool-tab-bar,
+.projector.PatchworkTool:has(input:focus) .patchwork-tool-tab-bar,
+.projector.PatchworkTool:has(select:focus) .patchwork-tool-tab-bar {
+  color: var(--R1);
+}
+
+.projector.PatchworkTool.indicated > svg {
+  fill: var(--textarea-indicated);
+}
+
+.projector.PatchworkTool.selected > svg {
+  filter: drop-shadow(1px 1px 0 var(--R0));
+}
+
+/* Tool selector dropdown */
+.projector.PatchworkTool .patchwork-tool-select {
+  outline: none;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: var(--code-font);
+  font-size: inherit;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+/* URL input */
+.projector.PatchworkTool .patchwork-tool-url-input {
+  outline: none;
+  caret-color: var(--caret-color);
+  padding: 0;
+  margin: 0;
+  line-height: var(--line-height);
+  font-family: var(--code-font);
+  font-size: inherit;
+  border: none;
+  color: var(--textarea-text);
+  background: none;
+  overflow: hidden;
+}
+
+.projector.PatchworkTool .patchwork-tool-url-input::placeholder {
+  opacity: 0.5;
+}
+
+.projector.PatchworkTool .patchwork-tool-url-input::selection {
+  color: var(--BLACK);
+  background-color: var(--shard-selected);
+}
+
+/* Hot reload toggle */
+.projector.PatchworkTool .hot-reload-toggle {
+  flex-shrink: 0;
+  margin-left: 4px;
+  font-size: 0.7em;
+}
+
+.projector.PatchworkTool .hot-reload-toggle.disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Manual reload button */
+.projector.PatchworkTool .manual-reload-btn {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 0.8em;
+  margin-left: 4px;
+  user-select: none;
+  color: var(--GB1);
+  position: relative;
+  top: 1px;
+}
+
+.projector.PatchworkTool .manual-reload-btn.disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+.projector.PatchworkTool .manual-reload-btn:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  filter: brightness(1.2);
+}
+
+.projector.PatchworkTool .manual-reload-btn.spinning {
+  animation: spin360 0.4s ease-in-out;
+}
+
+/* Tool pane — overflows the tab bar width to show the full tool UI */
+.projector.PatchworkTool patchwork-view {
+  display: block;
+  height: calc(100% - var(--line-height));
+}
+
+/* Placeholder message */
+.projector.PatchworkTool .patchwork-tool-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100% - var(--line-height));
+  color: var(--SAND);
+  opacity: 0.6;
+  font-family: var(--code-font);
+  font-size: inherit;
+}
+
+/* Last-load status superscript */
+.projector.PatchworkTool .patchwork-tool-wrapper::after {
+  position: absolute;
+  top: -0.15em;
+  right: -1em;
+  font-size: 64%;
+  z-index: var(--projector-overlay-z);
+}
+
+.projector.PatchworkTool .patchwork-tool-wrapper.load-succeeded::after {
+  content: "\2714";
+  color: var(--test-pass);
+}
+
+.projector.PatchworkTool .patchwork-tool-wrapper.load-failed::after {
+  content: "\2718";
+  color: var(--test-fail);
+}
+
+.projector.PatchworkTool .patchwork-tool-wrapper.load-none::after {
+  content: "?";
+  color: var(--test-indet);
+}

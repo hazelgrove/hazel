@@ -2,6 +2,14 @@
  * This module exists to break the dependency cycle between
  * the language and haz3lcore libraries. */
 
+[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
+type exo =
+  | ExoSlider
+  | ExoBuilder
+  | ExoNool
+  | Petrinaut
+  | CatColLab;
+
 /* The different kinds of projector. New projector
  * types need to be registered here in order to be
  * able to create and update their instances */
@@ -16,21 +24,42 @@ type t =
   | Card
   | Livelit
   | TextArea
-  | Csv;
+  | Csv
+  | Graph
+  | ObservablePlot
+  | Patchwork
+  | Exo(exo)
+  | Automerge
+  | AutomergeWriteBack
+  | PatchworkTool
+  | ExoTool;
 
-let livelit_projectors: list(t) = [
-  Csv, /* Competes with Card for empty list */
-  Card, /* Competes with Csv for empty list */
-  Checkbox,
-  Slider,
-  SliderF,
-  TextArea,
-  Card,
-  Livelit,
-];
+let livelit_projectors: list(t) =
+  [
+    Csv, /* Competes with Card for empty list */
+    Card, /* Competes with Csv for empty list */
+    Checkbox,
+    Slider,
+    SliderF,
+    TextArea,
+    Card,
+    Livelit,
+  ]
+  @ List.map(x => Exo(x), all_of_exo);
 
 /* Note: Probe intentionally excluded - probes use separate action path */
-let projectors: list(t) = livelit_projectors @ [Fold];
+let projectors: list(t) =
+  livelit_projectors
+  @ [
+    Fold,
+    Graph,
+    ObservablePlot,
+    Patchwork,
+    Automerge,
+    AutomergeWriteBack,
+    PatchworkTool,
+    ExoTool,
+  ];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
@@ -51,6 +80,14 @@ let name = (p: t): string =>
   | Livelit => "livelit"
   | TextArea => "text"
   | Csv => "csv"
+  | Graph => "graph"
+  | ObservablePlot => "ObservablePlot"
+  | Patchwork => "Patchwork"
+  | Exo(exo_kind) => show_exo(exo_kind)
+  | Automerge => "Automerge"
+  | AutomergeWriteBack => "AutomergeWriteBack"
+  | PatchworkTool => "PatchworkTool"
+  | ExoTool => "exotool"
   };
 
 /* This must be updated and kept 1-to-1 with the above
@@ -68,7 +105,14 @@ let of_name = (p: string): t =>
   | "livelit" => Livelit
   | "card" => Card
   | "csv" => Csv
-  | _ => failwith("Unknown projector kind")
+  | "graph" => Graph
+  | "Patchwork" => Patchwork
+  | "ObservablePlot" => ObservablePlot
+  | "Automerge" => Automerge
+  | "AutomergeWriteBack" => AutomergeWriteBack
+  | "PatchworkTool" => PatchworkTool
+  | "exotool" => ExoTool
+  | _ => Exo(p |> Sexplib.Sexp.of_string |> exo_of_sexp)
   };
 
 let is_name = str => List.mem(str, List.map(name, all));

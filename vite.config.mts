@@ -34,10 +34,15 @@ export default defineConfig({
           dest: "",
         },
         { src: "../../../_build/default/src/web/www/hazel.js", dest: "" },
+        {
+          src: "../../../_build/default/src/web/www/service-worker.js",
+          dest: "",
+        },
       ],
     }),
     watchExternalPlugin("./_build/default/src/web/www/worker.js"),
     watchExternalPlugin("./_build/default/src/web/www/bundled.js"),
     watchExternalPlugin("./_build/default/src/web/www/hazel.js"),
+    watchExternalPlugin("./_build/default/src/web/www/service-worker.js"),
   ],
 });

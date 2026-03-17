@@ -1,7 +1,7 @@
 
 opam-version: "2.0"
 name: "hazel"
-version: "dev"
+version: "~dev"
 synopsis: "Hazel, a live functional programming environment with typed holes"
 maintainer: "Hazel Development Team"
 authors: "Hazel Development Team"
@@ -222,6 +222,7 @@ depends: [
   "time_now" {= "v0.16.0"}
   "timezone" {= "v0.16.0"}
   "topkg" {= "1.1.1"}
+  "ts2ocaml-jsoo-stdlib" {= "1.4.6"}
   "typerep" {= "v0.16.0"}
   "tyxml" {= "4.6.0"}
   "uchar" {= "0.0.2"}
@@ -255,3 +256,13 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/hazelgrove/hazel.git"
+pin-depends: [
+  [
+    "bisect_ppx.2.8.3"
+    "https://github.com/aantron/bisect_ppx/archive/2.8.3.tar.gz"
+  ]
+  [
+    "ts2ocaml-jsoo-stdlib.1.4.6"
+    "git+https://github.com/ocsigen/ts2ocaml.git#jsoo-stdlib-v1.4.6"
+  ]
+]

@@ -17,6 +17,7 @@ module Model = {
     sidebar: SidebarModel.Settings.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    cap_undo_stack: bool,
   };
 
   let init = {
@@ -69,6 +70,7 @@ module Model = {
     },
     line_numbers: false,
     relative_line_numbers: false,
+    cap_undo_stack: true,
   };
 
   let fix_instructor_mode = settings =>
@@ -134,7 +136,8 @@ module Update = {
     | Assistant(AssistantSettings.action)
     | FlipAnimations
     | ToggleLineNumbers
-    | ToggleRelativeLineNumbers;
+    | ToggleRelativeLineNumbers
+    | CapUndoStack;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -377,6 +380,10 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | CapUndoStack => {
+          ...settings,
+          cap_undo_stack: !settings.cap_undo_stack,
         }
       }
     )

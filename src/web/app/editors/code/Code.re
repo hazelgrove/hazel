@@ -163,5 +163,14 @@ let view =
       seg,
     );
 
-  of_segment(segment);
+  let code = of_segment(segment);
+  /* Consume any deferred linebreaks from Tab projectors on the last line.
+     Without this, Tab projectors at the end of the editor overflow beyond
+     the code-text height because the trailing rows are never emitted. */
+  let trailing = DeferredLinebreaks.consume();
+  if (trailing > 0) {
+    code @ [Node.text(String.make(trailing, '\n'))];
+  } else {
+    code;
+  };
 };

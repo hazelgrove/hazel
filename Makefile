@@ -1,8 +1,8 @@
 TEST_DIR="$(shell pwd)/_build/default/test"
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
-SERVER="http://0.0.0.0:8000/"
+SERVER="http://0.0.0.0:8009/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student grade echo-html-dir serve serve2 repl test clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student grade echo-html-dir serve serve2 repl test clean setup-zarith update-wasm
 
 all: dev
 
@@ -30,7 +30,7 @@ change-deps:
 setup-instructor:
 	cp src/web/exercises/settings/ExerciseSettings_instructor.re src/web/exercises/settings/ExerciseSettings.re
 
-setup-student: 
+setup-student:
 	cp src/web/exercises/settings/ExerciseSettings_student.re src/web/exercises/settings/ExerciseSettings.re
 
 dev-helper: setup-zarith
@@ -56,7 +56,7 @@ release: setup-instructor setup-zarith
 release-student: setup-student setup-zarith
 	dune build @src/fmt --auto-promote src --profile dev # Uses dev profile for performance reasons. It may be worth it to retest since the ocaml upgrade
 
-grade: 
+grade:
 ifndef SUBMISSION
 	$(error Usage: make grade SUBMISSION=<path to submission json>)
 endif
@@ -66,7 +66,7 @@ echo-html-dir:
 	@echo $(HTML_DIR)
 
 serve:
-	cd $(HTML_DIR); python3 -m http.server 8000 --bind 0.0.0.0
+	cd $(HTML_DIR); python3 -m http.server 8014 --bind 0.0.0.0
 
 hot:
 	npx vite
@@ -97,9 +97,12 @@ coverage:
 ci: setup-zarith
 	dune build --profile dev
 	dune runtest --instrument-with bisect_ppx --force
-	
+
 generate-coverage-html:
 	bisect-ppx-report html
+
+automerge.wasm:
+	curl -o src/web/www/automerge.wasm https://gaios.sgai.uk/automerge.wasm
 
 clean:
 	dune clean

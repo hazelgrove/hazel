@@ -9,7 +9,7 @@ let z =
     TextArea,
     Segment.parenthesize(
       ExpToSegment.exp_to_segment(
-        ~settings=ExpToSegment.Settings.editable(~inline=true),
+        ~settings=ExpToSegment.Settings.editable(~inline=Block),
         string_exp,
       ),
     ),

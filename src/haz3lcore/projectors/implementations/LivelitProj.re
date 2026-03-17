@@ -9,17 +9,26 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let get_model = (info: info) =>
+  let get_model = (info: info) => {
+    let extract_ap = (term: Language.Exp.t) =>
+      switch (term.term) {
+      | Ap(_dir, {term: LivelitName(llname), _}, model) =>
+        Some((llname, model))
+      | _ => None
+      };
     switch (info.statics) {
-    | Some(
-        InfoExp({
-          term: {term: Ap(_dir, {term: LivelitName(llname), _}, model), _},
-          _,
-        }),
-      ) =>
-      Some((llname, model))
+    | Some(InfoExp({term, _})) =>
+      switch (extract_ap(term)) {
+      | Some(_) as result => result
+      | None =>
+        switch (term.term) {
+        | Projector(_, inner) => extract_ap(inner)
+        | _ => None
+        }
+      }
     | _ => None
     };
+  };
 
   let init = (any: Language.Any.t) =>
     switch (any) {
@@ -98,6 +107,7 @@ module M: Projector = {
             let updated_segment =
               info.utility.lift_syntax(
                 replace_model_term(new_model),
+                Inline.Block,
                 info.syntax,
               );
 

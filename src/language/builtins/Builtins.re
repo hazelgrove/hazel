@@ -11,9 +11,11 @@ let builtins =
   @ List.map(of_atom_builtin, Operators.builtins)
   @ List.map(hazel_fn_builtin, BuiltinsList.builtins)
   @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
+  @ List.map(hazel_fn_builtin, BuiltinsJq.builtins)
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
-  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins);
+  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins)
+  @ List.map(fn_builtin, BuiltinsBase.tldraw_fns);
 
 let builtins =
   List.sort(

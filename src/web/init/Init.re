@@ -14,6 +14,13 @@ let documentation_slides =
     [];
   } else {
     [
+      Exolivelits.out,
+      Nool.out,
+      Petrinaut.out,
+      // Tiling.out,
+      TLDraw.out,
+      BrushPath.out,
+      DrawPetri.out,
       BasicReference.out,
       Projectors.out,
       ADTs.out,

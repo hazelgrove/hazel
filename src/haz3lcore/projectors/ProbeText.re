@@ -47,7 +47,7 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
   let seg =
     ExpToSegment.exp_to_segment(
       ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+        ...ExpToSegment.Settings.of_core(~inline=Block, CoreSettings.off),
         show_unknown_as_hole: false,
       },
       value |> DHExp.strip_ascriptions,
