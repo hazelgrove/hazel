@@ -37,7 +37,7 @@ let (suite, _) =
     @ Test_Editing.tests
     @ Test_AutoProbe.tests
     @ Test_Indentation.tests
-    @ [Test_Coverage.tests, Test_Unboxing.tests]
+    @ [Test_Coverage.tests, Test_Unboxing.tests, Test_ErrorCollection.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
