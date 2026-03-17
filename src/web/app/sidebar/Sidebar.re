@@ -109,7 +109,7 @@ let errors_tab_icon = (error_count: int, warning_count: int): Node.t => {
     };
   div(
     ~attrs=[
-      clss(["status-indicator", "tab-status-indicator", status_class]),
+      clss(["tab-status-indicator", status_class]),
       Attr.title(title),
     ],
     [span(~attrs=[], [text(icon_text)])],
