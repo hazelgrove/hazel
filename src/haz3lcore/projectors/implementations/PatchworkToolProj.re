@@ -15,29 +15,64 @@ type patchwork_tool = {
   height: int,
 };
 
-let tools: list(patchwork_tool) = [
-  {
-    id: "petrinaut",
-    name: "Petrinaut",
-    width: 1050,
-    height: 590,
-  },
-  {
-    id: "catcolab",
-    name: "CatColab",
-    width: 680,
-    height: 490,
-  },
-  {
-    id: "tldraw4",
-    name: "TLDraw",
-    width: 680,
-    height: 490,
-  },
+let default_width = 680;
+let default_height = 490;
+
+/* Known dimension overrides for tools whose default size differs */
+let known_dimensions: list((string, (int, int))) = [
+  ("petrinaut", (1050, 590)),
 ];
 
+let dimensions_for = (id: string): (int, int) =>
+  switch (List.assoc_opt(id, known_dimensions)) {
+  | Some(dims) => dims
+  | None => (default_width, default_height)
+  };
+
+/* Read available tools from the Patchwork plugin registry
+   (window.plugins, a PluginRegistry for "patchwork:tool").
+   Falls back to empty if the registry isn't loaded yet. */
+let get_registry_tools = (): list(patchwork_tool) => {
+  let plugins_opt =
+    Js.Optdef.to_option(Js.Unsafe.get(Dom_html.window, "plugins"));
+  switch (plugins_opt) {
+  | None => []
+  | Some(registry) =>
+    let all: Js.t(Js.js_array(Js.t({..}))) =
+      Js.Unsafe.meth_call(registry, "all", [||]);
+    let len: int = all##.length;
+    let acc = ref([]);
+    for (i in 0 to len - 1) {
+      let p = Js.array_get(all, i);
+      switch (Js.Optdef.to_option(p)) {
+      | None => ()
+      | Some(p) =>
+        let id = Js.to_string(Js.Unsafe.get(p, "id"));
+        let name = Js.to_string(Js.Unsafe.get(p, "name"));
+        let unlisted =
+          Js.Optdef.test(Js.Unsafe.get(p, "unlisted"))
+          && Js.to_bool(Js.Unsafe.get(p, "unlisted"));
+        if (!unlisted) {
+          let (width, height) = dimensions_for(id);
+          acc :=
+            [
+              {
+                id,
+                name,
+                width,
+                height,
+              },
+              ...acc^,
+            ];
+        };
+      };
+    };
+    List.rev(acc^);
+  };
+};
+
 let find_tool = (id: string): option(patchwork_tool) =>
-  List.find_opt(t => t.id == id, tools);
+  List.find_opt(t => t.id == id, get_registry_tools());
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -257,6 +292,7 @@ module M: Projector = {
       );
 
     /* --- Tool selector dropdown --- */
+    let available_tools = get_registry_tools();
     let tool_options =
       [
         Node.create(
@@ -279,7 +315,7 @@ module M: Projector = {
               ],
               [Node.text(t.name)],
             ),
-          tools,
+          available_tools,
         );
 
     let tool_select =

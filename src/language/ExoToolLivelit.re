@@ -7,43 +7,19 @@ open Virtual_dom.Vdom;
 
 let tldraw_doc_url = "automerge:2isSbJyZRp5WJmtCXS3QyY43Twpx";
 
-type tool_config = {
-  id: string,
-  name: string,
-  width: int,
-  height: int,
-};
-
-let tool_configs: list(tool_config) = [
-  {
-    id: "petrinaut",
-    name: "Petrinaut",
-    width: 1050,
-    height: 590,
-  },
-  {
-    id: "catcolab",
-    name: "CatColab",
-    width: 680,
-    height: 490,
-  },
-  {
-    id: "tldraw4",
-    name: "TLDraw",
-    width: 680,
-    height: 490,
-  },
+/* Known dimension overrides for tools whose default size differs */
+let known_dimensions: list((string, (int, int))) = [
+  ("petrinaut", (1050, 590)),
 ];
 
-let find_tool_config = (id: string): option(tool_config) =>
-  List.find_opt(t => t.id == id, tool_configs);
+let dimensions_for = (id: string): (int, int) =>
+  switch (List.assoc_opt(id, known_dimensions)) {
+  | Some(dims) => dims
+  | None => (680, 490)
+  };
 
 let mk_exotool_livelit = (tool_id: string): LivelitCtx.raw_livelit => {
-  let (tool_width, tool_height) =
-    switch (find_tool_config(tool_id)) {
-    | Some(t) => (t.width, t.height)
-    | None => (680, 490)
-    };
+  let (tool_width, tool_height) = dimensions_for(tool_id);
 
   let m = font_metrics^;
   let px_to_grid = (value: int, multiple: float): int =>

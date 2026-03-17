@@ -61,12 +61,34 @@ window.hazelWriteToDoc = async (docUrl, jsonString) => {
 	}
 }
 
+// Fetch module URLs from the Tiny Patchwork module registry.
+// Falls back to known modules if the registry doc hasn't synced yet.
+const fallbackModules = [
+	"automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX",
+	"automerge:L45rfzTVcMDsyXRyuhpNMPXqPwf",
+	"automerge:3Fj5zE7QdhbbWVJNsAHPbf84YfX6",
+	"automerge:3phkB7HzGoQ67w2ahmj9gepELErw",
+	"automerge:Qq3G9LB5bNHwSVJ6m29Tz8zgb4E",
+]
+
+let moduleUrls = fallbackModules
+try {
+	const registryUrl = "automerge:2LZBb891v37vggWYQPJRbYdyBGGE"
+	const handle = await repo.find(registryUrl)
+	const doc = handle.doc()
+	if (doc && Array.isArray(doc.modules) && doc.modules.length > 0) {
+		console.log("Loaded module URLs from registry:", doc.modules)
+		moduleUrls = doc.modules
+	}
+} catch (e) {
+	console.warn("Failed to read module registry, using fallback:", e)
+}
+
 const moduleWatcher = new ModuleWatcher(
 	repo,
-	// codemirror-base
-	["automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX"],
+	moduleUrls,
 	(name, mod) => {
-		console.log("Prebundled module loaded:", name, mod)
+		console.log("Module loaded:", name, mod)
 		if (Array.isArray(mod.plugins)) {
 			registerPlugins(mod.plugins, name)
 		}
@@ -76,15 +98,7 @@ window.moduleWatcher = moduleWatcher
 console.log("moduleWatcher", moduleWatcher)
 window.plugins = getRegistry("patchwork:tool")
 
-// subsequent dynamic loading of modules
-moduleWatcher.loadModules([
-	"automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX",
-	"automerge:L45rfzTVcMDsyXRyuhpNMPXqPwf",
-	"automerge:3Fj5zE7QdhbbWVJNsAHPbf84YfX6",
-	// petrinaut tool?
-	"automerge:3phkB7HzGoQ67w2ahmj9gepELErw",
-	"automerge:Qq3G9LB5bNHwSVJ6m29Tz8zgb4E",
-])
+moduleWatcher.loadModules(moduleUrls)
 
 registerPatchworkViewElement({repo})
 
