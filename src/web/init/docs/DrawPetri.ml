@@ -2685,7 +2685,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          edfe9ad6-0eb7-48cc-b7ae-631a2a1d6122)(content(Whitespace\" \
          \"))))(Projector((id 96c938bf-a4bd-41fe-818f-b3c2043076a4)(kind \
          PatchworkTool)(syntax(Tile((id \
-         86c7eda2-a533-4d95-95a3-87a2d2a04347)(label(\"(\"\")\"))(mold((out \
+         1a1005c6-b30c-4ae7-9521-bc098c4bda0b)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          fc662f81-a43a-43c3-8242-89068e9e484d)(label(Null))(mold((out \
@@ -2748,7 +2748,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          9e23ef92-cc35-4593-ba1d-c10b47ad5cfc)(content(Whitespace\"\\n\"))))(Projector((id \
          49dc3dbe-d032-4c63-8460-84bf8f649bef)(kind \
          PatchworkTool)(syntax(Tile((id \
-         e385f6ed-cc5b-4e6e-8be8-a758bba29b22)(label(\"(\"\")\"))(mold((out \
+         d002a85f-a27f-4706-ad3f-aea8a11ea24a)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          83387d30-fa6f-47b4-b4c9-76e7b6b7ebd5)(label(Null))(mold((out \
