@@ -595,22 +595,38 @@ let rec build_children =
       )
     | Tuple(elements) =>
       /* Tuple elements: create a node for each element. Labeled tuple
-         elements use their label name; unlabeled use index notation. */
+         elements use their label name; unlabeled use index notation.
+         Skip trivial re-export elements (TupLabel(Label(s), Var(s)))
+         that appear in module expansion tuples — these are already
+         represented by their Let/TyAlias nodes in the chain above. */
       List.fold_left(
         (node_map, (idx, el)) => {
-          let el_info = exp_to_info(el);
-          let el_path = path @ [Info.id_of(el_info)];
-          let name =
-            switch (Exp.term_of(el)) {
-            | TupLabel(label, _) =>
-              switch (Exp.term_of(label)) {
-              | Label(s) => s
-              | _ => "(" ++ string_of_int(idx) ++ ")"
-              }
-            | _ => "(" ++ string_of_int(idx) ++ ")"
-            };
-          let node_map = init_node_named(el_info, name, el_path, node_map);
-          build_children(el_info, el_path, node_map, info_map);
+          switch (Exp.term_of(el)) {
+          | TupLabel(label, value) =>
+            switch (Exp.term_of(label), Exp.term_of(value)) {
+            | (Label(s1), Var(s2)) when String.equal(s1, s2) =>
+              /* Module re-export binding (a=a) — skip, already a node */
+              node_map
+            | _ =>
+              let el_info = exp_to_info(el);
+              let el_path = path @ [Info.id_of(el_info)];
+              let name =
+                switch (Exp.term_of(label)) {
+                | Label(s) => s
+                | _ => "(" ++ string_of_int(idx) ++ ")"
+                };
+              let node_map =
+                init_node_named(el_info, name, el_path, node_map);
+              build_children(el_info, el_path, node_map, info_map);
+            }
+          | _ =>
+            let el_info = exp_to_info(el);
+            let el_path = path @ [Info.id_of(el_info)];
+            let name = "(" ++ string_of_int(idx) ++ ")";
+            let node_map =
+              init_node_named(el_info, name, el_path, node_map);
+            build_children(el_info, el_path, node_map, info_map);
+          }
         },
         node_map,
         List.mapi((i, el) => (i, el), elements),
