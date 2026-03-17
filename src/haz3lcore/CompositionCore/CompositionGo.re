@@ -47,10 +47,24 @@ module Local = {
           | Body => Exp.rep_id(body)
           | TypeAnn => Typ.rep_id(tdef) /* For type alias, the "annotation" is the definition */
           }
+        | ModuleExp(mp, def, body) =>
+          switch (inner_term) {
+          | Pat => MPat.rep_id(mp)
+          | Def => Exp.rep_id(def)
+          | Body => Exp.rep_id(body)
+          | TypeAnn =>
+            switch (mp.term) {
+            | Asc(_, sig_typ) => Typ.rep_id(sig_typ)
+            | _ =>
+              raise(
+                Failure("No type annotation found on this module binding's pattern"),
+              )
+            }
+          }
         | _ =>
           raise(
             Failure(
-              "UNIMPLEMENTED_NODE_TYPE: Only let and type alias expressions are currently supported as nodes",
+              "UNIMPLEMENTED_NODE_TYPE: Only let, type alias, and module expressions are currently supported as nodes",
             ),
           )
         }

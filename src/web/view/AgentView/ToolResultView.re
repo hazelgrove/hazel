@@ -1,18 +1,84 @@
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 open Util.WebUtil;
 open Haz3lcore;
 open CodeViewable;
 
-// Shared component for rendering tool results
-// Used by both ChatMessagesView and WorkbenchView
-
-// Helper to render a segment safely
 let render_segment = (~globals: Globals.t, segment: Segment.t): Node.t => {
-  // Complete the segment to fix any structural issues
   let completed_segment = Indentation.shallow_complete_segment(segment);
-  // Use CodeViewable which is safer for incomplete segments
   view_segment(~globals, completed_segment);
+};
+
+let render_pretty_args = (args: API.Json.t): Node.t => {
+  let rec render_value = (json: API.Json.t): Node.t =>
+    switch (json) {
+    | `String(s) => span(~attrs=[clss(["arg-string"])], [text(s)])
+    | `Int(i) =>
+      span(~attrs=[clss(["arg-number"])], [text(string_of_int(i))])
+    | `Float(f) =>
+      span(~attrs=[clss(["arg-number"])], [text(string_of_float(f))])
+    | `Bool(b) =>
+      span(~attrs=[clss(["arg-bool"])], [text(b ? "true" : "false")])
+    | `Null => span(~attrs=[clss(["arg-null"])], [text("null")])
+    | `List(items) =>
+      div(
+        ~attrs=[clss(["arg-list"])],
+        List.mapi(
+          (i, item) =>
+            div(
+              ~attrs=[clss(["arg-list-item"])],
+              [
+                span(
+                  ~attrs=[clss(["arg-list-index"])],
+                  [text(string_of_int(i + 1) ++ ".")],
+                ),
+                render_value(item),
+              ],
+            ),
+          items,
+        ),
+      )
+    | `Assoc(pairs) =>
+      div(
+        ~attrs=[clss(["arg-object"])],
+        List.map(
+          ((key, value)) =>
+            div(
+              ~attrs=[clss(["arg-field"])],
+              [
+                span(~attrs=[clss(["arg-field-key"])], [text(key)]),
+                render_value(value),
+              ],
+            ),
+          pairs,
+        ),
+      )
+    | _ => span(~attrs=[], [text(Yojson.Safe.to_string(json))])
+    };
+
+  switch (args) {
+  | `Assoc(pairs) =>
+    div(
+      ~attrs=[clss(["tool-call-args-pretty"])],
+      List.map(
+        ((key, value)) =>
+          div(
+            ~attrs=[clss(["arg-field"])],
+            [
+              span(~attrs=[clss(["arg-field-key"])], [text(key)]),
+              render_value(value),
+            ],
+          ),
+        pairs,
+      ),
+    )
+  | _ =>
+    div(
+      ~attrs=[clss(["tool-call-args-value"])],
+      [text(Yojson.Safe.pretty_to_string(args))],
+    )
+  };
 };
 
 let view =
@@ -25,8 +91,9 @@ let view =
   let status_icon = tool_result.success ? Icons.confirm : Icons.cancel;
   let status_class =
     tool_result.success ? "tool-call-success" : "tool-call-failure";
+  let dom_id = "tool-call-" ++ tool_result.tool_call.id;
   div(
-    ~attrs=[clss(["agent-tool-call-inline"])],
+    ~attrs=[clss(["agent-tool-call-inline"]), Attr.id(dom_id)],
     [
       div(
         ~attrs=[
@@ -55,16 +122,7 @@ let view =
                   ~attrs=[clss(["tool-call-args-label"])],
                   [text("Arguments:")],
                 ),
-                div(
-                  ~attrs=[clss(["tool-call-args-value"])],
-                  [
-                    text(
-                      Yojson.Safe.pretty_to_string(
-                        tool_result.tool_call.args,
-                      ),
-                    ),
-                  ],
-                ),
+                render_pretty_args(tool_result.tool_call.args),
               ],
             ),
             div(
@@ -80,7 +138,6 @@ let view =
                 ),
               ],
             ),
-            // Display diff if available
             switch (tool_result.diff) {
             | Some(diff) =>
               div(

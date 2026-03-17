@@ -13,6 +13,9 @@ module Local = {
   let tools = [
     ViewTools.expand,
     ViewTools.collapse,
+    ProbeTools.place_probe,
+    ProbeTools.remove_probe,
+    ProbeTools.toggle_probe,
     EditTools.initialize,
     EditTools.update_definition,
     EditTools.update_body,
@@ -42,6 +45,8 @@ module Local = {
     WorkbenchTools.mark_active_task_incomplete,
     WorkbenchTools.mark_active_subtask_complete,
     WorkbenchTools.mark_active_subtask_incomplete,
+    WorkbenchTools.mark_active_subtask_failed,
+    WorkbenchTools.mark_active_task_failed,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {
@@ -81,6 +86,12 @@ module Local = {
               AgentContextAction(Expand(get_string_list(args, "paths")))
             | "collapse" =>
               AgentContextAction(Collapse(get_string_list(args, "paths")))
+            | "place_probe" =>
+              ProbeAction(PlaceProbe(get_string_list(args, "paths")))
+            | "remove_probe" =>
+              ProbeAction(RemoveProbe(get_string_list(args, "paths")))
+            | "toggle_probe" =>
+              ProbeAction(ToggleProbe(get_string_list(args, "paths")))
             | "initialize" => Initialize(get_string(args, "code"))
             | "update_definition" =>
               EditorAction(
@@ -214,6 +225,14 @@ module Local = {
               )
             | "mark_active_subtask_incomplete" =>
               WorkbenchAction(MarkActiveSubtaskIncomplete)
+            | "mark_active_subtask_failed" =>
+              WorkbenchAction(
+                MarkActiveSubtaskFailed(get_string(args, "reason")),
+              )
+            | "mark_active_task_failed" =>
+              WorkbenchAction(
+                MarkActiveTaskFailed(get_string(args, "reason")),
+              )
             | "add_new_subtask_to_active_task" =>
               WorkbenchAction(
                 AddNewSubtaskToActiveTask(
@@ -248,6 +267,12 @@ module Local = {
       "expand(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | AgentContextAction(Collapse(paths)) =>
       "collapse(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | ProbeAction(PlaceProbe(paths)) =>
+      "place_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | ProbeAction(RemoveProbe(paths)) =>
+      "remove_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | ProbeAction(ToggleProbe(paths)) =>
+      "toggle_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | LanguageServerAction(ShowUseSites(path)) =>
       "show_use_sites(\"" ++ path ++ "\")"
     | LanguageServerAction(ShowReferences(path)) =>
@@ -307,6 +332,10 @@ module Local = {
     | WorkbenchAction(MarkActiveSubtaskComplete(summary)) =>
       "mark_active_subtask_complete(\"" ++ summary ++ "\")"
     | WorkbenchAction(MarkActiveSubtaskIncomplete) => "mark_active_subtask_incomplete"
+    | WorkbenchAction(MarkActiveSubtaskFailed(reason)) =>
+      "mark_active_subtask_failed(\"" ++ reason ++ "\")"
+    | WorkbenchAction(MarkActiveTaskFailed(reason)) =>
+      "mark_active_task_failed(\"" ++ reason ++ "\")"
     | WorkbenchAction(AddNewSubtaskToActiveTask(subtask)) =>
       "add_new_subtask_to_active_task( "
       ++ AgentWorkbench.Utils.SubtaskUtils.subtask_to_json_string(subtask)

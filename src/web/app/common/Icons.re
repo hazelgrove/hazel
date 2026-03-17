@@ -453,7 +453,7 @@ let add_project =
     ],
   );
 
-let corylus =
+let filbert =
   simple_icon(
     ~view="0 0 512 512",
     [

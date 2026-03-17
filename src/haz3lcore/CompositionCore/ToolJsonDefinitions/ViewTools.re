@@ -1,25 +1,24 @@
 open Util;
 
 let expand_description = {|
-Description:
-Expands the specified nodes'/variables' defintions.
+Reveals the definitions of collapsed bindings so their code is visible.
+Use this to inspect code before editing. Expand only what you need to keep context manageable.
+Works for both let bindings and module bindings (e.g. module M = { ... }).
 
 Parameters:
-paths: list(string) — the paths to the nodes/variables to expand
+paths: list(string) — paths to the bindings to expand (e.g. "a", "M", "outer/inner")
 
-Example(s):
-Given the program state:
+Example:
+Given:
 ```
 let a = ⋱ in
 let b = ⋱ in
-let c : Int = ⋱ in
 ?
 ```
-Calling expand(paths = ["a", "b"]) would result in the program:
+Calling expand(paths=["a", "b"]) reveals:
 ```
 let a = 4 + 5 in
-let b = "hello, world!" in
-let c : Int = ⋱ in
+let b = "hello" in
 ?
 ```
 |};
@@ -45,7 +44,9 @@ let expand: API.Json.t =
                     ("type", `String("array")),
                     (
                       "description",
-                      `String("The paths to the nodes/variables to expand."),
+                      `String(
+                        "The paths to the bindings to expand (let or module).",
+                      ),
                     ),
                     ("items", `Assoc([("type", `String("string"))])),
                   ]),
@@ -60,25 +61,24 @@ let expand: API.Json.t =
   ]);
 
 let collapse_description = {|
-Description:
-Collapses the specified nodes'/variables' defintions.
+Hides the definitions of expanded bindings, showing ⋱ instead.
+Use this after editing to reduce clutter and keep context focused.
+Works for both let bindings and module bindings (e.g. module M = { ... }).
 
 Parameters:
-paths: list(string) — the paths to the nodes/variables to collapse
+paths: list(string) — paths to the bindings to collapse (e.g. "a", "M")
 
-Example(s):
-Given the program state:
+Example:
+Given:
 ```
 let a = 4 + 5 in
-let b = "hello, world!" in
-let c : Int = ⋱ in
+let b = "hello" in
 ?
 ```
-Calling collapse(paths = ["a", "b"]) would result in the program:
+Calling collapse(paths=["a", "b"]) hides them:
 ```
 let a = ⋱ in
 let b = ⋱ in
-let c : Int = ⋱ in
 ?
 ```
 |};
@@ -105,7 +105,7 @@ let collapse: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The paths to the nodes/variables to collapse.",
+                        "The paths to the bindings to collapse (let or module).",
                       ),
                     ),
                     ("items", `Assoc([("type", `String("string"))])),
