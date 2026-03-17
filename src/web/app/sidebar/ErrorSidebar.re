@@ -24,12 +24,30 @@ type error_context = {
   warning_ids: list((Id.t, Language.Info.t)),
   segment: Haz3lcore.Segment.t,
   measured: Haz3lcore.Measured.t,
+  row_to_line: int => int,
   pos: Id.t => int,
 };
 
 let make_error_context =
     (~settings: Settings.t, ~editor: CodeWithStatics.Model.t): error_context => {
   let measured = editor.editor.syntax.measured;
+  /* Build row→display-line mapping: skip empty rows added by projectors */
+  let row_to_line = {
+    let reversed = List.rev(measured.piece_rows);
+    let (line_numbers_rev, _) =
+      List.fold_left(
+        ((acc, line_count), row) =>
+          switch (row) {
+          | [] => ([0, ...acc], line_count)
+          | _ => ([line_count, ...acc], line_count + 1)
+          },
+        ([], 1),
+        reversed,
+      );
+    let mapping = Array.of_list(List.rev(line_numbers_rev));
+    let num_rows = Array.length(mapping);
+    row => row >= 0 && row < num_rows ? mapping[row] : 0;
+  };
   let info_map = editor.statics.info_map;
   let position_map = {
     let piece_ids =
@@ -86,6 +104,7 @@ let make_error_context =
     warning_ids,
     segment: editor.editor.syntax.segment,
     measured,
+    row_to_line,
     pos,
   };
 };
@@ -184,13 +203,18 @@ let error_status_view = (~globals, ci: Language.Info.t): Node.t =>
   | InfoMPat(_) => div([])
   };
 
-let line_num_view = (id: Id.t, measured: Haz3lcore.Measured.t): Node.t =>
+let line_num_view =
+    (id: Id.t, measured: Haz3lcore.Measured.t, row_to_line: int => int)
+    : Node.t =>
   switch (Haz3lcore.Measured.find_by_id(id, measured)) {
   | Some({origin, _}) =>
-    span(
-      ~attrs=[clss(["error-line-num"])],
-      [text("L" ++ string_of_int(origin.row + 1))],
-    )
+    let line = row_to_line(origin.row);
+    line > 0
+      ? span(
+          ~attrs=[clss(["error-line-num"])],
+          [text("L" ++ string_of_int(line))],
+        )
+      : span([]);
   | None => span([])
   };
 
@@ -199,6 +223,7 @@ let error_row =
       ~globals: Globals.t,
       ~cursor_id: option(Id.t),
       ~measured: Haz3lcore.Measured.t,
+      ~row_to_line: int => int,
       ~cls: string,
       id: Id.t,
       content: Node.t,
@@ -209,7 +234,7 @@ let error_row =
   let classes = ["error-row", cls] @ (is_active ? ["active"] : []);
   div(
     ~attrs=[clss(classes), Attr.on_pointerdown(jump_to(~globals, id))],
-    [line_num_view(id, measured), content],
+    [line_num_view(id, measured, row_to_line), content],
   );
 };
 
@@ -266,6 +291,7 @@ let problem_row =
       ~globals: Globals.t,
       ~cursor_id: option(Id.t),
       ~measured: Haz3lcore.Measured.t,
+      ~row_to_line: int => int,
       problem: problem,
     )
     : Node.t => {
@@ -276,7 +302,15 @@ let problem_row =
       span(~attrs=[clss(["error-description"])], [text(desc)])
     | FromInfo(ci) => error_status_view(~globals, ci)
     };
-  error_row(~globals, ~cursor_id, ~measured, ~cls, problem.id, content);
+  error_row(
+    ~globals,
+    ~cursor_id,
+    ~measured,
+    ~row_to_line,
+    ~cls,
+    problem.id,
+    content,
+  );
 };
 
 /* ---------- Main view ---------- */
@@ -339,7 +373,13 @@ let view =
       ],
     );
   let render_row = problem =>
-    problem_row(~globals, ~cursor_id, ~measured=ctx.measured, problem);
+    problem_row(
+      ~globals,
+      ~cursor_id,
+      ~measured=ctx.measured,
+      ~row_to_line=ctx.row_to_line,
+      problem,
+    );
   div(
     ~attrs=[clss(["errors-panel"])],
     if (!has_any_errors) {
