@@ -151,6 +151,7 @@ let common_err_view =
         label_view(name),
         text(" is here, but another sort is expected."),
       ]
+    | NoType(MultiHole) => [text("Broken expression")]
 
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
