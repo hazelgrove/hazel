@@ -87,6 +87,54 @@
   background-color: var(--T2);
 }
 
+/* Status indicator inside sidebar tab */
+.tab-status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  cursor: default;
+  user-select: none;
+}
+
+.tab-status-indicator span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-weight: 600;
+  color: white;
+  transition: background-color 0.2s ease;
+}
+
+.tab-status-indicator.no-errors span {
+  background-color: oklch(70% 0.15 150);
+  font-size: 12px;
+}
+
+.tab-status-indicator.has-errors span {
+  background-color: oklch(40% 0.3 30);
+}
+
+.tab-status-indicator.has-warnings span {
+  background-color: oklch(75% 0.15 85);
+  font-size: 12px;
+}
+
+.tab-status-indicator.digits-1 span {
+  font-size: 11px;
+}
+
+.tab-status-indicator.digits-2 span {
+  font-size: 9px;
+}
+
+.tab-status-indicator.digits-3 span {
+  font-size: 7px;
+}
+
 .resize-handle {
   position: absolute;
   left: 0;

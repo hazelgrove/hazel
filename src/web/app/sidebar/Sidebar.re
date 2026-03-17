@@ -82,14 +82,54 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
-let errors_tab = (~globals: Globals.t): Node.t =>
+let errors_tab_icon = (error_count: int, warning_count: int): Node.t => {
+  let digit_class =
+    error_count >= 100
+      ? "digits-3" : error_count >= 10 ? "digits-2" : "digits-1";
+  let (status_class, icon_text, title) =
+    if (error_count > 0) {
+      (
+        "has-errors " ++ digit_class,
+        string_of_int(error_count),
+        string_of_int(error_count) ++ " error" ++ (error_count > 1 ? "s" : ""),
+      );
+    } else if (warning_count > 0) {
+      let warn_digit_class =
+        warning_count >= 100
+          ? "digits-3" : warning_count >= 10 ? "digits-2" : "digits-1";
+      (
+        "has-warnings " ++ warn_digit_class,
+        string_of_int(warning_count),
+        string_of_int(warning_count)
+        ++ " warning"
+        ++ (warning_count > 1 ? "s" : ""),
+      );
+    } else {
+      ("no-errors", {|✓|}, "No errors");
+    };
+  div(
+    ~attrs=[
+      clss(["status-indicator", "tab-status-indicator", status_class]),
+      Attr.title(title),
+    ],
+    [span(~attrs=[], [text(icon_text)])],
+  );
+};
+
+let errors_tab =
+    (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
+  let error_count = List.length(editor.statics.error_ids);
+  let warning_count =
+    globals.settings.core.display_warnings
+      ? List.length(editor.statics.warning_ids) : 0;
   tab_of(
     ~panel=Errors,
     ~cls=["errors-button"],
-    ~icon=Icons.magnify,
+    ~icon=errors_tab_icon(error_count, warning_count),
     ~tooltip="Switch to Errors Panel",
     ~globals,
   );
+};
 
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
@@ -101,7 +141,7 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
   );
 };
 
-let persistent_view = (~globals: Globals.t) =>
+let persistent_view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t) =>
   div(
     ~attrs=[Attr.id("persistent")],
     [
@@ -111,7 +151,7 @@ let persistent_view = (~globals: Globals.t) =>
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
-          errors_tab(~globals),
+          errors_tab(~globals, ~editor),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
@@ -256,5 +296,8 @@ let view =
         resetElementStyles();
         div([]);
       };
-  div(~attrs=[Attr.id("sidebars")], [sub, persistent_view(~globals)]);
+  div(
+    ~attrs=[Attr.id("sidebars")],
+    [sub, persistent_view(~globals, ~editor)],
+  );
 };
