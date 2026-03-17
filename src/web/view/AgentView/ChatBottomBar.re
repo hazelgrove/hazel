@@ -204,6 +204,19 @@ let view =
     Effect.Stop_propagation;
   };
 
+  // Calculate total tokens
+  let messages = Agent.Chat.Utils.get(current_chat);
+  let total_tokens =
+    List.fold_left(
+      (acc, msg: Agent.Message.Model.t) =>
+        switch (msg.role) {
+        | Agent(Some(usage)) => acc + usage.total_tokens
+        | _ => acc
+        },
+      0,
+      messages,
+    );
+
   // Input area at bottom with buttons above
   div(
     ~attrs=[clss(["chat-input-container"])],
@@ -252,6 +265,11 @@ let view =
                 div(~attrs=[], []);
               },
             ],
+          ),
+          // Token usage display
+          div(
+            ~attrs=[clss(["token-usage-display"])],
+            [text("tokens: " ++ string_of_int(total_tokens))],
           ),
           // Right side export and copy buttons
           div(

@@ -762,6 +762,64 @@ let view =
              }
            );
 
+      let summary_dom_id = "tool-summary-" ++ string_of_int(index);
+
+      let toggle_summary_collapsed = _ => {
+        Js_of_ocaml.(
+          Js.Opt.iter(
+            Dom_html.document##getElementById(Js.string(summary_dom_id)),
+            el => {
+              let cl = el##.classList;
+              if (Js.to_bool(cl##contains(Js.string("collapsed")))) {
+                cl##remove(Js.string("collapsed"));
+              } else {
+                cl##add(Js.string("collapsed"));
+              };
+            },
+          )
+        );
+        Effect.Stop_propagation;
+      };
+
+      let scroll_to_tool_call = (tool_call_id: string, msg_id: Id.t) => {
+        let dom_id = "tool-call-" ++ tool_call_id;
+        JsUtil.delay(50.0, () =>
+          Js_of_ocaml.(
+            Js.Opt.iter(
+              Dom_html.document##getElementById(Js.string(dom_id)),
+              el => {
+                let opts =
+                  Js.Unsafe.obj([|
+                    ("behavior", Js.Unsafe.inject(Js.string("smooth"))),
+                    ("block", Js.Unsafe.inject(Js.string("center"))),
+                  |]);
+                ignore(
+                  Js.Unsafe.meth_call(
+                    el,
+                    "scrollIntoView",
+                    [|Js.Unsafe.inject(opts)|],
+                  ),
+                );
+              },
+            )
+          )
+        );
+        Effect.Many([
+          agent_inject(
+            Agent.Agent.Update.Action.ChatSystemAction(
+              Agent.ChatSystem.Update.Action.ChatAction(
+                Agent.Chat.Update.Action.MessageAction(
+                  msg_id,
+                  Agent.Message.Update.SetToolResultExpanded(true),
+                ),
+                current_chat_id,
+              ),
+            ),
+          ),
+          Effect.Stop_propagation,
+        ]);
+      };
+
       let edit_calls_summary =
         switch (edit_tool_results) {
         | [] =>
@@ -781,10 +839,8 @@ let view =
             ],
           )
         | [first, ...rest] =>
-          // Build interleaved list: node, tool result, node, tool result, ...
           let all_edits = [first, ...rest];
 
-          // Helper to render a timeline node
           let render_node = (node: timeline_node) => {
             let is_disabled =
               switch (node.segment) {
@@ -833,79 +889,77 @@ let view =
             );
           };
 
-          // Helper to render a tool result
-          let render_tool_result = (tool_result: AgentToolResult.tool_result) => {
-            switch (
+          let render_summary_tool_link =
+              (tool_result: AgentToolResult.tool_result) => {
+            let status_class =
+              tool_result.success ? "tool-call-success" : "tool-call-failure";
+            let msg_id_opt =
               List.find_opt(
-                ((_, msg_tool_result): (Id.t, AgentToolResult.tool_result)) =>
-                  msg_tool_result.tool_call.id == tool_result.tool_call.id,
+                ((_, msg_tr): (Id.t, AgentToolResult.tool_result)) =>
+                  msg_tr.tool_call.id == tool_result.tool_call.id,
                 tool_result_messages,
-              )
-            ) {
-            | Some((msg_id, msg_tool_result)) =>
-              let toggle_expanded = _ =>
-                Effect.Many([
-                  agent_inject(
-                    Agent.Agent.Update.Action.ChatSystemAction(
-                      Agent.ChatSystem.Update.Action.ChatAction(
-                        Agent.Chat.Update.Action.MessageAction(
-                          msg_id,
-                          Agent.Message.Update.SetToolResultExpanded(
-                            !msg_tool_result.expanded,
-                          ),
-                        ),
-                        current_chat_id,
-                      ),
-                    ),
-                  ),
-                  Effect.Stop_propagation,
-                ]);
-              Some(
-                ToolResultView.view(
-                  ~globals,
-                  ~tool_result=msg_tool_result,
-                  ~toggle_expanded,
-                ),
               );
-            | None => None
-            };
+            let on_click = _ =>
+              switch (msg_id_opt) {
+              | Some((msg_id, _)) =>
+                scroll_to_tool_call(tool_result.tool_call.id, msg_id)
+              | None => Effect.Stop_propagation
+              };
+            div(
+              ~attrs=[
+                clss(["summary-tool-link"]),
+                Attr.on_click(on_click),
+                Attr.title(
+                  "Jump to " ++ tool_result.tool_call.name ++ " in chat",
+                ),
+              ],
+              [
+                div(
+                  ~attrs=[clss(["tool-call-status-icon", status_class])],
+                  [tool_result.success ? Icons.confirm : Icons.cancel],
+                ),
+                span(
+                  ~attrs=[clss(["summary-tool-link-name"])],
+                  [text(tool_result.tool_call.name)],
+                ),
+                span(
+                  ~attrs=[clss(["summary-tool-link-arrow"])],
+                  [text({|↗|})],
+                ),
+              ],
+            );
           };
 
-          // Build timeline states
           let initial_node: timeline_node = {
             segment: first.before_segment,
             label: "Initial",
             index: 0,
           };
 
-          // Build interleaved elements: initial node, then for each edit: tool result + node
           let interleaved_elements = {
             let initial = [render_node(initial_node)];
-            let rest_elements =
-              List.mapi(
-                (i, tool_result: AgentToolResult.tool_result) => {
-                  let tool_result_view = render_tool_result(tool_result);
-                  let next_node: timeline_node = {
-                    segment: tool_result.after_segment,
-                    label: "After Edit " ++ string_of_int(i + 1),
-                    index: i + 1,
-                  };
-                  let node_view = render_node(next_node);
-
-                  // Return list of [tool_result, node]
-                  switch (tool_result_view) {
-                  | Some(view) => [view, node_view]
-                  | None => [node_view]
+            let (elements, _) =
+              List.fold_left(
+                ((acc, node_idx), tool_result: AgentToolResult.tool_result) => {
+                  let tool_link = render_summary_tool_link(tool_result);
+                  if (tool_result.success) {
+                    let next_node: timeline_node = {
+                      segment: tool_result.after_segment,
+                      label: "After Edit " ++ string_of_int(node_idx),
+                      index: node_idx,
+                    };
+                    let node_view = render_node(next_node);
+                    (acc @ [tool_link, node_view], node_idx + 1);
+                  } else {
+                    (acc @ [tool_link], node_idx);
                   };
                 },
+                ([], 1),
                 all_edits,
-              )
-              |> List.flatten;
-
-            initial @ rest_elements;
+              );
+            initial @ elements;
           };
 
-          // Restore Original button - only when user has clicked into history
           let restore_button =
             switch (agent_model.restore_editor_state) {
             | Some(_) =>
@@ -928,14 +982,23 @@ let view =
             };
 
           div(
-            ~attrs=[clss(["agent-tool-summary"])],
+            ~attrs=[clss(["agent-tool-summary"]), Attr.id(summary_dom_id)],
             [
               div(
-                ~attrs=[clss(["agent-tool-summary-header"])],
+                ~attrs=[
+                  clss(["agent-tool-summary-header"]),
+                  Attr.on_click(toggle_summary_collapsed),
+                ],
                 [
                   div(
                     ~attrs=[clss(["agent-tool-summary-title"])],
-                    [text("Edits Performed")],
+                    [
+                      span(
+                        ~attrs=[clss(["summary-collapse-icon"])],
+                        [text({|▾|})],
+                      ),
+                      text("Edits Performed"),
+                    ],
                   ),
                   restore_button,
                 ],
@@ -951,10 +1014,10 @@ let view =
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
-          // Corylus identifier
+          // Filbert identifier
           div(
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
-            [Icons.corylus, text("Filbert")],
+            [Icons.filbert, text("Filbert")],
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],

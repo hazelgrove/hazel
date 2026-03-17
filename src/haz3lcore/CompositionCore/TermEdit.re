@@ -374,6 +374,16 @@ let rec trailing_secondary_of = (e: Exp.t): list(Secondary.t) => {
       | Some(last) => trailing_secondary_of(last)
       | None => []
       }
+    /* Prefix forms: body/else is the rightmost content after the tile */
+    | Fun(_, body, _, _)
+    | FixF(_, body, _)
+    | TypFun(_, body, _)
+    | Forall(_, body)
+    | Filter(_, body)
+    | Let(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body) => trailing_secondary_of(body)
+    | If(_, _, else_) => trailing_secondary_of(else_)
     | _ => []
     }
   };
@@ -1199,8 +1209,18 @@ let update_type_annotation =
   };
 };
 
+/* Replace the innermost body of a Let/TyAlias chain with the given body.
+   For `Let(a, 1, Let(x, a+10, _))`, replaces the `_` with `body`. */
+let rec replace_innermost_body = (parsed: Exp.t, body: Exp.t): Exp.t =>
+  switch (Exp.term_of(parsed)) {
+  | Let(p, d, inner) => {...parsed, term: Let(p, d, replace_innermost_body(inner, body))}
+  | TyAlias(tp, td, inner) => {...parsed, term: TyAlias(tp, td, replace_innermost_body(inner, body))}
+  | _ => body
+  };
+
 /* Update the entire binding clause of a let expression.
-   Parses the code and replaces the Let/TyAlias node's pat+def.
+   Parses the code and replaces the Let/TyAlias node's pat+def,
+   threading the original body as the innermost body of the replacement chain.
    target_id: the ID of the Let/TyAlias expression itself. */
 let update_binding_clause =
     (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
@@ -1212,16 +1232,12 @@ let update_binding_clause =
         target_id,
         e =>
           switch (Exp.term_of(e), Exp.term_of(parsed)) {
-          /* Replace pat+def of a Let, keeping the original body */
-          | (Let(_, _, body), Let(new_pat, new_def, _)) => {
-              ...e,
-              term: Let(new_pat, new_def, body),
-            }
+          /* Replace binding clause(s), keeping the original body */
+          | (Let(_, _, body), Let(_, _, _)) =>
+            replace_innermost_body(parsed, body)
           /* Replace tpat+tdef of a TyAlias, keeping the original body */
-          | (TyAlias(_, _, body), TyAlias(new_tpat, new_tdef, _)) => {
-              ...e,
-              term: TyAlias(new_tpat, new_tdef, body),
-            }
+          | (TyAlias(_, _, body), TyAlias(_, _, _)) =>
+            replace_innermost_body(parsed, body)
           /* For bare expressions (Seq items), replace entirely */
           | _ => parsed
           },
@@ -1235,7 +1251,7 @@ let update_binding_clause =
 /* Delete a binding from a let-chain.
    For Let(pat, def, body): removes the binding and replaces with body.
    For Seq(e, rest): removes e and replaces with rest.
-   target_id: the ID of the Let/TyAlias/Seq expression. */
+   target_id: the ID of the Let/TyAlias/Seq/ModuleExp expression. */
 let delete_binding = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z).term;
   let new_term =
@@ -1245,6 +1261,7 @@ let delete_binding = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
         switch (Exp.term_of(e)) {
         | Let(_, _, body) => body
         | TyAlias(_, _, body) => body
+        | ModuleExp(_, _, body) => body
         | Seq(_, rest) => rest
         | _ => e /* Can't delete a non-binding expression */
         },

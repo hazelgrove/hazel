@@ -31,9 +31,15 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type completion_status =
+    | Completed
+    | Failed;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type completion_info = {
     summary: string,
     elapsed_time: float,
+    status: completion_status,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -90,6 +96,20 @@ module Utils = {
       };
     };
 
+    let is_failed = (subtask: subtask): bool => {
+      switch (subtask.completion_info) {
+      | Some({status: Failed, _}) => true
+      | _ => false
+      };
+    };
+
+    let is_successfully_completed = (subtask: subtask): bool => {
+      switch (subtask.completion_info) {
+      | Some({status: Completed, _}) => true
+      | _ => false
+      };
+    };
+
     let find_subtask = (task: task, subtask_name: string): option(subtask) => {
       // Finds the todo item with the given name
       Maps.StringMap.find_opt(
@@ -123,10 +143,17 @@ module Utils = {
       ++ (
         switch (subtask.completion_info) {
         | Some(info) =>
-          "Summary: "
+          let status_str =
+            switch (info.status) {
+            | Completed => "Completed"
+            | Failed => "Failed"
+            };
+          "Status: "
+          ++ status_str
+          ++ ", Summary: "
           ++ info.summary
           ++ ", Elapsed Time (s): "
-          ++ string_of_float(info.elapsed_time)
+          ++ string_of_float(info.elapsed_time);
         | None =>
           is_active(task, subtask.title)
             ? "Not Completed but In Progress."
@@ -221,10 +248,17 @@ module Utils = {
       ++ (
         switch (task.completion_info) {
         | Some(info) =>
-          "Summary: "
+          let status_str =
+            switch (info.status) {
+            | Completed => "Completed"
+            | Failed => "Failed"
+            };
+          "Status: "
+          ++ status_str
+          ++ ", Summary: "
           ++ info.summary
           ++ ", Elapsed Time (s): "
-          ++ string_of_float(info.elapsed_time)
+          ++ string_of_float(info.elapsed_time);
         | None =>
           is_active(model, task.title)
             ? "Not Completed but In Progress."
@@ -508,6 +542,8 @@ module Update = {
         | MarkActiveTaskIncomplete
         | MarkActiveSubtaskComplete(string) // summary
         | MarkActiveSubtaskIncomplete
+        | MarkActiveSubtaskFailed(string) // reason
+        | MarkActiveTaskFailed(string) // reason
         | AddNewSubtaskToActiveTask(subtask) // title, description;
         | ReorderSubtasksInActiveTask(list(string)); // list of subtask titles in new order
     };
@@ -718,9 +754,6 @@ module Update = {
           ~subtask_name=Some(subtask_title),
         )
       | MarkActiveTaskComplete(summary) =>
-        /*
-         - Sets/records the completion info of the active task
-         */
         switch (MainUtils.active_task(model)) {
         | None => Failure("No active task to mark complete")
         | Some(active_task) =>
@@ -733,6 +766,7 @@ module Update = {
                 Some({
                   summary,
                   elapsed_time: clock_it -. active_task.metadata.began_at,
+                  status: Completed,
                 }),
               metadata: {
                 ...active_task.metadata,
@@ -772,9 +806,6 @@ module Update = {
           UpdateUtils.write_task(~model, ~task);
         }
       | MarkActiveSubtaskComplete(summary) =>
-        /*
-         - Sets/records the completion info of the active subtask in the active task
-         */
         switch (MainUtils.active_task(model)) {
         | None => Failure("No active task to mark subtask complete")
         | Some(active_task) =>
@@ -788,6 +819,7 @@ module Update = {
                 Some({
                   summary,
                   elapsed_time: clock_it -. active_subtask.metadata.began_at,
+                  status: Completed,
                 }),
               metadata: {
                 ...active_subtask.metadata,
@@ -837,7 +869,64 @@ module Update = {
             UpdateUtils.write_task(~model, ~task=updated_task);
           }
         }
-      // | _ => Failure("unimplemented")
+      | MarkActiveSubtaskFailed(reason) =>
+        switch (MainUtils.active_task(model)) {
+        | None => Failure("No active task to mark subtask failed")
+        | Some(active_task) =>
+          switch (TaskUtils.active_subtask(active_task)) {
+          | None => Failure("No active subtask to mark failed")
+          | Some(active_subtask) =>
+            let clock_it = JsUtil.timestamp();
+            let updated_subtask = {
+              ...active_subtask,
+              completion_info:
+                Some({
+                  summary: reason,
+                  elapsed_time: clock_it -. active_subtask.metadata.began_at,
+                  status: Failed,
+                }),
+              metadata: {
+                ...active_subtask.metadata,
+                completed_at: Some(clock_it),
+                last_updated_at: clock_it,
+              },
+            };
+            let updated_task =
+              TaskUtils.write_subtask(
+                ~task={
+                  ...active_task,
+                  active_subtask:
+                    Utils.TaskUtils.get_next_incomplete_subtask_title(
+                      active_task,
+                    ),
+                },
+                ~subtask=updated_subtask,
+              );
+            UpdateUtils.write_task(~model, ~task=updated_task);
+          }
+        }
+      | MarkActiveTaskFailed(reason) =>
+        switch (MainUtils.active_task(model)) {
+        | None => Failure("No active task to mark failed")
+        | Some(active_task) =>
+          let clock_it = JsUtil.timestamp();
+          let task = {
+            ...active_task,
+            completion_info:
+              Some({
+                summary: reason,
+                elapsed_time: clock_it -. active_task.metadata.began_at,
+                status: Failed,
+              }),
+            active_subtask: None,
+            metadata: {
+              ...active_task.metadata,
+              completed_at: Some(clock_it),
+              last_updated_at: clock_it,
+            },
+          };
+          UpdateUtils.write_task(~model, ~task);
+        }
       | AddNewSubtaskToActiveTask(new_subtask) =>
         /*
          - Adds the given new subtask to the active task's subtasks

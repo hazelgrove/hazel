@@ -114,6 +114,49 @@ let subtree_of =
 
         body_map;
 
+      | ModuleExp(_, def, body) =>
+        let def_info = exp_to_exp(def, orig_info_map);
+        let body_info = exp_to_exp(body, orig_info_map);
+
+        /* ModuleExp is expanded to Let in Statics; the MPat gets the same id as the
+           expanded Pat, so the map has InfoPat not InfoMPat. We don't need to add
+           the MPat - def_info.ctx already has the correct context. */
+        let mp_map = Statics.Map.empty;
+
+        let def_map =
+          of_def
+            ? Statics.uexp_to_info_map(
+                ~ctx=def_info.ctx,
+                ~ana=def_info.ana,
+                ~is_in_filter=false,
+                ~ancestors=def_info.ancestors,
+                ~duplicates=[],
+                ~expected_labels=None,
+                ~label_sort=false,
+                def,
+                mp_map,
+              )
+              |> snd
+            : mp_map;
+
+        let body_map =
+          of_body
+            ? Statics.uexp_to_info_map(
+                ~ctx=body_info.ctx,
+                ~ana=body_info.ana,
+                ~is_in_filter=false,
+                ~ancestors=body_info.ancestors,
+                ~duplicates=[],
+                ~expected_labels=None,
+                ~label_sort=false,
+                body,
+                def_map,
+              )
+              |> snd
+            : def_map;
+
+        body_map;
+
       | _ =>
         /* Bare expression line node (e.g. test, standalone expr in Seq).
            No pat/def/body decomposition — just check the expression itself. */
@@ -152,13 +195,21 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
     let body_coctx =
       switch (Exp.term_of(term.term)) {
       | Let(_, _, body)
-      | TyAlias(_, _, body) =>
+      | TyAlias(_, _, body)
+      | ModuleExp(_, _, body) =>
         switch (exp_to_info(body)) {
         | InfoExp({co_ctx, _}) => co_ctx
-        | _ => raise(Failure("Body of type alias is not an expression"))
+        | _ =>
+          raise(
+            Failure("Body of let/type alias/module is not an expression"),
+          )
         }
       | _ =>
-        raise(Failure("Current node is not a let or type alias expression"))
+        raise(
+          Failure(
+            "Current node is not a let, type alias, or module expression",
+          ),
+        )
       };
     // Find variables that appear in body_coctx but not in entire_coctx
     // Effectively takes the set difference of body_coctx and entire_coctx
@@ -166,7 +217,10 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
       ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
       body_coctx,
     );
-  | _ => raise(Failure("Current node is not a let or type alias expression"))
+  | _ =>
+    raise(
+      Failure("Current node is not a let, type alias, or module expression"),
+    )
   };
 };
 

@@ -1,37 +1,21 @@
 open Util;
 
 let initialize_description = {|
-Description:
-Overwrites the program with the given code.
-This may *only* ever be called on a program that has no let/type alias expressions.
-This tool is only meant for this special case.
-It may never be used once a program has let/type alias expressions.
+Replaces the entire program with the given code.
+Use this when the program is EMPTY — just `?` or a standalone expression with no let/type/module bindings.
+When empty, you MUST use initialize to write code; update_definition and update_body will fail (they require an existing binding).
+Once the program has let/type/module bindings, use the other edit tools instead.
 
 Parameters:
-code: string — new code to replace the program with
+code: string — the complete new program
 
-Example(s):
-(Example 1)
-The current program is:
+Example:
+Current program: `?`
+Calling initialize(code="let x = 42 in\nlet y = x + 1 in\ny") produces:
 ```
-?
-```
-Calling initialize(code="let a = 3 in
-a * 2") would result in the program
-```
-let a = 3 in a * 2
-```
-
-(Example 2)
-The current program is:
-```
-5 * 10
-```
-Calling initialize(code="let a  = 5
-in let b = 10
-in a * b") would result in the program
-```
-let a  = 5 in let b = 10 in a * b
+let x = 42 in
+let y = x + 1 in
+y
 ```
 |};
 
@@ -70,45 +54,30 @@ let initialize: API.Json.t =
   ]);
 
 let update_definition_description = {|
-Description:
-Updates the definition of the node identified by the provided path.
+Replaces the definition (the right-hand side of `=`, before `in`) of the binding at the given path.
+This overwrites the ENTIRE definition — including any nested let bindings within it.
+Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the node to update (e.g. "b" or "bindings/b")
-code: string — new definition
+path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner")
+code: string — the new definition code
 
-Example(s):
-Given path "b" and the sketch:
+Example:
+Given the program:
 ```
 let a = ⋱ in
-let b = "hello, world" in
+let b = "hello" in
 let c : Int = ⋱ in
 ?
 ```
-Calling update_definition(path="b", code=""my new string"") will result in the sketch:
+Calling update_definition(path="b", code="\"world\"") produces:
 ```
 let a = ⋱ in
-let b = "my new string" in
+let b = "world" in
 let c : Int = ⋱ in
 ?
 ```
-Note(s):
-This overwrites the ENTIRE definition of the targeted node. For example, if the path points to "b" and the sketch is:
-```
-let a = ⋱ in
-let b =
-    let x = ⋱ in
-in
-let c : Int = ⋱ in
-?
-```
-Then calling update_definition(path="b", code="\"my new string\"") will again result in the sketch:
-```
-let a = ⋱ in
-let b = "my new string" in
-let c : Int = ⋱ in
-?
-```
+Note: Only the definition changes. The pattern, body, and surrounding bindings are untouched.
 |};
 
 let update_definition: API.Json.t =
@@ -158,27 +127,30 @@ let update_definition: API.Json.t =
   ]);
 
 let update_body_description = {|
-Description:
-Replaces the body of the node located at the provided path.
+Replaces the body (everything after `in`) of the binding at the given path.
+The body is the rest of the program that follows this binding.
+Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the node whose body should be replaced
-code: string — new body
+path: string — slash-delimited path to the binding whose body to replace
+code: string — the new body code
 
-Example(s):
-Given path "b" and the sketch:
+Example:
+Given the program:
 ```
 let a = ⋱ in
-let b = "hello, world!" in
+let b = "hello" in
 let c : Int = ⋱ in
 ?
 ```
-Calling update_body(path="b", code="a * a") will result in the program
+Calling update_body(path="b", code="a * a") produces:
 ```
 let a = ⋱ in
-let b = "my new string" in
+let b = "hello" in
 a * a
 ```
+Note: The body of "b" was `let c : Int = ⋱ in ?`. It is now replaced entirely with `a * a`.
+The definition of "b" ("hello") is unchanged.
 |};
 let update_body: API.Json.t =
   `Assoc([
@@ -227,35 +199,29 @@ let update_body: API.Json.t =
   ]);
 
 let update_pattern_description = {|
-Description:
-Updates/renames the pattern of the node identified by the provided path.
-A unique perk of this tool is that it will also update all use sites of the variable in the program.
-If the pattern is a tuple, or some other higher-order pattern, it will recursively find
-the atomic variables within that pattern, and update all use sites of those variables if and only if
-the number of old and new variables are the same (this is only a requirement for this feature to work,
-but you may very well change the pattern however you'd like to achieve your desired outcome!).
+Renames or changes the pattern (left-hand side of `=`) of the binding at the given path.
+Automatically updates all use sites of the variable throughout the program.
 
 Parameters:
-path: string — slash-delimited path to the node whose pattern should change
-code: string — new pattern to assign
+path: string — slash-delimited path to the binding to rename
+code: string — the new pattern (may include type annotation)
 
-Example(s):
-Given path "b" and the sketch:
+Example:
+Given the program:
 ```
 let a = ⋱ in
-let b = "hello, world" in
-let c : Int = ⋱ in
-?
+let b = "hello" in
+let c = b ++ " world" in
+c
 ```
-Calling update_pattern(path="b", code="s : String") would result in the sketch:
+Calling update_pattern(path="b", code="greeting : String") produces:
 ```
 let a = ⋱ in
-let s : String = "hello, world" in
-let c : Int = ⋱ in
-?
+let greeting : String = "hello" in
+let c = greeting ++ " world" in
+c
 ```
-*Note: If there were any references to "b" in the body of "b"'s variable definition
-(such as in the definition of "c"), they would be updated to "s" as well.
+Note: All references to "b" in the body are automatically renamed to "greeting".
 |};
 
 let update_pattern: API.Json.t =
@@ -305,35 +271,35 @@ let update_pattern: API.Json.t =
   ]);
 
 let update_binding_clause_description = {|
-Description:
-Updates the pattern, definition, and enclosing delimiters of the node located via the provided path (everything exclusive of the body).
-eg. calling update_binding_clause for the path to `let x = 3 in x` will overwrite "let x = 3 in".
-It is important to note that this does NOT update the body of the node. If you wish to update the
-binding along with the body, you should call this tool along with update_body, sequentially. This also means
-the code argument you pass here should not contain a final body.
-(Eg. ```let x = 3 in x``` would be bad, but ```let x = 3 in``` would be good, so would ```let x = 3 in let y = 4 in```).
+Replaces the entire binding clause (from `let`/`type`/`module` through `in`, inclusive) at the given path.
+This changes the pattern, definition, and delimiters — but NOT the body after the final `in`.
+The code you provide should end with `in` (not include a final body expression).
+You can introduce multiple bindings in one call (e.g., `let x = 1 in let y = 2 in`).
+Works for let, type, and module bindings (e.g. path "M" for module M = { ... }).
+
+To update both the binding clause AND the body, call this tool followed by update_body.
 
 Parameters:
-path: string — slash-delimited path to the node whose binding clause should change
-code: string — new expression (which may contain multiple expressions; see example below for more information)
+path: string — slash-delimited path to the binding to replace
+code: string — the new binding clause(s), ending with `in`
 
-Example(s):
-Given path "b" and the sketch:
+Example:
+Given the program:
 ```
 let a = ⋱ in
-let b = "hello, world!" in
+let b = "hello" in
 let c : Int = ⋱ in
 ?
 ```
-Calling update_binding_clause(path="b", code="let b : (Int, Int) = (0, ?) in let d : Int = b + 1 in") would result in the program
+Calling update_binding_clause(path="b", code="let b : Int = 42 in let d = b + 1 in") produces:
 ```
 let a = ⋱ in
-let b : (Int, Int) = ⋱ in
-let d : Int = b + 1 in
+let b : Int = 42 in
+let d = b + 1 in
 let c : Int = ⋱ in
 ?
 ```
-(Note that this is the only tool that can be called in the special case where there are no let or type alias expressions in the program, in which case, calling this tool will overwrite the entire program with the argument passed into 'code'.)
+Note: The body (everything after the original `in` of "b") is preserved — `let c` and `?` remain.
 |};
 
 let update_binding_clause: API.Json.t =
@@ -383,26 +349,28 @@ let update_binding_clause: API.Json.t =
   ]);
 
 let delete_binding_clause_description = {|
-Description:
-Removes the entire type/value-binding of the node identified by the provided path.
+Removes the entire binding (let...=...in, type...=...in, or module...=...in) at the given path.
+The body that followed the binding is preserved and moves up.
+Works for let, type, and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
 path: string — slash-delimited path to the binding to remove
 
-Example(s):
-Given path "b" and the sketch:
+Example:
+Given the program:
 ```
 let a = ⋱ in
-let b = "hello, world!" in
+let b = "hello" in
 let c : Int = ⋱ in
 ?
 ```
-Calling delete_binding_clause(path="b") would result in the program
+Calling delete_binding_clause(path="b") produces:
 ```
-let a = 3 in
+let a = ⋱ in
 let c : Int = ⋱ in
 ?
 ```
+Note: The binding `let b = "hello" in` is removed. Its body (`let c ... ?`) is preserved.
 |};
 
 let delete_binding_clause: API.Json.t =
@@ -442,26 +410,26 @@ let delete_binding_clause: API.Json.t =
   ]);
 
 let delete_body_description = {|
-Description:
-Deletes the body of the node identified by the provided path.
+Clears the body (everything after `in`) of the binding at the given path, replacing it with a hole (`?`).
 
 Parameters:
-path: string — slash-delimited path to the node whose body should be cleared
+path: string — slash-delimited path to the binding whose body to clear
 
-Example(s):
-Given path "b" and the sketch:
+Example:
+Given the program:
 ```
 let a = ⋱ in
-let b = "hello, world!" in
+let b = "hello" in
 let c : Int = ⋱ in
-?
+some_expression
 ```
-Calling delete_body(path="b") would result in the program
+Calling delete_body(path="b") produces:
 ```
 let a = ⋱ in
-let b = ⋱ in
+let b = "hello" in
 ?
 ```
+Note: Everything after `in` for binding "b" (including `let c` and `some_expression`) is replaced with `?`.
 |};
 
 let delete_body: API.Json.t =
@@ -568,29 +536,28 @@ let update_type_annotation: API.Json.t =
   ]);
 
 let insert_after_description = {|
-Description:
-Inserts code immediately after the definition located at the provided path.
+Inserts a new binding immediately after the binding at the given path.
+The inserted code becomes part of the program between the target binding and its original body.
 
 Parameters:
-path: string — slash-delimited path to the node after which the code should be inserted
-code: string — code to insert
+path: string — slash-delimited path to the binding after which to insert
+code: string — the code to insert (typically a let...in or type...in binding)
 
-Example(s):
+Example:
 Given the program:
 ```
-let a = ⋱ in
-let b = "hello, world!" in
-let c : Int = ⋱ in
+let a = 10 in
+let b = "hello" in
 ?
 ```
-Calling insert_after(path="b", code = "let x = string_sub(b ,0, 7) ++ "big " ++ string_sub(b, 7, 6)") would result in the program
+Calling insert_after(path="a", code="let doubled = a * 2 in") produces:
 ```
-let a = ⋱ in
-let b = ⋱ in
-let x = string_sub(b ,0, 7) ++ "big " ++ string_sub(b, 7, 6)
-let c : Int = ⋱ in
+let a = 10 in
+let doubled = a * 2 in
+let b = "hello" in
 ?
 ```
+Note: The new binding is inserted between "a" and "b". The rest of the program is preserved.
 |};
 
 let insert_after: API.Json.t =
@@ -642,29 +609,27 @@ let insert_after: API.Json.t =
   ]);
 
 let insert_before_description = {|
-Description:
-Inserts code before the let/type alias expression located at the provided path.
+Inserts a new binding immediately before the binding at the given path.
 
 Parameters:
-path: string — slash-delimited path to the node before which the code should be inserted
-code: string — code to insert
+path: string — slash-delimited path to the binding before which to insert
+code: string — the code to insert (typically a let...in or type...in binding)
 
-Example(s):
-Given path "b" and the sketch:
+Example:
+Given the program:
 ```
 let a = ⋱ in
-let b = "hello, world!" in
-let c : Int = ⋱ in
+let b = "hello" in
 ?
 ```
-Calling insert_before(path="b", code = "let x = a * a in") would result in the program
+Calling insert_before(path="b", code="let prefix = \"world\" in") produces:
 ```
 let a = ⋱ in
-let x = a * a in
-let b = ⋱ in
-let c : Int = ⋱ in
+let prefix = "world" in
+let b = "hello" in
 ?
 ```
+Note: The new binding is inserted between "a" and "b". The rest of the program is preserved.
 |};
 
 let insert_before: API.Json.t =
