@@ -35,7 +35,8 @@
 
 .projector.PatchworkTool.indicated .patchwork-tool-tab-bar,
 .projector.PatchworkTool:has(input:focus) .patchwork-tool-tab-bar,
-.projector.PatchworkTool:has(select:focus) .patchwork-tool-tab-bar {
+.projector.PatchworkTool:has(select:focus) .patchwork-tool-tab-bar,
+.projector.PatchworkTool:has(patchwork-view:focus) .patchwork-tool-tab-bar {
   color: var(--R1);
 }
 

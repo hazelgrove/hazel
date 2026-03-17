@@ -68,10 +68,11 @@ let mk_exotool_livelit = (tool_id: string): LivelitCtx.raw_livelit => {
           ~attrs=[
             Attr.create("doc-url", doc_url),
             Attr.create("tool-id", tool_id),
+            Attr.create("tabindex", "0"),
             Attr.create(
               "style",
               Printf.sprintf(
-                "width: %dpx; height: %dpx;",
+                "width: %dpx; height: %dpx; outline: none;",
                 tool_width,
                 tool_height,
               ),

@@ -91,9 +91,14 @@ module M: Projector = {
     };
 
   let input_id = (id: Id.t): string => Id.cls(id) ++ "-pt-input";
+  let patchwork_view_id = (id: Id.t): string => Id.cls(id) ++ "-pt-view";
 
   let focus_pointer = (id: Id.t) => {
-    JsUtil.get_elem_by_id(input_id(id))##focus;
+    /* Focus the patchwork-view element so that TLDraw receives
+       keyboard events (tool shortcuts, backspace to delete, etc.)
+       instead of having them escape to Hazel's editor. */
+    let el = JsUtil.get_elem_by_id(patchwork_view_id(id));
+    el##focus;
   };
 
   let focus_keyboard = (id: Id.t, d: Direction.t) => {
@@ -226,6 +231,12 @@ module M: Projector = {
             Effect.(Many([local(SetUrl(value)), parent(SetSyntax(seg))]));
           }),
           Attr.on_keydown(key_handler),
+          Attr.on_pointerdown(evt => {
+            /* Stop propagation so the projector wrapper doesn't
+               steal focus away from the URL input to patchwork-view */
+            Js.Unsafe.meth_call(evt, "stopPropagation", [||]) |> ignore;
+            Effect.Ignore;
+          }),
           Attr.on_copy(_ => Effect.Stop_propagation),
           Attr.on_cut(_ => Effect.Stop_propagation),
           Attr.on_paste(_ => Effect.Stop_propagation),
@@ -405,12 +416,14 @@ module M: Projector = {
         Node.create(
           "patchwork-view",
           ~attrs=[
+            Attr.id(patchwork_view_id(info.id)),
             Attr.create("doc-url", model.url),
             Attr.create("tool-id", model.tool),
+            Attr.create("tabindex", "0"),
             Attr.create(
               "style",
               Printf.sprintf(
-                "width: %dpx; height: %dpx;",
+                "width: %dpx; height: %dpx; outline: none;",
                 tool_width,
                 tool_height,
               ),
