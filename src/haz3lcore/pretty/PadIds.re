@@ -124,6 +124,7 @@ let compute_dynamic_ids =
     dynamic_typ
     |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh())
     |> pad_typ_ids;
-  let dynamic_ids: list(Id.t) = Typ.diff(~ctx?, static_typ, dynamic_typ);
-  (id => List.mem(id, dynamic_ids) ? ["dynamic"] : [], dynamic_typ);
+  let dynamic_ids =
+    Typ.diff(~ctx?, static_typ, dynamic_typ) |> Id.Set.of_list;
+  (id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [], dynamic_typ);
 };
