@@ -942,14 +942,7 @@ and build_infix_chain_doc =
           if (is_comma(op)) {
             cats([acc, piece_doc(op), comment_suffix, Break, operand_doc]);
           } else if (is_label_eq(op)) {
-            cats([
-              acc,
-              comment_suffix,
-              Space,
-              piece_doc(op),
-              Break,
-              operand_doc,
-            ]);
+            cats([acc, comment_suffix, piece_doc(op), Break, operand_doc]);
           } else {
             cats([
               acc,

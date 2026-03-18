@@ -570,9 +570,9 @@ let comment_tests = [
       "let x = (canvas = 1, # The 2D grid # brush = 2, # Selected emoji # palette = 3 # Available emojis #) in x",
     ~expected=
       {|let x = (
-  canvas = 1, # The 2D grid #
-  brush = 2, # Selected emoji #
-  palette = 3 # Available emojis #
+  canvas= 1, # The 2D grid #
+  brush= 2, # Selected emoji #
+  palette= 3 # Available emojis #
 ) in
 x|},
     (),
@@ -582,7 +582,7 @@ x|},
     ~name="Record trailing comments flat",
     ~width=80,
     ~input="let x = (a = 1, # field a # b = 2, # field b # c = 3) in x",
-    ~expected="let x = (a = 1, # field a # b = 2, # field b # c = 3) in x",
+    ~expected="let x = (a= 1, # field a # b= 2, # field b # c= 3) in x",
     (),
   ),
   /* Simple trailing comment after comma */
@@ -590,10 +590,7 @@ x|},
     ~name="Trailing comment after comma",
     ~width=30,
     ~input="let x = (a = 1, # hi # b = 2) in x",
-    ~expected={|let x = (
-  a = 1, # hi #
-  b = 2
-) in
+    ~expected={|let x = (a= 1, # hi # b= 2) in
 x|},
     (),
   ),
@@ -693,10 +690,10 @@ f|},
     ~expected=
       {|let closeDay =
   fun ledger -> (
-    harvests = 1,
-    totalValue = 2,
-    streakBonus = 0,
-    lastQuality = 3
+    harvests= 1,
+    totalValue= 2,
+    streakBonus= 0,
+    lastQuality= 3
   ) in
 1|},
     (),
@@ -870,6 +867,33 @@ let t = 20 in t|},
   ),
 ];
 
+/* === Labeled tuples === */
+
+let labeled_tuple_tests = [
+  test_format(
+    ~name="Labeled tuple flat",
+    ~input="(a= 1, b = 2)",
+    ~expected="(a= 1, b= 2)",
+    (),
+  ),
+  test_format(
+    ~name="Labeled tuple breaks vertically",
+    ~width=15,
+    ~input="(firsts = [1, 2], seconds = [3, 4])",
+    ~expected={|(
+    firsts= [1, 2],
+    seconds= [3, 4]
+)|},
+    (),
+  ),
+  test_format(
+    ~name="Labeled tuple single entry",
+    ~input="(a= 1)",
+    ~expected="(a= 1)",
+    (),
+  ),
+];
+
 let tests = [
   ("PrettyPrint.Flat", flat_tests),
   ("PrettyPrint.Breaking", breaking_tests),
@@ -883,4 +907,5 @@ let tests = [
   ("PrettyPrint.Comments", comment_tests),
   ("PrettyPrint.Forms", form_tests),
   ("PrettyPrint.Composition", composition_tests),
+  ("PrettyPrint.LabeledTuple", labeled_tuple_tests),
 ];
