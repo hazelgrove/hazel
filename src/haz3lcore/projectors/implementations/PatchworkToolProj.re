@@ -15,29 +15,39 @@ type patchwork_tool = {
   height: int,
 };
 
-let tools: list(patchwork_tool) = [
-  {
-    id: "petrinaut",
-    name: "Petrinaut",
-    width: 1050,
-    height: 590,
-  },
-  {
-    id: "catcolab",
-    name: "CatColab",
-    width: 680,
-    height: 490,
-  },
-  {
-    id: "tldraw4",
-    name: "TLDraw",
-    width: 680,
-    height: 490,
-  },
-];
+/* Default dimensions for tools from the registry that don't specify size */
+let default_width = 680;
+let default_height = 490;
+
+/* Read available tools from the patchwork plugin registry
+   (window.patchworkToolRegistry, set by prebundle.js via getRegistry("patchwork:tool")).
+   Falls back to an empty list if the registry isn't available. */
+let get_tools_from_registry = (): list(patchwork_tool) => {
+  let registry = Js.Unsafe.global##.patchworkToolRegistry;
+  if (Js.Optdef.test(registry)) {
+    let plugins: array(Js.Unsafe.any) =
+      Js.to_array(Js.Unsafe.meth_call(registry, "all", [||]));
+    plugins
+    |> Array.to_list
+    |> List.filter_map(plugin => {
+         let id = Js.to_string(Js.Unsafe.get(plugin, "id"));
+         let name =
+           if (Js.Optdef.test(Js.Unsafe.get(plugin, "name"))) {
+             Js.to_string(Js.Unsafe.get(plugin, "name"));
+           } else {
+             id;
+           };
+         Some({id, name, width: default_width, height: default_height});
+       });
+  } else {
+    [];
+  };
+};
+
+let tools = (): list(patchwork_tool) => get_tools_from_registry();
 
 let find_tool = (id: string): option(patchwork_tool) =>
-  List.find_opt(t => t.id == id, tools);
+  List.find_opt(t => t.id == id, tools());
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -263,7 +273,7 @@ module M: Projector = {
               ],
               [Node.text(t.name)],
             ),
-          tools,
+          tools(),
         );
 
     let tool_select =

@@ -1,11 +1,38 @@
 open Js_of_ocaml;
 open WorkerServer;
 
-let name = "worker.js"; // Worker file name
 let timeoutDuration = 20000; // Worker timeout in ms
 
+/* Capture script src at module load time (document.currentScript is only
+   available during synchronous execution). In patchwork direct mode this
+   gives us the full URL to hazel.js so we can resolve worker.js next to it. */
+let captured_script_src: option(string) = {
+  let cs = Js.Unsafe.global##.document##.currentScript;
+  if (Js.Opt.test(cs)) {
+    let src = Js.Unsafe.get(cs, "src");
+    if (Js.Optdef.test(src)) {
+      Some(Js.to_string(src));
+    } else {
+      None;
+    };
+  } else {
+    None;
+  };
+};
+
+let worker_url = (): string =>
+  switch (captured_script_src) {
+  | Some(src) when String.length(src) > 0 =>
+    Js_of_ocaml.Regexp.global_replace(
+      Js_of_ocaml.Regexp.regexp("hazel\\.js$"),
+      src,
+      "worker.js",
+    )
+  | _ => "worker.js"
+  };
+
 let initWorker: unit => Js.t(Worker.worker(Request.t, Response.t)) =
-  () => Worker.create(name);
+  () => Worker.create(worker_url());
 
 let workerRef: ref(Js.t(Worker.worker(Request.t, Response.t))) =
   ref(initWorker());

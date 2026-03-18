@@ -1,0 +1,8 @@
+{
+	"name": "@hazelgrove/hazel",
+	"exports": {
+		".": {
+			"import": "./index.js"
+		}
+	}
+}

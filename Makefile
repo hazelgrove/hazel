@@ -2,7 +2,7 @@ TEST_DIR="$(shell pwd)/_build/default/test"
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8009/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student grade echo-html-dir serve serve2 repl test clean setup-zarith update-wasm
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student grade echo-html-dir serve serve2 repl test clean setup-zarith update-wasm patchwork
 
 all: dev
 
@@ -100,6 +100,18 @@ ci: setup-zarith
 
 generate-coverage-html:
 	bisect-ppx-report html
+
+patchwork:
+	rm -rf src/patchwork/dist
+	mkdir -p src/patchwork/dist
+	cp $(HTML_DIR)/bundled.js src/patchwork/dist/bundled.js
+	cp $(HTML_DIR)/hazel.js src/patchwork/dist/hazel.js
+	cp $(HTML_DIR)/worker.js src/patchwork/dist/worker.js
+	cp $(HTML_DIR)/style.css src/patchwork/dist/style.css
+	cp -r $(HTML_DIR)/style src/patchwork/dist/style
+	cp -r $(HTML_DIR)/img src/patchwork/dist/img
+	chmod -R u+w src/patchwork/dist
+	cd src/patchwork && pushwork sync
 
 automerge.wasm:
 	curl -o src/web/www/automerge.wasm https://gaios.sgai.uk/automerge.wasm

@@ -154,7 +154,9 @@ let start = {
         Js.string("MAC"),
       )
       >= 0;
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
+    if (!Haz3lcore.PatchworkComm.is_in_patchwork()) {
+      NinjaKeys.initialize(Shortcut.options(schedule_action));
+    };
     Haz3lcore.ExternalProjectorBridge.init(Bonsai.Effect.Expert.handle);
     Haz3lcore.PatchworkComm.init_iframe(a =>
       schedule_action(

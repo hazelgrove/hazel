@@ -2,16 +2,23 @@ open Js_of_ocaml;
 open PatchworkMessages;
 open Util;
 
-/* Patchwork/iframe mode detection.
+/* Patchwork mode detection.
    When running inside Patchwork, we disable Hazel's localStorage persistence
    because Automerge handles persistence. This check is immediate (no waiting
    for postMessage handshake) so it can be used during initialization.
-   Returns false in non-browser environments (e.g., Node.js tests). */
-let is_in_iframe = (): bool => {
+   Returns false in non-browser environments (e.g., Node.js tests).
+   Supports both iframe mode (window.parent !== window) and direct mode
+   (running inside a <patchwork-view> element). */
+let is_in_patchwork = (): bool => {
   Js.Optdef.test(Js.Unsafe.global##.window)
-  &&
-  Js.Unsafe.global##.parent !== Js.Unsafe.global;
+  && (
+    Js.Unsafe.global##.parent !== Js.Unsafe.global
+    || Js.Optdef.test(Js.Unsafe.global##.patchwork)
+  );
 };
+
+/* Backwards-compatible alias */
+let is_in_iframe = is_in_patchwork;
 
 /* Remote caret state for collaborative cursor display */
 type remote_caret = {
@@ -546,190 +553,278 @@ module JsConvert = {
   };
 };
 
-let send_to_parent = (message: Ojs.t): unit => {
-  Js.Unsafe.fun_call(
-    Js.Unsafe.js_expr("window.parent.postMessage"),
-    [|Js.Unsafe.inject(message), Js.Unsafe.inject(Js.string("*"))|],
-  );
+let is_direct_mode = (): bool =>
+  Js.Unsafe.global##.parent === Js.Unsafe.global
+  && Js.Optdef.test(Js.Unsafe.global##.patchwork);
+
+/* In direct mode, capture the patchwork-view element by walking up from
+   document.currentScript. This is captured eagerly at module load time
+   (during synchronous script execution) because document.currentScript
+   is only available then. */
+let captured_tool_element: option(Js.Unsafe.any) = {
+  let cs = Js.Unsafe.global##.document##.currentScript;
+  if (Js.Opt.test(cs)) {
+    let pv =
+      Js.Unsafe.meth_call(
+        cs,
+        "closest",
+        [|Js.Unsafe.inject(Js.string("patchwork-view"))|],
+      );
+    if (Js.Opt.test(pv)) {
+      Some(pv);
+    } else {
+      None;
+    };
+  } else {
+    None;
+  };
 };
 
-let listen = (schedule_action: Action.t => unit): unit => {
-  let onMessage = (ev: Js.t(#Dom_html.event)) => {
-    let dataJs: Ojs.t = Js.Unsafe.get(ev, "data");
+let get_tool_element = (): option(Js.Unsafe.any) => captured_tool_element;
 
-    // check origin
-    let from_self: bool =
-      Js.Unsafe.get(ev, "source") |> Js.equals(Dom_html.window);
+/* Cached tool element reference for direct mode */
+let tool_element: ref(option(Js.Unsafe.any)) = ref(None);
 
-    /* Wrap in try/catch to gracefully handle unknown message types.
-       Other scripts (browser extensions, Patchwork internals) may send
-       postMessages that don't match our protocol. */
-    let msg: option(ParentToHazel.t) =
-      if (from_self) {
-        None;
-      } else {
-        try(Some(ParentToHazel.t_of_js(dataJs))) {
-        | _ => None
-        };
+let send_to_parent = (message: Ojs.t): unit =>
+  if (is_direct_mode()) {
+    /* Direct mode: dispatch a CustomEvent on the tool element */
+    let el =
+      switch (tool_element^) {
+      | Some(el) => Some(el)
+      | None =>
+        let found = get_tool_element();
+        tool_element := found;
+        found;
       };
-
-    switch (msg) {
-    | Some(msg) =>
-      switch (msg) {
-      | `U_s3_ping(_ping) =>
-        let pongJs: Ojs.t =
-          Pong.t_to_js(
-            Pong.create(~t=`L_s4_pong, ~message="pong from iframe", ()),
-          );
-        send_to_parent(pongJs);
-      | `U_s4_pong(_pong) => ()
-      | `U_s5_remote_caret(rc) =>
-        let user_id = RemoteCaret.get_userId(rc);
-        let user_name = RemoteCaret.get_userName(rc);
-        let color = RemoteCaret.get_color(rc);
-        let piece_id_str = RemoteCaret.get_pieceId(rc);
-        let shard_index = RemoteCaret.get_shardIdx(rc);
-        let caret_offset = RemoteCaret.get_caretOffset(rc);
-        let shape =
-          switch (RemoteCaret.get_shape(rc)) {
-          | Some(`L_s2_left) => Some(Direction.Left)
-          | Some(`L_s7_right) => Some(Direction.Right)
-          | None => None
-          };
-        let side =
-          switch (RemoteCaret.get_side(rc)) {
-          | Some(`L_s2_left) => Some(Direction.Left)
-          | Some(`L_s7_right) => Some(Direction.Right)
-          | None => None
-          };
-        // Firebug.console##log(
-        //   Js.string(
-        //     "[CARET] iframe received remote-caret: user="
-        //     ++ user_id
-        //     ++ " piece="
-        //     ++ piece_id_str
-        //     ++ " shard="
-        //     ++ (
-        //       switch (shard_index) {
-        //       | Some(i) => string_of_int(i)
-        //       | None => "None"
-        //       }
-        //     )
-        //     ++ " offset="
-        //     ++ string_of_int(caret_offset),
-        //   ),
-        // );
-        switch (Id.of_string(piece_id_str)) {
-        | Some(piece_id) =>
-          let caret = {
-            user_id,
-            user_name,
-            color,
-            piece_id,
-            shard_index,
-            caret_offset,
-            shape,
-            side,
-          };
-          remote_carets := Maps.StringMap.add(user_id, caret, remote_carets^);
-          schedule_action(UpdateRemoteCarets);
-        | None =>
-          // Firebug.console##log(
-          //   Js.string(
-          //     "[CARET] Invalid piece_id in remote-caret: " ++ piece_id_str,
-          //   ),
-          // )
-          ()
-        };
-      | `U_s6_remote_caret_remove(rcr) =>
-        let user_id = RemoteCaretRemove.get_userId(rcr);
-        // Firebug.console##log(
-        //   Js.string(
-        //     "[CARET] iframe received remote-caret-remove: user=" ++ user_id,
-        //   ),
-        // );
-        remote_carets := Maps.StringMap.remove(user_id, remote_carets^);
-        schedule_action(UpdateRemoteCarets);
-      | `U_s8_state(state) =>
-        let receive_log = PerfLog.start("receive_state_total");
-
-        let js_state = EditorState.get_state(state);
-
-        let delta_doc =
-          PerfLog.measure("flatdoc_of_hazeldoc", () =>
-            JsConvert.flatdoc_of_hazeldoc(js_state)
-          );
-
-        let num_entries = FlatConvert.Doc.cardinal(delta_doc);
-        PerfLog.log(
-          "Received delta with " ++ string_of_int(num_entries) ++ " pieces",
+    switch (el) {
+    | Some(el) =>
+      let event =
+        Js.Unsafe.new_obj(
+          Js.Unsafe.global##._CustomEvent,
+          [|
+            Js.Unsafe.inject(Js.string("hazel-to-patchwork")),
+            Js.Unsafe.inject(
+              Js.Unsafe.obj([|("detail", Js.Unsafe.inject(message))|]),
+            ),
+          |],
         );
-
-        // Debug: log detailed receive info for small deltas
-        if (num_entries > 0 && num_entries <= 10) {
-          let piece_summary = (piece: FlatConvert.Flat.piece): string =>
-            switch (piece) {
-            | Tile({id, label, shards, children, _}) =>
-              "Tile(id="
-              ++ Id.to_string(id)
-              ++ ", label=["
-              ++ String.concat(",", label)
-              ++ "], shards=["
-              ++ String.concat(",", List.map(string_of_int, shards))
-              ++ "], children="
-              ++ string_of_int(List.length(children))
-              ++ ")"
-            | Grout({id, shape}) =>
-              "Grout(id="
-              ++ Id.to_string(id)
-              ++ ", shape="
-              ++ (
-                switch (shape) {
-                | Convex => "Convex"
-                | Concave => "Concave"
-                }
-              )
-              ++ ")"
-            | Secondary({id, content}) =>
-              "Secondary(id="
-              ++ Id.to_string(id)
-              ++ ", "
-              ++ (
-                switch (content) {
-                | Whitespace(s) => "ws=" ++ String.escaped(s)
-                | Comment(s) => "comment=" ++ s
-                }
-              )
-              ++ ")"
-            | Projector({id, kind, _}) =>
-              "Projector(id=" ++ Id.to_string(id) ++ ", kind=" ++ kind ++ ")"
-            };
-
-          Firebug.console##log(Js.string("[DELTA RECV] Received pieces:"));
-          delta_doc
-          |> FlatConvert.Doc.iter((_, piece) => {
-               Firebug.console##log(Js.string("  " ++ piece_summary(piece)))
-             });
-        };
-
-        PerfLog.end_(receive_log);
-
-        schedule_action(SyncReplace(delta_doc));
-      }
+      Js.Unsafe.meth_call(el, "dispatchEvent", [|Js.Unsafe.inject(event)|])
+      |> ignore;
     | None => ()
     };
-    Js._false;
+  } else {
+    /* Iframe mode: use postMessage */
+    Js.Unsafe.fun_call(
+      Js.Unsafe.js_expr("window.parent.postMessage"),
+      [|Js.Unsafe.inject(message), Js.Unsafe.inject(Js.string("*"))|],
+    );
   };
 
-  Js.Unsafe.fun_call(
-    Js.Unsafe.js_expr("window.addEventListener"),
-    [|
-      Js.Unsafe.inject(Js.string("message")),
-      Js.Unsafe.inject(onMessage),
-      Js.Unsafe.inject(Js._false),
-    |],
-  );
+/* Process an incoming message from the parent (works for both iframe and direct mode) */
+let handle_message = (schedule_action: Action.t => unit, dataJs: Ojs.t): unit => {
+  let msg: option(ParentToHazel.t) =
+    try(Some(ParentToHazel.t_of_js(dataJs))) {
+    | _ => None
+    };
+
+  switch (msg) {
+  | Some(msg) =>
+    switch (msg) {
+    | `U_s3_ping(_ping) =>
+      let pongJs: Ojs.t =
+        Pong.t_to_js(
+          Pong.create(~t=`L_s4_pong, ~message="pong from iframe", ()),
+        );
+      send_to_parent(pongJs);
+    | `U_s4_pong(_pong) => ()
+    | `U_s5_remote_caret(rc) =>
+      let user_id = RemoteCaret.get_userId(rc);
+      let user_name = RemoteCaret.get_userName(rc);
+      let color = RemoteCaret.get_color(rc);
+      let piece_id_str = RemoteCaret.get_pieceId(rc);
+      let shard_index = RemoteCaret.get_shardIdx(rc);
+      let caret_offset = RemoteCaret.get_caretOffset(rc);
+      let shape =
+        switch (RemoteCaret.get_shape(rc)) {
+        | Some(`L_s2_left) => Some(Direction.Left)
+        | Some(`L_s7_right) => Some(Direction.Right)
+        | None => None
+        };
+      let side =
+        switch (RemoteCaret.get_side(rc)) {
+        | Some(`L_s2_left) => Some(Direction.Left)
+        | Some(`L_s7_right) => Some(Direction.Right)
+        | None => None
+        };
+      // Firebug.console##log(
+      //   Js.string(
+      //     "[CARET] iframe received remote-caret: user="
+      //     ++ user_id
+      //     ++ " piece="
+      //     ++ piece_id_str
+      //     ++ " shard="
+      //     ++ (
+      //       switch (shard_index) {
+      //       | Some(i) => string_of_int(i)
+      //       | None => "None"
+      //       }
+      //     )
+      //     ++ " offset="
+      //     ++ string_of_int(caret_offset),
+      //   ),
+      // );
+      switch (Id.of_string(piece_id_str)) {
+      | Some(piece_id) =>
+        let caret = {
+          user_id,
+          user_name,
+          color,
+          piece_id,
+          shard_index,
+          caret_offset,
+          shape,
+          side,
+        };
+        remote_carets := Maps.StringMap.add(user_id, caret, remote_carets^);
+        schedule_action(UpdateRemoteCarets);
+      | None =>
+        // Firebug.console##log(
+        //   Js.string(
+        //     "[CARET] Invalid piece_id in remote-caret: " ++ piece_id_str,
+        //   ),
+        // )
+        ()
+      };
+    | `U_s6_remote_caret_remove(rcr) =>
+      let user_id = RemoteCaretRemove.get_userId(rcr);
+      // Firebug.console##log(
+      //   Js.string(
+      //     "[CARET] iframe received remote-caret-remove: user=" ++ user_id,
+      //   ),
+      // );
+      remote_carets := Maps.StringMap.remove(user_id, remote_carets^);
+      schedule_action(UpdateRemoteCarets);
+    | `U_s8_state(state) =>
+      let receive_log = PerfLog.start("receive_state_total");
+
+      let js_state = EditorState.get_state(state);
+
+      let delta_doc =
+        PerfLog.measure("flatdoc_of_hazeldoc", () =>
+          JsConvert.flatdoc_of_hazeldoc(js_state)
+        );
+
+      let num_entries = FlatConvert.Doc.cardinal(delta_doc);
+      PerfLog.log(
+        "Received delta with " ++ string_of_int(num_entries) ++ " pieces",
+      );
+
+      // Debug: log detailed receive info for small deltas
+      if (num_entries > 0 && num_entries <= 10) {
+        let piece_summary = (piece: FlatConvert.Flat.piece): string =>
+          switch (piece) {
+          | Tile({id, label, shards, children, _}) =>
+            "Tile(id="
+            ++ Id.to_string(id)
+            ++ ", label=["
+            ++ String.concat(",", label)
+            ++ "], shards=["
+            ++ String.concat(",", List.map(string_of_int, shards))
+            ++ "], children="
+            ++ string_of_int(List.length(children))
+            ++ ")"
+          | Grout({id, shape}) =>
+            "Grout(id="
+            ++ Id.to_string(id)
+            ++ ", shape="
+            ++ (
+              switch (shape) {
+              | Convex => "Convex"
+              | Concave => "Concave"
+              }
+            )
+            ++ ")"
+          | Secondary({id, content}) =>
+            "Secondary(id="
+            ++ Id.to_string(id)
+            ++ ", "
+            ++ (
+              switch (content) {
+              | Whitespace(s) => "ws=" ++ String.escaped(s)
+              | Comment(s) => "comment=" ++ s
+              }
+            )
+            ++ ")"
+          | Projector({id, kind, _}) =>
+            "Projector(id=" ++ Id.to_string(id) ++ ", kind=" ++ kind ++ ")"
+          };
+
+        Firebug.console##log(Js.string("[DELTA RECV] Received pieces:"));
+        delta_doc
+        |> FlatConvert.Doc.iter((_, piece) => {
+             Firebug.console##log(Js.string("  " ++ piece_summary(piece)))
+           });
+      };
+
+      PerfLog.end_(receive_log);
+
+      schedule_action(SyncReplace(delta_doc));
+    }
+  | None => ()
+  };
 };
+
+let listen = (schedule_action: Action.t => unit): unit =>
+  if (is_direct_mode()) {
+    /* Direct mode: listen for custom events on the tool element */
+    let el =
+      switch (tool_element^) {
+      | Some(el) => Some(el)
+      | None =>
+        let found = get_tool_element();
+        tool_element := found;
+        found;
+      };
+    switch (el) {
+    | Some(el) =>
+      let onEvent = (ev: Js.Unsafe.any) => {
+        let dataJs: Ojs.t = Js.Unsafe.get(ev, "detail");
+        handle_message(schedule_action, dataJs);
+      };
+      Js.Unsafe.meth_call(
+        el,
+        "addEventListener",
+        [|
+          Js.Unsafe.inject(Js.string("patchwork-to-hazel")),
+          Js.Unsafe.inject(Js.wrap_callback(onEvent)),
+        |],
+      )
+      |> ignore;
+    | None =>
+      Firebug.console##error(
+        Js.string("[PatchworkComm] Direct mode but no tool element found"),
+      )
+    };
+  } else {
+    /* Iframe mode: listen for postMessage events */
+    let onMessage = (ev: Js.t(#Dom_html.event)) => {
+      let dataJs: Ojs.t = Js.Unsafe.get(ev, "data");
+      let from_self: bool =
+        Js.Unsafe.get(ev, "source") |> Js.equals(Dom_html.window);
+      if (!from_self) {
+        handle_message(schedule_action, dataJs);
+      };
+      Js._false;
+    };
+    Js.Unsafe.fun_call(
+      Js.Unsafe.js_expr("window.addEventListener"),
+      [|
+        Js.Unsafe.inject(Js.string("message")),
+        Js.Unsafe.inject(onMessage),
+        Js.Unsafe.inject(Js._false),
+      |],
+    );
+  };
 
 let send_state =
     (old_doc: FlatConvert.Doc.t, new_doc: FlatConvert.Doc.t): unit => {
@@ -859,17 +954,17 @@ let send_state =
 };
 
 let init_iframe = schedule_action => {
-  print_endline("Initializing iframe");
+  print_endline("Initializing patchwork connection");
+  listen(schedule_action);
   let init_message =
     Init.t_to_js(
       Init.create(
-        ~message="Hello I am hazel and I am inside of an iframe!",
+        ~message="Hello I am hazel running in patchwork!",
         ~t=`L_s1_init,
         (),
       ),
     );
   send_to_parent(init_message);
-  listen(schedule_action);
 };
 
 /* Send caret position to parent for collaborative cursor display.

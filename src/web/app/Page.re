@@ -525,18 +525,27 @@ module View = {
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
         : Effect.t(unit) => {
-      /* Let patchwork-view elements (e.g. TLDraw canvas) handle
-         their own keyboard input without Hazel intercepting it */
+      /* Let embedded patchwork-view elements (e.g. TLDraw canvas) handle
+         their own keyboard input without Hazel intercepting it.
+         Only skip for patchwork-views that are INSIDE #page (embedded tools),
+         not the root patchwork-view that Hazel itself runs in. */
       let target = Js.Opt.to_option(evt##.target);
-      let in_patchwork_view =
+      let in_embedded_patchwork_view =
         switch (target) {
         | Some(el) =>
           let el = Js.Unsafe.coerce(el);
-          let result = el##closest(Js.string("patchwork-view"));
-          Js.Opt.test(result);
+          let pv = el##closest(Js.string("patchwork-view"));
+          if (Js.Opt.test(pv)) {
+            /* Check if this patchwork-view is inside #page (embedded)
+               vs being an ancestor of #page (the root host) */
+            let page_el = pv##querySelector(Js.string("#page"));
+            !Js.Opt.test(page_el);
+          } else {
+            false;
+          };
         | None => false
         };
-      if (in_patchwork_view) {
+      if (in_embedded_patchwork_view) {
         Effect.Ignore;
       } else {
         let meta_effects = update_meta(evt);

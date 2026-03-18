@@ -17,76 +17,85 @@ import {
 } from "@automerge/vanillajs/slim"
 import {WebSocketClientAdapter} from "@automerge/automerge-repo-network-websocket"
 
-const repo = new Repo({
-	storage: new IndexedDBStorageAdapter(),
-	network: [new WebSocketClientAdapter("wss://sync3.automerge.org")],
-	enableRemoteHeadsGossiping: true,
-})
+// When running inside patchwork (as a tool), patchwork already provides
+// the repo, module loading, and patchwork-view element registration.
+// We only need to set up our own infrastructure when running standalone.
+const inPatchwork = window.patchwork || document.currentScript?.closest?.("patchwork-view")
 
-window.repo = repo
+if (!inPatchwork) {
+	const repo = new Repo({
+		storage: new IndexedDBStorageAdapter(),
+		network: [new WebSocketClientAdapter("wss://sync3.automerge.org")],
+		enableRemoteHeadsGossiping: true,
+	})
 
-const result = await setup()
-if (result?.port) {
-	repo.networkSubsystem.addNetworkAdapter(
-		new MessageChannelNetworkAdapter(result.port)
-	)
-}
-await repo.networkSubsystem.whenReady()
+	window.repo = repo
 
-window.getRepoChannel = () => {
-	const {port1, port2} = new MessageChannel()
-	navigator.serviceWorker.controller.postMessage({type: "port"}, [port2])
-	return port1
-}
-
-window.hazelWriteToDoc = async (docUrl, jsonString) => {
-	try {
-		const handle = await repo.find(docUrl)
-		const parsed = JSON.parse(jsonString)
-
-		handle.change(doc => {
-			if (!parsed || typeof parsed !== "object") return
-			// Sync all top-level keys from parsed into doc
-			for (const key of Object.keys(doc)) {
-				if (!(key in parsed)) {
-					delete doc[key]
-				}
-			}
-			for (const [key, value] of Object.entries(parsed)) {
-				doc[key] = value
-			}
-		})
-	} catch (e) {
-		console.error("hazelWriteToDoc error:", e)
+	const result = await setup()
+	if (result?.port) {
+		repo.networkSubsystem.addNetworkAdapter(
+			new MessageChannelNetworkAdapter(result.port)
+		)
 	}
-}
+	await repo.networkSubsystem.whenReady()
 
-const moduleWatcher = new ModuleWatcher(
-	repo,
-	// codemirror-base
-	["automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX"],
-	(name, mod) => {
-		console.log("Prebundled module loaded:", name, mod)
-		if (Array.isArray(mod.plugins)) {
-			registerPlugins(mod.plugins, name)
+	window.getRepoChannel = () => {
+		const {port1, port2} = new MessageChannel()
+		navigator.serviceWorker.controller.postMessage({type: "port"}, [port2])
+		return port1
+	}
+
+	window.hazelWriteToDoc = async (docUrl, jsonString) => {
+		try {
+			const handle = await repo.find(docUrl)
+			const parsed = JSON.parse(jsonString)
+
+			handle.change(doc => {
+				if (!parsed || typeof parsed !== "object") return
+				// Sync all top-level keys from parsed into doc
+				for (const key of Object.keys(doc)) {
+					if (!(key in parsed)) {
+						delete doc[key]
+					}
+				}
+				for (const [key, value] of Object.entries(parsed)) {
+					doc[key] = value
+				}
+			})
+		} catch (e) {
+			console.error("hazelWriteToDoc error:", e)
 		}
 	}
-)
-window.moduleWatcher = moduleWatcher
-console.log("moduleWatcher", moduleWatcher)
-window.plugins = getRegistry("patchwork:tool")
 
-// subsequent dynamic loading of modules
-moduleWatcher.loadModules([
-	"automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX",
-	"automerge:L45rfzTVcMDsyXRyuhpNMPXqPwf",
-	"automerge:3Fj5zE7QdhbbWVJNsAHPbf84YfX6",
-	// petrinaut tool?
-	"automerge:3phkB7HzGoQ67w2ahmj9gepELErw",
-	"automerge:Qq3G9LB5bNHwSVJ6m29Tz8zgb4E",
-])
+	const moduleWatcher = new ModuleWatcher(
+		repo,
+		// codemirror-base
+		["automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX"],
+		(name, mod) => {
+			console.log("Prebundled module loaded:", name, mod)
+			if (Array.isArray(mod.plugins)) {
+				registerPlugins(mod.plugins, name)
+			}
+		}
+	)
+	window.moduleWatcher = moduleWatcher
+	console.log("moduleWatcher", moduleWatcher)
 
-registerPatchworkViewElement({repo})
+	// subsequent dynamic loading of modules
+	moduleWatcher.loadModules([
+		"automerge:3qXkpoGfWoyomfG8wTifhnzBEnpX",
+		"automerge:L45rfzTVcMDsyXRyuhpNMPXqPwf",
+		"automerge:3Fj5zE7QdhbbWVJNsAHPbf84YfX6",
+		// petrinaut tool?
+		"automerge:3phkB7HzGoQ67w2ahmj9gepELErw",
+		"automerge:Qq3G9LB5bNHwSVJ6m29Tz8zgb4E",
+	])
+
+	registerPatchworkViewElement({repo})
+}
+
+// Expose the tool registry — works in both standalone and patchwork modes
+window.patchworkToolRegistry = getRegistry("patchwork:tool")
 
 // Prevent tldraw popover focus from scrolling #main.
 // When Radix UI opens a popover (e.g. the "More" tools menu), it focuses the
