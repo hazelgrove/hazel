@@ -627,7 +627,7 @@ module JsonADT = {
         }
       | Constructor("String", _) =>
         switch (Exp.term_of(arg)) {
-        | Atom(String(s)) => Ok(`String(s))
+        | Atom(String(s)) => Ok(`String(StringUtil.unescape_linebreaks(s)))
         | _ => Error("JsonADT: String expects a string literal")
         }
       | Constructor("List", _) =>

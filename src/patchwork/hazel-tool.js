@@ -213,7 +213,9 @@ export default function hazelTool(handle, element) {
 	const overrides = document.createElement("style")
 	overrides.textContent = `
 		#page {
-			position: relative;
+			position: absolute;
+			top: 0;
+			left: 0;
 			width: 100%;
 			height: 100%;
 		}
