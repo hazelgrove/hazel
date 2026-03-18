@@ -82,27 +82,30 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
-let errors_tab_icon = (error_count: int, warning_count: int): Node.t => {
-  let digit_class =
-    error_count >= 100
-      ? "digits-3" : error_count >= 10 ? "digits-2" : "digits-1";
+let errors_tab_icon =
+    (error_count: int, hole_count: int, warning_count: int): Node.t => {
+  let digit_cls = n =>
+    n >= 100 ? "digits-3" : n >= 10 ? "digits-2" : "digits-1";
   let (status_class, icon_text, title) =
     if (error_count > 0) {
       (
-        "has-errors " ++ digit_class,
+        "has-errors " ++ digit_cls(error_count),
         string_of_int(error_count),
         string_of_int(error_count) ++ " error" ++ (error_count > 1 ? "s" : ""),
       );
     } else if (warning_count > 0) {
-      let warn_digit_class =
-        warning_count >= 100
-          ? "digits-3" : warning_count >= 10 ? "digits-2" : "digits-1";
       (
-        "has-warnings " ++ warn_digit_class,
+        "has-warnings " ++ digit_cls(warning_count),
         string_of_int(warning_count),
         string_of_int(warning_count)
         ++ " warning"
         ++ (warning_count > 1 ? "s" : ""),
+      );
+    } else if (hole_count > 0) {
+      (
+        "has-holes " ++ digit_cls(hole_count),
+        string_of_int(hole_count),
+        string_of_int(hole_count) ++ " hole" ++ (hole_count > 1 ? "s" : ""),
       );
     } else {
       ("no-errors", {|✓|}, "No errors");
@@ -119,13 +122,17 @@ let errors_tab_icon = (error_count: int, warning_count: int): Node.t => {
 let errors_tab =
     (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
   let error_count = List.length(editor.statics.error_ids);
+  let hole_count =
+    Haz3lcore.Segment.holes(editor.editor.syntax.segment)
+    |> List.filter((g: Haz3lcore.Grout.t) => g.shape == Convex)
+    |> List.length;
   let warning_count =
     globals.settings.core.display_warnings
       ? List.length(editor.statics.warning_ids) : 0;
   tab_of(
     ~panel=Errors,
     ~cls=["errors-button"],
-    ~icon=errors_tab_icon(error_count, warning_count),
+    ~icon=errors_tab_icon(error_count, hole_count, warning_count),
     ~tooltip="Switch to Errors Panel",
     ~globals,
   );

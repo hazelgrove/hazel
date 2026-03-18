@@ -154,7 +154,7 @@ let view =
     list((SidebarModel.Settings.error_category, list(problem))) =
     List.map(
       cat => (cat, collect_category(ctx, cat) |> List.of_seq),
-      [Syntax, Static, Warning],
+      [Syntax, Hole, Static, Warning],
     );
   let errors_settings = globals.settings.sidebar.errors;
   let has_any_errors = List.exists(((_, rows)) => rows != [], categories);

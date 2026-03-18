@@ -17,6 +17,7 @@ type problem = {
 type error_context = {
   info_map: Language.Statics.Map.t,
   syntax_error_ids: list((Id.t, Language.Info.t)),
+  hole_ids: list(Haz3lcore.Grout.t),
   static_error_ids: list((Id.t, Language.Info.t)),
   warning_ids: list((Id.t, Language.Info.t)),
   segment: Haz3lcore.Segment.t,
@@ -94,9 +95,14 @@ let make_error_context =
     } else {
       [];
     };
+  /* Collect convex holes (empty holes) */
+  let hole_ids =
+    Haz3lcore.Segment.holes(editor.editor.syntax.segment)
+    |> List.filter((g: Haz3lcore.Grout.t) => g.shape == Convex);
   {
     info_map,
     syntax_error_ids,
+    hole_ids,
     static_error_ids,
     warning_ids,
     segment: editor.editor.syntax.segment,
@@ -154,6 +160,17 @@ let collect_category =
     @ syntax_info_problems
     |> sort_by_pos
     |> List.to_seq;
+  | Hole =>
+    ctx.hole_ids
+    |> List.map((g: Haz3lcore.Grout.t) =>
+         {
+           id: g.id,
+           category: Hole,
+           source: Structural("Empty hole"),
+         }
+       )
+    |> sort_by_pos
+    |> List.to_seq
   | Static =>
     ctx.static_error_ids
     |> List.map(((id, ci)) => {
@@ -182,7 +199,7 @@ let collect_category =
 /* ---------- Convenience: all problems ---------- */
 
 let collect_all_problems = (ctx: error_context): list(problem) => {
-  [SidebarModel.Settings.Syntax, Static, Warning]
+  [SidebarModel.Settings.Syntax, Hole, Static, Warning]
   |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
 };
 

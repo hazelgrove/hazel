@@ -12,6 +12,7 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type error_category =
     | Syntax
+    | Hole
     | Static
     | Warning;
 
@@ -19,6 +20,7 @@ module Settings = {
   let category_cls = cat =>
     switch (cat) {
     | Syntax => "syntax"
+    | Hole => "hole"
     | Static => "static"
     | Warning => "warning"
     };
@@ -27,6 +29,7 @@ module Settings = {
   let category_label = cat =>
     switch (cat) {
     | Syntax => "Syntax Errors"
+    | Hole => "Holes"
     | Static => "Static Errors"
     | Warning => "Warnings"
     };
@@ -35,6 +38,7 @@ module Settings = {
   let category_short_label = cat =>
     switch (cat) {
     | Syntax => "Syntax"
+    | Hole => "Hole"
     | Static => "Static"
     | Warning => "Warning"
     };
