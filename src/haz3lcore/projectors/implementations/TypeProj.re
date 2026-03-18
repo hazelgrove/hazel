@@ -80,6 +80,15 @@ module M: Projector = {
   let dynamics = true;
   let focusable = Focusable.non;
 
+  let display_ty = (model, statics, info: info): option(Typ.t) =>
+    switch (model) {
+    | Dynamic => Some(get_dynamic_typ(info))
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
+      statics |> self_ty
+    | Self => statics |> self_ty
+    | Expected => statics |> expected_ty
+    };
+
   let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
     | Dynamic => "⇓"

@@ -38,6 +38,7 @@ let (suite, _) =
     @ Test_PadIds.tests
     @ Test_AutoProbe.tests
     @ Test_Indentation.tests
+    @ Test_DynamicTyp.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
