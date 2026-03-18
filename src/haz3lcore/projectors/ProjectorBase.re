@@ -122,7 +122,7 @@ module View = {
     (
       ~single_line: bool=?,
       ~background: bool=?,
-      ~is_dynamic: Id.t => bool=?,
+      ~classes: Id.t => list(string)=?,
       ~text_only: bool=?,
       Sort.t,
       list(syntax)

@@ -110,7 +110,7 @@ module M: Projector = {
     );
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    let (is_dynamic, typ) =
+    let (classes, typ) =
       switch (model) {
       | Dynamic =>
         let dynamic_typ = get_dynamic_typ(info);
@@ -122,11 +122,11 @@ module M: Projector = {
         let ctx = Option.map(Info.ctx_of, info.statics);
         PadIds.compute_dynamic_ids(~ctx?, ~static_typ, ~dynamic_typ, ());
       | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
-          (_ => false),
+          (_ => []),
           self_ty(info.statics) |> totalize_ty,
         )
-      | Expected => ((_ => false), expected_ty(info.statics) |> totalize_ty)
-      | Self => ((_ => false), self_ty(info.statics) |> totalize_ty)
+      | Expected => ((_ => []), expected_ty(info.statics) |> totalize_ty)
+      | Self => ((_ => []), self_ty(info.statics) |> totalize_ty)
       };
 
     div(
@@ -134,7 +134,7 @@ module M: Projector = {
       [
         Typ(typ)
         |> utility.term_to_seg(~inline=true)
-        |> view_seg(~single_line=true, ~is_dynamic, Sort.Typ),
+        |> view_seg(~single_line=true, ~classes, Sort.Typ),
       ],
     );
   };

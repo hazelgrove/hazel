@@ -16,39 +16,43 @@ let settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
 };
 
-/* Walk a segment producing (text, is_dynamic) fragments for each atomic part */
+/* Walk a segment producing (text, classes) fragments for each atomic part */
 let rec segment_fragments =
-        (is_dynamic: Id.t => bool, seg: Segment.t): list((string, bool)) =>
-  List.concat_map(piece_fragments(is_dynamic), seg)
+        (classes: Id.t => list(string), seg: Segment.t)
+        : list((string, list(string))) =>
+  List.concat_map(piece_fragments(classes), seg)
 and piece_fragments =
-    (is_dynamic: Id.t => bool, p: Piece.t): list((string, bool)) =>
+    (classes: Id.t => list(string), p: Piece.t)
+    : list((string, list(string))) =>
   switch (p) {
-  | Tile(t) => tile_fragments(is_dynamic, t)
-  | Grout(g) => [("?", is_dynamic(g.id))]
+  | Tile(t) => tile_fragments(classes, t)
+  | Grout(g) => [("?", classes(g.id))]
   | Secondary(w) =>
     let text =
       switch (w.content) {
       | Whitespace(s)
       | Comment(s) => s
       };
-    [(text, false)];
+    [(text, [])];
   | Projector(_) => []
   }
 and tile_fragments =
-    (is_dynamic: Id.t => bool, t: Tile.t): list((string, bool)) => {
-  let dyn = is_dynamic(t.id);
+    (classes: Id.t => list(string), t: Tile.t)
+    : list((string, list(string))) => {
+  let clss = classes(t.id);
   Aba.mk(t.shards, t.children)
   |> Aba.join(
-       shard => [(List.nth(t.label, shard), dyn)],
-       segment_fragments(is_dynamic),
+       shard => [(List.nth(t.label, shard), clss)],
+       segment_fragments(classes),
      )
   |> List.concat;
 };
 
-/* Group contiguous fragments with the same dynamic status, concatenating text.
+/* Group contiguous fragments with the same class status, concatenating text.
    Whitespace-only fragments are absorbed into their neighbor's group. */
 let group_regions =
-    (fragments: list((string, bool))): list((string, bool)) => {
+    (fragments: list((string, list(string))))
+    : list((string, list(string))) => {
   let rec go =
     fun
     | [] => []
@@ -68,27 +72,33 @@ let group_regions =
   go(fragments) |> List.filter(((text, _)) => text != "");
 };
 
-/* Given static and dynamic types, return grouped regions of (text, is_dynamic) */
+/* Given static and dynamic types, return grouped regions of (text, classes) */
 let classify_regions =
-    (static_typ: Typ.t, dynamic_typ: Typ.t): list((string, bool)) => {
-  let (is_dynamic, padded_dyn) =
+    (static_typ: Typ.t, dynamic_typ: Typ.t): list((string, list(string))) => {
+  let (classes, padded_dyn) =
     PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ, ());
   let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
-  segment_fragments(is_dynamic, segment) |> group_regions;
+  segment_fragments(classes, segment) |> group_regions;
 };
 
 let region =
   testable(
     Fmt.using(
-      ((text, is_dyn)) =>
-        (is_dyn ? "dynamic" : "static") ++ "(\"" ++ text ++ "\")",
+      ((text, clss)) => {
+        let label =
+          switch (clss) {
+          | [] => "static"
+          | _ => String.concat(" ", clss)
+          };
+        label ++ "(\"" ++ text ++ "\")";
+      },
       Fmt.string,
     ),
     (==),
   );
 
-let s = text => (text, false);
-let d = text => (text, true);
+let s = text => (text, []);
+let d = text => (text, ["dynamic"]);
 
 let ann = ConstructorMap.empty_variant_ann;
 
@@ -219,11 +229,11 @@ let arrow_diff_codomain_test =
 /* Given static and dynamic types and a ctx, return grouped regions */
 let classify_regions_ctx =
     (~ctx: Ctx.t, static_typ: Typ.t, dynamic_typ: Typ.t)
-    : list((string, bool)) => {
-  let (is_dynamic, padded_dyn) =
+    : list((string, list(string))) => {
+  let (classes, padded_dyn) =
     PadIds.compute_dynamic_ids(~ctx, ~static_typ, ~dynamic_typ, ());
   let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
-  segment_fragments(is_dynamic, segment) |> group_regions;
+  segment_fragments(classes, segment) |> group_regions;
 };
 
 let alias_exact_match_test =
@@ -302,12 +312,15 @@ let qcheck_all_piece_ids_classified =
         QCheck_Util.arb_typ(~minimal_idents=true, 7),
       ),
       ((static_typ, dynamic_typ)) => {
-        let (is_dynamic, padded_dyn) =
+        let (classes, padded_dyn) =
           PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ, ());
         let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
-        let fragments = segment_fragments(is_dynamic, segment);
-        /* Every fragment should be classified as either dynamic or not */
-        List.for_all(((_text, is_dyn)) => is_dyn || !is_dyn, fragments);
+        let fragments = segment_fragments(classes, segment);
+        /* Every fragment should produce a valid class list (empty or non-empty) */
+        List.for_all(
+          ((_text, clss)) => clss == [] || clss == ["dynamic"],
+          fragments,
+        );
       },
     ),
   );
