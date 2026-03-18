@@ -67,7 +67,15 @@ let go =
   | Move(d) =>
     Move.go(
       ~statics=statics.info_map,
-      ~error_ids=statics.error_ids @ statics.warning_ids,
+      ~error_ids=
+        statics.error_ids
+        @ statics.warning_ids
+        @ (
+          Segment.holes(syntax.segment)
+          |> List.filter_map((g: Grout.t) =>
+               g.shape == Convex ? Some(g.id) : None
+             )
+        ),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
       d,
