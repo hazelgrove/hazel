@@ -80,15 +80,6 @@ module M: Projector = {
   let dynamics = true;
   let focusable = Focusable.non;
 
-  let display_ty = (model, statics, info: info): option(Typ.t) =>
-    switch (model) {
-    | Dynamic => Some(get_dynamic_typ(info))
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
-      statics |> self_ty
-    | Self => statics |> self_ty
-    | Expected => statics |> expected_ty
-    };
-
   let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
     | Dynamic => "⇓"
@@ -122,17 +113,14 @@ module M: Projector = {
     let (is_dynamic, typ) =
       switch (model) {
       | Dynamic =>
-        let dyn_typ =
-          get_dynamic_typ(info)
-          |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh())
-          |> PadIds.pad_typ_ids;
-        let self_ty =
+        let dynamic_typ = get_dynamic_typ(info);
+        let static_typ =
           Option.value(
             ~default=Typ.fresh(Unknown(Internal)),
             self_ty(info.statics),
           );
-        let dynamic_ids: list(Id.t) = Typ.diff(self_ty, dyn_typ);
-        (List.mem(_, dynamic_ids), dyn_typ);
+        let ctx = Option.map(Info.ctx_of, info.statics);
+        PadIds.compute_dynamic_ids(~ctx?, ~static_typ, ~dynamic_typ, ());
       | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
           (_ => false),
           self_ty(info.statics) |> totalize_ty,
@@ -145,7 +133,7 @@ module M: Projector = {
       ~attrs=[Attr.classes(["type-cell"])],
       [
         Typ(typ)
-        |> utility.term_to_seg
+        |> utility.term_to_seg(~inline=true)
         |> view_seg(~single_line=true, ~is_dynamic, Sort.Typ),
       ],
     );

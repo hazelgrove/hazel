@@ -154,7 +154,6 @@ let view =
               ();
             | None => ()
             };
-
           [
             span(
               ~attrs=[
