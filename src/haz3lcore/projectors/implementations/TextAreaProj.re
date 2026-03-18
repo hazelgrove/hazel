@@ -22,7 +22,6 @@ let get = (info: info): string =>
 let put = (info, s: string): Base.segment =>
   switch (
     info.utility.lift_syntax(
-      ~inline=true,
       fun
       | Exp(any) =>
         Exp({

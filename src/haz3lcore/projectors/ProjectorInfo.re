@@ -7,27 +7,27 @@ open Language;
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
-  let term_to_seg = (inline, any) =>
+  let term_to_seg = any =>
     ExpToSegment.any_to_segment(
       ~settings={
-        ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
+        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
       },
       any,
     );
   let lift_syntax =
-      (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) =>
+      (fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) =>
     switch (seg |> seg_to_term) {
     | None => None
-    | Some(s) => Some(s |> fn |> term_to_seg(inline))
+    | Some(s) => Some(s |> fn |> term_to_seg)
     };
   /* NOTE: Setting indent to anything other than "" has serious
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
-    term_to_seg: (~inline, any) => term_to_seg(inline, any),
+    term_to_seg,
     seg_to_term,
-    lift_syntax: (~inline) => lift_syntax(inline),
+    lift_syntax,
     seg_to_string,
   };
 };
