@@ -51,6 +51,7 @@ module Settings = {
   type errors_settings = {
     collapsed: list(error_category),
     flat: bool,
+    expanded: list(Id.t),
   };
 
   let is_collapsed = (cat, settings) => List.mem(cat, settings.collapsed);
@@ -68,10 +69,26 @@ module Settings = {
       };
     };
 
+  let is_expanded = (id, settings) => List.mem(id, settings.expanded);
+
+  let toggle_expanded = (id, settings) =>
+    if (is_expanded(id, settings)) {
+      {
+        ...settings,
+        expanded: List.filter(i => !Id.equal(i, id), settings.expanded),
+      };
+    } else {
+      {
+        ...settings,
+        expanded: [id, ...settings.expanded],
+      };
+    };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type errors_action =
     | ToggleCollapsed(error_category)
-    | ToggleFlat;
+    | ToggleFlat
+    | ToggleExpanded(Id.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

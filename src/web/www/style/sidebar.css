@@ -170,6 +170,18 @@
   user-select: none;
 }
 
+.error-row-chevron {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 0.7em;
+  opacity: 0.3;
+  user-select: none;
+}
+
+.error-row-chevron:hover {
+  opacity: 0.6;
+}
+
 .error-row {
   display: flex;
   align-items: baseline;
@@ -182,6 +194,37 @@
   background-color: color-mix(in srgb, var(--R0) 50%, transparent);
   cursor: pointer;
   transition: background-color 0.15s ease;
+}
+
+.error-row > .status,
+.error-row > .error-description {
+  display: inline;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.error-row > .status *,
+.error-row > .error-description * {
+  display: inline;
+}
+
+.error-row > .status .code-box-container {
+  margin-inline: 0.3em;
+}
+
+.error-row.expanded > .status,
+.error-row.expanded > .error-description {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.error-row.expanded > .status *,
+.error-row.expanded > .error-description * {
+  display: revert;
 }
 
 .error-line-num {

@@ -60,6 +60,7 @@ module Model = {
       errors: {
         collapsed: [],
         flat: false,
+        expanded: [],
       },
     },
     agent_globals: AgentGlobals.init(),
@@ -298,6 +299,17 @@ module Update = {
               ...settings.sidebar.errors,
               flat: !settings.sidebar.errors.flat,
             },
+          },
+        }
+      | Sidebar(Errors(ToggleExpanded(id))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            errors:
+              SidebarModel.Settings.toggle_expanded(
+                id,
+                settings.sidebar.errors,
+              ),
           },
         }
       | ExplainThis(ToggleShowFeedback) => {

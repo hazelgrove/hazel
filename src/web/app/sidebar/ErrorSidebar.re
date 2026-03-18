@@ -44,6 +44,7 @@ let error_row =
     (
       ~globals: Globals.t,
       ~cursor_id: option(Id.t),
+      ~expanded: list(Id.t),
       ~measured: Haz3lcore.Measured.t,
       ~row_to_line: int => int,
       ~cls: string,
@@ -53,10 +54,26 @@ let error_row =
     : Node.t => {
   let is_active =
     Option.map(Id.equal(id), cursor_id) |> Option.value(~default=false);
-  let classes = ["error-row", cls] @ (is_active ? ["active"] : []);
+  let is_expanded = is_active || List.mem(id, expanded);
+  let classes =
+    ["error-row", cls]
+    @ (is_active ? ["active"] : [])
+    @ (is_expanded ? ["expanded"] : []);
+  let chevron =
+    span(
+      ~attrs=[
+        clss(["error-row-chevron"]),
+        Attr.on_pointerdown(evt => {
+          Js_of_ocaml.Dom.preventDefault(evt);
+          Js_of_ocaml.Dom_html.stopPropagation(evt);
+          globals.inject_global(Set(Sidebar(Errors(ToggleExpanded(id)))));
+        }),
+      ],
+      [text(is_expanded ? "▾" : "▸")],
+    );
   div(
     ~attrs=[clss(classes), Attr.on_pointerdown(jump_to(~globals, id))],
-    [line_num_view(id, measured, row_to_line), content],
+    [chevron, line_num_view(id, measured, row_to_line), content],
   );
 };
 
@@ -112,6 +129,7 @@ let problem_row =
     (
       ~globals: Globals.t,
       ~cursor_id: option(Id.t),
+      ~expanded: list(Id.t),
       ~measured: Haz3lcore.Measured.t,
       ~row_to_line: int => int,
       problem: problem,
@@ -127,6 +145,7 @@ let problem_row =
   error_row(
     ~globals,
     ~cursor_id,
+    ~expanded,
     ~measured,
     ~row_to_line,
     ~cls,
@@ -198,6 +217,7 @@ let view =
     problem_row(
       ~globals,
       ~cursor_id,
+      ~expanded=errors_settings.expanded,
       ~measured=ctx.measured,
       ~row_to_line=ctx.row_to_line,
       problem,
