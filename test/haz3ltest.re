@@ -34,6 +34,7 @@ let (suite, _) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_PadIds.tests
     @ Test_AutoProbe.tests
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
@@ -41,6 +42,7 @@ let (suite, _) =
     @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
+    @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests],
   );

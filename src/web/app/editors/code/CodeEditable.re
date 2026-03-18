@@ -80,6 +80,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
+             | PrettyPrint
              | Probe(StepInto(_))
              | Dump => true
              | Project(_)
