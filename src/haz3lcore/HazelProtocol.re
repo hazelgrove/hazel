@@ -241,7 +241,7 @@ module JsonCodec = {
       | None => Error("Integer too large to convert to JSON")
       }
     | Atom(Float(f)) => Ok(`Float(f))
-    | Atom(String(s)) => Ok(`String(s))
+    | Atom(String(s)) => Ok(`String(StringUtil.unescape_linebreaks(s)))
     | Atom(Bool(b)) => Ok(`Bool(b))
     | ListLit(elements) =>
       elements

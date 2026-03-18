@@ -20,7 +20,7 @@ import {WebSocketClientAdapter} from "@automerge/automerge-repo-network-websocke
 // When running inside patchwork (as a tool), patchwork already provides
 // the repo, module loading, and patchwork-view element registration.
 // We only need to set up our own infrastructure when running standalone.
-const inPatchwork = window.patchwork || document.currentScript?.closest?.("patchwork-view")
+const inPatchwork = window.patchwork || customElements.get("patchwork-view")
 
 if (!inPatchwork) {
 	const repo = new Repo({
@@ -43,28 +43,6 @@ if (!inPatchwork) {
 		const {port1, port2} = new MessageChannel()
 		navigator.serviceWorker.controller.postMessage({type: "port"}, [port2])
 		return port1
-	}
-
-	window.hazelWriteToDoc = async (docUrl, jsonString) => {
-		try {
-			const handle = await repo.find(docUrl)
-			const parsed = JSON.parse(jsonString)
-
-			handle.change(doc => {
-				if (!parsed || typeof parsed !== "object") return
-				// Sync all top-level keys from parsed into doc
-				for (const key of Object.keys(doc)) {
-					if (!(key in parsed)) {
-						delete doc[key]
-					}
-				}
-				for (const [key, value] of Object.entries(parsed)) {
-					doc[key] = value
-				}
-			})
-		} catch (e) {
-			console.error("hazelWriteToDoc error:", e)
-		}
 	}
 
 	const moduleWatcher = new ModuleWatcher(
@@ -94,8 +72,14 @@ if (!inPatchwork) {
 	registerPatchworkViewElement({repo})
 }
 
-// Expose the tool registry — works in both standalone and patchwork modes
-window.patchworkToolRegistry = getRegistry("patchwork:tool")
+// Expose the tool registry. In patchwork mode, the bundled getRegistry is a
+// separate module instance from the host's, so dynamically import the shared one.
+if (inPatchwork) {
+	const shared = await import("@inkandswitch/patchwork-plugins")
+	window.patchworkToolRegistry = shared.getRegistry("patchwork:tool")
+} else {
+	window.patchworkToolRegistry = getRegistry("patchwork:tool")
+}
 
 // Prevent tldraw popover focus from scrolling #main.
 // When Radix UI opens a popover (e.g. the "More" tools menu), it focuses the

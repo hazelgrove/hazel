@@ -66,21 +66,125 @@ let exp_to_json_string = (exp: Language.Exp.t): result(string, string) =>
   | Error(msg) => Error(msg)
   };
 
-// Call window.hazelWriteToDoc(url, json_string) to write
-// data back to an automerge document. Fire-and-forget.
-// Silently does nothing if the JS helper isn't loaded yet.
-let write_to_doc = (url: string, json_string: string): unit => {
-  let fn: Js.Optdef.t(Js.Unsafe.any) =
-    Js.Unsafe.get(Js.Unsafe.global, "hazelWriteToDoc");
-  if (Js.Optdef.test(fn)) {
+/* Capture the patchwork-view element at module load time (same approach
+   as PatchworkComm, but duplicated here to avoid a dependency cycle). */
+let captured_patchwork_view: option(Js.Unsafe.any) = {
+  let cs = Js.Unsafe.global##.document##.currentScript;
+  if (Js.Opt.test(cs)) {
+    let pv =
+      Js.Unsafe.meth_call(
+        cs,
+        "closest",
+        [|Js.Unsafe.inject(Js.string("patchwork-view"))|],
+      );
+    if (Js.Opt.test(pv)) {
+      Some(pv);
+    } else {
+      None;
+    };
+  } else {
+    None;
+  };
+};
+
+/* Find the repo instance: prefer element.repo (from the patchwork-view
+   element), then fall back to window.repo */
+let find_repo = (): option(Js.t(repo)) => {
+  switch (captured_patchwork_view) {
+  | Some(el) =>
+    let r = Js.Unsafe.get(el, "repo");
+    if (Js.Optdef.test(r)) {
+      Some(Js.Unsafe.coerce(r));
+    } else if (Js.Optdef.test(Js.Unsafe.global##.repo)) {
+      Some(get_repo());
+    } else {
+      None;
+    };
+  | None =>
+    if (Js.Optdef.test(Js.Unsafe.global##.repo)) {
+      Some(get_repo());
+    } else {
+      None;
+    }
+  };
+};
+
+/* Write JSON data to an automerge document. Uses the repo to find the
+   doc handle, parses the JSON, and syncs all top-level keys. */
+let write_to_doc = (url: string, json_string: string): unit =>
+  switch (find_repo()) {
+  | None => ()
+  | Some(repo) =>
+    let promise: Js.t(promise) = repo##find(Js.string(url));
     ignore(
-      Js.Unsafe.fun_call(
-        fn,
-        [|
-          Js.Unsafe.inject(Js.string(url)),
-          Js.Unsafe.inject(Js.string(json_string)),
-        |],
+      promise##then_(
+        Js.wrap_callback((handle: Js.t(handle)) => {
+          let parsed =
+            Js.Unsafe.meth_call(
+              Js.Unsafe.global##._JSON,
+              "parse",
+              [|Js.Unsafe.inject(Js.string(json_string))|],
+            );
+          Js.Unsafe.meth_call(
+            handle,
+            "change",
+            [|
+              Js.Unsafe.inject(
+                Js.wrap_callback((doc: Js.Unsafe.any) =>
+                  if (Js.typeof(parsed) == Js.string("object")
+                      && !Js.equals(parsed, Js.Unsafe.inject(Js.null))) {
+                    /* Delete keys in doc not in parsed */
+                    let doc_keys =
+                      Js.to_array(
+                        Js.Unsafe.meth_call(
+                          Js.Unsafe.global##._Object,
+                          "keys",
+                          [|Js.Unsafe.inject(doc)|],
+                        ),
+                      );
+                    Array.iter(
+                      key => {
+                        let k = Js.to_string(key);
+                        if (!
+                              Js.to_bool(
+                                Js.Unsafe.meth_call(
+                                  parsed,
+                                  "hasOwnProperty",
+                                  [|Js.Unsafe.inject(key)|],
+                                ),
+                              )) {
+                          Js.Unsafe.delete(doc, Js.string(k));
+                        };
+                      },
+                      doc_keys,
+                    );
+                    /* Copy all keys from parsed into doc */
+                    let parsed_keys =
+                      Js.to_array(
+                        Js.Unsafe.meth_call(
+                          Js.Unsafe.global##._Object,
+                          "keys",
+                          [|Js.Unsafe.inject(parsed)|],
+                        ),
+                      );
+                    Array.iter(
+                      key => {
+                        let k = Js.to_string(key);
+                        Js.Unsafe.set(
+                          doc,
+                          Js.string(k),
+                          Js.Unsafe.get(parsed, key),
+                        );
+                      },
+                      parsed_keys,
+                    );
+                  }
+                ),
+              ),
+            |],
+          )
+          |> ignore;
+        }),
       ),
     );
   };
-};

@@ -37,7 +37,12 @@ let get_tools_from_registry = (): list(patchwork_tool) => {
            } else {
              id;
            };
-         Some({id, name, width: default_width, height: default_height});
+         Some({
+           id,
+           name,
+           width: default_width,
+           height: default_height,
+         });
        });
   } else {
     [];

@@ -70,7 +70,7 @@ module M: Projector = {
               ],
               [Node.text(t.name)],
             ),
-          PatchworkToolProj.tools,
+          PatchworkToolProj.tools(),
         );
 
     let tool_select =
