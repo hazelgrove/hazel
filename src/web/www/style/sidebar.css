@@ -332,6 +332,32 @@
   background-color: var(--warning-hole-stroke);
 }
 
+.error-nav-buttons {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.error-nav-btn {
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 12px;
+  user-select: none;
+  color: var(--TXT2);
+  border: 1px solid var(--BR2);
+  background: transparent;
+}
+
+.error-nav-btn:hover {
+  background: color-mix(in oklch, var(--main-text-color) 12%, transparent);
+  color: var(--main-text-color);
+}
+
 .error-view-toggle {
   display: flex;
   gap: 0;
@@ -349,11 +375,11 @@
   background: transparent;
 }
 
-.toggle-option:first-child {
+.toggle-option:first-of-type {
   border-radius: 3px 0 0 3px;
 }
 
-.toggle-option:last-child {
+.toggle-option:last-of-type {
   border-radius: 0 3px 3px 0;
   border-left: none;
 }

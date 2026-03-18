@@ -70,6 +70,20 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       // Tab is overloaded so not setting it here
     ),
     mk_shortcut(
+      ~hotkey="F8",
+      ~mdIcon="arrow_downward",
+      ~section="Navigation",
+      "Go to Next Error",
+      Globals(ActiveEditor(Move(Goal(Error(Right))))),
+    ),
+    mk_shortcut(
+      ~hotkey="shift+F8",
+      ~mdIcon="arrow_upward",
+      ~section="Navigation",
+      "Go to Previous Error",
+      Globals(ActiveEditor(Move(Goal(Error(Left))))),
+    ),
+    mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+d",
       ~mdIcon="select_all",
       ~section="Selection",

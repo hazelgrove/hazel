@@ -154,6 +154,27 @@ let problem_row =
   );
 };
 
+/* ---------- Navigation buttons ---------- */
+
+let nav_btn =
+    (
+      ~globals: Globals.t,
+      ~direction: Util.Direction.t,
+      ~label: string,
+      ~tooltip: string,
+    )
+    : Node.t =>
+  div(
+    ~attrs=[
+      clss(["error-nav-btn"]),
+      Attr.on_click(_ =>
+        globals.inject_global(ActiveEditor(Move(Goal(Error(direction)))))
+      ),
+      Attr.title(tooltip),
+    ],
+    [text(label)],
+  );
+
 /* ---------- Main view ---------- */
 
 let view =
@@ -210,6 +231,23 @@ let view =
             ),
           ],
           [text("Flat")],
+        ),
+        div(
+          ~attrs=[clss(["error-nav-buttons"])],
+          [
+            nav_btn(
+              ~globals,
+              ~direction=Left,
+              ~label={|↑|},
+              ~tooltip="Previous Error (Shift+F8)",
+            ),
+            nav_btn(
+              ~globals,
+              ~direction=Right,
+              ~label={|↓|},
+              ~tooltip="Next Error (F8)",
+            ),
+          ],
         ),
       ],
     );

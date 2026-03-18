@@ -67,6 +67,7 @@ let go =
   | Move(d) =>
     Move.go(
       ~statics=statics.info_map,
+      ~error_ids=statics.error_ids @ statics.warning_ids,
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
       d,
