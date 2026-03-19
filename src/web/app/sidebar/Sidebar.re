@@ -219,7 +219,6 @@ let view =
       ~editor: CodeWithStatics.Model.t,
       ~signal,
       ~cell_editor: option(CellEditor.Model.t),
-      ~cursor,
     ) => {
   let sub =
     globals.settings.sidebar.show
