@@ -160,9 +160,6 @@ let start = {
     FloatingElement.setup_scroll_listener();
     // Sync log count from database
     Log.sync_count();
-    schedule_action(
-      Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
-    );
   };
   let%sub () =
     BonsaiUtil.OnStartup.on_startup(

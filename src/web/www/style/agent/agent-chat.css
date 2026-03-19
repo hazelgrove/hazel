@@ -1,0 +1,189 @@
+/* Chat View Styles */
+
+.chat-view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--ui-bkg);
+  position: relative;
+  /* Ensure resize handle is accessible */
+  pointer-events: none;
+}
+
+.chat-view-container > * {
+  pointer-events: auto;
+}
+
+/* Header */
+.chat-view-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75em 1em;
+  border-bottom: 0.6px solid var(--BR2);
+  background-color: var(--T1);
+}
+
+.chat-view-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.chat-view-header-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.chat-view-header-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.75em;
+  color: var(--STONE);
+  transition: color 0.15s ease;
+}
+
+.chat-view-header-button:hover {
+  color: var(--BR3);
+}
+
+.chat-view-header-button:active {
+  color: var(--BR4);
+}
+
+.chat-view-header-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0.25em;
+  border-radius: 3px;
+  fill: var(--STONE);
+  transition: background-color 0.15s ease, fill 0.15s ease;
+}
+
+.chat-view-header-icon-button:hover {
+  background-color: var(--T2);
+  fill: var(--BR3);
+}
+
+.chat-view-header-icon-button:active {
+  background-color: var(--T3);
+  fill: var(--BR4);
+}
+
+.chat-view-header-icon-button.active {
+  background-color: var(--T3);
+  fill: var(--BR3);
+}
+
+/* Content Area */
+.chat-view-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1em;
+}
+
+/* Content with bottom bar - flex column layout */
+.chat-view-content-with-bottom-bar {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0; /* Important for flex children */
+}
+
+.chat-view-content-with-bottom-bar > *:first-child {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0; /* Important for flex children to shrink */
+}
+
+.chat-view-content-with-bottom-bar > *:last-child {
+  flex-shrink: 0; /* Bottom bar should not shrink */
+}
+
+/* History View */
+.history-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-exit-button-container {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 1em;
+}
+
+.history-exit-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.75em;
+  color: var(--STONE);
+  transition: color 0.15s ease;
+}
+
+.history-exit-button:hover {
+  color: var(--BR3);
+}
+
+.history-exit-button:active {
+  color: var(--BR4);
+}
+
+.history-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.history-chat-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6em 0.8em;
+  border-radius: 4px;
+  background-color: var(--T2);
+  color: var(--STONE);
+  font-size: 0.85em;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.history-chat-item-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-chat-item-time {
+  margin-left: 0.75em;
+  font-size: 0.75em;
+  color: var(--BR2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.history-chat-item:hover {
+  background-color: var(--T3);
+}
+
+.history-chat-item.active {
+  border: 0.6px solid var(--BR3);
+  background-color: var(--T3);
+  font-weight: 500;
+}
+
