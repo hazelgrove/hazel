@@ -420,3 +420,24 @@ let post_to_iframe =
   | None => prerr_endline("post_to_iframe: iframe not found")
   };
 };
+
+/* Walk up the DOM (max_depth levels) checking if any ancestor has the given CSS class */
+let has_ancestor_class =
+    (~max_depth=5, el: Js.t(Dom_html.element), class_name: string): bool => {
+  let rec go = (el: Js.t(Dom_html.element), depth: int): bool =>
+    if (depth > max_depth) {
+      false;
+    } else if (Js.to_bool(el##.classList##contains(Js.string(class_name)))) {
+      true;
+    } else {
+      switch (Js.Opt.to_option(el##.parentNode)) {
+      | Some(parent_node) =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(parent_node))) {
+        | Some(parent) => go(parent, depth + 1)
+        | None => false
+        }
+      | None => false
+      };
+    };
+  go(el, 0);
+};

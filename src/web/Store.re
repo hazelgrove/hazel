@@ -9,6 +9,7 @@ type key =
   | Mode
   | Scratch
   | Documentation
+  | Project
   | Tutorial(Haz3lcore.Id.t)
   | CurrentTutorial
   | CurrentExercise
@@ -22,6 +23,7 @@ let key_to_string =
   | Mode => "MODE"
   | Scratch => "SAVE_SCRATCH"
   | Documentation => "SAVE_DOCUMENTATION"
+  | Project => "SAVE_PROJECT"
   | Tutorial(id) => Haz3lcore.Id.to_string(id)
   | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"
