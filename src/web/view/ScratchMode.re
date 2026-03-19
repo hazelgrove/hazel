@@ -120,7 +120,8 @@ module Model = {
     reset_persist_state();
     List.iter(
       (sp: Scratchpad.persistent) =>
-        persist_cache := Maps.StringMap.add(sp.name, sp.editor, persist_cache^),
+        persist_cache :=
+          Maps.StringMap.add(sp.name, sp.editor, persist_cache^),
       scratchpads,
     );
     {
@@ -499,7 +500,8 @@ module Update = {
       | Some(data) =>
         let scratchpad = List.nth(model.scratchpads, model.current);
         mark_dirty(scratchpad.name);
-        persist_cache := Maps.StringMap.remove(scratchpad.name, persist_cache^);
+        persist_cache :=
+          Maps.StringMap.remove(scratchpad.name, persist_cache^);
         let new_data =
           data
           |> Sexplib.Sexp.of_string
