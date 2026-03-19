@@ -297,6 +297,57 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
+/* Scroll compensation for sample focus bar:
+ * When the bar's height changes (appearing/disappearing), adjust #main's
+ * scrollTop so visible code doesn't shift. Only compensates when scrolled
+ * down (at scroll 0, the shift is unavoidable).
+ *
+ * Uses float arithmetic throughout: scrollTop is sub-pixel (especially with
+ * trackpad scrolling), and OCaml int ops compile to JS `| 0` which truncates
+ * the fractional part, causing visible drift on each toggle. */
+let focus_bar_observer_installed = ref(false);
+let get_height = el =>
+  Js.Unsafe.get(
+    Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+    "height",
+  );
+let setup_focus_bar_scroll_compensation = () =>
+  if (! focus_bar_observer_installed^) {
+    let bar =
+      try(Some(get_elem_by_id("sample-focus-bar"))) {
+      | _ => None
+      };
+    let main =
+      try(Some(get_elem_by_id("main"))) {
+      | _ => None
+      };
+    switch (bar, main) {
+    | (Some(bar_el), Some(main_el)) =>
+      focus_bar_observer_installed := true;
+      let bar = Js.Unsafe.coerce(bar_el);
+      let main = Js.Unsafe.coerce(main_el);
+      let last_height: ref(float) = ref(get_height(bar));
+      let callback =
+        Js.wrap_callback(_entries => {
+          let new_height: float = get_height(bar);
+          let delta = new_height -. last_height^;
+          last_height := new_height;
+          let scroll_top: float =
+            Js.Unsafe.get(main, Js.string("scrollTop"));
+          if (delta != 0.0 && scroll_top > 0.0) {
+            Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
+          };
+        });
+      let observer =
+        Js.Unsafe.new_obj(
+          Js.Unsafe.global##._ResizeObserver,
+          [|Js.Unsafe.inject(callback)|],
+        );
+      Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(bar)|]);
+    | _ => ()
+    };
+  };
+
 let set_select_value = (select_id, value) => {
   Js_of_ocaml.Js.Unsafe.set(
     get_elem_by_id(select_id),
@@ -323,6 +374,41 @@ let font_metrics_from_specimen = (): (float, float) =>
     (col_width, row_height);
   | None => (10.0, 10.0)
   };
+
+/* Listen for devicePixelRatio changes (triggered by browser zoom).
+ * Uses matchMedia to detect when the current DPR no longer matches,
+ * then re-registers for the next change. */
+let on_dpr_change = (callback: unit => unit): unit => {
+  let rec listen = () => {
+    let dpr: float =
+      Js.Unsafe.get(Dom_html.window, "devicePixelRatio")
+      |> Js.float_of_number
+      |> Js.to_float;
+    let query = Printf.sprintf("(resolution: %fdppx)", dpr);
+    let mql =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "matchMedia",
+        [|Js.Unsafe.inject(Js.string(query))|],
+      );
+    let handler =
+      Js.wrap_callback((_: Js.t({..})) => {
+        callback();
+        listen();
+      });
+    ignore(
+      Js.Unsafe.meth_call(
+        mql,
+        "addEventListener",
+        [|
+          Js.Unsafe.inject(Js.string("change")),
+          Js.Unsafe.inject(handler),
+        |],
+      ),
+    );
+  };
+  listen();
+};
 
 module QueryParams = {
   let get_arguments = (url: Url.url): list((string, string)) =>

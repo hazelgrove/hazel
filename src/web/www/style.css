@@ -31,6 +31,7 @@
 
 svg {
   overflow: visible;
+  box-sizing: content-box;
 }
 
 body {
@@ -84,8 +85,8 @@ select {
   height: 100vh;
   width: 100vw;
   display: grid;
-  /* Row 1: top-bar, Row 2: main, Row 3: bottom-bar */
-  grid-template: 2em minmax(0, 1fr) 2em / 1fr fit-content(18em);
+  /* Row 1: top-bar, Row 2: focus-bar, Row 3: main, Row 4: bottom-bar */
+  grid-template: 2em auto minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--STONE);
   user-select: none;
@@ -98,7 +99,7 @@ select {
 
 #main {
   /* Backpack uses position:fixed + FloatingElement to escape overflow clipping */
-  grid-row: 2 / span 1;
+  grid-row: 3 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
@@ -107,9 +108,6 @@ select {
   flex-direction: column;
 }
 
-#main > * {
-  min-width: 0;
-}
 
 #side-bar {
   display: flex;
@@ -124,7 +122,7 @@ select {
 }
 
 #sidebars {
-  grid-row: 2 / span 1;
+  grid-row: 2 / span 2;
   grid-column: 2 / span 1;
   display: flex;
   justify-content: space-between;
@@ -138,18 +136,17 @@ select {
   display: flex;
   align-items: center;
   background-color: var(--ui-bkg);
-  outline: 0.6px solid var(--BR2);
+  border-bottom: 0.6px solid var(--BR2);
 }
 
 #top-bar:hover {
   z-index: var(--top-bar-hover-z);
 }
 
-/* Sample Focus Bar - overlays top of #main, slides in/out */
+/* Sample Focus Bar - own grid row, animates height */
 #sample-focus-bar {
   grid-row: 2 / span 1;
   grid-column: 1 / span 1;
-  align-self: start;
   z-index: calc(var(--top-bar-z) - 1);
   display: flex;
   align-items: center;
@@ -158,9 +155,9 @@ select {
   border-bottom: 0.6px solid var(--BR2);
   padding: 0 0.75em 0 0.3em;
   font-family: var(--code-font);
-  transform: translateY(0);
-  transition: transform 125ms ease-out;
   height: 2.2em;
+  overflow: hidden;
+  transition: height 125ms ease-out;
 }
 
 #sample-focus-bar .title {
@@ -175,7 +172,10 @@ select {
 
 #sample-focus-bar:empty,
 #sample-focus-bar.hidden {
-  transform: translateY(-100%);
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: none;
   pointer-events: none;
 }
 
@@ -255,7 +255,6 @@ select {
   color: var(--BR1);
 }
 
-
 #sample-focus-bar .more-indicator {
   color: var(--BR2);
   margin-left: 0.25em;
@@ -301,6 +300,22 @@ select {
   filter: brightness(1.2);
 }
 
+#sample-focus-bar .breadcrumb-body {
+  cursor: pointer;
+  padding: 0 0.4em;
+  border-radius: 1em;
+  color: var(--BR3);
+  transition: background-color 0.1s;
+}
+
+#sample-focus-bar .breadcrumb-body.ghost {
+  color: var(--BR1);
+}
+
+#sample-focus-bar .breadcrumb-body:hover {
+  background-color: white;
+  color: var(--BR3);
+}
 
 #sample-focus-bar .breadcrumb-ellipsis {
   color: var(--BR2);
@@ -329,7 +344,7 @@ select {
 
 #bottom-bar {
   z-index: var(--bottom-bar-z);
-  grid-row: 3 / span 1;
+  grid-row: 4 / span 1;
   grid-column: 1 / span 2;
   display: flex;
   align-items: center;

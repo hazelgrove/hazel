@@ -142,6 +142,49 @@ let get_definition_target =
   };
 };
 
+/* Get the parameter pattern target for a breadcrumb's body icon.
+ * Looks up the function literal in info_map and extracts the
+ * parameter pattern ID from Fun(pat, _, _, _). */
+let get_param_target =
+    (
+      ~info_map: Statics.Map.t,
+      ~app_id: Id.t,
+      ~fn_def_id: option(Id.t),
+      ~stack_name: option(string),
+    )
+    : option(Id.t) => {
+  let is_builtin_name =
+    switch (stack_name) {
+    | Some(n) =>
+      let base =
+        String.ends_with(~suffix="+", n)
+          ? String.sub(n, 0, String.length(n) - 1) : n;
+      Environment.lookup(Builtins.env_init, base) != None;
+    | None => false
+    };
+  if (is_builtin_name) {
+    None;
+  } else {
+    /* First, find the function definition ID */
+    let fn_id_opt =
+      switch (fn_def_id) {
+      | Some(_) => fn_def_id
+      | None =>
+        let (_, body_id_opt) = get_fn_info(~info_map, app_id);
+        body_id_opt;
+      };
+    switch (fn_id_opt) {
+    | None => None
+    | Some(fn_id) =>
+      switch (Statics.Map.lookup(fn_id, info_map)) {
+      | Some(InfoExp({term: {term: Fun(pat, _, _, _), _}, _})) =>
+        Some(Pat.rep_id(pat))
+      | _ => None
+      }
+    };
+  };
+};
+
 /* Stack icon at the beginning of the bar */
 let stack_icon = () =>
   span(~attrs=[Attr.class_("stack-icon")], [text({js|≡|js})]);
@@ -310,10 +353,9 @@ let view =
       ~indicated_id as _: option(Id.t),
     )
     : Node.t =>
-  /* Hide when no probes exist, unless auto-probe mode is on
-   * (in auto-probe mode the bar stays visible to avoid flickering
-   * as the cursor enters/exits function definitions) */
-  if (!has_probes(refractors) && !globals.settings.autoprobe_mode) {
+  /* Hide when call stack is empty, unless auto-probe mode keeps bar visible */
+  if (refractors.sample_focus.call_stack == []
+      && !globals.settings.autoprobe_mode) {
     div(~attrs=[Attr.id("sample-focus-bar"), Attr.class_("hidden")], []);
   } else {
     let sample_focus = refractors.sample_focus;
@@ -429,9 +471,10 @@ let view =
           pin_icon @ [text(display_text)],
         );
 
+      let sep_ghost = i > index + 1;
       let sep_classes =
         ["breadcrumb-separator"]
-        @ (is_ghost ? ["ghost"] : [])
+        @ (sep_ghost ? ["ghost"] : [])
         @ (position_class != "" ? [position_class] : []);
       let sep =
         span(~attrs=[Attr.classes(sep_classes)], [text({js|❯|js})]);
@@ -454,7 +497,12 @@ let view =
     /* Build breadcrumb entries, windowed if the stack is too long */
     let entries =
       if (List.is_empty(call_stack)) {
-        [];
+        [
+          span(
+            ~attrs=[Attr.classes(["breadcrumb-separator"])],
+            [text({js|❯|js})],
+          ),
+        ];
       } else {
         let n = List.length(call_stack);
         let cap = compute_dynamic_cap(~names, ~focus=index, ~budget);
@@ -470,6 +518,56 @@ let view =
       };
 
     let max_index = List.length(call_stack) - 1;
+
+    /* Body icon (●) at end of breadcrumbs: jumps to definition of the
+     * deepest function in the call stack. With perspective extension
+     * (ap_id prepended to call_stack in capture), this naturally covers
+     * both the "inside a function" and "on an application" cases. */
+    let body_icon =
+      switch (ListUtil.last_opt(call_stack)) {
+      | Some(last_frame) =>
+        let param_target =
+          get_param_target(
+            ~info_map,
+            ~app_id=last_frame.id,
+            ~fn_def_id=last_frame.fn_def_id,
+            ~stack_name=last_frame.name,
+          );
+        let def_target =
+          switch (param_target) {
+          | Some(_) => param_target
+          | None =>
+            get_definition_target(
+              ~info_map,
+              ~app_id=last_frame.id,
+              ~fn_def_id=last_frame.fn_def_id,
+              ~stack_name=last_frame.name,
+            )
+          };
+        switch (def_target) {
+        | Some(target_id) =>
+          let on_body_click = evt => jump_to(~globals, target_id, evt);
+          let body_sep_ghost = max_index > index;
+          let body_sep_classes =
+            ["breadcrumb-separator"] @ (body_sep_ghost ? ["ghost"] : []);
+          [
+            span(
+              ~attrs=[Attr.classes(body_sep_classes)],
+              [text({js|❯|js})],
+            ),
+            span(
+              ~attrs=[
+                Attr.classes(["breadcrumb-body", "ghost"]),
+                Attr.title("Jump to function body"),
+                Attr.on_pointerdown(on_body_click),
+              ],
+              [text({js|●|js})],
+            ),
+          ];
+        | None => []
+        };
+      | None => []
+      };
 
     let clear_all_button =
       span(
@@ -499,7 +597,7 @@ let view =
           ],
           [text("probe focus")],
         ),
-        div(~attrs=[Attr.class_("breadcrumbs")], entries),
+        div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
         clear_all_button,
       ],
     );

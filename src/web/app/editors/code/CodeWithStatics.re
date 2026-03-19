@@ -58,8 +58,8 @@ module Model = {
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
     indicated_piece:
-      Indicated.piece''(model.editor.state.zipper)
-      |> Option.map(((p, _, _)) => p),
+      Indicated.for_decoration(model.editor.state.zipper)
+      |> Option.map(({piece, _}: Indicated.piece) => piece),
     selected_text:
       Some(
         () =>

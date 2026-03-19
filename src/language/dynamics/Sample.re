@@ -221,7 +221,7 @@ module Map = {
 module Window = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type mode =
-    | Single /* Show one sample aligned with cursor */
+    | Single /* Show one sample aligned with sightline */
     | Many; /* Show multiple samples in a scrollable window */
 
   /* Max samples to display for each mode */
@@ -248,62 +248,49 @@ module Window = {
     };
 };
 
-/* The sample focus points to a stage in evaluation, associated
- * with probe sample collection. This is primarily reified as a call stack,
- * represented as a list of ids of function application forms which have
- * been called but have not yet returned.
+/* THE SIGHTLINE
  *
- * CONSISTENCY AND INTENT PRESERVATION
+ * The sample focus is a sightline through the call tree: a positioned
+ * path that determines which sample each probe displays. It stores
+ * (call_stack, index) where call_stack is the full path and index
+ * divides it into three zones:
  *
- * Two goals govern how probe sample displays update during navigation:
+ *   above:  where you ARE (context — calls you're nested inside)
+ *   focus:  where you're LOOKING (the active depth)
+ *   below:  where you've BEEN or are PEEKING (retained/extended path)
  *
- * 1. CONSISTENCY (mandatory): Samples shown at different call depths must
- *    be consistent with each other in the call stack sense. If you navigate
- *    to a sample at one depth, samples emphasized at other depths must be
- *    above or below it in the same execution context.
+ * A probe aligns with the sightline by suffix matching: a sample is
+ * on the sightline if its call stack is a suffix of the sightline's
+ * path. This enforces coherence (samples at different depths must be
+ * on the same path through the call tree).
  *
- * 2. INTENT PRESERVATION (when consistency allows): When multiple samples
- *    would be consistent with a navigation action, prefer keeping the
- *    user's previous selection rather than resetting to a default.
+ * The below-focus zone is populated two ways:
  *
- * Example:
+ *   Retention: navigating shallower keeps deeper frames. If the new
+ *     sample's stack is a suffix of the current sightline, we keep the
+ *     full sightline and lower the index.
  *
- *   let f : ([Int] -> [Int]) = fun xs ->
- *     map(fun ^^probe(x) -> x + 1, xs)
- *   in [f([1, 2, 3]), f([4, 5, 6])]
- *   -- with ^^probe on the outer pattern too --
+ *   Extension: clicking an app probe prepends the application as a
+ *     frame below the focus (peeking into a call without entering it).
  *
- * Outer probe (xs): [1,2,3], [4,5,6]  (2 samples, one per call to f)
- * Inner probe (x):  1,2,3,4,5,6       (6 samples, 3 per call to f)
+ * Both produce frames below the index that participate identically in
+ * alignment. This is what makes one sightline sufficient: the full
+ * path encodes the user's chosen branch at every depth without needing
+ * separate state per nesting level.
  *
- * CONSISTENCY (navigation forces change):
- *   Arrow outer from [1,2,3] to [4,5,6]:
- *     inner must change (e.g. 2 -> 4) because 2 is not below [4,5,6]
- *   Arrow inner from 3 to 4:
- *     outer must change ([1,2,3] -> [4,5,6]) because 4 is not below [1,2,3]
+ * ALIGNMENT (read side — Selection.most_aligned_index):
  *
- * INTENT PRESERVATION (consistency underdetermines):
- *   User arrows inner from 1 to 2 (outer stays at [1,2,3]).
- *   User clicks outer [1,2,3] (already above inner 2).
- *   Inner stays at 2 — not reset to 1 — because both are consistent.
+ * Two-tier suffix scan, in priority order:
+ *   1. Above-focus scan (effective_stack): "where am I?" — finds the
+ *      sample at the user's active depth. Governs direct interaction.
+ *   2. Full sightline scan (call_stack): "where was I?" — recovers
+ *      retained/extended selections for probes at other nesting levels.
  *
- * MECHANISM — WRITE AND READ SIDES
+ * Where you are beats where you've been. The effective stack caps the
+ * scan to handle recursive functions (where all frames share one ID
+ * and suffix matching would otherwise always pick the deepest sample).
  *
- * The cursor stores (call_stack, index) where call_stack may be deeper
- * than index indicates. This is a two-part mechanism:
- *
- * Write side (SampleFocusPerform.capture): When clicking on a shallower
- * sample whose stack is a suffix of the current stack, we KEEP the deeper
- * stack but lower the index. This preserves the deeper selection info.
- *
- * Read side (Selection.most_aligned_index): Two-tier suffix scan.
- * First, find the sample whose call stack is a suffix of effective_stack
- * (respects the user's active depth). If no match (the probe lives at a
- * different nesting level), try the full call_stack (recovers preserved
- * intent). Fallback tiers (indicated_call, any related) use effective_stack
- * for depth-relative comparisons.
- *
- * See also: Dynamics.Info.most_aligned_sample (same suffix logic). */
+ * See plans/sample-focus-sightline.md for the full exegesis. */
 module Focus = {
   open OptUtil.Syntax;
 
@@ -348,10 +335,10 @@ module Focus = {
     pending_focus: None,
   };
 
-  /* The cursor's call_stack sliced to the effective depth (index + 1
-   * elements from the outer end). Represents where the cursor is
-   * "looking" in the call tree, as opposed to the full call_stack
-   * which may retain deeper selections for intent preservation. */
+  /* The above-focus portion of the sightline: call_stack sliced to
+   * index + 1 elements from the outer end. This is where you ARE —
+   * the active position used for tier 1 alignment. The full call_stack
+   * extends deeper (below-focus) for tier 2 alignment. */
   let effective_stack = (cursor: t): call_stack =>
     ListUtil.slice(0, cursor.index + 1, cursor.call_stack |> List.rev)
     |> List.rev;
@@ -495,7 +482,7 @@ module Selection = {
   type empty_status =
     | NoSamplesExist /* Probe was never evaluated */
     | HiddenByPin /* Samples exist but filtered by current pin */
-    | NotAligned /* Single mode: samples exist but none align with cursor */
+    | NotAligned /* Single mode: samples exist but none align with sightline */
     | Evaluating; /* Waiting for evaluation after step-into */
 
   /* Determine why no samples are shown.
@@ -514,10 +501,12 @@ module Selection = {
       Some(NotAligned);
     };
 
-  /* Filter samples by pinned call stack */
+  /* Filter samples by pinned call stack.
+   * Print-origin samples are excluded — they are only for the Printarium. */
   let filter_by_pin =
       (~ap_id: option(Id.t), ~pinned: option(call_stack), samples: list(t))
-      : list(t) =>
+      : list(t) => {
+    let samples = List.filter((s: t) => s.origin != Print, samples);
     switch (pinned) {
     | Some(pinned_stack) =>
       /* Extract just the Id.t from head of pinned_stack for comparison */
@@ -546,26 +535,25 @@ module Selection = {
       );
     | None => samples
     };
+  };
 
-  /* Find index of the sample most aligned with the cursor's call path.
+  /* Find the sample most aligned with the sightline.
    *
-   * The cursor stores (call_stack, index) where call_stack may be deeper
-   * than index indicates. effective_stack is the portion at the active
-   * depth (index+1 elements from the outer end); the full call_stack
-   * retains deeper selections for intent preservation.
+   * Alignment = suffix matching: a sample is on the sightline if its
+   * call stack is a suffix of the sightline's path.
    *
-   * These answer two different questions:
-   *   effective_stack → "what is the user currently looking at?"
-   *   full call_stack  → "what was the user looking at here before?"
+   * Two-tier scan:
+   *   1a. Suffix match against effective_stack (above-focus portion).
+   *       "Where am I?" — finds the sample at the user's active depth.
+   *   1b. Suffix match against full call_stack (including below-focus).
+   *       "Where was I?" — recovers retained or extended selections
+   *       for probes at other nesting levels.
    *
-   * Tiers:
-   *   1a. Suffix match against effective_stack — respects the user's
-   *       active depth selection. Handles same-probe navigation (e.g.
-   *       arrow between recursive depths) and cross-probe consistency.
-   *   1b. Suffix match against full call_stack — recovers preserved
-   *       intent when returning to a probe at a different nesting level.
-   *       Only reached when 1a finds nothing (the probe's samples are
-   *       all deeper or shallower than the effective depth).
+   * Tier 1a takes priority: where you are beats where you've been.
+   * The effective stack caps the scan to handle recursive functions
+   * (where identical frame IDs make all depths mutual suffixes).
+   *
+   * Fallback tiers:
    *   2.  Direct callee of indicated call (step-into).
    *   3.  Any related sample (Above/Below/Same relative to effective stack).
    */
@@ -592,16 +580,16 @@ module Selection = {
         List.mapi((i, s) => (i, s), samples),
       )
       |> Option.map(fst);
-    /* Tier 1a: suffix match against effective stack (current intent) */
+    /* Tier 1a: suffix match against above-focus (where you are) */
     let eff = Focus.effective_stack(cursor);
     let effective_match = suffix_scan(eff);
-    /* Tier 1b: suffix match against full stack (historical intent) */
+    /* Tier 1b: suffix match against full sightline (where you've been) */
     let full_match =
       switch (effective_match) {
       | Some(_) => effective_match
       | None => suffix_scan(cursor.call_stack)
       };
-    /* Fallback tiers use effective stack (depth-relative comparisons) */
+    /* Fallback tiers use above-focus stack (depth-relative comparisons) */
     let find = (predicate: Focus.relation => bool): option(int) =>
       List.find_index(
         (sample: t) =>
@@ -626,11 +614,9 @@ module Selection = {
     result;
   };
 
-  /* Find sample most aligned with the cursor's call path.
-   * Used by resolve_pending_probe_cursor (ArrowUp/Down navigation)
-   * and mv_least_distant_sample (probe click). Returns the sample
-   * rather than the index. Uses the same suffix-first principle as
-   * most_aligned_index. */
+  /* Find sample most aligned with the sightline (returns the sample
+   * rather than the index). Used by ArrowUp/Down navigation and probe
+   * click alignment. Same suffix-scan logic as most_aligned_index. */
   let most_aligned_sample =
       (~ap_id: option(Id.t), ~cursor: Focus.t, samples: list(t)): option(t) =>
     switch (samples) {

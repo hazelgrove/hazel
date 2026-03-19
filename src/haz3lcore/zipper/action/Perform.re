@@ -63,7 +63,8 @@ let go =
       refractors: z.refractors,
     };
     Some(z) |> return(CantReparse);
-  | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
+  | Buffer(a) =>
+    Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)
@@ -113,10 +114,10 @@ let go =
        )
     |> return(Cant_select)
   | Select(Term(Current)) =>
-    Select.current_term(
+    Select.select_enclosing_term(
       syntax.term_data,
-      ~defs_exclude_bodies=true,
-      ~case_rules=true,
+      syntax.measured,
+      statics.info_map,
       z,
     )
     |> return(Cant_select)

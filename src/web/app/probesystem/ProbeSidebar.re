@@ -279,12 +279,19 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
       div(~attrs=[clss(["legend-divider"])], []),
       div(~attrs=[clss(["title"])], [text("Sample Color Scheme")]),
       {
+        let next_mode: ProbeProj.Settings.sample_base =
+          switch (color_scheme) {
+          | Calls => Hybrid
+          | Hybrid => StepRange
+          | StepRange => Calls
+          };
         let segment = (label, tooltip, mode) =>
           div(
             ~attrs=[
               clss(["segment"] @ (color_scheme == mode ? ["active"] : [])),
               Attr.on_pointerdown(_ => {
-                ProbeProj.Settings.go(SetSampleBase(mode));
+                let target = color_scheme == mode ? next_mode : mode;
+                ProbeProj.Settings.go(SetSampleBase(target));
                 explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
               }),
             ],
@@ -329,17 +336,12 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
         let is_on = globals.settings.autoprobe_mode;
         let segment = (label, active) =>
           div(
-            ~attrs=
-              [clss(["segment"] @ (active ? ["active"] : []))]
-              @ (
-                active
-                  ? []
-                  : [
-                    Attr.on_pointerdown(_ =>
-                      globals.inject_global(Set(AutoprobeMode))
-                    ),
-                  ]
+            ~attrs=[
+              clss(["segment"] @ (active ? ["active"] : [])),
+              Attr.on_pointerdown(_ =>
+                globals.inject_global(Set(AutoprobeMode))
               ),
+            ],
             [text(label)],
           );
         div(
@@ -373,20 +375,13 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
         let is_single = mode == Single;
         let segment = (label, active) =>
           div(
-            ~attrs=
-              [clss(["segment"] @ (active ? ["active"] : []))]
-              @ (
-                active
-                  ? []
-                  : [
-                    Attr.on_pointerdown(_ => {
-                      ProbeProj.Settings.go(ToggleWindow);
-                      explain_this_inject(
-                        ExplainThisUpdate.SpecificityOpen(true),
-                      );
-                    }),
-                  ]
-              ),
+            ~attrs=[
+              clss(["segment"] @ (active ? ["active"] : [])),
+              Attr.on_pointerdown(_ => {
+                ProbeProj.Settings.go(ToggleWindow);
+                explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+              }),
+            ],
             [text(label)],
           );
         div(
@@ -394,7 +389,13 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
           [
             div(
               ~attrs=[clss(["toggle-label"])],
-              [text("Samples"), click_kbd({js|␣|js})],
+              [
+                text("Samples"),
+                span(
+                  ~attrs=[clss(["qr-when-focused", "kbd-badge"])],
+                  [text({js|␣|js})],
+                ),
+              ],
             ),
             div(
               ~attrs=[clss(["segmented-control"])],

@@ -11,7 +11,7 @@ let tydi_suggest = (code: string): option(string) => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let ci = Indicated.ci_of(z, info_map);
+  let ci = Indicated.ci_for_completion(z, info_map);
   let* z = TyDi.set_buffer(~ci, z);
   TyDi.get_unparsed_buffer(z);
 };

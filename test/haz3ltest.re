@@ -44,6 +44,7 @@ let (suite, _) =
     @ Test_RefractorSerialization.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
+    @ Test_Indication.tests
     @ Test_PrettyPrint.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

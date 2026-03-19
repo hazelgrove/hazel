@@ -112,7 +112,8 @@ module Model = {
   /* Is projector indicated and if so what side is the caret on? */
   let indication = (p: option(Indicated.piece), id) =>
     switch (p) {
-    | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+    | Some({piece: p, side: d, _}) when Piece.id(p) == id =>
+      Some(Direction.toggle(d))
     | _ => None
     };
 
@@ -257,6 +258,7 @@ let handle = (idx, action: external_action): Action.t =>
   switch (action) {
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
+  | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
   | SetSyntax(f) => Project(SetSyntax(idx, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | Probe(p) => Probe(p)

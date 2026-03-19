@@ -156,6 +156,21 @@ let start = {
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
+    /* Re-measure font metrics on zoom (DPR change). ResizeObserver
+     * doesn't fire on zoom because CSS-level dimensions don't change,
+     * but getBoundingClientRect returns different values due to
+     * device-pixel rounding at different zoom levels. */
+    JsUtil.on_dpr_change(() => {
+      let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
+      schedule_action(
+        Page.Update.Globals(
+          SetFontMetrics({
+            row_height,
+            col_width,
+          }),
+        ),
+      );
+    });
     /* Setup scroll listener for floating elements (backpack) */
     FloatingElement.setup_scroll_listener();
     // Sync log count from database
@@ -193,6 +208,8 @@ let start = {
         };
         /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* Scroll-compensate when focus bar appears/disappears */
+        JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
         model.model.current.current.globals.settings.core.statics
