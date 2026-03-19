@@ -76,6 +76,64 @@ module Json = {
     let* pairs = get_kvs(json);
     List.assoc_opt(key, pairs);
   };
+
+  module Parsers = {
+    let int_field = (json: t, field: string): option(int) => {
+      let* num = dot(field, json);
+      int(num);
+    };
+
+    let get_json = (item: t, entity: string) => {
+      switch (dot(entity, item)) {
+      | Some(value) => value
+      | None =>
+        raise(
+          Failure(
+            "The entity " ++ entity ++ " must be provided for this action",
+          ),
+        )
+      };
+    };
+
+    let get_string = (item: t, entity: string) => {
+      switch (dot(entity, item)) {
+      | Some(`String(entity)) => entity
+      | _ =>
+        raise(
+          Failure(
+            "A string for " ++ entity ++ " must be provided for this action",
+          ),
+        )
+      };
+    };
+
+    let get_json_list = (item: t, entities: string) => {
+      switch (dot(entities, item)) {
+      | Some(`List(entities_list)) => entities_list
+      | _ =>
+        raise(
+          Failure(
+            "A list of " ++ entities ++ " must be provided for the action",
+          ),
+        )
+      };
+    };
+
+    let get_string_list = (item: t, entities: string) => {
+      let entities_list = get_json_list(item, entities);
+      List.map(
+        (entity: t) =>
+          switch (entity) {
+          | `String(entity) => entity
+          | _ =>
+            raise(
+              Failure("Each " ++ entities ++ " in the list must be a string"),
+            )
+          },
+        entities_list,
+      );
+    };
+  };
 };
 
 let receive = (~debug=true, request: request): option(Json.t) =>
@@ -104,7 +162,11 @@ let request =
   debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
   let request = XmlHttpRequest.create();
   request##.onreadystatechange :=
-    Js.wrap_callback(_ => handler(receive(request)));
+    Js.wrap_callback(_ =>
+      if (request##.readyState == XmlHttpRequest.DONE) {
+        handler(receive(request));
+      }
+    );
   request##.withCredentials := with_credentials |> Js.bool;
   request##_open(
     method |> string_of_method |> Js.string,
@@ -116,6 +178,32 @@ let request =
     request##setRequestHeader(Js.string(key), Js.string(value));
   };
   request##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
+};
+
+/* Parse a single SSE line */
+let parse_sse_line = (line: string): option(Json.t) => {
+  let trimmed = String.trim(line);
+
+  /* Skip empty lines and comments (lines starting with ':') */
+  if (trimmed == "" || trimmed.[0] == ':') {
+    None;
+  } else if (String.starts_with(~prefix="data: ", trimmed)) {
+    let data_start = 6; /* Length of "data: " */
+    let data =
+      String.sub(trimmed, data_start, String.length(trimmed) - data_start);
+    let data = String.trim(data);
+
+    /* Check for stream end */
+    if (data == "[DONE]") {
+      None;
+    } else {
+      try(Some(Json.from_string(data))) {
+      | _ => None
+      };
+    };
+  } else {
+    None;
+  };
 };
 
 let node_request =

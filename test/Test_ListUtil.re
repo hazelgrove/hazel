@@ -174,6 +174,66 @@ let tests = (
       },
     ),
     test_case(
+      "opt_zip (alias for combine_opt)",
+      `Quick,
+      () => {
+        check(
+          option(list(pair(string, int))),
+          "Same size lists",
+          Some([("a", 1), ("b", 2)]),
+          ListUtil.opt_zip(["a", "b"], [1, 2]),
+        );
+        check(
+          option(list(pair(string, int))),
+          "Empty lists",
+          Some([]),
+          ListUtil.opt_zip([], []),
+        );
+        check(
+          option(list(pair(string, int))),
+          "Left longer",
+          None,
+          ListUtil.opt_zip(["a", "b"], [1]),
+        );
+        check(
+          option(list(pair(string, int))),
+          "Right longer",
+          None,
+          ListUtil.opt_zip(["a"], [1, 2]),
+        );
+      },
+    ),
+    test_case(
+      "intersection_f",
+      `Quick,
+      () => {
+        check(
+          list(int),
+          "Matching by identity",
+          [2, 3],
+          ListUtil.intersection_f(x => x, [1, 2, 3], [2, 3, 4]),
+        );
+        check(
+          list(int),
+          "Matching by mod 2",
+          [1, 3],
+          ListUtil.intersection_f(x => x mod 2, [1, 2, 3], [5, 7]),
+        );
+        check(
+          list(int),
+          "Empty first list",
+          [],
+          ListUtil.intersection_f(x => x, [], [1, 2]),
+        );
+        check(
+          list(int),
+          "No overlap",
+          [],
+          ListUtil.intersection_f(x => x, [1, 2], [3, 4]),
+        );
+      },
+    ),
+    test_case(
       "join with empty list",
       `Quick,
       () => {
