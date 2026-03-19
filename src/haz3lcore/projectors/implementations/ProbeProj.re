@@ -1121,11 +1121,19 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     Many([Stop_propagation, Prevent_default]);
   | D("Enter") when key.meta == Down || key.ctrl == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([Stop_propagation, Prevent_default]);
+    Many([
+      parent(EscapeToLineEnd(Probe)),
+      Stop_propagation,
+      Prevent_default,
+    ]);
   /* Cmd+Left (Mac) / Home (PC): bounce back to editor */
   | D("ArrowLeft") when key.meta == Down || key.ctrl == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([Stop_propagation, Prevent_default]);
+    Many([
+      parent(EscapeToLineEnd(Probe)),
+      Stop_propagation,
+      Prevent_default,
+    ]);
   | D("Home") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([Stop_propagation, Prevent_default]);

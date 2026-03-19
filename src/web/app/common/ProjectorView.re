@@ -258,6 +258,7 @@ let handle = (idx, action: external_action): Action.t =>
   switch (action) {
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
+  | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
   | SetSyntax(f) => Project(SetSyntax(idx, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | Probe(p) => Probe(p)

@@ -501,10 +501,12 @@ module Selection = {
       Some(NotAligned);
     };
 
-  /* Filter samples by pinned call stack */
+  /* Filter samples by pinned call stack.
+   * Print-origin samples are excluded — they are only for the Printarium. */
   let filter_by_pin =
       (~ap_id: option(Id.t), ~pinned: option(call_stack), samples: list(t))
-      : list(t) =>
+      : list(t) => {
+    let samples = List.filter((s: t) => s.origin != Print, samples);
     switch (pinned) {
     | Some(pinned_stack) =>
       /* Extract just the Id.t from head of pinned_stack for comparison */
@@ -533,6 +535,7 @@ module Selection = {
       );
     | None => samples
     };
+  };
 
   /* Find the sample most aligned with the sightline.
    *

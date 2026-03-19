@@ -188,7 +188,10 @@ module Selection = {
     /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
     | {key: D("Enter"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Enter"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
-      focus_indicated_probe(model)
+      switch (focus_indicated_probe(model)) {
+      | Some(_) as result => result
+      | None => focus_probe_on_row(model)
+      }
     /* Cmd+Right (Mac) / End (PC) at end of line: bounce into probe */
     | {
         key: D("ArrowRight"),
