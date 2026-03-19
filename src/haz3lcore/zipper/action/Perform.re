@@ -146,4 +146,5 @@ let go =
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };

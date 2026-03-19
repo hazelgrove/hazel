@@ -85,7 +85,8 @@ module Update = {
              | Project(_)
              | Unselect(_)
              | SyncReplace(_)
-             | UpdateRemoteCarets => false
+             | UpdateRemoteCarets
+             | Structural(_) => false
              | Probe(_) => false
              };
            },

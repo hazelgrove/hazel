@@ -50,6 +50,7 @@ module Update = {
         SyncReplace(_) |
         UpdateRemoteCarets |
         Project(_) |
+        Structural(_) |
         Probe(_) |
         Dump |
         Introduce,
