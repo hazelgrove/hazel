@@ -111,7 +111,8 @@ module Update = {
     | ShowFilters
     | ShowSettings
     | ShowHiddenSteps
-    | RichProbes;
+    | RichProbes
+    | ProjectTables;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -221,6 +222,10 @@ module Update = {
           | RichProbes => {
               ...evaluation,
               rich_probes: !evaluation.rich_probes,
+            }
+          | ProjectTables => {
+              ...evaluation,
+              project_tables: !evaluation.project_tables,
             }
           | ShowCaseClauses => {
               ...evaluation,

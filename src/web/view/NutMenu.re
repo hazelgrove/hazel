@@ -66,6 +66,8 @@ let values_group = (~globals: Globals.t) => {
       ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies)),
       ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
       ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
+      ("☰", "Tables", s.project_tables, Evaluation(ProjectTables)),
+      ("⊞", "Rich Probes", s.rich_probes, Evaluation(RichProbes)),
       (":", "Ascriptions", s.show_ascriptions, Evaluation(ShowAscriptions)),
     ],
   );
@@ -108,7 +110,6 @@ let stepper_group = (~globals: Globals.t) => {
         s.enable_proof,
         Evaluation(EnableProof),
       ),
-      ("⊞", "Rich Probes", s.rich_probes, Evaluation(RichProbes)),
     ],
   );
 };
