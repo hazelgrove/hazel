@@ -44,6 +44,29 @@ let add_caret =
   };
 };
 
+let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
+  try(
+    StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent)
+    ++ r
+  ) {
+  | Not_found =>
+    print_endline("Printer.add_indent: Not_found");
+    r;
+  };
+
+let add_indents = (segment, measured, indent: string, rows: list(string)) =>
+  if (indent == "") {
+    /* If no indentation is needed, we don't need to bother calculating measured */
+    rows;
+  } else {
+    let measured =
+      switch (measured) {
+      | Some(m) => m
+      | None => measured_no_projectors(segment)
+      };
+    List.mapi(add_indent(measured, indent), rows);
+  };
+
 /* Use this to pretty-print segments. Note that printing holes with
  * a space may result in extraneous whitespace, but printing without
  * a space may result in tokens getting glued together. You can't win */
@@ -51,9 +74,13 @@ let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
+      ~projector_to_segment=Triggers.projector_to_invoke,
+      ~indent="",
       ~refractors=[],
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
+      ~measured=?,
+      ~is_single_line=false,
       segment: Segment.t,
     )
     : string =>
@@ -63,15 +90,24 @@ let of_segment =
        ~concave_holes,
        ~refractors,
        ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
-       ~projector_to_segment=Triggers.projector_to_invoke,
+       ~projector_to_segment,
      )
   |> String.split_on_char('\n')
+  |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
   |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
 
 /* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =
-    (~holes=?, ~concave_holes=?, ~caret=?, ~selection_anchor=?, z: Zipper.t)
+    (
+      ~holes=?,
+      ~concave_holes=?,
+      ~projector_to_segment=?,
+      ~indent=?,
+      ~caret=?,
+      ~selection_anchor=?,
+      z: Zipper.t,
+    )
     : string => {
   let segment = Zipper.unselect_and_zip(~erase_buffer=true, z);
   /* Note that we can't just pass in the measured from editor as
@@ -88,9 +124,12 @@ let of_zipper =
   of_segment(
     ~holes?,
     ~concave_holes?,
+    ~projector_to_segment?,
+    ~indent?,
     ~refractors=z.refractors.manuals,
     ~caret,
     ~selection_anchor,
+    ~measured,
     segment,
   );
 };

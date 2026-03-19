@@ -158,4 +158,5 @@ let go =
       caret: Outer,
       refractors: z.refractors,
     });
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };
