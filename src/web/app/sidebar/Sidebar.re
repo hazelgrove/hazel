@@ -270,6 +270,7 @@ let view =
       ~explain_this_inject,
       ~explainThisModel: ExplainThisModel.t,
       ~log_model: LogSidebar.Model.t,
+      ~initial_state: option(Export.full_state),
       ~log_count: int,
       ~editors_inject,
       ~editors: Editors.Model.t,
@@ -310,6 +311,7 @@ let view =
               LogSidebar.view(
                 ~globals,
                 ~model=log_model,
+                ~initial_state,
                 ~log_entries_count=log_count,
               )
             | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctx)

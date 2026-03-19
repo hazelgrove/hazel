@@ -194,12 +194,13 @@ module Update = {
       |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
-      Export.import_all(
-        ~import_log,
-        data,
+      let sub = data |> Yojson.Safe.from_string |> Export.submission_of_yojson;
+      Export.import_full_state(
+        sub.final_state,
         ~exercise_specs=ExerciseSettings.exercises,
         ~tutorial_specs=TutorialSettings.lessons,
       );
+      import_log(sub.log);
       Store.load() |> return;
     | ExportForInit =>
       let (filename, content) =
@@ -281,7 +282,8 @@ module Update = {
       ) => {
     let globals = {
       ...model.globals,
-      export_all: Export.export_all,
+      export_submission: (~settings, ~instructor_mode, ~log) =>
+        Export.export_submission(~settings, ~instructor_mode, ~log, ()),
       get_log_and,
     };
     switch (action) {
@@ -674,6 +676,7 @@ module View = {
       (
         ~get_log_and: (string => unit) => unit,
         ~log_model,
+        ~initial_state: option(Export.full_state),
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
         {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
@@ -685,7 +688,8 @@ module View = {
       get_log_and,
       get_log_count: _ =>
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
-      export_all: Export.export_all,
+      export_submission: (~settings, ~instructor_mode, ~log) =>
+        Export.export_submission(~settings, ~instructor_mode, ~log, ()),
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
@@ -701,6 +705,7 @@ module View = {
           fun
           | MakeActive(s: Selection.t) => inject(MakeActive(s)),
         ~log_model,
+        ~initial_state,
         ~log_count,
         ~cursor,
       );
@@ -769,6 +774,7 @@ module View = {
   let view =
       (
         ~log_model,
+        ~initial_state,
         ~get_log_and,
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
@@ -777,7 +783,14 @@ module View = {
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
+      @ main_view(
+          ~log_model,
+          ~initial_state,
+          ~get_log_and,
+          ~cursor,
+          ~inject,
+          model,
+        ),
     );
   };
 };

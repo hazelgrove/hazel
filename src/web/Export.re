@@ -1,27 +1,16 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type all = {
+type full_state = {
   settings: string,
   explainThisModel: string,
   scratch: string,
   tutorial: string,
   exercise: string,
   documentation: string,
-  log: string,
 };
 
-// fallback for saved state prior to release of lang doc in 490F22
-[@deriving (show({with_path: false}), sexp, yojson)]
-type all_public = {
-  settings: string,
-  scratch: string,
-  exercise: string,
-  tutorial: string,
-  log: string,
-};
-
-let mk_all = (~core_settings, ~instructor_mode, ~log) => {
+let mk_full_state = (~core_settings, ~instructor_mode) => {
   let settings = Settings.Store.export();
   let explainThisModel = ExplainThisModel.Store.export();
   let (scratch_current, scratch_slides) = Init.startup.scratch;
@@ -49,67 +38,50 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
     documentation,
     exercise,
     tutorial,
-    log,
   };
 };
 
-let export_all = (~settings, ~instructor_mode, ~log) => {
-  mk_all(~core_settings=settings, ~instructor_mode, ~log) |> yojson_of_all;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type log_export = {
+  initial_state: option(full_state),
+  log: string,
 };
 
-let import_all =
-    (~import_log: string => unit, data, ~exercise_specs, ~tutorial_specs) => {
-  let all =
-    try(data |> Yojson.Safe.from_string |> all_of_yojson) {
-    | _ =>
-      let all_public = data |> Yojson.Safe.from_string |> all_public_of_yojson;
-      {
-        settings: all_public.settings,
-        scratch: all_public.scratch,
-        documentation: "",
-        exercise: all_public.exercise,
-        tutorial: all_public.tutorial,
-        log: all_public.log,
-        explainThisModel: "",
-      };
-    };
-  Settings.Store.import(all.settings);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type submission = {
+  initial_state: option(full_state),
+  final_state: full_state,
+  log: string,
+};
+
+let export_submission =
+    (~settings, ~instructor_mode, ~initial_state=None, ~log, ()) =>
+  {
+    initial_state,
+    final_state: mk_full_state(~core_settings=settings, ~instructor_mode),
+    log,
+  }
+  |> yojson_of_submission;
+
+let import_full_state = (state: full_state, ~exercise_specs, ~tutorial_specs) => {
+  Settings.Store.import(state.settings);
   let settings = Settings.Store.load();
-  ExplainThisModel.Store.import(all.explainThisModel);
+  ExplainThisModel.Store.import(state.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  ScratchMode.Persist.import_all("scratch", all.scratch);
-  if (all.documentation != "") {
-    ScratchMode.Persist.import_all("doc", all.documentation);
+  ScratchMode.Persist.import_all("scratch", state.scratch);
+  if (state.documentation != "") {
+    ScratchMode.Persist.import_all("doc", state.documentation);
   };
   ExercisesMode.Store.import(
     ~settings,
-    all.exercise,
+    state.exercise,
     ~exercise_specs,
     ~instructor_mode,
   );
   TutorialsMode.Store.import(
     ~settings=settings.core,
-    all.tutorial,
+    state.tutorial,
     ~tutorial_specs,
     ~instructor_mode,
   );
-  import_log(all.log);
-};
-
-let import_just_log = (data: string) => {
-  let all =
-    try(data |> Yojson.Safe.from_string |> all_of_yojson) {
-    | _ =>
-      let all_public = data |> Yojson.Safe.from_string |> all_public_of_yojson;
-      {
-        settings: all_public.settings,
-        scratch: all_public.scratch,
-        documentation: "",
-        exercise: all_public.exercise,
-        tutorial: all_public.tutorial,
-        log: all_public.log,
-        explainThisModel: "",
-      };
-    };
-  all.log;
 };

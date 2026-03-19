@@ -91,7 +91,7 @@ module Model = {
        be used in view functions. */
     get_log_and: (string => unit) => unit,
     get_log_count: (int => unit) => unit,
-    export_all:
+    export_submission:
       (
         ~settings: Language.CoreSettings.t,
         ~instructor_mode: bool,
@@ -118,9 +118,9 @@ module Model = {
       failwith(
         "Cannot use get_log_count outside of the main view or update functions!",
       ),
-    export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
+    export_submission: (~settings as _, ~instructor_mode as _, ~log as _) =>
       failwith(
-        "Cannot use export_all outside of the main view or update functions!",
+        "Cannot use export_submission outside of the main view or update functions!",
       ),
     export_persistent: () =>
       failwith(

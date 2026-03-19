@@ -7,6 +7,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     current: state,
+    initial_state: option(Export.full_state),
     future_log: list((float, History.Update.t)),
     past_log: list((float, History.Update.t)),
     replay_messages: list(string),
@@ -17,6 +18,7 @@ module Model = {
 
   let load = () => {
     current: History.Model.load(),
+    initial_state: None,
     future_log: [],
     past_log: [],
     replay_messages: [],
@@ -54,24 +56,43 @@ module Update = {
         LogSidebar.log_error("Log import failed");
         model |> Updated.return_quiet;
       | FinishImport(Some(data)) =>
+        let log_export =
+          data |> Yojson.Safe.from_string |> Export.log_export_of_yojson;
         let of_data = (data: string): list((float, History.Update.t)) =>
-          Export.import_just_log(data)
+          data
           |> Sexplib.Sexp.of_string
           |> Log.Entry.s_of_sexp_opt
           |> List.filter_map(x => x);
-        let actions = data |> of_data |> Log.flatten_imports(~of_data);
+        let actions =
+          log_export.log |> of_data |> Log.flatten_imports(~of_data);
         let current =
-          History.Model.reset(
-            ~font_metrics=model.current.current.globals.font_metrics, // Keep old font metrics - otherwise it goes weird
-            (),
-          );
-        // Retain log panel after import
+          switch (log_export.initial_state) {
+          | Some(state) =>
+            Export.import_full_state(
+              state,
+              ~exercise_specs=ExerciseSettings.exercises,
+              ~tutorial_specs=TutorialSettings.lessons,
+            );
+            History.Model.load();
+          | None =>
+            History.Model.reset(
+              ~font_metrics=model.current.current.globals.font_metrics,
+              (),
+            )
+          };
+        // HACK: We force the log panel open and preserve the current
+        // sidebar state after import, regardless of what the imported
+        // full_state had. This means if the initial_state was captured
+        // with a different sidebar/panel configuration, we silently
+        // discard that. Fixing this properly would require separating
+        // "UI chrome" settings from "semantic" settings in the export.
         let current = {
           ...current,
           current: {
             ...current.current,
             globals: {
               ...current.current.globals,
+              font_metrics: model.current.current.globals.font_metrics,
               settings: {
                 ...current.current.globals.settings,
                 show_log_panel: true,
@@ -117,6 +138,7 @@ module Update = {
               ...updated,
               model: {
                 current: updated.model,
+                initial_state: model.initial_state,
                 future_log: rest,
                 past_log: [(t, next), ...model.past_log],
                 replay_messages: model.replay_messages,
@@ -168,8 +190,16 @@ module Update = {
         |> return_quiet
       | ClearLog =>
         Log.DB.clear_and(() => ());
+        let settings = model.current.current.globals.settings;
         {
           ...model,
+          initial_state:
+            Some(
+              Export.mk_full_state(
+                ~core_settings=settings.core,
+                ~instructor_mode=settings.instructor_mode,
+              ),
+            ),
           future_log: [],
           past_log: [],
           replay_messages: [
@@ -193,6 +223,7 @@ module Update = {
         ...current,
         model: {
           current: current.model,
+          initial_state: model.initial_state,
           future_log: model.future_log,
           past_log: model.past_log,
           replay_toggle: model.replay_toggle,
@@ -212,6 +243,7 @@ module Update = {
     current:
       model.current
       |> History.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
+    initial_state: model.initial_state,
     future_log: model.future_log,
     past_log: model.past_log,
     replay_messages: model.replay_messages,
@@ -242,6 +274,7 @@ module View = {
             List.length(model.past_log) + List.length(model.future_log),
           show_details: true,
         },
+      ~initial_state=model.initial_state,
       ~get_log_and,
       ~inject,
       model.current,

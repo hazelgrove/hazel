@@ -78,7 +78,12 @@ let message_item = (message: string) => {
   );
 };
 
-let controls_section = (~globals: Globals.t, ~model: Model.t) => {
+let controls_section =
+    (
+      ~globals: Globals.t,
+      ~model: Model.t,
+      ~initial_state: option(Export.full_state),
+    ) => {
   let play_pause_icon = model.is_playing ? "⏸️" : "▶️";
   let play_pause_tooltip =
     model.is_playing ? "Pause log replay" : "Start log replay";
@@ -105,16 +110,37 @@ let controls_section = (~globals: Globals.t, ~model: Model.t) => {
               _ => {
                 globals.get_log_and(log => {
                   let data =
-                    globals.export_all(
+                    globals.export_submission(
                       ~settings=globals.settings.core,
                       ~instructor_mode=globals.settings.instructor_mode,
                       ~log,
                     );
-                  JsUtil.download_json(ExerciseSettings.filename, data);
+                  JsUtil.download_json(
+                    ExerciseSettings.filename ++ ".hzsub",
+                    data,
+                  );
                 });
                 Ui_effect.Ignore;
               },
             [text("Export Submission")],
+          ),
+          button(
+            ~tooltip="Export log with initial state",
+            ~onclick=
+              _ => {
+                globals.get_log_and(log => {
+                  let data: Export.log_export = {
+                    initial_state,
+                    log,
+                  };
+                  JsUtil.download_json(
+                    ExerciseSettings.filename ++ ".hzlog",
+                    Export.yojson_of_log_export(data),
+                  );
+                });
+                Ui_effect.Ignore;
+              },
+            [text("Export Log")],
           ),
           file_input(
             ~onchange=
@@ -219,12 +245,18 @@ let debug_section = (~globals: Globals.t, ~log_entries_count: int) => {
   );
 };
 
-let view = (~globals: Globals.t, ~model: Model.t, ~log_entries_count: int) => {
+let view =
+    (
+      ~globals: Globals.t,
+      ~model: Model.t,
+      ~initial_state: option(Export.full_state),
+      ~log_entries_count: int,
+    ) => {
   div(
     ~attrs=[Attr.class_("log-sidebar")],
     [
       div(~attrs=[Attr.class_("log-header")], [text("Log Control Panel")]),
-      controls_section(~globals, ~model),
+      controls_section(~globals, ~model, ~initial_state),
       messages_section(~model),
       debug_section(~globals, ~log_entries_count),
     ],

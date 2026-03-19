@@ -320,12 +320,12 @@ module Update = {
   let export_submission = (~globals: Globals.t) =>
     globals.get_log_and(log => {
       let data =
-        globals.export_all(
+        globals.export_submission(
           ~settings=globals.settings.core,
           ~instructor_mode=globals.settings.instructor_mode,
           ~log,
         );
-      JsUtil.download_json(ExerciseSettings.filename, data);
+      JsUtil.download_json(ExerciseSettings.filename ++ ".hzsub", data);
     });
 
   let export_transitionary = (exercises: Model.t) => {

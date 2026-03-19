@@ -43,8 +43,8 @@ type chapter = list(section);
 module Main = {
   let settings = CoreSettings.on; /* Statics and Dynamics on */
   let name_to_exercise_export = path => {
-    let all = path |> Yojson.Safe.from_file |> all_of_yojson;
-    all.exercise |> Sexp.of_string |> Store.exercise_export_of_sexp;
+    let sub = path |> Yojson.Safe.from_file |> submission_of_yojson;
+    sub.final_state.exercise |> Sexp.of_string |> Store.exercise_export_of_sexp;
   };
   let gen_grading_report = (exercise): report => {
     let zipper_pp = Printer.of_zipper;
