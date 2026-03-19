@@ -87,7 +87,15 @@ module Update = {
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
-    | Save;
+    | Save
+    // EvalComplete is a log-replay marker. During normal operation it is
+    // a no-op — the eval result has already been applied via UpdateResult.
+    // During log replay, encountering this action tells the replayer to
+    // run evaluation synchronously so that downstream state (dynamics,
+    // test results, theorems) is up to date before the next user action.
+    // It is never emitted directly; instead, the logging layer writes it
+    // whenever an update sets eval_completed=true on Updated.t.
+    | EvalComplete;
 
   let equal = (===);
 
@@ -328,6 +336,7 @@ module Update = {
       print_endline("Saving...");
       Store.save(model);
       model |> return_quiet;
+    | EvalComplete => model |> return_quiet
     };
   };
 
@@ -340,6 +349,7 @@ module Update = {
     | Benchmark(_) => false
     | Start => false
     | Save => false
+    | EvalComplete => false
     };
   };
 

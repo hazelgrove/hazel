@@ -81,10 +81,14 @@ let import = (data: string): unit =>
     sync_count();
   });
 
-let update = (action: Page.Update.t, result: Updated.t('a)): unit =>
+let update = (action: Page.Update.t, result: Updated.t('a)): unit => {
   if (result.logged) {
     Entry.save(Entry.mk(action));
   };
+  if (result.eval_completed) {
+    Entry.save(Entry.mk(EvalComplete));
+  };
+};
 
 let to_actions = () => {
   print_endline("HELLO??");

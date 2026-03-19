@@ -7,7 +7,8 @@ type t('a) = {
   recalculate: bool, // Should the editor recalculate after this action?
   scroll_active: bool, // Should the editor scroll to the cursor after this action?
   logged: bool, // Should this action be logged?
-  historic: bool // Should this action be undoable?
+  historic: bool, // Should this action be undoable?
+  eval_completed: bool // Did an eval result arrive? (triggers EvalComplete in log)
 };
 
 let ( let* ) = (updated: t('a), f) => {
@@ -24,6 +25,7 @@ let return =
       ~scroll_active=true,
       ~logged=true,
       ~historic=true,
+      ~eval_completed=false,
       model: 'a,
     ) => {
   {
@@ -33,6 +35,7 @@ let return =
     scroll_active,
     logged,
     historic,
+    eval_completed,
   };
 };
 
@@ -43,6 +46,7 @@ let return_quiet =
       ~scroll_active=false,
       ~logged=false,
       ~historic=false,
+      ~eval_completed=false,
       model: 'a,
     ) => {
   {
@@ -52,6 +56,7 @@ let return_quiet =
     scroll_active,
     logged,
     historic,
+    eval_completed,
   };
 };
 

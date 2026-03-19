@@ -155,7 +155,7 @@ module Update = {
         ...model,
         result: Calc.NewValue(result),
       }
-      |> Updated.return_quiet
+      |> Updated.return_quiet(~eval_completed=true)
     };
 
   let calculate =
