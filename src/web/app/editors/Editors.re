@@ -180,12 +180,14 @@ module Update = {
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
+      ScratchMode.reset_persist_state();
       Model.Scratch(
         ScratchMode.Store.load()
         |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
       |> return
     | (SwitchMode(Documentation), _) =>
+      ScratchMode.reset_persist_state();
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
         |> ScratchMode.Model.unpersist(~settings=globals.settings.core),

@@ -3,6 +3,21 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
+/* Dirty tracking for autosave: only re-persist slides that changed since
+   last save. Eliminates expensive Zipper.zip + Base.equal_segment checks. */
+let dirty_slides: ref(Sets.StringSet.t) = ref(Sets.StringSet.empty);
+let persist_cache:
+  ref(Maps.StringMap.t(option(CellEditor.Model.persistent))) =
+  ref(Maps.StringMap.empty);
+
+let mark_dirty = (name: string): unit =>
+  dirty_slides := Sets.StringSet.add(name, dirty_slides^);
+
+let reset_persist_state = (): unit => {
+  dirty_slides := Sets.StringSet.empty;
+  persist_cache := Maps.StringMap.empty;
+};
+
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -72,15 +87,48 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(Scratchpad.persistent));
 
-  let persist = (model: t): persistent => (
-    model.current,
-    List.map(Scratchpad.persist, model.scratchpads),
-  );
+  let persist = (model: t): persistent => {
+    let persisted_slides =
+      List.map(
+        (s: Scratchpad.t) => {
+          let is_dirty = Sets.StringSet.mem(s.name, dirty_slides^);
+          let has_cache = Maps.StringMap.mem(s.name, persist_cache^);
+          let editor =
+            if (is_dirty || !has_cache) {
+              let persisted = Some(CellEditor.Model.persist(s.editor));
+              persist_cache :=
+                Maps.StringMap.add(s.name, persisted, persist_cache^);
+              persisted;
+            } else {
+              Maps.StringMap.find(s.name, persist_cache^);
+            };
+          Scratchpad.{
+            name: s.name,
+            editor,
+            agent: Agent.Agent.Persistent.persist(s.agent),
+          };
+        },
+        model.scratchpads,
+      );
+    dirty_slides := Sets.StringSet.empty;
+    (model.current, persisted_slides);
+  };
 
   let unpersist = (~settings, (current, scratchpads): persistent): t => {
-    current,
-    scratchpads:
-      List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
+    /* Seed persist cache with loaded values so unchanged slides
+       (stored as None) aren't needlessly re-persisted on first save */
+    reset_persist_state();
+    List.iter(
+      (sp: Scratchpad.persistent) =>
+        persist_cache :=
+          Maps.StringMap.add(sp.name, sp.editor, persist_cache^),
+      scratchpads,
+    );
+    {
+      current,
+      scratchpads:
+        List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
+    };
   };
 };
 
@@ -320,6 +368,7 @@ module Update = {
       };
     | CellAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
+      mark_dirty(scratchpad.name);
       let* new_ed = CellEditor.Update.update(~settings, a, scratchpad.editor);
       let new_sp =
         ListUtil.put_nth(
@@ -362,6 +411,10 @@ module Update = {
       switch (new_name) {
       | None => model |> return_quiet
       | Some(new_name) =>
+        let old_name = current.name;
+        persist_cache := Maps.StringMap.remove(old_name, persist_cache^);
+        dirty_slides := Sets.StringSet.remove(old_name, dirty_slides^);
+        mark_dirty(new_name);
         let new_sp =
           ListUtil.put_nth(
             model.current,
@@ -382,6 +435,9 @@ module Update = {
           "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
+        let deleted_name = List.nth(model.scratchpads, model.current).name;
+        persist_cache := Maps.StringMap.remove(deleted_name, persist_cache^);
+        dirty_slides := Sets.StringSet.remove(deleted_name, dirty_slides^);
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
@@ -406,6 +462,8 @@ module Update = {
 
     | ResetCurrent =>
       let scratchpad = List.nth(model.scratchpads, model.current);
+      mark_dirty(scratchpad.name);
+      persist_cache := Maps.StringMap.remove(scratchpad.name, persist_cache^);
       let source =
         switch (is_documentation) {
         | false =>
@@ -441,6 +499,9 @@ module Update = {
       | None => model |> return_quiet
       | Some(data) =>
         let scratchpad = List.nth(model.scratchpads, model.current);
+        mark_dirty(scratchpad.name);
+        persist_cache :=
+          Maps.StringMap.remove(scratchpad.name, persist_cache^);
         let new_data =
           data
           |> Sexplib.Sexp.of_string
