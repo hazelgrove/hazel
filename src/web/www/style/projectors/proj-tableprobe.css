@@ -1,5 +1,28 @@
 /* PROJECTOR: Rich Probes for Tables */
 
+/* Renderer badge buttons */
+.renderer-badge {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 3px;
+  margin-right: 2px;
+  border-radius: 3px;
+  background-color: var(--table-header-bg);
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.renderer-badge:hover {
+  opacity: 1;
+}
+
+.renderer-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* Empty hole indicator in table headers */
 .table th .empty-hole {
     width: 0.6em;
