@@ -190,21 +190,61 @@ let go =
       Segment.unparenthesize(seg) |> Segment.parenthesize;
     if (ProjectorCore.Kind.is_refractor(kind)) {
       let parenthesized_seg = [parenthesized_piece];
-      let new_z = {
-        let* (l, r) = TermData.extremes_shards(id, term_data);
-        let+ z = Select.shard_range(l, r, z);
-        let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+      /* Check for existing refractors (manual or ephemeral) */
+      let manual_model =
+        List.assoc_opt(id, z.refractors.manuals)
+        |> Option.map((pr: Refractors.entry) => pr.model);
+      let ephemeral_model =
+        Id.Map.find_opt(id, z.refractors.autos.ephemerals)
+        |> Option.map((pr: Refractors.entry) => pr.model);
+      switch (manual_model, ephemeral_model) {
+      | (Some(refractor_model), _) =>
+        /* Manual refractor: replace syntax and re-add manual with preserved model */
         let new_id =
           MakeTerm.from_zip_for_sem(
             Zipper.unzip(~direction=Right, parenthesized_seg),
           ).
             term
           |> Language.Exp.rep_id;
-        ZipperBase.add_manual(new_id, kind, z);
-      };
-      switch (new_z) {
-      | Some(z) => Ok(z)
-      | None => Error(Cant_project)
+        let new_z = {
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+          ZipperBase.add_manual(~model=refractor_model, new_id, kind, z);
+        };
+        switch (new_z) {
+        | Some(z) => Ok(z)
+        | None => Error(Cant_project)
+        };
+      | (_, Some(_)) =>
+        /* Ephemeral refractor: replace syntax only, auto system re-detects */
+        let new_z = {
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          Zipper.replace_selection(Right, parenthesized_seg, z);
+        };
+        switch (new_z) {
+        | Some(z) => Ok(z)
+        | None => Error(Cant_project)
+        };
+      | (None, None) =>
+        /* Fallback: try as manual */
+        let new_id =
+          MakeTerm.from_zip_for_sem(
+            Zipper.unzip(~direction=Right, parenthesized_seg),
+          ).
+            term
+          |> Language.Exp.rep_id;
+        let new_z = {
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+          ZipperBase.add_manual(new_id, kind, z);
+        };
+        switch (new_z) {
+        | Some(z) => Ok(z)
+        | None => Error(Cant_project)
+        };
       };
     } else {
       Ok(

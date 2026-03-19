@@ -85,12 +85,18 @@ let for_serialization = (refractors: t): t => {
 /* Refractors store a simplified `entry` type in Zipper.Refractor.Map
  * (just kind + model), avoiding redundant id/syntax in serialization.
  * When the full Base.projector is needed for rendering, use `to_projector`. */
-let mk_entry = (kind: ProjectorCore.Kind.t): entry => {
+let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
   let (module P) = ProjectorInit.to_module(kind);
   let model =
-    /* Create dummy syntax just to get the initial model string */
-    P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
-    |> OptUtil.get_or_fail("Refractor.mk_entry");
+    model
+    |> OptUtil.get(
+         () => {
+           /* Create dummy syntax just to get the initial model string */
+           P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
+           |> OptUtil.get_or_fail("Refractor.mk_entry")
+         },
+         _,
+       );
   {
     kind,
     model,
