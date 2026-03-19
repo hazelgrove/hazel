@@ -230,7 +230,7 @@ module Local = {
         )
       ) {
       | Some(z') =>
-        switch (Destruct.go(Left, z')) {
+        switch (Destruct.go(Local(Left, ByChar), z')) {
         | None => Error(Action.Failure.Cant_destruct)
         | Some(z'') => Ok(z'')
         }

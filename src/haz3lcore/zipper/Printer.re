@@ -46,7 +46,10 @@ let add_caret =
 
 let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
   try(
-    StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent)
+    StringUtil.repeat(
+      Measured.Rows.find(i, measured.rows).content_start,
+      indent,
+    )
     ++ r
   ) {
   | Not_found =>
