@@ -126,7 +126,6 @@ module Update = {
       (
         ~globals: Globals.t,
         ~schedule_action: t => unit,
-        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
         action: t,
         model: Model.t,
       ) => {
@@ -135,7 +134,6 @@ module Update = {
       let* scratch =
         ScratchMode.Update.update(
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~send_assistant_insertion_info,
           ~is_documentation=false,
           ~settings=globals.settings,
           action,
@@ -147,7 +145,6 @@ module Update = {
         ScratchMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~send_assistant_insertion_info,
           ~is_documentation=true,
           action,
           m,
@@ -275,7 +272,9 @@ module Selection = {
   type t =
     | Scratch(ScratchMode.Selection.t)
     | Exercises(ExercisesMode.Selection.t)
-    | Tutorial(TutorialMode.Selection.t);
+    | Tutorial(TutorialMode.Selection.t)
+    | Assistant;
+  /* Assistant = user has focus in the sidebar (e.g. agent panel text box) */
 
   let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
     switch (selection, editors) {
@@ -285,6 +284,7 @@ module Selection = {
     | (Scratch(selection), Documentation(m)) =>
       let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
       Update.Scratch(ci);
+    | (Assistant, _) => empty
     | (Tutorial(selection), Tutorial(m)) =>
       let+ ci = TutorialsMode.Selection.get_cursor_info(~selection, m);
       Update.Tutorial(ci);
@@ -317,15 +317,8 @@ module Selection = {
     | (Some(Exercises(selection)), Exercises(m)) =>
       ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Exercises(x))
-    | (Some(Scratch(_)), Exercises(_))
-    | (Some(Scratch(_)), Tutorial(_))
-    | (Some(Exercises(_)), Tutorial(_))
-    | (Some(Exercises(_)), Scratch(_))
-    | (Some(Exercises(_)), Documentation(_))
-    | (Some(Tutorial(_)), Scratch(_))
-    | (Some(Tutorial(_)), Documentation(_))
-    | (Some(Tutorial(_)), Exercises(_))
-    | (None, _) => None
+    | (Some(Assistant), _)
+    | _ => None
     };
   };
 

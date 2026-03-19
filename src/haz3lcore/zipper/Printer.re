@@ -74,10 +74,10 @@ let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
+      ~projector_to_segment=Triggers.projector_to_invoke,
       ~indent="",
       ~refractors=[],
       ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
-      ~projector_to_segment=Triggers.projector_to_invoke,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
@@ -103,6 +103,7 @@ let of_zipper =
     (
       ~holes=?,
       ~concave_holes=?,
+      ~projector_to_segment=?,
       ~indent=?,
       ~caret=?,
       ~selection_anchor=?,
@@ -124,6 +125,7 @@ let of_zipper =
   of_segment(
     ~holes?,
     ~concave_holes?,
+    ~projector_to_segment?,
     ~indent?,
     ~refractors=z.refractors.manuals,
     ~caret,
