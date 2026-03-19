@@ -733,22 +733,11 @@ and remold_mpat = (shape, seg: t): t =>
    Memoization is likely not a net win here anyway: the cache key is a full segment list
    (expensive structural comparison) and segments change on every edit, so hit rates
    are low. Revisit with profiling data if performance is a concern. */
-let skel = (~caller="unknown", ~sort=Sort.Exp, seg) => {
-  let filtered =
-    seg
-    |> List.mapi((i, p) => (i, p))
-    |> List.filter(((_, p)) => !Piece.is_secondary(p));
-  if (filtered == []) {
-    print_endline(
-      "Segment.skel: EMPTY! caller="
-      ++ caller
-      ++ " sort="
-      ++ Sort.show(sort)
-      ++ " original_len="
-      ++ string_of_int(List.length(seg)),
-    );
-  };
-  filtered |> Skel.mk(~sort);
+let skel = (~sort=Sort.Exp, seg) => {
+  seg
+  |> List.mapi((i, p) => (i, p))
+  |> List.filter(((_, p)) => !Piece.is_secondary(p))
+  |> Skel.mk(~sort);
 };
 
 let sorted_children = List.concat_map(Piece.sorted_children);
@@ -1009,11 +998,7 @@ let mk_duo = (sort: Sort.t, seg: t): Piece.t =>
 let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
   /* If piece is anything other than a Tile, and override sort is not
    * specified, sort will be Any (see Piece.Sort) */
-  let sort =
-    Option.value(
-      sort,
-      ~default=sort_of(skel(~caller="parenthesize", seg), seg),
-    );
+  let sort = Option.value(sort, ~default=sort_of(skel(seg), seg));
   mk_duo(sort, seg);
 };
 
