@@ -13,8 +13,8 @@ let get_scratch_zipper = (page: Page.Model.t): option(Zipper.t) =>
   switch (page.editors) {
   | Scratch(model)
   | Documentation(model) =>
-    let (_, cell) = List.nth(model.scratchpads, model.current);
-    Some(cell.editor.editor.state.zipper);
+    let scratchpad = List.nth(model.scratchpads, model.current);
+    Some(scratchpad.editor.editor.editor.state.zipper);
   | Tutorial(_)
   | Exercises(_) => None
   };

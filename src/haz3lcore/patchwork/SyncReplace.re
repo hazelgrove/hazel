@@ -61,6 +61,7 @@ let should_send_state = (a: Action.t): bool =>
   | Paste(_)
   | Buffer(Set(_))
   | Cut
+  | Structural(_)
   | Dump => true
   };
 
