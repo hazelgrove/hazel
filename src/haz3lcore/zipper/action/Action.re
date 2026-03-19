@@ -66,7 +66,8 @@ type project =
   | SetSyntax(int, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
-  | Escape(int, Direction.t); /* Pass control to parent editor */
+  | Escape(int, Direction.t) /* Pass control to parent editor */
+  | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =
@@ -156,7 +157,8 @@ let is_edit: t => bool =
     | RemoveIndicated => true
     | Focus(_)
     | SampleFocus(_)
-    | Escape(_) => false
+    | Escape(_)
+    | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
 
@@ -184,7 +186,8 @@ let is_historic: t => bool =
     | RemoveIndicated => true
     | Focus(_)
     | SampleFocus(_)
-    | Escape(_) => false
+    | Escape(_)
+    | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
 
@@ -211,7 +214,8 @@ let prevent_in_read_only_editor = (a: t) =>
     | RemoveIndicated
     | Focus(_)
     | SampleFocus(_)
-    | Escape(_) => false
+    | Escape(_)
+    | EscapeToLineEnd(_) => false
     }
   | Probe(_) => false
   };
@@ -240,6 +244,16 @@ let should_animate: t => bool =
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
-  | Project(_)
   | Probe(_)
-  | Dump => true;
+  | Dump => true
+  | Project(p) =>
+    switch (p) {
+    | SetSyntax(_)
+    | SetModel(_)
+    | SetIndicated(_)
+    | RemoveIndicated
+    | Focus(_)
+    | SampleFocus(_)
+    | Escape(_) => true
+    | EscapeToLineEnd(_) => false
+    };

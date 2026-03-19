@@ -275,6 +275,11 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
+  | EscapeToLineEnd(idx, kind) =>
+    switch (Move.jump_to_side_of_id(Right, z, idx_to_id(kind, idx))) {
+    | Some(z) => Ok(Option.value(~default=z, Move.to_linebreak(Right, z)))
+    | None => Error(Cant_project)
+    }
   | SampleFocus(a) => Ok(SampleFocusPerform.go(z, a))
   };
 };
