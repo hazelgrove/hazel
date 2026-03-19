@@ -68,13 +68,13 @@ type project =
   | Escape(int, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type agent =
+type completion_source =
   | TyDi
   | LLM(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
-  | Set(agent)
+  | Set(completion_source)
   | Clear
   | Accept;
 
@@ -82,6 +82,38 @@ type buffer =
 type paste =
   | String(string)
   | Segment(Segment.t);
+
+module Structural = {
+  /* A path identifies a let/type-alias binding by name, using `/` to
+     address nested bindings (e.g. "a", "a/inner"). Resolved against
+     the HighLevelNodeMap. */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type path = string;
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type code = string;
+
+  /* Which sub-expression of a binding to target */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type target =
+    | Definition /* RHS of `=`, before `in` */
+    | Body /* expression after `in` */
+    | Pattern /* LHS of `=`, after `let`/`type`; updates also rename use sites */
+    | BindingClause; /* entire `let ... = ... in` / `type ... = ... in` */
+
+  /* Where to insert relative to the target binding */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type insert_target =
+    | After /* insert within body (after target binding) */
+    | Before; /* insert before target binding (wrapping around it) */
+
+  /* Targeted structural edits on bindings identified by path */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t =
+    | Update(target, path, code)
+    | Delete(target, path)
+    | Insert(insert_target, path, code);
+};
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type probe =
@@ -107,7 +139,8 @@ type t =
   | Put_down
   | Introduce
   | Probe(probe)
-  | Dump;
+  | Dump
+  | Structural(Structural.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -123,7 +156,9 @@ module Failure = {
     | CantAccept
     | Cant_undo
     | Cant_redo
-    | CantIntroduce;
+    | CantIntroduce
+    | Composition_action_failure(string)
+    | Cant_derive_local_AST_information;
 
   exception Exception(t);
 };
@@ -143,6 +178,7 @@ let is_edit: t => bool =
   | Put_down
   | Introduce
   | Buffer(Accept | Clear | Set(_))
+  | Structural(_)
   | Dump => true
   | Copy
   | Move(_)
@@ -175,6 +211,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
+  | Structural(_)
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -202,6 +239,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Insert(_)
   | Put_down
   | Introduce
+  | Structural(_)
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -241,5 +279,6 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Project(_)
+  | Structural(_)
   | Probe(_)
   | Dump => true;
