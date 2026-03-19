@@ -187,7 +187,19 @@ let mk = (~sort=Sort.Exp, seg: list(ip)): t => {
     seg
     |> List.fold_left(Fun.flip(Stacks.push_shunted(~sort)), Stacks.empty)
     |> Stacks.finish(~sort);
-  ListUtil.hd_opt(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
+  switch (ListUtil.hd_opt(stacks.output)) {
+  | Some(skel) => skel
+  | None =>
+    print_endline(
+      "Skel.mk: Nonconvex_segment! sort="
+      ++ Sort.show(sort)
+      ++ " seg_len="
+      ++ string_of_int(List.length(seg))
+      ++ " output_len="
+      ++ string_of_int(List.length(stacks.output)),
+    );
+    raise(Nonconvex_segment);
+  };
 };
 
 let rec range = (skel: t): (int, int) =>

@@ -107,10 +107,5 @@ let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
  * Takes the actual syntax segment so projectors can access the
  * underlying term (needed for syntax rewriting in rich probes). */
 let to_projector =
-    (segment: Base.segment, id: Id.t, entry: entry): Base.projector =>
-  ProjectorCore.mk(
-    ~id,
-    entry.kind,
-    Segment.parenthesize(segment),
-    entry.model,
-  );
+    (syntax: Base.piece, id: Id.t, entry: entry): Base.projector =>
+  ProjectorCore.mk(~id, entry.kind, syntax, entry.model);

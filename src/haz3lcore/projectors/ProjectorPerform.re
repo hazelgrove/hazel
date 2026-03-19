@@ -203,15 +203,12 @@ let go =
       let ephemeral_model =
         Id.Map.find_opt(id, z.refractors.autos.ephemerals)
         |> Option.map((pr: Refractors.entry) => pr.model);
-      /* Select the term range and replace with new syntax,
-       * then unselect and remold/regrout to finalize */
+      /* Select the term range and replace with new syntax.
+       * Don't unselect/remold here — the normal update cycle handles that. */
       let do_replace = () => {
         let* (l, r) = TermData.extremes_shards(id, term_data);
         let+ z = Select.shard_range(l, r, z);
-        z
-        |> Zipper.replace_selection(Right, parenthesized_seg)
-        |> Zipper.unselect
-        |> Zipper.remold_regrout(Right);
+        Zipper.replace_selection(Right, parenthesized_seg, z);
       };
       switch (manual_model, ephemeral_model) {
       | (Some(refractor_model), _) =>
