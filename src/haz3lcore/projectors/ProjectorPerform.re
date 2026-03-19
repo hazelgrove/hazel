@@ -186,8 +186,14 @@ let go =
     }
   | SetSyntax(idx, kind, seg) =>
     let id = idx_to_id(kind, idx);
-    let parenthesized_piece =
-      Segment.unparenthesize(seg) |> Segment.parenthesize;
+    /* Strip trailing whitespace/newlines before parenthesizing,
+     * as lift_syntax(~inline=false) may append trailing newlines */
+    let trimmed_seg =
+      seg
+      |> Segment.unparenthesize
+      |> Segment.trim_secondary(Right)
+      |> Segment.trim_secondary(Left);
+    let parenthesized_piece = Segment.parenthesize(trimmed_seg);
     if (ProjectorCore.Kind.is_refractor(kind)) {
       let parenthesized_seg = [parenthesized_piece];
       /* Check for existing refractors (manual or ephemeral) */
