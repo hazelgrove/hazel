@@ -375,6 +375,41 @@ let font_metrics_from_specimen = (): (float, float) =>
   | None => (10.0, 10.0)
   };
 
+/* Listen for devicePixelRatio changes (triggered by browser zoom).
+ * Uses matchMedia to detect when the current DPR no longer matches,
+ * then re-registers for the next change. */
+let on_dpr_change = (callback: unit => unit): unit => {
+  let rec listen = () => {
+    let dpr: float =
+      Js.Unsafe.get(Dom_html.window, "devicePixelRatio")
+      |> Js.float_of_number
+      |> Js.to_float;
+    let query = Printf.sprintf("(resolution: %fdppx)", dpr);
+    let mql =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "matchMedia",
+        [|Js.Unsafe.inject(Js.string(query))|],
+      );
+    let handler =
+      Js.wrap_callback((_: Js.t({..})) => {
+        callback();
+        listen();
+      });
+    ignore(
+      Js.Unsafe.meth_call(
+        mql,
+        "addEventListener",
+        [|
+          Js.Unsafe.inject(Js.string("change")),
+          Js.Unsafe.inject(handler),
+        |],
+      ),
+    );
+  };
+  listen();
+};
+
 module QueryParams = {
   let get_arguments = (url: Url.url): list((string, string)) =>
     switch (url) {
