@@ -57,7 +57,9 @@ module Local = {
             | Asc(_, sig_typ) => Typ.rep_id(sig_typ)
             | _ =>
               raise(
-                Failure("No type annotation found on this module binding's pattern"),
+                Failure(
+                  "No type annotation found on this module binding's pattern",
+                ),
               )
             }
           }

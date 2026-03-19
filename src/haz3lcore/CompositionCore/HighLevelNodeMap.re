@@ -623,8 +623,7 @@ let rec build_children =
             let el_info = exp_to_info(el);
             let el_path = path @ [Info.id_of(el_info)];
             let name = "(" ++ string_of_int(idx) ++ ")";
-            let node_map =
-              init_node_named(el_info, name, el_path, node_map);
+            let node_map = init_node_named(el_info, name, el_path, node_map);
             build_children(el_info, el_path, node_map, info_map);
           }
         },

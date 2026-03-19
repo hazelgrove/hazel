@@ -1213,8 +1213,14 @@ let update_type_annotation =
    For `Let(a, 1, Let(x, a+10, _))`, replaces the `_` with `body`. */
 let rec replace_innermost_body = (parsed: Exp.t, body: Exp.t): Exp.t =>
   switch (Exp.term_of(parsed)) {
-  | Let(p, d, inner) => {...parsed, term: Let(p, d, replace_innermost_body(inner, body))}
-  | TyAlias(tp, td, inner) => {...parsed, term: TyAlias(tp, td, replace_innermost_body(inner, body))}
+  | Let(p, d, inner) => {
+      ...parsed,
+      term: Let(p, d, replace_innermost_body(inner, body)),
+    }
+  | TyAlias(tp, td, inner) => {
+      ...parsed,
+      term: TyAlias(tp, td, replace_innermost_body(inner, body)),
+    }
   | _ => body
   };
 
