@@ -43,6 +43,7 @@ module Model = {
         show_hidden_steps: false,
         enable_proof: false,
         rich_probes: false,
+        project_tables: false,
       },
     },
     async_evaluation: false,

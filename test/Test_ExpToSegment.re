@@ -15,6 +15,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  project_tables: false,
 };
 
 let exp_to_segment =
@@ -445,6 +446,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  project_tables: false,
 };
 
 let exp_to_segment_roundtrip =
@@ -1058,6 +1060,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  project_tables: false,
 };
 
 /* String-to-string grout tests: parse strings, verify round-trip preserves text.
