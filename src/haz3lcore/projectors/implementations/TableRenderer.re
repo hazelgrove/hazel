@@ -2,6 +2,7 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
+open TableCore;
 
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
 
@@ -64,54 +65,8 @@ let icon_button = (~tooltip="", icon_text, action) =>
     [Node.text(icon_text)],
   );
 
-let max_column_length = 12;
-
 /* Parse an expression into table structure */
-let parse = (_sort: Sort.t, exp: Exp.t) => {
-  switch (exp.term) {
-  | ListLit(es) =>
-    let data =
-      List.map(
-        (e: Exp.t) => {
-          switch (e.term) {
-          | Tuple(ds) =>
-            let entries =
-              List.map(
-                (d: Exp.t) =>
-                  switch (d.term) {
-                  | TupLabel({term: Label(l), _}, v) => Some((Some(l), v))
-                  | TupLabel({term: EmptyHole, _}, v) => Some((None, v))
-                  | _ => None
-                  },
-                ds,
-              );
-            OptUtil.sequence(entries) |> Option.map(List.split);
-          | _ => None
-          }
-        },
-        es,
-      );
-
-    let data_opt = OptUtil.sequence(data);
-    switch (data_opt) {
-    | Some(data) =>
-      let (headers: list(list(option(string))), rows: list(list(Exp.t))) =
-        List.split(data);
-
-      // If all the headers aren't the same or empty table
-      switch (headers) {
-      | [] => None
-      | [h, ..._]
-          when
-            List.for_all(List.equal(Option.equal(String.equal), h), headers) =>
-        Some((h, rows))
-      | _ => None
-      };
-    | None => None
-    };
-  | _ => None
-  };
-};
+let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
 /* Initialize table model from parsed value */
 let init = (_: v) => {menu_state: None};
@@ -534,50 +489,6 @@ let move_column =
     };
   | None => None
   };
-};
-
-/* Cell rendering utilities */
-let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> String.length;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(~inline=true, Exp(exp));
-  (seg, len_seg(utility, seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
-
-let length_cls = (length: int): string =>
-  if (length > 10) {
-    "extra";
-  } else if (length > 9) {
-    "s6";
-  } else if (length > 8) {
-    "s5";
-  } else if (length > 7) {
-    "s4";
-  } else if (length > 6) {
-    "s3";
-  } else if (length > 5) {
-    "s2";
-  } else if (length > 4) {
-    "s1";
-  } else {
-    "s0";
-  };
-
-let value_view = (_info: info, utility: utility, view_seg, exp) => {
-  let (seg, length) = abbreviated_seg_of(utility, max_column_length, exp);
-
-  Node.div(
-    ~attrs=[Attr.classes(["value", length_cls(length)])],
-    [view_seg(Sort.Exp, seg)],
-  );
 };
 
 /* Menu system */
@@ -1141,7 +1052,7 @@ let render =
           row => {
             let cells =
               List.map(
-                e => Node.td([value_view(info, info.utility, view_seg, e)]),
+                e => Node.td([value_view(info.utility, view_seg, e)]),
                 row,
               );
             let cells =
