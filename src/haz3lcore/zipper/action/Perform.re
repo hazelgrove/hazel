@@ -149,7 +149,10 @@ let go =
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> Option.map(maybe_reassoc)
     |> return(Cant_insert);
-  | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
+  | Put_down =>
+    let maybe_reassoc =
+      settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
+    Zipper.put_down(z) |> Option.map(maybe_reassoc) |> return(Cant_put_down);
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
   };

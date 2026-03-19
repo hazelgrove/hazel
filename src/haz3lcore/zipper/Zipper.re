@@ -97,21 +97,26 @@ let rescan_reassemble = (d: Direction.t, z: t): t => {
    The cursor position is naturally preserved since we operate
    on the (left, right) sibling split directly. */
 let deep_reassociate = (z: t): t => {
+  /* Track fresh IDs so we can repair incidental breakage.
+     Maps fresh_id → (original_id, shard_indices) for right-side
+     ancestor shards. */
+  let fresh_map: ref(Id.Map.t((Id.t, list(int)))) = ref(Id.Map.empty);
   /* Give fresh IDs to ancestor shard pieces on the right side.
      This prevents duplicate (id, shard_index) after rescan converts
      a newly-inserted delimiter to the ancestor's ID. The left-side
-     shards keep their original IDs (first-seen in L-to-R order).
-     If no new delimiter steals the match, rescan converts the
-     freshened shards back to the original ID anyway. */
+     shards keep their original IDs (first-seen in L-to-R order). */
   let freshen_ancestor_shards = (ancestor_id: Id.t, seg: Segment.t) =>
     seg
     |> List.map(p =>
          switch (p) {
          | Piece.Tile(t) when t.id == ancestor_id =>
+           let fresh_id = Id.mk();
+           fresh_map :=
+             Id.Map.add(fresh_id, (ancestor_id, t.shards), fresh_map^);
            Piece.Tile({
              ...t,
-             id: Id.mk(),
-           })
+             id: fresh_id,
+           });
          | _ => p
          }
        );
@@ -128,12 +133,52 @@ let deep_reassociate = (z: t): t => {
     };
   let (siblings, ancestors) =
     flatten_all(z.relatives.siblings, z.relatives.ancestors);
-  /* Rescan + reassemble. Remold/regrout are unnecessary here:
-     deep reassociation only re-nests shards without reordering,
-     so each shard's left-context (which determines its mold) is
-     unchanged. Rescan's target_shard mechanism preserves the
-     correct mold from the incomplete tile's frame. */
+  /* Rescan */
   let siblings = Siblings.rescan(siblings);
+  /* Repair incidental breakage: if a freshened shard survived rescan
+     (still has its fresh ID) and no other piece was converted to take
+     its original (id, shard_index), then it was merely shadowed by
+     rescan's LIFO stack — not genuinely displaced. Restore its
+     original ID so reassembly can group it with its siblings. */
+  let siblings =
+    if (Id.Map.is_empty(fresh_map^)) {
+      siblings;
+    } else {
+      /* Check if a piece with (original_id, shard_indices) exists
+         in the combined segment — meaning rescan converted a stealer
+         to take this exact slot. */
+      let combined = fst(siblings) @ snd(siblings);
+      let was_stolen = (original_id, shards) =>
+        List.exists(
+          p =>
+            switch (p) {
+            | Piece.Tile(t) => t.id == original_id && t.shards == shards
+            | _ => false
+            },
+          combined,
+        );
+      let repair = seg =>
+        List.map(
+          p =>
+            switch (p) {
+            | Piece.Tile(t) =>
+              switch (Id.Map.find_opt(t.id, fresh_map^)) {
+              | Some((original_id, shards))
+                  when !was_stolen(original_id, shards) =>
+                Piece.Tile({
+                  ...t,
+                  id: original_id,
+                })
+              | _ => p
+              }
+            | _ => p
+            },
+          seg,
+        );
+      let (pre, suf) = siblings;
+      (repair(pre), repair(suf));
+    };
+  /* Reassemble */
   let relatives =
     {
       Relatives.siblings,
