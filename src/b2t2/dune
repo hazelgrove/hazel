@@ -26,3 +26,553 @@
  (release
   (js_of_ocaml
    (flags :standard))))
+
+; Generate B2T2 slide .ml files from .hz source files at build time
+; All .hz source files and generated .ml targets are in the b2t2 root directory.
+; With (include_subdirs unqualified), dune treats them all as top-level modules.
+
+(rule
+ (targets B2T2ExampleTables.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Example_Tables.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Example Tables"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ErrorsMalformedTables.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Errors__Malformed_Tables.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Errors / Malformed Tables"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ErrorsUsingTablesPart1.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Errors__Using_Tables__Part_1.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Errors / Using Tables / Part 1"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ErrorsUsingTablesPart2.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Errors__Using_Tables__Part_2.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Errors / Using Tables / Part 2"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ErrorsUsingTablesPart3.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Errors__Using_Tables__Part_3.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Errors / Using Tables / Part 3"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ExampleProgramsDotProduct.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Example_Programs__Dot_Product.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Example Programs / Dot Product"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ExampleProgramsgroupByRetentive.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Example_Programs__groupByRetentive.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Example Programs / groupByRetentive"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ExampleProgramsgroupBySubtractive.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Example_Programs__groupBySubtractive.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Example Programs / groupBySubtractive"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ExampleProgramspHackingHeterogeneous.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Example_Programs__pHackingHeterogeneous.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Example Programs / pHackingHeterogeneous"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ExampleProgramspHackingHomogeneous.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Example_Programs__pHackingHomogeneous.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Example Programs / pHackingHomogeneous"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ExampleProgramsquizScoreFilter.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Example_Programs__quizScoreFilter.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Example Programs / quizScoreFilter"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2ExampleProgramsquizScoreSelect.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Example_Programs__quizScoreSelect.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Example Programs / quizScoreSelect"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIAccessSubcomponents.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Access_Subcomponents.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Access Subcomponents"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIAggregate.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Aggregate.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Aggregate"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorsaddColumn.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__addColumn.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / addColumn"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorsaddRows.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__addRows.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / addRows"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorsbuildColumn.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__buildColumn.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / buildColumn"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorscrossJoin.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__crossJoin.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / crossJoin"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorsemptyTable.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__emptyTable.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / emptyTable"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorshcat.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__hcat.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / hcat"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorsleftJoin.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__leftJoin.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / leftJoin"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorsvalues.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__values.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / values"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIConstructorsvcat.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Constructors__vcat.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Constructors / vcat"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIDataCleaning.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Data_Cleaning.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Data Cleaning"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIMissingValues.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Missing_Values.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Missing Values"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIOrdering.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Ordering.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Ordering"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIProperties.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Properties.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Properties"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPISubtable.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Subtable.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Subtable"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesFlatten.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__Flatten.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / Flatten"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesfind.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__find.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / find"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesgroupByRetentive.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__groupByRetentive.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / groupByRetentive"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesgroupBySubtractive.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__groupBySubtractive.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / groupBySubtractive"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesgroupJoin.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__groupJoin.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / groupJoin"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesjoin.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__join.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / join"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesrenameColumns.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__renameColumns.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / renameColumns"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesselect.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__select.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / select"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesselectMany.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__selectMany.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / selectMany"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiestransformColumn.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__transformColumn.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / transformColumn"
+   %{src}
+   %{targets})))
+
+(rule
+ (targets B2T2TableAPIUtilitiesupdate.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src B2T2__Table_API__Utilities__update.hz))
+ (action
+  (run
+   node
+   --stack-size=65536
+   %{gen}
+   "B2T2 / Table API / Utilities / update"
+   %{src}
+   %{targets})))

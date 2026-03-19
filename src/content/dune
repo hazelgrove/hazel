@@ -1,0 +1,89 @@
+(library
+ (name content)
+ (libraries haz3lcore)
+ (wrapped false)
+ (preprocess
+  (pps ppx_sexp_conv ppx_deriving.show)))
+
+; Generate .ml slide files from .hz source files at build time
+; The codegen tool parses .hz text and emits PersistentSegment.t records
+
+(rule
+ (targets ADTs.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src ADTs.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "ADTs" %{src} %{targets})))
+
+(rule
+ (targets BasicReference.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Basic_Reference.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Basic Reference" %{src} %{targets})))
+
+(rule
+ (targets Cards.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Cards.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Cards" %{src} %{targets})))
+
+(rule
+ (targets Livelits.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Livelits.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Livelits" %{src} %{targets})))
+
+(rule
+ (targets Modules.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Modules.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Modules" %{src} %{targets})))
+
+(rule
+ (targets Polymorphism.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Polymorphism.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Polymorphism" %{src} %{targets})))
+
+(rule
+ (targets Probes.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Probes.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Probes" %{src} %{targets})))
+
+(rule
+ (targets Projectors.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Projectors.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Projectors" %{src} %{targets})))
+
+(rule
+ (targets Tables.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Tables.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Tables" %{src} %{targets})))
+
+(rule
+ (targets Tuples.ml)
+ (deps
+  (:gen %{project_root}/src/hazel_codegen/hazel_codegen.bc.js)
+  (:src Tuples.hz))
+ (action
+  (run node --stack-size=65536 %{gen} "Tuples" %{src} %{targets})))

@@ -166,9 +166,7 @@ let export_hazel = (format, width, strip, filter, output_dir) => {
         let segment =
           Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
         let segment = strip ? strip_projectors(segment) : segment;
-        let segment =
-          format
-            ? Haz3lcore.PrettySegment.prettify(~width, segment) : segment;
+        let _ = (format, width); /* TODO: prettify not yet available on this branch */
         let output =
           Haz3lcore.Printer.of_segment(
             ~holes="?",
@@ -352,21 +350,6 @@ let check_slides_hazel =
       /* Static analysis */
       let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
 
-      /* Get source text for error locations */
-      let source =
-        Haz3lcore.Printer.of_segment(
-          ~holes="?",
-          ~indent=" ",
-          ~refractors=zipper.refractors.manuals,
-          segment,
-        );
-      let measured =
-        Haz3lcore.Measured.of_segment(
-          segment,
-          Haz3lcore.ProjectorCore.Shape.Map.empty,
-          Util.Id.Map.empty,
-        );
-
       let static_map =
         Language.Statics.mk(
           Language.CoreSettings.on,
@@ -375,18 +358,10 @@ let check_slides_hazel =
         );
 
       let static_errors =
-        Util.Id.Map.fold(
-          (_id, info, acc) =>
-            switch (
-              format_error_with_location(~source, ~path=name, measured, info)
-            ) {
-            | None => acc
-            | Some(err) => [err, ...acc]
-            },
-          static_map,
-          [],
-        )
-        |> List.sort_uniq(compare);
+        List.map(
+          ((_, error)) => Language.Info.show_error(error),
+          Language.Statics.Map.errors(static_map),
+        );
 
       let all_errors = errors^ @ static_errors;
       let error_count = List.length(all_errors);

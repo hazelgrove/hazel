@@ -1,0 +1,6 @@
+(executable
+ (name hazel_codegen)
+ (libraries haz3lcore)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx ppx_sexp_conv ppx_deriving.show)))
