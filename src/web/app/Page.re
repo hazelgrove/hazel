@@ -16,7 +16,6 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
-    assistant: AssistantModel.t,
     selection,
   };
 
@@ -31,7 +30,6 @@ module Model = {
       globals,
       editors,
       explain_this: ExplainThisModel.init,
-      assistant: AssistantModel.init(),
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -46,12 +44,10 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
-    let assistant = AssistantModel.Store.load();
     {
       editors,
       globals,
       explain_this,
-      assistant,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -63,12 +59,19 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
-    AssistantModel.Store.save(m.assistant);
   };
 };
 
 module Update = {
   open Updated;
+
+  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+    switch (model.editors) {
+    | Scratch(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Documentation(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Exercises(m) => ExercisesMode.Model.get_editor(m)
+    };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
@@ -80,7 +83,6 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
-    | Assistant(AssistantUpdate.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -88,31 +90,10 @@ module Update = {
 
   let equal = (===);
 
-  let assistant_callback =
-      (
-        ~schedule_action: t => unit,
-        model: Model.t,
-        editor: CodeEditable.Model.t,
-      ) =>
-    AssistantUpdate.check_req(
-      ~schedule_action=a => schedule_action(Assistant(a)),
-      ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
-      ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-      ~editor,
-    );
-
-  let get_editor = (model: Model.t): CodeEditable.Model.t =>
-    switch (model.editors) {
-    | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
-    | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
-    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
-    | Exercises(m) => ExercisesMode.Model.get_editor(m)
-    };
-
   let update_global =
       (
         ~import_log,
-        ~schedule_action,
+        ~schedule_action: t => unit,
         ~globals: Globals.Model.t,
         action: Globals.Update.t,
         model: Model.t,
@@ -137,6 +118,23 @@ module Update = {
           settings,
         },
       };
+    | SetAgentGlobals(agent_globals_action) =>
+      let agent_globals =
+        AgentGlobals.Update.update(
+          agent_globals_action, model.globals.settings.agent_globals, action =>
+          schedule_action(Globals(SetAgentGlobals(action)))
+        );
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings: {
+            ...model.globals.settings,
+            agent_globals,
+          },
+        },
+      }
+      |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
@@ -151,8 +149,6 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_assistant_insertion_info=
-              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -203,15 +199,13 @@ module Update = {
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let filename =
-            (current |> fst |> StringUtil.sanitize_filename) ++ ".ml";
+            (current.name |> StringUtil.sanitize_filename) ++ ".ml";
 
           let content =
             Haz3lcore.(
               [%derive.show: (string, PersistentSegment.t)]((
-                current |> fst,
-                current
-                |> snd
-                |> (e => e.editor.editor.state.zipper)
+                current.name,
+                current.editor.editor.editor.state.zipper
                 |> PersistentSegment.persist,
               ))
             );
@@ -248,8 +242,6 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_assistant_insertion_info=
-              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -290,8 +282,6 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
-          ~send_assistant_insertion_info=
-            assistant_callback(~schedule_action, model),
           action,
           model.editors,
         );
@@ -316,20 +306,6 @@ module Update = {
       {
         ...model,
         explain_this,
-      };
-    | Assistant(action) =>
-      let* assistant =
-        AssistantUpdate.update(
-          ~action,
-          ~settings=globals.settings,
-          ~model=model.assistant,
-          ~editor=get_editor(model),
-          ~schedule_action=a => schedule_action(Assistant(a)),
-          ~schedule_editor_action=a => schedule_action(Editors(a)),
-        );
-      {
-        ...model,
-        assistant,
       };
     | MakeActive(selection) =>
       {
@@ -358,7 +334,6 @@ module Update = {
     | Globals(action) => Globals.Update.can_undo(action)
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | Assistant(action) => AssistantUpdate.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
@@ -455,7 +430,8 @@ module View = {
     | Some("module-name-input")
     | Some("prompt-input-box")
     | Some("test-required-input")
-    | Some("point-max-input") => true
+    | Some("point-max-input")
+    | Some("agent-api-key-input") => true
     | Some(id) when String.starts_with(~prefix="hint-input", id) => true
     | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
       true
@@ -551,7 +527,13 @@ module View = {
           if (is_input_field(elId)) {
             ();
           } else {
-            copy(cursor);
+            let el = Js.Unsafe.coerce(el);
+            if (JsUtil.has_ancestor_class(el, "system-message")
+                || JsUtil.has_ancestor_class(el, "agent-message")) {
+              ();
+            } else {
+              copy(cursor);
+            };
           };
         | None => ()
         };
@@ -699,13 +681,7 @@ module View = {
         ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        {
-          globals,
-          editors,
-          explain_this: explainThisModel,
-          assistant: assistantModel,
-          selection,
-        } as model: Model.t,
+        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
       ) => {
     let log_count = LogCount.get();
     let globals = {
@@ -720,20 +696,19 @@ module View = {
     let sidebar =
       Sidebar.view(
         ~globals,
-        ~cursor,
-        ~explain_this_inject=action => inject(ExplainThis(action)),
-        ~assistant_inject=action => inject(Assistant(action)),
+        ~explain_this_inject=
+          (action: ExplainThisUpdate.update) => inject(ExplainThis(action)),
+        ~explainThisModel,
+        ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
+        ~editors,
+        ~editor=Update.get_editor(model),
         ~signal=
           fun
-          | MakeActive(s) => inject(MakeActive(Scratch(s))),
-        ~explainThisModel,
-        ~assistantModel,
+          | MakeActive(s: Selection.t) => inject(MakeActive(s)),
         ~log_model,
         ~log_count,
-        ~editor=Update.get_editor(model),
-        cursor.info,
+        ~cursor,
       );
-
     let editors_view =
       Editors.View.view(
         ~globals,
@@ -765,7 +740,7 @@ module View = {
       let culling_enabled =
         switch (editors) {
         | Scratch(_)
-        | Documentation(_) => false /* Disabled for now due to layout issues */
+        | Documentation(_)
         | Tutorial(_)
         | Exercises(_) => false
         };

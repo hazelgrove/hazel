@@ -103,6 +103,7 @@ let of_zipper =
     (
       ~holes=?,
       ~concave_holes=?,
+      ~projector_to_segment=?,
       ~indent=?,
       ~caret=?,
       ~selection_anchor=?,
@@ -124,6 +125,7 @@ let of_zipper =
   of_segment(
     ~holes?,
     ~concave_holes?,
+    ~projector_to_segment?,
     ~indent?,
     ~refractors=z.refractors.manuals,
     ~caret,

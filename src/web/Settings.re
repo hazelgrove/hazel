@@ -12,11 +12,11 @@ module Model = {
     benchmark: bool,
     show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
-    assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
     /* Auto probe: automatically place a multi probe on the body of
        whichever top-level definition the cursor is currently inside */
     autoprobe_mode: bool,
+    agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
     cap_undo_stack: bool,
@@ -59,17 +59,12 @@ module Model = {
       show_feedback: false,
       highlight: NoHighlight,
     },
-    assistant: {
-      mode: CodeSuggestion,
-      ongoing_chat: false,
-      show_history: false,
-      show_api_key: false,
-    },
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
     },
     autoprobe_mode: false,
+    agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
     cap_undo_stack: false,
@@ -135,7 +130,6 @@ module Update = {
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
-    | Assistant(AssistantSettings.action)
     | FlipAnimations
     | AutoprobeMode
     | ToggleLineNumbers
@@ -322,37 +316,6 @@ module Update = {
           ...settings,
           explainThis,
         };
-      | Assistant(u) =>
-        switch (u) {
-        | UpdateChatStatus => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              ongoing_chat: !settings.assistant.ongoing_chat,
-            },
-          }
-        | SwitchMode(mode) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              mode,
-            },
-          }
-        | ToggleHistory => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_history: !settings.assistant.show_history,
-            },
-          }
-        | ToggleAPIKeyVisibility => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_api_key: !settings.assistant.show_api_key,
-            },
-          }
-        }
       | ShowLogPanel => {
           ...settings,
           show_log_panel:

@@ -155,4 +155,5 @@ let go =
     Zipper.put_down(z) |> Option.map(maybe_reassoc) |> return(Cant_put_down);
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };
