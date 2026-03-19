@@ -305,6 +305,7 @@ let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
       {p, info, status, _}: Model.projector_data,
       projector_list: list(Id.t),
     )
@@ -329,6 +330,7 @@ let mk_view =
         segment,
       ),
     status,
+    core_settings,
   });
 };
 
@@ -339,6 +341,7 @@ let split_views =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
       ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
@@ -355,7 +358,14 @@ let split_views =
       ~idx,
       ~kind=p.kind,
     );
-  let views = mk_view(inject, font_metrics, projector_data, projector_list);
+  let views =
+    mk_view(
+      inject,
+      font_metrics,
+      ~core_settings,
+      projector_data,
+      projector_list,
+    );
   let line_view = {
     let offside_view =
       views.offside
@@ -388,6 +398,7 @@ let all =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
       ~visible: option(visible_rows)=?,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
@@ -409,6 +420,7 @@ let all =
     |> List.map(
          split_views(
            ~skip_inline=false,
+           ~core_settings,
            inject,
            make_active,
            font_metrics,

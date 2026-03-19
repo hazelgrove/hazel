@@ -346,6 +346,7 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~core_settings=globals.settings.core,
         ~visible?,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
@@ -356,6 +357,7 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~core_settings=globals.settings.core,
         ~visible?,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
