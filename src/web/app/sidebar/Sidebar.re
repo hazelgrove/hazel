@@ -201,14 +201,13 @@ let view =
       ~globals: Globals.t,
       ~cursor: Cursor.cursor(Editors.Update.t),
       ~explain_this_inject,
-      ~assistant_inject,
-      ~signal,
       ~explainThisModel: ExplainThisModel.t,
-      ~assistantModel: AssistantModel.t,
       ~log_model: LogSidebar.Model.t,
       ~log_count: int,
-      ~editor,
-      info: option(Language.Info.t),
+      ~editors_inject,
+      ~editors: Editors.Model.t,
+      ~editor: CodeWithStatics.Model.t,
+      ~signal,
     ) => {
   let sub =
     globals.settings.sidebar.show
@@ -222,16 +221,10 @@ let view =
                 ~globals,
                 ~inject=explain_this_inject,
                 ~explainThisModel,
-                info,
+                cursor.info,
               )
             | HelpfulAssistant =>
-              AssistantView.view(
-                ~globals,
-                ~signal,
-                ~inject=assistant_inject,
-                ~model=assistantModel,
-                ~editor,
-              )
+              AgentView.view(~globals, ~editors_inject, ~editors, ~signal)
             | Probes =>
               ProbeSidebar.view(
                 ~globals,
