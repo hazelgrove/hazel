@@ -104,15 +104,13 @@ let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
 };
 
 /* Construct full Base.projector from entry and id, for rendering.
- * Creates dummy syntax with Id.invalid since refractors use skip_inline=true
- * and don't actually display the syntax. */
-let to_projector = (id: Id.t, entry: entry): Base.projector =>
+ * Takes the actual syntax segment so projectors can access the
+ * underlying term (needed for syntax rewriting in rich probes). */
+let to_projector =
+    (segment: Base.segment, id: Id.t, entry: entry): Base.projector =>
   ProjectorCore.mk(
     ~id,
     entry.kind,
-    Base.Secondary({
-      id: Id.invalid,
-      content: Whitespace(""),
-    }),
+    Segment.parenthesize(segment),
     entry.model,
   );

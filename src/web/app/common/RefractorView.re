@@ -41,8 +41,18 @@ let mk_data =
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
   List.filter_map(
     ((id, entry)) => {
-      /* Construct full Base.projector on demand for rendering */
-      let p = Refractors.to_projector(id, entry);
+      /* Construct full Base.projector on demand for rendering,
+       * passing the actual syntax segment so projectors can
+       * access the underlying term for syntax rewriting. */
+      let segment =
+        Option.value(
+          TermData.segment(id, term_data)
+          |> Option.map(Segment.unparenthesize)
+          |> Option.map(Segment.trim_secondary(Left))
+          |> Option.map(Segment.trim_secondary(Right)),
+          ~default=[],
+        );
+      let p = Refractors.to_projector(segment, id, entry);
       let+ measurement = measurement_of_term(id, term_data, measured);
       let info =
         ProjectorInfo.mk_info(p, ~sample_cursor, ~statics, ~dynamics);
