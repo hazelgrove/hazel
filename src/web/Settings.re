@@ -109,7 +109,8 @@ module Update = {
     | ShowLookups
     | ShowFilters
     | ShowSettings
-    | ShowHiddenSteps;
+    | ShowHiddenSteps
+    | RichProbes;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -215,6 +216,10 @@ module Update = {
           | EnableProof => {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
+            }
+          | RichProbes => {
+              ...evaluation,
+              rich_probes: !evaluation.rich_probes,
             }
           | ShowCaseClauses => {
               ...evaluation,

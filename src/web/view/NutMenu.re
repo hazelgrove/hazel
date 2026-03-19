@@ -108,6 +108,7 @@ let stepper_group = (~globals: Globals.t) => {
         s.enable_proof,
         Evaluation(EnableProof),
       ),
+      ("⊞", "Rich Probes", s.rich_probes, Evaluation(RichProbes)),
     ],
   );
 };
