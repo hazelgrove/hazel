@@ -10,20 +10,18 @@ type transform =
 let get_column_type_from_ty = (ty: Typ.t, column: string) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
-    let ty =
-      List.find_map(
-        ty => {
-          open OptUtil.Syntax;
-          let* (label, value_ty) = Typ.match_tup_label(ty);
-          if (label == column) {
-            Some(value_ty);
-          } else {
-            None;
-          };
-        },
-        tys,
-      );
-    ty;
+    List.find_map(
+      ty => {
+        open OptUtil.Syntax;
+        let* (label, value_ty) = Typ.match_tup_label(ty);
+        if (label == column) {
+          Some(value_ty);
+        } else {
+          None;
+        };
+      },
+      tys,
+    )
   | _ => None
   };
 };
@@ -31,16 +29,14 @@ let get_column_type_from_ty = (ty: Typ.t, column: string) => {
 let get_columns = (ty: Typ.t): option(list(string)) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
-    let labels: option(list(string)) =
-      OptUtil.traverse(
-        ty => {
-          open OptUtil.Syntax;
-          let* (label, _value_ty) = Typ.match_tup_label(ty);
-          Some(label);
-        },
-        tys,
-      );
-    labels;
+    OptUtil.traverse(
+      ty => {
+        open OptUtil.Syntax;
+        let* (label, _value_ty) = Typ.match_tup_label(ty);
+        Some(label);
+      },
+      tys,
+    )
   | _ => None
   };
 };
@@ -58,6 +54,14 @@ let strip_parens =
     | _ => continue(e)
     }
   );
+
+let get_type_from_info = (info: info): option(Typ.t) =>
+  switch (info.statics) {
+  | Some(InfoExp({ty, ctx, _})) =>
+    let ty = Typ.normalize(ctx, ty);
+    Typ.contains_unknown(ty) ? None : Some(ty);
+  | _ => None
+  };
 
 let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
   let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));

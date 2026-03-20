@@ -423,7 +423,11 @@ let render =
         let full_content =
           switch (h, model.menu_state) {
           | (Some(name), Some((j, menu_path))) when i == j =>
-            let dyn_type = get_dynamic_type(exp); /* Is there a better way to get the types of the columns? */
+            let dyn_type =
+              switch (get_type_from_info(info)) {
+              | Some(_) as ty => ty
+              | None => get_dynamic_type(exp)
+              };
             let menu_data =
               build_column_menu(
                 info,

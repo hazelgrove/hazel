@@ -329,6 +329,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Sig(_) => []
   };
+
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
     List.concat_map(
@@ -422,6 +423,8 @@ let rec count_unknowns = (ty: t): int =>
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
   | Sig(_) => 0
   };
+
+let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
 
 let rec contains_sum_or_var = (ty: t): bool =>
   switch (ty.term) {
