@@ -196,13 +196,10 @@ let go =
     let parenthesized_piece = Segment.parenthesize(trimmed_seg);
     if (ProjectorCore.Kind.is_refractor(kind)) {
       let parenthesized_seg = [parenthesized_piece];
-      /* Check for existing refractors (manual or ephemeral) */
       let manual_model =
         List.assoc_opt(id, z.refractors.manuals)
         |> Option.map((pr: Refractors.entry) => pr.model);
-      let ephemeral_model =
-        Id.Map.find_opt(id, z.refractors.autos.ephemerals)
-        |> Option.map((pr: Refractors.entry) => pr.model);
+      let is_ephemeral = Id.Map.mem(id, z.refractors.autos.ephemerals);
       /* Select the term range and replace with new syntax.
        * Don't unselect/remold here — the normal update cycle handles that. */
       let do_replace = () => {
@@ -210,9 +207,14 @@ let go =
         let+ z = Select.shard_range(l, r, z);
         Zipper.replace_selection(Right, parenthesized_seg, z);
       };
-      switch (manual_model, ephemeral_model) {
-      | (Some(refractor_model), _) =>
-        /* Manual refractor: replace syntax and re-add manual with preserved model */
+      if (is_ephemeral && Option.is_none(manual_model)) {
+        /* Ephemeral refractor: replace syntax only, auto system re-detects */
+        switch (do_replace()) {
+        | Some(z) => Ok(z)
+        | None => Error(Cant_project)
+        };
+      } else {
+        /* Manual or fallback: replace and re-register */
         let new_id =
           MakeTerm.from_zip_for_sem(
             Zipper.unzip(~direction=Right, parenthesized_seg),
@@ -221,25 +223,7 @@ let go =
           |> Language.Exp.rep_id;
         switch (do_replace()) {
         | Some(z) =>
-          Ok(ZipperBase.add_manual(~model=refractor_model, new_id, kind, z))
-        | None => Error(Cant_project)
-        };
-      | (_, Some(_)) =>
-        /* Ephemeral refractor: replace syntax only, auto system re-detects */
-        switch (do_replace()) {
-        | Some(z) => Ok(z)
-        | None => Error(Cant_project)
-        }
-      | (None, None) =>
-        /* Fallback: try as manual */
-        let new_id =
-          MakeTerm.from_zip_for_sem(
-            Zipper.unzip(~direction=Right, parenthesized_seg),
-          ).
-            term
-          |> Language.Exp.rep_id;
-        switch (do_replace()) {
-        | Some(z) => Ok(ZipperBase.add_manual(new_id, kind, z))
+          Ok(ZipperBase.add_manual(~model=?manual_model, new_id, kind, z))
         | None => Error(Cant_project)
         };
       };
