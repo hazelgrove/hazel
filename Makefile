@@ -111,7 +111,7 @@ patchwork:
 	cp -r $(HTML_DIR)/style src/patchwork/dist/style
 	cp -r $(HTML_DIR)/img src/patchwork/dist/img
 	chmod -R u+w src/patchwork/dist
-	cd src/patchwork && pushwork sync
+	cd src/patchwork && (test -f .pushwork/config.json || npx pushwork@latest init) && npx pushwork@latest sync
 
 automerge.wasm:
 	curl -o src/web/www/automerge.wasm https://gaios.sgai.uk/automerge.wasm
