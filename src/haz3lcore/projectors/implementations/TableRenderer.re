@@ -3,6 +3,7 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 open TableCore;
+open TableTransforms;
 
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
 
@@ -71,426 +72,6 @@ let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 /* Initialize table model from parsed value */
 let init = (_: v) => {menu_state: None};
 
-/* Type utilities for column operations */
-let get_column_type_from_ty = (ty: Typ.t, column: string) => {
-  switch (ty.term) {
-  | List({term: Prod(tys), _}) =>
-    let ty =
-      List.find_map(
-        ty => {
-          open OptUtil.Syntax;
-          let* (label, value_ty) = Typ.match_tup_label(ty);
-          if (label == column) {
-            Some(value_ty);
-          } else {
-            None;
-          };
-        },
-        tys,
-      );
-    ty;
-  | _ => None
-  };
-};
-
-let get_columns = (ty: Typ.t): option(list(string)) => {
-  switch (ty.term) {
-  | List({term: Prod(tys), _}) =>
-    let labels: option(list(string)) =
-      OptUtil.traverse(
-        ty => {
-          open OptUtil.Syntax;
-          let* (label, _value_ty) = Typ.match_tup_label(ty);
-          Some(label);
-        },
-        tys,
-      );
-    labels;
-  | _ => None
-  };
-};
-
-/* Check if a type is an Option type (+None +Some(?))  */
-let is_option_type = (ty: Typ.t): bool => {
-  let ctx = Builtins.ctx_init(Some(Int));
-  Typ.is_consistent(ctx, ty, BuiltinsADT.Option.t)
-  && Typ.is_more_precise(ctx, ty, BuiltinsADT.Option.t);
-};
-
-let strip_parens =
-  Exp.map_term(~f_exp=(continue, e) =>
-    switch (e.term) {
-    | Parens(inner) => continue(inner)
-    | _ => continue(e)
-    }
-  );
-
-/* Core transformation functions */
-let apply_transformation = (info: info, transformation: Exp.t) => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        ~inline=false,
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                transformation,
-                strip_parens(exp_term |> DHExp.fresh),
-              )
-            ),
-          )
-
-        | _ =>
-          failwith("TableRenderer: apply_transformation: not an expression"),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableRenderer: apply_transformation: lift failed")
-    }
-  );
-};
-
-let apply_rowwise_transformation =
-    (info: info, row_transformation: Exp.t): Base.segment => {
-  IdTagged.FreshGrammar.(
-    apply_transformation(
-      info,
-      Exp.(
-        ap(
-          Forward,
-          var("map"),
-          tuple([deferral(InAp), row_transformation]),
-        )
-      ),
-    )
-  );
-};
-
-/* Column transformation operations */
-let drop_column = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    apply_rowwise_transformation(
-      info,
-      Exp.(
-        ap(
-          Forward,
-          var("omit_labels"),
-          tuple([deferral(InAp), label(column)]),
-        )
-      ),
-    )
-  );
-};
-
-let convert_column =
-    (info: info, column: string, conversion_fn: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    Exp.(
-      apply_rowwise_transformation(
-        info,
-        fn(
-          Pat.var("r"),
-          tuple_extension(
-            var("r"),
-            tuple([
-              tup_label(
-                label(column),
-                ap(
-                  Forward,
-                  var(conversion_fn),
-                  dot(var("r"), label(column)),
-                ),
-              ),
-            ]),
-          ),
-          None,
-          None,
-        ),
-      )
-    )
-  );
-};
-
-let rename_column =
-    (info: info, old_name: string, new_name: string): Base.segment => {
-  apply_rowwise_transformation(
-    info,
-    IdTagged.FreshGrammar.(
-      Exp.(
-        fn(
-          Pat.var("r"),
-          tuple_extension(
-            ap(
-              Forward,
-              var("omit_labels"),
-              tuple([var("r"), label(old_name)]),
-            ),
-            tuple([
-              tup_label(label(new_name), dot(var("r"), label(old_name))),
-            ]),
-          ),
-          None,
-          None,
-        )
-      )
-    ),
-  );
-};
-
-let add_column = (info: info, new_column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    Exp.(
-      apply_rowwise_transformation(
-        info,
-        fn(
-          Pat.var("r"),
-          tuple_extension(
-            var("r"),
-            tuple([tup_label(label(new_column), empty_hole())]),
-          ),
-          None,
-          None,
-        ),
-      )
-    )
-  );
-};
-
-/* Replace column values with expression holes for manual reentry */
-let clear_column = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    Exp.(
-      apply_rowwise_transformation(
-        info,
-        fn(
-          Pat.var("r"),
-          tuple_extension(
-            var("r"),
-            tuple([tup_label(label(column), empty_hole())]),
-          ),
-          None,
-          None,
-        ),
-      )
-    )
-  );
-};
-
-/* No-op: places the field projection back into the field for reference */
-let noop_column = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    Exp.(
-      apply_rowwise_transformation(
-        info,
-        fn(
-          Pat.var("r"),
-          tuple_extension(
-            var("r"),
-            tuple([
-              tup_label(label(column), dot(var("r"), label(column))),
-            ]),
-          ),
-          None,
-          None,
-        ),
-      )
-    )
-  );
-};
-
-let group_by_column = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    apply_transformation(
-      info,
-      Exp.(
-        ap(
-          Forward,
-          var("group_on_key"),
-          tuple([
-            deferral(InAp),
-            fn(
-              Pat.var("row"),
-              dot(var("row"), label(column)),
-              None,
-              None,
-            ),
-          ]),
-        )
-      ),
-    )
-  );
-};
-
-let filter_by_column = (op, info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    apply_transformation(
-      info,
-      Exp.(
-        ap(
-          Forward,
-          var("filter"),
-          tuple([
-            deferral(InAp),
-            fn(
-              Pat.var("row"),
-              bin_op(op, dot(var("row"), label(column)), empty_hole()),
-              None,
-              None,
-            ),
-          ]),
-        )
-      ),
-    )
-  );
-};
-
-/* Drop rows where the option column is None, unwrapping Some values */
-let drop_nones_column = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    apply_transformation(
-      info,
-      Exp.(
-        ap(
-          Forward,
-          var("filter_map"),
-          tuple([
-            deferral(InAp),
-            fn(
-              Pat.var("row"),
-              ap(
-                Forward,
-                var("option_map"),
-                tuple([
-                  dot(var("row"), label(column)),
-                  fn(
-                    Pat.var("v"),
-                    tuple_extension(
-                      var("row"),
-                      tuple([tup_label(label(column), var("v"))]),
-                    ),
-                    None,
-                    None,
-                  ),
-                ]),
-              ),
-              None,
-              None,
-            ),
-          ]),
-        )
-      ),
-    )
-  );
-};
-
-/* Replace None values with an expression hole for user to fill in default */
-let provide_default_column = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    apply_rowwise_transformation(
-      info,
-      Exp.(
-        fn(
-          Pat.var("row"),
-          tuple_extension(
-            var("row"),
-            tuple([
-              tup_label(
-                label(column),
-                match(
-                  dot(var("row"), label(column)),
-                  [
-                    /* None => hole for user to fill in */
-                    (BuiltinsADT.Option.pat_none, empty_hole()),
-                    /* Some(x) => x */
-                    (
-                      Pat.ap(BuiltinsADT.Option.pat_some, Pat.var("v")),
-                      var("v"),
-                    ),
-                  ],
-                ),
-              ),
-            ]),
-          ),
-          None,
-          None,
-        )
-      ),
-    )
-  );
-};
-
-let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
-  let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-  IdTagged.rep_id(exp)
-  |> Id.Map.find_opt(_, statics(exp))
-  |> Option.bind(
-       _,
-       fun
-       | InfoExp(e) => {
-           Some(e.ty);
-         }
-       | _ => None,
-     );
-};
-
-let can_move_column =
-    (columns_opt: option(list(string)), column: string, left: bool) =>
-  switch (columns_opt) {
-  | Some(columns) =>
-    switch (List.find_index(x => x == column, columns)) {
-    | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
-    | None => false
-    }
-  | None => false
-  };
-
-let move_column =
-    (info: info, dyn_type: option(Typ.t), column: string, left: bool)
-    : option(Base.segment) => {
-  let columns_opt = Option.bind(dyn_type, get_columns);
-  switch (columns_opt) {
-  | Some(columns) =>
-    let idx_opt = List.find_index(x => x == column, columns);
-    switch (idx_opt) {
-    | Some(idx) =>
-      let new_idx = left ? idx - 1 : idx + 1;
-      if (new_idx < 0 || new_idx >= List.length(columns)) {
-        None;
-      } else {
-        let new_columns =
-          List.mapi(
-            (i, x) =>
-              if (i == idx) {
-                List.nth(columns, new_idx);
-              } else if (i == new_idx) {
-                List.nth(columns, idx);
-              } else {
-                x;
-              },
-            columns,
-          );
-        IdTagged.FreshGrammar.Exp.(
-          apply_rowwise_transformation(
-            info,
-            ap(
-              Forward,
-              var("select_labels"),
-              tuple([deferral(InAp)] @ List.map(label, new_columns)),
-            ),
-          )
-        )
-        |> Option.some;
-      };
-    | None => None
-    };
-  | None => None
-  };
-};
-
 /* Menu system */
 let menu_item = (~tooltip="", text, action) =>
   Node.div(
@@ -503,107 +84,6 @@ let menu_item = (~tooltip="", text, action) =>
   );
 
 let menu_divider = Node.div(~attrs=[Attr.classes(["menu-divider"])], []);
-
-let conversion_functions = (cls: Atom.cls) =>
-  switch (cls) {
-  | Atom.String => [
-      ("Int", "int_of_string"),
-      ("Float", "float_of_string"),
-      ("Bool", "bool_of_string"),
-    ]
-  | Atom.Int => [
-      ("String", "string_of_int"),
-      ("Float", "float_of_int"),
-      ("Bool", "bool_of_int"),
-    ]
-  | Atom.Float => [
-      ("String", "string_of_float"),
-      ("Int", "int_of_float"),
-      ("Bool", "bool_of_float"),
-    ]
-  | Atom.Bool => [
-      ("String", "string_of_bool"),
-      ("Int", "int_of_bool"),
-      ("Float", "float_of_bool"),
-    ]
-  | _ => []
-  };
-
-let sort_column_with_direction =
-    (
-      info: info,
-      column_type: option(Typ.t),
-      header: string,
-      descending: bool,
-    )
-    : option(Base.segment) => {
-  let compare_fn =
-    switch (column_type) {
-    | Some(ty) =>
-      switch (Typ.cls_of_term(ty.term)) {
-      | Typ.Atom(Atom.Int) => Some("int_compare")
-      | Typ.Atom(Atom.Float) => Some("float_compare")
-      | Typ.Atom(Atom.String) => Some("string_compare")
-      | _ => None
-      }
-    | None => None
-    };
-  switch (compare_fn) {
-  | Some(compare_fn_name) =>
-    IdTagged.FreshGrammar.(
-      switch (
-        info.utility.lift_syntax(
-          ~inline=false,
-          fun
-          | Exp({term: exp_term, _}) => {
-              let sort_expr =
-                Exp.(
-                  ap(
-                    Reverse,
-                    ap(
-                      Forward,
-                      var("sort"),
-                      tuple([
-                        fn(
-                          Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
-                          ap(
-                            Forward,
-                            var(compare_fn_name),
-                            tuple([
-                              dot(var("r1"), label(header)),
-                              dot(var("r2"), label(header)),
-                            ]),
-                          ),
-                          None,
-                          None,
-                        ),
-                        deferral(InAp),
-                      ]),
-                    ),
-                    exp_term |> DHExp.fresh,
-                  )
-                );
-
-              let final_expr =
-                if (descending) {
-                  Exp.(ap(Reverse, var("reverse"), sort_expr));
-                } else {
-                  sort_expr;
-                };
-
-              Exp(final_expr);
-            }
-          | _ => failwith("TableRenderer: sort_column: not an expression"),
-          info.syntax,
-        )
-      ) {
-      | Some(segment) => Some(segment)
-      | None => None
-      }
-    )
-  | None => None
-  };
-};
 
 let build_column_menu =
     (
@@ -619,6 +99,11 @@ let build_column_menu =
   let columns_opt = dyn_type |> Option.bind(_, get_columns);
   let can_move_left = can_move_column(columns_opt, h, true);
   let can_move_right = can_move_column(columns_opt, h, false);
+  let apply = ts =>
+    Effect.Many([
+      local(CloseMenu),
+      parent(SetSyntax(to_segment(info, ts))),
+    ]);
 
   // If we're in a submenu, show that submenu
   switch (menu_path) {
@@ -649,11 +134,7 @@ let build_column_menu =
             Action({
               text: "Greater than",
               tooltip: "Keep rows where this column is greater than a value",
-              action: () =>
-                Effect.Many([
-                  local(CloseMenu),
-                  parent(SetSyntax(filter_by_column(op, info, h))),
-                ]),
+              action: () => apply([filter_by_column(op, h)]),
             }),
           ]
         | None => []
@@ -665,11 +146,7 @@ let build_column_menu =
             Action({
               text: "Less than",
               tooltip: "Keep rows where this column is less than a value",
-              action: () =>
-                Effect.Many([
-                  local(CloseMenu),
-                  parent(SetSyntax(filter_by_column(op, info, h))),
-                ]),
+              action: () => apply([filter_by_column(op, h)]),
             }),
           ]
         | None => []
@@ -679,11 +156,7 @@ let build_column_menu =
         Action({
           text: "Equals",
           tooltip: "Keep rows where this column equals a value",
-          action: () =>
-            Effect.Many([
-              local(CloseMenu),
-              parent(SetSyntax(filter_by_column(Poly(Equals), info, h))),
-            ]),
+          action: () => apply([filter_by_column(Poly(Equals), h)]),
         }),
       ];
     }
@@ -699,11 +172,7 @@ let build_column_menu =
               Action({
                 text: display,
                 tooltip: "Convert column values to " ++ display,
-                action: () =>
-                  Effect.Many([
-                    local(CloseMenu),
-                    parent(SetSyntax(convert_column(info, h, func))),
-                  ]),
+                action: () => apply([convert_column(h, func)]),
               }),
             conversion_functions(atom),
           )
@@ -725,20 +194,12 @@ let build_column_menu =
       Action({
         text: "Clear",
         tooltip: "Replace all values with holes",
-        action: () =>
-          Effect.Many([
-            local(CloseMenu),
-            parent(SetSyntax(clear_column(info, h))),
-          ]),
+        action: () => apply([clear_column(h)]),
       }),
       Action({
         text: "Identity",
         tooltip: "Reassigns each value to itself; useful as a starting point for custom edits",
-        action: () =>
-          Effect.Many([
-            local(CloseMenu),
-            parent(SetSyntax(noop_column(info, h))),
-          ]),
+        action: () => apply([noop_column(h)]),
       }),
     ];
   | ["Sort"] => [
@@ -751,9 +212,8 @@ let build_column_menu =
         text: "Ascending",
         tooltip: "Sort from lowest to highest",
         action: () =>
-          switch (sort_column_with_direction(info, column_type, h, false)) {
-          | Some(segment) =>
-            Effect.Many([local(CloseMenu), parent(SetSyntax(segment))])
+          switch (sort_column(column_type, h, false)) {
+          | Some(ts) => apply(ts)
           | None => local(CloseMenu)
           },
       }),
@@ -761,9 +221,8 @@ let build_column_menu =
         text: "Descending",
         tooltip: "Sort from highest to lowest",
         action: () =>
-          switch (sort_column_with_direction(info, column_type, h, true)) {
-          | Some(segment) =>
-            Effect.Many([local(CloseMenu), parent(SetSyntax(segment))])
+          switch (sort_column(column_type, h, true)) {
+          | Some(ts) => apply(ts)
           | None => local(CloseMenu)
           },
       }),
@@ -783,15 +242,10 @@ let build_column_menu =
             text: "Move Left",
             tooltip: "Move this column one position to the left",
             action: () =>
-              Effect.Many([
-                local(CloseMenu),
-                parent(
-                  SetSyntax(
-                    OptUtil.get_or_fail(
-                      "move left failed",
-                      move_column(info, dyn_type, h, true),
-                    ),
-                  ),
+              apply([
+                OptUtil.get_or_fail(
+                  "move left failed",
+                  move_column(dyn_type, h, true),
                 ),
               ]),
           }),
@@ -805,15 +259,10 @@ let build_column_menu =
             text: "Move Right",
             tooltip: "Move this column one position to the right",
             action: () =>
-              Effect.Many([
-                local(CloseMenu),
-                parent(
-                  SetSyntax(
-                    OptUtil.get_or_fail(
-                      "move right failed",
-                      move_column(info, dyn_type, h, false),
-                    ),
-                  ),
+              apply([
+                OptUtil.get_or_fail(
+                  "move right failed",
+                  move_column(dyn_type, h, false),
                 ),
               ]),
           }),
@@ -826,11 +275,7 @@ let build_column_menu =
       Action({
         text: "Drop Column",
         tooltip: "Remove this column from every row",
-        action: () =>
-          Effect.Many([
-            local(CloseMenu),
-            parent(SetSyntax(drop_column(info, h))),
-          ]),
+        action: () => apply([drop_column(h)]),
       }),
       Action({
         text: "Rename",
@@ -839,28 +284,20 @@ let build_column_menu =
           let new_column_name = JsUtil.prompt("New column name:", h);
           switch (new_column_name) {
           | None => local(CloseMenu)
-          | Some(new_name) =>
-            Effect.Many([
-              local(CloseMenu),
-              parent(SetSyntax(rename_column(info, h, new_name))),
-            ])
+          | Some(new_name) => apply([rename_column(h, new_name)])
           };
         },
       }),
       Action({
         text: "Group By",
         tooltip: "Group rows by the values in this column",
-        action: () =>
-          Effect.Many([
-            local(CloseMenu),
-            parent(SetSyntax(group_by_column(info, h))),
-          ]),
+        action: () => apply([group_by_column(h)]),
       }),
     ];
 
     /* Group 2: Data operation submenus */
     let sort_submenu =
-      switch (sort_column_with_direction(info, column_type, h, false)) {
+      switch (sort_column(column_type, h, false)) {
       | Some(_) => [
           Action({
             text: "Sort →",
@@ -918,20 +355,12 @@ let build_column_menu =
             Action({
               text: "Drop Nones",
               tooltip: "Remove rows where this column is None",
-              action: () =>
-                Effect.Many([
-                  local(CloseMenu),
-                  parent(SetSyntax(drop_nones_column(info, h))),
-                ]),
+              action: () => apply([drop_nones_column(h)]),
             }),
             Action({
               text: "Provide Default",
               tooltip: "Replace None values with a default you specify",
-              action: () =>
-                Effect.Many([
-                  local(CloseMenu),
-                  parent(SetSyntax(provide_default_column(info, h))),
-                ]),
+              action: () => apply([provide_default_column(h)]),
             }),
           ]
           : []
@@ -1031,7 +460,9 @@ let render =
               switch (new_column_name) {
               | None => Effect.Ignore
               | Some(new_name) =>
-                parent(SetSyntax(add_column(info, new_name)))
+                parent(
+                  SetSyntax(to_segment(info, [add_column(new_name)])),
+                )
               };
             }),
             Attr.create("title", "Add column"),

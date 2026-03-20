@@ -1,0 +1,479 @@
+open Util;
+open ProjectorBase;
+open Language;
+
+type transform =
+  | Rowwise(Exp.t)
+  | Listwise(Exp.t);
+
+/* Type utilities for column operations */
+let get_column_type_from_ty = (ty: Typ.t, column: string) => {
+  switch (ty.term) {
+  | List({term: Prod(tys), _}) =>
+    let ty =
+      List.find_map(
+        ty => {
+          open OptUtil.Syntax;
+          let* (label, value_ty) = Typ.match_tup_label(ty);
+          if (label == column) {
+            Some(value_ty);
+          } else {
+            None;
+          };
+        },
+        tys,
+      );
+    ty;
+  | _ => None
+  };
+};
+
+let get_columns = (ty: Typ.t): option(list(string)) => {
+  switch (ty.term) {
+  | List({term: Prod(tys), _}) =>
+    let labels: option(list(string)) =
+      OptUtil.traverse(
+        ty => {
+          open OptUtil.Syntax;
+          let* (label, _value_ty) = Typ.match_tup_label(ty);
+          Some(label);
+        },
+        tys,
+      );
+    labels;
+  | _ => None
+  };
+};
+
+let is_option_type = (ty: Typ.t): bool => {
+  let ctx = Builtins.ctx_init(Some(Int));
+  Typ.is_consistent(ctx, ty, BuiltinsADT.Option.t)
+  && Typ.is_more_precise(ctx, ty, BuiltinsADT.Option.t);
+};
+
+let strip_parens =
+  Exp.map_term(~f_exp=(continue, e) =>
+    switch (e.term) {
+    | Parens(inner) => continue(inner)
+    | _ => continue(e)
+    }
+  );
+
+let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
+  let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+  IdTagged.rep_id(exp)
+  |> Id.Map.find_opt(_, statics(exp))
+  |> Option.bind(
+       _,
+       fun
+       | InfoExp(e) => {
+           Some(e.ty);
+         }
+       | _ => None,
+     );
+};
+
+let can_move_column =
+    (columns_opt: option(list(string)), column: string, left: bool) =>
+  switch (columns_opt) {
+  | Some(columns) =>
+    switch (List.find_index(x => x == column, columns)) {
+    | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
+    | None => false
+    }
+  | None => false
+  };
+
+let conversion_functions = (cls: Atom.cls) =>
+  switch (cls) {
+  | Atom.String => [
+      ("Int", "int_of_string"),
+      ("Float", "float_of_string"),
+      ("Bool", "bool_of_string"),
+    ]
+  | Atom.Int => [
+      ("String", "string_of_int"),
+      ("Float", "float_of_int"),
+      ("Bool", "bool_of_int"),
+    ]
+  | Atom.Float => [
+      ("String", "string_of_float"),
+      ("Int", "int_of_float"),
+      ("Bool", "bool_of_float"),
+    ]
+  | Atom.Bool => [
+      ("String", "string_of_bool"),
+      ("Int", "int_of_bool"),
+      ("Float", "float_of_bool"),
+    ]
+  | _ => []
+  };
+
+/* Single conversion point: transform list → Base.segment */
+let to_segment = (info: info, transforms: list(transform)): Base.segment => {
+  let to_listwise = (t: transform): Exp.t =>
+    switch (t) {
+    | Rowwise(row_fn) =>
+      IdTagged.FreshGrammar.Exp.(
+        ap(Forward, var("map"), tuple([deferral(InAp), row_fn]))
+      )
+    | Listwise(expr) => expr
+    };
+  let transformations = List.map(to_listwise, transforms);
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        ~inline=false,
+        fun
+        | Exp({term: exp_term, _}) => {
+            let base = strip_parens(exp_term |> DHExp.fresh);
+            let result =
+              List.fold_left(
+                (acc, transformation) =>
+                  Exp.(ap(Reverse, transformation, acc)),
+                base,
+                transformations,
+              );
+            Exp(result);
+          }
+        | _ => failwith("TableTransforms: to_segment: not an expression"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableTransforms: to_segment: lift failed")
+    }
+  );
+};
+
+/* Column transformation operations */
+let drop_column = (column: string): transform => {
+  IdTagged.FreshGrammar.(
+    Rowwise(
+      Exp.(
+        ap(
+          Forward,
+          var("omit_labels"),
+          tuple([deferral(InAp), label(column)]),
+        )
+      ),
+    )
+  );
+};
+
+let convert_column = (column: string, conversion_fn: string): transform => {
+  IdTagged.FreshGrammar.(
+    Rowwise(
+      Exp.(
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([
+              tup_label(
+                label(column),
+                ap(
+                  Forward,
+                  var(conversion_fn),
+                  dot(var("r"), label(column)),
+                ),
+              ),
+            ]),
+          ),
+          None,
+          None,
+        )
+      ),
+    )
+  );
+};
+
+let rename_column = (old_name: string, new_name: string): transform => {
+  IdTagged.FreshGrammar.(
+    Rowwise(
+      Exp.(
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            ap(
+              Forward,
+              var("omit_labels"),
+              tuple([var("r"), label(old_name)]),
+            ),
+            tuple([
+              tup_label(label(new_name), dot(var("r"), label(old_name))),
+            ]),
+          ),
+          None,
+          None,
+        )
+      ),
+    )
+  );
+};
+
+let add_column = (new_column: string): transform => {
+  IdTagged.FreshGrammar.(
+    Rowwise(
+      Exp.(
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([tup_label(label(new_column), empty_hole())]),
+          ),
+          None,
+          None,
+        )
+      ),
+    )
+  );
+};
+
+let clear_column = (column: string): transform => {
+  IdTagged.FreshGrammar.(
+    Rowwise(
+      Exp.(
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([tup_label(label(column), empty_hole())]),
+          ),
+          None,
+          None,
+        )
+      ),
+    )
+  );
+};
+
+let noop_column = (column: string): transform => {
+  IdTagged.FreshGrammar.(
+    Rowwise(
+      Exp.(
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([
+              tup_label(label(column), dot(var("r"), label(column))),
+            ]),
+          ),
+          None,
+          None,
+        )
+      ),
+    )
+  );
+};
+
+let group_by_column = (column: string): transform => {
+  IdTagged.FreshGrammar.(
+    Listwise(
+      Exp.(
+        ap(
+          Forward,
+          var("group_on_key"),
+          tuple([
+            deferral(InAp),
+            fn(
+              Pat.var("row"),
+              dot(var("row"), label(column)),
+              None,
+              None,
+            ),
+          ]),
+        )
+      ),
+    )
+  );
+};
+
+let filter_by_column = (op, column: string): transform => {
+  IdTagged.FreshGrammar.(
+    Listwise(
+      Exp.(
+        ap(
+          Forward,
+          var("filter"),
+          tuple([
+            deferral(InAp),
+            fn(
+              Pat.var("row"),
+              bin_op(op, dot(var("row"), label(column)), empty_hole()),
+              None,
+              None,
+            ),
+          ]),
+        )
+      ),
+    )
+  );
+};
+
+let drop_nones_column = (column: string): transform => {
+  IdTagged.FreshGrammar.(
+    Listwise(
+      Exp.(
+        ap(
+          Forward,
+          var("filter_map"),
+          tuple([
+            deferral(InAp),
+            fn(
+              Pat.var("row"),
+              ap(
+                Forward,
+                var("option_map"),
+                tuple([
+                  dot(var("row"), label(column)),
+                  fn(
+                    Pat.var("v"),
+                    tuple_extension(
+                      var("row"),
+                      tuple([tup_label(label(column), var("v"))]),
+                    ),
+                    None,
+                    None,
+                  ),
+                ]),
+              ),
+              None,
+              None,
+            ),
+          ]),
+        )
+      ),
+    )
+  );
+};
+
+let provide_default_column = (column: string): transform => {
+  IdTagged.FreshGrammar.(
+    Rowwise(
+      Exp.(
+        fn(
+          Pat.var("row"),
+          tuple_extension(
+            var("row"),
+            tuple([
+              tup_label(
+                label(column),
+                match(
+                  dot(var("row"), label(column)),
+                  [
+                    (BuiltinsADT.Option.pat_none, empty_hole()),
+                    (
+                      Pat.ap(BuiltinsADT.Option.pat_some, Pat.var("v")),
+                      var("v"),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+          None,
+          None,
+        )
+      ),
+    )
+  );
+};
+
+let move_column =
+    (dyn_type: option(Typ.t), column: string, left: bool): option(transform) => {
+  let columns_opt = Option.bind(dyn_type, get_columns);
+  switch (columns_opt) {
+  | Some(columns) =>
+    let idx_opt = List.find_index(x => x == column, columns);
+    switch (idx_opt) {
+    | Some(idx) =>
+      let new_idx = left ? idx - 1 : idx + 1;
+      if (new_idx < 0 || new_idx >= List.length(columns)) {
+        None;
+      } else {
+        let new_columns =
+          List.mapi(
+            (i, x) =>
+              if (i == idx) {
+                List.nth(columns, new_idx);
+              } else if (i == new_idx) {
+                List.nth(columns, idx);
+              } else {
+                x;
+              },
+            columns,
+          );
+        Some(
+          Rowwise(
+            IdTagged.FreshGrammar.Exp.(
+              ap(
+                Forward,
+                var("select_labels"),
+                tuple([deferral(InAp)] @ List.map(label, new_columns)),
+              )
+            ),
+          ),
+        );
+      };
+    | None => None
+    };
+  | None => None
+  };
+};
+
+let sort_column =
+    (column_type: option(Typ.t), header: string, descending: bool)
+    : option(list(transform)) => {
+  let compare_fn =
+    switch (column_type) {
+    | Some(ty) =>
+      switch (Typ.cls_of_term(ty.term)) {
+      | Typ.Atom(Atom.Int) => Some("int_compare")
+      | Typ.Atom(Atom.Float) => Some("float_compare")
+      | Typ.Atom(Atom.String) => Some("string_compare")
+      | _ => None
+      }
+    | None => None
+    };
+  switch (compare_fn) {
+  | Some(compare_fn_name) =>
+    let sort_transform =
+      Listwise(
+        IdTagged.FreshGrammar.(
+          Exp.(
+            ap(
+              Forward,
+              var("sort"),
+              tuple([
+                fn(
+                  Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
+                  ap(
+                    Forward,
+                    var(compare_fn_name),
+                    tuple([
+                      dot(var("r1"), label(header)),
+                      dot(var("r2"), label(header)),
+                    ]),
+                  ),
+                  None,
+                  None,
+                ),
+                deferral(InAp),
+              ]),
+            )
+          )
+        ),
+      );
+    if (descending) {
+      Some([
+        sort_transform,
+        Listwise(IdTagged.FreshGrammar.Exp.var("reverse")),
+      ]);
+    } else {
+      Some([sort_transform]);
+    };
+  | None => None
+  };
+};
