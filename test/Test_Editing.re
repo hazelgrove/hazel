@@ -2736,6 +2736,199 @@ let unwrap_quote_tests = [
   ),
 ];
 
+/* --- Comment Toggle tests --- */
+let comment_toggle_tests = [
+  /* Single line commenting */
+  test(
+    ~name="Comment a code line",
+    ~acts=mk({|¦hello|}) @ [Action.ToggleLineComment],
+    ~goal={|?#hello#¦|},
+  ),
+  test(
+    ~name="Comment an expression",
+    ~acts=mk({|¦1 + 2|}) @ [Action.ToggleLineComment],
+    ~goal={|?#1 + 2#¦|},
+  ),
+  test(
+    ~name="Comment with caret in middle of line",
+    ~acts=mk({|he¦llo|}) @ [Action.ToggleLineComment],
+    ~goal={|?#hello#¦|},
+  ),
+  /* Toggle empty line is a no-op */
+  test(
+    ~name="Toggle empty line is no-op",
+    ~acts=mk({|¦|}) @ [Action.ToggleLineComment],
+    ~goal={|?¦|},
+  ),
+  /* Roundtrip: comment then uncomment */
+  test(
+    ~name="Roundtrip: comment then uncomment identifier",
+    ~acts=
+      mk({|¦hello|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Roundtrip: comment then uncomment expression",
+    ~acts=
+      mk({|¦1 + 2|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|1 + 2¦|},
+  ),
+  test(
+    ~name="Roundtrip: comment then uncomment with caret in middle",
+    ~acts=
+      mk({|he¦llo|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  /* Single line in multiline context */
+  test(
+    ~name="Comment second line only",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.ToggleLineComment],
+    ~goal="x\n# y#¦",
+  ),
+  test(
+    ~name="Comment second line roundtrip",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n ~y¦",
+  ),
+  /* Multi-line with selection: comment all lines */
+  test(
+    ~name="Multi: select all and comment two lines",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="?#x#\n# y#¦",
+  ),
+  /* Multi-line: select one line and comment */
+  test(
+    ~name="Multi: select line 2 and comment",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(Resize(Line(Left)))]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n# y#¦",
+  ),
+  /* Multi-line: mixed state does nothing */
+  test(
+    ~name="Multi: mixed code and comment is no-op",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("#y#")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n#y#¦",
+  ),
+  /* Multi-line roundtrip */
+  test(
+    ~name="Multi: comment all then uncomment all",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment]
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n ~y¦",
+  ),
+];
+
+/* Collect (token, sort) pairs from all tiles in a segment, recursively */
+let rec tile_sorts_of_seg = (seg: Segment.t): list((string, Sort.t)) =>
+  List.concat_map(tile_sorts_of_piece, seg)
+and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
+  switch (p) {
+  | Tile(t) =>
+    let label_sorts = List.map(tok => (tok, t.mold.out), t.label);
+    let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
+    label_sorts @ child_sorts;
+  | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
+  | Grout(_)
+  | Secondary(_) => []
+  };
+
+let tile_sorts_of_zip = (z: Zipper.t): list((string, Sort.t)) =>
+  tile_sorts_of_seg(Zipper.zip(z));
+
+let show_tile_sorts = (sorts: list((string, Sort.t))): string =>
+  sorts
+  |> List.map(((tok, sort)) => tok ++ ":" ++ Sort.show(sort))
+  |> String.concat(" ");
+
+/* Test that molds match between fresh typing and comment roundtrip */
+let remold_test = (~name, ~fresh_acts, ~roundtrip_acts) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let fresh_z = fresh_acts |> perform(Zipper.init());
+      let roundtrip_z = roundtrip_acts |> perform(Zipper.init());
+      let fresh_str = show_tile_sorts(tile_sorts_of_zip(fresh_z));
+      let roundtrip_str = show_tile_sorts(tile_sorts_of_zip(roundtrip_z));
+      check(
+        testable(Fmt.string, String.equal),
+        name,
+        fresh_str,
+        roundtrip_str,
+      );
+    },
+  );
+
+let comment_remold_tests = [
+  /* Single-line let roundtrip */
+  remold_test(
+    ~name="Molds: single-line let roundtrip",
+    ~fresh_acts=mk({|¦let a = 1 in a|}),
+    ~roundtrip_acts=
+      mk({|¦let a = 1 in a|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* Multi-line let: comment/uncomment first line */
+  remold_test(
+    ~name="Molds: multi-line let roundtrip line 1",
+    ~fresh_acts=mk({|let a =
+1
+in a¦|}),
+    ~roundtrip_acts=
+      mk({|let a =
+1
+in a¦|})
+      @ [Action.Move(Start)]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* Annotated let roundtrip */
+  remold_test(
+    ~name="Molds: annotated let roundtrip",
+    ~fresh_acts=mk({|¦let a : (Int) = 1 in a|}),
+    ~roundtrip_acts=
+      mk({|¦let a : (Int) = 1 in a|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -2750,4 +2943,6 @@ let tests = [
   ("Editing.RemoldSort", remold_sort_tests),
   ("Editing.WrapSelection", wrap_selection_tests),
   ("Editing.UnwrapQuote", unwrap_quote_tests),
+  ("Editing.CommentToggle", comment_toggle_tests),
+  ("Editing.CommentRemold", comment_remold_tests),
 ];

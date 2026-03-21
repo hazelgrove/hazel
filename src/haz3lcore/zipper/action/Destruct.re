@@ -64,8 +64,7 @@ let outer = (d: Direction.t, z: t): option(t) =>
   switch (Zipper.neighbor_token(d, z)) {
   | Some(t) when Token.length(t) > 1 && !Token.is_string_or_comment(t) =>
     Insert.replace_shard(d, Token.rm_edge(d, t), z)
-  | Some(t) when Token.is_string_or_comment(t) =>
-    unwrap_quote(d, t, z)
+  | Some(t) when Token.is_string_or_comment(t) => unwrap_quote(d, t, z)
   | _ => delete(d, z)
   };
 
