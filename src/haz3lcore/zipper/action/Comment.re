@@ -129,9 +129,39 @@ let classify_lines = (seg: Segment.t): line_class => {
   };
 };
 
+/* After insert_text, cursor is at end of last line with no selection.
+ * Move back to start of first line, then select forward to end of
+ * last line, so the toggled region remains selected. */
+let reselect_lines = (z: t, num_newlines: int): t => {
+  let or_stay = (f, z) =>
+    switch (f(z)) {
+    | Some(z) => z
+    | None => z
+    };
+  /* Move to start of current (last) line */
+  let z = or_stay(Move.to_linebreak(Left), z);
+  /* Cross linebreaks going left to reach start of first line */
+  let z =
+    List.fold_left(
+      (z, _) =>
+        z |> or_stay(Move.by_char(Left)) |> or_stay(Move.to_linebreak(Left)),
+      z,
+      List.init(num_newlines, Fun.id),
+    );
+  /* Select to end of current (first) line */
+  let z = or_stay(Select.to_linebreak(Right), z);
+  /* Cross linebreaks going right, selecting each subsequent line */
+  List.fold_left(
+    (z, _) =>
+      z |> or_stay(Select.local(Right)) |> or_stay(Select.to_linebreak(Right)),
+    z,
+    List.init(num_newlines, Fun.id),
+  );
+};
+
 /* Toggle comment for multiple lines spanned by the current selection.
  * Extends selection to cover full lines, then processes each line
- * individually from top to bottom. */
+ * individually from top to bottom. Result remains selected. */
 let toggle_multi = (z: t): option(t) => {
   /* Extend selection to cover full lines.
    * Must set focus to match the extension direction,
@@ -163,15 +193,20 @@ let toggle_multi = (z: t): option(t) => {
       );
     let z = Zipper.destroy_selection(z);
     let lines = String.split_on_char('\n', text);
+    let num_newlines = List.length(lines) - 1;
     let commented =
       lines |> List.map(line => "#" ++ line ++ "#") |> String.concat("\n");
-    Some(insert_text(z, commented));
+    let z = insert_text(z, commented);
+    Some(reselect_lines(z, num_newlines));
   | Comment =>
     /* Uncomment each line: destroy selection, extract content
      * from each comment, re-insert with newlines between */
     let text = uncommented_text(content);
+    let num_newlines =
+      List.length(String.split_on_char('\n', text)) - 1;
     let z = Zipper.destroy_selection(z);
-    Some(insert_text(z, text));
+    let z = insert_text(z, text);
+    Some(reselect_lines(z, num_newlines));
   };
 };
 

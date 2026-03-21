@@ -2814,7 +2814,7 @@ let comment_toggle_tests = [
       @ string_to_ltr_actions("y")
       @ [Action.Select(All)]
       @ [Action.ToggleLineComment],
-    ~goal="?#x#\n# y#¦",
+    ~goal="§?#x#\n# y#¦",
   ),
   /* Multi-line: select one line and comment */
   test(
@@ -2825,7 +2825,7 @@ let comment_toggle_tests = [
       @ string_to_ltr_actions("y")
       @ [Action.Select(Resize(Line(Left)))]
       @ [Action.ToggleLineComment],
-    ~goal="x\n# y#¦",
+    ~goal="x\n§# y#¦",
   ),
   /* Multi-line: mixed state does nothing */
   test(
@@ -2849,7 +2849,7 @@ let comment_toggle_tests = [
       @ [Action.ToggleLineComment]
       @ [Action.Select(All)]
       @ [Action.ToggleLineComment],
-    ~goal="x\n ~y¦",
+    ~goal="§x\n ~y¦",
   ),
 ];
 
@@ -2977,7 +2977,7 @@ else 2¦|})
       @ string_to_ltr_actions("y")
       @ [Action.Select(All)]
       @ [Action.ToggleLineComment],
-    ~goal="?#x#\n##\n# y#¦",
+    ~goal="§?#x#\n##\n# y#¦",
   ),
 ];
 
