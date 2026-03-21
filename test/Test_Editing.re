@@ -2657,6 +2657,85 @@ let wrap_selection_tests = [
   ),
 ];
 
+let unwrap_quote_tests = [
+  /* --- String unwrapping --- */
+  test(
+    ~name="Backspace string from right unwraps content",
+    ~acts=mk({|"hello"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Delete string from left unwraps content",
+    ~acts=mk({|¦"hello"|}) @ [Action.Destruct(Right)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Backspace empty string just deletes",
+    ~acts=mk({|""¦|}) @ [Action.Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Single char string unwraps",
+    ~acts=mk({|"a"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|a¦|},
+  ),
+  /* --- Backtick label unwrapping --- */
+  test(
+    ~name="Backspace backtick label unwraps",
+    ~acts=mk({|`abc`¦|}) @ [Action.Destruct(Left)],
+    ~goal={|abc¦|},
+  ),
+  /* --- Comment unwrapping --- */
+  test(
+    ~name="Delete comment from left unwraps",
+    ~acts=mk({|¦#stuff#|}) @ [Action.Destruct(Right)],
+    ~goal={|stuff¦|},
+  ),
+  /* --- Context preservation --- */
+  test(
+    ~name="Unwrap string in expression context",
+    ~acts=mk({|x + "hello"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|x + hello¦|},
+  ),
+  test(
+    ~name="Unwrap string in let binding",
+    ~acts=mk({|let x = "hello"¦ in x|}) @ [Action.Destruct(Left)],
+    ~goal={|let x = hello¦ in x|},
+  ),
+  /* --- Content re-parses as code --- */
+  test(
+    ~name="Unwrap string with spaces produces separate tokens",
+    ~acts=mk({|"hello world"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|hello ~world¦|},
+  ),
+  test(
+    ~name="Unwrap string with operators re-parses as expression",
+    ~acts=mk({|"1 + 2"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|1 + 2¦|},
+  ),
+  /* --- Inner boundary deletion --- */
+  test(
+    ~name="Backspace at opening delimiter boundary unwraps",
+    ~acts=mk({|¦"hello"|}) @ mv_r(1) @ [Action.Destruct(Left)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Delete at closing delimiter boundary unwraps",
+    ~acts=mk({|"hello"¦|}) @ mv_l(1) @ [Action.Destruct(Right)],
+    ~goal={|hello¦|},
+  ),
+  /* --- Roundtrip with wrapping --- */
+  test(
+    ~name="Wrap then unwrap is identity",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})]
+      @ [Action.Destruct(Left)],
+    ~goal={|abc¦|},
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -2670,4 +2749,5 @@ let tests = [
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
   ("Editing.WrapSelection", wrap_selection_tests),
+  ("Editing.UnwrapQuote", unwrap_quote_tests),
 ];
