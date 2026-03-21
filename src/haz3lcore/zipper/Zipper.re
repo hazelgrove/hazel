@@ -89,14 +89,117 @@ let rescan_reassemble = (d: Direction.t, z: t): t => {
   };
 };
 
+/* Count complete multi-delimiter tiles across the entire zipper.
+   Used by deep_reassociate to detect if reassociation would break
+   existing complete forms (Option C: revert if count decreases). */
+let count_complete_multitiles = (z: t): int => {
+  let rec count_segment = (seg: Segment.t): int =>
+    List.fold_left(
+      (acc, p) =>
+        switch (p) {
+        | Piece.Tile(t) =>
+          let self = Tile.is_complete(t) && List.length(t.label) > 1 ? 1 : 0;
+          let children =
+            List.fold_left((a, c) => a + count_segment(c), 0, t.children);
+          acc + self + children;
+        | _ => acc
+        },
+      0,
+      seg,
+    );
+  let count_siblings = ((pre, suf): Siblings.t): int =>
+    count_segment(pre) + count_segment(suf);
+  let count_ancestors = (ancs: Ancestors.t): int =>
+    List.fold_left(
+      (acc, (a, parent_sibs): Ancestors.generation) => {
+        let self = {
+          let total_shards =
+            List.length(fst(a.shards)) + List.length(snd(a.shards));
+          total_shards == List.length(a.label) && List.length(a.label) > 1
+            ? 1 : 0;
+        };
+        let children =
+          List.fold_left(
+            (a, c) => a + count_segment(c),
+            0,
+            fst(a.children) @ snd(a.children),
+          );
+        let ps = count_siblings(parent_sibs);
+        acc + self + children + ps;
+      },
+      0,
+      ancs,
+    );
+  count_siblings(z.relatives.siblings)
+  + count_ancestors(z.relatives.ancestors);
+};
+
+/* Check if a segment recursively contains any incomplete
+   multi-delimiter tiles. Used to decide which sibling tiles
+   to aggressively flatten in deep_reassociate. */
+let rec has_incomplete_multi_deep = (seg: Segment.t): bool =>
+  List.exists(
+    p =>
+      switch (p) {
+      | Piece.Tile(t) =>
+        !Tile.is_complete(t)
+        && List.length(t.label) > 1
+        || List.exists(has_incomplete_multi_deep, t.children)
+      | _ => false
+      },
+    seg,
+  );
+
+/* Recursively disassemble complete multi-delimiter sibling tiles
+   whose subtrees contain incomplete multi-delimiter tiles. This
+   exposes orphaned shards trapped inside complete tiles, enabling
+   rescan to match them with tokens at the sibling level. */
+let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
+  seg
+  |> List.concat_map(p =>
+       switch (p) {
+       | Piece.Tile(t)
+           when
+             Tile.is_complete(t)
+             && List.length(t.label) > 1
+             && List.exists(has_incomplete_multi_deep, t.children) =>
+         let rec interleave = (shards, children) =>
+           switch (shards) {
+           | [] => []
+           | [s] => [
+               Piece.Tile({
+                 ...t,
+                 shards: [s],
+                 children: [],
+               }),
+             ]
+           | [s, ...rest_s] =>
+             let singleton =
+               Piece.Tile({
+                 ...t,
+                 shards: [s],
+                 children: [],
+               });
+             switch (children) {
+             | [c, ...rest_c] =>
+               [singleton]
+               @ flatten_tiles_with_incomplete(c)
+               @ interleave(rest_s, rest_c)
+             | [] => [singleton, ...interleave(rest_s, [])]
+             };
+           };
+         interleave(t.shards, t.children);
+       | _ => [p]
+       }
+     );
+
 /* Deep reassociate: flatten all ancestors into siblings,
+   aggressively flatten sibling tiles containing orphaned shards,
    rescan for delimiter reassociation, and reassemble.
-   This eliminates history-sensitive states where the segment
-   tree structure differs from what a fresh parse would produce
-   (e.g. mismatched parentheses after inserting a new delimiter).
-   The cursor position is naturally preserved since we operate
-   on the (left, right) sibling split directly. */
+   Reverts if reassociation would not strictly increase the number
+   of complete multi-delimiter tiles. */
 let deep_reassociate = (z: t): t => {
+  let before_count = count_complete_multitiles(z);
   /* Track fresh IDs so we can repair incidental breakage.
      Maps fresh_id → (original_id, shard_indices) for right-side
      ancestor shards. */
@@ -133,6 +236,11 @@ let deep_reassociate = (z: t): t => {
     };
   let (siblings, ancestors) =
     flatten_all(z.relatives.siblings, z.relatives.ancestors);
+  /* Aggressively flatten complete sibling tiles whose subtrees
+     contain orphaned (incomplete multi-delimiter) shards. This
+     exposes shards trapped inside complete tiles so rescan can
+     match them with tokens at the sibling level. */
+  let siblings = TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
   /* Rescan */
   let siblings = Siblings.rescan(siblings);
   /* Repair incidental breakage: if a freshened shard survived rescan
@@ -185,10 +293,15 @@ let deep_reassociate = (z: t): t => {
       ancestors,
     }
     |> Relatives.reassemble;
-  {
+  let z' = {
     ...z,
     relatives,
   };
+  /* Option C: only keep reassociation if it strictly increased
+     the number of complete multi-delimiter tiles. Trading (one
+     tile breaks, another completes) is displacement, not progress. */
+  let after_count = count_complete_multitiles(z');
+  after_count > before_count ? z' : z;
 };
 
 let clear_unparsed_buffer = (z: t) =>
