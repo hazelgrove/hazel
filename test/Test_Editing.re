@@ -1491,6 +1491,99 @@ in a¦|})
   ),
 ];
 
+/* Additional comment toggle coverage */
+let comment_toggle_extra_tests = [
+  /* Uncomment a manually-typed comment */
+  test(
+    ~name="Uncomment manually typed comment",
+    ~acts=mk({|¦#hello#|}) @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  /* Mixed single line (code + comment) is no-op */
+  test(
+    ~name="Mixed single line is no-op",
+    ~acts=mk({|x ¦#hello#|}) @ [Action.ToggleLineComment],
+    ~goal={|x #hello#¦|},
+  ),
+  /* Multi-shard tile: comment then branch of if-then-else */
+  test(
+    ~name="Comment then branch of if-then-else",
+    ~acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment],
+    ~goal="if true\n#then 1#¦\nelse 2",
+  ),
+  /* Multi-shard tile roundtrip */
+  test(
+    ~name="If-then-else roundtrip then branch",
+    ~acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal="if true\nthen 1¦\nelse 2",
+  ),
+  /* Multi-line with empty line in between */
+  test(
+    ~name="Comment with empty line between",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="?#x#\n##\n# y#¦",
+  ),
+];
+
+/* Ancestor.sort fix: molds preserved in non-comment contexts */
+let ancestor_sort_tests = [
+  /* Deleting = from let preserves Pat mold on a */
+  remold_test(
+    ~name="Molds: delete = from let preserves Pat",
+    ~fresh_acts=mk({|let a ¦1 in a|}),
+    ~roundtrip_acts=
+      mk({|let a =¦ 1 in a|})
+      @ [Action.Destruct(Left)],
+  ),
+  /* type...=...in roundtrip preserves TPat mold */
+  remold_test(
+    ~name="Molds: type alias roundtrip line 1",
+    ~fresh_acts=mk({|type t =
+Int
+in 1¦|}),
+    ~roundtrip_acts=
+      mk({|type t =
+Int
+in 1¦|})
+      @ [Action.Move(Start)]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* If-then-else roundtrip preserves Exp molds */
+  remold_test(
+    ~name="Molds: if-then-else roundtrip then line",
+    ~fresh_acts=mk({|if true
+then 1
+else 2¦|}),
+    ~roundtrip_acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -1502,4 +1595,6 @@ let tests = [
   ("Editing.UnwrapQuote", unwrap_quote_tests),
   ("Editing.CommentToggle", comment_toggle_tests),
   ("Editing.CommentRemold", comment_remold_tests),
+  ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
+  ("Editing.AncestorSort", ancestor_sort_tests),
 ];
