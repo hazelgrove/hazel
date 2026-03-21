@@ -2514,6 +2514,310 @@ let remold_sort_tests = [
   ),
 ];
 
+let deep_reassociate_advanced_tests = [
+  /* Parens out-of-order: type ( inside, then ) outside.
+   * Tests aggressive flatten: the orphaned ( trapped inside the
+   * complete outer parens must be exposed for rescan to match.
+   * Would fail without flatten_tiles_with_incomplete. */
+  test_case(
+    "Parens wrap via out-of-order ( then )",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      /* Start: (1+2), cursor before 2. Type (, move past 2), type ) */
+      let z =
+        mk("(1+¦2)")
+        @ [Insert("(")]
+        @ mv_r(2)
+        @ [Insert(")")]
+        |> perform(~settings, Zipper.init());
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail(
+          "Incomplete tiles remain — both parens pairs should be complete",
+        );
+      };
+      let seg = Zipper.zip(z);
+      let parens = find_tiles_by_label(["(", ")"], seg);
+      let complete_parens = List.filter(Tile.is_complete, parens);
+      if (List.length(complete_parens) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 2 complete paren tiles, got %d",
+            List.length(complete_parens),
+          ),
+        );
+      };
+    },
+  ),
+  /* Let stability: typing a new let inside an existing let's
+   * definition must not break the outer let at any intermediate step.
+   * Would fail without the > count check (outer let's `in` would
+   * be stolen by the inner let via rescan). */
+  test_case(
+    "Inserting let between existing lets preserves outer",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z0 =
+        mk("let a = ¦ in a")
+        |> perform(~settings, Zipper.init());
+      let count_complete_lets = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let lets = find_tiles_by_label(["let", "=", "in"], seg);
+        List.length(List.filter(Tile.is_complete, lets));
+      };
+      /* After typing 'let ': outer let should still be complete */
+      let z1 =
+        string_to_ltr_actions("let ")
+        |> perform(~settings, z0);
+      if (count_complete_lets(z1) < 1) {
+        Alcotest.fail(
+          "After 'let ': outer let broken (expected >= 1 complete)",
+        );
+      };
+      /* After typing 'x = ': outer let should still be complete */
+      let z2 =
+        string_to_ltr_actions("x = ")
+        |> perform(~settings, z1);
+      if (count_complete_lets(z2) < 1) {
+        Alcotest.fail(
+          "After 'x = ': outer let broken (expected >= 1 complete)",
+        );
+      };
+      /* After typing '2 in ': both lets should be complete */
+      let z3 =
+        string_to_ltr_actions("2 in ")
+        |> perform(~settings, z2);
+      if (count_complete_lets(z3) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After '2 in ': expected 2 complete lets, got %d",
+            count_complete_lets(z3),
+          ),
+        );
+      };
+    },
+  ),
+  /* List literals out-of-order: type [ inside [1+2], then ] outside.
+   * Same mechanism as parens but confirms bracket forms also work. */
+  test_case(
+    "List literals out-of-order [ then ]",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z =
+        mk("[1+¦2]")
+        @ [Insert("[")]
+        @ mv_r(2)
+        @ [Insert("]")]
+        |> perform(~settings, Zipper.init());
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail(
+          "Incomplete tiles remain — both bracket pairs should be complete",
+        );
+      };
+      let seg = Zipper.zip(z);
+      let brackets = find_tiles_by_label(["[", "]"], seg);
+      let complete = List.filter(Tile.is_complete, brackets);
+      if (List.length(complete) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 2 complete bracket tiles, got %d",
+            List.length(complete),
+          ),
+        );
+      };
+    },
+  ),
+  /* If inside if: typing a new if/then/else inside an existing
+   * if's then-branch must not steal the outer then or else.
+   * Tests the > guard with a 3-delimiter form. */
+  test_case(
+    "Typing if inside if preserves outer",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z0 =
+        mk("if true then ¦ else 0")
+        |> perform(~settings, Zipper.init());
+      let count_complete_ifs = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let ifs = find_tiles_by_label(["if", "then", "else"], seg);
+        List.length(List.filter(Tile.is_complete, ifs));
+      };
+      /* After 'if ': outer if should be preserved */
+      let z1 =
+        string_to_ltr_actions("if ")
+        |> perform(~settings, z0);
+      if (count_complete_ifs(z1) < 1) {
+        Alcotest.fail("After 'if ': outer if broken");
+      };
+      /* After 'if false then ': outer if should still be preserved */
+      let z2 =
+        string_to_ltr_actions("false then ")
+        |> perform(~settings, z1);
+      if (count_complete_ifs(z2) < 1) {
+        Alcotest.fail("After 'if false then ': outer if broken");
+      };
+      /* After 'if false then 1 else ': both ifs complete */
+      let z3 =
+        string_to_ltr_actions("1 else ")
+        |> perform(~settings, z2);
+      if (count_complete_ifs(z3) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After completing inner if: expected 2, got %d",
+            count_complete_ifs(z3),
+          ),
+        );
+      };
+    },
+  ),
+  /* Fun inside fun: typing fun y -> inside fun x -> body.
+   * The inner fun's -> must not steal the outer's ->.
+   * Tests > guard with shared delimiters (-> used by fun/fix/etc). */
+  test_case(
+    "Typing fun inside fun preserves outer",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z0 =
+        mk("fun x -> ¦")
+        |> perform(~settings, Zipper.init());
+      let count_complete_funs = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let funs = find_tiles_by_label(["fun", "->"], seg);
+        List.length(List.filter(Tile.is_complete, funs));
+      };
+      /* After 'fun ': outer fun should be preserved */
+      let z1 =
+        string_to_ltr_actions("fun ")
+        |> perform(~settings, z0);
+      if (count_complete_funs(z1) < 1) {
+        Alcotest.fail("After 'fun ': outer fun broken");
+      };
+      /* After 'fun y -> 1': both funs should be complete */
+      let z2 =
+        string_to_ltr_actions("y -> 1")
+        |> perform(~settings, z1);
+      if (count_complete_funs(z2) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After completing inner fun: expected 2, got %d",
+            count_complete_funs(z2),
+          ),
+        );
+      };
+    },
+  ),
+  /* Nested parens stability: typing ( inside (1+(2)) should not
+   * break either existing paren pair. Then typing ) should yield
+   * three complete pairs. Tests that aggressive flatten + > guard
+   * cooperate correctly with deeper nesting. */
+  test_case(
+    "Nested parens: ( inside preserves existing, ) completes new",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      /* After inserting ( inside inner parens: existing parens stay */
+      let z1 =
+        mk("(1+(¦2))")
+        @ [Insert("(")]
+        |> perform(~settings, Zipper.init());
+      let count_complete_parens = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let ps = find_tiles_by_label(["(", ")"], seg);
+        List.length(List.filter(Tile.is_complete, ps));
+      };
+      if (count_complete_parens(z1) < 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After inserting (: expected >= 2 complete parens, got %d",
+            count_complete_parens(z1),
+          ),
+        );
+      };
+      /* Move past 2, type ) — all three parens should be complete */
+      let z2 =
+        mv_r(1) @ [Insert(")")]
+        |> perform(~settings, z1);
+      if (count_complete_parens(z2) != 3) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After inserting ): expected 3 complete parens, got %d",
+            count_complete_parens(z2),
+          ),
+        );
+      };
+    },
+  ),
+  /* Let inside if: typing let x = 1 in inside if's then-branch.
+   * Tests preservation across different form types — the if's
+   * then/else must not be stolen by the let's = or in. */
+  test_case(
+    "Typing let inside if preserves outer if",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z0 =
+        mk("if true then ¦ else 0")
+        |> perform(~settings, Zipper.init());
+      let count_complete_ifs = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let ifs = find_tiles_by_label(["if", "then", "else"], seg);
+        List.length(List.filter(Tile.is_complete, ifs));
+      };
+      /* After 'let x = ': if should still be complete */
+      let z1 =
+        string_to_ltr_actions("let x = ")
+        |> perform(~settings, z0);
+      if (count_complete_ifs(z1) < 1) {
+        Alcotest.fail("After 'let x = ': outer if broken");
+      };
+      /* After 'let x = 1 in ': if and let both complete */
+      let z2 =
+        string_to_ltr_actions("1 in ")
+        |> perform(~settings, z1);
+      if (count_complete_ifs(z2) < 1) {
+        Alcotest.fail("After completing let: outer if broken");
+      };
+      let count_complete_lets = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let lets = find_tiles_by_label(["let", "=", "in"], seg);
+        List.length(List.filter(Tile.is_complete, lets));
+      };
+      if (count_complete_lets(z2) != 1) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After completing let: expected 1 complete let, got %d",
+            count_complete_lets(z2),
+          ),
+        );
+      };
+    },
+  ),
+  /* Destruct stability: deleting the inner `in` from nested lets
+   * must not cause the outer let's `in` to be stolen.
+   * Tests the > guard on the Destruct path. */
+  test_case(
+    "Destruct inner in preserves outer let",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z =
+        mk("let a = 1 in let b = 2 in¦ b")
+        @ [Destruct(Left), Destruct(Left)]
+        |> perform(~settings, Zipper.init());
+      let seg = Zipper.zip(z);
+      let lets = find_tiles_by_label(["let", "=", "in"], seg);
+      let complete = List.filter(Tile.is_complete, lets);
+      if (List.length(complete) < 1) {
+        Alcotest.fail("Outer let broken after deleting inner in");
+      };
+    },
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -2527,4 +2831,5 @@ let tests = [
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
   ("Editing.DeepReassociate", deep_reassociate_tests),
+  ("Editing.DeepReassociateAdv", deep_reassociate_advanced_tests),
 ];
