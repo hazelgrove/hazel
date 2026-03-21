@@ -2558,36 +2558,28 @@ let deep_reassociate_advanced_tests = [
     `Quick,
     () => {
       let settings = deep_reassociate_settings;
-      let z0 =
-        mk("let a = ¦ in a")
-        |> perform(~settings, Zipper.init());
+      let z0 = mk("let a = ¦ in a") |> perform(~settings, Zipper.init());
       let count_complete_lets = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let lets = find_tiles_by_label(["let", "=", "in"], seg);
         List.length(List.filter(Tile.is_complete, lets));
       };
       /* After typing 'let ': outer let should still be complete */
-      let z1 =
-        string_to_ltr_actions("let ")
-        |> perform(~settings, z0);
+      let z1 = string_to_ltr_actions("let ") |> perform(~settings, z0);
       if (count_complete_lets(z1) < 1) {
         Alcotest.fail(
           "After 'let ': outer let broken (expected >= 1 complete)",
         );
       };
       /* After typing 'x = ': outer let should still be complete */
-      let z2 =
-        string_to_ltr_actions("x = ")
-        |> perform(~settings, z1);
+      let z2 = string_to_ltr_actions("x = ") |> perform(~settings, z1);
       if (count_complete_lets(z2) < 1) {
         Alcotest.fail(
           "After 'x = ': outer let broken (expected >= 1 complete)",
         );
       };
       /* After typing '2 in ': both lets should be complete */
-      let z3 =
-        string_to_ltr_actions("2 in ")
-        |> perform(~settings, z2);
+      let z3 = string_to_ltr_actions("2 in ") |> perform(~settings, z2);
       if (count_complete_lets(z3) != 2) {
         Alcotest.fail(
           Printf.sprintf(
@@ -2638,31 +2630,25 @@ let deep_reassociate_advanced_tests = [
     () => {
       let settings = deep_reassociate_settings;
       let z0 =
-        mk("if true then ¦ else 0")
-        |> perform(~settings, Zipper.init());
+        mk("if true then ¦ else 0") |> perform(~settings, Zipper.init());
       let count_complete_ifs = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let ifs = find_tiles_by_label(["if", "then", "else"], seg);
         List.length(List.filter(Tile.is_complete, ifs));
       };
       /* After 'if ': outer if should be preserved */
-      let z1 =
-        string_to_ltr_actions("if ")
-        |> perform(~settings, z0);
+      let z1 = string_to_ltr_actions("if ") |> perform(~settings, z0);
       if (count_complete_ifs(z1) < 1) {
         Alcotest.fail("After 'if ': outer if broken");
       };
       /* After 'if false then ': outer if should still be preserved */
       let z2 =
-        string_to_ltr_actions("false then ")
-        |> perform(~settings, z1);
+        string_to_ltr_actions("false then ") |> perform(~settings, z1);
       if (count_complete_ifs(z2) < 1) {
         Alcotest.fail("After 'if false then ': outer if broken");
       };
       /* After 'if false then 1 else ': both ifs complete */
-      let z3 =
-        string_to_ltr_actions("1 else ")
-        |> perform(~settings, z2);
+      let z3 = string_to_ltr_actions("1 else ") |> perform(~settings, z2);
       if (count_complete_ifs(z3) != 2) {
         Alcotest.fail(
           Printf.sprintf(
@@ -2681,25 +2667,19 @@ let deep_reassociate_advanced_tests = [
     `Quick,
     () => {
       let settings = deep_reassociate_settings;
-      let z0 =
-        mk("fun x -> ¦")
-        |> perform(~settings, Zipper.init());
+      let z0 = mk("fun x -> ¦") |> perform(~settings, Zipper.init());
       let count_complete_funs = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let funs = find_tiles_by_label(["fun", "->"], seg);
         List.length(List.filter(Tile.is_complete, funs));
       };
       /* After 'fun ': outer fun should be preserved */
-      let z1 =
-        string_to_ltr_actions("fun ")
-        |> perform(~settings, z0);
+      let z1 = string_to_ltr_actions("fun ") |> perform(~settings, z0);
       if (count_complete_funs(z1) < 1) {
         Alcotest.fail("After 'fun ': outer fun broken");
       };
       /* After 'fun y -> 1': both funs should be complete */
-      let z2 =
-        string_to_ltr_actions("y -> 1")
-        |> perform(~settings, z1);
+      let z2 = string_to_ltr_actions("y -> 1") |> perform(~settings, z1);
       if (count_complete_funs(z2) != 2) {
         Alcotest.fail(
           Printf.sprintf(
@@ -2738,9 +2718,7 @@ let deep_reassociate_advanced_tests = [
         );
       };
       /* Move past 2, type ) — all three parens should be complete */
-      let z2 =
-        mv_r(1) @ [Insert(")")]
-        |> perform(~settings, z1);
+      let z2 = mv_r(1) @ [Insert(")")] |> perform(~settings, z1);
       if (count_complete_parens(z2) != 3) {
         Alcotest.fail(
           Printf.sprintf(
@@ -2760,24 +2738,19 @@ let deep_reassociate_advanced_tests = [
     () => {
       let settings = deep_reassociate_settings;
       let z0 =
-        mk("if true then ¦ else 0")
-        |> perform(~settings, Zipper.init());
+        mk("if true then ¦ else 0") |> perform(~settings, Zipper.init());
       let count_complete_ifs = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let ifs = find_tiles_by_label(["if", "then", "else"], seg);
         List.length(List.filter(Tile.is_complete, ifs));
       };
       /* After 'let x = ': if should still be complete */
-      let z1 =
-        string_to_ltr_actions("let x = ")
-        |> perform(~settings, z0);
+      let z1 = string_to_ltr_actions("let x = ") |> perform(~settings, z0);
       if (count_complete_ifs(z1) < 1) {
         Alcotest.fail("After 'let x = ': outer if broken");
       };
       /* After 'let x = 1 in ': if and let both complete */
-      let z2 =
-        string_to_ltr_actions("1 in ")
-        |> perform(~settings, z1);
+      let z2 = string_to_ltr_actions("1 in ") |> perform(~settings, z1);
       if (count_complete_ifs(z2) < 1) {
         Alcotest.fail("After completing let: outer if broken");
       };
