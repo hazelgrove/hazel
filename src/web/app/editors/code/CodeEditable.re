@@ -81,7 +81,8 @@ module Update = {
              | Reparse
              | Introduce
              | Probe(StepInto(_))
-             | Dump => true
+             | Dump
+             | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
              | Structural(_)
@@ -150,6 +151,10 @@ module Selection = {
     fun
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.TAB)
+    /* Cmd+/ (Mac) / Ctrl+/ (PC) toggles line comment */
+    | {key: D("/"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("/"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.Perform(ToggleLineComment))
     /* Cmd+. (Mac) / Ctrl+. (PC) opens context menu - VS Code Quick Fix convention */
     | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
