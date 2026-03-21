@@ -2469,6 +2469,194 @@ let remold_sort_tests = [
   ),
 ];
 
+/* === Selection Wrapping Tests ===
+ * Test wrapping selected content in delimiters by typing the
+ * opening delimiter with an active selection. */
+let wrap_selection_tests = [
+  /* --- Balanced delimiter wrapping (parens, brackets, braces) --- */
+  test(
+    ~name="Wrap single token in parens",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|(§x¦) + y|},
+  ),
+  test(
+    ~name="Wrap expression in parens via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("(")],
+    ~goal={|(§1 + 2¦)|},
+  ),
+  test(
+    ~name="Wrap expression in square brackets via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("[")],
+    ~goal={|[§1 + 2¦]|},
+  ),
+  test(
+    ~name="Wrap expression in curly braces via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("{")],
+    ~goal={|{§1 + 2¦}|},
+  ),
+  test(
+    ~name="Wrap single operand via Term(Current)",
+    ~acts=
+      mk({|¦1 + 2|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§1¦) + 2|},
+  ),
+  test(
+    ~name="Wrap subexpression in parens",
+    ~acts=
+      mk({|1 + ¦2 * 3|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|1 + (§2¦) * 3|},
+  ),
+  test(
+    ~name="Wrap in parens then unselect and type after",
+    ~acts=
+      mk({|¦x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")]
+      @ [Action.Unselect(None)]
+      @ string_to_ltr_actions(" + z"),
+    ~goal={|(x + z¦)|},
+  ),
+  /* --- Quote wrapping (string, label, comment) --- */
+  test(
+    ~name="Wrap token in string quotes",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})],
+    ~goal={|"abc"¦|},
+  ),
+  test(
+    ~name="Wrap token in backtick quotes",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")],
+    ~goal={|`abc`¦|},
+  ),
+  test(
+    ~name="Wrap token in comment delimiters",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("#")],
+    ~goal={|?#abc#¦|},
+  ),
+  /* --- Quote wrapping validation (fallthrough to replacement) --- */
+  test(
+    ~name=
+      "String wrap fails with embedded quote: falls through to replacement",
+    ~acts=
+      mk({|¦"hello"|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})],
+    ~goal={|"¦"|},
+  ),
+  /* --- Closing delimiter does NOT wrap (replaces selection) --- */
+  test(
+    ~name="Closing paren replaces selection, does not wrap",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert(")")],
+    ~goal={|?)¦ + y|},
+  ),
+  test(
+    ~name="Closing bracket replaces selection, does not wrap",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("]")],
+    ~goal={|?]¦ + y|},
+  ),
+  /* --- Edge cases --- */
+  test(
+    ~name="Wrap empty hole in parens",
+    ~acts=
+      mk({|let x = ¦? in x|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|let x = (§?¦) in x|},
+  ),
+  test(
+    ~name="Wrap parenthesized expression adds outer parens",
+    ~acts=
+      mk({|¦(1 + 2)|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§(1 + 2)¦)|},
+  ),
+  test(
+    ~name="Wrap multi-token selection in parens via char select",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Insert("(")],
+    ~goal={|(§x + y¦)|},
+  ),
+  test(
+    ~name="Wrap single number in brackets",
+    ~acts=
+      mk({|¦42|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("[")],
+    ~goal={|[§42¦]|},
+  ),
+  test(
+    ~name="Double wrap: parens then brackets",
+    ~acts=
+      mk({|¦x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")]
+      @ [Action.Insert("[")],
+    ~goal={|([§x¦])|},
+  ),
+  test(
+    ~name="Wrap string literal in parens",
+    ~acts=
+      mk({|¦"hello"|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§"hello"¦)|},
+  ),
+  test(
+    ~name="Wrap in pattern context",
+    ~acts=
+      mk({|let ¦x = 1 in x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|let (§x¦) = 1 in x|},
+  ),
+  test(
+    ~name="Backtick wrap fails on backtick content: falls through",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")]
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")],
+    ~goal={|`¦`|},
+  ),
+  test(
+    ~name="Left-focused selection wraps correctly",
+    ~acts=
+      mk({|x + y¦|})
+      @ [Action.Select(Resize(Local(Left, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|x + (§y¦)|},
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -2481,4 +2669,5 @@ let tests = [
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
+  ("Editing.WrapSelection", wrap_selection_tests),
 ];
