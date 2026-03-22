@@ -139,15 +139,24 @@ let count_complete_multitiles = (z: t): int => {
    to aggressively flatten in deep_reassociate. */
 let rec has_incomplete_multi_deep = (seg: Segment.t): bool =>
   List.exists(
-    p =>
-      switch (p) {
-      | Piece.Tile(t) =>
-        !Tile.is_complete(t)
-        && List.length(t.label) > 1
-        || List.exists(has_incomplete_multi_deep, t.children)
-      | _ => false
-      },
+    fun
+    | Piece.Tile(t) =>
+      !Tile.is_complete(t)
+      && List.length(t.label) > 1
+      || List.exists(has_incomplete_multi_deep, t.children)
+    | _ => false,
     seg,
+  );
+
+let shard_pieces = (t: Tile.t) =>
+  List.map(
+    s =>
+      Piece.Tile({
+        ...t,
+        shards: [s],
+        children: [],
+      }),
+    t.shards,
   );
 
 /* Recursively disassemble complete multi-delimiter sibling tiles
@@ -155,32 +164,22 @@ let rec has_incomplete_multi_deep = (seg: Segment.t): bool =>
    exposes orphaned shards trapped inside complete tiles, enabling
    rescan to match them with tokens at the sibling level. */
 let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
-  seg
-  |> List.concat_map(p =>
-       switch (p) {
-       | Piece.Tile(t)
-           when
-             Tile.is_complete(t)
-             && List.length(t.label) > 1
-             && List.exists(has_incomplete_multi_deep, t.children) =>
-         let shard_pieces =
-           List.map(
-             s =>
-               Piece.Tile({
-                 ...t,
-                 shards: [s],
-                 children: [],
-               }),
-             t.shards,
-           );
-         let flattened_children =
-           List.map(flatten_tiles_with_incomplete, t.children);
-         Aba.mk(shard_pieces, flattened_children)
-         |> Aba.join(p => [p], Fun.id)
-         |> List.flatten;
-       | _ => [p]
-       }
-     );
+  List.concat_map(
+    fun
+    | Piece.Tile(t)
+        when
+          Tile.is_complete(t)
+          && List.length(t.label) > 1
+          && List.exists(has_incomplete_multi_deep, t.children) =>
+      Aba.mk(
+        shard_pieces(t),
+        List.map(flatten_tiles_with_incomplete, t.children),
+      )
+      |> Aba.join(p => [p], Fun.id)
+      |> List.flatten
+    | p => [p],
+    seg,
+  );
 
 /* Deep reassociation: two-path delimiter matching.
    Cross-scope path: flatten ancestors (targeted by label), crack
@@ -205,7 +204,6 @@ let freshen_ancestor_shards =
       switch (p) {
       | Piece.Tile(t) when t.id == ancestor_id =>
         let fresh_id = Id.mk();
-        let acc_map = Id.Map.add(fresh_id, (ancestor_id, t.shards), acc_map);
         (
           [
             Piece.Tile({
@@ -214,7 +212,7 @@ let freshen_ancestor_shards =
             }),
             ...acc_seg,
           ],
-          acc_map,
+          Id.Map.add(fresh_id, (ancestor_id, t.shards), acc_map),
         );
       | _ => ([p, ...acc_seg], acc_map)
       },
@@ -265,33 +263,26 @@ let repair_fresh_ids =
   if (Id.Map.is_empty(fresh_map)) {
     siblings;
   } else {
-    let combined = fst(siblings) @ snd(siblings);
     let was_stolen = (original_id, shards) =>
       List.exists(
-        p =>
-          switch (p) {
-          | Piece.Tile(t) => t.id == original_id && t.shards == shards
-          | _ => false
-          },
-        combined,
+        fun
+        | Piece.Tile(t) => t.id == original_id && t.shards == shards
+        | _ => false,
+        fst(siblings) @ snd(siblings),
       );
-    let repair = seg =>
+    let repair =
       List.map(
-        p =>
-          switch (p) {
-          | Piece.Tile(t) =>
-            switch (Id.Map.find_opt(t.id, fresh_map)) {
-            | Some((original_id, shards))
-                when !was_stolen(original_id, shards) =>
-              Piece.Tile({
-                ...t,
-                id: original_id,
-              })
-            | _ => p
-            }
-          | _ => p
-          },
-        seg,
+        fun
+        | Piece.Tile(t) =>
+          switch (Id.Map.find_opt(t.id, fresh_map)) {
+          | Some((original_id, shards)) when !was_stolen(original_id, shards) =>
+            Piece.Tile({
+              ...t,
+              id: original_id,
+            })
+          | _ => Piece.Tile(t)
+          }
+        | p => p,
       );
     TupleUtil.map2(repair, siblings);
   };
@@ -332,9 +323,11 @@ let deep_reassociate = (z: t): t => {
           z.relatives.ancestors,
           Id.Map.empty,
         );
-      let siblings = TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
-      let siblings = Siblings.rescan(siblings);
-      let siblings = repair_fresh_ids(fresh_map, siblings);
+      let siblings =
+        siblings
+        |> TupleUtil.map2(flatten_tiles_with_incomplete)
+        |> Siblings.rescan
+        |> repair_fresh_ids(fresh_map);
       let relatives =
         {
           Relatives.siblings,
