@@ -177,11 +177,12 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
        }
      );
 
-/* Deep reassociate: flatten ancestors into siblings (only as far
-   as needed to find matching labels), aggressively flatten sibling
-   tiles containing orphaned shards, rescan for delimiter
-   reassociation, and reassemble. Reverts if reassociation would
-   not strictly increase the number of complete multi-delimiter tiles. */
+/* Deep reassociation: two-path delimiter matching.
+   Cross-scope path: flatten ancestors (targeted by label), crack
+   tiles with orphaned children, rescan, verify with full counting.
+   Local path (no ancestor match): crack sibling tiles with orphaned
+   children only — skip ancestor flatten. Both paths revert if
+   reassociation would not strictly increase complete tile count. */
 /* Give fresh IDs to ancestor shard pieces on the right side.
    This prevents duplicate (id, shard_index) after rescan converts
    a newly-inserted delimiter to the ancestor's ID. The left-side
@@ -297,26 +298,54 @@ let deep_reassociate = (z: t): t => {
   if (!has_incomplete_multi(pre) && !has_incomplete_multi(suf)) {
     z;
   } else {
-    let before_count = count_complete_multitiles(z);
     let target_labels = collect_incomplete_labels(pre @ suf);
-    let (siblings, ancestors, fresh_map) =
-      flatten_to_match(
-        target_labels,
-        z.relatives.siblings,
+    let any_ancestor_match =
+      List.exists(
+        ((a: Ancestor.t, _)) => List.mem(a.label, target_labels),
         z.relatives.ancestors,
-        Id.Map.empty,
       );
-    let siblings = TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
-    let siblings = Siblings.rescan(siblings);
-    let siblings = repair_fresh_ids(fresh_map, siblings);
-    let relatives =
-      {Relatives.siblings, ancestors} |> Relatives.reassemble;
-    let z' = {...z, relatives};
-    /* Only keep reassociation if it strictly increased the number
-       of complete multi-delimiter tiles. Trading (one tile breaks,
-       another completes) is displacement, not progress. */
-    let after_count = count_complete_multitiles(z');
-    after_count > before_count ? z' : z;
+    if (any_ancestor_match) {
+      /* Cross-scope path: an ancestor's label matches a sibling
+         singleton's label. Flatten ancestors to expose matching
+         shards, crack tiles with orphaned children, rescan, and
+         verify improvement with full count check. */
+      let before_count = count_complete_multitiles(z);
+      let (siblings, ancestors, fresh_map) =
+        flatten_to_match(
+          target_labels,
+          z.relatives.siblings,
+          z.relatives.ancestors,
+          Id.Map.empty,
+        );
+      let siblings =
+        TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
+      let siblings = Siblings.rescan(siblings);
+      let siblings = repair_fresh_ids(fresh_map, siblings);
+      let relatives =
+        {Relatives.siblings, ancestors} |> Relatives.reassemble;
+      let z' = {...z, relatives};
+      let after_count = count_complete_multitiles(z');
+      after_count > before_count ? z' : z;
+    } else {
+      /* Local path: no ancestor has a matching label. Try orphan
+         extraction only — crack sibling tiles whose children contain
+         orphaned shards, rescan, verify. No ancestor flattening, so
+         siblings stay O(scope). Skip entirely if no tiles to crack. */
+      let cracked =
+        TupleUtil.map2(flatten_tiles_with_incomplete, (pre, suf));
+      if (cracked == (pre, suf)) {
+        z;
+      } else {
+        let before_count = count_complete_multitiles(z);
+        let siblings = Siblings.rescan(cracked);
+        let relatives =
+          {Relatives.siblings: siblings, ancestors: z.relatives.ancestors}
+          |> Relatives.reassemble;
+        let z' = {...z, relatives};
+        let after_count = count_complete_multitiles(z');
+        after_count > before_count ? z' : z;
+      };
+    };
   };
 };
 
