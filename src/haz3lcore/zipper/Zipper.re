@@ -165,7 +165,12 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
              && List.exists(has_incomplete_multi_deep, t.children) =>
          let shard_pieces =
            List.map(
-             s => Piece.Tile({...t, shards: [s], children: []}),
+             s =>
+               Piece.Tile({
+                 ...t,
+                 shards: [s],
+                 children: [],
+               }),
              t.shards,
            );
          let flattened_children =
@@ -200,9 +205,17 @@ let freshen_ancestor_shards =
       switch (p) {
       | Piece.Tile(t) when t.id == ancestor_id =>
         let fresh_id = Id.mk();
-        let acc_map =
-          Id.Map.add(fresh_id, (ancestor_id, t.shards), acc_map);
-        ([Piece.Tile({...t, id: fresh_id}), ...acc_seg], acc_map);
+        let acc_map = Id.Map.add(fresh_id, (ancestor_id, t.shards), acc_map);
+        (
+          [
+            Piece.Tile({
+              ...t,
+              id: fresh_id,
+            }),
+            ...acc_seg,
+          ],
+          acc_map,
+        );
       | _ => ([p, ...acc_seg], acc_map)
       },
     seg,
@@ -237,8 +250,7 @@ let rec flatten_to_match = (target_labels, siblings, ancestors, fresh_map) =>
       freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
     let siblings =
       Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
-    let target_labels =
-      List.filter(l => l != ancestor.label, target_labels);
+    let target_labels = List.filter(l => l != ancestor.label, target_labels);
     flatten_to_match(target_labels, siblings, rest, fresh_map);
   };
 
@@ -271,7 +283,10 @@ let repair_fresh_ids =
             switch (Id.Map.find_opt(t.id, fresh_map)) {
             | Some((original_id, shards))
                 when !was_stolen(original_id, shards) =>
-              Piece.Tile({...t, id: original_id})
+              Piece.Tile({
+                ...t,
+                id: original_id,
+              })
             | _ => p
             }
           | _ => p
@@ -317,13 +332,19 @@ let deep_reassociate = (z: t): t => {
           z.relatives.ancestors,
           Id.Map.empty,
         );
-      let siblings =
-        TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
+      let siblings = TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
       let siblings = Siblings.rescan(siblings);
       let siblings = repair_fresh_ids(fresh_map, siblings);
       let relatives =
-        {Relatives.siblings, ancestors} |> Relatives.reassemble;
-      let z' = {...z, relatives};
+        {
+          Relatives.siblings,
+          ancestors,
+        }
+        |> Relatives.reassemble;
+      let z' = {
+        ...z,
+        relatives,
+      };
       let after_count = count_complete_multitiles(z');
       after_count > before_count ? z' : z;
     } else {
@@ -339,9 +360,15 @@ let deep_reassociate = (z: t): t => {
         let before_count = count_complete_multitiles(z);
         let siblings = Siblings.rescan(cracked);
         let relatives =
-          {Relatives.siblings: siblings, ancestors: z.relatives.ancestors}
+          {
+            Relatives.siblings,
+            ancestors: z.relatives.ancestors,
+          }
           |> Relatives.reassemble;
-        let z' = {...z, relatives};
+        let z' = {
+          ...z,
+          relatives,
+        };
         let after_count = count_complete_multitiles(z');
         after_count > before_count ? z' : z;
       };
