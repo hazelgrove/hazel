@@ -99,53 +99,58 @@ module Map = {
     climb(Info.ancestors_of(ci_binder));
   };
 
-  /* Given a binding site ID (a Var pattern), find all use site IDs.
-   * Climbs ancestors to find the enclosing binding form (let, fun, match),
-   * then looks at the body's co_ctx for entries with the variable name. */
+  /* Find all use sites of a binding by scanning the info_map for variable
+   * references whose context resolves the name to binding_id. Works for
+   * all binding forms (let, fun, match, fixf, etc.) without enumerating them. */
   let uses_of_binding = (m: t, binding_id: Id.t): list(Id.t) => {
     let name =
       switch (lookup(binding_id, m)) {
       | Some(InfoPat({term: {term: Var(name), _}, _})) => Some(name)
       | _ => None
       };
-    /* Climb ancestors to find enclosing binding form's body */
-    let body_id = {
-      open Util.OptUtil.Syntax;
-      let* ci_binder = lookup(binding_id, m);
-      let has_binding = (pat) =>
-        List.exists(
-          (b: Binding.t) => b.id == binding_id,
-          Pat.bindings(pat),
-        );
-      let rec climb = (ancs: list(Id.t)): option(Id.t) =>
-        switch (ancs) {
-        | [] => None
-        | [ancestor_id, ...rest] =>
-          let* ci = lookup(ancestor_id, m);
-          switch (ci) {
-          | InfoExp({term: {term: Let(pat, _, body), _}, _})
-              when has_binding(pat) =>
-            Some(IdTagged.rep_id(body))
-          | InfoExp({term: {term: Fun(pat, body, _, _), _}, _})
-              when has_binding(pat) =>
-            Some(IdTagged.rep_id(body))
-          | InfoExp(_) => climb(rest)
-          | _ => climb(rest)
-          };
-        };
-      climb(Info.ancestors_of(ci_binder));
+    switch (name) {
+    | None => []
+    | Some(n) =>
+      Id.Map.fold(
+        (id, info: Info.t, acc) =>
+          switch (info) {
+          | InfoExp({term: {term: Var(name), _}, ctx, _}) when name == n =>
+            switch (Ctx.lookup_var(ctx, name)) {
+            | Some(entry) when entry.id == binding_id => [id, ...acc]
+            | _ => acc
+            }
+          | _ => acc
+          },
+        m,
+        [],
+      )
     };
-    switch (name, body_id) {
-    | (Some(n), Some(bid)) =>
-      switch (lookup(bid, m)) {
-      | Some(InfoExp({co_ctx, _})) =>
-        switch (Util.VarMap.lookup(co_ctx, n)) {
-        | Some(entries) => List.map((e: CoCtx.entry) => e.id, entries)
-        | None => []
-        }
-      | _ => []
-      }
-    | _ => []
+  };
+
+  /* Find all use sites of a type variable binding by scanning the info_map
+   * for type variable references whose context resolves to binding_id. */
+  let uses_of_tvar_binding = (m: t, binding_id: Id.t): list(Id.t) => {
+    let name =
+      switch (lookup(binding_id, m)) {
+      | Some(InfoTPat({term: {term: Var(name), _}, _})) => Some(name)
+      | _ => None
+      };
+    switch (name) {
+    | None => []
+    | Some(n) =>
+      Id.Map.fold(
+        (id, info: Info.t, acc) =>
+          switch (info) {
+          | InfoTyp({term: {term: Var(name), _}, ctx, _}) when name == n =>
+            switch (Ctx.lookup_tvar_id(ctx, name)) {
+            | Some(bid) when bid == binding_id => [id, ...acc]
+            | _ => acc
+            }
+          | _ => acc
+          },
+        m,
+        [],
+      )
     };
   };
 
@@ -153,7 +158,7 @@ module Map = {
    * - For a variable reference (Var expr): its binding site + sibling uses
    * - For a variable binding (Var pat): all use sites
    * - For a constructor reference: its binding site
-   * - For a type variable reference: its binding site */
+   * - For a type variable reference/binding: binding site + all uses */
   let var_highlight_ids = (m: t, info: Info.t): list(Id.t) => {
     switch (info) {
     | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
@@ -178,9 +183,13 @@ module Map = {
       }
     | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
       switch (Ctx.lookup_tvar_id(ctx, name)) {
-      | Some(id) when id != Id.invalid => [id]
+      | Some(id) when id != Id.invalid =>
+        let sibling_uses = uses_of_tvar_binding(m, id);
+        [id, ...sibling_uses];
       | _ => []
       }
+    | InfoTPat({term: {term: Var(_), _}, _}) =>
+      uses_of_tvar_binding(m, Info.id_of(info))
     | _ => []
     };
   };
