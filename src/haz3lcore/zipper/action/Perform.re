@@ -31,13 +31,19 @@ let go =
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
+    let maybe_reassoc =
+      settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
     switch (Parser.try_segment_paste(clipboard, z)) {
-    | Some(z) => Ok(z)
+    | Some(z) => Ok(maybe_reassoc(z))
     | None =>
       if (Parser.can_fast_paste(clipboard, z)) {
-        Parser.fast_paste(clipboard, z) |> return(CantPaste);
+        Parser.fast_paste(clipboard, z)
+        |> Option.map(maybe_reassoc)
+        |> return(CantPaste);
       } else {
-        Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste);
+        Parser.to_zipper(~zipper_init=z, clipboard)
+        |> Option.map(maybe_reassoc)
+        |> return(CantPaste);
       }
     }
   | Cut =>

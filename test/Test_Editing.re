@@ -2789,6 +2789,88 @@ let deep_reassociate_advanced_tests = [
       };
     },
   ),
+  /* Paste completing multi-delimiter form across ancestor scope:
+   * Type "if true " (if is incomplete ancestor), then paste "then 1 else 2".
+   * Without deep_reassociate on the Paste path, `then` and `else` stay
+   * as unmatched monotiles at the sibling level, unable to match the
+   * `if` in the ancestor. With it, ancestors are flattened, rescan
+   * matches all three shards, and if/then/else becomes complete. */
+  test_case(
+    "Paste completes if/then/else across ancestor scope",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z = mk("if true ¦") |> perform(~settings, Zipper.init());
+      let z = perform(~settings, z, [Paste("then 1 else 2")]);
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail(
+          "Incomplete tiles after paste — then/else should match ancestor if",
+        );
+      };
+      let seg = Zipper.zip(z);
+      let ifs = find_tiles_by_label(["if", "then", "else"], seg);
+      let complete_ifs = List.filter(Tile.is_complete, ifs);
+      if (List.length(complete_ifs) != 1) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 1 complete if/then/else, got %d",
+            List.length(complete_ifs),
+          ),
+        );
+      };
+    },
+  ),
+  /* Paste with nested forms crossing scope boundaries:
+   * Reproduces the user-reported bug where cutting and pasting a region
+   * that spans the outer `then` and contains nested forms (fun, inner if)
+   * leaves delimiters broken. The full program is text-complete after
+   * paste but segments have incomplete tiles without deep_reassociate.
+   * A space insertion would fix it (triggers Insert → deep_reassociate),
+   * but paste should handle it directly. */
+  test_case(
+    "Paste nested cross-scope delimiters (regression)",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      /* Type the parts before and after the "clipboard" region */
+      let z = mk("if true ¦") |> perform(~settings, Zipper.init());
+      /* Paste the region that contains outer then + nested content */
+      let z =
+        perform(
+          ~settings,
+          z,
+          [Paste("then mapi(fun _ -> if false then 1 else 2) else []")],
+        );
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail(
+          "Incomplete tiles after paste — nested cross-scope delimiters broken",
+        );
+      };
+      /* Verify both ifs are complete */
+      let seg = Zipper.zip(z);
+      let ifs = find_tiles_by_label(["if", "then", "else"], seg);
+      let complete_ifs = List.filter(Tile.is_complete, ifs);
+      if (List.length(complete_ifs) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 2 complete if/then/else, got %d",
+            List.length(complete_ifs),
+          ),
+        );
+      };
+      /* Verify the fun is complete */
+      let funs = find_tiles_by_label(["fun", "->"], seg);
+      let complete_funs = List.filter(Tile.is_complete, funs);
+      if (List.length(complete_funs) != 1) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 1 complete fun/->. got %d",
+            List.length(complete_funs),
+          ),
+        );
+      };
+    },
+  ),
 ];
 
 let tests = [
