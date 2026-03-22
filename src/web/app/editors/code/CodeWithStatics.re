@@ -20,6 +20,7 @@ module Model = {
     context_menu: context_menu_state,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
+    hover_id: option(Id.t),
   };
 
   let context_menu_is_open = (model: t): bool => model.context_menu != None;
@@ -34,6 +35,7 @@ module Model = {
     statics,
     dynamics,
     context_menu: None,
+    hover_id: None,
   };
 
   let mk_from_exp =
@@ -101,7 +103,7 @@ module Update = {
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, dynamics: _}: Model.t,
+        {editor, statics, context_menu, dynamics: _, hover_id, _}: Model.t,
       )
       : Model.t => {
     let editor =
@@ -128,6 +130,7 @@ module Update = {
       statics,
       dynamics,
       context_menu,
+      hover_id,
     };
   };
 };

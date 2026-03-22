@@ -55,7 +55,8 @@ module Update = {
       )
     | DebugConsole(_)
     | ContextMenu(_)
-    | TAB => None;
+    | TAB
+    | Hover(_) => None;
 
   let calculate = CodeEditable.Update.calculate;
 };
