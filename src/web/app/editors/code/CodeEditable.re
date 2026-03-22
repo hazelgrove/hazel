@@ -309,6 +309,7 @@ module View = {
       (
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
+        ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         z: Zipper.t,
       ) => [
@@ -339,6 +340,12 @@ module View = {
       ~syntax,
       globals.color_highlights,
     ),
+    VarHighlight.view(
+      ~measured=syntax.measured,
+      ~font_metrics=globals.font_metrics,
+      ~info_map,
+      z,
+    ),
   ];
 
   let view =
@@ -363,6 +370,7 @@ module View = {
         ? deco(
             ~expand_selection?,
             ~syntax=model.editor.syntax,
+            ~info_map=model.statics.info_map,
             ~globals,
             model.editor.state.zipper,
           )
