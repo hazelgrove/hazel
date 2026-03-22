@@ -98,6 +98,92 @@ module Map = {
       };
     climb(Info.ancestors_of(ci_binder));
   };
+
+  /* Given a binding site ID (a Var pattern), find all use site IDs.
+   * Climbs ancestors to find the enclosing binding form (let, fun, match),
+   * then looks at the body's co_ctx for entries with the variable name. */
+  let uses_of_binding = (m: t, binding_id: Id.t): list(Id.t) => {
+    let name =
+      switch (lookup(binding_id, m)) {
+      | Some(InfoPat({term: {term: Var(name), _}, _})) => Some(name)
+      | _ => None
+      };
+    /* Climb ancestors to find enclosing binding form's body */
+    let body_id = {
+      open Util.OptUtil.Syntax;
+      let* ci_binder = lookup(binding_id, m);
+      let has_binding = (pat) =>
+        List.exists(
+          (b: Binding.t) => b.id == binding_id,
+          Pat.bindings(pat),
+        );
+      let rec climb = (ancs: list(Id.t)): option(Id.t) =>
+        switch (ancs) {
+        | [] => None
+        | [ancestor_id, ...rest] =>
+          let* ci = lookup(ancestor_id, m);
+          switch (ci) {
+          | InfoExp({term: {term: Let(pat, _, body), _}, _})
+              when has_binding(pat) =>
+            Some(IdTagged.rep_id(body))
+          | InfoExp({term: {term: Fun(pat, body, _, _), _}, _})
+              when has_binding(pat) =>
+            Some(IdTagged.rep_id(body))
+          | InfoExp(_) => climb(rest)
+          | _ => climb(rest)
+          };
+        };
+      climb(Info.ancestors_of(ci_binder));
+    };
+    switch (name, body_id) {
+    | (Some(n), Some(bid)) =>
+      switch (lookup(bid, m)) {
+      | Some(InfoExp({co_ctx, _})) =>
+        switch (Util.VarMap.lookup(co_ctx, n)) {
+        | Some(entries) => List.map((e: CoCtx.entry) => e.id, entries)
+        | None => []
+        }
+      | _ => []
+      }
+    | _ => []
+    };
+  };
+
+  /* Given any Info.t, compute the set of related IDs to highlight:
+   * - For a variable reference (Var expr): its binding site + sibling uses
+   * - For a variable binding (Var pat): all use sites
+   * - For a constructor reference: its binding site
+   * - For a type variable reference: its binding site */
+  let var_highlight_ids = (m: t, info: Info.t): list(Id.t) => {
+    switch (info) {
+    | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
+      switch (Ctx.lookup_var(ctx, name)) {
+      | Some(entry) when entry.id != Id.invalid =>
+        let binding_id = entry.id;
+        let sibling_uses = uses_of_binding(m, binding_id);
+        [binding_id, ...sibling_uses];
+      | _ => []
+      }
+    | InfoPat({term: {term: Var(_), _}, _}) =>
+      uses_of_binding(m, Info.id_of(info))
+    | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
+    | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
+      switch (Ctx.lookup_ctr(ctx, name)) {
+      | Some(entry) when entry.id != Id.invalid => [entry.id]
+      | _ =>
+        switch (Ctx.lookup_var(ctx, name)) {
+        | Some(entry) when entry.id != Id.invalid => [entry.id]
+        | _ => []
+        }
+      }
+    | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
+      switch (Ctx.lookup_tvar_id(ctx, name)) {
+      | Some(id) when id != Id.invalid => [id]
+      | _ => []
+      }
+    | _ => []
+    };
+  };
 };
 
 let let_definition_path = (~statics: Map.t, ~id: Id.t): list(Pat.t) => {
