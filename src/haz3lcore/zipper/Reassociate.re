@@ -29,24 +29,52 @@ module TokenKey = {
 
 module TokenSet = Set.Make(TokenKey);
 
+module TokenDemand = Map.Make(TokenKey);
+
 type demand = {
-  target_labels: list(Label.t),
+  token_demand: TokenDemand.t(int),
   target_tokens: TokenSet.t,
 };
 
-let labels_of_shards = (shards: list(Tile.t)): list(Label.t) =>
-  shards |> List.map((shard: Tile.t) => shard.label) |> List.sort_uniq(compare);
-
-let token_set_of_shards = (shards: list(Tile.t)): TokenSet.t =>
+let token_demand_of_tokens = (tokens: list(Token.t)): TokenDemand.t(int) =>
   List.fold_left(
-    (acc, shard) =>
-      switch (Tile.effective_label(shard)) {
-      | [tok] => TokenSet.add(tok, acc)
-      | _ => acc
-      },
-    TokenSet.empty,
-    shards,
+    (acc, tok) =>
+      TokenDemand.update(
+        tok,
+        opt => Some(switch (opt) { | Some(n) => n + 1 | None => 1 }),
+        acc,
+      ),
+    TokenDemand.empty,
+    tokens,
   );
+
+let token_demand_of_shards = (shards: list(Tile.t)): TokenDemand.t(int) =>
+  shards
+  |> List.filter_map((shard: Tile.t) =>
+       switch (Tile.effective_label(shard)) {
+       | [tok] => Some(tok)
+       | _ => None
+       }
+     )
+  |> token_demand_of_tokens;
+
+let token_set_of_token_demand = (demand: TokenDemand.t(int)): TokenSet.t =>
+  TokenDemand.fold((tok, _, acc) => TokenSet.add(tok, acc), demand, TokenSet.empty);
+
+let token_demand_contains =
+    (demand: TokenDemand.t(int), tok: Token.t): bool => TokenDemand.mem(tok, demand);
+
+let token_demand_remove =
+    (demand: TokenDemand.t(int), tok: Token.t): TokenDemand.t(int) =>
+  switch (TokenDemand.find_opt(tok, demand)) {
+  | Some(n) when n > 1 => TokenDemand.add(tok, n - 1, demand)
+  | Some(_) => TokenDemand.remove(tok, demand)
+  | None => demand
+  };
+
+let token_demand_subtract_tokens =
+    (demand: TokenDemand.t(int), tokens: list(Token.t)): TokenDemand.t(int) =>
+  List.fold_left(token_demand_remove, demand, tokens);
 
 let rec deep_local_missing_shards_segment =
     (~side: Direction.t, seg: Segment.t): list(Tile.t) =>
@@ -78,9 +106,10 @@ let demand_of_relatives = ({siblings: (pre, suf), ancestors}: Relatives.t)
   switch (target_shards) {
   | [] => None
   | shards =>
+    let token_demand = token_demand_of_shards(shards);
     Some({
-        target_labels: labels_of_shards(shards),
-        target_tokens: token_set_of_shards(shards),
+        token_demand,
+        target_tokens: token_set_of_token_demand(token_demand),
       })
   };
 };
@@ -354,17 +383,17 @@ let freshen_ancestor_shards =
     ([], fresh_map),
   );
 
-/* Flatten ancestors into siblings, stopping when all target labels
-   have been found. Freshens right-side ancestor shards to prevent
-   ID collisions during rescan. When a matching ancestor is found,
-   its label is removed from targets; once all targets are satisfied,
+/* Flatten ancestors into siblings, stopping when the outstanding
+   delimiter-token demand has been covered by traversed ancestors.
+   Freshens right-side ancestor shards to prevent ID collisions during
+   rescan. Once the current token demand is satisfied,
    remaining outer ancestors are preserved — keeping reassociation local
    to the affected repair scope instead of the whole program. */
-let rec flatten_to_match =
-    (target_labels, siblings, affected_rev, ancestors, fresh_map) =>
+let rec flatten_to_cover_token_demand =
+    (token_demand, siblings, affected_rev, ancestors, fresh_map) =>
   switch (ancestors) {
   | [] => (siblings, List.rev(affected_rev), [], fresh_map)
-  | _ when target_labels == [] =>
+  | _ when TokenDemand.is_empty(token_demand) =>
     (siblings, List.rev(affected_rev), ancestors, fresh_map)
   | [((ancestor, parent_sibs) as generation), ...rest] =>
     let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
@@ -372,9 +401,10 @@ let rec flatten_to_match =
       freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
     let siblings =
       Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
-    let target_labels = List.filter(l => l != ancestor.label, target_labels);
-    flatten_to_match(
-      target_labels,
+    let token_demand =
+      token_demand_subtract_tokens(token_demand, ancestor.label);
+    flatten_to_cover_token_demand(
+      token_demand,
       siblings,
       [generation, ...affected_rev],
       rest,
@@ -454,20 +484,21 @@ let maybe_accept_local_repair =
 let go = (z: t): t =>
   switch (demand_of_relatives(z.relatives)) {
   | None => z
-  | Some({target_labels, target_tokens}) =>
+  | Some({token_demand, target_tokens}) =>
     let any_ancestor_match =
       List.exists(
-        ((a: Ancestor.t, _)) => List.mem(a.label, target_labels),
+        ((a: Ancestor.t, _)) =>
+          List.exists(token_demand_contains(token_demand), a.label),
         z.relatives.ancestors,
       );
     if (any_ancestor_match) {
       /* Cross-scope path: collect the smallest ancestor scope that
-         can satisfy the current unresolved labels, repair only that
+         can satisfy the current unresolved delimiter demand, repair only that
          scope, and keep the rewrite only if it improves local
          completeness without sacrificing anchored complete forms. */
       let (siblings, affected_ancestors, outer_ancestors, fresh_map) =
-        flatten_to_match(
-          target_labels,
+        flatten_to_cover_token_demand(
+          token_demand,
           z.relatives.siblings,
           [],
           z.relatives.ancestors,

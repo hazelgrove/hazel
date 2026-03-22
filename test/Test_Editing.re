@@ -3037,6 +3037,49 @@ let deep_reassociate_advanced_tests = [
       };
     },
   ),
+  /* Shared closing token across different forms: type `test ` inside a
+   * `case ... end` branch, then supply the new `end` after the existing
+   * outer `end`. Textually the result is complete, so structure should
+   * expose both a complete `test ... end` and the enclosing `case ... end`. */
+  test_case(
+    "Nested case/test complete when end is typed past ancestor",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z =
+        mk("case x | A => ¦1 end")
+        @ string_to_ltr_actions("test ")
+        @ mv_r(5)
+        @ string_to_ltr_actions(" end")
+        |> perform(~settings, Zipper.init());
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail(
+          "Incomplete tiles remain — both nested end-delimited forms should be complete",
+        );
+      };
+      let seg = Zipper.zip(z);
+      let cases = find_tiles_by_label(["case", "end"], seg);
+      let complete_cases = List.filter(Tile.is_complete, cases);
+      if (List.length(complete_cases) != 1) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 1 complete case/end tile, got %d",
+            List.length(complete_cases),
+          ),
+        );
+      };
+      let tests = find_tiles_by_label(["test", "end"], seg);
+      let complete_tests = List.filter(Tile.is_complete, tests);
+      if (List.length(complete_tests) != 1) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 1 complete test/end tile, got %d",
+            List.length(complete_tests),
+          ),
+        );
+      };
+    },
+  ),
 ];
 
 let tests = [
