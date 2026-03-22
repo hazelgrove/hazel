@@ -109,19 +109,53 @@ let add_repair_stats = (a: repair_stats, b: repair_stats): repair_stats => {
 
 let is_multidelimiter_label = (label: Label.t): bool => List.length(label) > 1;
 
-module LabelKey = {
-  type t = Label.t;
+module TokenKey = {
+  type t = Token.t;
   let compare = compare;
 };
 
-module LabelSet = Set.Make(LabelKey);
+module TokenSet = Set.Make(TokenKey);
 
-let label_set_of = (labels: list(Label.t)): LabelSet.t =>
+let labels_of_shards = (shards: list(Tile.t)): list(Label.t) =>
+  shards |> List.map((shard: Tile.t) => shard.label) |> List.sort_uniq(compare);
+
+let token_set_of_shards = (shards: list(Tile.t)): TokenSet.t =>
   List.fold_left(
-    (acc, label) => LabelSet.add(label, acc),
-    LabelSet.empty,
-    labels,
+    (acc, shard) =>
+      switch (Tile.effective_label(shard)) {
+      | [tok] => TokenSet.add(tok, acc)
+      | _ => acc
+      },
+    TokenSet.empty,
+    shards,
   );
+
+let rec deep_local_missing_shards_segment =
+    (~side: Direction.t, seg: Segment.t): list(Tile.t) =>
+  List.concat_map(
+    fun
+    | Piece.Tile(t) => {
+        let self =
+          if (!Tile.is_complete(t) && is_multidelimiter_label(t.label)) {
+            switch (side) {
+            | Left => Tile.right_missing_shards(t)
+            | Right => Tile.left_missing_shards(t)
+            };
+          } else {
+            [];
+          };
+        self
+        @ List.concat_map(deep_local_missing_shards_segment(~side), t.children);
+      }
+    | _ => [],
+    seg,
+  );
+
+let target_shards_of_relatives = ({siblings: (pre, suf), ancestors}: Relatives.t)
+    : list(Tile.t) =>
+  deep_local_missing_shards_segment(~side=Left, pre)
+  @ deep_local_missing_shards_segment(~side=Right, suf)
+  @ Ancestors.local_missing_shards(ancestors);
 
 let score_multitile =
     (~anchor_ids: list(Id.t), ~id: Id.t, ~label: Label.t, ~complete: bool)
@@ -279,19 +313,35 @@ let shard_pieces = (t: Tile.t) =>
     t.shards,
   );
 
+let tile_has_target_token_demand =
+    (~side: Direction.t, ~target_tokens: TokenSet.t, t: Tile.t): bool =>
+  (
+    switch (side) {
+    | Left => Tile.right_missing_shards(t)
+    | Right => Tile.left_missing_shards(t)
+    }
+  )
+  |> List.exists(shard =>
+       switch (Tile.effective_label(shard)) {
+       | [tok] => TokenSet.mem(tok, target_tokens)
+       | _ => false
+       }
+     );
+
 /* Recursively crack only along paths that lead to the currently
-   relevant unresolved delimiter families. This is narrower than
+   relevant unresolved delimiter demand. This is narrower than
    "any incomplete descendant": unrelated complete tiles stay intact,
    but complete wrappers on the path to relevant demand still crack. */
 let rec flatten_tiles_with_relevant_incomplete =
-    (~target_labels: LabelSet.t, seg: Segment.t): (bool, Segment.t) =>
+    (~side: Direction.t, ~target_tokens: TokenSet.t, seg: Segment.t)
+    : (bool, Segment.t) =>
   List.fold_right(
     (p, (acc_has_relevant, acc_seg)) =>
       switch (p) {
       | Piece.Tile(t) =>
         let child_results =
           List.map(
-            flatten_tiles_with_relevant_incomplete(~target_labels),
+            flatten_tiles_with_relevant_incomplete(~side, ~target_tokens),
             t.children,
           );
         let child_has_relevant =
@@ -299,7 +349,7 @@ let rec flatten_tiles_with_relevant_incomplete =
         let self_has_relevant =
           !Tile.is_complete(t)
           && is_multidelimiter_label(t.label)
-          && LabelSet.mem(t.label, target_labels);
+          && tile_has_target_token_demand(~side, ~target_tokens, t);
         let has_relevant = self_has_relevant || child_has_relevant;
         if (
           Tile.is_complete(t)
@@ -321,9 +371,10 @@ let rec flatten_tiles_with_relevant_incomplete =
     (false, []),
   );
 
-let flatten_tiles_with_target_labels =
-    (~target_labels: LabelSet.t, seg: Segment.t): Segment.t =>
-  flatten_tiles_with_relevant_incomplete(~target_labels, seg) |> snd;
+let flatten_tiles_with_target_demand =
+    (~side: Direction.t, ~target_tokens: TokenSet.t, seg: Segment.t)
+    : Segment.t =>
+  flatten_tiles_with_relevant_incomplete(~side, ~target_tokens, seg) |> snd;
 
 module ShardKey = {
   type t = (Id.t, list(int));
@@ -368,18 +419,6 @@ let freshen_ancestor_shards =
     seg,
     ([], fresh_map),
   );
-
-/* Collect distinct labels of incomplete multi-delimiter tiles
-   from a segment (determines which ancestors need flattening). */
-let collect_incomplete_labels = (seg: Segment.t): list(Label.t) =>
-  List.filter_map(
-    fun
-    | Piece.Tile(t) when !Tile.is_complete(t) && List.length(t.label) > 1 =>
-      Some(t.label)
-    | _ => None,
-    seg,
-  )
-  |> List.sort_uniq(compare);
 
 /* Flatten ancestors into siblings, stopping when all target labels
    have been found. Freshens right-side ancestor shards to prevent
@@ -448,16 +487,6 @@ let repair_fresh_ids =
     TupleUtil.map2(repair, siblings);
   };
 
-/* Check if a segment contains any incomplete multi-delimiter tiles
-   at the top level (no recursion into children). */
-let has_incomplete_multi = (seg: Segment.t): bool =>
-  List.exists(
-    fun
-    | Piece.Tile(t) => !Tile.is_complete(t) && List.length(t.label) > 1
-    | _ => false,
-    seg,
-  );
-
 let maybe_accept_local_repair =
     (
       ~base_scope: Relatives.t,
@@ -489,14 +518,16 @@ let maybe_accept_local_repair =
 };
 
 let deep_reassociate = (z: t): t => {
-  /* Early exit: if no incomplete multi-delimiter tiles exist at the
-     sibling level, there is no provisional demand for repair. */
-  let (pre, suf) = z.relatives.siblings;
-  if (!has_incomplete_multi(pre) && !has_incomplete_multi(suf)) {
+  /* Early exit: only repair when the local repair cone has concrete
+     unresolved shard demand. This includes trapped descendant demand
+     inside the adjacent sibling trees, which is what powers the
+     out-of-order paren/bracket wrap cases. */
+  let target_shards = target_shards_of_relatives(z.relatives);
+  if (target_shards == []) {
     z;
   } else {
-    let target_labels = collect_incomplete_labels(pre @ suf);
-    let target_label_set = label_set_of(target_labels);
+    let target_labels = labels_of_shards(target_shards);
+    let target_tokens = token_set_of_shards(target_shards);
     let any_ancestor_match =
       List.exists(
         ((a: Ancestor.t, _)) => List.mem(a.label, target_labels),
@@ -516,10 +547,18 @@ let deep_reassociate = (z: t): t => {
           Id.Map.empty,
         );
       let siblings =
-        siblings
-        |> TupleUtil.map2(
-             flatten_tiles_with_target_labels(~target_labels=target_label_set),
-           )
+        (
+          flatten_tiles_with_target_demand(
+            ~side=Left,
+            ~target_tokens,
+            fst(siblings),
+          ),
+          flatten_tiles_with_target_demand(
+            ~side=Right,
+            ~target_tokens,
+            snd(siblings),
+          ),
+        )
         |> Siblings.rescan
         |> repair_fresh_ids(fresh_map);
       let base_scope =
@@ -537,10 +576,11 @@ let deep_reassociate = (z: t): t => {
       /* Local path: no ancestor participates, so repair only the
          current siblings and keep the rewrite only if the local scope
          becomes strictly better. */
+      let (pre, suf) = z.relatives.siblings;
       let cracked =
-        TupleUtil.map2(
-          flatten_tiles_with_target_labels(~target_labels=target_label_set),
-          (pre, suf),
+        (
+          flatten_tiles_with_target_demand(~side=Left, ~target_tokens, pre),
+          flatten_tiles_with_target_demand(~side=Right, ~target_tokens, suf),
         );
       if (cracked == (pre, suf)) {
         z;
