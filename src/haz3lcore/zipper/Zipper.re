@@ -89,50 +89,170 @@ let rescan_reassemble = (d: Direction.t, z: t): t => {
   };
 };
 
-/* Count complete multi-delimiter tiles across the entire zipper.
-   Used by deep_reassociate to detect if reassociation would break
-   existing complete forms (Option C: revert if count decreases). */
-let count_complete_multitiles = (z: t): int => {
-  let rec count_segment = (seg: Segment.t): int =>
-    List.fold_left(
-      (acc, p) =>
-        switch (p) {
-        | Piece.Tile(t) =>
-          let self = Tile.is_complete(t) && List.length(t.label) > 1 ? 1 : 0;
-          let children =
-            List.fold_left((a, c) => a + count_segment(c), 0, t.children);
-          acc + self + children;
-        | _ => acc
-        },
-      0,
-      seg,
-    );
-  let count_siblings = ((pre, suf): Siblings.t): int =>
-    count_segment(pre) + count_segment(suf);
-  let count_ancestors = (ancs: Ancestors.t): int =>
-    List.fold_left(
-      (acc, (a, parent_sibs): Ancestors.generation) => {
-        let self = {
-          let total_shards =
-            List.length(fst(a.shards)) + List.length(snd(a.shards));
-          total_shards == List.length(a.label) && List.length(a.label) > 1
-            ? 1 : 0;
-        };
+type repair_stats = {
+  complete_multitiles: int,
+  incomplete_multitiles: int,
+  preserved_anchors: int,
+};
+
+let empty_repair_stats = {
+  complete_multitiles: 0,
+  incomplete_multitiles: 0,
+  preserved_anchors: 0,
+};
+
+let add_repair_stats = (a: repair_stats, b: repair_stats): repair_stats => {
+  complete_multitiles: a.complete_multitiles + b.complete_multitiles,
+  incomplete_multitiles: a.incomplete_multitiles + b.incomplete_multitiles,
+  preserved_anchors: a.preserved_anchors + b.preserved_anchors,
+};
+
+let is_multidelimiter_label = (label: Label.t): bool => List.length(label) > 1;
+
+let score_multitile =
+    (~anchor_ids: list(Id.t), ~id: Id.t, ~label: Label.t, ~complete: bool)
+    : repair_stats =>
+  if (!is_multidelimiter_label(label)) {
+    empty_repair_stats;
+  } else {
+    {
+      complete_multitiles: complete ? 1 : 0,
+      incomplete_multitiles: complete ? 0 : 1,
+      preserved_anchors: complete && List.mem(id, anchor_ids) ? 1 : 0,
+    };
+  };
+
+let rec collect_complete_anchor_ids_segment =
+    (acc: list(Id.t), seg: Segment.t): list(Id.t) =>
+  List.fold_left(
+    (acc, p) =>
+      switch (p) {
+      | Piece.Tile(t) =>
+        let acc =
+          List.fold_left(collect_complete_anchor_ids_segment, acc, t.children);
+        is_multidelimiter_label(t.label) && Tile.is_complete(t)
+          ? [t.id, ...acc] : acc;
+      | _ => acc
+      },
+    acc,
+    seg,
+  );
+
+let collect_complete_anchor_ids_siblings =
+    (acc: list(Id.t), ((pre, suf): Siblings.t)): list(Id.t) => {
+  let acc = collect_complete_anchor_ids_segment(acc, pre);
+  collect_complete_anchor_ids_segment(acc, suf);
+};
+
+let collect_complete_anchor_ids_ancestors =
+    (acc: list(Id.t), ancs: Ancestors.t): list(Id.t) =>
+  List.fold_left(
+    (acc, (a, parent_sibs): Ancestors.generation) => {
+      let acc =
+        List.fold_left(collect_complete_anchor_ids_segment, acc, fst(a.children));
+      let acc =
+        List.fold_left(collect_complete_anchor_ids_segment, acc, snd(a.children));
+      let total_shards =
+        List.length(fst(a.shards)) + List.length(snd(a.shards));
+      let acc =
+        is_multidelimiter_label(a.label) && total_shards == List.length(a.label)
+          ? [a.id, ...acc] : acc;
+      collect_complete_anchor_ids_siblings(acc, parent_sibs);
+    },
+    acc,
+    ancs,
+  );
+
+let complete_anchor_ids_of_relatives = (rs: Relatives.t): list(Id.t) => {
+  let ids =
+    collect_complete_anchor_ids_siblings([], rs.siblings)
+    |> acc => collect_complete_anchor_ids_ancestors(acc, rs.ancestors);
+  List.sort_uniq(compare, ids);
+};
+
+let rec repair_stats_of_segment =
+    (~anchor_ids: list(Id.t), seg: Segment.t): repair_stats =>
+  List.fold_left(
+    (acc, p) =>
+      switch (p) {
+      | Piece.Tile(t) =>
+        let self =
+          score_multitile(
+            ~anchor_ids,
+            ~id=t.id,
+            ~label=t.label,
+            ~complete=Tile.is_complete(t),
+          );
         let children =
           List.fold_left(
-            (a, c) => a + count_segment(c),
-            0,
-            fst(a.children) @ snd(a.children),
+            (acc, child) =>
+              add_repair_stats(acc, repair_stats_of_segment(~anchor_ids, child)),
+            empty_repair_stats,
+            t.children,
           );
-        let ps = count_siblings(parent_sibs);
-        acc + self + children + ps;
+        let acc = add_repair_stats(acc, self);
+        add_repair_stats(acc, children)
+      | _ => acc
       },
-      0,
-      ancs,
-    );
-  count_siblings(z.relatives.siblings)
-  + count_ancestors(z.relatives.ancestors);
-};
+    empty_repair_stats,
+    seg,
+  );
+
+let repair_stats_of_segments =
+    (~anchor_ids: list(Id.t), segs: list(Segment.t)): repair_stats =>
+  List.fold_left(
+    (acc, seg) =>
+      add_repair_stats(acc, repair_stats_of_segment(~anchor_ids, seg)),
+    empty_repair_stats,
+    segs,
+  );
+
+let repair_stats_of_siblings =
+    (~anchor_ids: list(Id.t), ((pre, suf): Siblings.t)): repair_stats =>
+  add_repair_stats(
+    repair_stats_of_segment(~anchor_ids, pre),
+    repair_stats_of_segment(~anchor_ids, suf),
+  );
+
+let repair_stats_of_ancestors =
+    (~anchor_ids: list(Id.t), ancs: Ancestors.t): repair_stats =>
+  List.fold_left(
+    (acc, (a, parent_sibs): Ancestors.generation) => {
+      let total_shards =
+        List.length(fst(a.shards)) + List.length(snd(a.shards));
+      let self =
+        score_multitile(
+          ~anchor_ids,
+          ~id=a.id,
+          ~label=a.label,
+          ~complete=total_shards == List.length(a.label),
+        );
+      let children =
+        repair_stats_of_segments(~anchor_ids, fst(a.children) @ snd(a.children));
+      let parent_sibs = repair_stats_of_siblings(~anchor_ids, parent_sibs);
+      let acc = add_repair_stats(acc, self);
+      let acc = add_repair_stats(acc, children);
+      add_repair_stats(acc, parent_sibs)
+    },
+    empty_repair_stats,
+    ancs,
+  );
+
+let repair_stats_of_relatives =
+    (~anchor_ids: list(Id.t), rs: Relatives.t): repair_stats =>
+  add_repair_stats(
+    repair_stats_of_siblings(~anchor_ids, rs.siblings),
+    repair_stats_of_ancestors(~anchor_ids, rs.ancestors),
+  );
+
+let should_accept_local_repair =
+    (base_stats: repair_stats, candidate_stats: repair_stats): bool =>
+  candidate_stats.complete_multitiles > base_stats.complete_multitiles
+  || (
+    candidate_stats.complete_multitiles == base_stats.complete_multitiles
+    && candidate_stats.preserved_anchors == base_stats.preserved_anchors
+    && candidate_stats.incomplete_multitiles < base_stats.incomplete_multitiles
+  );
 
 /* Check if a segment recursively contains any incomplete
    multi-delimiter tiles. Used to decide which sibling tiles
@@ -181,12 +301,10 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
     seg,
   );
 
-/* Deep reassociation: two-path delimiter matching.
-   Cross-scope path: flatten ancestors (targeted by label), crack
-   tiles with orphaned children, rescan, verify with full counting.
-   Local path (no ancestor match): crack sibling tiles with orphaned
-   children only — skip ancestor flatten. Both paths revert if
-   reassociation would not strictly increase complete tile count. */
+/* Deep reassociation: repair the smallest scope implicated by the
+   current unresolved multi-delimiter demand. Complete forms inside
+   that scope act as anchors: keep them unless the repair yields a
+   strictly better complete interpretation locally. */
 /* Give fresh IDs to ancestor shard pieces on the right side.
    This prevents duplicate (id, shard_index) after rescan converts
    a newly-inserted delimiter to the ancestor's ID. The left-side
@@ -236,20 +354,28 @@ let collect_incomplete_labels = (seg: Segment.t): list(Label.t) =>
    have been found. Freshens right-side ancestor shards to prevent
    ID collisions during rescan. When a matching ancestor is found,
    its label is removed from targets; once all targets are satisfied,
-   remaining outer ancestors are preserved — keeping the sibling list
-   O(affected_scope) instead of O(program). */
-let rec flatten_to_match = (target_labels, siblings, ancestors, fresh_map) =>
+   remaining outer ancestors are preserved — keeping reassociation local
+   to the affected repair scope instead of the whole program. */
+let rec flatten_to_match =
+    (target_labels, siblings, affected_rev, ancestors, fresh_map) =>
   switch (ancestors) {
-  | [] => (siblings, [], fresh_map)
-  | _ when target_labels == [] => (siblings, ancestors, fresh_map)
-  | [(ancestor, parent_sibs), ...rest] =>
+  | [] => (siblings, List.rev(affected_rev), [], fresh_map)
+  | _ when target_labels == [] =>
+    (siblings, List.rev(affected_rev), ancestors, fresh_map)
+  | [((ancestor, parent_sibs) as generation), ...rest] =>
     let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
     let (right_dis, fresh_map) =
       freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
     let siblings =
       Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
     let target_labels = List.filter(l => l != ancestor.label, target_labels);
-    flatten_to_match(target_labels, siblings, rest, fresh_map);
+    flatten_to_match(
+      target_labels,
+      siblings,
+      [generation, ...affected_rev],
+      rest,
+      fresh_map,
+    );
   };
 
 /* Repair incidental breakage from freshening: if a freshened shard
@@ -297,9 +423,39 @@ let has_incomplete_multi = (seg: Segment.t): bool =>
     seg,
   );
 
+let maybe_accept_local_repair =
+    (
+      ~base_scope: Relatives.t,
+      ~candidate_siblings: Siblings.t,
+      ~outer_ancestors: Ancestors.t,
+      z: t,
+    )
+    : t => {
+  let anchor_ids = complete_anchor_ids_of_relatives(base_scope);
+  let base_stats = repair_stats_of_relatives(~anchor_ids, base_scope);
+  let local_relatives =
+    {
+      Relatives.siblings: candidate_siblings,
+      ancestors: [],
+    }
+    |> Relatives.reassemble;
+  let candidate_stats = repair_stats_of_relatives(~anchor_ids, local_relatives);
+  if (should_accept_local_repair(base_stats, candidate_stats)) {
+    {
+      ...z,
+      relatives: {
+        siblings: local_relatives.siblings,
+        ancestors: local_relatives.ancestors @ outer_ancestors,
+      },
+    };
+  } else {
+    z;
+  };
+};
+
 let deep_reassociate = (z: t): t => {
   /* Early exit: if no incomplete multi-delimiter tiles exist at the
-     sibling level, there's nothing for cross-scope matching to do. */
+     sibling level, there is no provisional demand for repair. */
   let (pre, suf) = z.relatives.siblings;
   if (!has_incomplete_multi(pre) && !has_incomplete_multi(suf)) {
     z;
@@ -311,15 +467,15 @@ let deep_reassociate = (z: t): t => {
         z.relatives.ancestors,
       );
     if (any_ancestor_match) {
-      /* Cross-scope path: an ancestor's label matches a sibling
-         singleton's label. Flatten ancestors to expose matching
-         shards, crack tiles with orphaned children, rescan, and
-         verify improvement with full count check. */
-      let before_count = count_complete_multitiles(z);
-      let (siblings, ancestors, fresh_map) =
+      /* Cross-scope path: collect the smallest ancestor scope that
+         can satisfy the current unresolved labels, repair only that
+         scope, and keep the rewrite only if it improves local
+         completeness without sacrificing anchored complete forms. */
+      let (siblings, affected_ancestors, outer_ancestors, fresh_map) =
         flatten_to_match(
           target_labels,
           z.relatives.siblings,
+          [],
           z.relatives.ancestors,
           Id.Map.empty,
         );
@@ -328,42 +484,38 @@ let deep_reassociate = (z: t): t => {
         |> TupleUtil.map2(flatten_tiles_with_incomplete)
         |> Siblings.rescan
         |> repair_fresh_ids(fresh_map);
-      let relatives =
+      let base_scope =
         {
-          Relatives.siblings,
-          ancestors,
-        }
-        |> Relatives.reassemble;
-      let z' = {
-        ...z,
-        relatives,
-      };
-      let after_count = count_complete_multitiles(z');
-      after_count > before_count ? z' : z;
+          Relatives.siblings: z.relatives.siblings,
+          ancestors: affected_ancestors,
+        };
+      maybe_accept_local_repair(
+        ~base_scope,
+        ~candidate_siblings=siblings,
+        ~outer_ancestors,
+        z,
+      );
     } else {
-      /* Local path: no ancestor has a matching label. Try orphan
-         extraction only — crack sibling tiles whose children contain
-         orphaned shards, rescan, verify. No ancestor flattening, so
-         siblings stay O(scope). Skip entirely if no tiles to crack. */
+      /* Local path: no ancestor participates, so repair only the
+         current siblings and keep the rewrite only if the local scope
+         becomes strictly better. */
       let cracked =
         TupleUtil.map2(flatten_tiles_with_incomplete, (pre, suf));
       if (cracked == (pre, suf)) {
         z;
       } else {
-        let before_count = count_complete_multitiles(z);
         let siblings = Siblings.rescan(cracked);
-        let relatives =
+        let base_scope =
           {
-            Relatives.siblings,
-            ancestors: z.relatives.ancestors,
-          }
-          |> Relatives.reassemble;
-        let z' = {
-          ...z,
-          relatives,
-        };
-        let after_count = count_complete_multitiles(z');
-        after_count > before_count ? z' : z;
+            Relatives.siblings: z.relatives.siblings,
+            ancestors: [],
+          };
+        maybe_accept_local_repair(
+          ~base_scope,
+          ~candidate_siblings=siblings,
+          ~outer_ancestors=z.relatives.ancestors,
+          z,
+        );
       };
     };
   };
