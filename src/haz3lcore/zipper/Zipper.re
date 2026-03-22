@@ -177,11 +177,11 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
        }
      );
 
-/* Deep reassociate: flatten all ancestors into siblings,
-   aggressively flatten sibling tiles containing orphaned shards,
-   rescan for delimiter reassociation, and reassemble.
-   Reverts if reassociation would not strictly increase the number
-   of complete multi-delimiter tiles. */
+/* Deep reassociate: flatten ancestors into siblings (only as far
+   as needed to find matching labels), aggressively flatten sibling
+   tiles containing orphaned shards, rescan for delimiter
+   reassociation, and reassemble. Reverts if reassociation would
+   not strictly increase the number of complete multi-delimiter tiles. */
 /* Give fresh IDs to ancestor shard pieces on the right side.
    This prevents duplicate (id, shard_index) after rescan converts
    a newly-inserted delimiter to the ancestor's ID. The left-side
@@ -208,19 +208,37 @@ let freshen_ancestor_shards =
     ([], fresh_map),
   );
 
-/* Flatten all ancestors into siblings, freshening right-side
-   ancestor shards to prevent ID collisions during rescan.
-   Returns (siblings, empty_ancestors, fresh_map). */
-let rec flatten_all = (siblings, ancestors, fresh_map) =>
+/* Collect distinct labels of incomplete multi-delimiter tiles
+   from a segment (determines which ancestors need flattening). */
+let collect_incomplete_labels = (seg: Segment.t): list(Label.t) =>
+  List.filter_map(
+    fun
+    | Piece.Tile(t) when !Tile.is_complete(t) && List.length(t.label) > 1 =>
+      Some(t.label)
+    | _ => None,
+    seg,
+  )
+  |> List.sort_uniq(compare);
+
+/* Flatten ancestors into siblings, stopping when all target labels
+   have been found. Freshens right-side ancestor shards to prevent
+   ID collisions during rescan. When a matching ancestor is found,
+   its label is removed from targets; once all targets are satisfied,
+   remaining outer ancestors are preserved — keeping the sibling list
+   O(affected_scope) instead of O(program). */
+let rec flatten_to_match = (target_labels, siblings, ancestors, fresh_map) =>
   switch (ancestors) {
   | [] => (siblings, [], fresh_map)
+  | _ when target_labels == [] => (siblings, ancestors, fresh_map)
   | [(ancestor, parent_sibs), ...rest] =>
     let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
     let (right_dis, fresh_map) =
       freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
     let siblings =
       Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
-    flatten_all(siblings, rest, fresh_map);
+    let target_labels =
+      List.filter(l => l != ancestor.label, target_labels);
+    flatten_to_match(target_labels, siblings, rest, fresh_map);
   };
 
 /* Repair incidental breakage from freshening: if a freshened shard
@@ -262,11 +280,6 @@ let repair_fresh_ids =
     TupleUtil.map2(repair, siblings);
   };
 
-/* Deep reassociate: flatten all ancestors into siblings,
-   aggressively flatten sibling tiles containing orphaned shards,
-   rescan for delimiter reassociation, and reassemble.
-   Reverts if reassociation would not strictly increase the number
-   of complete multi-delimiter tiles. */
 /* Check if a segment contains any incomplete multi-delimiter tiles
    at the top level (no recursion into children). */
 let has_incomplete_multi = (seg: Segment.t): bool =>
@@ -284,24 +297,26 @@ let deep_reassociate = (z: t): t => {
   if (!has_incomplete_multi(pre) && !has_incomplete_multi(suf)) {
     z;
   } else {
-  let before_count = count_complete_multitiles(z);
-  let (siblings, ancestors, fresh_map) =
-    flatten_all(
-      z.relatives.siblings,
-      z.relatives.ancestors,
-      Id.Map.empty,
-    );
-  let siblings = TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
-  let siblings = Siblings.rescan(siblings);
-  let siblings = repair_fresh_ids(fresh_map, siblings);
-  let relatives =
-    {Relatives.siblings, ancestors} |> Relatives.reassemble;
-  let z' = {...z, relatives};
-  /* Only keep reassociation if it strictly increased the number
-     of complete multi-delimiter tiles. Trading (one tile breaks,
-     another completes) is displacement, not progress. */
-  let after_count = count_complete_multitiles(z');
-  after_count > before_count ? z' : z;
+    let before_count = count_complete_multitiles(z);
+    let target_labels = collect_incomplete_labels(pre @ suf);
+    let (siblings, ancestors, fresh_map) =
+      flatten_to_match(
+        target_labels,
+        z.relatives.siblings,
+        z.relatives.ancestors,
+        Id.Map.empty,
+      );
+    let siblings = TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
+    let siblings = Siblings.rescan(siblings);
+    let siblings = repair_fresh_ids(fresh_map, siblings);
+    let relatives =
+      {Relatives.siblings, ancestors} |> Relatives.reassemble;
+    let z' = {...z, relatives};
+    /* Only keep reassociation if it strictly increased the number
+       of complete multi-delimiter tiles. Trading (one tile breaks,
+       another completes) is displacement, not progress. */
+    let after_count = count_complete_multitiles(z');
+    after_count > before_count ? z' : z;
   };
 };
 
