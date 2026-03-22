@@ -109,6 +109,20 @@ let add_repair_stats = (a: repair_stats, b: repair_stats): repair_stats => {
 
 let is_multidelimiter_label = (label: Label.t): bool => List.length(label) > 1;
 
+module LabelKey = {
+  type t = Label.t;
+  let compare = compare;
+};
+
+module LabelSet = Set.Make(LabelKey);
+
+let label_set_of = (labels: list(Label.t)): LabelSet.t =>
+  List.fold_left(
+    (acc, label) => LabelSet.add(label, acc),
+    LabelSet.empty,
+    labels,
+  );
+
 let score_multitile =
     (~anchor_ids: list(Id.t), ~id: Id.t, ~label: Label.t, ~complete: bool)
     : repair_stats =>
@@ -254,20 +268,6 @@ let should_accept_local_repair =
     && candidate_stats.incomplete_multitiles < base_stats.incomplete_multitiles
   );
 
-/* Check if a segment recursively contains any incomplete
-   multi-delimiter tiles. Used to decide which sibling tiles
-   to aggressively flatten in deep_reassociate. */
-let rec has_incomplete_multi_deep = (seg: Segment.t): bool =>
-  List.exists(
-    fun
-    | Piece.Tile(t) =>
-      !Tile.is_complete(t)
-      && List.length(t.label) > 1
-      || List.exists(has_incomplete_multi_deep, t.children)
-    | _ => false,
-    seg,
-  );
-
 let shard_pieces = (t: Tile.t) =>
   List.map(
     s =>
@@ -279,27 +279,51 @@ let shard_pieces = (t: Tile.t) =>
     t.shards,
   );
 
-/* Recursively disassemble complete multi-delimiter sibling tiles
-   whose subtrees contain incomplete multi-delimiter tiles. This
-   exposes orphaned shards trapped inside complete tiles, enabling
-   rescan to match them with tokens at the sibling level. */
-let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
-  List.concat_map(
-    fun
-    | Piece.Tile(t)
-        when
+/* Recursively crack only along paths that lead to the currently
+   relevant unresolved delimiter families. This is narrower than
+   "any incomplete descendant": unrelated complete tiles stay intact,
+   but complete wrappers on the path to relevant demand still crack. */
+let rec flatten_tiles_with_relevant_incomplete =
+    (~target_labels: LabelSet.t, seg: Segment.t): (bool, Segment.t) =>
+  List.fold_right(
+    (p, (acc_has_relevant, acc_seg)) =>
+      switch (p) {
+      | Piece.Tile(t) =>
+        let child_results =
+          List.map(
+            flatten_tiles_with_relevant_incomplete(~target_labels),
+            t.children,
+          );
+        let child_has_relevant =
+          List.exists(((has_relevant, _)) => has_relevant, child_results);
+        let self_has_relevant =
+          !Tile.is_complete(t)
+          && is_multidelimiter_label(t.label)
+          && LabelSet.mem(t.label, target_labels);
+        let has_relevant = self_has_relevant || child_has_relevant;
+        if (
           Tile.is_complete(t)
-          && List.length(t.label) > 1
-          && List.exists(has_incomplete_multi_deep, t.children) =>
-      Aba.mk(
-        shard_pieces(t),
-        List.map(flatten_tiles_with_incomplete, t.children),
-      )
-      |> Aba.join(p => [p], Fun.id)
-      |> List.flatten
-    | p => [p],
+          && is_multidelimiter_label(t.label)
+          && child_has_relevant
+        ) {
+          let flattened_children = List.map(snd, child_results);
+          let cracked =
+            Aba.mk(shard_pieces(t), flattened_children)
+            |> Aba.join(p => [p], Fun.id)
+            |> List.flatten;
+          (has_relevant || acc_has_relevant, cracked @ acc_seg);
+        } else {
+          (has_relevant || acc_has_relevant, [p, ...acc_seg]);
+        };
+      | _ => (acc_has_relevant, [p, ...acc_seg])
+      },
     seg,
+    (false, []),
   );
+
+let flatten_tiles_with_target_labels =
+    (~target_labels: LabelSet.t, seg: Segment.t): Segment.t =>
+  flatten_tiles_with_relevant_incomplete(~target_labels, seg) |> snd;
 
 module ShardKey = {
   type t = (Id.t, list(int));
@@ -472,6 +496,7 @@ let deep_reassociate = (z: t): t => {
     z;
   } else {
     let target_labels = collect_incomplete_labels(pre @ suf);
+    let target_label_set = label_set_of(target_labels);
     let any_ancestor_match =
       List.exists(
         ((a: Ancestor.t, _)) => List.mem(a.label, target_labels),
@@ -492,7 +517,9 @@ let deep_reassociate = (z: t): t => {
         );
       let siblings =
         siblings
-        |> TupleUtil.map2(flatten_tiles_with_incomplete)
+        |> TupleUtil.map2(
+             flatten_tiles_with_target_labels(~target_labels=target_label_set),
+           )
         |> Siblings.rescan
         |> repair_fresh_ids(fresh_map);
       let base_scope =
@@ -511,7 +538,10 @@ let deep_reassociate = (z: t): t => {
          current siblings and keep the rewrite only if the local scope
          becomes strictly better. */
       let cracked =
-        TupleUtil.map2(flatten_tiles_with_incomplete, (pre, suf));
+        TupleUtil.map2(
+          flatten_tiles_with_target_labels(~target_labels=target_label_set),
+          (pre, suf),
+        );
       if (cracked == (pre, suf)) {
         z;
       } else {

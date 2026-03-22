@@ -2590,6 +2590,74 @@ let deep_reassociate_advanced_tests = [
       };
     },
   ),
+  /* Realistic probe-sensitive case: inserting a new let at the start
+   * of an existing let's body should preserve the outer let while the
+   * new let is incomplete, then yield two complete lets once finished. */
+  test_case(
+    "Typing let before trailing body preserves outer",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z0 = mk("let a = 1 in¦ a") |> perform(~settings, Zipper.init());
+      let count_complete_lets = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let lets = find_tiles_by_label(["let", "=", "in"], seg);
+        List.length(List.filter(Tile.is_complete, lets));
+      };
+      let z1 = string_to_ltr_actions(" let b = ") |> perform(~settings, z0);
+      if (count_complete_lets(z1) < 1) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After ' let b = ': expected >= 1 complete let, got %d",
+            count_complete_lets(z1),
+          ),
+        );
+      };
+      let z2 = string_to_ltr_actions("2 in") |> perform(~settings, z1);
+      if (count_complete_lets(z2) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After '2 in': expected 2 complete lets, got %d",
+            count_complete_lets(z2),
+          ),
+        );
+      };
+    },
+  ),
+  /* The same trailing-body scenario through paste: an incomplete pasted
+   * let should not steal the anchored outer `in` from the surrounding
+   * complete let. */
+  test_case(
+    "Paste incomplete let before trailing body preserves outer",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z0 = mk("let a = 1 in¦ a") |> perform(~settings, Zipper.init());
+      let count_complete_lets = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let lets = find_tiles_by_label(["let", "=", "in"], seg);
+        List.length(List.filter(Tile.is_complete, lets));
+      };
+      let z1 = perform(~settings, z0, [Paste(" let b = ")]);
+      if (count_complete_lets(z1) < 1) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After pasting ' let b = ': expected >= 1 complete let, got %d",
+            count_complete_lets(z1),
+          ),
+        );
+      };
+      let z2 = perform(~settings, z1, [Paste("2 in")]);
+      if (count_complete_lets(z2) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After pasting '2 in': expected 2 complete lets, got %d",
+            count_complete_lets(z2),
+          ),
+        );
+      };
+    },
+  ),
   /* Repeated ancestor lets: inserting a new let into the body of an
    * already-complete inner let must preserve both existing lets while
    * the new let is incomplete, then expose three complete lets once
