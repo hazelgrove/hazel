@@ -163,32 +163,16 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
              Tile.is_complete(t)
              && List.length(t.label) > 1
              && List.exists(has_incomplete_multi_deep, t.children) =>
-         let rec interleave = (shards, children) =>
-           switch (shards) {
-           | [] => []
-           | [s] => [
-               Piece.Tile({
-                 ...t,
-                 shards: [s],
-                 children: [],
-               }),
-             ]
-           | [s, ...rest_s] =>
-             let singleton =
-               Piece.Tile({
-                 ...t,
-                 shards: [s],
-                 children: [],
-               });
-             switch (children) {
-             | [c, ...rest_c] =>
-               [singleton]
-               @ flatten_tiles_with_incomplete(c)
-               @ interleave(rest_s, rest_c)
-             | [] => [singleton, ...interleave(rest_s, [])]
-             };
-           };
-         interleave(t.shards, t.children);
+         let shard_pieces =
+           List.map(
+             s => Piece.Tile({...t, shards: [s], children: []}),
+             t.shards,
+           );
+         let flattened_children =
+           List.map(flatten_tiles_with_incomplete, t.children);
+         Aba.mk(shard_pieces, flattened_children)
+         |> Aba.join(p => [p], Fun.id)
+         |> List.flatten;
        | _ => [p]
        }
      );
@@ -198,108 +182,108 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
    rescan for delimiter reassociation, and reassemble.
    Reverts if reassociation would not strictly increase the number
    of complete multi-delimiter tiles. */
+/* Give fresh IDs to ancestor shard pieces on the right side.
+   This prevents duplicate (id, shard_index) after rescan converts
+   a newly-inserted delimiter to the ancestor's ID. The left-side
+   shards keep their original IDs (first-seen in L-to-R order).
+   Returns (freshened_segment, updated_fresh_map). */
+let freshen_ancestor_shards =
+    (
+      ancestor_id: Id.t,
+      fresh_map: Id.Map.t((Id.t, list(int))),
+      seg: Segment.t,
+    )
+    : (Segment.t, Id.Map.t((Id.t, list(int)))) =>
+  List.fold_right(
+    (p, (acc_seg, acc_map)) =>
+      switch (p) {
+      | Piece.Tile(t) when t.id == ancestor_id =>
+        let fresh_id = Id.mk();
+        let acc_map =
+          Id.Map.add(fresh_id, (ancestor_id, t.shards), acc_map);
+        ([Piece.Tile({...t, id: fresh_id}), ...acc_seg], acc_map);
+      | _ => ([p, ...acc_seg], acc_map)
+      },
+    seg,
+    ([], fresh_map),
+  );
+
+/* Flatten all ancestors into siblings, freshening right-side
+   ancestor shards to prevent ID collisions during rescan.
+   Returns (siblings, empty_ancestors, fresh_map). */
+let rec flatten_all = (siblings, ancestors, fresh_map) =>
+  switch (ancestors) {
+  | [] => (siblings, [], fresh_map)
+  | [(ancestor, parent_sibs), ...rest] =>
+    let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
+    let (right_dis, fresh_map) =
+      freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
+    let siblings =
+      Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
+    flatten_all(siblings, rest, fresh_map);
+  };
+
+/* Repair incidental breakage from freshening: if a freshened shard
+   survived rescan (still has its fresh ID) and no other piece was
+   converted to take its original (id, shard_index), then it was
+   merely shadowed by rescan's LIFO stack — not genuinely displaced.
+   Restore its original ID so reassembly can group it with its siblings. */
+let repair_fresh_ids =
+    (fresh_map: Id.Map.t((Id.t, list(int))), siblings: Siblings.t)
+    : Siblings.t =>
+  if (Id.Map.is_empty(fresh_map)) {
+    siblings;
+  } else {
+    let combined = fst(siblings) @ snd(siblings);
+    let was_stolen = (original_id, shards) =>
+      List.exists(
+        p =>
+          switch (p) {
+          | Piece.Tile(t) => t.id == original_id && t.shards == shards
+          | _ => false
+          },
+        combined,
+      );
+    let repair = seg =>
+      List.map(
+        p =>
+          switch (p) {
+          | Piece.Tile(t) =>
+            switch (Id.Map.find_opt(t.id, fresh_map)) {
+            | Some((original_id, shards))
+                when !was_stolen(original_id, shards) =>
+              Piece.Tile({...t, id: original_id})
+            | _ => p
+            }
+          | _ => p
+          },
+        seg,
+      );
+    TupleUtil.map2(repair, siblings);
+  };
+
+/* Deep reassociate: flatten all ancestors into siblings,
+   aggressively flatten sibling tiles containing orphaned shards,
+   rescan for delimiter reassociation, and reassemble.
+   Reverts if reassociation would not strictly increase the number
+   of complete multi-delimiter tiles. */
 let deep_reassociate = (z: t): t => {
   let before_count = count_complete_multitiles(z);
-  /* Track fresh IDs so we can repair incidental breakage.
-     Maps fresh_id → (original_id, shard_indices) for right-side
-     ancestor shards. */
-  let fresh_map: ref(Id.Map.t((Id.t, list(int)))) = ref(Id.Map.empty);
-  /* Give fresh IDs to ancestor shard pieces on the right side.
-     This prevents duplicate (id, shard_index) after rescan converts
-     a newly-inserted delimiter to the ancestor's ID. The left-side
-     shards keep their original IDs (first-seen in L-to-R order). */
-  let freshen_ancestor_shards = (ancestor_id: Id.t, seg: Segment.t) =>
-    seg
-    |> List.map(p =>
-         switch (p) {
-         | Piece.Tile(t) when t.id == ancestor_id =>
-           let fresh_id = Id.mk();
-           fresh_map :=
-             Id.Map.add(fresh_id, (ancestor_id, t.shards), fresh_map^);
-           Piece.Tile({
-             ...t,
-             id: fresh_id,
-           });
-         | _ => p
-         }
-       );
-  /* Flatten all ancestors into siblings */
-  let rec flatten_all = (siblings, ancestors) =>
-    switch (ancestors) {
-    | [] => (siblings, [])
-    | [(ancestor, parent_sibs), ...rest] =>
-      let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
-      let right_dis = freshen_ancestor_shards(ancestor.id, right_dis);
-      let siblings =
-        Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
-      flatten_all(siblings, rest);
-    };
-  let (siblings, ancestors) =
-    flatten_all(z.relatives.siblings, z.relatives.ancestors);
-  /* Aggressively flatten complete sibling tiles whose subtrees
-     contain orphaned (incomplete multi-delimiter) shards. This
-     exposes shards trapped inside complete tiles so rescan can
-     match them with tokens at the sibling level. */
+  let (siblings, ancestors, fresh_map) =
+    flatten_all(
+      z.relatives.siblings,
+      z.relatives.ancestors,
+      Id.Map.empty,
+    );
   let siblings = TupleUtil.map2(flatten_tiles_with_incomplete, siblings);
-  /* Rescan */
   let siblings = Siblings.rescan(siblings);
-  /* Repair incidental breakage: if a freshened shard survived rescan
-     (still has its fresh ID) and no other piece was converted to take
-     its original (id, shard_index), then it was merely shadowed by
-     rescan's LIFO stack — not genuinely displaced. Restore its
-     original ID so reassembly can group it with its siblings. */
-  let siblings =
-    if (Id.Map.is_empty(fresh_map^)) {
-      siblings;
-    } else {
-      /* Check if a piece with (original_id, shard_indices) exists
-         in the combined segment — meaning rescan converted a stealer
-         to take this exact slot. */
-      let combined = fst(siblings) @ snd(siblings);
-      let was_stolen = (original_id, shards) =>
-        List.exists(
-          p =>
-            switch (p) {
-            | Piece.Tile(t) => t.id == original_id && t.shards == shards
-            | _ => false
-            },
-          combined,
-        );
-      let repair = seg =>
-        List.map(
-          p =>
-            switch (p) {
-            | Piece.Tile(t) =>
-              switch (Id.Map.find_opt(t.id, fresh_map^)) {
-              | Some((original_id, shards))
-                  when !was_stolen(original_id, shards) =>
-                Piece.Tile({
-                  ...t,
-                  id: original_id,
-                })
-              | _ => p
-              }
-            | _ => p
-            },
-          seg,
-        );
-      let (pre, suf) = siblings;
-      (repair(pre), repair(suf));
-    };
-  /* Reassemble */
+  let siblings = repair_fresh_ids(fresh_map, siblings);
   let relatives =
-    {
-      Relatives.siblings,
-      ancestors,
-    }
-    |> Relatives.reassemble;
-  let z' = {
-    ...z,
-    relatives,
-  };
-  /* Option C: only keep reassociation if it strictly increased
-     the number of complete multi-delimiter tiles. Trading (one
-     tile breaks, another completes) is displacement, not progress. */
+    {Relatives.siblings, ancestors} |> Relatives.reassemble;
+  let z' = {...z, relatives};
+  /* Only keep reassociation if it strictly increased the number
+     of complete multi-delimiter tiles. Trading (one tile breaks,
+     another completes) is displacement, not progress. */
   let after_count = count_complete_multitiles(z');
   after_count > before_count ? z' : z;
 };

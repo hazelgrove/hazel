@@ -17,7 +17,9 @@ let go =
       a: Action.t,
       {zipper: z, col_target}: state,
     )
-    : Action.Result.t(Zipper.t) =>
+    : Action.Result.t(Zipper.t) => {
+  let maybe_reassoc =
+    settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
   switch (a) {
   | Introduce =>
     Select.current_term(
@@ -31,8 +33,6 @@ let go =
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
-    let maybe_reassoc =
-      settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
     switch (Parser.try_segment_paste(clipboard, z)) {
     | Some(z) => Ok(maybe_reassoc(z))
     | None =>
@@ -145,21 +145,16 @@ let go =
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
-    let maybe_reassoc =
-      settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
-    Destruct.go(d, z) |> Option.map(maybe_reassoc) |> return(Cant_destruct);
+    Destruct.go(d, z) |> Option.map(maybe_reassoc) |> return(Cant_destruct)
   | Insert(char) =>
-    let maybe_reassoc =
-      settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> Option.map(maybe_reassoc)
-    |> return(Cant_insert);
+    |> return(Cant_insert)
   | Put_down =>
-    let maybe_reassoc =
-      settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
-    Zipper.put_down(z) |> Option.map(maybe_reassoc) |> return(Cant_put_down);
+    Zipper.put_down(z) |> Option.map(maybe_reassoc) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
   | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };
+};
