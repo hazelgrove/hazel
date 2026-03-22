@@ -2,6 +2,40 @@ open Util;
 
 type t = ZipperBase.t;
 
+/* Reassociation tries to reconcile two competing notions of intent:
+   textual completion and structural stability.
+
+   Terms used here:
+   - Anchor: an already-complete multi-delimiter form in the affected scope.
+     Anchors are evidence of previously committed user intent and should not
+     be broken casually, because probe placement and intermediate feedback
+     depend on them staying stable through incomplete edit states.
+   - Demand: unresolved delimiter obligations induced by the local edit cone.
+     The current implementation represents demand by compatible delimiter
+     tokens plus directionality, not by rigid form identity.
+   - Repair scope: the smallest sibling/ancestor region we choose to crack,
+     rescan, and potentially rewrite after an edit.
+
+   Intended behavior:
+   - If the edited region is still incomplete, preserve anchored complete
+     structure as much as possible.
+   - If the edited region becomes textually delimiter-complete, realize a
+     structurally complete interpretation rather than preserving stale history.
+   - Compatibility should be token-based (`end` with `end`, `->` with `->`),
+     even across different forms like `case`/`test` or `fun`/`fix`; we do not
+     want historical form identity to prevent sensible rematching.
+
+   Current approximation:
+   - Demand collection and cracking are directional and token-guided.
+   - Scope expansion is driven by token demand coverage, not whole-label
+     matching.
+   - Acceptance is local and anchor-preserving.
+
+   Remaining gap:
+   - The ideal formulation is path-sensitive token obligations: still token
+     compatible across forms, but more precise than a token multiset about
+     which outstanding obligations are nearest/relevant and which ancestor
+     paths actually expose them. */
 module ShardKey = {
   type t = (Id.t, list(int));
   let compare = compare;
