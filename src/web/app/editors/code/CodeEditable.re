@@ -15,7 +15,8 @@ module Update = {
     | Perform(Action.t)
     | TAB
     | ContextMenu(ContextMenu.Model.action)
-    | DebugConsole(string);
+    | DebugConsole(string)
+    | Hover(option(Id.t));
 
   exception CantReset;
 
@@ -25,6 +26,7 @@ module Update = {
     | TAB => true
     | ContextMenu(_) => false
     | DebugConsole(_) => false
+    | Hover(_) => false
     };
   };
 
@@ -46,6 +48,7 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: None,
+            hover_id: model.hover_id,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
@@ -124,6 +127,12 @@ module Update = {
           ? Buffer(Accept)
           : Zipper.can_put_down(z) ? Put_down : Move(Goal(Hole(Right)));
       perform(action, model);
+    | Hover(id) =>
+      if (model.hover_id == id) {
+        model |> Updated.return_quiet;
+      } else {
+        {...model, hover_id: id} |> Updated.return_quiet;
+      }
     };
   };
 
@@ -310,6 +319,7 @@ module View = {
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
+        ~hover_id: option(Id.t),
         ~globals: Globals.t,
         z: Zipper.t,
       ) => [
@@ -344,6 +354,7 @@ module View = {
       ~measured=syntax.measured,
       ~font_metrics=globals.font_metrics,
       ~info_map,
+      ~hover_id,
       z,
     ),
   ];
@@ -371,6 +382,7 @@ module View = {
             ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
+            ~hover_id=model.hover_id,
             ~globals,
             model.editor.state.zipper,
           )
@@ -519,7 +531,7 @@ module View = {
       Effect.Ignore;
     };
 
-    let drag_select = (pointer: Pointer.Event.t) => {
+    let drag_select_or_hover = (pointer: Pointer.Event.t) => {
       let left_button_held = pointer.buttons land 1 != 0;
       if (!left_button_held && MouseState.is_button_down()) {
         /* Recover from stuck state: buttons bitmask says left is up
@@ -552,6 +564,19 @@ module View = {
             },
           );
           inject(Perform(Select(Resize(Point(current_loc)))));
+        | _ when !left_button_held =>
+          /* No button held: update hover target */
+          let hover_id =
+            switch (
+              Measured.piece_at_point(
+                current_loc,
+                model.editor.syntax.measured,
+              )
+            ) {
+            | Some(piece) => Some(Piece.id(piece))
+            | None => None
+            };
+          inject(Hover(hover_id));
         | _ => Effect.Ignore
         };
       };
@@ -579,7 +604,10 @@ module View = {
         Attr.on_pointerup(evt =>
           toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
-        Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
+        Attr.on_mousemove(evt =>
+          drag_select_or_hover(Pointer.Event.mk(evt))
+        ),
+        Attr.on_mouseleave(_ => inject(Hover(None))),
       ],
       display_line_numbers
         ? LineNumbers.View.view(
