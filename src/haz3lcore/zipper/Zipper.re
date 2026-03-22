@@ -267,7 +267,23 @@ let repair_fresh_ids =
    rescan for delimiter reassociation, and reassemble.
    Reverts if reassociation would not strictly increase the number
    of complete multi-delimiter tiles. */
+/* Check if a segment contains any incomplete multi-delimiter tiles
+   at the top level (no recursion into children). */
+let has_incomplete_multi = (seg: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) => !Tile.is_complete(t) && List.length(t.label) > 1
+    | _ => false,
+    seg,
+  );
+
 let deep_reassociate = (z: t): t => {
+  /* Early exit: if no incomplete multi-delimiter tiles exist at the
+     sibling level, there's nothing for cross-scope matching to do. */
+  let (pre, suf) = z.relatives.siblings;
+  if (!has_incomplete_multi(pre) && !has_incomplete_multi(suf)) {
+    z;
+  } else {
   let before_count = count_complete_multitiles(z);
   let (siblings, ancestors, fresh_map) =
     flatten_all(
@@ -286,6 +302,7 @@ let deep_reassociate = (z: t): t => {
      another completes) is displacement, not progress. */
   let after_count = count_complete_multitiles(z');
   after_count > before_count ? z' : z;
+  };
 };
 
 let clear_unparsed_buffer = (z: t) =>
