@@ -319,7 +319,6 @@ module View = {
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
-        ~hover_id: option(Id.t),
         ~globals: Globals.t,
         z: Zipper.t,
       ) => [
@@ -354,7 +353,6 @@ module View = {
       ~measured=syntax.measured,
       ~font_metrics=globals.font_metrics,
       ~info_map,
-      ~hover_id,
       z,
     ),
   ];
@@ -382,7 +380,6 @@ module View = {
             ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
-            ~hover_id=model.hover_id,
             ~globals,
             model.editor.state.zipper,
           )
@@ -564,19 +561,6 @@ module View = {
             },
           );
           inject(Perform(Select(Resize(Point(current_loc)))));
-        | _ when !left_button_held =>
-          /* No button held: update hover target */
-          let hover_id =
-            switch (
-              Measured.piece_at_point(
-                current_loc,
-                model.editor.syntax.measured,
-              )
-            ) {
-            | Some(piece) => Some(Piece.id(piece))
-            | None => None
-            };
-          inject(Hover(hover_id));
         | _ => Effect.Ignore
         };
       };
