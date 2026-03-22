@@ -301,6 +301,13 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
     seg,
   );
 
+module ShardKey = {
+  type t = (Id.t, list(int));
+  let compare = compare;
+};
+
+module ShardKeySet = Set.Make(ShardKey);
+
 /* Deep reassociation: repair the smallest scope implicated by the
    current unresolved multi-delimiter demand. Complete forms inside
    that scope act as anchors: keep them unless the repair yields a
@@ -389,11 +396,14 @@ let repair_fresh_ids =
   if (Id.Map.is_empty(fresh_map)) {
     siblings;
   } else {
-    let was_stolen = (original_id, shards) =>
-      List.exists(
-        fun
-        | Piece.Tile(t) => t.id == original_id && t.shards == shards
-        | _ => false,
+    let stolen_originals =
+      List.fold_left(
+        (acc, p) =>
+          switch (p) {
+          | Piece.Tile(t) => ShardKeySet.add((t.id, t.shards), acc)
+          | _ => acc
+          },
+        ShardKeySet.empty,
         fst(siblings) @ snd(siblings),
       );
     let repair =
@@ -401,7 +411,8 @@ let repair_fresh_ids =
         fun
         | Piece.Tile(t) =>
           switch (Id.Map.find_opt(t.id, fresh_map)) {
-          | Some((original_id, shards)) when !was_stolen(original_id, shards) =>
+          | Some((original_id, shards))
+              when !ShardKeySet.mem((original_id, shards), stolen_originals) =>
             Piece.Tile({
               ...t,
               id: original_id,

@@ -2590,6 +2590,43 @@ let deep_reassociate_advanced_tests = [
       };
     },
   ),
+  /* Repeated ancestor lets: inserting a new let into the body of an
+   * already-complete inner let must preserve both existing lets while
+   * the new let is incomplete, then expose three complete lets once
+   * the new textual structure is finished. */
+  test_case(
+    "Typing let inside nested lets preserves repeated ancestors",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z0 =
+        mk("let a = 1 in let b = ¦ in b")
+        |> perform(~settings, Zipper.init());
+      let count_complete_lets = (z: Zipper.t) => {
+        let seg = Zipper.zip(z);
+        let lets = find_tiles_by_label(["let", "=", "in"], seg);
+        List.length(List.filter(Tile.is_complete, lets));
+      };
+      let z1 = string_to_ltr_actions("let c = ") |> perform(~settings, z0);
+      if (count_complete_lets(z1) < 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After 'let c = ': expected >= 2 complete lets, got %d",
+            count_complete_lets(z1),
+          ),
+        );
+      };
+      let z2 = string_to_ltr_actions("2 in ") |> perform(~settings, z1);
+      if (count_complete_lets(z2) != 3) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "After '2 in ': expected 3 complete lets, got %d",
+            count_complete_lets(z2),
+          ),
+        );
+      };
+    },
+  ),
   /* List literals out-of-order: type [ inside [1+2], then ] outside.
    * Same mechanism as parens but confirms bracket forms also work. */
   test_case(
@@ -2866,6 +2903,67 @@ let deep_reassociate_advanced_tests = [
           Printf.sprintf(
             "Expected 1 complete fun/->. got %d",
             List.length(complete_funs),
+          ),
+        );
+      };
+    },
+  ),
+  /* Repeated ancestor labels: both the inner and outer if are of the
+   * same delimiter family, so repair must stay correct even when the
+   * needed ancestors are not distinguished by label alone. */
+  test_case(
+    "Paste completes nested ifs with repeated ancestor labels",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z = mk("if a then if b ¦") |> perform(~settings, Zipper.init());
+      let z = perform(~settings, z, [Paste("then 1 else 2 else 3")]);
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail(
+          "Incomplete tiles after paste — nested repeated-label ifs broken",
+        );
+      };
+      let seg = Zipper.zip(z);
+      let ifs = find_tiles_by_label(["if", "then", "else"], seg);
+      let complete_ifs = List.filter(Tile.is_complete, ifs);
+      if (List.length(complete_ifs) != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 2 complete nested if/then/else tiles, got %d",
+            List.length(complete_ifs),
+          ),
+        );
+      };
+    },
+  ),
+  /* Parentheses only: type a new ( inside nested parens, then supply
+   * the matching ) after both existing closing parens. Textually the
+   * result is complete, so the structural result should expose three
+   * complete paren pairs. */
+  test_case(
+    "Nested parens complete when ) is typed past multiple ancestors",
+    `Quick,
+    () => {
+      let settings = deep_reassociate_settings;
+      let z =
+        mk("((1+¦2))")
+        @ [Insert("(")]
+        @ mv_r(3)
+        @ [Insert(")")]
+        |> perform(~settings, Zipper.init());
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail(
+          "Incomplete tiles remain — all nested parens should be complete",
+        );
+      };
+      let seg = Zipper.zip(z);
+      let parens = find_tiles_by_label(["(", ")"], seg);
+      let complete_parens = List.filter(Tile.is_complete, parens);
+      if (List.length(complete_parens) != 3) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 3 complete paren tiles, got %d",
+            List.length(complete_parens),
           ),
         );
       };
