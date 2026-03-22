@@ -144,7 +144,9 @@ let reselect_lines = (z: t, num_newlines: int): t => {
   let z =
     List.fold_left(
       (z, _) =>
-        z |> or_stay(Move.by_char(Left)) |> or_stay(Move.to_linebreak(Left)),
+        z
+        |> or_stay(Move.by_char(Left))
+        |> or_stay(Move.to_linebreak(Left)),
       z,
       List.init(num_newlines, Fun.id),
     );
@@ -153,7 +155,9 @@ let reselect_lines = (z: t, num_newlines: int): t => {
   /* Cross linebreaks going right, selecting each subsequent line */
   List.fold_left(
     (z, _) =>
-      z |> or_stay(Select.local(Right)) |> or_stay(Select.to_linebreak(Right)),
+      z
+      |> or_stay(Select.local(Right))
+      |> or_stay(Select.to_linebreak(Right)),
     z,
     List.init(num_newlines, Fun.id),
   );
@@ -202,8 +206,7 @@ let toggle_multi = (z: t): option(t) => {
     /* Uncomment each line: destroy selection, extract content
      * from each comment, re-insert with newlines between */
     let text = uncommented_text(content);
-    let num_newlines =
-      List.length(String.split_on_char('\n', text)) - 1;
+    let num_newlines = List.length(String.split_on_char('\n', text)) - 1;
     let z = Zipper.destroy_selection(z);
     let z = insert_text(z, text);
     Some(reselect_lines(z, num_newlines));

@@ -1549,9 +1549,7 @@ let ancestor_sort_tests = [
   remold_test(
     ~name="Molds: delete = from let preserves Pat",
     ~fresh_acts=mk({|let a ¦1 in a|}),
-    ~roundtrip_acts=
-      mk({|let a =¦ 1 in a|})
-      @ [Action.Destruct(Left)],
+    ~roundtrip_acts=mk({|let a =¦ 1 in a|}) @ [Action.Destruct(Left)],
   ),
   /* type...=...in roundtrip preserves TPat mold */
   remold_test(
