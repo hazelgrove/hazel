@@ -78,9 +78,25 @@ module Store = {
     switch (model) {
     | Model.Scratch(m) =>
       StoreMode.save(Scratch);
+      /* Save agent data to IndexedDB, then persist editors to localStorage
+         (persist writes empty agent stubs to keep localStorage small) */
+      ScratchMode.save_agents_to_idb(
+        "scratch",
+        List.map(
+          (s: ScratchMode.Scratchpad.t) => (s.name, s.agent),
+          m.scratchpads,
+        ),
+      );
       ScratchMode.Store.save(ScratchMode.Model.persist(m));
     | Model.Documentation(m) =>
       StoreMode.save(Documentation);
+      ScratchMode.save_agents_to_idb(
+        "documentation",
+        List.map(
+          (s: ScratchMode.Scratchpad.t) => (s.name, s.agent),
+          m.scratchpads,
+        ),
+      );
       ScratchMode.StoreDocumentation.save(ScratchMode.Model.persist(m));
     | Model.Tutorial(m) =>
       StoreMode.save(Tutorial);
@@ -180,17 +196,23 @@ module Update = {
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
-      Model.Scratch(
+      let m =
         ScratchMode.Store.load()
-        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
-      )
-      |> return
+        |> ScratchMode.Model.unpersist(~settings=globals.settings.core);
+      ScratchMode.load_agents_from_idb(
+        "scratch", ScratchMode.Model.scratchpad_names(m), (name, agent) =>
+        schedule_action(Scratch(LoadAgentData(name, agent)))
+      );
+      Model.Scratch(m) |> return;
     | (SwitchMode(Documentation), _) =>
-      Model.Documentation(
+      let m =
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
-      )
-      |> return
+        |> ScratchMode.Model.unpersist(~settings=globals.settings.core);
+      ScratchMode.load_agents_from_idb(
+        "documentation", ScratchMode.Model.scratchpad_names(m), (name, agent) =>
+        schedule_action(Scratch(LoadAgentData(name, agent)))
+      );
+      Model.Documentation(m) |> return;
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(

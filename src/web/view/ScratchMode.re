@@ -3,6 +3,58 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
+/* IndexedDB store for agent chat data. Each scratchpad's agent state
+   is stored here, keyed by "mode:scratchpad_name". This avoids
+   bloating localStorage with large system prompts and chat history. */
+module AgentIDB =
+  StoreIDB.F({
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Agent.Agent.Persistent.t;
+    let default = Agent.Agent.Persistent.empty;
+    let db_name = "hazel_agent_db";
+  });
+
+let agent_idb_key = (mode_prefix: string, name: string): string =>
+  mode_prefix ++ ":" ++ name;
+
+/* Save all scratchpad agents to IndexedDB */
+let save_agents_to_idb =
+    (mode_prefix: string, scratchpads: list((string, Agent.Agent.Model.t)))
+    : unit =>
+  List.iter(
+    ((name, agent)) => {
+      let key = agent_idb_key(mode_prefix, name);
+      AgentIDB.save(key, Agent.Agent.Persistent.persist(agent));
+    },
+    scratchpads,
+  );
+
+/* Load all scratchpad agents from IndexedDB, dispatching results */
+let load_agents_from_idb =
+    (
+      mode_prefix: string,
+      names: list(string),
+      on_load: (string, Agent.Agent.Model.t) => unit,
+    )
+    : unit =>
+  List.iter(
+    name => {
+      let key = agent_idb_key(mode_prefix, name);
+      AgentIDB.load(
+        key,
+        data => {
+          let agent =
+            switch (data) {
+            | Some(p) => Agent.Agent.Persistent.unpersist(p)
+            | None => Agent.Agent.Utils.init()
+            };
+          on_load(name, agent);
+        },
+      );
+    },
+    names,
+  );
+
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -18,6 +70,8 @@ module Scratchpad = {
     agent: Agent.Agent.Persistent.t,
   };
 
+  /* Persist for localStorage: writes an empty agent stub.
+     Real agent data is saved to IndexedDB separately. */
   let persist = (s: t): persistent => {
     let current_segment = Zipper.zip(s.editor.editor.editor.state.zipper);
     let original = Init.find_documentation_slide(s.name);
@@ -40,10 +94,13 @@ module Scratchpad = {
     {
       name: s.name,
       editor,
-      agent: Agent.Agent.Persistent.persist(s.agent),
+      /* Write empty stub to localStorage — agent data lives in IndexedDB */
+      agent: Agent.Agent.Persistent.empty(),
     };
   };
 
+  /* Unpersist from localStorage: ignores agent stub, starts with
+     fresh agent. IndexedDB load will populate real data async. */
   let unpersist = (~settings, p: persistent): t => {
     name: p.name,
     editor:
@@ -52,7 +109,7 @@ module Scratchpad = {
         p.editor,
       )
       |> CellEditor.Model.unpersist(~settings),
-    agent: Agent.Agent.Persistent.unpersist(p.agent),
+    agent: Agent.Agent.Utils.init(),
   };
 
   let mk = (~name, ~editor, ()): t => {
@@ -82,6 +139,9 @@ module Model = {
     scratchpads:
       List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
   };
+
+  let scratchpad_names = (model: t): list(string) =>
+    List.map((s: Scratchpad.t) => s.name, model.scratchpads);
 };
 
 let scratchpad_persistent_of_init =
@@ -89,7 +149,7 @@ let scratchpad_persistent_of_init =
     : Scratchpad.persistent => {
   name,
   editor,
-  agent: Agent.Agent.Utils.init() |> Agent.Agent.Persistent.persist,
+  agent: Agent.Agent.Persistent.empty(),
 };
 
 module StoreDocumentation =
@@ -155,6 +215,7 @@ module Update = {
   type t =
     | CellAction(CellEditor.Update.t)
     | AgentAction(Agent.Agent.Update.Action.t)
+    | LoadAgentData(string, Agent.Agent.Model.t)
     | SwitchSlide(int)
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -169,6 +230,7 @@ module Update = {
     switch (action) {
     | CellAction(action) => CellEditor.Update.can_undo(action)
     | AgentAction(_) => true
+    | LoadAgentData(_, _) => false
     | SwitchSlide(_) => false
     | ResetCurrent => true
     | InitImportScratchpad(_) => true
@@ -316,6 +378,26 @@ module Update = {
         ...model,
         scratchpads: new_sp,
       };
+    | LoadAgentData(name, agent) =>
+      /* Async callback from IndexedDB load — populate agent data */
+      let scratchpads =
+        List.map(
+          (s: Scratchpad.t) =>
+            if (s.name == name) {
+              {
+                ...s,
+                agent,
+              };
+            } else {
+              s;
+            },
+          model.scratchpads,
+        );
+      {
+        ...model,
+        scratchpads,
+      }
+      |> Updated.return_quiet;
     | CellAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
       let* new_ed = CellEditor.Update.update(~settings, a, scratchpad.editor);
@@ -690,6 +772,7 @@ module View = {
             );
           if (confirmed) {
             JsUtil.clear_localstore();
+            AgentIDB.clear();
             Js_of_ocaml.Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;

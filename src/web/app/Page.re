@@ -321,7 +321,25 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
-    | Start => model |> return // Triggers recalculation at the start
+    | Start =>
+      /* Trigger async IndexedDB load for agent data */
+      switch (model.editors) {
+      | Scratch(m) =>
+        ScratchMode.load_agents_from_idb(
+          "scratch", ScratchMode.Model.scratchpad_names(m), (name, agent) =>
+          schedule_action(Editors(Scratch(LoadAgentData(name, agent))))
+        )
+      | Documentation(m) =>
+        ScratchMode.load_agents_from_idb(
+          "documentation",
+          ScratchMode.Model.scratchpad_names(m),
+          (name, agent) =>
+          schedule_action(Editors(Scratch(LoadAgentData(name, agent))))
+        )
+      | Tutorial(_)
+      | Exercises(_) => ()
+      };
+      model |> return; // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
       Store.save(model);

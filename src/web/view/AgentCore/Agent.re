@@ -1124,6 +1124,25 @@ module Agent = {
         tools_view_expanded: [],
       };
     };
+
+    /* Minimal stub for localStorage. Contains no system prompt, tools,
+       or chat history — just enough to deserialize without error.
+       Real agent data is stored in IndexedDB. */
+    let empty = (): t => {
+      chat_system: ChatSystem.Utils.init(~system_prompt="", ~dev_notes=""),
+      prompting: {
+        system_prompt: "",
+        dev_notes: "",
+        tools: [],
+        disabled_tool_names: [],
+      },
+      active_timeline_node: None,
+      awaiting_response: None,
+      restore_editor_state: None,
+      last_empty_retry_attempt: None,
+      last_active_task_nudge_attempt: None,
+      tools_view_expanded: [],
+    };
   };
 
   module ToolUtils = {
