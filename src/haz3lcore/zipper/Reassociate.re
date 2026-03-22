@@ -11,8 +11,8 @@ type t = ZipperBase.t;
      be broken casually, because probe placement and intermediate feedback
      depend on them staying stable through incomplete edit states.
    - Demand: unresolved delimiter obligations induced by the local edit cone.
-     The current implementation represents demand by compatible delimiter
-     tokens plus directionality, not by rigid form identity.
+     The current implementation tracks these as side-specific compatible
+     token obligations, not by rigid form identity.
    - Repair scope: the smallest sibling/ancestor region we choose to crack,
      rescan, and potentially rewrite after an edit.
 
@@ -27,8 +27,8 @@ type t = ZipperBase.t;
 
    Current approximation:
    - Demand collection and cracking are directional and token-guided.
-   - Scope expansion is driven by token demand coverage, not whole-label
-     matching.
+   - Scope expansion is driven by actual tokens exposed by each ancestor
+     generation, not whole-label matching.
    - Acceptance is local and anchor-preserving.
 
    Remaining gap:
@@ -97,7 +97,7 @@ let rec flatten_to_cover_demand = (demand, siblings, affected_rev, ancestors, fr
       freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
     let siblings =
       Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
-    let demand = ReassociateDemand.cover_by_label(demand, ancestor.label);
+    let demand = ReassociateDemand.cover_by_generation(demand, generation);
     flatten_to_cover_demand(
       demand,
       siblings,
@@ -152,7 +152,7 @@ let go = (z: t): t =>
   | Some(demand) =>
     let any_ancestor_match =
       List.exists(
-        ((a: Ancestor.t, _)) => ReassociateDemand.touches_ancestor(demand, a),
+        generation => ReassociateDemand.touches_generation(demand, generation),
         z.relatives.ancestors,
       );
     if (any_ancestor_match) {

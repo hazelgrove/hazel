@@ -7,100 +7,131 @@ module TokenKey = {
 
 module TokenSet = Set.Make(TokenKey);
 
-module TokenDemand = Map.Make(TokenKey);
-
 type t = {
-  token_demand: TokenDemand.t(int),
-  target_tokens: TokenSet.t,
+  left_obligations: list(Token.t),
+  right_obligations: list(Token.t),
+  left_target_tokens: TokenSet.t,
+  right_target_tokens: TokenSet.t,
 };
 
 let is_multidelimiter_label = (label: Label.t): bool => List.length(label) > 1;
 
-let token_demand_of_tokens = (tokens: list(Token.t)): TokenDemand.t(int) =>
-  List.fold_left(
-    (acc, tok) =>
-      TokenDemand.update(
-        tok,
-        opt => Some(switch (opt) { | Some(n) => n + 1 | None => 1 }),
-        acc,
-      ),
-    TokenDemand.empty,
-    tokens,
-  );
-
-let token_demand_of_shards = (shards: list(Tile.t)): TokenDemand.t(int) =>
-  shards
-  |> List.filter_map((shard: Tile.t) =>
-       switch (Tile.effective_label(shard)) {
-       | [tok] => Some(tok)
-       | _ => None
-       }
-     )
-  |> token_demand_of_tokens;
-
-let token_set_of_token_demand = (demand: TokenDemand.t(int)): TokenSet.t =>
-  TokenDemand.fold((tok, _, acc) => TokenSet.add(tok, acc), demand, TokenSet.empty);
-
-let token_demand_contains =
-    (demand: TokenDemand.t(int), tok: Token.t): bool => TokenDemand.mem(tok, demand);
-
-let token_demand_remove =
-    (demand: TokenDemand.t(int), tok: Token.t): TokenDemand.t(int) =>
-  switch (TokenDemand.find_opt(tok, demand)) {
-  | Some(n) when n > 1 => TokenDemand.add(tok, n - 1, demand)
-  | Some(_) => TokenDemand.remove(tok, demand)
-  | None => demand
+let token_of_shard = (shard: Tile.t): option(Token.t) =>
+  switch (Tile.effective_label(shard)) {
+  | [tok] => Some(tok)
+  | _ => None
   };
 
-let token_demand_subtract_tokens =
-    (demand: TokenDemand.t(int), tokens: list(Token.t)): TokenDemand.t(int) =>
-  List.fold_left(token_demand_remove, demand, tokens);
+let tokens_of_shards = (shards: list(Tile.t)): list(Token.t) =>
+  List.filter_map(token_of_shard, shards);
+
+let token_set_of_tokens = (tokens: list(Token.t)): TokenSet.t =>
+  List.fold_left((acc, tok) => TokenSet.add(tok, acc), TokenSet.empty, tokens);
 
 let rec deep_local_missing_shards_segment =
     (~side: Direction.t, seg: Segment.t): list(Tile.t) =>
-  List.concat_map(
-    fun
-    | Piece.Tile(t) => {
-        let self =
-          if (!Tile.is_complete(t) && is_multidelimiter_label(t.label)) {
-            switch (side) {
-            | Left => Tile.right_missing_shards(t)
-            | Right => Tile.left_missing_shards(t)
-            };
-          } else {
-            [];
-          };
-        self
-        @ List.concat_map(deep_local_missing_shards_segment(~side), t.children);
-      }
-    | _ => [],
-    seg,
-  );
+  (
+    switch (side) {
+    | Left => List.rev(seg)
+    | Right => seg
+    }
+  )
+  |> List.concat_map(
+       fun
+       | Piece.Tile(t) => {
+           let self =
+             if (!Tile.is_complete(t) && is_multidelimiter_label(t.label)) {
+               switch (side) {
+               | Left => Tile.right_missing_shards(t)
+               | Right => Tile.left_missing_shards(t)
+               };
+             } else {
+               [];
+             };
+           let children =
+             switch (side) {
+             | Left => List.rev(t.children)
+             | Right => t.children
+             }
+             |> List.concat_map(deep_local_missing_shards_segment(~side));
+           self @ children;
+         }
+       | _ => [],
+     );
+
+let left_target_tokens = (demand: t): TokenSet.t => demand.left_target_tokens;
+
+let right_target_tokens = (demand: t): TokenSet.t => demand.right_target_tokens;
+
+let rec tokens_of_segment = (seg: Segment.t): list(Token.t) =>
+  List.concat_map(tokens_of_piece, seg)
+
+and tokens_of_piece = (p: Piece.t): list(Token.t) =>
+  switch (p) {
+  | Piece.Tile(t) when List.length(t.shards) == 1 && t.children == [] =>
+    tokens_of_shards([t])
+  | Piece.Tile(t) => tokens_of_segment(Tile.disassemble(t))
+  | _ => []
+  };
+
+let consume_tokens_in_order =
+    (obligations: list(Token.t), available: list(Token.t)): list(Token.t) => {
+  let rec go = (obligations, available) =>
+    switch (obligations, available) {
+    | ([], _) => []
+    | (_, []) => obligations
+    | ([need, ...rest_need] as obligations, [tok, ...rest_available]) =>
+      need == tok ? go(rest_need, rest_available) : go(obligations, rest_available)
+    };
+  go(obligations, available);
+};
 
 let of_relatives = ({siblings: (pre, suf), ancestors}: Relatives.t): option(t) => {
-  let target_shards =
-    deep_local_missing_shards_segment(~side=Left, pre)
-    @ deep_local_missing_shards_segment(~side=Right, suf)
-    @ Ancestors.local_missing_shards(ancestors);
-  switch (target_shards) {
-  | [] => None
-  | shards =>
-    let token_demand = token_demand_of_shards(shards);
+  let left_obligations =
+    tokens_of_shards(deep_local_missing_shards_segment(~side=Left, pre))
+    @ tokens_of_shards(Ancestors.local_missing_shards(ancestors));
+  let right_obligations =
+    tokens_of_shards(deep_local_missing_shards_segment(~side=Right, suf));
+  switch (left_obligations, right_obligations) {
+  | ([], []) => None
+  | _ =>
     Some({
-        token_demand,
-        target_tokens: token_set_of_token_demand(token_demand),
+        left_obligations,
+        right_obligations,
+        left_target_tokens: token_set_of_tokens(left_obligations),
+        right_target_tokens: token_set_of_tokens(right_obligations),
       })
   };
 };
 
-let touches_ancestor = (demand: t, ancestor: Ancestor.t): bool =>
-  List.exists(token_demand_contains(demand.token_demand), ancestor.label);
+let touches_generation = (demand: t, ((ancestor, parent_sibs): Ancestors.generation)): bool => {
+  let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
+  let left_available = tokens_of_segment(fst(parent_sibs) @ left_dis);
+  let right_available = tokens_of_segment(right_dis @ snd(parent_sibs));
+  List.exists(tok => TokenSet.mem(tok, left_target_tokens(demand)), right_available)
+  || List.exists(tok => TokenSet.mem(tok, right_target_tokens(demand)), left_available);
+};
 
-let is_satisfied = (demand: t): bool => TokenDemand.is_empty(demand.token_demand);
+let is_satisfied = (demand: t): bool =>
+  switch (demand.left_obligations, demand.right_obligations) {
+  | ([], []) => true
+  | _ => false
+  };
 
-let cover_by_label = (demand: t, label: Label.t): t => {
-  ...demand,
-  token_demand: token_demand_subtract_tokens(demand.token_demand, label),
+let cover_by_generation = (demand: t, ((ancestor, parent_sibs): Ancestors.generation)): t => {
+  let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
+  let left_available = tokens_of_segment(fst(parent_sibs) @ left_dis);
+  let right_available = tokens_of_segment(right_dis @ snd(parent_sibs));
+  let left_obligations =
+    consume_tokens_in_order(demand.left_obligations, right_available);
+  let right_obligations =
+    consume_tokens_in_order(demand.right_obligations, left_available);
+  {
+    left_obligations,
+    right_obligations,
+    left_target_tokens: token_set_of_tokens(left_obligations),
+    right_target_tokens: token_set_of_tokens(right_obligations),
+  };
 };
 
 let tile_has_target_token_demand =
@@ -180,12 +211,12 @@ let flatten_tiles_with_target_demand =
 let crack_siblings = (~demand: t, (pre, suf): Siblings.t): Siblings.t => (
   flatten_tiles_with_target_demand(
     ~side=Left,
-    ~target_tokens=demand.target_tokens,
+    ~target_tokens=left_target_tokens(demand),
     pre,
   ),
   flatten_tiles_with_target_demand(
     ~side=Right,
-    ~target_tokens=demand.target_tokens,
+    ~target_tokens=right_target_tokens(demand),
     suf,
   ),
 );
