@@ -191,42 +191,6 @@ let basic_tests = [
   ),
 ];
 
-let deep_reassociate_settings = {
-  ...default_settings,
-  deep_reassociate: true,
-};
-
-let deep_reassociate_tests = [
-  /* Type ) inside (1) — first ) matches (, second orphaned */
-  test_with_settings(
-    ~settings=deep_reassociate_settings,
-    ~name="Deep Reassociate: insert ) inside parens",
-    ~acts=mk("(1¦)") @ [Insert(")")],
-    ~goal="(1)¦)",
-  ),
-  /* Type ( before 2 in (1+2) — new ( steals ), original ( orphaned */
-  test_with_settings(
-    ~settings=deep_reassociate_settings,
-    ~name="Deep Reassociate: insert ( inside parens steals )",
-    ~acts=mk("(1+¦2)") @ [Insert("(")],
-    ~goal="(1+(¦2)",
-  ),
-  /* Type ) after 1 in (1+2) — first ) matches (, rest orphaned */
-  test_with_settings(
-    ~settings=deep_reassociate_settings,
-    ~name="Deep Reassociate: insert ) in middle of parens",
-    ~acts=mk("(1¦+2)") @ [Insert(")")],
-    ~goal="(1)¦+2)",
-  ),
-  /* Type ( before (1) — new ( steals ), original ( orphaned */
-  test_with_settings(
-    ~settings=deep_reassociate_settings,
-    ~name="Deep Reassociate: insert ( before existing parens",
-    ~acts=mk("¦(1)") @ [Insert("(")],
-    ~goal="(¦(1)",
-  ),
-];
-
 let insertion_tests = [
   /* INSERTION : BASIC*/
   test(
@@ -2514,571 +2478,554 @@ let remold_sort_tests = [
   ),
 ];
 
-let deep_reassociate_advanced_tests = [
-  /* Parens out-of-order: type ( inside, then ) outside.
-   * Tests aggressive flatten: the orphaned ( trapped inside the
-   * complete outer parens must be exposed for rescan to match.
-   * Would fail without flatten_tiles_with_incomplete. */
-  test_case(
-    "Parens wrap via out-of-order ( then )",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      /* Start: (1+2), cursor before 2. Type (, move past 2), type ) */
-      let z =
-        mk("(1+¦2)")
-        @ [Insert("(")]
-        @ mv_r(2)
-        @ [Insert(")")]
-        |> perform(~settings, Zipper.init());
-      if (zip_has_incomplete(z)) {
-        Alcotest.fail(
-          "Incomplete tiles remain — both parens pairs should be complete",
-        );
-      };
-      let seg = Zipper.zip(z);
-      let parens = find_tiles_by_label(["(", ")"], seg);
-      let complete_parens = List.filter(Tile.is_complete, parens);
-      if (List.length(complete_parens) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 2 complete paren tiles, got %d",
-            List.length(complete_parens),
-          ),
-        );
-      };
-    },
+/* === Selection Wrapping Tests ===
+ * Test wrapping selected content in delimiters by typing the
+ * opening delimiter with an active selection. */
+let wrap_selection_tests = [
+  /* --- Balanced delimiter wrapping (parens, brackets, braces) --- */
+  test(
+    ~name="Wrap single token in parens",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|(§x¦) + y|},
   ),
-  /* Let stability: typing a new let inside an existing let's
-   * definition must not break the outer let at any intermediate step.
-   * Would fail without the > count check (outer let's `in` would
-   * be stolen by the inner let via rescan). */
-  test_case(
-    "Inserting let between existing lets preserves outer",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z0 = mk("let a = ¦ in a") |> perform(~settings, Zipper.init());
-      let count_complete_lets = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let lets = find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(Tile.is_complete, lets));
-      };
-      /* After typing 'let ': outer let should still be complete */
-      let z1 = string_to_ltr_actions("let ") |> perform(~settings, z0);
-      if (count_complete_lets(z1) < 1) {
-        Alcotest.fail(
-          "After 'let ': outer let broken (expected >= 1 complete)",
-        );
-      };
-      /* After typing 'x = ': outer let should still be complete */
-      let z2 = string_to_ltr_actions("x = ") |> perform(~settings, z1);
-      if (count_complete_lets(z2) < 1) {
-        Alcotest.fail(
-          "After 'x = ': outer let broken (expected >= 1 complete)",
-        );
-      };
-      /* After typing '2 in ': both lets should be complete */
-      let z3 = string_to_ltr_actions("2 in ") |> perform(~settings, z2);
-      if (count_complete_lets(z3) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After '2 in ': expected 2 complete lets, got %d",
-            count_complete_lets(z3),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap expression in parens via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("(")],
+    ~goal={|(§1 + 2¦)|},
   ),
-  /* Realistic probe-sensitive case: inserting a new let at the start
-   * of an existing let's body should preserve the outer let while the
-   * new let is incomplete, then yield two complete lets once finished. */
-  test_case(
-    "Typing let before trailing body preserves outer",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z0 = mk("let a = 1 in¦ a") |> perform(~settings, Zipper.init());
-      let count_complete_lets = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let lets = find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(Tile.is_complete, lets));
-      };
-      let z1 = string_to_ltr_actions(" let b = ") |> perform(~settings, z0);
-      if (count_complete_lets(z1) < 1) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After ' let b = ': expected >= 1 complete let, got %d",
-            count_complete_lets(z1),
-          ),
-        );
-      };
-      let z2 = string_to_ltr_actions("2 in") |> perform(~settings, z1);
-      if (count_complete_lets(z2) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After '2 in': expected 2 complete lets, got %d",
-            count_complete_lets(z2),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap expression in square brackets via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("[")],
+    ~goal={|[§1 + 2¦]|},
   ),
-  /* The same trailing-body scenario through paste: an incomplete pasted
-   * let should not steal the anchored outer `in` from the surrounding
-   * complete let. */
-  test_case(
-    "Paste incomplete let before trailing body preserves outer",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z0 = mk("let a = 1 in¦ a") |> perform(~settings, Zipper.init());
-      let count_complete_lets = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let lets = find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(Tile.is_complete, lets));
-      };
-      let z1 = perform(~settings, z0, [Paste(" let b = ")]);
-      if (count_complete_lets(z1) < 1) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After pasting ' let b = ': expected >= 1 complete let, got %d",
-            count_complete_lets(z1),
-          ),
-        );
-      };
-      let z2 = perform(~settings, z1, [Paste("2 in")]);
-      if (count_complete_lets(z2) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After pasting '2 in': expected 2 complete lets, got %d",
-            count_complete_lets(z2),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap expression in curly braces via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("{")],
+    ~goal={|{§1 + 2¦}|},
   ),
-  /* Repeated ancestor lets: inserting a new let into the body of an
-   * already-complete inner let must preserve both existing lets while
-   * the new let is incomplete, then expose three complete lets once
-   * the new textual structure is finished. */
-  test_case(
-    "Typing let inside nested lets preserves repeated ancestors",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z0 =
-        mk("let a = 1 in let b = ¦ in b")
-        |> perform(~settings, Zipper.init());
-      let count_complete_lets = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let lets = find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(Tile.is_complete, lets));
-      };
-      let z1 = string_to_ltr_actions("let c = ") |> perform(~settings, z0);
-      if (count_complete_lets(z1) < 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After 'let c = ': expected >= 2 complete lets, got %d",
-            count_complete_lets(z1),
-          ),
-        );
-      };
-      let z2 = string_to_ltr_actions("2 in ") |> perform(~settings, z1);
-      if (count_complete_lets(z2) != 3) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After '2 in ': expected 3 complete lets, got %d",
-            count_complete_lets(z2),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap single operand via Term(Current)",
+    ~acts=
+      mk({|¦1 + 2|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§1¦) + 2|},
   ),
-  /* List literals out-of-order: type [ inside [1+2], then ] outside.
-   * Same mechanism as parens but confirms bracket forms also work. */
-  test_case(
-    "List literals out-of-order [ then ]",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z =
-        mk("[1+¦2]")
-        @ [Insert("[")]
-        @ mv_r(2)
-        @ [Insert("]")]
-        |> perform(~settings, Zipper.init());
-      if (zip_has_incomplete(z)) {
-        Alcotest.fail(
-          "Incomplete tiles remain — both bracket pairs should be complete",
-        );
-      };
-      let seg = Zipper.zip(z);
-      let brackets = find_tiles_by_label(["[", "]"], seg);
-      let complete = List.filter(Tile.is_complete, brackets);
-      if (List.length(complete) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 2 complete bracket tiles, got %d",
-            List.length(complete),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap subexpression in parens",
+    ~acts=
+      mk({|1 + ¦2 * 3|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|1 + (§2¦) * 3|},
   ),
-  /* If inside if: typing a new if/then/else inside an existing
-   * if's then-branch must not steal the outer then or else.
-   * Tests the > guard with a 3-delimiter form. */
-  test_case(
-    "Typing if inside if preserves outer",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z0 =
-        mk("if true then ¦ else 0") |> perform(~settings, Zipper.init());
-      let count_complete_ifs = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let ifs = find_tiles_by_label(["if", "then", "else"], seg);
-        List.length(List.filter(Tile.is_complete, ifs));
-      };
-      /* After 'if ': outer if should be preserved */
-      let z1 = string_to_ltr_actions("if ") |> perform(~settings, z0);
-      if (count_complete_ifs(z1) < 1) {
-        Alcotest.fail("After 'if ': outer if broken");
-      };
-      /* After 'if false then ': outer if should still be preserved */
-      let z2 =
-        string_to_ltr_actions("false then ") |> perform(~settings, z1);
-      if (count_complete_ifs(z2) < 1) {
-        Alcotest.fail("After 'if false then ': outer if broken");
-      };
-      /* After 'if false then 1 else ': both ifs complete */
-      let z3 = string_to_ltr_actions("1 else ") |> perform(~settings, z2);
-      if (count_complete_ifs(z3) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After completing inner if: expected 2, got %d",
-            count_complete_ifs(z3),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap in parens then unselect and type after",
+    ~acts=
+      mk({|¦x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")]
+      @ [Action.Unselect(None)]
+      @ string_to_ltr_actions(" + z"),
+    ~goal={|(x + z¦)|},
   ),
-  /* Fun inside fun: typing fun y -> inside fun x -> body.
-   * The inner fun's -> must not steal the outer's ->.
-   * Tests > guard with shared delimiters (-> used by fun/fix/etc). */
-  test_case(
-    "Typing fun inside fun preserves outer",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z0 = mk("fun x -> ¦") |> perform(~settings, Zipper.init());
-      let count_complete_funs = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let funs = find_tiles_by_label(["fun", "->"], seg);
-        List.length(List.filter(Tile.is_complete, funs));
-      };
-      /* After 'fun ': outer fun should be preserved */
-      let z1 = string_to_ltr_actions("fun ") |> perform(~settings, z0);
-      if (count_complete_funs(z1) < 1) {
-        Alcotest.fail("After 'fun ': outer fun broken");
-      };
-      /* After 'fun y -> 1': both funs should be complete */
-      let z2 = string_to_ltr_actions("y -> 1") |> perform(~settings, z1);
-      if (count_complete_funs(z2) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After completing inner fun: expected 2, got %d",
-            count_complete_funs(z2),
-          ),
-        );
-      };
-    },
+  /* --- Quote wrapping (string, label, comment) --- */
+  test(
+    ~name="Wrap token in string quotes",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})],
+    ~goal={|"abc"¦|},
   ),
-  /* Nested parens stability: typing ( inside (1+(2)) should not
-   * break either existing paren pair. Then typing ) should yield
-   * three complete pairs. Tests that aggressive flatten + > guard
-   * cooperate correctly with deeper nesting. */
-  test_case(
-    "Nested parens: ( inside preserves existing, ) completes new",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      /* After inserting ( inside inner parens: existing parens stay */
-      let z1 =
-        mk("(1+(¦2))")
-        @ [Insert("(")]
-        |> perform(~settings, Zipper.init());
-      let count_complete_parens = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let ps = find_tiles_by_label(["(", ")"], seg);
-        List.length(List.filter(Tile.is_complete, ps));
-      };
-      if (count_complete_parens(z1) < 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After inserting (: expected >= 2 complete parens, got %d",
-            count_complete_parens(z1),
-          ),
-        );
-      };
-      /* Move past 2, type ) — all three parens should be complete */
-      let z2 = mv_r(1) @ [Insert(")")] |> perform(~settings, z1);
-      if (count_complete_parens(z2) != 3) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After inserting ): expected 3 complete parens, got %d",
-            count_complete_parens(z2),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap token in backtick quotes",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")],
+    ~goal={|`abc`¦|},
   ),
-  /* Let inside if: typing let x = 1 in inside if's then-branch.
-   * Tests preservation across different form types — the if's
-   * then/else must not be stolen by the let's = or in. */
-  test_case(
-    "Typing let inside if preserves outer if",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z0 =
-        mk("if true then ¦ else 0") |> perform(~settings, Zipper.init());
-      let count_complete_ifs = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let ifs = find_tiles_by_label(["if", "then", "else"], seg);
-        List.length(List.filter(Tile.is_complete, ifs));
-      };
-      /* After 'let x = ': if should still be complete */
-      let z1 = string_to_ltr_actions("let x = ") |> perform(~settings, z0);
-      if (count_complete_ifs(z1) < 1) {
-        Alcotest.fail("After 'let x = ': outer if broken");
-      };
-      /* After 'let x = 1 in ': if and let both complete */
-      let z2 = string_to_ltr_actions("1 in ") |> perform(~settings, z1);
-      if (count_complete_ifs(z2) < 1) {
-        Alcotest.fail("After completing let: outer if broken");
-      };
-      let count_complete_lets = (z: Zipper.t) => {
-        let seg = Zipper.zip(z);
-        let lets = find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(Tile.is_complete, lets));
-      };
-      if (count_complete_lets(z2) != 1) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "After completing let: expected 1 complete let, got %d",
-            count_complete_lets(z2),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap token in comment delimiters",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("#")],
+    ~goal={|?#abc#¦|},
   ),
-  /* Destruct stability: deleting the inner `in` from nested lets
-   * must not cause the outer let's `in` to be stolen.
-   * Tests the > guard on the Destruct path. */
-  test_case(
-    "Destruct inner in preserves outer let",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z =
-        mk("let a = 1 in let b = 2 in¦ b")
-        @ [Destruct(Left), Destruct(Left)]
-        |> perform(~settings, Zipper.init());
-      let seg = Zipper.zip(z);
-      let lets = find_tiles_by_label(["let", "=", "in"], seg);
-      let complete = List.filter(Tile.is_complete, lets);
-      if (List.length(complete) < 1) {
-        Alcotest.fail("Outer let broken after deleting inner in");
-      };
-    },
+  /* --- Quote wrapping validation (fallthrough to replacement) --- */
+  test(
+    ~name=
+      "String wrap fails with embedded quote: falls through to replacement",
+    ~acts=
+      mk({|¦"hello"|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})],
+    ~goal={|"¦"|},
   ),
-  /* Paste completing multi-delimiter form across ancestor scope:
-   * Type "if true " (if is incomplete ancestor), then paste "then 1 else 2".
-   * Without deep_reassociate on the Paste path, `then` and `else` stay
-   * as unmatched monotiles at the sibling level, unable to match the
-   * `if` in the ancestor. With it, ancestors are flattened, rescan
-   * matches all three shards, and if/then/else becomes complete. */
-  test_case(
-    "Paste completes if/then/else across ancestor scope",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z = mk("if true ¦") |> perform(~settings, Zipper.init());
-      let z = perform(~settings, z, [Paste("then 1 else 2")]);
-      if (zip_has_incomplete(z)) {
-        Alcotest.fail(
-          "Incomplete tiles after paste — then/else should match ancestor if",
-        );
-      };
-      let seg = Zipper.zip(z);
-      let ifs = find_tiles_by_label(["if", "then", "else"], seg);
-      let complete_ifs = List.filter(Tile.is_complete, ifs);
-      if (List.length(complete_ifs) != 1) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 1 complete if/then/else, got %d",
-            List.length(complete_ifs),
-          ),
-        );
-      };
-    },
+  /* --- Closing delimiter does NOT wrap (replaces selection) --- */
+  test(
+    ~name="Closing paren replaces selection, does not wrap",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert(")")],
+    ~goal={|?)¦ + y|},
   ),
-  /* Paste with nested forms crossing scope boundaries:
-   * Reproduces the user-reported bug where cutting and pasting a region
-   * that spans the outer `then` and contains nested forms (fun, inner if)
-   * leaves delimiters broken. The full program is text-complete after
-   * paste but segments have incomplete tiles without deep_reassociate.
-   * A space insertion would fix it (triggers Insert → deep_reassociate),
-   * but paste should handle it directly. */
-  test_case(
-    "Paste nested cross-scope delimiters (regression)",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      /* Type the parts before and after the "clipboard" region */
-      let z = mk("if true ¦") |> perform(~settings, Zipper.init());
-      /* Paste the region that contains outer then + nested content */
-      let z =
-        perform(
-          ~settings,
-          z,
-          [Paste("then mapi(fun _ -> if false then 1 else 2) else []")],
-        );
-      if (zip_has_incomplete(z)) {
-        Alcotest.fail(
-          "Incomplete tiles after paste — nested cross-scope delimiters broken",
-        );
-      };
-      /* Verify both ifs are complete */
-      let seg = Zipper.zip(z);
-      let ifs = find_tiles_by_label(["if", "then", "else"], seg);
-      let complete_ifs = List.filter(Tile.is_complete, ifs);
-      if (List.length(complete_ifs) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 2 complete if/then/else, got %d",
-            List.length(complete_ifs),
-          ),
-        );
-      };
-      /* Verify the fun is complete */
-      let funs = find_tiles_by_label(["fun", "->"], seg);
-      let complete_funs = List.filter(Tile.is_complete, funs);
-      if (List.length(complete_funs) != 1) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 1 complete fun/->. got %d",
-            List.length(complete_funs),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Closing bracket replaces selection, does not wrap",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("]")],
+    ~goal={|?]¦ + y|},
   ),
-  /* Repeated ancestor labels: both the inner and outer if are of the
-   * same delimiter family, so repair must stay correct even when the
-   * needed ancestors are not distinguished by label alone. */
-  test_case(
-    "Paste completes nested ifs with repeated ancestor labels",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z = mk("if a then if b ¦") |> perform(~settings, Zipper.init());
-      let z = perform(~settings, z, [Paste("then 1 else 2 else 3")]);
-      if (zip_has_incomplete(z)) {
-        Alcotest.fail(
-          "Incomplete tiles after paste — nested repeated-label ifs broken",
-        );
-      };
-      let seg = Zipper.zip(z);
-      let ifs = find_tiles_by_label(["if", "then", "else"], seg);
-      let complete_ifs = List.filter(Tile.is_complete, ifs);
-      if (List.length(complete_ifs) != 2) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 2 complete nested if/then/else tiles, got %d",
-            List.length(complete_ifs),
-          ),
-        );
-      };
-    },
+  /* --- Edge cases --- */
+  test(
+    ~name="Wrap empty hole in parens",
+    ~acts=
+      mk({|let x = ¦? in x|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|let x = (§?¦) in x|},
   ),
-  /* Parentheses only: type a new ( inside nested parens, then supply
-   * the matching ) after both existing closing parens. Textually the
-   * result is complete, so the structural result should expose three
-   * complete paren pairs. */
-  test_case(
-    "Nested parens complete when ) is typed past multiple ancestors",
-    `Quick,
-    () => {
-      let settings = deep_reassociate_settings;
-      let z =
-        mk("((1+¦2))")
-        @ [Insert("(")]
-        @ mv_r(3)
-        @ [Insert(")")]
-        |> perform(~settings, Zipper.init());
-      if (zip_has_incomplete(z)) {
-        Alcotest.fail(
-          "Incomplete tiles remain — all nested parens should be complete",
-        );
-      };
-      let seg = Zipper.zip(z);
-      let parens = find_tiles_by_label(["(", ")"], seg);
-      let complete_parens = List.filter(Tile.is_complete, parens);
-      if (List.length(complete_parens) != 3) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 3 complete paren tiles, got %d",
-            List.length(complete_parens),
-          ),
-        );
-      };
-    },
+  test(
+    ~name="Wrap parenthesized expression adds outer parens",
+    ~acts=
+      mk({|¦(1 + 2)|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§(1 + 2)¦)|},
   ),
-  /* Shared closing token across different forms: type `test ` inside a
-   * `case ... end` branch, then supply the new `end` after the existing
-   * outer `end`. Textually the result is complete, so structure should
-   * expose both a complete `test ... end` and the enclosing `case ... end`. */
+  test(
+    ~name="Wrap multi-token selection in parens via char select",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Insert("(")],
+    ~goal={|(§x + y¦)|},
+  ),
+  test(
+    ~name="Wrap single number in brackets",
+    ~acts=
+      mk({|¦42|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("[")],
+    ~goal={|[§42¦]|},
+  ),
+  test(
+    ~name="Double wrap: parens then brackets",
+    ~acts=
+      mk({|¦x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")]
+      @ [Action.Insert("[")],
+    ~goal={|([§x¦])|},
+  ),
+  test(
+    ~name="Wrap string literal in parens",
+    ~acts=
+      mk({|¦"hello"|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§"hello"¦)|},
+  ),
+  test(
+    ~name="Wrap in pattern context",
+    ~acts=
+      mk({|let ¦x = 1 in x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|let (§x¦) = 1 in x|},
+  ),
+  test(
+    ~name="Backtick wrap fails on backtick content: falls through",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")]
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")],
+    ~goal={|`¦`|},
+  ),
+  test(
+    ~name="Left-focused selection wraps correctly",
+    ~acts=
+      mk({|x + y¦|})
+      @ [Action.Select(Resize(Local(Left, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|x + (§y¦)|},
+  ),
+];
+
+let unwrap_quote_tests = [
+  /* --- String unwrapping --- */
+  test(
+    ~name="Backspace string from right unwraps content",
+    ~acts=mk({|"hello"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Delete string from left unwraps content",
+    ~acts=mk({|¦"hello"|}) @ [Action.Destruct(Right)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Backspace empty string just deletes",
+    ~acts=mk({|""¦|}) @ [Action.Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Single char string unwraps",
+    ~acts=mk({|"a"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|a¦|},
+  ),
+  /* --- Backtick label unwrapping --- */
+  test(
+    ~name="Backspace backtick label unwraps",
+    ~acts=mk({|`abc`¦|}) @ [Action.Destruct(Left)],
+    ~goal={|abc¦|},
+  ),
+  /* --- Comment unwrapping --- */
+  test(
+    ~name="Delete comment from left unwraps",
+    ~acts=mk({|¦#stuff#|}) @ [Action.Destruct(Right)],
+    ~goal={|stuff¦|},
+  ),
+  /* --- Context preservation --- */
+  test(
+    ~name="Unwrap string in expression context",
+    ~acts=mk({|x + "hello"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|x + hello¦|},
+  ),
+  test(
+    ~name="Unwrap string in let binding",
+    ~acts=mk({|let x = "hello"¦ in x|}) @ [Action.Destruct(Left)],
+    ~goal={|let x = hello¦ in x|},
+  ),
+  /* --- Content re-parses as code --- */
+  test(
+    ~name="Unwrap string with spaces produces separate tokens",
+    ~acts=mk({|"hello world"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|hello ~world¦|},
+  ),
+  test(
+    ~name="Unwrap string with operators re-parses as expression",
+    ~acts=mk({|"1 + 2"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|1 + 2¦|},
+  ),
+  /* --- Inner boundary deletion --- */
+  test(
+    ~name="Backspace at opening delimiter boundary unwraps",
+    ~acts=mk({|¦"hello"|}) @ mv_r(1) @ [Action.Destruct(Left)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Delete at closing delimiter boundary unwraps",
+    ~acts=mk({|"hello"¦|}) @ mv_l(1) @ [Action.Destruct(Right)],
+    ~goal={|hello¦|},
+  ),
+  /* --- Roundtrip with wrapping --- */
+  test(
+    ~name="Wrap then unwrap is identity",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})]
+      @ [Action.Destruct(Left)],
+    ~goal={|abc¦|},
+  ),
+];
+
+/* --- Comment Toggle tests --- */
+let comment_toggle_tests = [
+  /* Single line commenting */
+  test(
+    ~name="Comment a code line",
+    ~acts=mk({|¦hello|}) @ [Action.ToggleLineComment],
+    ~goal={|?#hello#¦|},
+  ),
+  test(
+    ~name="Comment an expression",
+    ~acts=mk({|¦1 + 2|}) @ [Action.ToggleLineComment],
+    ~goal={|?#1 + 2#¦|},
+  ),
+  test(
+    ~name="Comment with caret in middle of line",
+    ~acts=mk({|he¦llo|}) @ [Action.ToggleLineComment],
+    ~goal={|?#hello#¦|},
+  ),
+  /* Toggle empty line is a no-op */
+  test(
+    ~name="Toggle empty line is no-op",
+    ~acts=mk({|¦|}) @ [Action.ToggleLineComment],
+    ~goal={|?¦|},
+  ),
+  /* Roundtrip: comment then uncomment */
+  test(
+    ~name="Roundtrip: comment then uncomment identifier",
+    ~acts=
+      mk({|¦hello|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Roundtrip: comment then uncomment expression",
+    ~acts=
+      mk({|¦1 + 2|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|1 + 2¦|},
+  ),
+  test(
+    ~name="Roundtrip: comment then uncomment with caret in middle",
+    ~acts=
+      mk({|he¦llo|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  /* Single line in multiline context */
+  test(
+    ~name="Comment second line only",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.ToggleLineComment],
+    ~goal="x\n# y#¦",
+  ),
+  test(
+    ~name="Comment second line roundtrip",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n ~y¦",
+  ),
+  /* Multi-line with selection: comment all lines */
+  test(
+    ~name="Multi: select all and comment two lines",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="§?#x#\n# y#¦",
+  ),
+  /* Multi-line: select one line and comment */
+  test(
+    ~name="Multi: select line 2 and comment",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(Resize(Line(Left)))]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n§# y#¦",
+  ),
+  /* Multi-line: mixed state does nothing */
+  test(
+    ~name="Multi: mixed code and comment is no-op",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("#y#")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n#y#¦",
+  ),
+  /* Multi-line roundtrip */
+  test(
+    ~name="Multi: comment all then uncomment all",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment]
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="§x\n ~y¦",
+  ),
+];
+
+/* Collect (token, sort) pairs from all tiles in a segment, recursively */
+let rec tile_sorts_of_seg = (seg: Segment.t): list((string, Sort.t)) =>
+  List.concat_map(tile_sorts_of_piece, seg)
+and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
+  switch (p) {
+  | Tile(t) =>
+    let label_sorts = List.map(tok => (tok, t.mold.out), t.label);
+    let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
+    label_sorts @ child_sorts;
+  | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
+  | Grout(_)
+  | Secondary(_) => []
+  };
+
+let tile_sorts_of_zip = (z: Zipper.t): list((string, Sort.t)) =>
+  tile_sorts_of_seg(Zipper.zip(z));
+
+let show_tile_sorts = (sorts: list((string, Sort.t))): string =>
+  sorts
+  |> List.map(((tok, sort)) => tok ++ ":" ++ Sort.show(sort))
+  |> String.concat(" ");
+
+/* Test that molds match between fresh typing and comment roundtrip */
+let remold_test = (~name, ~fresh_acts, ~roundtrip_acts) =>
   test_case(
-    "Nested case/test complete when end is typed past ancestor",
+    name,
     `Quick,
     () => {
-      let settings = deep_reassociate_settings;
-      let z =
-        mk("case x | A => ¦1 end")
-        @ string_to_ltr_actions("test ")
-        @ mv_r(5)
-        @ string_to_ltr_actions(" end")
-        |> perform(~settings, Zipper.init());
-      if (zip_has_incomplete(z)) {
-        Alcotest.fail(
-          "Incomplete tiles remain — both nested end-delimited forms should be complete",
-        );
-      };
-      let seg = Zipper.zip(z);
-      let cases = find_tiles_by_label(["case", "end"], seg);
-      let complete_cases = List.filter(Tile.is_complete, cases);
-      if (List.length(complete_cases) != 1) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 1 complete case/end tile, got %d",
-            List.length(complete_cases),
-          ),
-        );
-      };
-      let tests = find_tiles_by_label(["test", "end"], seg);
-      let complete_tests = List.filter(Tile.is_complete, tests);
-      if (List.length(complete_tests) != 1) {
-        Alcotest.fail(
-          Printf.sprintf(
-            "Expected 1 complete test/end tile, got %d",
-            List.length(complete_tests),
-          ),
-        );
-      };
+      let fresh_z = fresh_acts |> perform(Zipper.init());
+      let roundtrip_z = roundtrip_acts |> perform(Zipper.init());
+      let fresh_str = show_tile_sorts(tile_sorts_of_zip(fresh_z));
+      let roundtrip_str = show_tile_sorts(tile_sorts_of_zip(roundtrip_z));
+      check(
+        testable(Fmt.string, String.equal),
+        name,
+        fresh_str,
+        roundtrip_str,
+      );
     },
+  );
+
+let comment_remold_tests = [
+  /* Single-line let roundtrip */
+  remold_test(
+    ~name="Molds: single-line let roundtrip",
+    ~fresh_acts=mk({|¦let a = 1 in a|}),
+    ~roundtrip_acts=
+      mk({|¦let a = 1 in a|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* Multi-line let: comment/uncomment first line */
+  remold_test(
+    ~name="Molds: multi-line let roundtrip line 1",
+    ~fresh_acts=mk({|let a =
+1
+in a¦|}),
+    ~roundtrip_acts=
+      mk({|let a =
+1
+in a¦|})
+      @ [Action.Move(Start)]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* Annotated let roundtrip */
+  remold_test(
+    ~name="Molds: annotated let roundtrip",
+    ~fresh_acts=mk({|¦let a : (Int) = 1 in a|}),
+    ~roundtrip_acts=
+      mk({|¦let a : (Int) = 1 in a|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+];
+
+/* Additional comment toggle coverage */
+let comment_toggle_extra_tests = [
+  /* Uncomment a manually-typed comment */
+  test(
+    ~name="Uncomment manually typed comment",
+    ~acts=mk({|¦#hello#|}) @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  /* Mixed single line (code + comment) is no-op */
+  test(
+    ~name="Mixed single line is no-op",
+    ~acts=mk({|x ¦#hello#|}) @ [Action.ToggleLineComment],
+    ~goal={|x #hello#¦|},
+  ),
+  /* Multi-shard tile: comment then branch of if-then-else */
+  test(
+    ~name="Comment then branch of if-then-else",
+    ~acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment],
+    ~goal="if true\n#then 1#¦\nelse 2",
+  ),
+  /* Multi-shard tile roundtrip */
+  test(
+    ~name="If-then-else roundtrip then branch",
+    ~acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal="if true\nthen 1¦\nelse 2",
+  ),
+  /* Multi-line with empty line in between */
+  test(
+    ~name="Comment with empty line between",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="§?#x#\n##\n# y#¦",
+  ),
+];
+
+/* Ancestor.sort fix: molds preserved in non-comment contexts */
+let ancestor_sort_tests = [
+  /* Deleting = from let preserves Pat mold on a */
+  remold_test(
+    ~name="Molds: delete = from let preserves Pat",
+    ~fresh_acts=mk({|let a ¦1 in a|}),
+    ~roundtrip_acts=mk({|let a =¦ 1 in a|}) @ [Action.Destruct(Left)],
+  ),
+  /* type...=...in roundtrip preserves TPat mold */
+  remold_test(
+    ~name="Molds: type alias roundtrip line 1",
+    ~fresh_acts=mk({|type t =
+Int
+in 1¦|}),
+    ~roundtrip_acts=
+      mk({|type t =
+Int
+in 1¦|})
+      @ [Action.Move(Start)]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* If-then-else roundtrip preserves Exp molds */
+  remold_test(
+    ~name="Molds: if-then-else roundtrip then line",
+    ~fresh_acts=mk({|if true
+then 1
+else 2¦|}),
+    ~roundtrip_acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
   ),
 ];
 
@@ -3094,6 +3041,10 @@ let tests = [
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
-  ("Editing.DeepReassociate", deep_reassociate_tests),
-  ("Editing.DeepReassociateAdv", deep_reassociate_advanced_tests),
+  ("Editing.WrapSelection", wrap_selection_tests),
+  ("Editing.UnwrapQuote", unwrap_quote_tests),
+  ("Editing.CommentToggle", comment_toggle_tests),
+  ("Editing.CommentRemold", comment_remold_tests),
+  ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
+  ("Editing.AncestorSort", ancestor_sort_tests),
 ];
