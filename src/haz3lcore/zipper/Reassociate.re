@@ -25,8 +25,8 @@ type t = ZipperBase.t;
    Current shape:
    - Scope expansion is driven by ordered requests consumed against the tokens
      each ancestor generation actually exposes.
-   - Cracking is driven by those same ordered requests, not a separate token
-     targeting pass.
+   - Cracking inside that expanded scope is coarse: complete wrappers crack
+     whenever they contain incomplete multi-delimiter descendants.
    - Acceptance is local and anchor-preserving. */
 
 module ShardKey = {
@@ -186,25 +186,6 @@ let rec any_generation_consumes_request = (request: request, ancestors: Ancestor
 
 /* Candidate Construction */
 
-let oriented = (side: Direction.t, xs) =>
-  switch (side) {
-  | Left => List.rev(xs)
-  | Right => xs
-  };
-
-let restore_oriented = (side: Direction.t, xs) =>
-  switch (side) {
-  | Left => xs
-  | Right => List.rev(xs)
-  };
-
-let tile_missing_tokens = (~side: Direction.t, tile: Tile.t): list(Token.t) =>
-  switch (side) {
-  | Left => Tile.right_missing_shards(tile)
-  | Right => Tile.left_missing_shards(tile)
-  }
-  |> tokens_of_shards;
-
 let shard_pieces = (tile: Tile.t): list(Piece.t) =>
   List.map(
     shard =>
@@ -216,76 +197,42 @@ let shard_pieces = (tile: Tile.t): list(Piece.t) =>
     tile.shards,
   );
 
-let rec traverse_segments = (~side, ~obligations, segs) =>
-  oriented(side, segs)
-  |> List.fold_left(
-       ((obligations, consumed_any, rebuilt), seg) => {
-         let (obligations, seg_consumed, seg) =
-           traverse_segment(~side, ~obligations, seg);
-         (obligations, consumed_any || seg_consumed, [seg, ...rebuilt]);
-       },
-       (obligations, false, []),
-     )
-  |> ((obligations, consumed_any, rebuilt)) => (
-       obligations,
-       consumed_any,
-       restore_oriented(side, rebuilt),
-     )
+let rec has_incomplete_multi_deep = (seg: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(tile) =>
+      (!Tile.is_complete(tile) && is_multidelimiter_label(tile.label))
+      || List.exists(has_incomplete_multi_deep, tile.children)
+    | _ => false,
+    seg,
+  );
 
-and traverse_segment = (~side, ~obligations, seg) =>
-  oriented(side, seg)
-  |> List.fold_left(
-       ((obligations, consumed_any, rebuilt), piece) => {
-         let (obligations, piece_consumed, piece_seg) =
-           traverse_piece(~side, ~obligations, piece);
-         (obligations, consumed_any || piece_consumed, [piece_seg, ...rebuilt]);
-       },
-       (obligations, false, []),
-     )
-  |> ((obligations, consumed_any, rebuilt)) => (
-       obligations,
-       consumed_any,
-       restore_oriented(side, rebuilt) |> List.concat,
-     )
+let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
+  List.concat_map(
+    fun
+    | Piece.Tile(tile)
+        when
+          Tile.is_complete(tile)
+          && is_multidelimiter_label(tile.label)
+          && List.exists(has_incomplete_multi_deep, tile.children) =>
+      Aba.mk(
+        shard_pieces(tile),
+        List.map(flatten_tiles_with_incomplete, tile.children),
+      )
+      |> Aba.join(piece => [piece], Fun.id)
+      |> List.flatten
+    | Piece.Tile(tile) => [
+        Piece.Tile({
+          ...tile,
+          children: List.map(flatten_tiles_with_incomplete, tile.children),
+        }),
+      ]
+    | piece => [piece],
+    seg,
+  );
 
-and traverse_piece = (~side, ~obligations, piece) =>
-  switch (piece) {
-  | Piece.Tile(tile) =>
-    let obligations_after_self =
-      if (!Tile.is_complete(tile) && is_multidelimiter_label(tile.label)) {
-        consume_tokens_in_order(obligations, tile_missing_tokens(~side, tile));
-      } else {
-        obligations;
-      };
-    let self_consumed = compare(obligations, obligations_after_self) != 0;
-    let (obligations_after_children, child_consumed, children) =
-      traverse_segments(~side, ~obligations=obligations_after_self, tile.children);
-    if (Tile.is_complete(tile) && is_multidelimiter_label(tile.label) && child_consumed) {
-      let cracked =
-        Aba.mk(shard_pieces(tile), children)
-        |> Aba.join(piece => [piece], Fun.id)
-        |> List.flatten;
-      (obligations_after_children, true, cracked);
-    } else {
-      (
-        obligations_after_children,
-        self_consumed || child_consumed,
-        [
-          Piece.Tile({
-            ...tile,
-            children,
-          }),
-        ],
-      );
-    }
-  | _ => (obligations, false, [piece])
-  };
-
-let crack_siblings = (~request, (pre, suf): Siblings.t): Siblings.t => {
-  let (_, _, pre) = traverse_segment(~side=Left, ~obligations=request.left, pre);
-  let (_, _, suf) = traverse_segment(~side=Right, ~obligations=request.right, suf);
-  (pre, suf);
-};
+let crack_siblings = ((pre, suf): Siblings.t): Siblings.t =>
+  TupleUtil.map2(flatten_tiles_with_incomplete, (pre, suf));
 
 /* Give fresh IDs to ancestor shard pieces on the right side.
    This prevents duplicate (id, shard_index) after rescan converts
@@ -524,7 +471,7 @@ let go = (z: t): t =>
           Id.Map.empty,
         );
       let siblings =
-        crack_siblings(~request, siblings)
+        crack_siblings(siblings)
         |> Siblings.rescan
         |> repair_fresh_ids(fresh_map);
       let base_scope =
@@ -539,7 +486,7 @@ let go = (z: t): t =>
         z,
       );
     } else {
-      let cracked = crack_siblings(~request, z.relatives.siblings);
+      let cracked = crack_siblings(z.relatives.siblings);
       if (cracked == z.relatives.siblings) {
         z;
       } else {
