@@ -1359,9 +1359,16 @@ and uexp_to_info_map =
           }
         };
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
-      /* add co_ctx to pattern */
+      /* add co_ctx to pattern: include def.co_ctx so recursive
+       * self-references in the definition are visible as uses */
       let (p_ana, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.union([def.co_ctx, body.co_ctx]),
+          ~ana=ty_p_ana,
+          p,
+          m,
+        );
       // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
       let Coverage.CheckMatrix.{exhaustiveness, _} =
