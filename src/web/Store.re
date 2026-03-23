@@ -64,7 +64,6 @@ module F =
   let save = (data: t): unit => {
     let serialized = serialize(data);
     HazelDB.kv_save(key_string, serialized);
-    HazelDB.update_cache(key_string, serialized);
   };
 
   let reset = () => {
@@ -75,7 +74,7 @@ module F =
   /* Load from IndexedDB cache, falling back to legacy localStorage
      for migration of pre-existing data. */
   let load = (): t =>
-    switch (HazelDB.get_cache(key_string)) {
+    switch (HazelDB.kv_get(key_string)) {
     | Some(data) => deserialize(data, default())
     | None =>
       switch (legacy_get(key_string)) {
@@ -85,7 +84,7 @@ module F =
     };
 
   let export = () =>
-    switch (HazelDB.get_cache(key_string)) {
+    switch (HazelDB.kv_get(key_string)) {
     | Some(data) => data
     | None =>
       switch (legacy_get(key_string)) {

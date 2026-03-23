@@ -16,9 +16,7 @@ let perform = (action: action): unit => {
         dynamics: false,
       },
     });
-  | ClearStore =>
-    HazelDB.clear_legacy_storage();
-    HazelDB.clear_all();
+  | ClearStore => HazelDB.clear_all()
   };
   Js_of_ocaml.Dom_html.window##.location##replace(
     Js_of_ocaml.Js.string("#"),
