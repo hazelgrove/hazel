@@ -270,6 +270,100 @@ let test_tvar_binding_to_refs =
     },
   );
 
+/* Find InfoExp or InfoPat Constructor entries with the given name */
+let find_ctr_refs =
+    (info_map: Statics.Map.t, name: string): list((Id.t, Info.t)) =>
+  Id.Map.fold(
+    (id, info: Info.t, acc) =>
+      switch (info) {
+      | InfoExp({term: {term: Constructor(n, _), _}, _}) when n == name => [
+          (id, info),
+          ...acc,
+        ]
+      | InfoPat({term: {term: Constructor(n, _), _}, _}) when n == name => [
+          (id, info),
+          ...acc,
+        ]
+      | _ => acc
+      },
+    info_map,
+    [],
+  );
+
+/* Find the InfoTyp entry for a constructor definition (Var with ConstructorExpected) */
+let find_ctr_def =
+    (info_map: Statics.Map.t, name: string): option((Id.t, Info.t)) =>
+  Id.Map.fold(
+    (id, info: Info.t, acc) =>
+      switch (acc) {
+      | Some(_) => acc
+      | None =>
+        switch (info) {
+        | InfoTyp({
+            term: {term: Var(n), _},
+            expects: ConstructorExpected(_, _),
+            _,
+          })
+            when n == name =>
+          Some((id, info))
+        | _ => None
+        }
+      },
+    info_map,
+    None,
+  );
+
+let test_ctr_ref_to_def =
+  test_case(
+    "Constructor: reference highlights definition",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp("type T = A + B in let x : T = A in x");
+      let info_map = statics(exp);
+      let refs = find_ctr_refs(info_map, "A");
+      check(bool, "found A reference", true, List.length(refs) >= 1);
+      let (_, ref_info) = List.hd(refs);
+      let ids = highlight_ids(info_map, ref_info);
+      /* Should highlight the constructor definition site */
+      let def = find_ctr_def(info_map, "A");
+      check(bool, "found A definition", true, def != None);
+      let (def_id, _) = Option.get(def);
+      check(bool, "highlights definition", true, has_id(ids, def_id));
+    },
+  );
+
+let test_ctr_distinct_defs =
+  test_case(
+    "Constructor: different constructors highlight different definitions",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp("type T = A + B in let x : T = A in let y : T = B in x");
+      let info_map = statics(exp);
+      let a_refs = find_ctr_refs(info_map, "A");
+      let b_refs = find_ctr_refs(info_map, "B");
+      check(bool, "found A ref", true, List.length(a_refs) >= 1);
+      check(bool, "found B ref", true, List.length(b_refs) >= 1);
+      let (_, a_info) = List.hd(a_refs);
+      let (_, b_info) = List.hd(b_refs);
+      let a_ids = highlight_ids(info_map, a_info);
+      let b_ids = highlight_ids(info_map, b_info);
+      let a_def = find_ctr_def(info_map, "A");
+      let b_def = find_ctr_def(info_map, "B");
+      check(bool, "found A def", true, a_def != None);
+      check(bool, "found B def", true, b_def != None);
+      let (a_def_id, _) = Option.get(a_def);
+      let (b_def_id, _) = Option.get(b_def);
+      /* A highlights A's def, not B's */
+      check(bool, "A highlights A def", true, has_id(a_ids, a_def_id));
+      check(bool, "A doesn't highlight B def", false, has_id(a_ids, b_def_id));
+      /* B highlights B's def, not A's */
+      check(bool, "B highlights B def", true, has_id(b_ids, b_def_id));
+      check(bool, "B doesn't highlight A def", false, has_id(b_ids, a_def_id));
+    },
+  );
+
 let tests = (
   "VarHighlight",
   [
@@ -282,5 +376,7 @@ let tests = (
     test_multiple_refs,
     test_tvar_ref_to_binding,
     test_tvar_binding_to_refs,
+    test_ctr_ref_to_def,
+    test_ctr_distinct_defs,
   ],
 );

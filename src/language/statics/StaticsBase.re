@@ -112,31 +112,60 @@ module Map = {
     };
   };
 
-  /* Find all use sites of a type variable binding by scanning the info_map
-   * for type variable references whose context resolves to binding_id. */
+  /* Find all use sites of a type variable binding. Reads the binding
+   * tpat's tvar_co_ctx, which is populated by populate_tvar_co_ctxs. */
   let uses_of_tvar_binding = (m: t, binding_id: Id.t): list(Id.t) => {
-    let name =
-      switch (lookup(binding_id, m)) {
-      | Some(InfoTPat({term: {term: Var(name), _}, _})) => Some(name)
-      | _ => None
-      };
-    switch (name) {
-    | None => []
-    | Some(n) =>
+    switch (lookup(binding_id, m)) {
+    | Some(InfoTPat({term: {term: Var(name), _}, tvar_co_ctx, _})) =>
+      switch (Util.VarMap.lookup(tvar_co_ctx, name)) {
+      | Some(ids) => ids
+      | None => []
+      }
+    | _ => []
+    };
+  };
+
+  /* Post-processing pass: populate each InfoTPat's tvar_co_ctx with
+   * the IDs of type variable references that resolve to that binding.
+   * Single O(n) scan of the info_map + O(n) map update. */
+  let populate_tvar_co_ctxs = (m: t): t => {
+    /* Step 1: Scan all InfoTyp Var entries, group use-site IDs by binding ID */
+    let uses_by_binding: Id.Map.t(list(Id.t)) =
       Id.Map.fold(
         (id, info: Info.t, acc) =>
           switch (info) {
-          | InfoTyp({term: {term: Var(name), _}, ctx, _}) when name == n =>
+          | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
             switch (Ctx.lookup_tvar_id(ctx, name)) {
-            | Some(bid) when bid == binding_id => [id, ...acc]
+            | Some(bid) when bid != Id.invalid =>
+              let existing =
+                switch (Id.Map.find_opt(bid, acc)) {
+                | Some(ids) => ids
+                | None => []
+                };
+              Id.Map.add(bid, [id, ...existing], acc);
             | _ => acc
             }
           | _ => acc
           },
         m,
-        [],
-      )
-    };
+        Id.Map.empty,
+      );
+    /* Step 2: Update each InfoTPat with its tvar_co_ctx */
+    Id.Map.map(
+      (info: Info.t) =>
+        switch (info) {
+        | InfoTPat({term: {term: Var(name), _}, _} as tpat_info) =>
+          let tpat_id = TPat.rep_id(tpat_info.term);
+          let uses =
+            switch (Id.Map.find_opt(tpat_id, uses_by_binding)) {
+            | Some(ids) => ids
+            | None => []
+            };
+          Info.InfoTPat({...tpat_info, tvar_co_ctx: [(name, uses)]});
+        | other => other
+        },
+      m,
+    );
   };
 
   /* Given any Info.t, compute the set of related IDs to highlight:

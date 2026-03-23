@@ -2558,7 +2558,7 @@ and utpat_to_info_map =
     )
     : (Info.tpat, Map.t) => {
   let add = m => {
-    let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
+    let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors, ());
     (info, add_info(ids, InfoTPat(info), m));
   };
   let ancestors = [TPat.rep_id(utpat)] @ ancestors;
@@ -2620,6 +2620,7 @@ let mk =
       Id.Map.empty,
     )
     |> snd
+    |> Map.populate_tvar_co_ctxs
   });
 
 let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
