@@ -374,8 +374,9 @@ let split_views =
 
 /* Is the piece with id indicated? If so, where is it wrt the caret? */
 let indication = (z, id) =>
-  switch (Indicated.piece(z)) {
-  | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+  switch (Indicated.for_decoration(z)) {
+  | Some({piece: p, side: d, _}) when Piece.id(p) == id =>
+    Some(Direction.toggle(d))
   | _ => None
   };
 

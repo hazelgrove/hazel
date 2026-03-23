@@ -24,8 +24,7 @@ let has_concave_left_nib = (p: Piece.t): bool =>
   };
 
 /* The caret-facing nib shape of a piece: right nib for L, left nib for R */
-let caret_facing_shape =
-    (d: Direction.t, p: Piece.t): option(Nib.Shape.t) =>
+let caret_facing_shape = (d: Direction.t, p: Piece.t): option(Nib.Shape.t) =>
   switch (Piece.shapes(p)) {
   | Some((l, r)) =>
     switch (d) {
@@ -55,55 +54,125 @@ let indicated =
   | ((None, None), None) => None
   /* L not secondary, R is secondary => indicate L */
   | ((Some(l), Some(r)), _) when !ign(l) && ign(r) =>
-    Some({piece: l, side: Left, relation: Sibling})
+    Some({
+      piece: l,
+      side: Left,
+      relation: Sibling,
+    })
   /* L and R are secondarys => no indication */
   | ((Some(l), Some(r)), _) when ign(l) && ign(r) =>
-    no_ws ? None : Some({piece: l, side: Left, relation: Sibling})
+    no_ws
+      ? None
+      : Some({
+          piece: l,
+          side: Left,
+          relation: Sibling,
+        })
   /* At right end of syntax and L is secondary => no indication */
   | ((Some(l), None), None) when ign(l) =>
-    no_ws ? None : Some({piece: l, side: Left, relation: Sibling})
+    no_ws
+      ? None
+      : Some({
+          piece: l,
+          side: Left,
+          relation: Sibling,
+        })
   /* At left end of syntax and R is secondary => no indication */
   | ((None, Some(r)), None) when ign(r) =>
-    no_ws ? None : Some({piece: r, side: Right, relation: Sibling})
+    no_ws
+      ? None
+      : Some({
+          piece: r,
+          side: Right,
+          relation: Sibling,
+        })
   /* No L and R is a secondary and there is a P => indicate P */
   | ((None, Some(r)), Some(parent)) when ign(r) =>
-    Some({piece: parent, side: Left, relation: Parent})
+    Some({
+      piece: parent,
+      side: Left,
+      relation: Parent,
+    })
   /* Both L and R non-ignored, caret outer: inward bias with concave-left special case */
-  | ((Some(l), Some(r)), _parent) when !ign(l) && !ign(r) && z.caret == Outer =>
+  | ((Some(l), Some(r)), _parent)
+      when !ign(l) && !ign(r) && z.caret == Outer =>
     if (has_concave_left_nib(r)) {
       /* R has concave left nib: this is R's designated position */
-      Some({piece: r, side: Right, relation: Sibling});
+      Some({
+        piece: r,
+        side: Right,
+        relation: Sibling,
+      });
     } else {
-      switch (
-        caret_facing_shape(Left, l),
-        caret_facing_shape(Right, r),
-      ) {
+      switch (caret_facing_shape(Left, l), caret_facing_shape(Right, r)) {
       /* R is convex (inward) => indicate R */
-      | (_, Some(Convex)) => Some({piece: r, side: Right, relation: Sibling})
+      | (_, Some(Convex)) =>
+        Some({
+          piece: r,
+          side: Right,
+          relation: Sibling,
+        })
       /* L is convex (inward), R is not => indicate L */
-      | (Some(Convex), _) => Some({piece: l, side: Left, relation: Sibling})
+      | (Some(Convex), _) =>
+        Some({
+          piece: l,
+          side: Left,
+          relation: Sibling,
+        })
       /* Both concave or unknown => indicate L (fallback) */
-      | _ => Some({piece: l, side: Left, relation: Sibling})
+      | _ =>
+        Some({
+          piece: l,
+          side: Left,
+          relation: Sibling,
+        })
       };
     }
   /* L non-ignored, R ignored or absent, caret outer => indicate L.
    * L is the only meaningful piece, so indicate it regardless of shape. */
   | ((Some(l), _), _) when !ign(l) && z.caret == Outer =>
-    Some({piece: l, side: Left, relation: Sibling})
+    Some({
+      piece: l,
+      side: Left,
+      relation: Sibling,
+    })
   /* No L, R non-ignored, parent exists, caret outer: inward bias
    * prefers the child (R) over the parent delimiter */
   | ((None, Some(r)), Some(_parent)) when !ign(r) && z.caret == Outer =>
-    Some({piece: r, side: Right, relation: Sibling})
+    Some({
+      piece: r,
+      side: Right,
+      relation: Sibling,
+    })
   /* No L, R ignored or absent, some P, caret outer => indicate P */
   | ((None, _), Some(parent)) when z.caret == Outer =>
-    Some({piece: parent, side: Left, relation: Parent})
+    Some({
+      piece: parent,
+      side: Left,
+      relation: Parent,
+    })
   /* R is not secondary, either no L or L is secondary or caret is inner => indicate R */
-  | ((_, Some(r)), _) => Some({piece: r, side: Right, relation: Sibling})
+  | ((_, Some(r)), _) =>
+    Some({
+      piece: r,
+      side: Right,
+      relation: Sibling,
+    })
   /* No R and there is a P => indicate P */
-  | ((_, None), Some(parent)) => Some({piece: parent, side: Right, relation: Parent})
+  | ((_, None), Some(parent)) =>
+    Some({
+      piece: parent,
+      side: Right,
+      relation: Parent,
+    })
   /* There is an L but no R and no P => indicate L */
   //WEIRD: Right below seems wrong but behaves right
-  | ((Some(l), None), None) => Some({piece: l, side: Right, relation: Sibling})
+  | ((Some(l), None), None) =>
+    Some({
+      piece: l,
+      side: Right,
+      relation: Sibling,
+    })
   };
 };
 
@@ -206,4 +275,3 @@ let ci_for_completion =
     Id.Map.find_opt(Piece.id(p), info_map)
   | _ => ci_of(z, info_map)
   };
-
