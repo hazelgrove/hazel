@@ -50,7 +50,7 @@ module Store = {
     if (has_share_params) {
       let (default_current, default_names) = scratch_defaults();
       Model.Scratch(
-        ScratchMode.load_all_slides(
+        ScratchMode.Persist.load_all(
           "scratch",
           ~settings,
           ~default_names,
@@ -64,7 +64,7 @@ module Store = {
       | Scratch =>
         let (default_current, default_names) = scratch_defaults();
         Model.Scratch(
-          ScratchMode.load_all_slides(
+          ScratchMode.Persist.load_all(
             "scratch",
             ~settings,
             ~default_names,
@@ -75,7 +75,7 @@ module Store = {
       | Documentation =>
         let (default_current, default_names) = doc_defaults();
         Model.Documentation(
-          ScratchMode.load_all_slides(
+          ScratchMode.Persist.load_all(
             "doc",
             ~settings,
             ~default_names,
@@ -100,10 +100,10 @@ module Store = {
     switch (model) {
     | Model.Scratch(m) =>
       StoreMode.save(Scratch);
-      ScratchMode.save_current("scratch", m);
+      ScratchMode.Persist.save_current("scratch", m);
     | Model.Documentation(m) =>
       StoreMode.save(Documentation);
-      ScratchMode.save_current("doc", m);
+      ScratchMode.Persist.save_current("doc", m);
     | Model.Tutorial(m) =>
       StoreMode.save(Tutorial);
       TutorialsMode.Store.save(~instructor_mode, m);
@@ -203,7 +203,7 @@ module Update = {
     | (SwitchMode(Scratch), _) =>
       let (default_current, default_names) = Store.scratch_defaults();
       Model.Scratch(
-        ScratchMode.load_all_slides(
+        ScratchMode.Persist.load_all(
           "scratch",
           ~settings=globals.settings.core,
           ~default_names,
@@ -215,7 +215,7 @@ module Update = {
     | (SwitchMode(Documentation), _) =>
       let (default_current, default_names) = Store.doc_defaults();
       Model.Documentation(
-        ScratchMode.load_all_slides(
+        ScratchMode.Persist.load_all(
           "doc",
           ~settings=globals.settings.core,
           ~default_names,

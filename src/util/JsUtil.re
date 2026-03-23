@@ -94,7 +94,6 @@ let reset_file_input = (input_id: string): unit => {
   };
 };
 
-
 let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };

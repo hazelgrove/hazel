@@ -26,14 +26,14 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let explainThisModel = ExplainThisModel.Store.export();
   let (scratch_current, scratch_slides) = Init.startup.scratch;
   let scratch =
-    ScratchMode.export_monolithic(
+    ScratchMode.Persist.export_all(
       "scratch",
       ~default_names=List.map(fst, scratch_slides),
       ~default_current=scratch_current,
     );
   let (doc_current, doc_slides) = Init.startup.documentation;
   let documentation =
-    ScratchMode.export_monolithic(
+    ScratchMode.Persist.export_all(
       "doc",
       ~default_names=List.map(fst, doc_slides),
       ~default_current=doc_current,
@@ -77,9 +77,9 @@ let import_all =
   let settings = Settings.Store.load();
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  ScratchMode.import_monolithic("scratch", all.scratch);
+  ScratchMode.Persist.import_all("scratch", all.scratch);
   if (all.documentation != "") {
-    ScratchMode.import_monolithic("doc", all.documentation);
+    ScratchMode.Persist.import_all("doc", all.documentation);
   };
   ExercisesMode.Store.import(
     ~settings,

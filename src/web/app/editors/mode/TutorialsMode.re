@@ -56,9 +56,6 @@ module StoreTutorialKey =
       List.nth(TutorialSettings.lessons, 0) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
   });
-/* Alias before inner Store shadows the file-level Store module */
-module StoreLegacy = Store.Legacy;
-
 module Store = {
   let keystring_of_key = key => {
     key |> Haz3lcore.Id.to_string;
@@ -396,7 +393,7 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            StoreLegacy.clear_all();
+            HazelDB.clear_legacy_storage();
             Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;

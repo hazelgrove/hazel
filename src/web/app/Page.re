@@ -322,10 +322,7 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
-    | Start =>
-      /* Agent data now loads synchronously from HazelDB cache at
-         model construction time — no async loading needed. */
-      model |> return
+    | Start => model |> return
     | Save =>
       print_endline("Saving...");
       Store.save(model);

@@ -1124,7 +1124,6 @@ module Agent = {
         tools_view_expanded: [],
       };
     };
-
   };
 
   module ToolUtils = {

@@ -115,6 +115,16 @@ let remove_cache = (key: string): unit =>
 
 /* === Database-level operations === */
 
+/* Clear legacy localStorage data. Used during "Reset Hazel" to ensure
+   no stale pre-migration data remains. Safe to remove once all users
+   have upgraded to IndexedDB storage. */
+let clear_legacy_storage = (): unit => {
+  let local_store =
+    Js_of_ocaml.Dom_html.window##.localStorage
+    |> Js_of_ocaml.Js.Optdef.get(_, () => assert(false));
+  local_store##clear;
+};
+
 /* Clear all data from all tables. Used by "Reset Hazel". */
 let clear_all = (~callback=() => (), ()): unit => {
   let remaining = ref(2);

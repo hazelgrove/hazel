@@ -1,31 +1,22 @@
 // A generic key-value store backed by IndexedDB (via HazelDB cache)
 
-/* Legacy localStorage access — for one-time migration of pre-existing
+/* Legacy localStorage read — for one-time migration of pre-existing
    data to IndexedDB. Safe to remove once all users have upgraded. */
-module Legacy = {
-  let get = (k: string): option(string) =>
-    try({
-      let local_store =
-        Js_of_ocaml.Dom_html.window##.localStorage
-        |> Js_of_ocaml.Js.Optdef.get(_, () => assert(false));
-      local_store##getItem(Js_of_ocaml.Js.string(k))
-      |> (
-        x =>
-          Js_of_ocaml.Js.Opt.get(x, () => assert(false))
-          |> Js_of_ocaml.Js.to_string
-          |> Option.some
-      );
-    }) {
-    | _ => None
-    };
-
-  let clear_all = () => {
+let legacy_get = (k: string): option(string) =>
+  try({
     let local_store =
       Js_of_ocaml.Dom_html.window##.localStorage
       |> Js_of_ocaml.Js.Optdef.get(_, () => assert(false));
-    local_store##clear;
+    local_store##getItem(Js_of_ocaml.Js.string(k))
+    |> (
+      x =>
+        Js_of_ocaml.Js.Opt.get(x, () => assert(false))
+        |> Js_of_ocaml.Js.to_string
+        |> Option.some
+    );
+  }) {
+  | _ => None
   };
-};
 
 type key =
   | Settings
@@ -87,7 +78,7 @@ module F =
     switch (HazelDB.get_cache(key_string)) {
     | Some(data) => deserialize(data, default())
     | None =>
-      switch (Legacy.get(key_string)) {
+      switch (legacy_get(key_string)) {
       | None => default()
       | Some(data) => deserialize(data, default())
       }
@@ -97,7 +88,7 @@ module F =
     switch (HazelDB.get_cache(key_string)) {
     | Some(data) => data
     | None =>
-      switch (Legacy.get(key_string)) {
+      switch (legacy_get(key_string)) {
       | None => serialize(default())
       | Some(data) => data
       }
