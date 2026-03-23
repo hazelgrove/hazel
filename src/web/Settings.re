@@ -31,6 +31,7 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
+      deep_reassociate: true,
       flip_animations: true,
       display_warnings: true,
       evaluation: {
@@ -118,6 +119,7 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
+    | DeepReassociate
     | Assist
     | Elaborate
     | Benchmark
@@ -177,6 +179,13 @@ module Update = {
             dynamics: !settings.core.probe_all || settings.core.dynamics,
             statics: !settings.core.probe_all || settings.core.statics,
             probe_all: !settings.core.probe_all,
+          },
+        }
+      | DeepReassociate => {
+          ...settings,
+          core: {
+            ...settings.core,
+            deep_reassociate: !settings.core.deep_reassociate,
           },
         }
       | Assist => {

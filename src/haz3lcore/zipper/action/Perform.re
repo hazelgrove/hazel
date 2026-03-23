@@ -11,12 +11,14 @@ let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
 
 let go =
     (
+      ~settings: Language.CoreSettings.t,
       ~statics: CachedStatics.t,
       ~syntax: CachedSyntax.t,
       a: Action.t,
       {zipper: z, col_target}: state,
     )
-    : Action.Result.t(Zipper.t) =>
+    : Action.Result.t(Zipper.t) => {
+  let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
   switch (a) {
   | Introduce =>
     Select.current_term(
@@ -31,13 +33,15 @@ let go =
     |> return(CantIntroduce)
   | Paste(clipboard) =>
     switch (Parser.try_segment_paste(clipboard, z)) {
-    | Some(z) => Ok(z)
+    | Some(z) => Ok(maybe_reassoc(z))
     | None =>
-      if (Parser.can_fast_paste(clipboard, z)) {
-        Parser.fast_paste(clipboard, z) |> return(CantPaste);
-      } else {
-        Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste);
-      }
+      (
+        Parser.can_fast_paste(clipboard, z)
+          ? Parser.fast_paste(clipboard, z)
+          : Parser.to_zipper(~zipper_init=z, clipboard)
+      )
+      |> Option.map(maybe_reassoc)
+      |> return(CantPaste)
     }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
@@ -137,14 +141,18 @@ let go =
     }
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
-  | Destruct(d) => Destruct.go(d, z) |> return(Cant_destruct)
+  | Destruct(d) =>
+    Destruct.go(d, z) |> Option.map(maybe_reassoc) |> return(Cant_destruct)
   | Insert(char) =>
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
+    |> Option.map(maybe_reassoc)
     |> return(Cant_insert)
-  | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
+  | Put_down =>
+    Zipper.put_down(z) |> Option.map(maybe_reassoc) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
   | ToggleLineComment => Comment.go(z) |> return(Cant_destruct)
   | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };
+};

@@ -29,21 +29,20 @@ let printer = (z: Zipper.t): string => {
   );
 };
 
-let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
-  /* Compute statics so that Smart selection can look up parent terms */
-  let statics_settings = {
-    ...Language.CoreSettings.off,
-    statics: true,
-  };
+let default_settings = {
+  ...Language.CoreSettings.off,
+  statics: true,
+};
+
+let perform =
+    (~settings=default_settings, zip: Zipper.t, actions: list(Action.t))
+    : Zipper.t => {
   let perform = (a: Action.t, z: Zipper.t) => {
     let term = MakeTerm.from_zip_for_sem(z).term;
     let statics =
-      CachedStatics.init_from_term(
-        ~settings=statics_settings,
-        ~is_dynamic_term=true,
-        term,
-      );
+      CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
     Perform.go(
+      ~settings,
       ~statics,
       ~syntax=CachedSyntax.init(z),
       a,
@@ -117,6 +116,16 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
       goal,
       goal,
       acts |> perform(Zipper.init()) |> printer,
+    )
+  );
+
+let test_with_settings = (~settings, ~name, ~acts, ~goal): test_case(_) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      goal,
+      goal,
+      acts |> perform(~settings, Zipper.init()) |> printer,
     )
   );
 
