@@ -1,49 +1,20 @@
-/* Logging system for actions. Persists log via IndexedDB */
+/* Logging system for actions. Persists log via HazelDB shared database. */
 
 open Util;
 
 module DB = {
-  open Ezjs_idb;
-
-  module Store = Ezjs_idb.Store(StringTr, StringTr);
-
-  type db = Ezjs_min.t(Types.iDBDatabase);
-
-  let db_name = "hazel_db";
-  let table_name = "log";
-
-  let kv_store = (db: db): Store.store =>
-    Store.store(~mode=READWRITE, db, table_name);
-
-  let with_db = (f): unit => {
-    let error = _: unit => print_endline("ERROR: Log.IDBKV.open");
-    let upgrade = (db: db, e: db_upgrade): unit =>
-      e.new_version >= 1 && e.old_version == 0
-        ? ignore(Store.create(db, table_name)) : ();
-    openDB(~upgrade, ~error, ~version=1, db_name, db => f(db));
-  };
-
   let add = (key: string, value: string): unit => {
     LogCount.increment();
-    with_db(db =>
-      Store.add(~key, ~callback=_key => (), kv_store(db), value)
-    );
+    HazelDB.log_add(key, value);
   };
 
-  let get = (key: string, f: option(string) => unit): unit => {
-    let error = _ => Printf.printf("ERROR: Log.IDBKV.get");
-    with_db(db => Store.get(~error, kv_store(db), f, K(key)));
-  };
+  let get = HazelDB.log_get;
 
-  let get_all = (f: list(string) => unit): unit => {
-    let error = _ => Printf.printf("ERROR: Log.IDBKV.get_all");
-    with_db(db => Store.get_all(~error, kv_store(db), f));
-  };
+  let get_all = HazelDB.log_get_all;
 
   let clear_and = (callback): unit => {
-    let error = _ => Printf.printf("ERROR: Log.IDBKV.clear");
     LogCount.clear();
-    with_db(db => Store.clear(~error, ~callback, kv_store(db)));
+    HazelDB.log_clear(~callback, ());
   };
 };
 

@@ -1,5 +1,4 @@
 open Virtual_dom.Vdom;
-open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
@@ -17,7 +16,7 @@ let perform = (action: action): unit => {
         dynamics: false,
       },
     });
-  | ClearStore => JsUtil.clear_localstore()
+  | ClearStore => HazelDB.clear_legacy_storage()
   };
   Js_of_ocaml.Dom_html.window##.location##replace(
     Js_of_ocaml.Js.string("#"),
