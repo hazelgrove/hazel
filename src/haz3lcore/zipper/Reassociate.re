@@ -71,7 +71,8 @@ let add_repair_stats = (a: repair_stats, b: repair_stats): repair_stats => {
   preserved_anchors: a.preserved_anchors + b.preserved_anchors,
 };
 
-let is_multidelimiter_label = (label: Label.t): bool => List.length(label) > 1;
+let is_multidelimiter_label = (label: Label.t): bool =>
+  List.length(label) > 1;
 
 /* Requests */
 
@@ -85,7 +86,7 @@ let tokens_of_shards = (shards: list(Tile.t)): list(Token.t) =>
   List.filter_map(token_of_shard, shards);
 
 let rec local_missing_tokens_segment =
-    (~side: Direction.t, seg: Segment.t): list(Token.t) =>
+        (~side: Direction.t, seg: Segment.t): list(Token.t) =>
   (
     switch (side) {
     | Left => List.rev(seg)
@@ -96,34 +97,44 @@ let rec local_missing_tokens_segment =
        fun
        | Piece.Tile(tile) => {
            let self =
-             if (!Tile.is_complete(tile) && is_multidelimiter_label(tile.label)) {
-               switch (side) {
-               | Left => Tile.right_missing_shards(tile)
-               | Right => Tile.left_missing_shards(tile)
-               }
+             if (!Tile.is_complete(tile)
+                 && is_multidelimiter_label(tile.label)) {
+               (
+                 switch (side) {
+                 | Left => Tile.right_missing_shards(tile)
+                 | Right => Tile.left_missing_shards(tile)
+                 }
+               )
                |> tokens_of_shards;
              } else {
                [];
              };
            let children =
-             switch (side) {
-             | Left => List.rev(tile.children)
-             | Right => tile.children
-             }
+             (
+               switch (side) {
+               | Left => List.rev(tile.children)
+               | Right => tile.children
+               }
+             )
              |> List.concat_map(local_missing_tokens_segment(~side));
            self @ children;
          }
        | _ => [],
      );
 
-let request_of_relatives = ({siblings: (pre, suf), ancestors}: Relatives.t): option(request) => {
+let request_of_relatives =
+    ({siblings: (pre, suf), ancestors}: Relatives.t): option(request) => {
   let left =
     local_missing_tokens_segment(~side=Left, pre)
     @ tokens_of_shards(Ancestors.local_missing_shards(ancestors));
   let right = local_missing_tokens_segment(~side=Right, suf);
   switch (left, right) {
   | ([], []) => None
-  | _ => Some({left, right})
+  | _ =>
+    Some({
+      left,
+      right,
+    })
   };
 };
 
@@ -143,7 +154,8 @@ let consume_tokens_in_order =
     | ([], _) => []
     | (_, []) => obligations
     | ([need, ...rest_need] as obligations, [tok, ...rest_available]) =>
-      need == tok ? go(rest_need, rest_available) : go(obligations, rest_available)
+      need == tok
+        ? go(rest_need, rest_available) : go(obligations, rest_available)
     };
   go(obligations, available);
 };
@@ -153,21 +165,27 @@ let rec tokens_of_segment = (seg: Segment.t): list(Token.t) =>
 
 and tokens_of_piece = (piece: Piece.t): list(Token.t) =>
   switch (piece) {
-  | Piece.Tile(tile) when List.length(tile.shards) == 1 && tile.children == [] =>
+  | Piece.Tile(tile)
+      when List.length(tile.shards) == 1 && tile.children == [] =>
     tokens_of_shards([tile])
   | Piece.Tile(tile) => tokens_of_segment(Tile.disassemble(tile))
   | _ => []
   };
 
 let consume_request =
-    (~left_available: list(Token.t), ~right_available: list(Token.t), request: request)
+    (
+      ~left_available: list(Token.t),
+      ~right_available: list(Token.t),
+      request: request,
+    )
     : request => {
   left: consume_tokens_in_order(request.left, right_available),
   right: consume_tokens_in_order(request.right, left_available),
 };
 
 let consume_request_by_generation =
-    (request: request, ((ancestor, parent_sibs): Ancestors.generation)): request => {
+    (request: request, (ancestor, parent_sibs): Ancestors.generation)
+    : request => {
   let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
   consume_request(
     ~left_available=tokens_of_segment(fst(parent_sibs) @ left_dis),
@@ -176,12 +194,14 @@ let consume_request_by_generation =
   );
 };
 
-let rec any_generation_consumes_request = (request: request, ancestors: Ancestors.t): bool =>
+let rec any_generation_consumes_request =
+        (request: request, ancestors: Ancestors.t): bool =>
   switch (ancestors) {
   | [] => false
   | [generation, ...rest] =>
     let next = consume_request_by_generation(request, generation);
-    request_changed(request, next) || any_generation_consumes_request(next, rest)
+    request_changed(request, next)
+    || any_generation_consumes_request(next, rest);
   };
 
 /* Candidate Construction */
@@ -201,7 +221,8 @@ let rec has_incomplete_multi_deep = (seg: Segment.t): bool =>
   List.exists(
     fun
     | Piece.Tile(tile) =>
-      (!Tile.is_complete(tile) && is_multidelimiter_label(tile.label))
+      !Tile.is_complete(tile)
+      && is_multidelimiter_label(tile.label)
       || List.exists(has_incomplete_multi_deep, tile.children)
     | _ => false,
     seg,
@@ -272,18 +293,22 @@ let freshen_ancestor_shards =
    outer generation that can discharge the request, but once the request
    is empty the remaining outer context is preserved. */
 let rec expand_scope =
-    (
-      request: request,
-      siblings: Siblings.t,
-      affected_rev: Ancestors.t,
-      ancestors: Ancestors.t,
-      fresh_map: Id.Map.t((Id.t, list(int))),
-    ) =>
+        (
+          request: request,
+          siblings: Siblings.t,
+          affected_rev: Ancestors.t,
+          ancestors: Ancestors.t,
+          fresh_map: Id.Map.t((Id.t, list(int))),
+        ) =>
   switch (ancestors) {
   | [] => (siblings, List.rev(affected_rev), [], fresh_map)
-  | _ when request_is_empty(request) =>
-    (siblings, List.rev(affected_rev), ancestors, fresh_map)
-  | [((ancestor, parent_sibs) as generation), ...rest] =>
+  | _ when request_is_empty(request) => (
+      siblings,
+      List.rev(affected_rev),
+      ancestors,
+      fresh_map,
+    )
+  | [(ancestor, parent_sibs) as generation, ...rest] =>
     let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
     let (right_dis, fresh_map) =
       freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
@@ -305,7 +330,8 @@ let rec expand_scope =
    merely shadowed by rescan's LIFO stack — not genuinely displaced.
    Restore its original ID so reassembly can group it with its siblings. */
 let repair_fresh_ids =
-    (fresh_map: Id.Map.t((Id.t, list(int))), siblings: Siblings.t): Siblings.t =>
+    (fresh_map: Id.Map.t((Id.t, list(int))), siblings: Siblings.t)
+    : Siblings.t =>
   if (Id.Map.is_empty(fresh_map)) {
     siblings;
   } else {
@@ -346,7 +372,7 @@ let base_stats_of_summary = (summary: base_summary): repair_stats => {
 };
 
 let rec collect_base_summary =
-    (summary: base_summary, seg: Segment.t): base_summary =>
+        (summary: base_summary, seg: Segment.t): base_summary =>
   List.fold_left(
     (summary, piece) =>
       switch (piece) {
@@ -387,7 +413,8 @@ let score_multitile =
   };
 
 let rec collect_candidate_stats =
-    (~anchors: Id.Map.t(unit), stats: repair_stats, seg: Segment.t): repair_stats =>
+        (~anchors: Id.Map.t(unit), stats: repair_stats, seg: Segment.t)
+        : repair_stats =>
   List.fold_left(
     (stats, piece) =>
       switch (piece) {
@@ -416,11 +443,9 @@ let rec collect_candidate_stats =
 let should_accept_repair =
     (base_stats: repair_stats, candidate_stats: repair_stats): bool =>
   candidate_stats.complete_multitiles > base_stats.complete_multitiles
-  || (
-    candidate_stats.complete_multitiles == base_stats.complete_multitiles
-    && candidate_stats.preserved_anchors == base_stats.preserved_anchors
-    && candidate_stats.incomplete_multitiles < base_stats.incomplete_multitiles
-  );
+  || candidate_stats.complete_multitiles == base_stats.complete_multitiles
+  && candidate_stats.preserved_anchors == base_stats.preserved_anchors
+  && candidate_stats.incomplete_multitiles < base_stats.incomplete_multitiles;
 
 let accept_candidate =
     (
@@ -430,7 +455,8 @@ let accept_candidate =
       z: t,
     )
     : t => {
-  let base_summary = collect_base_summary(empty_base_summary, Relatives.zip(base_scope));
+  let base_summary =
+    collect_base_summary(empty_base_summary, Relatives.zip(base_scope));
   let base_stats = base_stats_of_summary(base_summary);
   let local_relatives =
     {
@@ -474,11 +500,10 @@ let go = (z: t): t =>
         crack_siblings(siblings)
         |> Siblings.rescan
         |> repair_fresh_ids(fresh_map);
-      let base_scope =
-        {
-          Relatives.siblings: z.relatives.siblings,
-          ancestors: affected_ancestors,
-        };
+      let base_scope = {
+        Relatives.siblings: z.relatives.siblings,
+        ancestors: affected_ancestors,
+      };
       accept_candidate(
         ~base_scope,
         ~candidate_siblings=siblings,
@@ -491,11 +516,10 @@ let go = (z: t): t =>
         z;
       } else {
         let siblings = Siblings.rescan(cracked);
-        let base_scope =
-          {
-            Relatives.siblings: z.relatives.siblings,
-            ancestors: [],
-          };
+        let base_scope = {
+          Relatives.siblings: z.relatives.siblings,
+          ancestors: [],
+        };
         accept_candidate(
           ~base_scope,
           ~candidate_siblings=siblings,

@@ -18,8 +18,7 @@ let go =
       {zipper: z, col_target}: state,
     )
     : Action.Result.t(Zipper.t) => {
-  let maybe_reassoc =
-    settings.deep_reassociate ? Reassociate.go : Fun.id;
+  let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
   switch (a) {
   | Introduce =>
     Select.current_term(

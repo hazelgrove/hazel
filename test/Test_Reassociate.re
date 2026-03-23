@@ -17,7 +17,10 @@ let deep_reassociate_tests = [
         @ [Insert("(")]
         @ Test_Editing.mv_r(2)
         @ [Insert(")")]
-        |> Test_Editing.perform(~settings=deep_reassociate_settings, Zipper.init());
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
       if (Test_Editing.zip_has_incomplete(z)) {
         Alcotest.fail(
           "Incomplete tiles remain — both parens pairs should be complete",
@@ -212,7 +215,10 @@ let deep_reassociate_tests = [
         @ [Insert("[")]
         @ Test_Editing.mv_r(2)
         @ [Insert("]")]
-        |> Test_Editing.perform(~settings=deep_reassociate_settings, Zipper.init());
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
       if (Test_Editing.zip_has_incomplete(z)) {
         Alcotest.fail(
           "Incomplete tiles remain — both bracket pairs should be complete",
@@ -313,7 +319,10 @@ let deep_reassociate_tests = [
       let z1 =
         Test_Editing.mk("(1+(¦2))")
         @ [Insert("(")]
-        |> Test_Editing.perform(~settings=deep_reassociate_settings, Zipper.init());
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
       let count_complete_parens = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let ps = Test_Editing.find_tiles_by_label(["(", ")"], seg);
@@ -391,7 +400,10 @@ let deep_reassociate_tests = [
       let z =
         Test_Editing.mk("let a = 1 in let b = 2 in¦ b")
         @ [Destruct(Left), Destruct(Left)]
-        |> Test_Editing.perform(~settings=deep_reassociate_settings, Zipper.init());
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
       let seg = Zipper.zip(z);
       let lets = Test_Editing.find_tiles_by_label(["let", "=", "in"], seg);
       let complete = List.filter(Tile.is_complete, lets);
@@ -422,7 +434,8 @@ let deep_reassociate_tests = [
         );
       };
       let seg = Zipper.zip(z);
-      let ifs = Test_Editing.find_tiles_by_label(["if", "then", "else"], seg);
+      let ifs =
+        Test_Editing.find_tiles_by_label(["if", "then", "else"], seg);
       let complete_ifs = List.filter(Tile.is_complete, ifs);
       if (List.length(complete_ifs) != 1) {
         Alcotest.fail(
@@ -456,7 +469,8 @@ let deep_reassociate_tests = [
         );
       };
       let seg = Zipper.zip(z);
-      let ifs = Test_Editing.find_tiles_by_label(["if", "then", "else"], seg);
+      let ifs =
+        Test_Editing.find_tiles_by_label(["if", "then", "else"], seg);
       let complete_ifs = List.filter(Tile.is_complete, ifs);
       if (List.length(complete_ifs) != 2) {
         Alcotest.fail(
@@ -500,7 +514,8 @@ let deep_reassociate_tests = [
         );
       };
       let seg = Zipper.zip(z);
-      let ifs = Test_Editing.find_tiles_by_label(["if", "then", "else"], seg);
+      let ifs =
+        Test_Editing.find_tiles_by_label(["if", "then", "else"], seg);
       let complete_ifs = List.filter(Tile.is_complete, ifs);
       if (List.length(complete_ifs) != 2) {
         Alcotest.fail(
@@ -521,7 +536,10 @@ let deep_reassociate_tests = [
         @ [Insert("(")]
         @ Test_Editing.mv_r(3)
         @ [Insert(")")]
-        |> Test_Editing.perform(~settings=deep_reassociate_settings, Zipper.init());
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
       if (Test_Editing.zip_has_incomplete(z)) {
         Alcotest.fail(
           "Incomplete tiles remain — all nested parens should be complete",
@@ -549,7 +567,10 @@ let deep_reassociate_tests = [
         @ Test_Editing.string_to_ltr_actions("test ")
         @ Test_Editing.mv_r(5)
         @ Test_Editing.string_to_ltr_actions(" end")
-        |> Test_Editing.perform(~settings=deep_reassociate_settings, Zipper.init());
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
       if (Test_Editing.zip_has_incomplete(z)) {
         Alcotest.fail(
           "Incomplete tiles remain — both nested end-delimited forms should be complete",
@@ -580,6 +601,4 @@ let deep_reassociate_tests = [
   ),
 ];
 
-let tests = [
-  ("Editing.DeepReassociate", deep_reassociate_tests),
-];
+let tests = [("Editing.DeepReassociate", deep_reassociate_tests)];
