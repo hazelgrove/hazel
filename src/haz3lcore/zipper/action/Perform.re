@@ -19,7 +19,7 @@ let go =
     )
     : Action.Result.t(Zipper.t) => {
   let maybe_reassoc =
-    settings.deep_reassociate ? Zipper.deep_reassociate : Fun.id;
+    settings.deep_reassociate ? Reassociate.go : Fun.id;
   switch (a) {
   | Introduce =>
     Select.current_term(

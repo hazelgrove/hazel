@@ -89,8 +89,6 @@ let rescan_reassemble = (d: Direction.t, z: t): t => {
   };
 };
 
-let deep_reassociate = Reassociate.go;
-
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {
