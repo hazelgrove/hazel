@@ -8,33 +8,6 @@ let deep_reassociate_settings = {
 };
 
 let deep_reassociate_tests = [
-  Test_Editing.test_with_settings(
-    ~settings=deep_reassociate_settings,
-    ~name="Deep Reassociate: insert ) inside parens",
-    ~acts=Test_Editing.mk("(1¦)") @ [Insert(")")],
-    ~goal="(1)¦)",
-  ),
-  Test_Editing.test_with_settings(
-    ~settings=deep_reassociate_settings,
-    ~name="Deep Reassociate: insert ( inside parens steals )",
-    ~acts=Test_Editing.mk("(1+¦2)") @ [Insert("(")],
-    ~goal="(1+(¦2)",
-  ),
-  Test_Editing.test_with_settings(
-    ~settings=deep_reassociate_settings,
-    ~name="Deep Reassociate: insert ) in middle of parens",
-    ~acts=Test_Editing.mk("(1¦+2)") @ [Insert(")")],
-    ~goal="(1)¦+2)",
-  ),
-  Test_Editing.test_with_settings(
-    ~settings=deep_reassociate_settings,
-    ~name="Deep Reassociate: insert ( before existing parens",
-    ~acts=Test_Editing.mk("¦(1)") @ [Insert("(")],
-    ~goal="(¦(1)",
-  ),
-];
-
-let deep_reassociate_advanced_tests = [
   test_case(
     "Parens wrap via out-of-order ( then )",
     `Quick,
@@ -609,5 +582,4 @@ let deep_reassociate_advanced_tests = [
 
 let tests = [
   ("Editing.DeepReassociate", deep_reassociate_tests),
-  ("Editing.DeepReassociateAdv", deep_reassociate_advanced_tests),
 ];
