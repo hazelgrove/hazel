@@ -602,6 +602,7 @@ module View = {
             );
           if (confirmed) {
             HazelDB.clear_legacy_storage();
+            HazelDB.clear_all();
             Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;
