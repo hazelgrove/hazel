@@ -449,6 +449,66 @@ let test_ctr_ref_to_siblings =
     },
   );
 
+let test_ctr_pat_in_case =
+  test_case(
+    "Constructor: pattern use highlighted from def and expr uses",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type T = A + B in case A | A => A end",
+        );
+      let info_map = statics(exp);
+      let def = find_ctr_def(info_map, "A");
+      check(bool, "found A definition", true, def != None);
+      let (_, def_info) = Option.get(def);
+      let def_ids = highlight_ids(info_map, def_info);
+      /* All constructor refs (expr + pat) should be highlighted from def */
+      let all_refs = find_ctr_refs(info_map, "A");
+      check(
+        bool,
+        "found expr+pat A references",
+        true,
+        List.length(all_refs) >= 3,
+      );
+      List.iter(
+        ((ref_id, _)) =>
+          check(
+            bool,
+            "def highlights ref " ++ Id.to_string(ref_id),
+            true,
+            has_id(def_ids, ref_id),
+          ),
+        all_refs,
+      );
+      /* From an expr ref, all siblings (including pat) should be highlighted */
+      let expr_refs =
+        List.filter(
+          ((_, info: Info.t)) =>
+            switch (info) {
+            | InfoExp(_) => true
+            | _ => false
+            },
+          all_refs,
+        );
+      check(bool, "found expr A ref", true, List.length(expr_refs) >= 1);
+      let (expr_ref_id, expr_ref_info) = List.hd(expr_refs);
+      let expr_ids = highlight_ids(info_map, expr_ref_info);
+      List.iter(
+        ((other_id, _)) =>
+          if (!Id.equal(other_id, expr_ref_id)) {
+            check(
+              bool,
+              "expr ref highlights sibling " ++ Id.to_string(other_id),
+              true,
+              has_id(expr_ids, other_id),
+            );
+          },
+        all_refs,
+      );
+    },
+  );
+
 let tests = (
   "VarHighlight",
   [
@@ -466,5 +526,6 @@ let tests = (
     test_ctr_distinct_defs,
     test_ctr_def_to_uses,
     test_ctr_ref_to_siblings,
+    test_ctr_pat_in_case,
   ],
 );
