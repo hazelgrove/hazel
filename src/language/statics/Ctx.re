@@ -159,12 +159,17 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
   entries:
     List.filter_map(
       fun
-      | ConstructorMap.Variant(ctr, _, typ) =>
-        Some(
-          ConstructorEntry({
-            name: ctr,
-            id,
-            typ:
+      | ConstructorMap.Variant(ctr, ann, typ) => {
+          let ctr_id =
+            switch (ann.ids) {
+            | [id, ..._] => id
+            | [] => id
+            };
+          Some(
+            ConstructorEntry({
+              name: ctr,
+              id: ctr_id,
+              typ:
               switch (typ) {
               | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
               | Some(typ) =>
@@ -175,7 +180,8 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
               },
             custom_statics: None,
           }),
-        )
+        );
+        }
       | ConstructorMap.BadEntry(_) => None,
       ctrs,
     )
