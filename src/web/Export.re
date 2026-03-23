@@ -24,8 +24,20 @@ type all_public = {
 let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let settings = Settings.Store.export();
   let explainThisModel = ExplainThisModel.Store.export();
-  let scratch = ScratchMode.Store.export();
-  let documentation = ScratchMode.StoreDocumentation.export();
+  let (scratch_current, scratch_slides) = Init.startup.scratch;
+  let scratch =
+    ScratchMode.export_monolithic(
+      "scratch",
+      ~default_names=List.map(fst, scratch_slides),
+      ~default_current=scratch_current,
+    );
+  let (doc_current, doc_slides) = Init.startup.documentation;
+  let documentation =
+    ScratchMode.export_monolithic(
+      "doc",
+      ~default_names=List.map(fst, doc_slides),
+      ~default_current=doc_current,
+    );
   let tutorial =
     TutorialsMode.Store.export(~settings=core_settings, ~instructor_mode);
   let exercise =
@@ -65,7 +77,10 @@ let import_all =
   let settings = Settings.Store.load();
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  ScratchMode.Store.import(all.scratch);
+  ScratchMode.import_monolithic("scratch", all.scratch);
+  if (all.documentation != "") {
+    ScratchMode.import_monolithic("doc", all.documentation);
+  };
   ExercisesMode.Store.import(
     ~settings,
     all.exercise,

@@ -17,7 +17,7 @@ let perform = (action: action): unit => {
         dynamics: false,
       },
     });
-  | ClearStore => JsUtil.clear_localstore()
+  | ClearStore => Store.Legacy.clear_all()
   };
   Js_of_ocaml.Dom_html.window##.location##replace(
     Js_of_ocaml.Js.string("#"),

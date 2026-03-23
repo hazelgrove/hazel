@@ -3,57 +3,102 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
-/* IndexedDB store for agent chat data. Each scratchpad's agent state
-   is stored here, keyed by "mode:scratchpad_name". This avoids
-   bloating localStorage with large system prompts and chat history. */
-module AgentIDB =
-  StoreIDB.F({
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Agent.Agent.Persistent.t;
-    let default = Agent.Agent.Persistent.empty;
-    let db_name = "hazel_agent_db";
-  });
+/* === Per-slide IndexedDB persistence ===
 
-let agent_idb_key = (mode_prefix: string, name: string): string =>
-  mode_prefix ++ ":" ++ name;
+      Each scratchpad's editor and agent data is stored as separate keys
+      in HazelDB's KV table, so autosave only writes the current slide.
 
-/* Save all scratchpad agents to IndexedDB */
-let save_agents_to_idb =
-    (mode_prefix: string, scratchpads: list((string, Agent.Agent.Model.t)))
-    : unit =>
-  List.iter(
-    ((name, agent)) => {
-      let key = agent_idb_key(mode_prefix, name);
-      AgentIDB.save(key, Agent.Agent.Persistent.persist(agent));
-    },
-    scratchpads,
-  );
+      Key layout:
+        scratch:_meta              → slide_meta (current_index, names)
+        scratch:Scratchpad 1       → CellEditor.Model.persistent
+        scratch:Scratchpad 1:agent → Agent.Agent.Persistent.t
+        doc:_meta                  → slide_meta (current_index, names)
+        doc:BasicReference         → CellEditor.Model.persistent
+        doc:BasicReference:agent   → Agent.Agent.Persistent.t
+   */
 
-/* Load all scratchpad agents from IndexedDB, dispatching results */
-let load_agents_from_idb =
-    (
-      mode_prefix: string,
-      names: list(string),
-      on_load: (string, Agent.Agent.Model.t) => unit,
-    )
-    : unit =>
-  List.iter(
-    name => {
-      let key = agent_idb_key(mode_prefix, name);
-      AgentIDB.load(
-        key,
-        data => {
-          let agent =
-            switch (data) {
-            | Some(p) => Agent.Agent.Persistent.unpersist(p)
-            | None => Agent.Agent.Utils.init()
-            };
-          on_load(name, agent);
-        },
-      );
-    },
-    names,
-  );
+/* Key construction */
+let meta_key = (prefix: string): string => prefix ++ ":_meta";
+let slide_key = (prefix: string, name: string): string =>
+  prefix ++ ":" ++ name;
+let agent_key = (prefix: string, name: string): string =>
+  prefix ++ ":" ++ name ++ ":agent";
+
+/* Meta: current slide index + ordered list of slide names */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slide_meta = {
+  current: int,
+  names: list(string),
+};
+
+let save_meta = (prefix: string, m: slide_meta): unit => {
+  let key = meta_key(prefix);
+  let serialized = m |> sexp_of_slide_meta |> Sexplib.Sexp.to_string;
+  HazelDB.kv_save(key, serialized);
+  HazelDB.update_cache(key, serialized);
+};
+
+let load_meta = (prefix: string): option(slide_meta) =>
+  switch (HazelDB.get_cache(meta_key(prefix))) {
+  | Some(data) =>
+    try(Some(data |> Sexplib.Sexp.of_string |> slide_meta_of_sexp)) {
+    | _ => None
+    }
+  | None => None
+  };
+
+/* Per-slide editor save/load */
+let save_slide =
+    (prefix: string, name: string, editor: CellEditor.Model.persistent): unit => {
+  let key = slide_key(prefix, name);
+  let serialized =
+    editor |> CellEditor.Model.sexp_of_persistent |> Sexplib.Sexp.to_string;
+  HazelDB.kv_save(key, serialized);
+  HazelDB.update_cache(key, serialized);
+};
+
+let load_slide =
+    (prefix: string, name: string): option(CellEditor.Model.persistent) =>
+  switch (HazelDB.get_cache(slide_key(prefix, name))) {
+  | Some(data) =>
+    try(
+      Some(
+        data |> Sexplib.Sexp.of_string |> CellEditor.Model.persistent_of_sexp,
+      )
+    ) {
+    | _ => None
+    }
+  | None => None
+  };
+
+let delete_slide = (prefix: string, name: string): unit => {
+  HazelDB.kv_delete(slide_key(prefix, name));
+  HazelDB.remove_cache(slide_key(prefix, name));
+  HazelDB.kv_delete(agent_key(prefix, name));
+  HazelDB.remove_cache(agent_key(prefix, name));
+};
+
+/* Per-slide agent save/load */
+let save_agent =
+    (prefix: string, name: string, agent: Agent.Agent.Persistent.t): unit => {
+  let key = agent_key(prefix, name);
+  let serialized =
+    agent |> Agent.Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
+  HazelDB.kv_save(key, serialized);
+  HazelDB.update_cache(key, serialized);
+};
+
+let load_agent =
+    (prefix: string, name: string): option(Agent.Agent.Persistent.t) =>
+  switch (HazelDB.get_cache(agent_key(prefix, name))) {
+  | Some(data) =>
+    try(
+      Some(data |> Sexplib.Sexp.of_string |> Agent.Agent.Persistent.t_of_sexp)
+    ) {
+    | _ => None
+    }
+  | None => None
+  };
 
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -70,8 +115,6 @@ module Scratchpad = {
     agent: Agent.Agent.Persistent.t,
   };
 
-  /* Persist for localStorage: writes an empty agent stub.
-     Real agent data is saved to IndexedDB separately. */
   let persist = (s: t): persistent => {
     let current_segment = Zipper.zip(s.editor.editor.editor.state.zipper);
     let original = Init.find_documentation_slide(s.name);
@@ -94,13 +137,11 @@ module Scratchpad = {
     {
       name: s.name,
       editor,
-      /* Write empty stub to localStorage — agent data lives in IndexedDB */
-      agent: Agent.Agent.Persistent.empty(),
+      agent: Agent.Agent.Persistent.persist(s.agent),
     };
   };
 
-  /* Unpersist from localStorage: ignores agent stub, starts with
-     fresh agent. IndexedDB load will populate real data async. */
+  /* Used only for migration fallback from old monolithic format */
   let unpersist = (~settings, p: persistent): t => {
     name: p.name,
     editor:
@@ -109,7 +150,7 @@ module Scratchpad = {
         p.editor,
       )
       |> CellEditor.Model.unpersist(~settings),
-    agent: Agent.Agent.Utils.init(),
+    agent: Agent.Agent.Persistent.unpersist(p.agent),
   };
 
   let mk = (~name, ~editor, ()): t => {
@@ -144,70 +185,166 @@ module Model = {
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
 };
 
-let scratchpad_persistent_of_init =
-    (name: string, editor: option(CellEditor.Model.persistent))
-    : Scratchpad.persistent => {
-  name,
-  editor,
-  agent: Agent.Agent.Persistent.empty(),
+/* === High-level per-slide save/load ===
+
+   save_current: writes meta + current slide's editor + agent.
+   load_all_slides: reads meta from cache, reconstructs all scratchpads. */
+
+let save_current = (prefix: string, model: Model.t): unit => {
+  let names = Model.scratchpad_names(model);
+  save_meta(
+    prefix,
+    {
+      current: model.current,
+      names,
+    },
+  );
+  let sp = List.nth(model.scratchpads, model.current);
+  let p = Scratchpad.persist(sp);
+  /* Only write editor if modified from default */
+  switch (p.editor) {
+  | Some(editor) => save_slide(prefix, sp.name, editor)
+  | None => ()
+  };
+  save_agent(prefix, sp.name, Agent.Agent.Persistent.persist(sp.agent));
 };
 
-module StoreDocumentation =
-  Store.F({
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Model.persistent;
-    let key = Store.Documentation;
-    let default = (): t =>
-      Init.startup.documentation
-      |> PairUtil.map_snd(list =>
-           List.map(
-             ((name, _)) => scratchpad_persistent_of_init(name, None),
-             list,
-           )
-         );
-  });
+/* Load a single scratchpad from per-slide cache keys */
+let load_scratchpad_from_cache =
+    (~settings, prefix: string, name: string): Scratchpad.t => {
+  let editor =
+    (
+      switch (load_slide(prefix, name)) {
+      | Some(e) => e
+      | None => Init.default_documentation_slide_name(name)
+      }
+    )
+    |> CellEditor.Model.unpersist(~settings);
+  let agent =
+    switch (load_agent(prefix, name)) {
+    | Some(p) => Agent.Agent.Persistent.unpersist(p)
+    | None => Agent.Agent.Utils.init()
+    };
+  Scratchpad.{
+    name,
+    editor,
+    agent,
+  };
+};
 
-module Store = {
-  include Store.F({
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Model.persistent;
-    let key = Store.Scratch;
-    let default = (): t =>
-      Init.startup.scratch
-      |> PairUtil.map_snd(list =>
-           List.map(
-             ((name, editor)) =>
-               scratchpad_persistent_of_init(name, Some(editor)),
-             list,
-           )
-         );
-  });
+let load_all_slides =
+    (
+      prefix: string,
+      ~settings,
+      ~default_names: list(string),
+      ~default_current: int,
+    )
+    : Model.t =>
+  switch (load_meta(prefix)) {
+  | Some(meta) =>
+    /* Per-slide format: reconstruct from individual cache entries */
+    let scratchpads =
+      List.map(
+        name => load_scratchpad_from_cache(~settings, prefix, name),
+        meta.names,
+      );
+    Model.{
+      current: meta.current,
+      scratchpads,
+    };
+  | None =>
+    /* No per-slide meta: use defaults (first load or reset) */
+    let scratchpads =
+      List.map(
+        name => load_scratchpad_from_cache(~settings, prefix, name),
+        default_names,
+      );
+    Model.{
+      current: default_current,
+      scratchpads,
+    };
+  };
 
-  let integrate_share = (model: t): t => {
-    let share_name =
-      switch (JsUtil.QueryParams.get_param("name")) {
-      | None => "Unknown Share"
-      | Some(name) => name
-      };
-    switch (JsUtil.QueryParams.get_param("share"), model) {
-    | (None, _) => model
-    | (Some(data), (_current, scratchpads)) =>
-      let shared_text = data |> StringUtil.decompress;
-      let shared: Haz3lcore.PersistentZipper.t = {
-        zipper: "invalid",
-        backup_text: shared_text,
-      };
-      let shared: CellEditor.Model.persistent = {
-        editor: shared,
-        result: EvalResult.Model.init |> EvalResult.Model.persist,
-      };
-      let new_scratchpad =
-        scratchpad_persistent_of_init(share_name, Some(shared));
-
-      (List.length(scratchpads), scratchpads @ [new_scratchpad]);
+let integrate_share =
+    (~settings: Language.CoreSettings.t, model: Model.t): Model.t => {
+  let share_name =
+    switch (JsUtil.QueryParams.get_param("name")) {
+    | None => "Unknown Share"
+    | Some(name) => name
+    };
+  switch (JsUtil.QueryParams.get_param("share")) {
+  | None => model
+  | Some(data) =>
+    let shared_text = data |> StringUtil.decompress;
+    let shared: PersistentZipper.t = {
+      zipper: "invalid",
+      backup_text: shared_text,
+    };
+    let shared: CellEditor.Model.persistent = {
+      editor: shared,
+      result: EvalResult.Model.init |> EvalResult.Model.persist,
+    };
+    let new_sp =
+      Scratchpad.mk(
+        ~name=share_name,
+        ~editor=CellEditor.Model.unpersist(~settings, shared),
+        (),
+      );
+    Model.{
+      current: List.length(model.scratchpads),
+      scratchpads: model.scratchpads @ [new_sp],
     };
   };
 };
+
+/* Export: reconstruct monolithic persistent format from per-slide cache */
+let export_monolithic =
+    (prefix: string, ~default_names: list(string), ~default_current: int)
+    : string => {
+  let (current, names) =
+    switch (load_meta(prefix)) {
+    | Some(meta) => (meta.current, meta.names)
+    | None => (default_current, default_names)
+    };
+  let scratchpads: list(Scratchpad.persistent) =
+    List.map(
+      name => {
+        let editor = load_slide(prefix, name);
+        let agent =
+          switch (load_agent(prefix, name)) {
+          | Some(a) => a
+          | None => Agent.Agent.Persistent.persist(Agent.Agent.Utils.init())
+          };
+        Scratchpad.{name, editor, agent};
+      },
+      names,
+    );
+  let persistent: Model.persistent = (current, scratchpads);
+  persistent |> Model.sexp_of_persistent |> Sexplib.Sexp.to_string;
+};
+
+/* Import: deserialize monolithic blob and distribute to per-slide keys */
+let import_monolithic = (prefix: string, data: string): unit =>
+  try({
+    let persistent: Model.persistent =
+      data |> Sexplib.Sexp.of_string |> Model.persistent_of_sexp;
+    let (current, scratchpads) = persistent;
+    let names =
+      List.map((sp: Scratchpad.persistent) => sp.name, scratchpads);
+    save_meta(prefix, {current, names});
+    List.iter(
+      (sp: Scratchpad.persistent) => {
+        switch (sp.editor) {
+        | Some(editor) => save_slide(prefix, sp.name, editor)
+        | None => ()
+        };
+        save_agent(prefix, sp.name, sp.agent);
+      },
+      scratchpads,
+    );
+  }) {
+  | _ => print_endline("ScratchMode.import_monolithic: deserialization error")
+  };
 
 module Update = {
   open Updated;
@@ -215,7 +352,6 @@ module Update = {
   type t =
     | CellAction(CellEditor.Update.t)
     | AgentAction(Agent.Agent.Update.Action.t)
-    | LoadAgentData(string, Agent.Agent.Model.t)
     | SwitchSlide(int)
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -230,7 +366,6 @@ module Update = {
     switch (action) {
     | CellAction(action) => CellEditor.Update.can_undo(action)
     | AgentAction(_) => true
-    | LoadAgentData(_, _) => false
     | SwitchSlide(_) => false
     | ResetCurrent => true
     | InitImportScratchpad(_) => true
@@ -378,26 +513,6 @@ module Update = {
         ...model,
         scratchpads: new_sp,
       };
-    | LoadAgentData(name, agent) =>
-      /* Async callback from IndexedDB load — populate agent data */
-      let scratchpads =
-        List.map(
-          (s: Scratchpad.t) =>
-            if (s.name == name) {
-              {
-                ...s,
-                agent,
-              };
-            } else {
-              s;
-            },
-          model.scratchpads,
-        );
-      {
-        ...model,
-        scratchpads,
-      }
-      |> Updated.return_quiet;
     | CellAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
       let* new_ed = CellEditor.Update.update(~settings, a, scratchpad.editor);
@@ -771,8 +886,8 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            JsUtil.clear_localstore();
-            AgentIDB.clear();
+            Store.Legacy.clear_all();
+            HazelDB.clear_all();
             Js_of_ocaml.Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;

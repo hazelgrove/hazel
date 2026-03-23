@@ -25,7 +25,8 @@ module Model = {
     let globals = Globals.Model.init(~font_metrics?, ());
     let settings = globals.settings;
     let instructor_mode = globals.settings.instructor_mode;
-    let editors = Editors.Store.reset(~settings, ~instructor_mode);
+    let editors =
+      Editors.Store.reset(~settings=settings.core, ~instructor_mode);
     {
       globals,
       editors,
@@ -322,24 +323,9 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Start =>
-      /* Trigger async IndexedDB load for agent data */
-      switch (model.editors) {
-      | Scratch(m) =>
-        ScratchMode.load_agents_from_idb(
-          "scratch", ScratchMode.Model.scratchpad_names(m), (name, agent) =>
-          schedule_action(Editors(Scratch(LoadAgentData(name, agent))))
-        )
-      | Documentation(m) =>
-        ScratchMode.load_agents_from_idb(
-          "documentation",
-          ScratchMode.Model.scratchpad_names(m),
-          (name, agent) =>
-          schedule_action(Editors(Scratch(LoadAgentData(name, agent))))
-        )
-      | Tutorial(_)
-      | Exercises(_) => ()
-      };
-      model |> return; // Triggers recalculation at the start
+      /* Agent data now loads synchronously from HazelDB cache at
+         model construction time — no async loading needed. */
+      model |> return
     | Save =>
       print_endline("Saving...");
       Store.save(model);
