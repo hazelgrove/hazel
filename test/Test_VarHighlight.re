@@ -226,6 +226,32 @@ let test_multiple_refs =
     );
   });
 
+let test_recursive_self_refs =
+  test_case(
+    "Recursive let: binding highlights self-references in definition",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp("let f : Int -> Int = fun x -> f(x) in f(1)");
+      let info_map = statics(exp);
+      let (_, binding_info) = Option.get(find_var_binding(info_map, "f"));
+      let ids = highlight_ids(info_map, binding_info);
+      let refs = find_var_refs(info_map, "f");
+      /* Should find both the recursive call f(x) and the external call f(1) */
+      check(bool, "found f references", true, List.length(refs) >= 2);
+      List.iter(
+        ((ref_id, _)) =>
+          check(
+            bool,
+            "highlights ref " ++ Id.to_string(ref_id),
+            true,
+            has_id(ids, ref_id),
+          ),
+        refs,
+      );
+    },
+  );
+
 let test_tvar_ref_to_binding =
   test_case(
     "Type variable: reference highlights binding",
@@ -374,6 +400,7 @@ let tests = (
     test_match_ref_to_binding,
     test_shadowing,
     test_multiple_refs,
+    test_recursive_self_refs,
     test_tvar_ref_to_binding,
     test_tvar_binding_to_refs,
     test_ctr_ref_to_def,
