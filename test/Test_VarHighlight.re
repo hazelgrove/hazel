@@ -390,6 +390,65 @@ let test_ctr_distinct_defs =
     },
   );
 
+let test_ctr_def_to_uses =
+  test_case(
+    "Constructor: definition highlights all uses",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type T = A + B in let x : T = A in let y : T = A in x",
+        );
+      let info_map = statics(exp);
+      let def = find_ctr_def(info_map, "A");
+      check(bool, "found A definition", true, def != None);
+      let (_, def_info) = Option.get(def);
+      let ids = highlight_ids(info_map, def_info);
+      let refs = find_ctr_refs(info_map, "A");
+      check(bool, "found A references", true, List.length(refs) >= 2);
+      List.iter(
+        ((ref_id, _)) =>
+          check(
+            bool,
+            "highlights ref " ++ Id.to_string(ref_id),
+            true,
+            has_id(ids, ref_id),
+          ),
+        refs,
+      );
+    },
+  );
+
+let test_ctr_ref_to_siblings =
+  test_case(
+    "Constructor: reference highlights sibling uses",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type T = A + B in let x : T = A in let y : T = A in x",
+        );
+      let info_map = statics(exp);
+      let refs = find_ctr_refs(info_map, "A");
+      check(bool, "found A references", true, List.length(refs) >= 2);
+      let (ref_id, ref_info) = List.hd(refs);
+      let ids = highlight_ids(info_map, ref_info);
+      /* Other references should be highlighted */
+      List.iter(
+        ((other_id, _)) =>
+          if (!Id.equal(other_id, ref_id)) {
+            check(
+              bool,
+              "highlights sibling " ++ Id.to_string(other_id),
+              true,
+              has_id(ids, other_id),
+            );
+          },
+        refs,
+      );
+    },
+  );
+
 let tests = (
   "VarHighlight",
   [
@@ -405,5 +464,7 @@ let tests = (
     test_tvar_binding_to_refs,
     test_ctr_ref_to_def,
     test_ctr_distinct_defs,
+    test_ctr_def_to_uses,
+    test_ctr_ref_to_siblings,
   ],
 );

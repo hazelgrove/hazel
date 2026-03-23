@@ -112,6 +112,30 @@ module Map = {
     };
   };
 
+  /* Find all use sites of a constructor binding. Climbs ancestors to
+   * the enclosing TyAlias InfoExp and reads the constructor name from
+   * its co_ctx, which contains constructor uses from the body scope. */
+  let uses_of_ctr_binding = (m: t, binding_id: Id.t, name: string): list(Id.t) => {
+    switch (lookup(binding_id, m)) {
+    | Some(info) =>
+      let rec find_tyalias = (ancs: list(Id.t)): list(Id.t) =>
+        switch (ancs) {
+        | [] => []
+        | [anc_id, ...rest] =>
+          switch (lookup(anc_id, m)) {
+          | Some(InfoExp({term: {term: TyAlias(_, _, _), _}, co_ctx, _})) =>
+            switch (Util.VarMap.lookup(co_ctx, name)) {
+            | Some(entries) => List.map((e: CoCtx.entry) => e.id, entries)
+            | None => []
+            }
+          | _ => find_tyalias(rest)
+          }
+        };
+      find_tyalias(Info.ancestors_of(info));
+    | _ => []
+    };
+  };
+
   /* Find all use sites of a type variable binding. Reads the binding
    * tpat's tvar_co_ctx, which is populated by populate_tvar_co_ctxs. */
   let uses_of_tvar_binding = (m: t, binding_id: Id.t): list(Id.t) => {
@@ -188,13 +212,21 @@ module Map = {
     | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
     | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
       switch (Ctx.lookup_ctr(ctx, name)) {
-      | Some(entry) when entry.id != Id.invalid => [entry.id]
+      | Some(entry) when entry.id != Id.invalid =>
+        let sibling_uses = uses_of_ctr_binding(m, entry.id, name);
+        [entry.id, ...sibling_uses];
       | _ =>
         switch (Ctx.lookup_var(ctx, name)) {
         | Some(entry) when entry.id != Id.invalid => [entry.id]
         | _ => []
         }
       }
+    | InfoTyp({
+        term: {term: Var(name), _},
+        expects: ConstructorExpected(_, _),
+        _,
+      }) =>
+      uses_of_ctr_binding(m, Info.id_of(info), name)
     | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
       switch (Ctx.lookup_tvar_id(ctx, name)) {
       | Some(id) when id != Id.invalid =>
