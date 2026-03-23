@@ -251,7 +251,7 @@ module Update = {
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
               context_menu: None,
-              hover_id: None,
+
             },
             result: cell.result,
           }

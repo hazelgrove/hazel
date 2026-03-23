@@ -213,34 +213,6 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   };
 };
 
-/* Find the non-whitespace piece at a given code grid point.
- * Uses piece_rows to find pieces on the target row, then checks
- * each piece's measurement to see if the column is within bounds. */
-let piece_at_point = (point: Point.t, map: t): option(Piece.t) => {
-  let rows = List.rev(map.piece_rows);
-  switch (List.nth_opt(rows, point.row)) {
-  | None => None
-  | Some(row_pieces) =>
-    let pieces = List.rev(row_pieces);
-    List.find_opt(
-      (p: Piece.t) =>
-        switch (p) {
-        | Secondary(_) => false
-        | _ =>
-          switch (find_by_id(Piece.id(p), map)) {
-          | Some({origin, last}) =>
-            point.row >= origin.row
-            && point.row <= last.row
-            && point.col >= origin.col
-            && point.col < last.col
-          | None => false
-          }
-        },
-      pieces,
-    );
-  };
-};
-
 type acc = (Segment.t, int, Point.t, t);
 
 module MkDeferredLinebreaks = () => {

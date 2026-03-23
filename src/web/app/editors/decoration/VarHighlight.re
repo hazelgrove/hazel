@@ -4,8 +4,7 @@ open Haz3lcore;
 /* Variable binding/reference highlighting.
  *
  * Highlights related bindings and uses when the caret is on a variable
- * binding/reference, or when hovering over a variable. Supports variables,
- * constructors, and type variables. */
+ * binding/reference. Supports variables, constructors, and type variables. */
 
 /* Compute highlight IDs from an Info.t, excluding the source ID */
 let ids_from_info =
@@ -24,21 +23,11 @@ let compute_caret_ids =
   };
 };
 
-/* Compute which IDs to highlight based on a hovered piece */
-let compute_hover_ids =
-    (~info_map: Language.Statics.Map.t, hover_id: Id.t): list(Id.t) => {
-  switch (Language.Statics.Map.lookup(hover_id, info_map)) {
-  | Some(ci) => ids_from_info(~info_map, ci)
-  | None => []
-  };
-};
-
 /* Render a single highlight overlay for an ID using Measured position data */
 let highlight_of_id =
     (
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
-      ~clss: list(string),
       id: Id.t,
     )
     : list(Node.t) => {
@@ -46,7 +35,7 @@ let highlight_of_id =
   | Some(measurement) => [
       Node.div(
         ~attrs=[
-          Attr.classes(["var-highlight", ...clss]),
+          Attr.classes(["var-highlight"]),
           DecUtil.abs_style(~font_metrics, measurement),
         ],
         [],
@@ -56,28 +45,20 @@ let highlight_of_id =
   };
 };
 
-/* Main view function: renders variable highlight overlays.
- * Hover highlights take priority when present; caret is the fallback. */
+/* Main view function: renders variable highlight overlays. */
 let view =
     (
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~info_map: Language.Statics.Map.t,
-      ~hover_id: option(Id.t),
       z: Zipper.t,
     )
     : Node.t => {
-  let (ids, clss) =
-    switch (hover_id) {
-    | Some(id) =>
-      let ids = compute_hover_ids(~info_map, id);
-      ids == [] ? (compute_caret_ids(~info_map, z), []) : (ids, ["hover"]);
-    | None => (compute_caret_ids(~info_map, z), [])
-    };
+  let ids = compute_caret_ids(~info_map, z);
   div_c(
     "var-highlights",
     List.concat_map(
-      highlight_of_id(~measured, ~font_metrics, ~clss),
+      highlight_of_id(~measured, ~font_metrics),
       ids,
     ),
   );
