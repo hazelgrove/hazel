@@ -145,7 +145,7 @@ module Update = {
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, dynamics: _}: Model.t,
+        {editor, statics, context_menu, dynamics: _, _}: Model.t,
       )
       : Model.t => {
     /* Capture ephemerals before editor calculation to detect auto probe changes */

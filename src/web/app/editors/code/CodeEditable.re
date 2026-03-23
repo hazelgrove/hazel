@@ -309,6 +309,7 @@ module View = {
       (
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
+        ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         z: Zipper.t,
       ) => [
@@ -339,6 +340,12 @@ module View = {
       ~syntax,
       globals.color_highlights,
     ),
+    VarHighlight.view(
+      ~measured=syntax.measured,
+      ~font_metrics=globals.font_metrics,
+      ~info_map,
+      z,
+    ),
   ];
 
   let view =
@@ -363,6 +370,7 @@ module View = {
         ? deco(
             ~expand_selection?,
             ~syntax=model.editor.syntax,
+            ~info_map=model.statics.info_map,
             ~globals,
             model.editor.state.zipper,
           )
@@ -511,7 +519,7 @@ module View = {
       Effect.Ignore;
     };
 
-    let drag_select = (pointer: Pointer.Event.t) => {
+    let drag_select_or_hover = (pointer: Pointer.Event.t) => {
       let left_button_held = pointer.buttons land 1 != 0;
       if (!left_button_held && MouseState.is_button_down()) {
         /* Recover from stuck state: buttons bitmask says left is up
@@ -571,7 +579,9 @@ module View = {
         Attr.on_pointerup(evt =>
           toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
-        Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
+        Attr.on_mousemove(evt =>
+          drag_select_or_hover(Pointer.Event.mk(evt))
+        ),
       ],
       display_line_numbers
         ? LineNumbers.View.view(

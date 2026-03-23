@@ -359,6 +359,19 @@ svg.shard.selected.buffer-parsed > path {
   stroke: var(--T1);
 }
 
+/* VAR HIGHLIGHT DECO */
+
+.var-highlights {
+  pointer-events: none;
+}
+
+.var-highlight {
+  border-bottom: 1.5px solid var(--token-exp);
+  background-color: color-mix(in srgb, var(--token-exp) 10%, transparent);
+  box-sizing: border-box;
+  border-radius: 0.1em;
+}
+
 /* EMPTY HOLE DECO */
 
 .empty-hole > path {
