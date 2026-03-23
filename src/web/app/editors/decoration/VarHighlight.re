@@ -25,11 +25,7 @@ let compute_caret_ids =
 
 /* Render a single highlight overlay for an ID using Measured position data */
 let highlight_of_id =
-    (
-      ~measured: Measured.t,
-      ~font_metrics: FontMetrics.t,
-      id: Id.t,
-    )
+    (~measured: Measured.t, ~font_metrics: FontMetrics.t, id: Id.t)
     : list(Node.t) => {
   switch (Measured.find_by_id(id, measured)) {
   | Some(measurement) => [
@@ -57,9 +53,6 @@ let view =
   let ids = compute_caret_ids(~info_map, z);
   div_c(
     "var-highlights",
-    List.concat_map(
-      highlight_of_id(~measured, ~font_metrics),
-      ids,
-    ),
+    List.concat_map(highlight_of_id(~measured, ~font_metrics), ids),
   );
 };

@@ -115,7 +115,8 @@ module Map = {
   /* Find all use sites of a constructor binding. Climbs ancestors to
    * the enclosing TyAlias InfoExp and reads the constructor name from
    * its co_ctx, which contains constructor uses from the body scope. */
-  let uses_of_ctr_binding = (m: t, binding_id: Id.t, name: string): list(Id.t) => {
+  let uses_of_ctr_binding =
+      (m: t, binding_id: Id.t, name: string): list(Id.t) => {
     switch (lookup(binding_id, m)) {
     | Some(info) =>
       let rec find_tyalias = (ancs: list(Id.t)): list(Id.t) =>
@@ -185,7 +186,10 @@ module Map = {
             | Some(ids) => ids
             | None => []
             };
-          Info.InfoTPat({...tpat_info, tvar_co_ctx: [(name, uses)]});
+          Info.InfoTPat({
+            ...tpat_info,
+            tvar_co_ctx: [(name, uses)],
+          });
         | other => other
         },
       m,

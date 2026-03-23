@@ -18,7 +18,6 @@ module Model = {
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
       context_menu: None,
-
     },
     result: EvalResult.Model.init,
   };
@@ -39,7 +38,6 @@ module Model = {
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
       context_menu: None,
-
     },
     result: EvalResult.Model.unpersist(result),
   };

@@ -507,7 +507,6 @@ let get_doc =
             statics: CachedStatics.empty,
             dynamics: Dynamics.Map.empty,
             context_menu: None,
-
           },
         );
       let example_view =
