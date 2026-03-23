@@ -1013,7 +1013,11 @@ and uexp_to_info_map =
           (info, m);
         | None => atomic(self)
         }
-      | _ => atomic(self)
+      | _ =>
+        /* Register constructor use in co_ctx so it bubbles up to
+         * the enclosing TyAlias, enabling use-site highlighting */
+        let co_ctx = CoCtx.singleton(ctr, Exp.rep_id(uexp), ana);
+        add(~self, ~co_ctx, m);
       };
     | Ap(_, fn, arg) =>
       switch (fn.term) {
