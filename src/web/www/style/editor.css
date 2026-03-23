@@ -373,6 +373,10 @@ svg.shard.selected.buffer-parsed > path {
   box-sizing: border-box;
 }
 
+.var-highlight.hover {
+  border-bottom-style: dashed;
+}
+
 /* EMPTY HOLE DECO */
 
 .empty-hole > path {
