@@ -99,31 +99,16 @@ module Map = {
     climb(Info.ancestors_of(ci_binder));
   };
 
-  /* Find all use sites of a binding by scanning the info_map for variable
-   * references whose context resolves the name to binding_id. Works for
-   * all binding forms (let, fun, match, fixf, etc.) without enumerating them. */
-  let uses_of_binding = (m: t, binding_id: Id.t): list(Id.t) => {
-    let name =
-      switch (lookup(binding_id, m)) {
-      | Some(InfoPat({term: {term: Var(name), _}, _})) => Some(name)
-      | _ => None
-      };
-    switch (name) {
-    | None => []
-    | Some(n) =>
-      Id.Map.fold(
-        (id, info: Info.t, acc) =>
-          switch (info) {
-          | InfoExp({term: {term: Var(name), _}, ctx, _}) when name == n =>
-            switch (Ctx.lookup_var(ctx, name)) {
-            | Some(entry) when entry.id == binding_id => [id, ...acc]
-            | _ => acc
-            }
-          | _ => acc
-          },
-        m,
-        [],
-      )
+  /* Find all use sites of a binding. Reads the binding pattern's co_ctx,
+   * which statics populates with the body scope's co-context. */
+  let uses_of_binding = (_m: t, binding_id: Id.t): list(Id.t) => {
+    switch (lookup(binding_id, _m)) {
+    | Some(InfoPat({term: {term: Var(name), _}, co_ctx, _})) =>
+      switch (Util.VarMap.lookup(co_ctx, name)) {
+      | Some(entries) => List.map((e: CoCtx.entry) => e.id, entries)
+      | None => []
+      }
+    | _ => []
     };
   };
 
