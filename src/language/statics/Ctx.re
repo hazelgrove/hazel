@@ -170,17 +170,20 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
               name: ctr,
               id: ctr_id,
               typ:
-              switch (typ) {
-              | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
-              | Some(typ) =>
-                (
-                  Arrow(typ, (Var(name): TermBase.typ_term) |> IdTagged.fresh): TermBase.typ_term
-                )
-                |> IdTagged.fresh
-              },
-            custom_statics: None,
-          }),
-        );
+                switch (typ) {
+                | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
+                | Some(typ) =>
+                  (
+                    Arrow(
+                      typ,
+                      (Var(name): TermBase.typ_term) |> IdTagged.fresh,
+                    ): TermBase.typ_term
+                  )
+                  |> IdTagged.fresh
+                },
+              custom_statics: None,
+            }),
+          );
         }
       | ConstructorMap.BadEntry(_) => None,
       ctrs,

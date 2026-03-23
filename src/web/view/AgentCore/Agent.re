@@ -1263,7 +1263,6 @@ module Agent = {
               statics: editor.statics,
               dynamics: editor.dynamics,
               context_menu: editor.context_menu,
-
             },
           ))
         | Error(err) =>
