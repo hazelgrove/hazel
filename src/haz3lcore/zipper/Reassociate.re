@@ -10,9 +10,9 @@ type t = ZipperBase.t;
      Anchors are evidence of previously committed user intent and should not
      be broken casually, because probe placement and intermediate feedback
      depend on them staying stable through incomplete edit states.
-   - Demand: unresolved delimiter obligations induced by the local edit cone.
-     The current implementation tracks these as side-specific compatible
-     token obligations, not by rigid form identity.
+   - Request: unresolved delimiter obligations induced by the local edit cone.
+     Requests are directional and token-compatible (`end` with `end`, `->`
+     with `->`), but do not preserve historical form identity.
    - Repair scope: the smallest sibling/ancestor region we choose to crack,
      rescan, and potentially rewrite after an edit.
 
@@ -21,21 +21,13 @@ type t = ZipperBase.t;
      structure as much as possible.
    - If the edited region becomes textually delimiter-complete, realize a
      structurally complete interpretation rather than preserving stale history.
-   - Compatibility should be token-based (`end` with `end`, `->` with `->`),
-     even across different forms like `case`/`test` or `fun`/`fix`; we do not
-     want historical form identity to prevent sensible rematching.
 
-   Current approximation:
-   - Demand collection and cracking are directional and token-guided.
-   - Scope expansion is driven by actual tokens exposed by each ancestor
-     generation, not whole-label matching.
-   - Acceptance is local and anchor-preserving.
-
-   Remaining gap:
-   - The ideal formulation is path-sensitive token obligations: still token
-     compatible across forms, but more precise than the current side-specific
-     obligation lists about which outstanding obligations are nearest/relevant
-     and which ancestor paths actually expose them. */
+   Current shape:
+   - Scope expansion is driven by ordered requests consumed against the tokens
+     each ancestor generation actually exposes.
+   - Cracking is driven by those same ordered requests, not a separate token
+     targeting pass.
+   - Acceptance is local and anchor-preserving. */
 
 module ShardKey = {
   type t = (Id.t, list(int));
@@ -44,18 +36,9 @@ module ShardKey = {
 
 module ShardKeySet = Set.Make(ShardKey);
 
-module TokenKey = {
-  type t = Token.t;
-  let compare = compare;
-};
-
-module TokenSet = Set.Make(TokenKey);
-
-type demand = {
-  left_obligations: list(Token.t),
-  right_obligations: list(Token.t),
-  left_target_tokens: TokenSet.t,
-  right_target_tokens: TokenSet.t,
+type request = {
+  left: list(Token.t),
+  right: list(Token.t),
 };
 
 type repair_stats = {
@@ -64,10 +47,22 @@ type repair_stats = {
   preserved_anchors: int,
 };
 
+type base_summary = {
+  anchors: Id.Map.t(unit),
+  complete_multitiles: int,
+  incomplete_multitiles: int,
+};
+
 let empty_repair_stats = {
   complete_multitiles: 0,
   incomplete_multitiles: 0,
   preserved_anchors: 0,
+};
+
+let empty_base_summary = {
+  anchors: Id.Map.empty,
+  complete_multitiles: 0,
+  incomplete_multitiles: 0,
 };
 
 let add_repair_stats = (a: repair_stats, b: repair_stats): repair_stats => {
@@ -78,7 +73,7 @@ let add_repair_stats = (a: repair_stats, b: repair_stats): repair_stats => {
 
 let is_multidelimiter_label = (label: Label.t): bool => List.length(label) > 1;
 
-/* Demand */
+/* Requests */
 
 let token_of_shard = (shard: Tile.t): option(Token.t) =>
   switch (Tile.effective_label(shard)) {
@@ -89,11 +84,8 @@ let token_of_shard = (shard: Tile.t): option(Token.t) =>
 let tokens_of_shards = (shards: list(Tile.t)): list(Token.t) =>
   List.filter_map(token_of_shard, shards);
 
-let token_set_of_tokens = (tokens: list(Token.t)): TokenSet.t =>
-  List.fold_left((acc, tok) => TokenSet.add(tok, acc), TokenSet.empty, tokens);
-
-let rec deep_local_missing_shards_segment =
-    (~side: Direction.t, seg: Segment.t): list(Tile.t) =>
+let rec local_missing_tokens_segment =
+    (~side: Direction.t, seg: Segment.t): list(Token.t) =>
   (
     switch (side) {
     | Left => List.rev(seg)
@@ -108,7 +100,8 @@ let rec deep_local_missing_shards_segment =
                switch (side) {
                | Left => Tile.right_missing_shards(tile)
                | Right => Tile.left_missing_shards(tile)
-               };
+               }
+               |> tokens_of_shards;
              } else {
                [];
              };
@@ -117,26 +110,31 @@ let rec deep_local_missing_shards_segment =
              | Left => List.rev(tile.children)
              | Right => tile.children
              }
-             |> List.concat_map(deep_local_missing_shards_segment(~side));
+             |> List.concat_map(local_missing_tokens_segment(~side));
            self @ children;
          }
        | _ => [],
      );
 
-let left_target_tokens = (demand: demand): TokenSet.t => demand.left_target_tokens;
-
-let right_target_tokens = (demand: demand): TokenSet.t => demand.right_target_tokens;
-
-let rec tokens_of_segment = (seg: Segment.t): list(Token.t) =>
-  List.concat_map(tokens_of_piece, seg)
-
-and tokens_of_piece = (piece: Piece.t): list(Token.t) =>
-  switch (piece) {
-  | Piece.Tile(tile) when List.length(tile.shards) == 1 && tile.children == [] =>
-    tokens_of_shards([tile])
-  | Piece.Tile(tile) => tokens_of_segment(Tile.disassemble(tile))
-  | _ => []
+let request_of_relatives = ({siblings: (pre, suf), ancestors}: Relatives.t): option(request) => {
+  let left =
+    local_missing_tokens_segment(~side=Left, pre)
+    @ tokens_of_shards(Ancestors.local_missing_shards(ancestors));
+  let right = local_missing_tokens_segment(~side=Right, suf);
+  switch (left, right) {
+  | ([], []) => None
+  | _ => Some({left, right})
   };
+};
+
+let request_is_empty = (request: request): bool =>
+  switch (request.left, request.right) {
+  | ([], []) => true
+  | _ => false
+  };
+
+let request_changed = (a: request, b: request): bool =>
+  compare(a.left, b.left) != 0 || compare(a.right, b.right) != 0;
 
 let consume_tokens_in_order =
     (obligations: list(Token.t), available: list(Token.t)): list(Token.t) => {
@@ -150,74 +148,64 @@ let consume_tokens_in_order =
   go(obligations, available);
 };
 
-let demand_of_relatives = ({siblings: (pre, suf), ancestors}: Relatives.t): option(demand) => {
-  let left_obligations =
-    tokens_of_shards(deep_local_missing_shards_segment(~side=Left, pre))
-    @ tokens_of_shards(Ancestors.local_missing_shards(ancestors));
-  let right_obligations =
-    tokens_of_shards(deep_local_missing_shards_segment(~side=Right, suf));
-  switch (left_obligations, right_obligations) {
-  | ([], []) => None
-  | _ =>
-    Some({
-        left_obligations,
-        right_obligations,
-        left_target_tokens: token_set_of_tokens(left_obligations),
-        right_target_tokens: token_set_of_tokens(right_obligations),
-      })
+let rec tokens_of_segment = (seg: Segment.t): list(Token.t) =>
+  List.concat_map(tokens_of_piece, seg)
+
+and tokens_of_piece = (piece: Piece.t): list(Token.t) =>
+  switch (piece) {
+  | Piece.Tile(tile) when List.length(tile.shards) == 1 && tile.children == [] =>
+    tokens_of_shards([tile])
+  | Piece.Tile(tile) => tokens_of_segment(Tile.disassemble(tile))
+  | _ => []
   };
+
+let consume_request =
+    (~left_available: list(Token.t), ~right_available: list(Token.t), request: request)
+    : request => {
+  left: consume_tokens_in_order(request.left, right_available),
+  right: consume_tokens_in_order(request.right, left_available),
 };
 
-let demand_touches_generation =
-    (demand: demand, ((ancestor, parent_sibs): Ancestors.generation)): bool => {
+let consume_request_by_generation =
+    (request: request, ((ancestor, parent_sibs): Ancestors.generation)): request => {
   let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
-  let left_available = tokens_of_segment(fst(parent_sibs) @ left_dis);
-  let right_available = tokens_of_segment(right_dis @ snd(parent_sibs));
-  List.exists(tok => TokenSet.mem(tok, left_target_tokens(demand)), right_available)
-  || List.exists(tok => TokenSet.mem(tok, right_target_tokens(demand)), left_available);
+  consume_request(
+    ~left_available=tokens_of_segment(fst(parent_sibs) @ left_dis),
+    ~right_available=tokens_of_segment(right_dis @ snd(parent_sibs)),
+    request,
+  );
 };
 
-let demand_is_satisfied = (demand: demand): bool =>
-  switch (demand.left_obligations, demand.right_obligations) {
-  | ([], []) => true
-  | _ => false
+let rec any_generation_consumes_request = (request: request, ancestors: Ancestors.t): bool =>
+  switch (ancestors) {
+  | [] => false
+  | [generation, ...rest] =>
+    let next = consume_request_by_generation(request, generation);
+    request_changed(request, next) || any_generation_consumes_request(next, rest)
   };
-
-let cover_demand_by_generation =
-    (demand: demand, ((ancestor, parent_sibs): Ancestors.generation)): demand => {
-  let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
-  let left_available = tokens_of_segment(fst(parent_sibs) @ left_dis);
-  let right_available = tokens_of_segment(right_dis @ snd(parent_sibs));
-  let left_obligations =
-    consume_tokens_in_order(demand.left_obligations, right_available);
-  let right_obligations =
-    consume_tokens_in_order(demand.right_obligations, left_available);
-  {
-    left_obligations,
-    right_obligations,
-    left_target_tokens: token_set_of_tokens(left_obligations),
-    right_target_tokens: token_set_of_tokens(right_obligations),
-  };
-};
-
-let tile_has_target_token_demand =
-    (~side: Direction.t, ~target_tokens: TokenSet.t, tile: Tile.t): bool =>
-  (
-    switch (side) {
-    | Left => Tile.right_missing_shards(tile)
-    | Right => Tile.left_missing_shards(tile)
-    }
-  )
-  |> List.exists(shard =>
-       switch (Tile.effective_label(shard)) {
-       | [tok] => TokenSet.mem(tok, target_tokens)
-       | _ => false
-       }
-     );
 
 /* Candidate Construction */
 
-let shard_pieces = (tile: Tile.t) =>
+let oriented = (side: Direction.t, xs) =>
+  switch (side) {
+  | Left => List.rev(xs)
+  | Right => xs
+  };
+
+let restore_oriented = (side: Direction.t, xs) =>
+  switch (side) {
+  | Left => xs
+  | Right => List.rev(xs)
+  };
+
+let tile_missing_tokens = (~side: Direction.t, tile: Tile.t): list(Token.t) =>
+  switch (side) {
+  | Left => Tile.right_missing_shards(tile)
+  | Right => Tile.left_missing_shards(tile)
+  }
+  |> tokens_of_shards;
+
+let shard_pieces = (tile: Tile.t): list(Piece.t) =>
   List.map(
     shard =>
       Piece.Tile({
@@ -228,65 +216,76 @@ let shard_pieces = (tile: Tile.t) =>
     tile.shards,
   );
 
-/* Recursively crack only along paths that lead to the currently
-   relevant unresolved delimiter demand. This is narrower than
-   "any incomplete descendant": unrelated complete tiles stay intact,
-   but complete wrappers on the path to relevant demand still crack. */
-let rec flatten_tiles_with_relevant_incomplete =
-    (~side: Direction.t, ~target_tokens: TokenSet.t, seg: Segment.t)
-    : (bool, Segment.t) =>
-  List.fold_right(
-    (piece, (acc_has_relevant, acc_seg)) =>
-      switch (piece) {
-      | Piece.Tile(tile) =>
-        let child_results =
-          List.map(
-            flatten_tiles_with_relevant_incomplete(~side, ~target_tokens),
-            tile.children,
-          );
-        let child_has_relevant =
-          List.exists(((has_relevant, _)) => has_relevant, child_results);
-        let self_has_relevant =
-          !Tile.is_complete(tile)
-          && is_multidelimiter_label(tile.label)
-          && tile_has_target_token_demand(~side, ~target_tokens, tile);
-        let has_relevant = self_has_relevant || child_has_relevant;
-        if (
-          Tile.is_complete(tile)
-          && is_multidelimiter_label(tile.label)
-          && child_has_relevant
-        ) {
-          let flattened_children = List.map(snd, child_results);
-          let cracked =
-            Aba.mk(shard_pieces(tile), flattened_children)
-            |> Aba.join(piece => [piece], Fun.id)
-            |> List.flatten;
-          (has_relevant || acc_has_relevant, cracked @ acc_seg);
-        } else {
-          (has_relevant || acc_has_relevant, [piece, ...acc_seg]);
-        };
-      | _ => (acc_has_relevant, [piece, ...acc_seg])
-      },
-    seg,
-    (false, []),
-  );
+let rec traverse_segments = (~side, ~obligations, segs) =>
+  oriented(side, segs)
+  |> List.fold_left(
+       ((obligations, consumed_any, rebuilt), seg) => {
+         let (obligations, seg_consumed, seg) =
+           traverse_segment(~side, ~obligations, seg);
+         (obligations, consumed_any || seg_consumed, [seg, ...rebuilt]);
+       },
+       (obligations, false, []),
+     )
+  |> ((obligations, consumed_any, rebuilt)) => (
+       obligations,
+       consumed_any,
+       restore_oriented(side, rebuilt),
+     )
 
-let flatten_tiles_with_target_demand =
-    (~side: Direction.t, ~target_tokens: TokenSet.t, seg: Segment.t): Segment.t =>
-  flatten_tiles_with_relevant_incomplete(~side, ~target_tokens, seg) |> snd;
+and traverse_segment = (~side, ~obligations, seg) =>
+  oriented(side, seg)
+  |> List.fold_left(
+       ((obligations, consumed_any, rebuilt), piece) => {
+         let (obligations, piece_consumed, piece_seg) =
+           traverse_piece(~side, ~obligations, piece);
+         (obligations, consumed_any || piece_consumed, [piece_seg, ...rebuilt]);
+       },
+       (obligations, false, []),
+     )
+  |> ((obligations, consumed_any, rebuilt)) => (
+       obligations,
+       consumed_any,
+       restore_oriented(side, rebuilt) |> List.concat,
+     )
 
-let crack_siblings = (~demand, (pre, suf): Siblings.t): Siblings.t => (
-  flatten_tiles_with_target_demand(
-    ~side=Left,
-    ~target_tokens=left_target_tokens(demand),
-    pre,
-  ),
-  flatten_tiles_with_target_demand(
-    ~side=Right,
-    ~target_tokens=right_target_tokens(demand),
-    suf,
-  ),
-);
+and traverse_piece = (~side, ~obligations, piece) =>
+  switch (piece) {
+  | Piece.Tile(tile) =>
+    let obligations_after_self =
+      if (!Tile.is_complete(tile) && is_multidelimiter_label(tile.label)) {
+        consume_tokens_in_order(obligations, tile_missing_tokens(~side, tile));
+      } else {
+        obligations;
+      };
+    let self_consumed = compare(obligations, obligations_after_self) != 0;
+    let (obligations_after_children, child_consumed, children) =
+      traverse_segments(~side, ~obligations=obligations_after_self, tile.children);
+    if (Tile.is_complete(tile) && is_multidelimiter_label(tile.label) && child_consumed) {
+      let cracked =
+        Aba.mk(shard_pieces(tile), children)
+        |> Aba.join(piece => [piece], Fun.id)
+        |> List.flatten;
+      (obligations_after_children, true, cracked);
+    } else {
+      (
+        obligations_after_children,
+        self_consumed || child_consumed,
+        [
+          Piece.Tile({
+            ...tile,
+            children,
+          }),
+        ],
+      );
+    }
+  | _ => (obligations, false, [piece])
+  };
+
+let crack_siblings = (~request, (pre, suf): Siblings.t): Siblings.t => {
+  let (_, _, pre) = traverse_segment(~side=Left, ~obligations=request.left, pre);
+  let (_, _, suf) = traverse_segment(~side=Right, ~obligations=request.right, suf);
+  (pre, suf);
+};
 
 /* Give fresh IDs to ancestor shard pieces on the right side.
    This prevents duplicate (id, shard_index) after rescan converts
@@ -321,16 +320,21 @@ let freshen_ancestor_shards =
     ([], fresh_map),
   );
 
-/* Flatten ancestors into siblings, stopping when the outstanding
-   reassociation demand has been covered by traversed ancestors.
-   Freshens right-side ancestor shards to prevent ID collisions during
-   rescan. Once the current demand is satisfied,
-   remaining outer ancestors are preserved — keeping reassociation local
-   to the affected repair scope instead of the whole program. */
-let rec flatten_to_cover_demand = (demand, siblings, affected_rev, ancestors, fresh_map) =>
+/* Flatten ancestors into siblings until the current request has been
+   satisfied. Irrelevant generations may still be traversed to reach an
+   outer generation that can discharge the request, but once the request
+   is empty the remaining outer context is preserved. */
+let rec expand_scope =
+    (
+      request: request,
+      siblings: Siblings.t,
+      affected_rev: Ancestors.t,
+      ancestors: Ancestors.t,
+      fresh_map: Id.Map.t((Id.t, list(int))),
+    ) =>
   switch (ancestors) {
   | [] => (siblings, List.rev(affected_rev), [], fresh_map)
-  | _ when demand_is_satisfied(demand) =>
+  | _ when request_is_empty(request) =>
     (siblings, List.rev(affected_rev), ancestors, fresh_map)
   | [((ancestor, parent_sibs) as generation), ...rest] =>
     let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
@@ -338,9 +342,9 @@ let rec flatten_to_cover_demand = (demand, siblings, affected_rev, ancestors, fr
       freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
     let siblings =
       Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
-    let demand = cover_demand_by_generation(demand, generation);
-    flatten_to_cover_demand(
-      demand,
+    let request = consume_request_by_generation(request, generation);
+    expand_scope(
+      request,
       siblings,
       [generation, ...affected_rev],
       rest,
@@ -388,8 +392,42 @@ let repair_fresh_ids =
 
 /* Acceptance */
 
+let base_stats_of_summary = (summary: base_summary): repair_stats => {
+  complete_multitiles: summary.complete_multitiles,
+  incomplete_multitiles: summary.incomplete_multitiles,
+  preserved_anchors: summary.complete_multitiles,
+};
+
+let rec collect_base_summary =
+    (summary: base_summary, seg: Segment.t): base_summary =>
+  List.fold_left(
+    (summary, piece) =>
+      switch (piece) {
+      | Piece.Tile(tile) =>
+        let summary =
+          List.fold_left(collect_base_summary, summary, tile.children);
+        if (!is_multidelimiter_label(tile.label)) {
+          summary;
+        } else if (Tile.is_complete(tile)) {
+          {
+            anchors: Id.Map.add(tile.id, (), summary.anchors),
+            complete_multitiles: summary.complete_multitiles + 1,
+            incomplete_multitiles: summary.incomplete_multitiles,
+          };
+        } else {
+          {
+            ...summary,
+            incomplete_multitiles: summary.incomplete_multitiles + 1,
+          };
+        };
+      | _ => summary
+      },
+    summary,
+    seg,
+  );
+
 let score_multitile =
-    (~anchor_ids: list(Id.t), ~id: Id.t, ~label: Label.t, ~complete: bool)
+    (~anchors: Id.Map.t(unit), ~id: Id.t, ~label: Label.t, ~complete: bool)
     : repair_stats =>
   if (!is_multidelimiter_label(label)) {
     empty_repair_stats;
@@ -397,146 +435,38 @@ let score_multitile =
     {
       complete_multitiles: complete ? 1 : 0,
       incomplete_multitiles: complete ? 0 : 1,
-      preserved_anchors: complete && List.mem(id, anchor_ids) ? 1 : 0,
+      preserved_anchors: complete && Id.Map.mem(id, anchors) ? 1 : 0,
     };
   };
 
-let rec collect_complete_anchor_ids_segment =
-    (acc: list(Id.t), seg: Segment.t): list(Id.t) =>
+let rec collect_candidate_stats =
+    (~anchors: Id.Map.t(unit), stats: repair_stats, seg: Segment.t): repair_stats =>
   List.fold_left(
-    (acc, piece) =>
+    (stats, piece) =>
       switch (piece) {
       | Piece.Tile(tile) =>
-        let acc =
-          List.fold_left(collect_complete_anchor_ids_segment, acc, tile.children);
-        is_multidelimiter_label(tile.label) && Tile.is_complete(tile)
-          ? [tile.id, ...acc] : acc;
-      | _ => acc
+        let stats =
+          add_repair_stats(
+            stats,
+            score_multitile(
+              ~anchors,
+              ~id=tile.id,
+              ~label=tile.label,
+              ~complete=Tile.is_complete(tile),
+            ),
+          );
+        List.fold_left(
+          (stats, child) => collect_candidate_stats(~anchors, stats, child),
+          stats,
+          tile.children,
+        );
+      | _ => stats
       },
-    acc,
+    stats,
     seg,
   );
 
-let collect_complete_anchor_ids_siblings =
-    (acc: list(Id.t), ((pre, suf): Siblings.t)): list(Id.t) => {
-  let acc = collect_complete_anchor_ids_segment(acc, pre);
-  collect_complete_anchor_ids_segment(acc, suf);
-};
-
-let collect_complete_anchor_ids_ancestors =
-    (acc: list(Id.t), ancs: Ancestors.t): list(Id.t) =>
-  List.fold_left(
-    (acc, (ancestor, parent_sibs): Ancestors.generation) => {
-      let acc =
-        List.fold_left(
-          collect_complete_anchor_ids_segment,
-          acc,
-          fst(ancestor.children),
-        );
-      let acc =
-        List.fold_left(
-          collect_complete_anchor_ids_segment,
-          acc,
-          snd(ancestor.children),
-        );
-      let total_shards =
-        List.length(fst(ancestor.shards)) + List.length(snd(ancestor.shards));
-      let acc =
-        is_multidelimiter_label(ancestor.label)
-        && total_shards == List.length(ancestor.label)
-          ? [ancestor.id, ...acc] : acc;
-      collect_complete_anchor_ids_siblings(acc, parent_sibs);
-    },
-    acc,
-    ancs,
-  );
-
-let complete_anchor_ids_of_relatives = (rs: Relatives.t): list(Id.t) => {
-  let ids =
-    collect_complete_anchor_ids_siblings([], rs.siblings)
-    |> acc => collect_complete_anchor_ids_ancestors(acc, rs.ancestors);
-  List.sort_uniq(compare, ids);
-};
-
-let rec repair_stats_of_segment =
-    (~anchor_ids: list(Id.t), seg: Segment.t): repair_stats =>
-  List.fold_left(
-    (acc, piece) =>
-      switch (piece) {
-      | Piece.Tile(tile) =>
-        let self =
-          score_multitile(
-            ~anchor_ids,
-            ~id=tile.id,
-            ~label=tile.label,
-            ~complete=Tile.is_complete(tile),
-          );
-        let children =
-          List.fold_left(
-            (acc, child) =>
-              add_repair_stats(acc, repair_stats_of_segment(~anchor_ids, child)),
-            empty_repair_stats,
-            tile.children,
-          );
-        let acc = add_repair_stats(acc, self);
-        add_repair_stats(acc, children)
-      | _ => acc
-      },
-    empty_repair_stats,
-    seg,
-  );
-
-let repair_stats_of_segments =
-    (~anchor_ids: list(Id.t), segs: list(Segment.t)): repair_stats =>
-  List.fold_left(
-    (acc, seg) =>
-      add_repair_stats(acc, repair_stats_of_segment(~anchor_ids, seg)),
-    empty_repair_stats,
-    segs,
-  );
-
-let repair_stats_of_siblings =
-    (~anchor_ids: list(Id.t), ((pre, suf): Siblings.t)): repair_stats =>
-  add_repair_stats(
-    repair_stats_of_segment(~anchor_ids, pre),
-    repair_stats_of_segment(~anchor_ids, suf),
-  );
-
-let repair_stats_of_ancestors =
-    (~anchor_ids: list(Id.t), ancs: Ancestors.t): repair_stats =>
-  List.fold_left(
-    (acc, (ancestor, parent_sibs): Ancestors.generation) => {
-      let total_shards =
-        List.length(fst(ancestor.shards)) + List.length(snd(ancestor.shards));
-      let self =
-        score_multitile(
-          ~anchor_ids,
-          ~id=ancestor.id,
-          ~label=ancestor.label,
-          ~complete=total_shards == List.length(ancestor.label),
-        );
-      let children =
-        repair_stats_of_segments(
-          ~anchor_ids,
-          fst(ancestor.children) @ snd(ancestor.children),
-        );
-      let parent_sibs = repair_stats_of_siblings(~anchor_ids, parent_sibs);
-      let acc = add_repair_stats(acc, self);
-      let acc = add_repair_stats(acc, children);
-      add_repair_stats(acc, parent_sibs)
-    },
-    empty_repair_stats,
-    ancs,
-  );
-
-let repair_stats_of_relatives =
-    (~anchor_ids: list(Id.t), rs: Relatives.t): repair_stats =>
-  add_repair_stats(
-    repair_stats_of_siblings(~anchor_ids, rs.siblings),
-    repair_stats_of_ancestors(~anchor_ids, rs.ancestors),
-  );
-
-let should_accept_local_repair =
+let should_accept_repair =
     (base_stats: repair_stats, candidate_stats: repair_stats): bool =>
   candidate_stats.complete_multitiles > base_stats.complete_multitiles
   || (
@@ -553,16 +483,21 @@ let accept_candidate =
       z: t,
     )
     : t => {
-  let anchor_ids = complete_anchor_ids_of_relatives(base_scope);
-  let base_stats = repair_stats_of_relatives(~anchor_ids, base_scope);
+  let base_summary = collect_base_summary(empty_base_summary, Relatives.zip(base_scope));
+  let base_stats = base_stats_of_summary(base_summary);
   let local_relatives =
     {
       Relatives.siblings: candidate_siblings,
       ancestors: [],
     }
     |> Relatives.reassemble;
-  let candidate_stats = repair_stats_of_relatives(~anchor_ids, local_relatives);
-  if (should_accept_local_repair(base_stats, candidate_stats)) {
+  let candidate_stats =
+    collect_candidate_stats(
+      ~anchors=base_summary.anchors,
+      empty_repair_stats,
+      Relatives.zip(local_relatives),
+    );
+  if (should_accept_repair(base_stats, candidate_stats)) {
     {
       ...z,
       relatives: {
@@ -575,32 +510,21 @@ let accept_candidate =
   };
 };
 
-/* Orchestration */
-
 let go = (z: t): t =>
-  switch (demand_of_relatives(z.relatives)) {
+  switch (request_of_relatives(z.relatives)) {
   | None => z
-  | Some(demand) =>
-    let any_ancestor_match =
-      List.exists(
-        generation => demand_touches_generation(demand, generation),
-        z.relatives.ancestors,
-      );
-    if (any_ancestor_match) {
-      /* Cross-scope path: collect the smallest ancestor scope that
-         can satisfy the current unresolved delimiter demand, repair only that
-         scope, and keep the rewrite only if it improves local
-         completeness without sacrificing anchored complete forms. */
+  | Some(request) =>
+    if (any_generation_consumes_request(request, z.relatives.ancestors)) {
       let (siblings, affected_ancestors, outer_ancestors, fresh_map) =
-        flatten_to_cover_demand(
-          demand,
+        expand_scope(
+          request,
           z.relatives.siblings,
           [],
           z.relatives.ancestors,
           Id.Map.empty,
         );
       let siblings =
-        crack_siblings(~demand, siblings)
+        crack_siblings(~request, siblings)
         |> Siblings.rescan
         |> repair_fresh_ids(fresh_map);
       let base_scope =
@@ -615,10 +539,7 @@ let go = (z: t): t =>
         z,
       );
     } else {
-      /* Local path: no ancestor participates, so repair only the
-         current siblings and keep the rewrite only if the local scope
-         becomes strictly better. */
-      let cracked = crack_siblings(~demand, z.relatives.siblings);
+      let cracked = crack_siblings(~request, z.relatives.siblings);
       if (cracked == z.relatives.siblings) {
         z;
       } else {
