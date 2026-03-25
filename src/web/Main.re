@@ -68,7 +68,7 @@ let apply =
   model';
 };
 
-let start = {
+let start = default_model => {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
     Bonsai.state_machine1(
@@ -85,14 +85,7 @@ let start = {
             };
           apply(~schedule_action, ~schedule_autosave);
         },
-      ~default_model=
-        CrashHandling.Update.calculate(
-          ~schedule_action=_ => (),
-          ~is_edited=true,
-          ~dynamics=false,
-          CrashHandling.Model.load(),
-          CrashHandling.Model.load(),
-        ),
+      ~default_model,
       save_scheduler,
     );
 
@@ -223,5 +216,23 @@ let start = {
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
-| _ => Bonsai_web.Start.start(start, ~bind_to_element_with_id="container")
+| _ =>
+  /* Load all IndexedDB data, then construct model and start Bonsai.
+     The hazelnut loading spinner (in index.html) stays visible until
+     Bonsai renders its first frame. */
+  HazelDB.kv_load_all(_pairs => {
+    let model = CrashHandling.Model.load();
+    let default_model =
+      CrashHandling.Update.calculate(
+        ~schedule_action=_ => (),
+        ~is_edited=true,
+        ~dynamics=false,
+        model,
+        model,
+      );
+    Bonsai_web.Start.start(
+      start(default_model),
+      ~bind_to_element_with_id="container",
+    );
+  })
 };
