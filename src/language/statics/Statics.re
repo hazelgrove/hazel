@@ -1653,7 +1653,7 @@ and uexp_to_info_map =
         };
         let ctx_body =
           switch (Typ.get_sum_constructors(ctx, ty_def)) {
-          | Some(sm) => Ctx.add_ctrs(ctx_body, name, Typ.rep_id(utyp), sm)
+          | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
           | None => ctx_body
           };
         let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
