@@ -119,6 +119,8 @@ let patchwork_element = (config: patchwork_config): Node.t =>
     ~attrs=[
       Attr.create("doc-url", config.doc_url),
       Attr.create("tool-id", config.tool_id),
+      Attr.create("tabindex", "0"),
+      Attr.style(Css_gen.create(~field="outline", ~value="none")),
     ],
     [],
   );

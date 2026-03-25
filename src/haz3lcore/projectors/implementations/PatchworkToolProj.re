@@ -19,6 +19,17 @@ type patchwork_tool = {
 let default_width = 680;
 let default_height = 490;
 
+/* Known dimension overrides for tools whose default size differs */
+let known_dimensions: list((string, (int, int))) = [
+  ("petrinaut", (1050, 590)),
+];
+
+let dimensions_for = (id: string): (int, int) =>
+  switch (List.assoc_opt(id, known_dimensions)) {
+  | Some(dims) => dims
+  | None => (default_width, default_height)
+  };
+
 /* Read available tools from the patchwork plugin registry
    (window.patchworkToolRegistry, set by prebundle.js via getRegistry("patchwork:tool")).
    Falls back to an empty list if the registry isn't available. */
@@ -37,11 +48,12 @@ let get_tools_from_registry = (): list(patchwork_tool) => {
            } else {
              id;
            };
+         let (width, height) = dimensions_for(id);
          Some({
            id,
            name,
-           width: default_width,
-           height: default_height,
+           width,
+           height,
          });
        });
   } else {
@@ -106,9 +118,14 @@ module M: Projector = {
     };
 
   let input_id = (id: Id.t): string => Id.cls(id) ++ "-pt-input";
+  let patchwork_view_id = (id: Id.t): string => Id.cls(id) ++ "-pt-view";
 
   let focus_pointer = (id: Id.t) => {
-    JsUtil.get_elem_by_id(input_id(id))##focus;
+    /* Focus the patchwork-view element so that TLDraw receives
+       keyboard events (tool shortcuts, backspace to delete, etc.)
+       instead of having them escape to Hazel's editor. */
+    let el = JsUtil.get_elem_by_id(patchwork_view_id(id));
+    el##focus;
   };
 
   let focus_keyboard = (id: Id.t, d: Direction.t) => {
@@ -136,12 +153,6 @@ module M: Projector = {
   let url_placeholder = "automerge:<doc-url>";
 
   let placeholder = (model, _info) => {
-    let tool_config = find_tool(model.tool);
-    let tool_height =
-      switch (tool_config) {
-      | Some(t) => t.height
-      | None => 200
-      };
     let m = font_metrics^;
     let px_to_grid = (value: int, multiple: float): int =>
       int_of_float(ceil(float_of_int(value) /. multiple));
@@ -152,11 +163,22 @@ module M: Projector = {
     /* +12 for focus dot, reload btn, hot reload toggle, status, margins;
        +14 for tool selector dropdown (longest option "Select tool...") */
     let horizontal = display_len + 26;
+    /* Only reserve vertical space for the tool pane when the tool is
+       connected (or hasn't failed yet). Otherwise just the tab bar. */
+    let has_tool = String.length(model.tool) > 0;
+    let has_url = String.length(model.url) > 0;
+    let url_failed = model.last_load == Some(Failed);
     let rows =
-      if (String.length(model.tool) > 0) {
+      if (has_tool && has_url && !url_failed) {
+        let tool_config = find_tool(model.tool);
+        let tool_height =
+          switch (tool_config) {
+          | Some(t) => t.height
+          | None => 200
+          };
         px_to_grid(tool_height, m.row_height);
       } else {
-        2;
+        1;
       };
     ProjectorCore.Shape.{
       horizontal,
@@ -241,6 +263,12 @@ module M: Projector = {
             Effect.(Many([local(SetUrl(value)), parent(SetSyntax(seg))]));
           }),
           Attr.on_keydown(key_handler),
+          Attr.on_pointerdown(evt => {
+            /* Stop propagation so the projector wrapper doesn't
+               steal focus away from the URL input to patchwork-view */
+            Js.Unsafe.meth_call(evt, "stopPropagation", [||]) |> ignore;
+            Effect.Ignore;
+          }),
           Attr.on_copy(_ => Effect.Stop_propagation),
           Attr.on_cut(_ => Effect.Stop_propagation),
           Attr.on_paste(_ => Effect.Stop_propagation),
@@ -311,12 +339,7 @@ module M: Projector = {
     };
 
     let on_error = (_msg: string) => {
-      let null_exp =
-        Language.IdTagged.FreshGrammar.Exp.constructor("Null", None);
-      let seg = put(info, null_exp);
-      Bonsai.Effect.Expert.handle(
-        Effect.Many([local(SetLastLoad(Failed)), parent(SetSyntax(seg))]),
-      );
+      Bonsai.Effect.Expert.handle(local(SetLastLoad(Failed)));
     };
 
     AutomergeProj.ensure_subscribed(info.id, model.url, on_data, on_error);
@@ -420,12 +443,14 @@ module M: Projector = {
         Node.create(
           "patchwork-view",
           ~attrs=[
+            Attr.id(patchwork_view_id(info.id)),
             Attr.create("doc-url", model.url),
             Attr.create("tool-id", model.tool),
+            Attr.create("tabindex", "0"),
             Attr.create(
               "style",
               Printf.sprintf(
-                "width: %dpx; height: %dpx;",
+                "width: %dpx; height: %dpx; outline: none;",
                 tool_width,
                 tool_height,
               ),

@@ -1339,4 +1339,521 @@ let builtins: list(hazel_fn) = [
       );
     },
   },
+  {
+    // ---- Tier 6: Helper Combinators ----
+
+    // jq1: [JSON -> [JSON]] -> JSON -> JSON
+    // Like jq but returns the first result directly (not wrapped in a list).
+    // Returns Null if the pipeline produces no results.
+
+    name: "jq1",
+    str: {|fix jq1 -> fun filters -> fun json -> case jq(filters)(json)
+             | x :: _ => x
+             | [] => Null
+           end|},
+    arg: List(arrow(JSON.t, list(JSON.t))),
+    ret: Arrow(JSON.t, JSON.t),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq1"),
+            fn(
+              Pat.var("filters"),
+              fn(
+                Pat.var("json"),
+                match(
+                  ap(
+                    Forward,
+                    ap(Forward, var("jq"), var("filters")),
+                    var("json"),
+                  ),
+                  [
+                    (Pat.cons(Pat.var("x"), Pat.wild()), var("x")),
+                    (Pat.list_lit([]), JSON.json_null),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq1+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_add: Int -> JSON -> [JSON]
+    // Add an integer to a JSON Int value.
+    // Int(x) => [Int(x + n)]; else [Null]
+
+    name: "jq_add",
+    str: {|fix jq_add -> fun n -> fun json -> case json
+             | Int(x) => [Int(x + n)]
+             | _ => [Null]
+           end|},
+    arg: Atom(Int),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_add"),
+            fn(
+              Pat.var("n"),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_int, Pat.var("x")),
+                      list_lit([
+                        ap(
+                          Forward,
+                          JSON.json_int,
+                          bin_op(Int(Plus), var("x"), var("n")),
+                        ),
+                      ]),
+                    ),
+                    (Pat.wild(), list_lit([JSON.json_null])),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_add+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_not: JSON -> [JSON]
+    // Negate truthiness: Bool(false) and Null => [Bool(true)]; anything else => [Bool(false)]
+    // Like jq's `not` filter.
+
+    name: "jq_not",
+    str: {|fix jq_not -> fun json -> case json
+             | Bool(false) => [Bool(true)]
+             | Null => [Bool(true)]
+             | _ => [Bool(false)]
+           end|},
+    arg: Typ.term_of(JSON.t),
+    ret: List(JSON.t),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_not"),
+            fn(
+              Pat.var("json"),
+              match(
+                var("json"),
+                [
+                  (
+                    Pat.ap(JSON.pat_json_bool, Pat.var("b")),
+                    list_lit([
+                      ap(
+                        Forward,
+                        JSON.json_bool,
+                        if_(var("b"), bool(false), bool(true)),
+                      ),
+                    ]),
+                  ),
+                  (
+                    JSON.pat_json_null,
+                    list_lit([ap(Forward, JSON.json_bool, bool(true))]),
+                  ),
+                  (
+                    Pat.wild(),
+                    list_lit([ap(Forward, JSON.json_bool, bool(false))]),
+                  ),
+                ],
+              ),
+              None,
+              Some("jq_not+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_entry: (JSON -> [JSON], JSON -> [JSON]) -> JSON -> [JSON]
+    // Construct an entry object {key: kf(json), value: vf(json)} from two filters.
+    // Takes the first result of each filter.
+
+    name: "jq_entry",
+    str: {|fix jq_entry -> fun (kf, vf) -> fun json ->
+             case (kf(json), vf(json))
+             | (k :: _, v :: _) => [Assoc([("key", k), ("value", v)])]
+             | _ => [Null]
+           end|},
+    arg: Prod([arrow(JSON.t, list(JSON.t)), arrow(JSON.t, list(JSON.t))]),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_entry"),
+            fn(
+              Pat.tuple([Pat.var("kf"), Pat.var("vf")]),
+              fn(
+                Pat.var("json"),
+                match(
+                  tuple([
+                    ap(Forward, var("kf"), var("json")),
+                    ap(Forward, var("vf"), var("json")),
+                  ]),
+                  [
+                    (
+                      Pat.tuple([
+                        Pat.cons(Pat.var("k"), Pat.wild()),
+                        Pat.cons(Pat.var("v"), Pat.wild()),
+                      ]),
+                      list_lit([
+                        ap(
+                          Forward,
+                          JSON.json_assoc,
+                          list_lit([
+                            tuple([string("key"), var("k")]),
+                            tuple([string("value"), var("v")]),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                    (Pat.wild(), list_lit([JSON.json_null])),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_entry+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_with_entries: (JSON -> [JSON]) -> JSON -> [JSON]
+    // Equivalent to: to_entries | map(f) | from_entries
+    // Like jq's with_entries(f)
+
+    name: "jq_with_entries",
+    str: {|fix jq_with_entries -> fun f -> fun json ->
+             jq([jq_to_entries, jq_map(f), jq_from_entries])(json)|},
+    arg: Arrow(JSON.t, list(JSON.t)),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_with_entries"),
+            fn(
+              Pat.var("f"),
+              fn(
+                Pat.var("json"),
+                ap(
+                  Forward,
+                  ap(
+                    Forward,
+                    var("jq"),
+                    list_lit([
+                      var("jq_to_entries"),
+                      ap(Forward, var("jq_map"), var("f")),
+                      var("jq_from_entries"),
+                    ]),
+                  ),
+                  var("json"),
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_with_entries+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_merge: (JSON, JSON) -> [JSON]
+    // Merge two Assoc objects. Second object's keys win on conflict.
+    // Like jq's `*` for objects.
+
+    name: "jq_merge",
+    str: {|fix jq_merge -> fun (a, b) -> case (a, b)
+             | (Assoc(pa), Assoc(pb)) => [Assoc(fold_left(pb, fun (acc, (k, v)) -> (k, v) :: remove_assoc(acc, k), pa))]
+             | _ => [Null]
+           end|},
+    arg: Prod([JSON.t, JSON.t]),
+    ret: List(JSON.t),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_merge"),
+            fn(
+              Pat.tuple([Pat.var("a"), Pat.var("b")]),
+              match(
+                tuple([var("a"), var("b")]),
+                [
+                  (
+                    Pat.tuple([
+                      Pat.ap(JSON.pat_json_assoc, Pat.var("pa")),
+                      Pat.ap(JSON.pat_json_assoc, Pat.var("pb")),
+                    ]),
+                    list_lit([
+                      ap(
+                        Forward,
+                        JSON.json_assoc,
+                        ap(
+                          Forward,
+                          var("fold_left"),
+                          tuple([
+                            var("pb"),
+                            fn(
+                              Pat.tuple([
+                                Pat.var("acc"),
+                                Pat.tuple([Pat.var("k"), Pat.var("v")]),
+                              ]),
+                              cons(
+                                tuple([var("k"), var("v")]),
+                                ap(
+                                  Forward,
+                                  var("remove_assoc"),
+                                  tuple([var("acc"), var("k")]),
+                                ),
+                              ),
+                              None,
+                              None,
+                            ),
+                            var("pa"),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  (Pat.wild(), list_lit([JSON.json_null])),
+                ],
+              ),
+              None,
+              Some("jq_merge+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_string_sub: (String, String) -> JSON -> [JSON]
+    // Replace occurrences of a pattern in a JSON String.
+    // String(s) => [String(string_replace(from, s, to))]; else [Null]
+    // Like jq's gsub/sub
+
+    name: "jq_string_sub",
+    str: {|fix jq_string_sub -> fun (from, to_str) -> fun json -> case json
+             | String(s) => [String(string_replace(from, s, to_str))]
+             | _ => [Null]
+           end|},
+    arg: Prod([string(), string()]),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_string_sub"),
+            fn(
+              Pat.tuple([Pat.var("from"), Pat.var("to_str")]),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_string, Pat.var("s")),
+                      list_lit([
+                        ap(
+                          Forward,
+                          JSON.json_string,
+                          ap(
+                            Forward,
+                            var("string_replace"),
+                            tuple([var("from"), var("s"), var("to_str")]),
+                          ),
+                        ),
+                      ]),
+                    ),
+                    (Pat.wild(), list_lit([JSON.json_null])),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_string_sub+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_ltrimstr: String -> JSON -> [JSON]
+    // Trim a prefix from a JSON String. If the string doesn't start with the prefix,
+    // returns the string unchanged. Like jq's ltrimstr.
+
+    name: "jq_ltrimstr",
+    str: {|fix jq_ltrimstr -> fun prefix -> fun json -> case json
+             | String(s) =>
+               let plen = string_length(prefix) in
+               let slen = string_length(s) in
+               if slen >= plen && string_sub(s, 0, plen) $== prefix
+               then [String(string_sub(s, plen, slen - plen))]
+               else [json]
+             | _ => [json]
+           end|},
+    arg: Atom(String),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_ltrimstr"),
+            fn(
+              Pat.var("prefix"),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_string, Pat.var("s")),
+                      let_(
+                        Pat.var("plen"),
+                        ap(Forward, var("string_length"), var("prefix")),
+                        let_(
+                          Pat.var("slen"),
+                          ap(Forward, var("string_length"), var("s")),
+                          if_(
+                            bin_op(
+                              Int(GreaterThanOrEqual),
+                              var("slen"),
+                              var("plen"),
+                            ),
+                            if_(
+                              bin_op(
+                                String(Equals),
+                                ap(
+                                  Forward,
+                                  var("string_sub"),
+                                  tuple([var("s"), int(0), var("plen")]),
+                                ),
+                                var("prefix"),
+                              ),
+                              list_lit([
+                                ap(
+                                  Forward,
+                                  JSON.json_string,
+                                  ap(
+                                    Forward,
+                                    var("string_sub"),
+                                    tuple([
+                                      var("s"),
+                                      var("plen"),
+                                      bin_op(
+                                        Int(Minus),
+                                        var("slen"),
+                                        var("plen"),
+                                      ),
+                                    ]),
+                                  ),
+                                ),
+                              ]),
+                              list_lit([var("json")]),
+                            ),
+                            list_lit([var("json")]),
+                          ),
+                        ),
+                      ),
+                    ),
+                    (Pat.wild(), list_lit([var("json")])),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_ltrimstr+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    // jq_string_prepend: String -> JSON -> [JSON]
+    // Prepend a string to a JSON String value.
+    // String(s) => [String(prefix ++ s)]; else [Null]
+
+    name: "jq_string_prepend",
+    str: {|fix jq_string_prepend -> fun prefix -> fun json -> case json
+             | String(s) => [String(prefix ++ s)]
+             | _ => [Null]
+           end|},
+    arg: Atom(String),
+    ret: Arrow(JSON.t, list(JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("jq_string_prepend"),
+            fn(
+              Pat.var("prefix"),
+              fn(
+                Pat.var("json"),
+                match(
+                  var("json"),
+                  [
+                    (
+                      Pat.ap(JSON.pat_json_string, Pat.var("s")),
+                      list_lit([
+                        ap(
+                          Forward,
+                          JSON.json_string,
+                          bin_op(String(Concat), var("prefix"), var("s")),
+                        ),
+                      ]),
+                    ),
+                    (Pat.wild(), list_lit([JSON.json_null])),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("jq_string_prepend+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
 ];
