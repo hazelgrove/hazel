@@ -337,6 +337,24 @@ let wrap_balanced = (char: string, z: t): t => {
     shards: ([0], [1]),
     children: ([], []),
   };
+  /* Re-ID incomplete shards in the content whose counterparts remain
+   * in the outer siblings. Wrapping places these at different nesting
+   * levels, and shared IDs would cause MakeTerm to create duplicate
+   * terms, leading to infinite recursion in the elaborator. */
+  let outer_ids =
+    Segment.incomplete_tiles(left_sibs @ right_sibs)
+    |> List.map((t: Tile.t) => t.id);
+  let content =
+    List.map(
+      fun
+      | Piece.Tile(t) when !Tile.is_complete(t) && List.mem(t.id, outer_ids) =>
+        Piece.Tile({
+          ...t,
+          id: Id.mk(),
+        })
+      | p => p,
+      content,
+    );
   /* Place content as right siblings inside the new ancestor,
    * remold/regrout with empty selection, then re-select */
   let z = {
