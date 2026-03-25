@@ -1219,6 +1219,35 @@ let wrap_selection_tests = [
   ),
 ];
 
+/* Test that wrapping a selection across a tile boundary doesn't cause
+ * stack overflow. Scenario: (§1)¦ + Insert("(") produces orphan shards
+ * from the original (...) tile at different nesting levels. Without the
+ * fix, duplicate IDs cause infinite recursion in the elaborator. */
+let wrap_calculate_test = [
+  test_case(
+    "Wrap across tile boundary: no stack overflow in statics",
+    `Quick,
+    () => {
+      let acts =
+        mk({|(1)¦|})
+        @ [
+          Action.Select(Resize(Local(Left, ByChar))),
+          Action.Select(Resize(Local(Left, ByChar))),
+          Action.Insert("("),
+        ];
+      let z = perform(Zipper.init(), acts);
+      let _statics =
+        CachedStatics.init(
+          ~settings=Language.CoreSettings.on,
+          ~stitch=x => x,
+          ~is_dynamic_term=false,
+          z,
+        );
+      check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
+    },
+  ),
+];
+
 let unwrap_quote_tests = [
   /* --- String unwrapping --- */
   test(
@@ -1590,6 +1619,7 @@ let tests = [
   ("Editing.Selection", selection_tests),
   ("Editing.Module", module_tests),
   ("Editing.WrapSelection", wrap_selection_tests),
+  ("Editing.WrapCalculate", wrap_calculate_test),
   ("Editing.UnwrapQuote", unwrap_quote_tests),
   ("Editing.CommentToggle", comment_toggle_tests),
   ("Editing.CommentRemold", comment_remold_tests),
