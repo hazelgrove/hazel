@@ -4,7 +4,12 @@
    - "kv": key-value store for all app state (settings, editors, agents, etc.)
 
    All modules that need persistence go through this single database
-   to avoid version-coordination issues between independent databases. */
+   to avoid version-coordination issues between independent databases.
+
+   KV operations maintain an in-memory cache so that reads are synchronous.
+   The cache is populated at startup via kv_load_all, then kept in sync
+   by kv_save/kv_delete/kv_clear. Callers never interact with the cache
+   directly — they just use kv_save/kv_get/kv_delete. */
 
 open Ezjs_idb;
 
@@ -32,29 +37,36 @@ let with_db = (f): unit => {
   openDB(~upgrade, ~error, ~version=1, db_name, db => f(db));
 };
 
-/* === KV table operations === */
+/* === In-memory cache (private) === */
 
-let kv_save = (key: string, value: string): unit =>
+let cache: ref(Util.Maps.StringMap.t(string)) =
+  ref(Util.Maps.StringMap.empty);
+
+/* === KV operations === */
+
+let kv_save = (key: string, value: string): unit => {
+  cache := Util.Maps.StringMap.add(key, value, cache^);
   with_db(db => IDBStore.put(~key, ~callback=_ => (), kv_store(db), value));
+};
 
-let kv_load = (key: string, callback: option(string) => unit): unit =>
-  with_db(db => {
-    let error = _ => print_endline("ERROR: HazelDB.kv_load(" ++ key ++ ")");
-    IDBStore.get(~error, kv_store(db), callback, K(key));
-  });
+let kv_get = (key: string): option(string) =>
+  Util.Maps.StringMap.find_opt(key, cache^);
 
-let kv_delete = (key: string): unit =>
+let kv_delete = (key: string): unit => {
+  cache := Util.Maps.StringMap.remove(key, cache^);
   with_db(db =>
     IDBStore.delete(~error=_ => (), ~callback=_ => (), kv_store(db), K(key))
   );
+};
 
 let kv_clear = (~callback=() => (), ()): unit => {
+  cache := Util.Maps.StringMap.empty;
   let error = _ => print_endline("ERROR: HazelDB.kv_clear");
   with_db(db => IDBStore.clear(~error, ~callback, kv_store(db)));
 };
 
-/* Load all KV entries at once via cursor fold. Returns list of (key, value)
-   pairs. Used during startup to populate the model from a single IDB read. */
+/* Load all KV entries at once via cursor fold. Populates the cache
+   and returns the pairs to the callback. Called once at startup. */
 let kv_load_all = (callback: list((string, string)) => unit): unit =>
   with_db(db => {
     let error = _ => print_endline("ERROR: HazelDB.kv_load_all");
@@ -63,11 +75,19 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
       kv_store(db),
       (key, value, acc) => [(key, value), ...acc],
       [],
-      callback,
+      pairs => {
+        cache :=
+          List.fold_left(
+            (m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
+            Util.Maps.StringMap.empty,
+            pairs,
+          );
+        callback(pairs);
+      },
     );
   });
 
-/* === Log table operations === */
+/* === Log operations === */
 
 let log_add = (key: string, value: string): unit =>
   with_db(db => IDBStore.add(~key, ~callback=_ => (), log_store(db), value));
@@ -87,46 +107,21 @@ let log_clear = (~callback=() => (), ()): unit => {
   with_db(db => IDBStore.clear(~error, ~callback, log_store(db)));
 };
 
-/* === In-memory cache ===
-
-   Populated at startup from kv_load_all, then kept in sync on every
-   kv_save. This lets synchronous code (Store.F.load, Store.F.export)
-   read the latest saved state without an async IndexedDB round-trip. */
-
-let cache: ref(Util.Maps.StringMap.t(string)) =
-  ref(Util.Maps.StringMap.empty);
-
-let init_cache = (pairs: list((string, string))): unit =>
-  cache :=
-    List.fold_left(
-      (m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
-      Util.Maps.StringMap.empty,
-      pairs,
-    );
-
-let get_cache = (key: string): option(string) =>
-  Util.Maps.StringMap.find_opt(key, cache^);
-
-let update_cache = (key: string, value: string): unit =>
-  cache := Util.Maps.StringMap.add(key, value, cache^);
-
-let remove_cache = (key: string): unit =>
-  cache := Util.Maps.StringMap.remove(key, cache^);
-
 /* === Database-level operations === */
 
-/* Clear legacy localStorage data. Used during "Reset Hazel" to ensure
-   no stale pre-migration data remains. Safe to remove once all users
-   have upgraded to IndexedDB storage. */
-let clear_legacy_storage = (): unit => {
-  let local_store =
-    Js_of_ocaml.Dom_html.window##.localStorage
-    |> Js_of_ocaml.Js.Optdef.get(_, () => assert(false));
-  local_store##clear;
-};
-
-/* Clear all data from all tables. Used by "Reset Hazel". */
+/* Clear all data from all tables and legacy localStorage.
+   Used by "Reset Hazel". */
 let clear_all = (~callback=() => (), ()): unit => {
+  /* Clear legacy localStorage (safe to remove once all users upgraded) */
+  try({
+    let local_store =
+      Js_of_ocaml.Dom_html.window##.localStorage
+      |> Js_of_ocaml.Js.Optdef.get(_, () => assert(false));
+    local_store##clear;
+  }) {
+  | _ => ()
+  };
+  cache := Util.Maps.StringMap.empty;
   let remaining = ref(2);
   let on_done = () => {
     decr(remaining);

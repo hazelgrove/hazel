@@ -161,11 +161,10 @@ module Persist = {
     let key = meta_key(prefix);
     let serialized = m |> sexp_of_slide_meta |> Sexplib.Sexp.to_string;
     HazelDB.kv_save(key, serialized);
-    HazelDB.update_cache(key, serialized);
   };
 
   let load_meta = (prefix: string): option(slide_meta) =>
-    switch (HazelDB.get_cache(meta_key(prefix))) {
+    switch (HazelDB.kv_get(meta_key(prefix))) {
     | Some(data) =>
       try(Some(data |> Sexplib.Sexp.of_string |> slide_meta_of_sexp)) {
       | _ => None
@@ -180,12 +179,11 @@ module Persist = {
     let serialized =
       editor |> CellEditor.Model.sexp_of_persistent |> Sexplib.Sexp.to_string;
     HazelDB.kv_save(key, serialized);
-    HazelDB.update_cache(key, serialized);
   };
 
   let load_slide =
       (prefix: string, name: string): option(CellEditor.Model.persistent) =>
-    switch (HazelDB.get_cache(slide_key(prefix, name))) {
+    switch (HazelDB.kv_get(slide_key(prefix, name))) {
     | Some(data) =>
       try(
         Some(
@@ -199,9 +197,7 @@ module Persist = {
 
   let delete_slide = (prefix: string, name: string): unit => {
     HazelDB.kv_delete(slide_key(prefix, name));
-    HazelDB.remove_cache(slide_key(prefix, name));
     HazelDB.kv_delete(agent_key(prefix, name));
-    HazelDB.remove_cache(agent_key(prefix, name));
   };
 
   let save_agent =
@@ -210,12 +206,11 @@ module Persist = {
     let serialized =
       agent |> Agent.Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
     HazelDB.kv_save(key, serialized);
-    HazelDB.update_cache(key, serialized);
   };
 
   let load_agent =
       (prefix: string, name: string): option(Agent.Agent.Persistent.t) =>
-    switch (HazelDB.get_cache(agent_key(prefix, name))) {
+    switch (HazelDB.kv_get(agent_key(prefix, name))) {
     | Some(data) =>
       try(
         Some(
@@ -951,7 +946,6 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            HazelDB.clear_legacy_storage();
             HazelDB.clear_all();
             Js_of_ocaml.Dom_html.window##.location##reload;
           };

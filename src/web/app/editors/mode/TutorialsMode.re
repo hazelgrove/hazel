@@ -393,7 +393,7 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            HazelDB.clear_legacy_storage();
+            HazelDB.clear_all();
             Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;
