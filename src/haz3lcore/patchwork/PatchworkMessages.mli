@@ -363,6 +363,62 @@ module Connect : sig
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
+(** Arrow-disconnect event from spatial canvas — clears a projector URL. *)
+module Disconnect : sig
+  type t = [ `Disconnect ] intf
+  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
+
+  type t_0 = t
+
+  [@@@js.stop]
+
+  type tags = [ `Disconnect ]
+  type tags_0 = tags
+
+  [@@@js.start]
+
+  [@@@js.implem
+  type tags = [ `Disconnect ]
+  type tags_0 = tags]
+
+  type 'tags this = 'tags intf constraint 'tags = [> `Disconnect ]
+
+  val t_to_js : t -> Ojs.t
+  val t_of_js : Ojs.t -> t
+  val t_0_to_js : t_0 -> Ojs.t
+  val t_0_of_js : Ojs.t -> t_0
+
+  val get_t : 'tags this -> ([ `L_s12_disconnect [@js "disconnect"] ][@js.enum])
+  [@@js.get "t"]
+
+  val set_t :
+    'tags this -> ([ `L_s12_disconnect [@js "disconnect"] ][@js.enum]) -> unit
+  [@@js.set "t"]
+
+  val get_url : 'tags this -> string [@@js.get "url"]
+  val set_url : 'tags this -> string -> unit [@@js.set "url"]
+
+  val get_direction :
+    'tags this -> ([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum])
+  [@@js.get "direction"]
+
+  val set_direction :
+    'tags this ->
+    ([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum]) ->
+    unit
+  [@@js.set "direction"]
+
+  val create :
+    t:([ `L_s12_disconnect [@js "disconnect"] ][@js.enum]) ->
+    url:string ->
+    direction:([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum]) ->
+    unit ->
+    t
+  [@@js.builder]
+
+  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
+end
+
 (** Messages sent from parent (Patchwork) to Hazel iframe *)
 module ParentToHazel : sig
   type t =
@@ -372,7 +428,8 @@ module ParentToHazel : sig
      | `U_s6_remote_caret_remove of RemoteCaretRemove.t
        [@js "remote-caret-remove"]
      | `U_s8_state of EditorState.t [@js "state"]
-     | `U_s9_connect of Connect.t [@js "connect"] ]
+     | `U_s9_connect of Connect.t [@js "connect"]
+     | `U_s12_disconnect of Disconnect.t [@js "disconnect"] ]
     [@js.union on_field "t"])
 
   type t_0 = t
@@ -609,6 +666,14 @@ module Export : sig
 
   [@@@js.start]
   [@@@js.implem module Connect = Connect]
+
+  (* export interface Disconnect *)
+  [@@@js.stop]
+
+  module Disconnect = Disconnect
+
+  [@@@js.start]
+  [@@@js.implem module Disconnect = Disconnect]
 
   (* export type ParentToHazel *)
   [@@@js.stop]

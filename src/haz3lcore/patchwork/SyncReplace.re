@@ -419,7 +419,8 @@ let should_send_state = (a: Action.t): bool =>
   | Project(
       SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_) |
       SampleCursor(_) |
-      ConnectUrl(_),
+      ConnectUrl(_) |
+      DisconnectUrl(_),
     )
   | Probe(_)
   | Project(SetSyntax(_))

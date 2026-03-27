@@ -712,6 +712,14 @@ let handle_message = (schedule_action: Action.t => unit, dataJs: Ojs.t): unit =>
         | `L_s11_out => AutomergeWriteBack
         };
       schedule_action(Project(ConnectUrl(kind, url)));
+    | `U_s12_disconnect(disc) =>
+      let url = Disconnect.get_url(disc);
+      let kind: ProjectorCore.Kind.t =
+        switch (Disconnect.get_direction(disc)) {
+        | `L_s10_in => Automerge
+        | `L_s11_out => AutomergeWriteBack
+        };
+      schedule_action(Project(DisconnectUrl(kind, url)));
     | `U_s8_state(state) =>
       let receive_log = PerfLog.start("receive_state_total");
 

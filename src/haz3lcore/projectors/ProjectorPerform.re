@@ -83,6 +83,41 @@ let update =
     : ZipperBase.t =>
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
+/* Extract the url field value from a sexp-serialized projector model */
+let sexp_url_field = (model: string): option(string) =>
+  try(
+    switch (Sexplib.Sexp.of_string(model)) {
+    | List(fields) =>
+      List.find_map(
+        fun
+        | Sexplib.Sexp.List([Atom("url"), Atom(v)]) => Some(v)
+        | _ => None,
+        fields,
+      )
+    | _ => None
+    }
+  ) {
+  | _ => None
+  };
+
+/* Build a sexp-serialized model with the given URL for the target kind */
+let model_with_url = (kind: ProjectorCore.Kind.t, url: string): string =>
+  Sexplib.Sexp.(
+    switch (kind) {
+    | Automerge =>
+      to_string(
+        List([
+          List([Atom("url"), Atom(url)]),
+          List([Atom("last_load"), List([])]),
+          List([Atom("hot_reload"), Atom("true")]),
+        ]),
+      )
+    | AutomergeWriteBack =>
+      to_string(List([List([Atom("url"), Atom(url)])]))
+    | _ => ""
+    }
+  );
+
 let go =
     (
       term_data: TermData.t,
@@ -272,24 +307,6 @@ let go =
   | ConnectUrl(target_kind, url) =>
     /* Find first projector of matching kind with an empty URL,
        falling back to first match if all have URLs */
-    let has_empty_url = (pr: Base.projector): bool =>
-      /* The sexp-serialized model contains (url "<value>"), so
-         checking for (url "") detects an unpopulated URL field */
-      try({
-        let sexp = Sexplib.Sexp.of_string(pr.model);
-        switch (sexp) {
-        | Sexplib.Sexp.List(fields) =>
-          List.exists(
-            fun
-            | Sexplib.Sexp.List([Atom("url"), Atom("")]) => true
-            | _ => false,
-            fields,
-          )
-        | _ => false
-        };
-      }) {
-      | _ => false
-      };
     let matches =
       projector_list
       |> List.filter_map(id =>
@@ -302,36 +319,51 @@ let go =
     | [] => Error(Cant_project)
     | _ =>
       let target =
-        switch (List.find_opt(((_, pr)) => has_empty_url(pr), matches)) {
+        switch (
+          List.find_opt(
+            ((_, pr: Base.projector)) =>
+              sexp_url_field(pr.model) == Some(""),
+            matches,
+          )
+        ) {
         | Some(t) => t
         | None => List.hd(matches)
         };
       let (id, _) = target;
-      let new_model = {
-        Sexplib.Sexp.(
-          switch (target_kind) {
-          | Automerge =>
-            /* ((url "<url>")(last_load())(hot_reload true)) */
-            to_string(
-              List([
-                List([Atom("url"), Atom(url)]),
-                List([Atom("last_load"), List([])]),
-                List([Atom("hot_reload"), Atom("true")]),
-              ]),
-            )
-          | AutomergeWriteBack =>
-            /* ((url "<url>")) */
-            to_string(List([List([Atom("url"), Atom(url)])]))
-          | _ => ""
-          }
-        );
-      };
+      let new_model = model_with_url(target_kind, url);
       Ok(
         update(
           pr =>
             {
               ...pr,
               model: new_model,
+            },
+          id,
+          z,
+        ),
+      );
+    };
+  | DisconnectUrl(target_kind, url) =>
+    /* Find the projector of matching kind whose URL matches exactly */
+    let target =
+      projector_list
+      |> List.find_opt(id =>
+           switch (Id.Map.find_opt(id, projectors)) {
+           | Some(pr: Base.projector) when pr.kind == target_kind =>
+             sexp_url_field(pr.model) == Some(url)
+           | _ => false
+           }
+         );
+    switch (target) {
+    | None => Error(Cant_project)
+    | Some(id) =>
+      let cleared_model = model_with_url(target_kind, "");
+      Ok(
+        update(
+          pr =>
+            {
+              ...pr,
+              model: cleared_model,
             },
           id,
           z,
