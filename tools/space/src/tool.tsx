@@ -126,6 +126,77 @@ function defaultPosition(index: number) {
   return { x: col * (DEFAULT_W + GAP), y: row * (DEFAULT_H + GAP) };
 }
 
+// ---- Arrow binding helpers --------------------------------------------------
+
+/**
+ * For a given patchwork-doc shape, walk all arrow bindings and classify
+ * connected doc URLs as incoming (arrow points *to* this shape) or outgoing
+ * (arrow points *from* this shape).
+ */
+function computeArrowConnections(
+  editor: Editor,
+  shapeId: TLShapeId,
+): { incoming: string[]; outgoing: string[] } {
+  const incoming: string[] = [];
+  const outgoing: string[] = [];
+
+  const bindings = editor.getBindingsToShape(shapeId, 'arrow');
+
+  for (const binding of bindings) {
+    const arrowShapeId = binding.fromId;
+    const arrowBindings = editor.getBindingsFromShape(arrowShapeId, 'arrow');
+    const thisTerminal = (binding.props as any).terminal as 'start' | 'end';
+    const otherBinding = arrowBindings.find(
+      (b: any) => (b.props as any).terminal !== thisTerminal,
+    );
+    if (!otherBinding) continue;
+
+    const otherShape = editor.getShape(otherBinding.toId);
+    if (!otherShape || otherShape.type !== PATCHWORK_DOC_SHAPE_TYPE) continue;
+
+    const otherDocUrl = (otherShape as any).props?.docUrl;
+    if (!otherDocUrl) continue;
+
+    if (thisTerminal === 'end') {
+      incoming.push(otherDocUrl);
+    } else {
+      outgoing.push(otherDocUrl);
+    }
+  }
+
+  return { incoming, outgoing };
+}
+
+function findPatchworkViewForShape(
+  editor: Editor,
+  shapeId: TLShapeId,
+): Element | null {
+  const container = editor.getContainer();
+  const shapeWrapper = container.querySelector(
+    `[data-shape-id="${shapeId}"]`,
+  );
+  if (!shapeWrapper) return null;
+  return shapeWrapper.querySelector('patchwork-view');
+}
+
+function dispatchBindingsToShape(editor: Editor, shapeId: TLShapeId): void {
+  const shape = editor.getShape(shapeId);
+  if (!shape || shape.type !== PATCHWORK_DOC_SHAPE_TYPE) return;
+
+  const connections = computeArrowConnections(editor, shapeId);
+  const viewEl = findPatchworkViewForShape(editor, shapeId);
+  if (!viewEl) return;
+
+  viewEl.dispatchEvent(
+    new CustomEvent('patchwork:bindings-changed', {
+      detail: connections,
+      bubbles: true,
+      composed: true,
+    }),
+  );
+  console.log(LOG, 'dispatched bindings-changed to', shapeId, connections);
+}
+
 async function filterTldrawDocs(repo: any, docLinks: DocLink[]): Promise<DocLink[]> {
   const filtered: DocLink[] = [];
 
@@ -1297,6 +1368,76 @@ async function initializeSync(
     isReconcilingRef.current = true;
     reconcilePatchworkDocShapes(editor, filteredDocs);
     isReconcilingRef.current = false;
+  });
+
+  // ------------------------------------------------------------------
+  // 4.  Arrow-binding → patchwork-view event dispatcher
+  // ------------------------------------------------------------------
+
+  const unsubBindings = editor.store.listen(
+    ({ changes }) => {
+      const affectedShapeIds = new Set<TLShapeId>();
+
+      const processBinding = (record: any) => {
+        if (record.typeName !== 'binding' || record.type !== 'arrow') return;
+        affectedShapeIds.add(record.toId);
+        try {
+          const arrowBindings = editor.getBindingsFromShape(record.fromId, 'arrow');
+          for (const b of arrowBindings) {
+            affectedShapeIds.add(b.toId);
+          }
+        } catch {
+          // Arrow shape may already be deleted (removal path).
+        }
+      };
+
+      for (const record of Object.values(changes.added)) {
+        processBinding(record);
+      }
+      for (const [before, after] of Object.values(changes.updated)) {
+        processBinding(before);
+        processBinding(after);
+      }
+      for (const record of Object.values(changes.removed)) {
+        processBinding(record);
+      }
+
+      if (affectedShapeIds.size > 0) {
+        requestAnimationFrame(() => {
+          for (const shapeId of affectedShapeIds) {
+            dispatchBindingsToShape(editor, shapeId);
+          }
+        });
+      }
+    },
+    { source: 'all', scope: 'document' },
+  );
+  cleanupFnsRef.current.push(() => {
+    console.log(LOG, 'unsubscribing binding listener');
+    unsubBindings();
+  });
+
+  // Dispatch initial binding state when an embedded tool mounts.
+  const handleMountedForBindings = (e: Event) => {
+    const detail = (e as CustomEvent).detail as { url?: string };
+    if (!detail?.url) return;
+
+    const shapes = editor.getCurrentPageShapes();
+    for (const shape of shapes) {
+      if (
+        shape.type === PATCHWORK_DOC_SHAPE_TYPE &&
+        (shape as any).props?.docUrl === detail.url
+      ) {
+        requestAnimationFrame(() => {
+          dispatchBindingsToShape(editor, shape.id);
+        });
+      }
+    }
+  };
+
+  container.addEventListener('patchwork:mounted', handleMountedForBindings);
+  cleanupFnsRef.current.push(() => {
+    container.removeEventListener('patchwork:mounted', handleMountedForBindings);
   });
 
   // ------------------------------------------------------------------
