@@ -1,6 +1,6 @@
 {
 	"name": "@hazelgrove/hazel",
-	"pushwork": {"url": "automerge:4LGn7SmcvR5YQLfgRz4RBjVEjLdV"},
+	"pushwork": {"url": "automerge:Fhp9tNtedR7zQ2pXd9ZJBBP1XqA"},
 	"exports": {
 		".": {
 			"import": "./index.js"
