@@ -195,6 +195,8 @@ function doesStateEqualDoc(doc, state) {
 // ============================================================================
 
 export default function hazelTool(handle, element) {
+	console.log("[spazel] initialized")
+
 	const container = document.createElement("div")
 	container.id = "container"
 	element.appendChild(container)
@@ -418,10 +420,12 @@ export default function hazelTool(handle, element) {
 	// Listen for arrow connect/disconnect events from the spatial canvas
 	element.addEventListener("patchwork:connect-arrow", event => {
 		const {url, direction} = event.detail
+		console.log("[spazel] connect-arrow", direction, url)
 		sendToHazel({t: "connect", url, direction})
 	})
 	element.addEventListener("patchwork:disconnect-arrow", event => {
 		const {url, direction} = event.detail
+		console.log("[spazel] disconnect-arrow", direction, url)
 		sendToHazel({t: "disconnect", url, direction})
 	})
 

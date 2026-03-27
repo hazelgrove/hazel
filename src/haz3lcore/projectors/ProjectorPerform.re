@@ -307,6 +307,14 @@ let go =
   | ConnectUrl(target_kind, url) =>
     /* Find first projector of matching kind with an empty URL,
        falling back to first match if all have URLs */
+    Js_of_ocaml.Firebug.console##log(
+      Js_of_ocaml.Js.string(
+        "[spazel] ConnectUrl kind="
+        ++ ProjectorCore.Kind.name(target_kind)
+        ++ " url="
+        ++ url,
+      ),
+    );
     let matches =
       projector_list
       |> List.filter_map(id =>
@@ -315,6 +323,13 @@ let go =
            | _ => None
            }
          );
+    Js_of_ocaml.Firebug.console##log(
+      Js_of_ocaml.Js.string(
+        "[spazel] ConnectUrl found "
+        ++ string_of_int(List.length(matches))
+        ++ " matching projectors",
+      ),
+    );
     switch (matches) {
     | [] => Error(Cant_project)
     | _ =>
@@ -345,6 +360,14 @@ let go =
     };
   | DisconnectUrl(target_kind, url) =>
     /* Find the projector of matching kind whose URL matches exactly */
+    Js_of_ocaml.Firebug.console##log(
+      Js_of_ocaml.Js.string(
+        "[spazel] DisconnectUrl kind="
+        ++ ProjectorCore.Kind.name(target_kind)
+        ++ " url="
+        ++ url,
+      ),
+    );
     let target =
       projector_list
       |> List.find_opt(id =>
@@ -355,8 +378,19 @@ let go =
            }
          );
     switch (target) {
-    | None => Error(Cant_project)
+    | None =>
+      Js_of_ocaml.Firebug.console##log(
+        Js_of_ocaml.Js.string(
+          "[spazel] DisconnectUrl: no matching projector found",
+        ),
+      );
+      Error(Cant_project);
     | Some(id) =>
+      Js_of_ocaml.Firebug.console##log(
+        Js_of_ocaml.Js.string(
+          "[spazel] DisconnectUrl: clearing projector " ++ Id.to_string(id),
+        ),
+      );
       let cleared_model = model_with_url(target_kind, "");
       Ok(
         update(
