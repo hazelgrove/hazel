@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "tldraw-based space viewer (arrow-binding fork)",
   "type": "module",
+  "pushwork": {
+    "url": "automerge:3KLJcphTQpL3SAVhwYi2HYL5e9Fv"
+  },
   "exports": "./dist/index.js",
   "scripts": {
     "build": "node esbuild/build.js",
