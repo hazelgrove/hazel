@@ -132,27 +132,53 @@ function defaultPosition(index: number) {
  * Given an arrow binding record, find the shape on the other end of the arrow
  * and dispatch the appropriate event to this binding's shape.
  */
+/**
+ * Find the sibling binding (the other end of the same arrow).
+ * First tries the live editor; falls back to a pool of removed records
+ * (needed when the arrow and both bindings are deleted in one batch).
+ */
+function findSiblingBinding(
+  editor: Editor,
+  binding: any,
+  removedRecords?: any[],
+): any | undefined {
+  const thisTerminal = binding.props.terminal;
+
+  // Try the editor first (works for connect and repoint paths).
+  try {
+    const arrowBindings = editor.getBindingsFromShape(binding.fromId, 'arrow');
+    const sibling = arrowBindings.find(
+      (b: any) => b.props.terminal !== thisTerminal,
+    );
+    if (sibling) return sibling;
+  } catch {
+    // Arrow shape already removed.
+  }
+
+  // Fall back to the removed records from the same change batch.
+  if (removedRecords) {
+    return removedRecords.find(
+      (r: any) =>
+        r.typeName === 'binding' &&
+        r.type === 'arrow' &&
+        r.fromId === binding.fromId &&
+        r.props.terminal !== thisTerminal,
+    );
+  }
+}
+
 function dispatchArrowEvent(
   editor: Editor,
   binding: any,
   eventName: 'patchwork:connect-arrow' | 'patchwork:disconnect-arrow',
+  removedRecords?: any[],
 ): void {
   if (binding.typeName !== 'binding' || binding.type !== 'arrow') return;
 
   const thisShape = editor.getShape(binding.toId);
   if (!thisShape || thisShape.type !== PATCHWORK_DOC_SHAPE_TYPE) return;
 
-  // Find the other end of the arrow.
-  let otherBinding: any;
-  try {
-    const arrowBindings = editor.getBindingsFromShape(binding.fromId, 'arrow');
-    const thisTerminal = binding.props.terminal;
-    otherBinding = arrowBindings.find(
-      (b: any) => b.props.terminal !== thisTerminal,
-    );
-  } catch {
-    return; // Arrow shape may be gone already (disconnect path).
-  }
+  const otherBinding = findSiblingBinding(editor, binding, removedRecords);
   if (!otherBinding) return;
 
   const otherShape = editor.getShape(otherBinding.toId);
@@ -1372,8 +1398,9 @@ async function initializeSync(
           dispatchArrowEvent(editor, after, 'patchwork:connect-arrow');
         }
       }
-      for (const record of Object.values(changes.removed)) {
-        dispatchArrowEvent(editor, record, 'patchwork:disconnect-arrow');
+      const removed = Object.values(changes.removed);
+      for (const record of removed) {
+        dispatchArrowEvent(editor, record, 'patchwork:disconnect-arrow', removed);
       }
     },
     { source: 'all', scope: 'document' },
