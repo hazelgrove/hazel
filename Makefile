@@ -101,7 +101,7 @@ ci: setup-zarith
 generate-coverage-html:
 	bisect-ppx-report html
 
-patchwork:
+patch-build: dev
 	rm -rf src/patchwork/dist
 	mkdir -p src/patchwork/dist
 	cp $(HTML_DIR)/bundled.js src/patchwork/dist/bundled.js
@@ -111,6 +111,11 @@ patchwork:
 	cp -r $(HTML_DIR)/style src/patchwork/dist/style
 	cp -r $(HTML_DIR)/img src/patchwork/dist/img
 	chmod -R u+w src/patchwork/dist
+
+patch-init:
+	cd src/patchwork && npx pushwork@latest init
+
+patch-sync:
 	cd src/patchwork && npx pushwork@latest track $(jq .pushwork.url package.json) && npx pushwork@latest sync
 
 automerge.wasm:
