@@ -129,83 +129,55 @@ function defaultPosition(index: number) {
 // ---- Arrow binding helpers --------------------------------------------------
 
 /**
- * For a given patchwork-doc shape, walk all arrow bindings and classify
- * connected doc URLs as incoming (arrow points *to* this shape) or outgoing
- * (arrow points *from* this shape).
+ * Given an arrow binding record, find the shape on the other end of the arrow
+ * and dispatch the appropriate event to this binding's shape.
  */
-function computeArrowConnections(
+function dispatchArrowEvent(
   editor: Editor,
-  shapeId: TLShapeId,
-): { incoming: string[]; outgoing: string[] } {
-  const incoming: string[] = [];
-  const outgoing: string[] = [];
+  binding: any,
+  eventName: 'patchwork:connect-arrow' | 'patchwork:disconnect-arrow',
+): void {
+  if (binding.typeName !== 'binding' || binding.type !== 'arrow') return;
 
-  const bindings = editor.getBindingsToShape(shapeId, 'arrow');
+  const thisShape = editor.getShape(binding.toId);
+  if (!thisShape || thisShape.type !== PATCHWORK_DOC_SHAPE_TYPE) return;
 
-  for (const binding of bindings) {
-    const arrowShapeId = binding.fromId;
-    const arrowBindings = editor.getBindingsFromShape(arrowShapeId, 'arrow');
-    const thisTerminal = (binding.props as any).terminal as 'start' | 'end';
-    const otherBinding = arrowBindings.find(
-      (b: any) => (b.props as any).terminal !== thisTerminal,
+  // Find the other end of the arrow.
+  let otherBinding: any;
+  try {
+    const arrowBindings = editor.getBindingsFromShape(binding.fromId, 'arrow');
+    const thisTerminal = binding.props.terminal;
+    otherBinding = arrowBindings.find(
+      (b: any) => b.props.terminal !== thisTerminal,
     );
-    if (!otherBinding) continue;
-
-    const otherShape = editor.getShape(otherBinding.toId);
-    if (!otherShape || otherShape.type !== PATCHWORK_DOC_SHAPE_TYPE) continue;
-
-    const otherDocUrl = (otherShape as any).props?.docUrl;
-    if (!otherDocUrl) continue;
-
-    if (thisTerminal === 'end') {
-      incoming.push(otherDocUrl);
-    } else {
-      outgoing.push(otherDocUrl);
-    }
+  } catch {
+    return; // Arrow shape may be gone already (disconnect path).
   }
+  if (!otherBinding) return;
 
-  return { incoming, outgoing };
-}
+  const otherShape = editor.getShape(otherBinding.toId);
+  if (!otherShape || otherShape.type !== PATCHWORK_DOC_SHAPE_TYPE) return;
 
-function findPatchworkViewForShape(
-  editor: Editor,
-  shapeId: TLShapeId,
-): Element | null {
+  const otherDocUrl = (otherShape as any).props?.docUrl;
+  if (!otherDocUrl) return;
+
+  const direction = binding.props.terminal === 'end' ? 'in' : 'out';
+
   const container = editor.getContainer();
   const shapeWrapper = container.querySelector(
-    `[data-shape-id="${shapeId}"]`,
+    `[data-shape-id="${binding.toId}"]`,
   );
-  if (!shapeWrapper) return null;
-  return shapeWrapper.querySelector('patchwork-view');
-}
-
-function dispatchBindingsToShape(editor: Editor, shapeId: TLShapeId): void {
-  const shape = editor.getShape(shapeId);
-  if (!shape || shape.type !== PATCHWORK_DOC_SHAPE_TYPE) return;
-
-  const connections = computeArrowConnections(editor, shapeId);
-  const viewEl = findPatchworkViewForShape(editor, shapeId);
+  const viewEl = shapeWrapper?.querySelector('patchwork-view');
   if (!viewEl) return;
 
-  for (const url of connections.incoming) {
-    viewEl.dispatchEvent(
-      new CustomEvent('patchwork:arrow', {
-        detail: { url, direction: 'in' },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-  for (const url of connections.outgoing) {
-    viewEl.dispatchEvent(
-      new CustomEvent('patchwork:arrow', {
-        detail: { url, direction: 'out' },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-  console.log(LOG, 'dispatched patchwork:arrow to', shapeId, connections);
+  viewEl.dispatchEvent(
+    new CustomEvent(eventName, {
+      detail: { url: otherDocUrl, direction },
+      bubbles: true,
+      composed: true,
+    }),
+  );
+  console.log(LOG, eventName, binding.toId, { url: otherDocUrl, direction });
 }
 
 async function filterTldrawDocs(repo: any, docLinks: DocLink[]): Promise<DocLink[]> {
@@ -1383,42 +1355,25 @@ async function initializeSync(
 
   // ------------------------------------------------------------------
   // 4.  Arrow-binding → patchwork-view event dispatcher
+  //     Each added binding fires patchwork:connect-arrow on its shape.
+  //     Each removed binding fires patchwork:disconnect-arrow.
+  //     Updated bindings (repoint) fire disconnect for before, connect for after.
   // ------------------------------------------------------------------
 
   const unsubBindings = editor.store.listen(
     ({ changes }) => {
-      const affectedShapeIds = new Set<TLShapeId>();
-
-      const processBinding = (record: any) => {
-        if (record.typeName !== 'binding' || record.type !== 'arrow') return;
-        affectedShapeIds.add(record.toId);
-        try {
-          const arrowBindings = editor.getBindingsFromShape(record.fromId, 'arrow');
-          for (const b of arrowBindings) {
-            affectedShapeIds.add(b.toId);
-          }
-        } catch {
-          // Arrow shape may already be deleted (removal path).
-        }
-      };
-
       for (const record of Object.values(changes.added)) {
-        processBinding(record);
+        dispatchArrowEvent(editor, record, 'patchwork:connect-arrow');
       }
       for (const [before, after] of Object.values(changes.updated)) {
-        processBinding(before);
-        processBinding(after);
+        if (before.typeName === 'binding' && before.type === 'arrow' &&
+            (before as any).toId !== (after as any).toId) {
+          dispatchArrowEvent(editor, before, 'patchwork:disconnect-arrow');
+          dispatchArrowEvent(editor, after, 'patchwork:connect-arrow');
+        }
       }
       for (const record of Object.values(changes.removed)) {
-        processBinding(record);
-      }
-
-      if (affectedShapeIds.size > 0) {
-        requestAnimationFrame(() => {
-          for (const shapeId of affectedShapeIds) {
-            dispatchBindingsToShape(editor, shapeId);
-          }
-        });
+        dispatchArrowEvent(editor, record, 'patchwork:disconnect-arrow');
       }
     },
     { source: 'all', scope: 'document' },
@@ -1428,7 +1383,7 @@ async function initializeSync(
     unsubBindings();
   });
 
-  // Dispatch initial binding state when an embedded tool mounts.
+  // When an embedded tool mounts, send connect-arrow for any existing arrows.
   const handleMountedForBindings = (e: Event) => {
     const detail = (e as CustomEvent).detail as { url?: string };
     if (!detail?.url) return;
@@ -1436,12 +1391,13 @@ async function initializeSync(
     const shapes = editor.getCurrentPageShapes();
     for (const shape of shapes) {
       if (
-        shape.type === PATCHWORK_DOC_SHAPE_TYPE &&
-        (shape as any).props?.docUrl === detail.url
-      ) {
-        requestAnimationFrame(() => {
-          dispatchBindingsToShape(editor, shape.id);
-        });
+        shape.type !== PATCHWORK_DOC_SHAPE_TYPE ||
+        (shape as any).props?.docUrl !== detail.url
+      ) continue;
+
+      const bindings = editor.getBindingsToShape(shape.id, 'arrow');
+      for (const binding of bindings) {
+        dispatchArrowEvent(editor, binding, 'patchwork:connect-arrow');
       }
     }
   };
