@@ -1,0 +1,47 @@
+{
+  "name": "@patchwork/space",
+  "version": "0.0.1",
+  "description": "tldraw-based space viewer",
+  "type": "module",
+  "pushwork": {
+    "url": "automerge:45sou3JG5DqwjRwXBQPndJ3qNBq5"
+  },
+  "exports": "./dist/index.js",
+  "scripts": {
+    "build": "node esbuild/build.js",
+    "dev": "node esbuild/watch.js",
+    "pushwatch": "pnpm dev pushwork",
+    "push": "pnpm build && pushwork sync"
+  },
+  "keywords": [],
+  "author": "Ink & Switch",
+  "dependencies": {
+    "@automerge/automerge": "3.2.1",
+    "@automerge/automerge-repo": "2.5.0",
+    "@automerge/automerge-repo-react-hooks": "2.5.0",
+    "@inkandswitch/patchwork-elements": "^0.0.5",
+    "@inkandswitch/patchwork-filesystem": "^0.0.3",
+    "@inkandswitch/patchwork-plugins": "^0.0.2",
+    "@tiptap/core": "^3.12.1",
+    "@tiptap/pm": "^3.12.1",
+    "@tiptap/react": "^3.12.1",
+    "@tldraw/editor": "4.3.1",
+    "@tldraw/state": "4.3.1",
+    "@tldraw/state-react": "4.3.1",
+    "@tldraw/store": "4.3.1",
+    "@tldraw/tlschema": "4.3.1",
+    "@tldraw/utils": "4.3.1",
+    "@tldraw/validate": "4.3.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tldraw": "^4.3.1"
+  },
+  "devDependencies": {
+    "@inkandswitch/patchwork-bootloader": "^0.0.3",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.2.2",
+    "esbuild": "^0.23.1",
+    "pushwork": "^1.0.5",
+    "typescript": "^5.8.3"
+  }
+}
