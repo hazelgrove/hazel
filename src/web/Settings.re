@@ -17,6 +17,7 @@ module Model = {
     line_numbers: bool,
     relative_line_numbers: bool,
     show_row_lines: bool,
+    cap_undo_stack: bool,
   };
 
   let init = {
@@ -68,6 +69,7 @@ module Model = {
     line_numbers: false,
     relative_line_numbers: false,
     show_row_lines: false,
+    cap_undo_stack: true,
   };
 
   let fix_instructor_mode = settings =>
@@ -143,7 +145,8 @@ module Update = {
     | FlipAnimations
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
-    | ShowRowLines;
+    | ShowRowLines
+    | CapUndoStack;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -387,6 +390,10 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
+        }
+      | CapUndoStack => {
+          ...settings,
+          cap_undo_stack: !settings.cap_undo_stack,
         }
       }
     )

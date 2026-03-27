@@ -356,7 +356,13 @@ module Update = {
   };
 
   let calculate =
-      (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
+      (
+        ~schedule_action,
+        ~is_edited,
+        ~dynamics: bool,
+        ~force_sync_eval=false,
+        model: Model.t,
+      ) => {
     let editors =
       Editors.Update.calculate(
         ~settings=
@@ -368,6 +374,7 @@ module Update = {
             },
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
+        ~force_sync_eval,
         model.editors,
       );
     let cursor_info =

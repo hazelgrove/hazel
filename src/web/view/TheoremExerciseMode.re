@@ -206,7 +206,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~is_edited,
+        ~schedule_action,
+        ~force_sync_eval=false,
+        model: Model.t,
+      )
+      : Model.t => {
     // Work out the terms
     let just_prelude_term =
       MakeTerm.from_zip_for_sem(
@@ -249,7 +256,8 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
-               ~queue_worker=Some(queue_worker("prelude")),
+               ~queue_worker=
+                 force_sync_eval ? None : Some(queue_worker("prelude")),
                ~stitch=_ =>
                just_prelude_term
              ),
@@ -258,7 +266,8 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
-               ~queue_worker=Some(queue_worker("lemmas")),
+               ~queue_worker=
+                 force_sync_eval ? None : Some(queue_worker("lemmas")),
                ~stitch=_ =>
                stitched_scratch
              ),
@@ -267,7 +276,8 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
-               ~queue_worker=Some(queue_worker("theorem")),
+               ~queue_worker=
+                 force_sync_eval ? None : Some(queue_worker("theorem")),
                ~stitch=_ =>
                stitched_theorem
              ),

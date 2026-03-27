@@ -181,6 +181,12 @@ let dev_group = (~globals: Globals.t) => {
         setting: ShowRowLines,
         tooltip: Some("Show horizontal lines between each row of code"),
       },
+      {
+        name: "Cap Undo Stack",
+        active: globals.settings.cap_undo_stack,
+        setting: CapUndoStack,
+        tooltip: Some("Cap the undo stack to the last 100 actions"),
+      },
     ]
     @ (
       ExerciseSettings.show_instructor

@@ -644,15 +644,26 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~schedule_action,
+        ~is_edited,
+        ~force_sync_eval=false,
+        model: Model.t,
+      )
+      : Model.t => {
     let scratchpad = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
-      Some(
-        (req_value: WorkerServer.Request.value) => {
-          worker_request := worker_request^ @ [("", req_value)]
-        },
-      );
+      if (force_sync_eval) {
+        None;
+      } else {
+        Some(
+          (req_value: WorkerServer.Request.value) => {
+            worker_request := worker_request^ @ [("", req_value)]
+          },
+        );
+      };
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,

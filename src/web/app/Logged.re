@@ -237,12 +237,18 @@ module Update = {
         ~schedule_action: t => unit,
         ~is_edited: bool,
         ~dynamics,
+        ~force_sync_eval=false,
         model: Model.t,
       )
       : Model.t => {
     current:
       model.current
-      |> History.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
+      |> History.Update.calculate(
+           ~schedule_action,
+           ~is_edited,
+           ~dynamics,
+           ~force_sync_eval,
+         ),
     initial_state: model.initial_state,
     future_log: model.future_log,
     past_log: model.past_log,

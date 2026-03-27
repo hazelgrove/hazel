@@ -282,12 +282,20 @@ module Update = {
     };
   };
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~is_edited,
+        ~schedule_action,
+        ~force_sync_eval=false,
+        model: Model.t,
+      )
+      : Model.t => {
     let exercise =
       TutorialMode.Update.calculate(
         ~settings,
         ~is_edited,
         ~schedule_action=a => schedule_action(Tutorial(a)),
+        ~force_sync_eval,
         List.nth(model.exercises, model.current),
       );
     Model.{

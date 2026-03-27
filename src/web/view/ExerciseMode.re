@@ -360,7 +360,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~is_edited,
+        ~schedule_action,
+        ~force_sync_eval=false,
+        model: Model.t,
+      )
+      : Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
@@ -382,7 +389,8 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
-               ~queue_worker=Some(queue_worker(pos)),
+               ~queue_worker=
+                 force_sync_eval ? None : Some(queue_worker(pos)),
                ~stitch=_ =>
                term
              ),

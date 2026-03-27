@@ -21,7 +21,7 @@
  (instrumentation
   (backend bisect_ppx))
  (modules
-  (:standard \ Main GradingReport)
+  (:standard \ Main GradingReport LogReplay)
   \
   Worker
   WorkerServer)
@@ -71,6 +71,14 @@
  (modes js)
  (preprocess
   (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
+
+(executable
+ (name logReplay)
+ (modules LogReplay)
+ (libraries ppx_yojson_conv.expander web)
+ (modes js)
+ (preprocess
+  (pps ppx_yojson_conv js_of_ocaml-ppx ppx_sexp_conv ppx_deriving.show)))
 
 (executable
  (name worker)

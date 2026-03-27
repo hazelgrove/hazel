@@ -251,7 +251,8 @@ module Update = {
     };
   };
 
-  let calculate = (~settings, ~is_edited, ~schedule_action, model) => {
+  let calculate =
+      (~settings, ~is_edited, ~schedule_action, ~force_sync_eval=false, model) => {
     switch (model) {
     | Model.Scratch(m) =>
       Model.Scratch(
@@ -259,6 +260,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
           ~is_edited,
+          ~force_sync_eval,
           m,
         ),
       )
@@ -268,6 +270,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
           ~is_edited,
+          ~force_sync_eval,
           m,
         ),
       )
@@ -277,6 +280,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Tutorial(a)),
           ~settings,
           ~is_edited,
+          ~force_sync_eval,
           m,
         ),
       )
@@ -286,6 +290,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Exercises(a)),
           ~settings,
           ~is_edited,
+          ~force_sync_eval,
           m,
         ),
       )
