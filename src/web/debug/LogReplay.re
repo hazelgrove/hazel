@@ -42,6 +42,16 @@ let replay = (log_export: Export.log_export): result => {
   let noop_get_log_and = (_f: string => unit): unit => ();
   let noop_import_log = (_s: string): unit => ();
 
+  // Initial calculate to move fields out of Calc.Pending
+  model :=
+    History.Update.calculate(
+      ~schedule_action=noop,
+      ~is_edited=true,
+      ~dynamics=false,
+      ~force_sync_eval=true,
+      model^,
+    );
+
   let update_time = ref(0.0);
   let calc_time = ref(0.0);
   let dynamics_count = ref(0);
@@ -100,7 +110,7 @@ let replay = (log_export: Export.log_export): result => {
           total,
           Printexc.to_string(exn),
         ),
-      )
+      );
   };
 
   {

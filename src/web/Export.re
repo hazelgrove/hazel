@@ -4,6 +4,7 @@ open Util;
 type full_state = {
   settings: string,
   explainThisModel: string,
+  mode: string,
   scratch: string,
   tutorial: string,
   exercise: string,
@@ -13,6 +14,7 @@ type full_state = {
 let mk_full_state = (~core_settings, ~instructor_mode) => {
   let settings = Settings.Store.export();
   let explainThisModel = ExplainThisModel.Store.export();
+  let mode = Editors.StoreMode.export();
   let (scratch_current, scratch_slides) = Init.startup.scratch;
   let scratch =
     ScratchMode.Persist.export_all(
@@ -34,6 +36,7 @@ let mk_full_state = (~core_settings, ~instructor_mode) => {
   {
     settings,
     explainThisModel,
+    mode,
     scratch,
     documentation,
     exercise,
@@ -67,6 +70,7 @@ let import_full_state = (state: full_state, ~exercise_specs, ~tutorial_specs) =>
   Settings.Store.import(state.settings);
   let settings = Settings.Store.load();
   ExplainThisModel.Store.import(state.explainThisModel);
+  Editors.StoreMode.import(state.mode);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Persist.import_all("scratch", state.scratch);
   if (state.documentation != "") {
