@@ -13,4 +13,4 @@ export const plugins: Plugin<any>[] = [
   } satisfies Tool,
 ];
 
-console.log('space plugin loaded');
+console.log('spaze plugin loaded');
