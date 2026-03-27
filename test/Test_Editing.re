@@ -81,13 +81,14 @@ let mv_r_token = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Right, ByToken)));
 
 let mk = (init: string): list(Action.t) => {
-  /* This harness uses a  to represent caret position.
-   * This assumes there are no literal instances of the caret
-   * char proceeding the caret ¦ in the syntax. This creates
-   * a list of actions intended to insert the init string into the
-   * zipper character-by-character, except for the caret character,
-   * and then move left character by character until the indicated
-   * caret position is reached */
+  /* Builds actions from a string with ¦ for caret position.
+   * Does not support § — use mk_zipper for selections. */
+  let chars = Token.to_list(init);
+  if (List.exists(c => c == selection_char, chars)) {
+    Alcotest.fail(
+      "mk() does not support §. Use mk_zipper(): " ++ init,
+    );
+  };
   let rec split =
           (before: list(string), rest: list(string))
           : (list(string), list(string)) =>
@@ -100,14 +101,71 @@ let mk = (init: string): list(Action.t) => {
         split([hd, ...before], tl);
       }
     };
-  let (before, after) = split([], Token.to_list(init));
-  let init_without_caret_clusters = before @ after;
-  let init_without_caret = Token.of_list(init_without_caret_clusters);
-  /* After inserting all characters, we need to move left by the number
-   * of characters that come after the caret position */
+  let (before, after) = split([], chars);
+  let clean = Token.of_list(before @ after);
   let chars_after_caret = List.length(after);
-  string_to_ltr_actions(init_without_caret) @ mv_l(chars_after_caret);
+  string_to_ltr_actions(clean) @ mv_l(chars_after_caret);
 };
+
+/* mk_zipper: builds a zipper with optional selection from a string.
+ * Uses ¦ for caret (focus) and § for selection anchor.
+ *
+ * Implementation:
+ * 1. Create two single-caret versions of the input string
+ *    - version_a: caret at the § position (anchor)
+ *    - version_b: caret at the ¦ position (focus)
+ * 2. Build zippers from both via mk + perform
+ * 3. Get Point.t coordinates from each via Measured
+ * 4. Apply Select(PointToPoint) to create the selection */
+let mk_zipper =
+    (~settings=default_settings, init: string): Zipper.t => {
+  let chars = Token.to_list(init);
+  let has_anchor = List.exists(c => c == selection_char, chars);
+  if (!has_anchor) {
+    /* No selection — just use mk */
+    mk(init) |> perform(~settings, Zipper.init());
+  } else {
+    /* version_a: replace § with ¦, remove original ¦ */
+    let version_a =
+      chars
+      |> List.map(c =>
+           if (c == selection_char) {caret_char}
+           else if (c == caret_char) {""}
+           else {c}
+         )
+      |> List.filter(c => c != "")
+      |> Token.of_list;
+    /* version_b: remove §, keep ¦ */
+    let version_b =
+      chars
+      |> List.filter(c => c != selection_char)
+      |> Token.of_list;
+    /* Build zippers */
+    let z_a = mk(version_a) |> perform(~settings, Zipper.init());
+    let z_b = mk(version_b) |> perform(~settings, Zipper.init());
+    /* Get caret Points from each */
+    let measured_a = CachedSyntax.init(z_a).measured;
+    let measured_b = CachedSyntax.init(z_b).measured;
+    let anchor_pt = Zipper.Caret.point(measured_a, z_a);
+    let focus_pt = Zipper.Caret.point(measured_b, z_b);
+    /* Apply PointToPoint: moves to anchor, selects to focus */
+    [Action.Select(PointToPoint((anchor_pt, focus_pt)))]
+    |> perform(~settings, z_b);
+  };
+};
+
+/* Printer that includes indentation. mk_zipper produces Points in
+ * Measured space (which includes indentation), so round-trip tests
+ * must use a printer that also includes indentation for consistency. */
+let printer_indented = (z: Zipper.t): string =>
+  Printer.of_zipper(
+    ~holes=convex_char,
+    ~concave_holes=concave_char,
+    ~caret=caret_char,
+    ~selection_anchor=selection_char,
+    ~indent=" ",
+    z,
+  );
 
 let test = (~name, ~acts, ~goal): test_case(_) =>
   test_case(name, `Quick, () =>
@@ -949,6 +1007,70 @@ let move_tests = [
 ];
 
 let selection_tests = [
+  /* mk_zipper round-trip tests. Use printer_indented because Points
+   * from Measured include indentation columns. */
+  test_case(
+    "mk_zipper: single-line anchor left",
+    `Quick,
+    () => {
+      let z = mk_zipper({|let x = §1 in¦ x|});
+      let goal = {|let x = §1 in¦ x|};
+      check(testable(Fmt.string, String.equal), goal, goal, printer_indented(z));
+    },
+  ),
+  test_case(
+    "mk_zipper: single-line anchor right",
+    `Quick,
+    () => {
+      let z = mk_zipper({|let x = ¦1 in§ x|});
+      let goal = {|let x = ¦1 in§ x|};
+      check(testable(Fmt.string, String.equal), goal, goal, printer_indented(z));
+    },
+  ),
+  test_case(
+    "mk_zipper: multi-line let selection",
+    `Quick,
+    () => {
+      let z =
+        mk_zipper(
+          {|let x = 1 in
+§let y = 2 in¦
+x + y|},
+        );
+      let goal = {|let x = 1 in
+§let y = 2 in¦
+x + y|};
+      check(testable(Fmt.string, String.equal), goal, goal, printer_indented(z));
+    },
+  ),
+  test_case(
+    "mk_zipper: multi-line if/then/else selection",
+    `Quick,
+    () => {
+      let z =
+        mk_zipper(
+          {|if a then
+§fun b ->
+if c then d ¦else e
+else f|},
+        );
+      let result = printer_indented(z);
+      /* Check selection was created (has both markers) */
+      let has_anchor =
+        List.exists(
+          c => c == selection_char,
+          Token.to_list(result),
+        );
+      let has_caret =
+        List.exists(
+          c => c == caret_char,
+          Token.to_list(result),
+        );
+      if (!has_anchor || !has_caret) {
+        Alcotest.fail("mk_zipper failed to create selection");
+      };
+    },
+  ),
   test(
     ~name="Move to right from selection",
     ~acts=

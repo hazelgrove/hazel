@@ -599,6 +599,73 @@ let deep_reassociate_tests = [
       };
     },
   ),
+  test_case(
+    "User scenario: cut+paste cross-scope selection in mapi/fun/if",
+    `Quick,
+    () => {
+      /* User's exact code with selection from before outer "then"
+       * through "plant". Selection crosses: outer if's then-delimiter,
+       * inner mapi(...), inner fun, inner if's then-delimiter. */
+      let z =
+        Test_Editing.mk_zipper(
+          ~settings=deep_reassociate_settings,
+          {|fun (grove, row, col, plant) ->
+mapi(grove, fun (i, r) ->
+if i == row
+§then
+mapi(r, fun (j, c) ->
+if i == col
+then plant¦
+else c)
+else r)|},
+        );
+      let sel_text =
+        Printer.of_segment(
+          ~holes="?",
+          ~indent=" ",
+          z.selection.content,
+        );
+      let z_cut =
+        [Action.Destruct(Right)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      let z_pasted =
+        [Action.Paste(sel_text)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
+      if (Test_Editing.zip_has_incomplete(z_pasted)) {
+        Alcotest.fail(
+          "Cut+paste round trip left incomplete tiles",
+        );
+      };
+    },
+  ),
+  test_case(
+    "User scenario: single-line nested if cut+paste",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.mk_zipper(
+          ~settings=deep_reassociate_settings,
+          {|if true §then if false then 1¦ else 2 else 3|},
+        );
+      let sel_text =
+        Printer.of_segment(
+          ~holes="?",
+          ~indent=" ",
+          z.selection.content,
+        );
+      let z_cut =
+        [Action.Destruct(Right)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      let z_pasted =
+        [Action.Paste(sel_text)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
+      if (Test_Editing.zip_has_incomplete(z_pasted)) {
+        Alcotest.fail(
+          "Single-line nested if cut+paste left incomplete tiles",
+        );
+      };
+    },
+  ),
 ];
 
 let tests = [("Editing.DeepReassociate", deep_reassociate_tests)];
