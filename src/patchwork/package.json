@@ -1,5 +1,5 @@
 {
-	"name": "@hazelgrove/hazel",
+	"name": "@hazelgrove/spazel",
 	"pushwork": {"url": "automerge:Fhp9tNtedR7zQ2pXd9ZJBBP1XqA"},
 	"exports": {
 		".": {

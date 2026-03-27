@@ -9,8 +9,8 @@ export const plugins = [
 	},
 	{
 		type: "patchwork:tool",
-		id: "@hazelgrove/hazel",
-		name: "Hazel Editor",
+		id: "@hazelgrove/spazel",
+		name: "Spazel Editor",
 		supportedDatatypes: ["@hazelgrove/hazel"],
 		async load() {
 			return import("./hazel-tool.js").then(mod => mod.default)
