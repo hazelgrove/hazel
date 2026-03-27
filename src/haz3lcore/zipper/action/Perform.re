@@ -63,6 +63,7 @@ let go =
       z,
       syntax.projector_list,
       refractor_list,
+      syntax.projectors,
     );
   | Move(d) =>
     Move.go(

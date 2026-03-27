@@ -65,7 +65,8 @@ type project =
   | SetSyntax(int, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
-  | Escape(int, Direction.t); /* Pass control to parent editor */
+  | Escape(int, Direction.t) /* Pass control to parent editor */
+  | ConnectUrl(ProjectorCore.Kind.t, string); /* Populate projector URL from arrow event */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =
@@ -153,7 +154,8 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
-    | SetModel(_) => false
+    | SetModel(_)
+    | ConnectUrl(_) => false
     | SetSyntax(_)
     | SetIndicated(_)
     | RemoveIndicated => true
@@ -189,7 +191,8 @@ let is_historic: t => bool =
     | RemoveIndicated => true
     | Focus(_)
     | SampleCursor(_)
-    | Escape(_) => false
+    | Escape(_)
+    | ConnectUrl(_) => false
     }
   | Probe(_) => true;
 
@@ -218,7 +221,8 @@ let prevent_in_read_only_editor = (a: t) =>
     | RemoveIndicated
     | Focus(_)
     | SampleCursor(_)
-    | Escape(_) => false
+    | Escape(_)
+    | ConnectUrl(_) => false
     }
   | Probe(_) => false
   };

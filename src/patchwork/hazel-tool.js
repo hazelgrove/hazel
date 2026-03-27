@@ -415,6 +415,12 @@ export default function hazelTool(handle, element) {
 		// Ephemeral messages not supported
 	}
 
+	// Listen for arrow-connect events from the spatial canvas
+	element.addEventListener("patchwork:arrow", event => {
+		const {url, direction} = event.detail
+		sendToHazel({t: "connect", url, direction})
+	})
+
 	// Load Hazel scripts
 	const bundled = document.createElement("script")
 	bundled.type = "module"

@@ -704,6 +704,14 @@ let handle_message = (schedule_action: Action.t => unit, dataJs: Ojs.t): unit =>
       // );
       remote_carets := Maps.StringMap.remove(user_id, remote_carets^);
       schedule_action(UpdateRemoteCarets);
+    | `U_s9_connect(conn) =>
+      let url = Connect.get_url(conn);
+      let kind: ProjectorCore.Kind.t =
+        switch (Connect.get_direction(conn)) {
+        | `L_s10_in => Automerge
+        | `L_s11_out => AutomergeWriteBack
+        };
+      schedule_action(Project(ConnectUrl(kind, url)));
     | `U_s8_state(state) =>
       let receive_log = PerfLog.start("receive_state_total");
 

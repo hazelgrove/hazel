@@ -90,6 +90,7 @@ let go =
       z: Zipper.t,
       projector_list: list(Id.t),
       refractor_list: list(Id.t),
+      projectors: Id.Map.t(Base.projector),
     )
     : result(ZipperBase.t, Action.Failure.t) => {
   let projector_idx_to_id = (idx: int): Id.t =>
@@ -268,5 +269,74 @@ let go =
     | None => Error(Cant_project)
     }
   | SampleCursor(a) => Ok(SampleCursorPerform.go(z, a))
+  | ConnectUrl(target_kind, url) =>
+    /* Find first projector of matching kind with an empty URL,
+       falling back to first match if all have URLs */
+    let has_empty_url = (pr: Base.projector): bool =>
+      /* The sexp-serialized model contains (url "<value>"), so
+         checking for (url "") detects an unpopulated URL field */
+      try({
+        let sexp = Sexplib.Sexp.of_string(pr.model);
+        switch (sexp) {
+        | Sexplib.Sexp.List(fields) =>
+          List.exists(
+            fun
+            | Sexplib.Sexp.List([Atom("url"), Atom("")]) => true
+            | _ => false,
+            fields,
+          )
+        | _ => false
+        };
+      }) {
+      | _ => false
+      };
+    let matches =
+      projector_list
+      |> List.filter_map(id =>
+           switch (Id.Map.find_opt(id, projectors)) {
+           | Some(pr) when pr.kind == target_kind => Some((id, pr))
+           | _ => None
+           }
+         );
+    switch (matches) {
+    | [] => Error(Cant_project)
+    | _ =>
+      let target =
+        switch (List.find_opt(((_, pr)) => has_empty_url(pr), matches)) {
+        | Some(t) => t
+        | None => List.hd(matches)
+        };
+      let (id, _) = target;
+      let new_model = {
+        Sexplib.Sexp.(
+          switch (target_kind) {
+          | Automerge =>
+            /* ((url "<url>")(last_load())(hot_reload true)) */
+            to_string(
+              List([
+                List([Atom("url"), Atom(url)]),
+                List([Atom("last_load"), List([])]),
+                List([Atom("hot_reload"), Atom("true")]),
+              ]),
+            )
+          | AutomergeWriteBack =>
+            /* ((url "<url>")) */
+            to_string(List([List([Atom("url"), Atom(url)])]))
+          | _ => ""
+          }
+        );
+      };
+      Ok(
+        update(
+          pr =>
+            {
+              ...pr,
+              model: new_model,
+            },
+          id,
+          z,
+        ),
+      );
+    };
   };
 };
