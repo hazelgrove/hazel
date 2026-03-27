@@ -1,11 +1,8 @@
 {
-  "name": "@patchwork/space",
+  "name": "@patchwork/spaze",
   "version": "0.0.1",
-  "description": "tldraw-based space viewer",
+  "description": "tldraw-based space viewer (arrow-binding fork)",
   "type": "module",
-  "pushwork": {
-    "url": "automerge:45sou3JG5DqwjRwXBQPndJ3qNBq5"
-  },
   "exports": "./dist/index.js",
   "scripts": {
     "build": "node esbuild/build.js",
