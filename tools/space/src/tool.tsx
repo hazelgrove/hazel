@@ -187,14 +187,25 @@ function dispatchBindingsToShape(editor: Editor, shapeId: TLShapeId): void {
   const viewEl = findPatchworkViewForShape(editor, shapeId);
   if (!viewEl) return;
 
-  viewEl.dispatchEvent(
-    new CustomEvent('patchwork:bindings-changed', {
-      detail: connections,
-      bubbles: true,
-      composed: true,
-    }),
-  );
-  console.log(LOG, 'dispatched bindings-changed to', shapeId, connections);
+  for (const url of connections.incoming) {
+    viewEl.dispatchEvent(
+      new CustomEvent('patchwork:arrow', {
+        detail: { url, direction: 'in' },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+  for (const url of connections.outgoing) {
+    viewEl.dispatchEvent(
+      new CustomEvent('patchwork:arrow', {
+        detail: { url, direction: 'out' },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+  console.log(LOG, 'dispatched patchwork:arrow to', shapeId, connections);
 }
 
 async function filterTldrawDocs(repo: any, docLinks: DocLink[]): Promise<DocLink[]> {
