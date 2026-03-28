@@ -620,11 +620,7 @@ else c)
 else r)|},
         );
       let sel_text =
-        Printer.of_segment(
-          ~holes="?",
-          ~indent=" ",
-          z.selection.content,
-        );
+        Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
       let z_cut =
         [Action.Destruct(Right)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
@@ -632,9 +628,7 @@ else r)|},
         [Action.Paste(sel_text)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
       if (Test_Editing.zip_has_incomplete(z_pasted)) {
-        Alcotest.fail(
-          "Cut+paste round trip left incomplete tiles",
-        );
+        Alcotest.fail("Cut+paste round trip left incomplete tiles");
       };
     },
   ),
@@ -648,11 +642,7 @@ else r)|},
           {|if true §then if false then 1¦ else 2 else 3|},
         );
       let sel_text =
-        Printer.of_segment(
-          ~holes="?",
-          ~indent=" ",
-          z.selection.content,
-        );
+        Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
       let z_cut =
         [Action.Destruct(Right)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
@@ -690,11 +680,7 @@ else r)|},
         sel_l(15)
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
       let sel_text =
-        Printer.of_segment(
-          ~holes="?",
-          ~indent=" ",
-          z_sel.selection.content,
-        );
+        Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
       let z_cut =
         [Action.Destruct(Right)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
@@ -702,9 +688,7 @@ else r)|},
         [Action.Paste(sel_text)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
       if (Test_Editing.zip_has_incomplete(z_pasted)) {
-        Alcotest.fail(
-          "Triply nested if cut+paste left incomplete tiles",
-        );
+        Alcotest.fail("Triply nested if cut+paste left incomplete tiles");
       };
     },
   ),
@@ -715,9 +699,7 @@ else r)|},
       let sel_l = (n: int): list(Action.t) =>
         List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
       let z =
-        Test_Editing.mk(
-          "if true then let x = 1 in x¦ else 0",
-        )
+        Test_Editing.mk("if true then let x = 1 in x¦ else 0")
         |> Test_Editing.perform(
              ~settings=deep_reassociate_settings,
              Zipper.init(),
@@ -727,11 +709,7 @@ else r)|},
         sel_l(13)
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
       let sel_text =
-        Printer.of_segment(
-          ~holes="?",
-          ~indent=" ",
-          z_sel.selection.content,
-        );
+        Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
       let z_cut =
         [Action.Destruct(Right)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
@@ -739,9 +717,7 @@ else r)|},
         [Action.Paste(sel_text)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
       if (Test_Editing.zip_has_incomplete(z_pasted)) {
-        Alcotest.fail(
-          "If containing let cut+paste left incomplete tiles",
-        );
+        Alcotest.fail("If containing let cut+paste left incomplete tiles");
       };
     },
   ),
@@ -752,9 +728,7 @@ else r)|},
       let sel_l = (n: int): list(Action.t) =>
         List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
       let z =
-        Test_Editing.mk(
-          "fun x -> if true then let y = 1 in y¦ else 0",
-        )
+        Test_Editing.mk("fun x -> if true then let y = 1 in y¦ else 0")
         |> Test_Editing.perform(
              ~settings=deep_reassociate_settings,
              Zipper.init(),
@@ -764,11 +738,7 @@ else r)|},
         sel_l(19)
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
       let sel_text =
-        Printer.of_segment(
-          ~holes="?",
-          ~indent=" ",
-          z_sel.selection.content,
-        );
+        Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
       let z_cut =
         [Action.Destruct(Right)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
@@ -776,12 +746,61 @@ else r)|},
         [Action.Paste(sel_text)]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
       if (Test_Editing.zip_has_incomplete(z_pasted)) {
+        Alcotest.fail("Fun/if/let cut+paste left incomplete tiles");
+      };
+    },
+  ),
+];
+
+let comment_toggle_reassociate_tests = [
+  test_case(
+    "Comment toggle roundtrip on cross-scope selection (mapi/fun/if)",
+    `Quick,
+    () => {
+      /* Same cross-scope selection as the cut+paste test:
+       * from §then through plant¦. Comment those lines,
+       * then uncomment, then clear selection. */
+      let z =
+        Test_Editing.mk_zipper(
+          ~settings=deep_reassociate_settings,
+          {|fun (grove, row, col, plant) ->
+mapi(grove, fun (i, r) ->
+if i == row
+§then
+mapi(r, fun (j, c) ->
+if i == col
+then plant¦
+else c)
+else r)|},
+        );
+      /* Comment the selected lines */
+      let z_commented =
+        [Action.ToggleLineComment]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      /* Uncomment the selected lines */
+      let z_uncommented =
+        [Action.ToggleLineComment]
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             z_commented,
+           );
+      /* Clear selection by moving */
+      let z_cleared =
+        [Action.Move(Local(Left, ByChar))]
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             z_uncommented,
+           );
+      if (Test_Editing.zip_has_incomplete(z_cleared)) {
         Alcotest.fail(
-          "Fun/if/let cut+paste left incomplete tiles",
+          "Comment toggle roundtrip left incomplete tiles after clearing selection",
         );
       };
     },
   ),
 ];
 
-let tests = [("Editing.DeepReassociate", deep_reassociate_tests)];
+let tests = [
+  ("Editing.DeepReassociate", deep_reassociate_tests),
+  ("Editing.CommentToggleReassociate", comment_toggle_reassociate_tests),
+];
