@@ -832,9 +832,7 @@ let wrap_reassociate_tests = [
              z_wrapped,
            );
       if (Test_Editing.zip_has_incomplete(z_cleared)) {
-        Alcotest.fail(
-          "Wrapping closing paren left incomplete tiles",
-        );
+        Alcotest.fail("Wrapping closing paren left incomplete tiles");
       };
     },
   ),
@@ -864,9 +862,7 @@ let wrap_reassociate_tests = [
              z_wrapped,
            );
       if (Test_Editing.zip_has_incomplete(z_cleared)) {
-        Alcotest.fail(
-          "Wrapping closing bracket left incomplete tiles",
-        );
+        Alcotest.fail("Wrapping closing bracket left incomplete tiles");
       };
     },
   ),

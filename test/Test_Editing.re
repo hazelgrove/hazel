@@ -85,9 +85,7 @@ let mk = (init: string): list(Action.t) => {
    * Does not support § — use mk_zipper for selections. */
   let chars = Token.to_list(init);
   if (List.exists(c => c == selection_char, chars)) {
-    Alcotest.fail(
-      "mk() does not support §. Use mk_zipper(): " ++ init,
-    );
+    Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
   };
   let rec split =
           (before: list(string), rest: list(string))
@@ -117,8 +115,7 @@ let mk = (init: string): list(Action.t) => {
  * 2. Build zippers from both via mk + perform
  * 3. Get Point.t coordinates from each via Measured
  * 4. Apply Select(PointToPoint) to create the selection */
-let mk_zipper =
-    (~settings=default_settings, init: string): Zipper.t => {
+let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
   let chars = Token.to_list(init);
   let has_anchor = List.exists(c => c == selection_char, chars);
   if (!has_anchor) {
@@ -129,17 +126,19 @@ let mk_zipper =
     let version_a =
       chars
       |> List.map(c =>
-           if (c == selection_char) {caret_char}
-           else if (c == caret_char) {""}
-           else {c}
+           if (c == selection_char) {
+             caret_char;
+           } else if (c == caret_char) {
+             "";
+           } else {
+             c;
+           }
          )
       |> List.filter(c => c != "")
       |> Token.of_list;
     /* version_b: remove §, keep ¦ */
     let version_b =
-      chars
-      |> List.filter(c => c != selection_char)
-      |> Token.of_list;
+      chars |> List.filter(c => c != selection_char) |> Token.of_list;
     /* Build zippers */
     let z_a = mk(version_a) |> perform(~settings, Zipper.init());
     let z_b = mk(version_b) |> perform(~settings, Zipper.init());
@@ -1015,7 +1014,12 @@ let selection_tests = [
     () => {
       let z = mk_zipper({|let x = §1 in¦ x|});
       let goal = {|let x = §1 in¦ x|};
-      check(testable(Fmt.string, String.equal), goal, goal, printer_indented(z));
+      check(
+        testable(Fmt.string, String.equal),
+        goal,
+        goal,
+        printer_indented(z),
+      );
     },
   ),
   test_case(
@@ -1024,48 +1028,46 @@ let selection_tests = [
     () => {
       let z = mk_zipper({|let x = ¦1 in§ x|});
       let goal = {|let x = ¦1 in§ x|};
-      check(testable(Fmt.string, String.equal), goal, goal, printer_indented(z));
+      check(
+        testable(Fmt.string, String.equal),
+        goal,
+        goal,
+        printer_indented(z),
+      );
     },
   ),
   test_case(
     "mk_zipper: multi-line let selection",
     `Quick,
     () => {
-      let z =
-        mk_zipper(
-          {|let x = 1 in
+      let z = mk_zipper({|let x = 1 in
 §let y = 2 in¦
-x + y|},
-        );
+x + y|});
       let goal = {|let x = 1 in
 §let y = 2 in¦
 x + y|};
-      check(testable(Fmt.string, String.equal), goal, goal, printer_indented(z));
+      check(
+        testable(Fmt.string, String.equal),
+        goal,
+        goal,
+        printer_indented(z),
+      );
     },
   ),
   test_case(
     "mk_zipper: multi-line if/then/else selection",
     `Quick,
     () => {
-      let z =
-        mk_zipper(
-          {|if a then
+      let z = mk_zipper({|if a then
 §fun b ->
 if c then d ¦else e
-else f|},
-        );
+else f|});
       let result = printer_indented(z);
       /* Check selection was created (has both markers) */
       let has_anchor =
-        List.exists(
-          c => c == selection_char,
-          Token.to_list(result),
-        );
+        List.exists(c => c == selection_char, Token.to_list(result));
       let has_caret =
-        List.exists(
-          c => c == caret_char,
-          Token.to_list(result),
-        );
+        List.exists(c => c == caret_char, Token.to_list(result));
       if (!has_anchor || !has_caret) {
         Alcotest.fail("mk_zipper failed to create selection");
       };
