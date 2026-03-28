@@ -324,7 +324,7 @@ let delimiter_label = (char: string): Label.t =>
 
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
  * as an ancestor with the content inside, retaining the selection. */
-let wrap_balanced = (char: string, z: t): t => {
+let wrap_balanced = (~deep_reassociate=false, char: string, z: t): t => {
   let content = z.selection.content;
   let sort = Relatives.sort(z.relatives);
   let (left_sibs, right_sibs) = z.relatives.siblings;
@@ -370,6 +370,7 @@ let wrap_balanced = (char: string, z: t): t => {
     },
   };
   let z = remold_regrout(Right, z);
+  let z = deep_reassociate ? Reassociate.go(z) : z;
   let right = snd(z.relatives.siblings);
   {
     ...z,
@@ -427,18 +428,22 @@ let wrap_quote = (char: string, z: t): option(t) => {
 
 /* Try to wrap selection in a delimiter. Returns Some if wrapping
  * occurred, None to fall through to normal insert behavior. */
-let try_wrap_selection = (char: string, z: t): option(t) =>
+let try_wrap_selection =
+    (~deep_reassociate=false, char: string, z: t): option(t) =>
   if (is_opening_delimiter(char)) {
-    Some(wrap_balanced(char, z));
+    Some(wrap_balanced(~deep_reassociate, char, z));
   } else if (Token.is_string_or_comment_delim(char)) {
     wrap_quote(char, z);
   } else {
     None;
   };
 
-let go = (char: string, z: t): option(t) => {
+let go = (~deep_reassociate=false, char: string, z: t): option(t) => {
   /* If there's a selection, try wrapping before falling through */
-  switch (z.selection.content != [] ? try_wrap_selection(char, z) : None) {
+  switch (
+    z.selection.content != []
+      ? try_wrap_selection(~deep_reassociate, char, z) : None
+  ) {
   | Some(z) => Some(z)
   | None =>
     /* Normal path: delete selection (if any) before proceeding */
@@ -482,8 +487,15 @@ let go_inner = go;
 
 /* This is a wrapper intended to effectuate after-insertion conditional
  * operations. See Triggers.re for more details */
-let go = (~ci: option(Language.Info.t)=None, char: string, z: t): option(t) => {
-  let+ z = go(char, z);
+let go =
+    (
+      ~deep_reassociate=false,
+      ~ci: option(Language.Info.t)=None,
+      char: string,
+      z: t,
+    )
+    : option(t) => {
+  let+ z = go(~deep_reassociate, char, z);
   let z = Triggers.insert(~ci, z);
   Zipper.rescan_reassemble(Left, z);
 };

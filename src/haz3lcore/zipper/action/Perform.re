@@ -145,7 +145,11 @@ let go =
     Destruct.go(d, z) |> Option.map(maybe_reassoc) |> return(Cant_destruct)
   | Insert(char) =>
     z
-    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
+    |> Insert.go(
+         ~deep_reassociate=settings.deep_reassociate,
+         char,
+         ~ci=Indicated.ci_of(z, statics.info_map),
+       )
     |> Option.map(maybe_reassoc)
     |> return(Cant_insert)
   | Put_down =>

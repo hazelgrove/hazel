@@ -800,7 +800,80 @@ else r)|},
   ),
 ];
 
+let wrap_reassociate_tests = [
+  test_case(
+    "Wrap closing paren in parens reassociates",
+    `Quick,
+    () => {
+      /* (1, 2, §3)¦) — select "3)" and wrap in parens.
+       * The inserted ( should pair with existing ),
+       * and inserted ) should pair with existing (. */
+      let sel_l = (n: int): list(Action.t) =>
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+      let z =
+        Test_Editing.mk("(1, 2, 3)¦")
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      /* Select left 2 pieces to cover "3)" */
+      let z_sel =
+        sel_l(2)
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      /* Wrap selection in parens */
+      let z_wrapped =
+        [Action.Insert("(")]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
+      /* Clear selection */
+      let z_cleared =
+        [Action.Move(Local(Left, ByChar))]
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             z_wrapped,
+           );
+      if (Test_Editing.zip_has_incomplete(z_cleared)) {
+        Alcotest.fail(
+          "Wrapping closing paren left incomplete tiles",
+        );
+      };
+    },
+  ),
+  test_case(
+    "Wrap closing bracket in brackets reassociates",
+    `Quick,
+    () => {
+      /* [1, 2, §3]¦] — select "3]" and wrap in brackets. */
+      let sel_l = (n: int): list(Action.t) =>
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+      let z =
+        Test_Editing.mk("[1, 2, 3]¦")
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      let z_sel =
+        sel_l(2)
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      let z_wrapped =
+        [Action.Insert("[")]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
+      let z_cleared =
+        [Action.Move(Local(Left, ByChar))]
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             z_wrapped,
+           );
+      if (Test_Editing.zip_has_incomplete(z_cleared)) {
+        Alcotest.fail(
+          "Wrapping closing bracket left incomplete tiles",
+        );
+      };
+    },
+  ),
+];
+
 let tests = [
   ("Editing.DeepReassociate", deep_reassociate_tests),
   ("Editing.CommentToggleReassociate", comment_toggle_reassociate_tests),
+  ("Editing.WrapReassociate", wrap_reassociate_tests),
 ];
