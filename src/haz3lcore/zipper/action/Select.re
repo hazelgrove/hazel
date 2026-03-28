@@ -14,6 +14,235 @@ let local = (d: Direction.t, z: t): option(t) =>
     z |> Zipper.Caret.set(Outer) |> Zipper.select(d);
   };
 
+/* Max inner index for a piece (Token.length - 2, or None for non-tokens / single-char) */
+let piece_max_idx = (p: Piece.t): option(int) => {
+  let* tok = Piece.token_of(p);
+  let max_idx = Token.length(tok) - 2;
+  max_idx < 0 ? None : Some(max_idx);
+};
+
+/* Get the focus-side boundary piece from selection content */
+let focus_boundary_piece = (z: Zipper.t): option(Piece.t) =>
+  switch (z.selection.focus) {
+  | Left => ListUtil.hd_opt(z.selection.content)
+  | Right => ListUtil.last_opt(z.selection.content)
+  };
+
+/* Get the anchor-side boundary piece from selection content */
+let anchor_boundary_piece = (z: Zipper.t): option(Piece.t) =>
+  switch (z.selection.focus) {
+  | Left => ListUtil.last_opt(z.selection.content)
+  | Right => ListUtil.hd_opt(z.selection.content)
+  };
+
+/* Get the next piece in siblings in the focus direction */
+let next_sibling_piece = (z: Zipper.t): option(Piece.t) =>
+  Siblings.neighbor(z.selection.focus, z.relatives.siblings);
+
+/* Character-level selection: grow the selection by one character in
+ * direction d. Uses anchor_caret to track partial tokens at the
+ * anchor end of the selection. */
+let rec local_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  let is_growing =
+    Selection.is_empty(z.selection) || d == z.selection.focus;
+
+  if (is_growing) {
+    grow_by_char(d, z);
+  } else {
+    shrink_by_char(d, z);
+  };
+}
+
+and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  let is_empty = Selection.is_empty(z.selection);
+  /* Ensure focus direction matches growth direction */
+  let z =
+    if (is_empty) {
+      {...z, selection: {...z.selection, focus: d}};
+    } else {
+      z;
+    };
+
+  switch (z.caret) {
+  | Inner(n) when is_empty =>
+    /* Starting a new selection from inside a token.
+     * The token is the right sibling. We need to pop it into
+     * selection and set anchor_caret to remember our start. */
+    let max_idx =
+      switch (Siblings.neighbor(Right, z.relatives.siblings)) {
+      | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
+      | None => 0
+      };
+    switch (d) {
+    | Right =>
+      /* Growing right: focus=Right, pop from right siblings */
+      let+ z = Zipper.grow_selection({...z, caret: Outer});
+      let z = {
+        ...z,
+        selection: {...z.selection, anchor_caret: Anchor_inner(n)},
+      };
+      n < max_idx
+        ? Zipper.Caret.set(Inner(n + 1), z)
+        : Zipper.Caret.set(Outer, z);
+    | Left =>
+      /* Growing left: focus=Left. Token is on right, so move it
+       * to left first, then pop it into selection from left. */
+      let+ z =
+        {
+          ...z,
+          caret: Outer,
+          selection: {...z.selection, focus: Left},
+        }
+        |> Zipper.move(Right)
+        |> OptUtil.and_then(z => Zipper.grow_selection(z));
+      let z = {
+        ...z,
+        selection: {...z.selection, anchor_caret: Anchor_inner(n)},
+      };
+      n > 0
+        ? Zipper.Caret.set(Inner(n - 1), z)
+        : Zipper.Caret.set(Outer, z);
+    };
+
+  | Inner(n) =>
+    /* Already have a selection, caret is inside the focus-side
+     * boundary piece of the selection content (via sibs_with_sel).
+     * focus=Right means caret advances rightward (n+1),
+     * focus=Left means caret advances leftward (n-1). */
+    let max_idx =
+      switch (focus_boundary_piece(z)) {
+      | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
+      | None => 0
+      };
+    switch (z.selection.focus) {
+    | Right when n < max_idx =>
+      Some(Zipper.Caret.set(Inner(n + 1), z))
+    | Right => Some(Zipper.Caret.set(Outer, z))
+    | Left when n > 0 =>
+      Some(Zipper.Caret.set(Inner(n - 1), z))
+    | Left => Some(Zipper.Caret.set(Outer, z))
+    };
+
+  | Outer =>
+    /* At a piece boundary. Look at what's ahead in the focus direction. */
+    let ahead = Siblings.neighbor(d, z.relatives.siblings);
+    switch (ahead) {
+    | None => None /* At edge of program */
+    | Some(p) =>
+      switch (piece_max_idx(p)) {
+      | None =>
+        /* Single-char or non-token piece (grout, whitespace): select whole piece */
+        Zipper.select(d, z)
+      | Some(max_idx) =>
+        /* Multi-char token: consume it into selection, then set Inner
+         * to indicate we're only one char into it */
+        let+ z = Zipper.select(d, z);
+        switch (d) {
+        | Right => Zipper.Caret.set(Inner(0), z)
+        | Left => Zipper.Caret.set(Inner(max_idx), z)
+        };
+      }
+    };
+  };
+}
+
+and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  /* Shrinking: d is opposite to focus direction.
+   * We're pulling the focus end back towards the anchor. */
+  switch (z.caret) {
+  | Inner(n) =>
+    /* Focus is inside a token. Move one char back towards anchor. */
+    let at_crossover = {
+      /* Would this step cross the anchor position? */
+      let sel = z.selection;
+      switch (sel.content) {
+      | [_single] =>
+        /* Single piece in selection — check if we'd meet the anchor */
+        switch (sel.anchor_caret) {
+        | Anchor_outer =>
+          /* Anchor is at piece boundary. Crossing happens when we'd
+           * go past the last inner position towards the anchor side. */
+          switch (d) {
+          | Left => n == 0
+          | Right =>
+            let max =
+              switch (focus_boundary_piece(z)) {
+              | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
+              | None => 0
+              };
+            n == max;
+          }
+        | Anchor_inner(an) =>
+          /* Anchor is also inside this token */
+          switch (d) {
+          | Left => n == an + 1 || n == an
+          | Right => n == an - 1 || n == an
+          }
+        };
+      | _ => false /* Multiple pieces: can't crossover yet */
+      };
+    };
+
+    if (at_crossover) {
+      /* Selection becomes empty. Restore caret to anchor position. */
+      let anchor_caret = z.selection.anchor_caret;
+      let z = Zipper.unselect(z);
+      switch (anchor_caret) {
+      | Anchor_outer =>
+        /* The anchor was at the boundary, so after unselect caret
+         * should be Outer at that boundary */
+        Some(z)
+      | Anchor_inner(an) =>
+        Some(Zipper.Caret.set(Inner(an), z))
+      };
+    } else {
+      /* Not at crossover: move one position towards anchor */
+      switch (d) {
+      | Left when n > 0 => Some(Zipper.Caret.set(Inner(n - 1), z))
+      | Right =>
+        let max =
+          switch (focus_boundary_piece(z)) {
+          | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
+          | None => 0
+          };
+        n < max
+          ? Some(Zipper.Caret.set(Inner(n + 1), z))
+          : {
+            /* At the edge of the focus-side piece. Pop it from selection
+             * back to siblings, then continue at Outer. */
+            Zipper.shrink_selection(z);
+          }
+      | Left =>
+        /* n == 0 but not at crossover means there are more pieces.
+         * Pop the focus-side piece back to siblings. */
+        Zipper.shrink_selection(z)
+      };
+    };
+
+  | Outer =>
+    /* Focus is at a piece boundary. Look at the focus-side boundary
+     * piece in the selection to see if we should enter it. */
+    switch (focus_boundary_piece(z)) {
+    | None =>
+      /* Empty selection — toggle and grow */
+      let selection = Selection.toggle_focus(z.selection);
+      grow_by_char(d, {...z, selection});
+    | Some(p) =>
+      switch (piece_max_idx(p)) {
+      | None =>
+        /* Single-char / non-token piece: shrink by whole piece */
+        Zipper.shrink_selection(z)
+      | Some(max_idx) =>
+        /* Multi-char token: enter it from the focus side */
+        switch (d) {
+        | Left => Some(Zipper.Caret.set(Inner(max_idx), z))
+        | Right => Some(Zipper.Caret.set(Inner(0), z))
+        };
+      }
+    };
+  };
+};
+
 /* Basic term selection uses term data, which is out of date
  * with the parsing logic which makes list listerals. We also
  * treat tuples as including the parens (if any), though this

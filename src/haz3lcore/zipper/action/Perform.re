@@ -83,8 +83,10 @@ let go =
     |> return(Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
   | Unselect(None) => Ok(Zipper.unselect(z))
-  | Select(Resize(Local(d, _))) =>
+  | Select(Resize(Local(d, ByToken))) =>
     Select.local(d, z) |> return(Cant_select)
+  | Select(Resize(Local(d, ByChar))) =>
+    Select.local_by_char(d, z) |> return(Cant_select)
   | Select(Resize(Vertical(d))) =>
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),

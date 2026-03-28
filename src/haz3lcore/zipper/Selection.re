@@ -10,21 +10,38 @@ type mode =
   | Normal
   | Buffer(buffer);
 
+/* Anchor caret offset: None = Outer (piece boundary),
+ * Some(n) = Inner(n) (n chars into the anchor-side boundary piece).
+ * Mirrors ZipperBase.caret but avoids the dependency cycle. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type anchor_caret =
+  | Anchor_outer
+  | Anchor_inner(int);
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   focus: Direction.t,
   content: Segment.t,
   mode,
+  anchor_caret,
 };
 
 /* NOTE: backpack no longer uses selection focus */
-let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
+let mk =
+    (
+      ~mode=Normal,
+      ~focus=Direction.Left,
+      ~anchor_caret=Anchor_outer,
+      content: Segment.t,
+    ) => {
   focus,
   content,
   mode,
+  anchor_caret,
 };
 
-let mk_buffer = buffer => mk(~mode=Buffer(buffer), ~focus=Direction.Left);
+let mk_buffer = buffer =>
+  mk(~mode=Buffer(buffer), ~focus=Direction.Left, ~anchor_caret=Anchor_outer);
 
 let is_buffer: t => bool =
   fun
@@ -58,7 +75,7 @@ let toggle_focus = selection => {
 
 let is_empty = (selection: t) => selection.content == Segment.empty;
 
-let push = (p: Piece.t, {focus, content, mode}: t): t => {
+let push = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -70,29 +87,24 @@ let push = (p: Piece.t, {focus, content, mode}: t): t => {
     focus,
     content,
     mode,
+    anchor_caret,
   };
 };
 
-let pop = (sel: t): option((Piece.t, t)) =>
+let pop = (sel: t): option((Piece.t, t)) => {
+  let reset_anchor = (content: Segment.t, sel: t): t =>
+    content == []
+      ? {...sel, content, anchor_caret: Anchor_outer} : {...sel, content};
   switch (sel.focus, sel.content, ListUtil.split_last_opt(sel.content)) {
   | (_, [], _)
   | (_, _, None) => None
   | (Left, [p, ...content], _) =>
     let (p, rest) = Piece.pop_l(p);
-    Some((
-      p,
-      {
-        ...sel,
-        content: rest @ content,
-      },
-    ));
+    let content = rest @ content;
+    Some((p, reset_anchor(content, sel)));
   | (Right, _, Some((content, p))) =>
     let (rest, p) = Piece.pop_r(p);
-    Some((
-      p,
-      {
-        ...sel,
-        content: content @ rest,
-      },
-    ));
+    let content = content @ rest;
+    Some((p, reset_anchor(content, sel)));
   };
+};

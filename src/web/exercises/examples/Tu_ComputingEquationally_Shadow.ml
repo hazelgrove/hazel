@@ -19,7 +19,7 @@ let exercise : Tutorial.spec =
     version = 3;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -32,7 +32,7 @@ let exercise : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
             relatives =
               {
                 siblings =
@@ -161,7 +161,7 @@ let shadow_exercise : Tutorial.spec =
     version = 7;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -174,7 +174,7 @@ let shadow_exercise : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
             relatives =
               {
                 siblings =

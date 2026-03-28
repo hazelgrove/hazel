@@ -2726,14 +2726,14 @@ let wrap_selection_tests = [
     ~goal={|(§(1 + 2)¦)|},
   ),
   test(
-    ~name="Wrap multi-token selection in parens via char select",
+    ~name="Wrap multi-token selection in parens via token select",
     ~acts=
       mk({|¦x + y|})
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
       @ [Action.Insert("(")],
     ~goal={|(§x + y¦)|},
   ),
@@ -3165,8 +3165,8 @@ let wrap_calculate_test = [
       let acts =
         mk({|(1)¦|})
         @ [
-          Action.Select(Resize(Local(Left, ByChar))),
-          Action.Select(Resize(Local(Left, ByChar))),
+          Action.Select(Resize(Local(Left, ByToken))),
+          Action.Select(Resize(Local(Left, ByToken))),
           Action.Insert("("),
         ];
       let z = perform(Zipper.init(), acts);

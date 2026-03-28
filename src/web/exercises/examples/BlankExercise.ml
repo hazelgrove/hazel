@@ -9,7 +9,7 @@ let exercise : Exercise.spec =
       { test_validation = 0; mutation_testing = 0; impl_grading = 0 };
     prelude =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
         relatives =
           {
             siblings =
@@ -31,7 +31,7 @@ let exercise : Exercise.spec =
       };
     correct_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
         relatives =
           {
             siblings =
@@ -55,7 +55,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
             relatives =
               {
                 siblings =
@@ -80,7 +80,7 @@ let exercise : Exercise.spec =
       };
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
         relatives =
           {
             siblings =
@@ -105,7 +105,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
             relatives =
               {
                 siblings =

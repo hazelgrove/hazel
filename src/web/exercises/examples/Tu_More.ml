@@ -31,7 +31,7 @@ let bools_ex : Tutorial.spec =
     version = 8;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -44,7 +44,7 @@ let bools_ex : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
             relatives =
               {
                 siblings =
@@ -329,7 +329,7 @@ let cond_ex : Tutorial.spec =
     version = 9;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -342,7 +342,7 @@ let cond_ex : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
             relatives =
               {
                 siblings =
@@ -471,7 +471,7 @@ let func_ex : Tutorial.spec =
     version = 10;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -484,7 +484,7 @@ let func_ex : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
             relatives =
               {
                 siblings =
