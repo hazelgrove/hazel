@@ -483,6 +483,11 @@ let accept_candidate =
   };
 };
 
+/* Check if siblings still have incomplete multi-delimiter tiles
+   (top-level only, no child recursion). */
+let siblings_have_incomplete = ((pre, suf): Siblings.t): bool =>
+  has_incomplete_multi_deep(pre) || has_incomplete_multi_deep(suf);
+
 let go = (z: t): t =>
   switch (request_of_relatives(z.relatives)) {
   | None => z
@@ -500,6 +505,37 @@ let go = (z: t): t =>
         crack_siblings(siblings)
         |> Siblings.rescan
         |> repair_fresh_ids(fresh_map);
+      /* If the result still has incomplete multi-delimiter tiles and
+         there are unflattened outer ancestors, flatten them all and
+         retry. This handles cascading reassociation where completing
+         one layer reveals that an outer ancestor also needs work. */
+      let (siblings, affected_ancestors, outer_ancestors) =
+        if (siblings_have_incomplete(siblings) && outer_ancestors != []) {
+          let rec flatten_all = (siblings, affected_rev, ancestors, fm) =>
+            switch (ancestors) {
+            | [] => (siblings, List.rev(affected_rev), [], fm)
+            | [(ancestor, parent_sibs) as gen, ...rest] =>
+              let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
+              let (right_dis, fm) =
+                freshen_ancestor_shards(ancestor.id, fm, right_dis);
+              let siblings =
+                Siblings.concat([
+                  siblings,
+                  (left_dis, right_dis),
+                  parent_sibs,
+                ]);
+              flatten_all(siblings, [gen, ...affected_rev], rest, fm);
+            };
+          let (siblings, more_affected, outer, more_fresh) =
+            flatten_all(siblings, [], outer_ancestors, fresh_map);
+          let siblings =
+            crack_siblings(siblings)
+            |> Siblings.rescan
+            |> repair_fresh_ids(more_fresh);
+          (siblings, affected_ancestors @ more_affected, outer);
+        } else {
+          (siblings, affected_ancestors, outer_ancestors);
+        };
       let base_scope = {
         Relatives.siblings: z.relatives.siblings,
         ancestors: affected_ancestors,

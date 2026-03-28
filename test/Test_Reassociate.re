@@ -599,6 +599,157 @@ let deep_reassociate_tests = [
       };
     },
   ),
+  /* ---- Cut+paste round-trip tests ----
+   * These verify that selecting across scope boundaries, cutting,
+   * and pasting back produces no incomplete tiles. Each test
+   * uses sel_l(n) where n = number of pieces (tokens + spaces)
+   * to select leftward from the caret. */
+  test_case(
+    "Cut+paste cross-scope: doubly nested if",
+    `Quick,
+    () => {
+      let sel_l = (n: int): list(Action.t) =>
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+      let z =
+        Test_Editing.mk("if true then if false then 1¦ else 2 else 3")
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      /* 9 pieces: then _ if _ false _ then _ 1 */
+      let z_sel =
+        sel_l(9)
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      let sel_text =
+        Printer.of_segment(
+          ~holes="?",
+          ~indent=" ",
+          z_sel.selection.content,
+        );
+      let z_cut =
+        [Action.Destruct(Right)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
+      let z_pasted =
+        [Action.Paste(sel_text)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
+      if (Test_Editing.zip_has_incomplete(z_pasted)) {
+        Alcotest.fail(
+          "Doubly nested if cut+paste left incomplete tiles",
+        );
+      };
+    },
+  ),
+  test_case(
+    "Cut+paste cross-scope: triply nested if",
+    `Quick,
+    () => {
+      let sel_l = (n: int): list(Action.t) =>
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+      let z =
+        Test_Editing.mk(
+          "if a then if b then if c then 1¦ else 2 else 3 else 4",
+        )
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      /* 15 pieces: then _ if _ b _ then _ if _ c _ then _ 1 */
+      let z_sel =
+        sel_l(15)
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      let sel_text =
+        Printer.of_segment(
+          ~holes="?",
+          ~indent=" ",
+          z_sel.selection.content,
+        );
+      let z_cut =
+        [Action.Destruct(Right)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
+      let z_pasted =
+        [Action.Paste(sel_text)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
+      if (Test_Editing.zip_has_incomplete(z_pasted)) {
+        Alcotest.fail(
+          "Triply nested if cut+paste left incomplete tiles",
+        );
+      };
+    },
+  ),
+  test_case(
+    "Cut+paste cross-scope: if containing let",
+    `Quick,
+    () => {
+      let sel_l = (n: int): list(Action.t) =>
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+      let z =
+        Test_Editing.mk(
+          "if true then let x = 1 in x¦ else 0",
+        )
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      /* 13 pieces: then _ let _ x _ = _ 1 _ in _ x */
+      let z_sel =
+        sel_l(13)
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      let sel_text =
+        Printer.of_segment(
+          ~holes="?",
+          ~indent=" ",
+          z_sel.selection.content,
+        );
+      let z_cut =
+        [Action.Destruct(Right)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
+      let z_pasted =
+        [Action.Paste(sel_text)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
+      if (Test_Editing.zip_has_incomplete(z_pasted)) {
+        Alcotest.fail(
+          "If containing let cut+paste left incomplete tiles",
+        );
+      };
+    },
+  ),
+  test_case(
+    "Cut+paste cross-scope: fun containing if containing let",
+    `Quick,
+    () => {
+      let sel_l = (n: int): list(Action.t) =>
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+      let z =
+        Test_Editing.mk(
+          "fun x -> if true then let y = 1 in y¦ else 0",
+        )
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      /* 19 pieces: -> _ if _ true _ then _ let _ y _ = _ 1 _ in _ y */
+      let z_sel =
+        sel_l(19)
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
+      let sel_text =
+        Printer.of_segment(
+          ~holes="?",
+          ~indent=" ",
+          z_sel.selection.content,
+        );
+      let z_cut =
+        [Action.Destruct(Right)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
+      let z_pasted =
+        [Action.Paste(sel_text)]
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z_cut);
+      if (Test_Editing.zip_has_incomplete(z_pasted)) {
+        Alcotest.fail(
+          "Fun/if/let cut+paste left incomplete tiles",
+        );
+      };
+    },
+  ),
 ];
 
 let tests = [("Editing.DeepReassociate", deep_reassociate_tests)];
