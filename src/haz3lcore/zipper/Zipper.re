@@ -501,15 +501,38 @@ module Caret = {
       }
     };
 
+  /* Compute inner offset using a known token (avoids generalized_neighbor
+   * which unselects and gives wrong results during char-level selection). */
+  let inner_offset_for_token = (idx: int, token: Token.t): int =>
+    Token.is_string(token) ? string_offset(token, idx) : idx + 1;
+
   /* Grid position of the caret */
   /* Convert a caret to a concrete grid point for rendering and hit testing. */
-  let point = (measured: Measured.t, z: t): Point.t => {
-    let Point.{row, col} = base_point(measured, z);
-    {
-      row,
-      col: col + offset(z),
+  let point = (measured: Measured.t, z: t): Point.t =>
+    switch (z.caret, z.selection.content) {
+    | (Inner(idx), [_, ..._]) =>
+      /* Char-level selection: caret is inside the focus-side boundary
+       * piece of the selection. Inner(n) always indexes left-to-right
+       * from the token's origin, regardless of focus direction. */
+      let focus_piece =
+        switch (z.selection.focus) {
+        | Right => ListUtil.last(z.selection.content)
+        | Left => List.hd(z.selection.content)
+        };
+      let seg = Piece.disassemble(focus_piece);
+      /* Always use the first shard to get origin */
+      let p = List.hd(seg);
+      let m = Measured.find_p(~msg="caret_point_charsel", p, measured);
+      let offset =
+        switch (Piece.token_of(focus_piece)) {
+        | Some(tok) => inner_offset_for_token(idx, tok)
+        | None => idx + 1
+        };
+      {row: m.origin.row, col: m.origin.col + offset};
+    | _ =>
+      let Point.{row, col} = base_point(measured, z);
+      {row, col: col + offset(z)};
     };
-  };
 
   type t = ZipperBase.caret;
 };
@@ -611,24 +634,43 @@ let do_towards_point =
 let selection_anchor_point = (measured, z: t): option(Point.t) => {
   switch (z.selection) {
   | {content: [], _} => None
-  | {content, focus: Right, _} =>
-    Some(
-      Measured.find_p(
-        ~msg="selection_anchor_point",
-        List.hd(content),
-        measured,
-      ).
-        origin,
-    )
-  | {content, focus: Left, _} =>
-    Some(
-      Measured.find_p(
-        ~msg="selection_anchor_point",
-        ListUtil.last(content),
-        measured,
-      ).
-        last,
-    )
+  | {content, focus: Right, anchor_caret, _} =>
+    /* Anchor is at the LEFT end (focus is Right, so anchor is Left) */
+    let anchor_piece = List.hd(content);
+    let seg = Piece.disassemble(anchor_piece);
+    let p = List.hd(seg);
+    let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
+    switch (anchor_caret) {
+    | Anchor_outer => Some(m.origin)
+    | Anchor_inner(idx) =>
+      /* Inner(idx) is always left-to-right: origin + (idx+1) */
+      let offset =
+        switch (Piece.token_of(anchor_piece)) {
+        | Some(tok) => Caret.inner_offset_for_token(idx, tok)
+        | None => idx + 1
+        };
+      Some({row: m.origin.row, col: m.origin.col + offset});
+    };
+  | {content, focus: Left, anchor_caret, _} =>
+    /* Anchor is at the RIGHT end (focus is Left, so anchor is Right) */
+    let anchor_piece = ListUtil.last(content);
+    let seg = Piece.disassemble(anchor_piece);
+    let p = ListUtil.last(seg);
+    let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
+    switch (anchor_caret) {
+    | Anchor_outer => Some(m.last)
+    | Anchor_inner(idx) =>
+      /* Inner(idx) is always left-to-right from origin */
+      let offset =
+        switch (Piece.token_of(anchor_piece)) {
+        | Some(tok) => Caret.inner_offset_for_token(idx, tok)
+        | None => idx + 1
+        };
+      let p_first = List.hd(seg);
+      let m_first =
+        Measured.find_p(~msg="selection_anchor_point_origin", p_first, measured);
+      Some({row: m_first.origin.row, col: m_first.origin.col + offset});
+    };
   };
 };
 

@@ -3182,6 +3182,80 @@ let wrap_calculate_test = [
   ),
 ];
 
+/* Test helpers for char-level selection */
+let sel_r = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, ByChar))));
+
+let sel_l = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+
+let char_selection_tests = [
+  /* A. Intra-token selections */
+  test(
+    ~name="Select 1 char right from start of identifier",
+    ~acts=mk({|¦hello|}) @ sel_r(1),
+    ~goal={|§h¦ello|},
+  ),
+  test(
+    ~name="Select 2 chars right from start of identifier",
+    ~acts=mk({|¦hello|}) @ sel_r(2),
+    ~goal={|§he¦llo|},
+  ),
+  test(
+    ~name="Select entire single-char token",
+    ~acts=mk({|¦1 + 2|}) @ sel_r(1),
+    ~goal={|§1¦ + 2|},
+  ),
+  test(
+    ~name="Select single-char token then space",
+    ~acts=mk({|¦1 + 2|}) @ sel_r(2),
+    ~goal={|§1 ¦+ 2|},
+  ),
+  test(
+    ~name="Select across multiple single-char tokens",
+    ~acts=mk({|¦1 + 2|}) @ sel_r(5),
+    ~goal={|§1 + 2¦|},
+  ),
+  /* B. Starting from Inner caret */
+  test(
+    ~name="Select 1 char right from inner caret",
+    ~acts=mk({|he¦llo|}) @ sel_r(1),
+    ~goal={|he§l¦lo|},
+  ),
+  test(
+    ~name="Select 2 chars right from inner caret",
+    ~acts=mk({|he¦llo|}) @ sel_r(2),
+    ~goal={|he§ll¦o|},
+  ),
+  test(
+    ~name="Select 1 char left from inner caret",
+    ~acts=mk({|hel¦lo|}) @ sel_l(1),
+    ~goal={|he¦l§lo|},
+  ),
+  /* C. Grow then shrink (round-trip) */
+  test(
+    ~name="Grow right 2 then shrink left 2 returns to start",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ sel_l(2),
+    ~goal={|he¦llo|},
+  ),
+  test(
+    ~name="Grow right 1 then shrink left 1 returns to start",
+    ~acts=mk({|¦hello|}) @ sel_r(1) @ sel_l(1),
+    ~goal={|¦hello|},
+  ),
+  /* D. Edge cases */
+  test(
+    ~name="Select over grout (single char, no inner)",
+    ~acts=mk({|1 + ¦? + 2|}) @ sel_r(1),
+    ~goal={|1 + §?¦ + 2|},
+  ),
+  test(
+    ~name="Select at end of program",
+    ~acts=mk({|hello¦|}) @ sel_l(1),
+    ~goal={|hell¦o§|},
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -3201,4 +3275,5 @@ let tests = [
   ("Editing.CommentRemold", comment_remold_tests),
   ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
   ("Editing.AncestorSort", ancestor_sort_tests),
+  ("Editing.CharSelection", char_selection_tests),
 ];

@@ -184,14 +184,15 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     };
 
     if (at_crossover) {
-      /* Selection becomes empty. Restore caret to anchor position. */
+      /* Selection becomes empty. Restore caret to anchor position.
+       * Use directional_unselect towards the anchor end (opposite
+       * of selection focus) so caret lands at the anchor side. */
       let anchor_caret = z.selection.anchor_caret;
-      let z = Zipper.unselect(z);
+      let anchor_dir = Direction.toggle(z.selection.focus);
+      let z =
+        Zipper.Caret.set(Outer, Zipper.directional_unselect(anchor_dir, z));
       switch (anchor_caret) {
-      | Anchor_outer =>
-        /* The anchor was at the boundary, so after unselect caret
-         * should be Outer at that boundary */
-        Some(z)
+      | Anchor_outer => Some(z)
       | Anchor_inner(an) =>
         Some(Zipper.Caret.set(Inner(an), z))
       };
