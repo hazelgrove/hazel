@@ -176,6 +176,26 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
     )
   );
 
+/* Test that the selected text (what would be copied to clipboard)
+ * matches the expected string. Prints the selection content and
+ * trims for char-level boundaries, mirroring the copy path. */
+let test_copy = (~name, ~z: Zipper.t, ~expected: string): test_case(_) =>
+  test_case(name, `Quick, () => {
+    let full =
+      Printer.of_segment(
+        ~holes=convex_char,
+        ~indent="",
+        z.selection.content,
+      );
+    let actual = Zipper.trim_selected_text(z, full);
+    check(
+      testable(Fmt.string, String.equal),
+      name,
+      expected,
+      actual,
+    );
+  });
+
 let test_with_settings = (~settings, ~name, ~acts, ~goal): test_case(_) =>
   test_case(name, `Quick, () =>
     check(
@@ -3466,6 +3486,42 @@ let char_selection_tests = [
     ~name="Grow left 3, shrink right 1 (stays in token)",
     ~acts=mk({|hel¦lo|}) @ sel_l(3) @ sel_r(1),
     ~goal={|h¦el§lo|},
+  ),
+  /* O. Copy text (selected_text_segment) */
+  test_copy(
+    ~name="Copy middle of token: ppl from apple",
+    ~z=mk_zipper({|a§ppl¦e|}),
+    ~expected="ppl",
+  ),
+  test_copy(
+    ~name="Copy suffix of token: ple from apple",
+    ~z=mk_zipper({|ap§ple¦|}),
+    ~expected="ple",
+  ),
+  test_copy(
+    ~name="Copy prefix of token: ap from apple",
+    ~z=mk_zipper({|§ap¦ple|}),
+    ~expected="ap",
+  ),
+  test_copy(
+    ~name="Copy entire token: apple",
+    ~z=mk_zipper({|§apple¦|}),
+    ~expected="apple",
+  ),
+  test_copy(
+    ~name="Copy single char from token: p from apple",
+    ~z=mk_zipper({|a§p¦ple|}),
+    ~expected="p",
+  ),
+  test_copy(
+    ~name="Copy cross-token: partial let + space + x",
+    ~z=mk_zipper({|l§et x¦ = 1 in x|}),
+    ~expected="et x",
+  ),
+  test_copy(
+    ~name="Copy whole token selection (anchor=Outer, caret=Outer)",
+    ~z=mk_zipper({|§apple¦|}),
+    ~expected="apple",
   ),
 ];
 

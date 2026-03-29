@@ -129,90 +129,6 @@ let mk_remainder_piece = (tok: Token.t): Piece.t =>
     children: [],
   });
 
-/* Return the selection content trimmed for char-level boundaries.
- * Boundary tokens are truncated to only the selected portion.
- * Used for clipboard text extraction (copy). */
-let selected_text_segment = (z: t): Segment.t => {
-  let content = z.selection.content;
-  if (Selection.is_empty(z.selection)) {
-    [];
-  } else {
-    let has_char_boundary =
-      z.selection.anchor_caret != Selection.Anchor_outer
-      || z.caret != Outer;
-    if (!has_char_boundary) {
-      content;
-    } else {
-      let (left_offset, right_offset) =
-        switch (z.selection.focus) {
-        | Right => (
-            switch (z.selection.anchor_caret) {
-            | Anchor_inner(n) => Some(n)
-            | Anchor_outer => None
-            },
-            switch (z.caret) {
-            | Inner(n) => Some(n)
-            | Outer => None
-            },
-          )
-        | Left => (
-            switch (z.caret) {
-            | Inner(n) => Some(n)
-            | Outer => None
-            },
-            switch (z.selection.anchor_caret) {
-            | Anchor_inner(n) => Some(n)
-            | Anchor_outer => None
-            },
-          )
-        };
-      /* Trim left boundary: remove the unselected prefix of the
-       * leftmost piece's first shard */
-      let content =
-        switch (left_offset) {
-        | None => content
-        | Some(n) =>
-          switch (content) {
-          | [] => []
-          | [p, ...rest] =>
-            let shard = List.hd(Piece.disassemble(p));
-            switch (Piece.token_of(shard)) {
-            | Some(tok) =>
-              let (_, selected) = Token.split_nth(tok, n + 1);
-              if (selected == "") {
-                rest;
-              } else {
-                [mk_remainder_piece(selected), ...rest];
-              };
-            | None => content
-            };
-          }
-        };
-      /* Trim right boundary: remove the unselected suffix of the
-       * rightmost piece's last shard */
-      switch (right_offset) {
-      | None => content
-      | Some(n) =>
-        switch (ListUtil.split_last_opt(content)) {
-        | None => []
-        | Some((init, p)) =>
-          let last_shard = ListUtil.last(Piece.disassemble(p));
-          switch (Piece.token_of(last_shard)) {
-          | Some(tok) =>
-            let (selected, _) = Token.split_nth(tok, n + 1);
-            if (selected == "") {
-              init;
-            } else {
-              init @ [mk_remainder_piece(selected)];
-            };
-          | None => content
-          };
-        }
-      };
-    };
-  };
-};
-
 let destroy_selection: t => t =
   z =>
     unselect({
@@ -836,6 +752,81 @@ module Caret = {
 
   type t = ZipperBase.caret;
 };
+
+/* Compute character offsets to trim from the left and right ends
+ * of the printed selection content string. Returns (left_chars_to_skip,
+ * right_chars_to_skip). */
+let selection_trim_offsets = (z: t): (int, int) => {
+  let left_trim = (inner_n, content, focus) => {
+    let p =
+      switch (focus: Direction.t) {
+      | Right => List.hd(content)
+      | Left => ListUtil.last(content)
+      };
+    let shard = List.hd(Piece.disassemble(p));
+    switch (Piece.token_of(shard)) {
+    | Some(tok) => Caret.inner_offset_for_token(inner_n, tok)
+    | None => 0
+    };
+  };
+  let right_trim = (inner_n, content, focus) => {
+    let p =
+      switch (focus: Direction.t) {
+      | Right => ListUtil.last(content)
+      | Left => List.hd(content)
+      };
+    let seg = Piece.disassemble(p);
+    let last_shard = ListUtil.last(seg);
+    switch (Piece.token_of(last_shard)) {
+    | Some(tok) =>
+      let tok_len = Unicode.length(tok);
+      tok_len - Caret.inner_offset_for_token(inner_n, tok);
+    | None => 0
+    };
+  };
+  let content = z.selection.content;
+  switch (z.selection.focus) {
+  | Right => (
+      switch (z.selection.anchor_caret) {
+      | Anchor_inner(n) => left_trim(n, content, Right)
+      | Anchor_outer => 0
+      },
+      switch (z.caret) {
+      | Inner(n) => right_trim(n, content, Right)
+      | Outer => 0
+      },
+    )
+  | Left => (
+      switch (z.caret) {
+      | Inner(n) => left_trim(n, content, Left)
+      | Outer => 0
+      },
+      switch (z.selection.anchor_caret) {
+      | Anchor_inner(n) => right_trim(n, content, Left)
+      | Anchor_outer => 0
+      },
+    )
+  };
+};
+
+/* Trim a printed selection string to account for char-level
+ * boundaries. Takes the full printed text of selection.content
+ * and trims characters from both ends as needed. */
+let trim_selected_text = (z: t, full: string): string =>
+  if (Selection.is_empty(z.selection)) {
+    "";
+  } else {
+    let (l, r) = selection_trim_offsets(z);
+    let total = Unicode.length(full);
+    let len = total - l - r;
+    if (len <= 0) {
+      "";
+    } else {
+      let (_, after_left) = Token.split_nth(full, l);
+      let (selected, _) = Token.split_nth(after_left, len);
+      selected;
+    };
+  };
 
 let do_towards_point =
     (
