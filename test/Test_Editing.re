@@ -3398,6 +3398,75 @@ let char_selection_tests = [
     ~acts=mk({|1¦ + 2|}) @ sel_r(3) @ [Destruct(Left)],
     ~goal={|1¦2|},
   ),
+  /* K. String literal edge cases */
+  test(
+    ~name="Select within string literal",
+    ~acts=mk({|"he¦llo"|}) @ sel_r(2),
+    ~goal={|"he§ll¦o"|},
+  ),
+  test(
+    ~name="Select entire string content char by char",
+    ~acts=mk({|"¦hello"|}) @ sel_r(5),
+    ~goal={|"§hello¦"|},
+  ),
+  test(
+    ~name="Select string including opening quote",
+    ~acts=mk({|¦"hello"|}) @ sel_r(1),
+    ~goal={|§"¦hello"|},
+  ),
+  test(
+    ~name="Delete within string literal",
+    ~acts=mk({|"he¦llo"|}) @ sel_r(2) @ [Destruct(Left)],
+    ~goal={|"he¦o"|},
+  ),
+  /* L. Multi-delimiter tile selections */
+  test(
+    ~name="Select part of let keyword",
+    ~acts=mk({|¦let x = 1 in x|}) @ sel_r(2),
+    ~goal={|§le¦t x = 1 in x|},
+  ),
+  test(
+    ~name="Select entire let keyword char by char",
+    ~acts=mk({|¦let x = 1 in x|}) @ sel_r(3),
+    ~goal={|§let¦ x = 1 in x|},
+  ),
+  test(
+    ~name="Select part of in keyword",
+    ~acts=mk({|let x = 1 i¦n x|}) @ sel_r(1),
+    ~goal={|let x = 1 i§n¦ x|},
+  ),
+  /* M. Nested structures */
+  test(
+    ~name="Select within nested let keyword",
+    ~acts=mk({|let x = (le¦t y = 1 in y) in x|}) @ sel_r(1),
+    ~goal={|let x = (le§t¦ y = 1 in y) in x|},
+  ),
+  test(
+    ~name="Select within number literal",
+    ~acts=mk({|let x = 12¦345 in x|}) @ sel_r(2),
+    ~goal={|let x = 12§34¦5 in x|},
+  ),
+  test(
+    ~name="Delete within number literal",
+    ~acts=mk({|let x = 12¦345 in x|}) @ sel_r(2) @ [Destruct(Left)],
+    ~goal={|let x = 12¦5 in x|},
+  ),
+  test(
+    ~name="Insert over partial number literal",
+    ~acts=mk({|let x = 12¦345 in x|}) @ sel_r(2) @ [Insert("9")],
+    ~goal={|let x = 129¦5 in x|},
+  ),
+  /* N. Grow past token boundary then shrink back within token */
+  test(
+    ~name="Grow right 3, shrink left 1 (stays in token)",
+    ~acts=mk({|he¦llo|}) @ sel_r(3) @ sel_l(1),
+    ~goal={|he§ll¦o|},
+  ),
+  test(
+    ~name="Grow left 3, shrink right 1 (stays in token)",
+    ~acts=mk({|hel¦lo|}) @ sel_l(3) @ sel_r(1),
+    ~goal={|h¦el§lo|},
+  ),
 ];
 
 let tests = [
