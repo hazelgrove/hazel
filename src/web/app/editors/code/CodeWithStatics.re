@@ -66,7 +66,7 @@ module Model = {
           Printer.of_segment(
             ~indent=" ",
             ~refractors=model.editor.state.zipper.refractors.manuals,
-            model.editor.state.zipper.selection.content,
+            Zipper.selected_text_segment(model.editor.state.zipper),
           ),
       ),
     selection: Some(model.editor.state.zipper.selection.content),

@@ -129,6 +129,90 @@ let mk_remainder_piece = (tok: Token.t): Piece.t =>
     children: [],
   });
 
+/* Return the selection content trimmed for char-level boundaries.
+ * Boundary tokens are truncated to only the selected portion.
+ * Used for clipboard text extraction (copy). */
+let selected_text_segment = (z: t): Segment.t => {
+  let content = z.selection.content;
+  if (Selection.is_empty(z.selection)) {
+    [];
+  } else {
+    let has_char_boundary =
+      z.selection.anchor_caret != Selection.Anchor_outer
+      || z.caret != Outer;
+    if (!has_char_boundary) {
+      content;
+    } else {
+      let (left_offset, right_offset) =
+        switch (z.selection.focus) {
+        | Right => (
+            switch (z.selection.anchor_caret) {
+            | Anchor_inner(n) => Some(n)
+            | Anchor_outer => None
+            },
+            switch (z.caret) {
+            | Inner(n) => Some(n)
+            | Outer => None
+            },
+          )
+        | Left => (
+            switch (z.caret) {
+            | Inner(n) => Some(n)
+            | Outer => None
+            },
+            switch (z.selection.anchor_caret) {
+            | Anchor_inner(n) => Some(n)
+            | Anchor_outer => None
+            },
+          )
+        };
+      /* Trim left boundary: remove the unselected prefix of the
+       * leftmost piece's first shard */
+      let content =
+        switch (left_offset) {
+        | None => content
+        | Some(n) =>
+          switch (content) {
+          | [] => []
+          | [p, ...rest] =>
+            let shard = List.hd(Piece.disassemble(p));
+            switch (Piece.token_of(shard)) {
+            | Some(tok) =>
+              let (_, selected) = Token.split_nth(tok, n + 1);
+              if (selected == "") {
+                rest;
+              } else {
+                [mk_remainder_piece(selected), ...rest];
+              };
+            | None => content
+            };
+          }
+        };
+      /* Trim right boundary: remove the unselected suffix of the
+       * rightmost piece's last shard */
+      switch (right_offset) {
+      | None => content
+      | Some(n) =>
+        switch (ListUtil.split_last_opt(content)) {
+        | None => []
+        | Some((init, p)) =>
+          let last_shard = ListUtil.last(Piece.disassemble(p));
+          switch (Piece.token_of(last_shard)) {
+          | Some(tok) =>
+            let (selected, _) = Token.split_nth(tok, n + 1);
+            if (selected == "") {
+              init;
+            } else {
+              init @ [mk_remainder_piece(selected)];
+            };
+          | None => content
+          };
+        }
+      };
+    };
+  };
+};
+
 let destroy_selection: t => t =
   z =>
     unselect({
@@ -295,6 +379,18 @@ let replace_selection = (focus, segment, z: t): t => {
 let grow_selection = (z: t): option(t) => {
   let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
   let selection = Selection.push(p, z.selection);
+  {
+    ...z,
+    selection,
+    relatives,
+  };
+};
+
+/* Like grow_selection but skips reassembly in push. Used during
+ * char-level selection to prevent shard merging. */
+let grow_selection_raw = (z: t): option(t) => {
+  let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
+  let selection = Selection.push_raw(p, z.selection);
   {
     ...z,
     selection,

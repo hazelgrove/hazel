@@ -91,6 +91,23 @@ let push = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
   };
 };
 
+/* Like push but without reassembly — used during char-level selection
+ * to prevent matching shards from merging into multi-shard tiles,
+ * which would break Inner(n) position tracking. */
+let push_raw = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
+  let content =
+    switch (focus) {
+    | Left => Segment.cons(p, content)
+    | Right => Segment.snoc(content, p)
+    };
+  {
+    focus,
+    content,
+    mode,
+    anchor_caret,
+  };
+};
+
 let pop = (sel: t): option((Piece.t, t)) => {
   let reset_anchor = (content: Segment.t, sel: t): t =>
     content == []

@@ -39,6 +39,44 @@ let anchor_boundary_piece = (z: Zipper.t): option(Piece.t) =>
 let next_sibling_piece = (z: Zipper.t): option(Piece.t) =>
   Siblings.neighbor(z.selection.focus, z.relatives.siblings);
 
+/* If the next sibling in direction d is a multi-shard tile (with
+ * children), decompose it in-place so that grow_selection picks up
+ * individual shards rather than the entire tile tree. */
+let decompose_multi_shard_neighbor =
+    (d: Direction.t, z: Zipper.t): Zipper.t => {
+  let focus = z.selection.focus;
+  let dir = Selection.is_empty(z.selection) ? d : focus;
+  let (l, r) = z.relatives.siblings;
+  switch (dir) {
+  | Right =>
+    switch (r) {
+    | [Tile(t), ...rest] when List.length(t.shards) > 1 =>
+      let pieces = Tile.disassemble(t);
+      {
+        ...z,
+        relatives: {
+          ...z.relatives,
+          siblings: (l, pieces @ rest),
+        },
+      };
+    | _ => z
+    }
+  | Left =>
+    switch (ListUtil.split_last_opt(l)) {
+    | Some((init, Tile(t))) when List.length(t.shards) > 1 =>
+      let pieces = Tile.disassemble(t);
+      {
+        ...z,
+        relatives: {
+          ...z.relatives,
+          siblings: (init @ pieces, r),
+        },
+      };
+    | _ => z
+    }
+  };
+};
+
 /* Character-level selection: grow the selection by one character in
  * direction d. Uses anchor_caret to track partial tokens at the
  * anchor end of the selection. */
@@ -124,9 +162,16 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     };
 
   | Outer =>
-    /* At a piece boundary. Try to grow by one piece. Use Zipper.select
-     * (not Siblings.neighbor) so ancestor boundaries are crossed. */
-    let+ z = Zipper.select(d, z);
+    /* At a piece boundary. Grow selection by one piece.
+     * Use grow_selection_raw to prevent shard reassembly inside
+     * the selection (which would break Inner position tracking).
+     * First decompose any multi-shard tile in siblings so we
+     * select individual shards, not entire tile trees. */
+    let z = decompose_multi_shard_neighbor(d, z);
+    let+ z =
+      d == z.selection.focus || Selection.is_empty(z.selection)
+        ? Zipper.grow_selection_raw(z)
+        : Zipper.shrink_selection(z);
     /* Check the newly-selected focus-side piece for inner positions */
     let p =
       switch (d) {
