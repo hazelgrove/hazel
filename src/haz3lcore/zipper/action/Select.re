@@ -263,12 +263,14 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
           : {
             /* At the edge of the focus-side piece. Pop it from selection
              * back to siblings, then continue at Outer. */
-            Zipper.shrink_selection(z);
+            Zipper.shrink_selection(z)
+            |> Option.map(Zipper.Caret.set(Outer));
           }
       | Left =>
         /* n == 0 but not at crossover means there are more pieces.
          * Pop the focus-side piece back to siblings. */
         Zipper.shrink_selection(z)
+        |> Option.map(Zipper.Caret.set(Outer))
       };
     };
 

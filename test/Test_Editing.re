@@ -80,6 +80,10 @@ let mv_l_token = (n: int): list(Action.t) =>
 let mv_r_token = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Right, ByToken)));
 
+/* ByChar movement for use in mk — moves through Inner positions */
+let mv_l_char = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Move(Local(Left, ByChar)));
+
 let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
    * Does not support § — use mk_zipper for selections. */
@@ -102,7 +106,7 @@ let mk = (init: string): list(Action.t) => {
   let (before, after) = split([], chars);
   let clean = Token.of_list(before @ after);
   let chars_after_caret = List.length(after);
-  string_to_ltr_actions(clean) @ mv_l(chars_after_caret);
+  string_to_ltr_actions(clean) @ mv_l_char(chars_after_caret);
 };
 
 /* mk_zipper: builds a zipper with optional selection from a string.

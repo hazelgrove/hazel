@@ -437,7 +437,8 @@ let select = (d: Direction.t, z: t): option(t) =>
  * Note that this last case necessarily returns an incomplete tile and
  * thus does not retain knowledge of the tile's in-situ completeness */
 let generalized_neighbor = (d: Direction.t, z: t): option(Piece.t) => {
-  let* z = select(d, unselect(z));
+  let uz = unselect(z);
+  let* z = select(d, uz);
   switch (z.selection.content) {
   | [p] => Some(p)
   | _ => None

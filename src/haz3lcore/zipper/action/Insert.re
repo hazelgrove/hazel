@@ -103,6 +103,29 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
   insert_shard(~id, ~d, t, z);
 };
 
+/* Like insert_shard but uses put_down_core (no adj_pos).
+ * For Inner caret edits, adj_pos calls move(Left) which can
+ * flatten ancestors when left siblings are empty. */
+let insert_shard_inplace = (~id: Id.t, t: Token.t, z: t): t => {
+  let z = destroy_selection(z);
+  let sort = effective_sort(t, z);
+  let (label, delim_d) = expansion(sort, t, z);
+  let mold = Form.Molds.get(sort, label);
+  let shard =
+    Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+    |> (delim_d == Right ? ListUtil.last : List.hd);
+  Zipper.put_down_core([Tile(shard)], z);
+};
+
+/* Like replace_shard but without cursor position adjustment.
+ * Used when caret is Inner — the token is replaced in-place
+ * and the caret stays inside the right neighbor. */
+let replace_shard_inplace = (d: Direction.t, t: Token.t, z: t): option(t) => {
+  let id = Zipper.adjacent_monotile_or_new_id(d, z);
+  let+ z = delete(d, z);
+  insert_shard_inplace(~id, t, z);
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
 
@@ -465,7 +488,7 @@ let go = (~deep_reassociate=false, char: string, z: t): option(t) => {
       let z = Caret.set(Inner(idx), z);
       Token.is_potential_token(new_token)
         ? z
-          |> replace_shard(Right, new_token)
+          |> replace_shard_inplace(Right, new_token)
           |> Option.map(remold_regrout(Right))
         : split(z, char, idx, t);
     | (Inner(_), (_, None)) => None
@@ -499,5 +522,9 @@ let go =
     : option(t) => {
   let+ z = go(~deep_reassociate, char, z);
   let z = Triggers.insert(~ci, z);
-  Zipper.rescan_reassemble(Left, z);
+  let z = switch (z.caret) {
+  | Inner(_) => z
+  | Outer => Zipper.rescan_reassemble(Left, z)
+  };
+  z;
 };
