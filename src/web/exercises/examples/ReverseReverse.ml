@@ -12,7 +12,7 @@ let exercise : TheoremExerciseSpec.t =
             focus = Left;
             content = [];
             mode = Normal;
-            anchor_caret = Anchor_outer;
+            anchor_caret = Outer;
           };
         relatives =
           {
@@ -1439,7 +1439,7 @@ let exercise : TheoremExerciseSpec.t =
             focus = Left;
             content = [];
             mode = Normal;
-            anchor_caret = Anchor_outer;
+            anchor_caret = Outer;
           };
         relatives =
           {
@@ -1467,7 +1467,7 @@ let exercise : TheoremExerciseSpec.t =
             focus = Left;
             content = [];
             mode = Normal;
-            anchor_caret = Anchor_outer;
+            anchor_caret = Outer;
           };
         relatives =
           {

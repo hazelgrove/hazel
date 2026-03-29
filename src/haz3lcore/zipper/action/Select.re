@@ -23,21 +23,38 @@ let piece_max_idx = (p: Piece.t): option(int) => {
 
 /* Get the focus-side boundary piece from selection content */
 let focus_boundary_piece = (z: Zipper.t): option(Piece.t) =>
-  switch (z.selection.focus) {
-  | Left => ListUtil.hd_opt(z.selection.content)
-  | Right => ListUtil.last_opt(z.selection.content)
-  };
+  Selection.focus_piece(z.selection);
 
 /* Get the anchor-side boundary piece from selection content */
 let anchor_boundary_piece = (z: Zipper.t): option(Piece.t) =>
-  switch (z.selection.focus) {
-  | Left => ListUtil.last_opt(z.selection.content)
-  | Right => ListUtil.hd_opt(z.selection.content)
-  };
+  Selection.anchor_piece(z.selection);
 
 /* Get the next piece in siblings in the focus direction */
 let next_sibling_piece = (z: Zipper.t): option(Piece.t) =>
   Siblings.neighbor(z.selection.focus, z.relatives.siblings);
+
+/* Max inner index of the focus-side boundary piece in the selection */
+let focus_max_idx = (z: Zipper.t): int =>
+  switch (focus_boundary_piece(z)) {
+  | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
+  | None => 0
+  };
+
+/* Max inner index of the neighbor piece in direction d */
+let neighbor_max_idx = (d: Direction.t, z: Zipper.t): int =>
+  switch (Siblings.neighbor(d, z.relatives.siblings)) {
+  | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
+  | None => 0
+  };
+
+/* Set caret to the edge of a token when entering it from direction d.
+ * Right means entering from the left (set Inner(0)),
+ * Left means entering from the right (set Inner(max_idx)). */
+let enter_token_edge = (d: Direction.t, max_idx: int, z: Zipper.t): Zipper.t =>
+  switch (d) {
+  | Right => Zipper.Caret.set(Inner(0), z)
+  | Left => Zipper.Caret.set(Inner(max_idx), z)
+  };
 
 /* If the next sibling in direction d is a multi-shard tile (with
  * children), decompose it in-place so that grow_selection picks up
@@ -110,11 +127,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     /* Starting a new selection from inside a token.
      * The token is the right sibling. We need to pop it into
      * selection and set anchor_caret to remember our start. */
-    let max_idx =
-      switch (Siblings.neighbor(Right, z.relatives.siblings)) {
-      | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
-      | None => 0
-      };
+    let max_idx = neighbor_max_idx(Right, z);
     switch (d) {
     | Right =>
       /* Growing right: focus=Right, pop from right siblings */
@@ -127,7 +140,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         ...z,
         selection: {
           ...z.selection,
-          anchor_caret: Anchor_inner(n),
+          anchor_caret: CaretBase.Inner(n),
         },
       };
       n < max_idx
@@ -150,7 +163,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         ...z,
         selection: {
           ...z.selection,
-          anchor_caret: Anchor_inner(n),
+          anchor_caret: CaretBase.Inner(n),
         },
       };
       n > 0
@@ -162,11 +175,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
      * boundary piece of the selection content (via sibs_with_sel).
      * focus=Right means caret advances rightward (n+1),
      * focus=Left means caret advances leftward (n-1). */
-    let max_idx =
-      switch (focus_boundary_piece(z)) {
-      | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
-      | None => 0
-      };
+    let max_idx = focus_max_idx(z);
     switch (z.selection.focus) {
     | Right when n < max_idx => Some(Zipper.Caret.set(Inner(n + 1), z))
     | Right => Some(Zipper.Caret.set(Outer, z))
@@ -194,10 +203,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     | None => z /* Single-char or non-token: whole piece selected */
     | Some(max_idx) =>
       /* Multi-char token: set Inner to indicate one char into it */
-      switch (d) {
-      | Right => Zipper.Caret.set(Inner(0), z)
-      | Left => Zipper.Caret.set(Inner(max_idx), z)
-      }
+      enter_token_edge(d, max_idx, z)
     };
   };
 }
@@ -215,20 +221,16 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
       | [_single] =>
         /* Single piece in selection — check if we'd meet the anchor */
         switch (sel.anchor_caret) {
-        | Anchor_outer =>
+        | CaretBase.Outer =>
           /* Anchor is at piece boundary. Crossing happens when we'd
            * go past the last inner position towards the anchor side. */
           switch (d) {
           | Left => n == 0
           | Right =>
-            let max =
-              switch (focus_boundary_piece(z)) {
-              | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
-              | None => 0
-              };
+            let max = focus_max_idx(z);
             n == max;
           }
-        | Anchor_inner(an) =>
+        | CaretBase.Inner(an) =>
           /* Anchor is also inside this token */
           switch (d) {
           | Left => n == an + 1 || n == an
@@ -243,7 +245,7 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
       /* Selection becomes empty. Restore caret to anchor position. */
       let anchor_caret = z.selection.anchor_caret;
       switch (anchor_caret) {
-      | Anchor_outer =>
+      | CaretBase.Outer =>
         /* Anchor was at a piece boundary. Use directional_unselect
          * towards the anchor end so caret lands at that boundary. */
         let anchor_dir = Direction.toggle(z.selection.focus);
@@ -253,7 +255,7 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
             Zipper.directional_unselect(anchor_dir, z),
           ),
         );
-      | Anchor_inner(an) =>
+      | CaretBase.Inner(an) =>
         /* Anchor was inside the token. We need Inner(an) to reference
          * this piece, so it must end up in right siblings.
          * directional_unselect(Left) always puts content to the right. */
@@ -265,11 +267,7 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
       switch (d) {
       | Left when n > 0 => Some(Zipper.Caret.set(Inner(n - 1), z))
       | Right =>
-        let max =
-          switch (focus_boundary_piece(z)) {
-          | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
-          | None => 0
-          };
+        let max = focus_max_idx(z);
         n < max
           ? Some(Zipper.Caret.set(Inner(n + 1), z))
           : {
@@ -306,10 +304,7 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         Zipper.shrink_selection(z)
       | Some(max_idx) =>
         /* Multi-char token: enter it from the focus side */
-        switch (d) {
-        | Left => Some(Zipper.Caret.set(Inner(max_idx), z))
-        | Right => Some(Zipper.Caret.set(Inner(0), z))
-        }
+        Some(enter_token_edge(d, max_idx, z))
       }
     }
   };

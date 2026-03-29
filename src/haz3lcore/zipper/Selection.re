@@ -10,13 +10,8 @@ type mode =
   | Normal
   | Buffer(buffer);
 
-/* Anchor caret offset: None = Outer (piece boundary),
- * Some(n) = Inner(n) (n chars into the anchor-side boundary piece).
- * Mirrors ZipperBase.caret but avoids the dependency cycle. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type anchor_caret =
-  | Anchor_outer
-  | Anchor_inner(int);
+type anchor_caret = CaretBase.t;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
@@ -31,7 +26,7 @@ let mk =
     (
       ~mode=Normal,
       ~focus=Direction.Left,
-      ~anchor_caret=Anchor_outer,
+      ~anchor_caret=CaretBase.Outer,
       content: Segment.t,
     ) => {
   focus,
@@ -44,7 +39,7 @@ let mk_buffer = buffer =>
   mk(
     ~mode=Buffer(buffer),
     ~focus=Direction.Left,
-    ~anchor_caret=Anchor_outer,
+    ~anchor_caret=CaretBase.Outer,
   );
 
 let is_buffer: t => bool =
@@ -78,6 +73,22 @@ let toggle_focus = selection => {
 };
 
 let is_empty = (selection: t) => selection.content == Segment.empty;
+
+/* The focus-side boundary piece of the selection content */
+let focus_piece = (sel: t): option(Piece.t) =>
+  switch (sel.focus, sel.content) {
+  | (_, []) => None
+  | (Right, content) => ListUtil.last_opt(content)
+  | (Left, content) => ListUtil.hd_opt(content)
+  };
+
+/* The anchor-side boundary piece of the selection content */
+let anchor_piece = (sel: t): option(Piece.t) =>
+  switch (sel.focus, sel.content) {
+  | (_, []) => None
+  | (Right, content) => ListUtil.hd_opt(content)
+  | (Left, content) => ListUtil.last_opt(content)
+  };
 
 let push = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
   let content =
@@ -118,7 +129,7 @@ let pop = (sel: t): option((Piece.t, t)) => {
       ? {
         ...sel,
         content,
-        anchor_caret: Anchor_outer,
+        anchor_caret: CaretBase.Outer,
       }
       : {
         ...sel,

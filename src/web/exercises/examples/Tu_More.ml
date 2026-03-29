@@ -36,7 +36,7 @@ let bools_ex : Tutorial.spec =
             focus = Left;
             content = [];
             mode = Normal;
-            anchor_caret = Anchor_outer;
+            anchor_caret = Outer;
           };
         relatives =
           {
@@ -55,7 +55,7 @@ let bools_ex : Tutorial.spec =
                 focus = Left;
                 content = [];
                 mode = Normal;
-                anchor_caret = Anchor_outer;
+                anchor_caret = Outer;
               };
             relatives =
               {
@@ -346,7 +346,7 @@ let cond_ex : Tutorial.spec =
             focus = Left;
             content = [];
             mode = Normal;
-            anchor_caret = Anchor_outer;
+            anchor_caret = Outer;
           };
         relatives =
           {
@@ -365,7 +365,7 @@ let cond_ex : Tutorial.spec =
                 focus = Left;
                 content = [];
                 mode = Normal;
-                anchor_caret = Anchor_outer;
+                anchor_caret = Outer;
               };
             relatives =
               {
@@ -500,7 +500,7 @@ let func_ex : Tutorial.spec =
             focus = Left;
             content = [];
             mode = Normal;
-            anchor_caret = Anchor_outer;
+            anchor_caret = Outer;
           };
         relatives =
           {
@@ -519,7 +519,7 @@ let func_ex : Tutorial.spec =
                 focus = Left;
                 content = [];
                 mode = Normal;
-                anchor_caret = Anchor_outer;
+                anchor_caret = Outer;
               };
             relatives =
               {

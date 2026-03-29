@@ -64,28 +64,220 @@ let remold = (z: t): t => {
 
 let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
+/* Convert singleton shard tiles in siblings whose token matches a
+ * missing shard of an ancestor tile, giving them the ancestor's ID
+ * so reassemble_parent can reconnect them. This handles the case
+ * where a delimiter (e.g. =) is re-inserted via paste with a fresh
+ * ID that doesn't match the ancestor tile.
+ *
+ * Walks the full ancestor chain since the matching ancestor may not
+ * be the immediate parent (e.g., after typing `(0` the immediate
+ * parent is `(...)` but the missing `=` belongs to grandparent `let`).
+ *
+ * Only converts singleton shards (shards list has 1 element) — these
+ * are tiles that Insert.go created during paste with the right token
+ * but a fresh ID. */
+/* Convert singleton shard tiles whose token matches a missing shard
+ * of an ancestor tile, giving them the ancestor's ID so
+ * reassemble_parent can reconnect them. Scans BOTH direct siblings
+ * AND ancestor-level siblings (since the matching token may have been
+ * pushed to a parent scope during expansion — e.g., after typing `(0`
+ * the `=` is in the grandparent's context, not direct siblings).
+ *
+ * Only converts singleton shards (shards list has 1 element). */
+/* Rescan ancestor-level siblings: converts standalone monotiles that
+ * match a parent ancestor's missing shards, giving them the parent's
+ * ID, then absorbs them into the parent via reassemble_parent-style
+ * logic. This handles delimiters (e.g. =) re-inserted via paste with
+ * fresh IDs that don't match their ancestor tile. */
+let rescan_parent_shards = (z: t): t => {
+  /* For each ancestor, compute its missing shards as (token, index) pairs */
+  let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
+    let all_shards = fst(a.shards) @ snd(a.shards);
+    List.init(List.length(a.label), Fun.id)
+    |> List.filter(i => !List.mem(i, all_shards))
+    |> List.map(i => (List.nth(a.label, i), i));
+  };
+
+  let convert_piece =
+      (a: Ancestor.t, missing: list((string, int)), p: Piece.t): Piece.t =>
+    switch (p) {
+    | Tile(t) when List.length(t.shards) == 1 && t.id != a.Ancestor.id =>
+      let tok = List.hd(Tile.effective_label(t));
+      switch (List.assoc_opt(tok, missing)) {
+      | Some(idx) =>
+        Tile({
+          ...t,
+          id: a.Ancestor.id,
+          label: a.Ancestor.label,
+          mold: a.Ancestor.mold,
+          shards: [idx],
+        })
+      | None => p
+      };
+    | _ => p
+    };
+
+  /* Try converting sibs against target ancestor's missing shards.
+   * If conversion happens, absorb converted shards into the target
+   * ancestor using reassemble_parent-style logic. Returns updated
+   * (sibs, target) or None if no conversion happened. */
+  let try_absorb =
+      (
+        sibs: Siblings.t,
+        target: Ancestor.t,
+      )
+      : option((Siblings.t, Ancestor.t)) => {
+    let missing = ancestor_missing(target);
+    if (missing == []) {
+      None;
+    } else {
+      let convert = convert_piece(target, missing);
+      let (l, r) = sibs;
+      let new_sibs = (List.map(convert, l), List.map(convert, r));
+      if (new_sibs == sibs) {
+        None;
+      } else {
+        /* Absorb converted shards into target using split_by_matching */
+        let flatten_match =
+          Aba.fold_right(
+            (t: Tile.t, kid, (shards, kids)) =>
+              Aba.mk(t.shards @ shards, t.children @ [kid, ...kids]),
+            (t: Tile.t) => Aba.mk(t.shards, t.children),
+          );
+        let (l_match, r_match) =
+          new_sibs
+          |> Siblings.split_by_matching(target.Ancestor.id)
+          |> TupleUtil.map2(Aba.trim);
+        let (target, new_l) =
+          switch (l_match) {
+          | None => (target, fst(new_sibs))
+          | Some((outer_l, match_l, inner_l)) =>
+            let (shards_l, kids_l) = flatten_match(match_l);
+            let target = {
+              ...target,
+              shards:
+                target.shards |> PairUtil.map_fst(ss => ss @ shards_l),
+              children:
+                target.children
+                |> PairUtil.map_fst(kids =>
+                     Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+                   ),
+            };
+            (target, inner_l);
+          };
+        let (target, new_r) =
+          switch (r_match) {
+          | None => (target, snd(new_sibs))
+          | Some((inner_r, match_r, outer_r)) =>
+            let (shards_r, kids_r) = flatten_match(match_r);
+            let target = {
+              ...target,
+              shards:
+                target.shards |> PairUtil.map_snd(ss => shards_r @ ss),
+              children:
+                target.children
+                |> PairUtil.map_snd(kids =>
+                     Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+                   ),
+            };
+            (target, inner_r);
+          };
+        Some(((new_l, new_r), target));
+      };
+    };
+  };
+
+  /* Walk ancestor chain. For each (inner, sibs), try to absorb
+   * converted shards from `sibs` into the parent ancestor.
+   * Also try direct siblings against the immediate ancestor. */
+  let rec go = (ancestors: Ancestors.t): Ancestors.t =>
+    switch (ancestors) {
+    | [] => []
+    | [(a, sibs)] => [(a, sibs)]
+    | [(a, sibs), (parent, parent_sibs), ...rest] =>
+      let rest = go([(parent, parent_sibs), ...rest]);
+      switch (rest) {
+      | [] => [(a, sibs)] /* shouldn't happen */
+      | [(parent, parent_sibs), ...rest_tail] =>
+        switch (try_absorb(sibs, parent)) {
+        | None => [(a, sibs), (parent, parent_sibs), ...rest_tail]
+        | Some((new_sibs, new_parent)) =>
+          [(a, new_sibs), (new_parent, parent_sibs), ...rest_tail]
+        }
+      };
+    };
+
+  let ancestors = go(z.relatives.ancestors);
+  let (siblings, ancestors) =
+    switch (ancestors) {
+    | [] => (z.relatives.siblings, ancestors)
+    | [(a, a_sibs), ...rest] =>
+      switch (try_absorb(z.relatives.siblings, a)) {
+      | None => (z.relatives.siblings, ancestors)
+      | Some((new_sibs, new_a)) => (new_sibs, [(new_a, a_sibs), ...rest])
+      }
+    };
+
+  if (ancestors == z.relatives.ancestors && siblings == z.relatives.siblings) {
+    z;
+  } else {
+    {
+      ...z,
+      relatives: {
+        siblings,
+        ancestors,
+      },
+    };
+  };
+};
+
 /* Rescan siblings for label-based shard conversion, then
  * reassemble + remold + regrout. This handles the case where
  * a standalone monotile should retroactively become a shard
  * of an incomplete tile (e.g. standalone `->` matching `fun`).
  * Should be called after edits, not during cursor movement. */
-let rescan_reassemble = (d: Direction.t, z: t): t => {
+let rescan_reassemble =
+    (~with_parent=false, d: Direction.t, z: t): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
-  if (siblings == z.relatives.siblings) {
-    z;
-  } else {
-    let relatives =
+  let z =
+    if (siblings == z.relatives.siblings) {
+      z;
+    } else {
+      let relatives =
+        {
+          ...z.relatives,
+          siblings,
+        }
+        |> Relatives.reassemble
+        |> Relatives.remold
+        |> Relatives.regrout(d);
       {
-        ...z.relatives,
-        siblings,
-      }
-      |> Relatives.reassemble
-      |> Relatives.remold
-      |> Relatives.regrout(d);
-    {
-      ...z,
-      relatives,
+        ...z,
+        relatives,
+      };
     };
+  /* After normal rescan+reassemble, try matching shard tiles in
+   * ancestor-level siblings against their ancestor's missing shards.
+   * This handles delimiters (e.g. =) re-inserted via paste with fresh
+   * IDs that don't match the ancestor tile. After converting IDs,
+   * we flatten through the first ancestor so reassemble can rebuild
+   * the tile at the correct scope. */
+  if (with_parent) {
+    let z' = rescan_parent_shards(z);
+    if (z'.relatives.ancestors != z.relatives.ancestors
+        || z'.relatives.siblings != z.relatives.siblings) {
+      /* Parent rescan converted+absorbed shards. Remold and regrout
+       * the updated relatives (no need to flatten/delete_parent since
+       * try_absorb already restructured the ancestors in place). */
+      let relatives =
+        z'.relatives |> Relatives.remold |> Relatives.regrout(d);
+      {...z', relatives};
+    } else {
+      z;
+    };
+  } else {
+    z;
   };
 };
 
@@ -143,7 +335,7 @@ let destroy_selection: t => t =
  * like replace_shard which set Inner caret for other purposes. */
 let normalize_char_selection = (z: t): t => {
   let has_char_boundary =
-    z.selection.anchor_caret != Selection.Anchor_outer
+    z.selection.anchor_caret != CaretBase.Outer
     || z.caret != Outer
     && !Selection.is_empty(z.selection);
   if (!has_char_boundary || Selection.is_empty(z.selection)) {
@@ -157,8 +349,8 @@ let normalize_char_selection = (z: t): t => {
       switch (focus_dir) {
       | Right => (
           switch (z.selection.anchor_caret) {
-          | Anchor_inner(n) => Some(n)
-          | Anchor_outer => None
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
           },
           switch (z.caret) {
           | Inner(n) => Some(n)
@@ -171,8 +363,8 @@ let normalize_char_selection = (z: t): t => {
           | Outer => None
           },
           switch (z.selection.anchor_caret) {
-          | Anchor_inner(n) => Some(n)
-          | Anchor_outer => None
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
           },
         )
       };
@@ -209,6 +401,46 @@ let normalize_char_selection = (z: t): t => {
           | None => None
           }
         }
+      };
+
+    /* For strings and comments, preserve delimiters that would be
+     * destroyed. If the selection includes an opening/closing delimiter,
+     * add it back to the corresponding remainder. */
+    let (left_remainder, right_remainder) =
+      switch (content) {
+      | [p] when Piece.token_of(p) != None =>
+        let tok = Option.get(Piece.token_of(p));
+        if (Token.is_string_or_comment(tok)) {
+          let tok_len = Token.length(tok);
+          let (opening, _) = Token.split_nth(tok, 1);
+          let (_, closing) = Token.split_nth(tok, tok_len - 1);
+          /* Check if opening delimiter is in the selected (deleted) range */
+          let left_remainder =
+            switch (left_offset) {
+            | None when tok_len > 0 =>
+              /* Selection starts at piece boundary → includes opening delimiter */
+              switch (left_remainder) {
+              | None => Some(opening)
+              | Some(r) => Some(opening ++ r)
+              }
+            | _ => left_remainder
+            };
+          /* Check if closing delimiter is in the selected (deleted) range */
+          let right_remainder =
+            switch (right_offset) {
+            | None when tok_len > 0 =>
+              /* Selection ends at piece boundary → includes closing delimiter */
+              switch (right_remainder) {
+              | None => Some(closing)
+              | Some(r) => Some(r ++ closing)
+              }
+            | _ => right_remainder
+            };
+          (left_remainder, right_remainder);
+        } else {
+          (left_remainder, right_remainder);
+        };
+      | _ => (left_remainder, right_remainder)
       };
 
     let left_str = Option.value(left_remainder, ~default="");
@@ -362,17 +594,10 @@ let shrink_selection = (z: t): option(t) => {
 };
 
 let toggle_focus = (z: t): t => {
-  /* Swap caret and anchor_caret so each end retains its position */
-  let new_anchor_caret: Selection.anchor_caret =
-    switch (z.caret) {
-    | Outer => Anchor_outer
-    | Inner(n) => Anchor_inner(n)
-    };
-  let new_caret: ZipperBase.caret =
-    switch (z.selection.anchor_caret) {
-    | Anchor_outer => Outer
-    | Anchor_inner(n) => Inner(n)
-    };
+  /* Swap caret and anchor_caret so each end retains its position.
+   * Both are CaretBase.t so no conversion needed. */
+  let new_anchor_caret = z.caret;
+  let new_caret = z.selection.anchor_caret;
   {
     ...z,
     caret: new_caret,
@@ -396,14 +621,11 @@ let set_focus = (z: t, d: Direction.t): t => {
 
 let directional_unselect = (d: Direction.t, z: t): t => {
   let landing_at_anchor = d != z.selection.focus;
-  let anchor_caret = z.selection.anchor_caret;
-  /* Determine the target caret after unselect */
+  /* Determine the target caret after unselect.
+   * Both caret and anchor_caret are CaretBase.t so no conversion needed. */
   let target_caret =
     if (landing_at_anchor) {
-      switch (anchor_caret) {
-      | Anchor_outer => ZipperBase.Outer
-      | Anchor_inner(n) => Inner(n)
-      };
+      z.selection.anchor_caret;
     } else {
       z.caret;
     };
@@ -780,9 +1002,9 @@ module Caret = {
        * piece of the selection. Inner(n) always indexes left-to-right
        * from the token's origin, regardless of focus direction. */
       let focus_piece =
-        switch (z.selection.focus) {
-        | Right => ListUtil.last(z.selection.content)
-        | Left => List.hd(z.selection.content)
+        switch (Selection.focus_piece(z.selection)) {
+        | Some(p) => p
+        | None => failwith("Caret.point: Inner caret with empty selection")
         };
       let seg = Piece.disassemble(focus_piece);
       /* Always use the first shard to get origin */
@@ -843,8 +1065,8 @@ let selection_trim_offsets = (z: t): (int, int) => {
   switch (z.selection.focus) {
   | Right => (
       switch (z.selection.anchor_caret) {
-      | Anchor_inner(n) => left_trim(n, content, Right)
-      | Anchor_outer => 0
+      | CaretBase.Inner(n) => left_trim(n, content, Right)
+      | CaretBase.Outer => 0
       },
       switch (z.caret) {
       | Inner(n) => right_trim(n, content, Right)
@@ -857,8 +1079,8 @@ let selection_trim_offsets = (z: t): (int, int) => {
       | Outer => 0
       },
       switch (z.selection.anchor_caret) {
-      | Anchor_inner(n) => right_trim(n, content, Left)
-      | Anchor_outer => 0
+      | CaretBase.Inner(n) => right_trim(n, content, Left)
+      | CaretBase.Outer => 0
       },
     )
   };
@@ -928,7 +1150,11 @@ let do_towards_point =
     | (Under, Over | Exact | Under)
     | (Exact, Under) =>
       switch (f(d_to_goal, curr)) {
-      | Some(next) => go(curr, next)
+      | Some(next) =>
+        /* Guard: if f didn't advance the caret, stop to prevent
+         * infinite loops (e.g. zero-width pieces, measured edge cases) */
+        let next_p = caret_point(next);
+        Point.equals(next_p, curr_p) ? curr : go(curr, next);
       | None => curr /* Should only occur at start/end of program */
       }
     /* If we're there, stop */
@@ -978,54 +1204,53 @@ let do_towards_point =
 };
 
 let selection_anchor_point = (measured, z: t): option(Point.t) => {
-  switch (z.selection) {
-  | {content: [], _} => None
-  | {content, focus: Right, anchor_caret, _} =>
-    /* Anchor is at the LEFT end (focus is Right, so anchor is Left) */
-    let anchor_piece = List.hd(content);
+  switch (Selection.anchor_piece(z.selection)) {
+  | None => None
+  | Some(anchor_piece) =>
+    let anchor_caret = z.selection.anchor_caret;
     let seg = Piece.disassemble(anchor_piece);
-    let p = List.hd(seg);
-    let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
-    switch (anchor_caret) {
-    | Anchor_outer => Some(m.origin)
-    | Anchor_inner(idx) =>
-      /* Inner(idx) is always left-to-right: origin + (idx+1) */
-      let offset =
-        switch (Piece.token_of(anchor_piece)) {
-        | Some(tok) => Caret.inner_offset_for_token(idx, tok)
-        | None => idx + 1
-        };
-      Some({
-        row: m.origin.row,
-        col: m.origin.col + offset,
-      });
-    };
-  | {content, focus: Left, anchor_caret, _} =>
-    /* Anchor is at the RIGHT end (focus is Left, so anchor is Right) */
-    let anchor_piece = ListUtil.last(content);
-    let seg = Piece.disassemble(anchor_piece);
-    let p = ListUtil.last(seg);
-    let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
-    switch (anchor_caret) {
-    | Anchor_outer => Some(m.last)
-    | Anchor_inner(idx) =>
-      /* Inner(idx) is always left-to-right from origin */
-      let offset =
-        switch (Piece.token_of(anchor_piece)) {
-        | Some(tok) => Caret.inner_offset_for_token(idx, tok)
-        | None => idx + 1
-        };
-      let p_first = List.hd(seg);
-      let m_first =
-        Measured.find_p(
-          ~msg="selection_anchor_point_origin",
-          p_first,
-          measured,
-        );
-      Some({
-        row: m_first.origin.row,
-        col: m_first.origin.col + offset,
-      });
+    switch (z.selection.focus) {
+    | Right =>
+      /* Anchor is at the LEFT end */
+      let p = List.hd(seg);
+      let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
+      switch (anchor_caret) {
+      | CaretBase.Outer => Some(m.origin)
+      | CaretBase.Inner(idx) =>
+        let offset =
+          switch (Piece.token_of(anchor_piece)) {
+          | Some(tok) => Caret.inner_offset_for_token(idx, tok)
+          | None => idx + 1
+          };
+        Some({
+          row: m.origin.row,
+          col: m.origin.col + offset,
+        });
+      };
+    | Left =>
+      /* Anchor is at the RIGHT end */
+      let p = ListUtil.last(seg);
+      let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
+      switch (anchor_caret) {
+      | CaretBase.Outer => Some(m.last)
+      | CaretBase.Inner(idx) =>
+        let offset =
+          switch (Piece.token_of(anchor_piece)) {
+          | Some(tok) => Caret.inner_offset_for_token(idx, tok)
+          | None => idx + 1
+          };
+        let p_first = List.hd(seg);
+        let m_first =
+          Measured.find_p(
+            ~msg="selection_anchor_point_origin",
+            p_first,
+            measured,
+          );
+        Some({
+          row: m_first.origin.row,
+          col: m_first.origin.col + offset,
+        });
+      };
     };
   };
 };

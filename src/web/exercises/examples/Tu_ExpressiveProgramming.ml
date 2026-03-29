@@ -23,7 +23,7 @@ let exercise : Tutorial.spec =
             focus = Left;
             content = [];
             mode = Normal;
-            anchor_caret = Anchor_outer;
+            anchor_caret = Outer;
           };
         relatives =
           {
@@ -42,7 +42,7 @@ let exercise : Tutorial.spec =
                 focus = Left;
                 content = [];
                 mode = Normal;
-                anchor_caret = Anchor_outer;
+                anchor_caret = Outer;
               };
             relatives =
               {

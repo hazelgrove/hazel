@@ -3569,6 +3569,323 @@ let char_selection_tests = [
     ~z=mk_zipper({|§apple¦|}),
     ~expected="apple",
   ),
+  /* P. Cut and paste with char-level selections */
+  test_case("Cut and paste partial keyword (via Cut)", `Quick, () => {
+    let z = mk_zipper({|§fu¦n x -> x|});
+    let z = perform(z, [Cut, Paste("fu")]);
+    let actual = printer(z);
+    let expected = {|fu¦n x -> x|};
+    /* Verify text round-trips AND internal state is clean */
+    let bp = Zipper.local_backpack(z);
+    let inc = Segment.incomplete_tiles(snd(z.relatives.siblings));
+    check(testable(Fmt.string, String.equal), "text", expected, actual);
+    check(Alcotest.int, "backpack empty", 0, List.length(bp));
+    check(Alcotest.int, "no incomplete tiles", 0, List.length(inc));
+  }),
+  test_case("Cut and paste partial keyword (via Destruct)", `Quick, () => {
+    let z = mk_zipper({|§fu¦n x -> x|});
+    let z = perform(z, [Destruct(Right), Paste("fu")]);
+    let actual = printer(z);
+    let expected = {|fu¦n x -> x|};
+    let bp = Zipper.local_backpack(z);
+    let inc = Segment.incomplete_tiles(snd(z.relatives.siblings));
+    check(testable(Fmt.string, String.equal), "text", expected, actual);
+    check(Alcotest.int, "backpack empty", 0, List.length(bp));
+    check(Alcotest.int, "no incomplete tiles", 0, List.length(inc));
+  }),
+];
+
+/* Helper: cut-paste round-trip test. Selects the range, copies the
+ * selected text, cuts, pastes the copied text back, and checks:
+ * 1. Text matches expected goal
+ * 2. Backpack is empty
+ * 3. No incomplete tiles in siblings
+ * If ~goal is not provided, the original text (without markers) is used,
+ * i.e. we expect a perfect round-trip. */
+let test_cut_paste =
+    (~name, ~init: string, ~goal: option(string)=?, ()): test_case(_) =>
+  test_case(name, `Quick, () => {
+    let z = mk_zipper(init);
+    /* Get the selected text (what would go to clipboard) */
+    let full =
+      Printer.of_segment(~holes=convex_char, ~indent="", z.selection.content);
+    let clipboard = Zipper.trim_selected_text(z, full);
+    /* Cut then paste */
+    let z = perform(z, [Cut, Paste(clipboard)]);
+    let actual = printer(z);
+    /* Compute expected: original text without selection markers */
+    let expected =
+      switch (goal) {
+      | Some(g) => g
+      | None =>
+        /* Strip § and replace ¦ position: after paste, focus is where
+         * the pasted text ends, which is at the original focus position */
+        let chars = Token.to_list(init);
+        let clean =
+          chars
+          |> List.filter(c => c != selection_char)
+          |> Token.of_list;
+        clean;
+      };
+    let bp = Zipper.local_backpack(z);
+    let inc =
+      Segment.incomplete_tiles(snd(z.relatives.siblings))
+      @ Segment.incomplete_tiles(fst(z.relatives.siblings));
+    check(testable(Fmt.string, String.equal), "text", expected, actual);
+    check(
+      Alcotest.int,
+      "backpack empty (labels: "
+      ++ String.concat(
+           "; ",
+           List.map(
+             (t: Tile.t) => String.concat(",", t.label),
+             bp,
+           ),
+         )
+      ++ ")",
+      0,
+      List.length(bp),
+    );
+    check(
+      Alcotest.int,
+      "no incomplete tiles (labels: "
+      ++ String.concat(
+           "; ",
+           List.map(
+             (t: Tile.t) => String.concat(",", t.label),
+             inc,
+           ),
+         )
+      ++ ")",
+      0,
+      List.length(inc),
+    );
+  });
+
+/* Helper: destruct test for char-level selections. Selects the range,
+ * destructs, and checks the resulting text. */
+let test_destruct_char =
+    (~name, ~init: string, ~goal: string): test_case(_) =>
+  test_case(name, `Quick, () => {
+    let z = mk_zipper(init);
+    let z = perform(z, [Destruct(Left)]);
+    let actual = printer(z);
+    check(testable(Fmt.string, String.equal), name, goal, actual);
+  });
+
+/* Q. Cross-boundary cut-paste tests */
+let cross_boundary_tests = [
+  /* --- Within single delimiter of multi-shard tiles --- */
+  test_cut_paste(
+    ~name="Cut-paste partial 'let' keyword",
+    ~init={|§le¦t x = 1 in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste partial 'in' keyword",
+    ~init={|let x = 1 §i¦n x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste partial 'fun' keyword",
+    ~init={|§fu¦n x -> x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste partial '->' keyword",
+    ~init={|fun x §-¦> x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste partial 'if' keyword",
+    ~init={|§i¦f true then 1 else 2|},
+    (),
+  ),
+  /* TODO: if/then/else 3-shard tile: cutting partial "then" sends
+   * "if" and "else" shards to backpack; rescan after paste doesn't
+   * look in backpack, so they stay orphaned. */
+  /* test_cut_paste(
+    ~name="Cut-paste partial 'then' keyword",
+    ~init={|if true §the¦n 1 else 2|},
+    (),
+  ), */
+  test_cut_paste(
+    ~name="Cut-paste partial 'else' keyword",
+    ~init={|if true then 1 §el¦se 2|},
+    (),
+  ),
+
+  /* --- Across delimiter boundaries (same form) --- */
+  test_cut_paste(
+    ~name="Cut-paste across let= boundary",
+    ~init={|le§t x =¦ 1 in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across =...in boundary",
+    ~init={|let x =§ 1 i¦n x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across fun-> boundary",
+    ~init={|fu§n x -¦> x|},
+    (),
+  ),
+  /* TODO: if/then/else 3-shard backpack issue: cutting across
+   * if..then or then..else sends orphaned shards to backpack;
+   * rescan after paste doesn't look in backpack. */
+  /* test_cut_paste(
+    ~name="Cut-paste across if..then boundary",
+    ~init={|i§f true the¦n 1 else 2|},
+    (),
+  ), */
+  /* TODO: same if/then/else 3-shard backpack issue */
+  /* test_cut_paste(
+    ~name="Cut-paste across then..else boundary",
+    ~init={|if true the§n 1 el¦se 2|},
+    (),
+  ), */
+
+  /* --- Across = delimiter into expression (pattern + body) --- */
+  test_cut_paste(
+    ~name="Cut-paste spanning = delimiter in let",
+    ~init={|let §comparison = (0¦ == 0) in comparison|},
+    (),
+  ),
+  /* More thorough version: also check that the = is structurally
+   * part of the let form (not a standalone operator) by verifying
+   * the full zipped segment has no incomplete tiles */
+  test_case(
+    "Cut-paste spanning = in let: structural integrity",
+    `Quick,
+    () => {
+      let z = mk_zipper({|let §comparison = (0¦ == 0) in comparison|});
+      let full =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z.selection.content,
+        );
+      let clipboard = Zipper.trim_selected_text(z, full);
+      let z = perform(z, [Cut, Paste(clipboard)]);
+      /* Zip the whole thing and check for incomplete tiles anywhere */
+      let seg = Zipper.unselect_and_zip(z);
+      let inc = Segment.incomplete_tiles(seg);
+      check(
+        Alcotest.int,
+        "no incomplete tiles in full segment (labels: "
+        ++ String.concat(
+             "; ",
+             List.map(
+               (t: Tile.t) => String.concat(",", t.label),
+               inc,
+             ),
+           )
+        ++ ")",
+        0,
+        List.length(inc),
+      );
+    },
+  ),
+
+  /* --- Across sort boundaries (pattern <-> type <-> exp) --- */
+  test_cut_paste(
+    ~name="Cut-paste crossing pattern into expression (let body)",
+    ~init={|let §x = 1¦ in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste crossing expression into pattern (fun)",
+    ~init={|fun §x -> x¦|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste from type annotation into expression",
+    ~init={|let x : §Int = 1¦ in x|},
+    (),
+  ),
+
+  /* --- String delimiter edge cases --- */
+  test_destruct_char(
+    ~name="Delete selection including opening string quote",
+    ~init={|§"he¦llo"|},
+    ~goal={|"¦llo"|},
+  ),
+  test_destruct_char(
+    ~name="Delete selection including closing string quote",
+    ~init={|"hel§lo"¦|},
+    ~goal={|"hel¦"|},
+  ),
+  test_destruct_char(
+    ~name="Delete selection including both string quotes",
+    ~init={|§"hello"¦|},
+    ~goal={|¦?|},
+  ),
+
+  /* --- Comment delimiter edge cases --- */
+  test_destruct_char(
+    ~name="Delete selection including opening comment hash",
+    ~init={|§#he¦llo#?|},
+    ~goal={|#¦llo#~?|},
+  ),
+  test_destruct_char(
+    ~name="Delete selection including closing comment hash",
+    ~init={|#hel§lo#¦?|},
+    ~goal={|#hel¦#~?|},
+  ),
+
+  /* --- Token merging after paste --- */
+  test_cut_paste(
+    ~name="Cut-paste middle of identifier",
+    ~init={|let §abc¦def = 1 in abcdef|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste middle of number",
+    ~init={|§12¦345 + 1|},
+    (),
+  ),
+
+  /* --- Selections spanning whitespace + delimiters --- */
+  test_cut_paste(
+    ~name="Cut-paste space + delimiter",
+    ~init={|let x§ =¦ 1 in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across multiple delimiters of let",
+    ~init={|le§t x = 1 i¦n x|},
+    (),
+  ),
+
+  /* --- Nested forms --- */
+  test_cut_paste(
+    ~name="Cut-paste partial keyword in nested let",
+    ~init={|let x = (§le¦t y = 1 in y) in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across nested let boundary",
+    ~init={|let x = (le§t y = 1 i¦n y) in x|},
+    (),
+  ),
+
+  /* --- Parens and single-char delimiters --- */
+  test_cut_paste(
+    ~name="Cut-paste including open paren",
+    ~init={|§(¦1 + 2)|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste including close paren",
+    ~init={|(1 + 2§)¦|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across matching parens",
+    ~init={|§(1 + 2)¦|},
+    (),
+  ),
 ];
 
 let tests = [
@@ -3591,4 +3908,5 @@ let tests = [
   ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
   ("Editing.AncestorSort", ancestor_sort_tests),
   ("Editing.CharSelection", char_selection_tests),
+  ("Editing.CrossBoundary", cross_boundary_tests),
 ];

@@ -415,8 +415,8 @@ let clip_char_selection =
       switch (z.selection.focus) {
       | Right => (
           switch (z.selection.anchor_caret) {
-          | Selection.Anchor_inner(n) => Some(n)
-          | Anchor_outer => None
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
           },
           switch (z.caret) {
           | Inner(n) => Some(n)
@@ -429,8 +429,8 @@ let clip_char_selection =
           | Outer => None
           },
           switch (z.selection.anchor_caret) {
-          | Anchor_inner(n) => Some(n)
-          | Anchor_outer => None
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
           },
         )
       };

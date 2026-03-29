@@ -77,14 +77,13 @@ let effective_sort = (t: Token.t, z: t): Sort.t => {
   };
 };
 
-/* Insert a new shard based on token `t` on the `d`-side of the caret */
-let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
+/* Shared core for insert_shard and insert_shard_inplace.
+ * The only difference is the put_down function used. */
+let insert_shard_core =
+    (~put_down: (Segment.t, t) => t, ~id: Id.t, t: Token.t, z: t): t => {
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
-    Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
-  } else if (Zipper.backpack_find(t, z) != None) {
-    let target = Zipper.backpack_find(t, z) |> Option.get;
-    Zipper.put_down_target(d, target, z);
+    put_down([Piece.mk_secondary(id, t)], z);
   } else {
     let sort = effective_sort(t, z);
     let (label, delim_d) = expansion(sort, t, z);
@@ -92,9 +91,19 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
     let shard =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);
-    Zipper.put_down_seg(d, [Tile(shard)], z);
+    put_down([Tile(shard)], z);
   };
 };
+
+/* Insert a new shard based on token `t` on the `d`-side of the caret */
+let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t =>
+  if (Zipper.backpack_find(t, z) != None) {
+    let z = destroy_selection(z);
+    let target = Zipper.backpack_find(t, z) |> Option.get;
+    Zipper.put_down_target(d, target, z);
+  } else {
+    insert_shard_core(~put_down=Zipper.put_down_seg(d), ~id, t, z);
+  };
 
 /* Replace `d`-neighbor shard with a new one based on token `t` */
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
@@ -106,20 +115,13 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
 /* Like insert_shard but uses put_down_no_reassemble (no adj_pos,
  * no reassembly). For Inner caret edits where adj_pos would flatten
  * ancestors and reassembly would absorb the token back. */
-let insert_shard_inplace = (~id: Id.t, t: Token.t, z: t): t => {
-  let z = destroy_selection(z);
-  if (Token.is_secondary(t)) {
-    Zipper.put_down_no_reassemble([Piece.mk_secondary(id, t)], z);
-  } else {
-    let sort = effective_sort(t, z);
-    let (label, delim_d) = expansion(sort, t, z);
-    let mold = Form.Molds.get(sort, label);
-    let shard =
-      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-      |> (delim_d == Right ? ListUtil.last : List.hd);
-    Zipper.put_down_no_reassemble([Tile(shard)], z);
-  };
-};
+let insert_shard_inplace = (~id: Id.t, t: Token.t, z: t): t =>
+  insert_shard_core(
+    ~put_down=Zipper.put_down_no_reassemble,
+    ~id,
+    t,
+    z,
+  );
 
 /* Like replace_shard but without cursor position adjustment.
  * Used when caret is Inner — the token is replaced in-place
