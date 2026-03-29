@@ -140,7 +140,7 @@ let move_dispatch =
   | Start => Some(to_start(z))
   | End => Some(to_end(z))
   | Line(d) => to_linebreak(d, z)
-  | Vertical(d) => vertical(~measured, ~col_target, d, z)
+  | Vertical(d, _) => vertical(~measured, ~col_target, d, z)
   | Point(goal) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
@@ -154,8 +154,8 @@ let pre_unselect = (a: Action.move, z: t): t => {
   let d =
     switch (a) {
     | Local(d, _) => d
-    | Vertical(Up) => Left
-    | Vertical(Down) => Right
+    | Vertical(Up, _) => Left
+    | Vertical(Down, _) => Right
     | Start
     | End
     | Line(_)

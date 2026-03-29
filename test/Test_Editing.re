@@ -227,6 +227,48 @@ let basic_tests = [
     ~goal={|1~"foo"¦~1|},
   ),
   test(
+    ~name="Paste plaintext into token at Inner caret",
+    ~acts=mk("hel¦lo") @ [Paste("abc")],
+    ~goal="helabc¦lo",
+  ),
+  test(
+    ~name="Paste into string literal at Inner caret",
+    ~acts=mk({|"hel¦lo"|}) @ [Paste("abc")],
+    ~goal={|"helabc¦lo"|},
+  ),
+  test(
+    ~name="Paste into token inside parens at Inner caret",
+    ~acts=mk("(hel¦lo)") @ [Paste("abc")],
+    ~goal="(helabc¦lo)",
+  ),
+  test(
+    ~name="Paste splitting text into token at Inner caret",
+    ~acts=mk("hel¦lo") @ [Paste("a b")],
+    ~goal="hela~¦blo",
+  ),
+  test(
+    ~name="Paste into token inside let expression",
+    ~acts=mk("let a = sdf¦ssdf in a") @ [Paste("abc")],
+    ~goal="let a = sdfabc¦ssdf in a",
+  ),
+  test(
+    ~name="Paste into token inside let expression (beginning)",
+    ~acts=mk("let a = s¦dfssdf in a") @ [Paste("abc")],
+    ~goal="let a = sabc¦dfssdf in a",
+  ),
+  test(
+    ~name="Insert char into comment at Inner caret",
+    ~acts=
+      mk("#hel¦lo#") @ [Insert("X")],
+    ~goal="#helX¦lo#?",
+  ),
+  test(
+    ~name="Paste into comment at Inner caret",
+    ~acts=
+      mk("#hel¦lo#") @ [Paste("abc")],
+    ~goal="#helabc¦lo#?",
+  ),
+  test(
     ~name="Paste string splitting consecutive delimiters",
     ~acts=mk("if¦then") @ [Paste({|"foo"|})],
     ~goal={|if"foo"¦then?|},
@@ -3108,7 +3150,7 @@ let comment_toggle_extra_tests = [
 then 1
 else 2¦|})
       @ [Action.Move(Start)]
-      @ [Action.Move(Vertical(Down))]
+      @ [Action.Move(Vertical(Down, ByChar))]
       @ [Action.ToggleLineComment],
     ~goal="if true\n#then 1#¦\nelse 2",
   ),
@@ -3120,7 +3162,7 @@ else 2¦|})
 then 1
 else 2¦|})
       @ [Action.Move(Start)]
-      @ [Action.Move(Vertical(Down))]
+      @ [Action.Move(Vertical(Down, ByChar))]
       @ [Action.ToggleLineComment]
       @ [Action.ToggleLineComment],
     ~goal="if true\nthen 1¦\nelse 2",
@@ -3171,7 +3213,7 @@ else 2¦|}),
 then 1
 else 2¦|})
       @ [Action.Move(Start)]
-      @ [Action.Move(Vertical(Down))]
+      @ [Action.Move(Vertical(Down, ByChar))]
       @ [Action.ToggleLineComment]
       @ [Action.ToggleLineComment],
   ),

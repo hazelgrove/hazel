@@ -100,7 +100,7 @@ let destruct = (d: Direction.t, z: t): option(t) =>
   switch (z.caret) {
   | _ when z.selection.content != [] =>
     let z = Zipper.normalize_char_selection(z);
-    Some(z |> capture |> destroy_selection)
+    Some(z |> capture |> destroy_selection);
   | Outer => outer(d, z)
   | Inner(idx) =>
     switch (d) {

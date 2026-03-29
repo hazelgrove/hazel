@@ -87,10 +87,11 @@ let go =
     Select.local(d, z) |> return(Cant_select)
   | Select(Resize(Local(d, ByChar))) =>
     Select.local_by_char(d, z) |> return(Cant_select)
-  | Select(Resize(Vertical(d))) =>
+  | Select(Resize(Vertical(d, chunkiness))) =>
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~chunkiness,
       d,
       z,
     )

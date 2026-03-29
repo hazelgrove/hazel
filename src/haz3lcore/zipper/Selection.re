@@ -41,7 +41,11 @@ let mk =
 };
 
 let mk_buffer = buffer =>
-  mk(~mode=Buffer(buffer), ~focus=Direction.Left, ~anchor_caret=Anchor_outer);
+  mk(
+    ~mode=Buffer(buffer),
+    ~focus=Direction.Left,
+    ~anchor_caret=Anchor_outer,
+  );
 
 let is_buffer: t => bool =
   fun
@@ -111,7 +115,15 @@ let push_raw = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
 let pop = (sel: t): option((Piece.t, t)) => {
   let reset_anchor = (content: Segment.t, sel: t): t =>
     content == []
-      ? {...sel, content, anchor_caret: Anchor_outer} : {...sel, content};
+      ? {
+        ...sel,
+        content,
+        anchor_caret: Anchor_outer,
+      }
+      : {
+        ...sel,
+        content,
+      };
   switch (sel.focus, sel.content, ListUtil.split_last_opt(sel.content)) {
   | (_, [], _)
   | (_, _, None) => None

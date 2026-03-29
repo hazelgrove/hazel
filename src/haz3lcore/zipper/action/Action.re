@@ -22,7 +22,7 @@ type move =
   | End
   | Line(Direction.t)
   | Local(Direction.t, chunkiness)
-  | Vertical(vertical)
+  | Vertical(vertical, chunkiness)
   | Point(Point.t)
   | Goal(goal);
 

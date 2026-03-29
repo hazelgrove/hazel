@@ -18,7 +18,13 @@ let exercise : Tutorial.spec =
     version = 1;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Anchor_outer;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -31,7 +37,13 @@ let exercise : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Anchor_outer };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Anchor_outer;
+              };
             relatives =
               {
                 siblings =

@@ -144,7 +144,8 @@ let destroy_selection: t => t =
 let normalize_char_selection = (z: t): t => {
   let has_char_boundary =
     z.selection.anchor_caret != Selection.Anchor_outer
-    || z.caret != Outer && !Selection.is_empty(z.selection);
+    || z.caret != Outer
+    && !Selection.is_empty(z.selection);
   if (!has_char_boundary || Selection.is_empty(z.selection)) {
     z;
   } else {
@@ -238,22 +239,43 @@ let normalize_char_selection = (z: t): t => {
           let siblings =
             Siblings.prepend(Right, [piece], z.relatives.siblings);
           let relatives =
-            Relatives.reassemble({...z.relatives, siblings});
-          {...z, caret: Outer, relatives};
+            Relatives.reassemble({
+              ...z.relatives,
+              siblings,
+            });
+          {
+            ...z,
+            caret: Outer,
+            relatives,
+          };
         } else if (seam_pos >= combined_len) {
           /* No right remainder: piece on left, caret after it */
           let siblings =
             Siblings.prepend(Left, [piece], z.relatives.siblings);
           let relatives =
-            Relatives.reassemble({...z.relatives, siblings});
-          {...z, caret: Outer, relatives};
+            Relatives.reassemble({
+              ...z.relatives,
+              siblings,
+            });
+          {
+            ...z,
+            caret: Outer,
+            relatives,
+          };
         } else {
           /* Seam in middle: piece on right, Inner caret at seam */
           let siblings =
             Siblings.prepend(Right, [piece], z.relatives.siblings);
           let relatives =
-            Relatives.reassemble({...z.relatives, siblings});
-          {...z, caret: Inner(min(seam_pos - 1, max_idx)), relatives};
+            Relatives.reassemble({
+              ...z.relatives,
+              siblings,
+            });
+          {
+            ...z,
+            caret: Inner(min(seam_pos - 1, max_idx)),
+            relatives,
+          };
         };
       };
     } else {
@@ -273,7 +295,10 @@ let normalize_char_selection = (z: t): t => {
         | None => siblings
         };
       let relatives =
-        Relatives.reassemble({...z.relatives, siblings});
+        Relatives.reassemble({
+          ...z.relatives,
+          siblings,
+        });
       {
         ...z,
         caret: Outer,
@@ -391,7 +416,10 @@ let directional_unselect = (d: Direction.t, z: t): t => {
       ...z,
       selection,
     });
-  let z = {...z, caret: target_caret};
+  let z = {
+    ...z,
+    caret: target_caret,
+  };
   /* Inner(n) references the right neighbor. After unselect, if the
    * referenced piece ended up in left siblings instead, move it right. */
   switch (target_caret) {
@@ -399,7 +427,10 @@ let directional_unselect = (d: Direction.t, z: t): t => {
     switch (Relatives.pop(Left, z.relatives)) {
     | Some((p, relatives)) =>
       let relatives = Relatives.push(Right, p, relatives);
-      {...z, relatives};
+      {
+        ...z,
+        relatives,
+      };
     | None => z
     }
   | _ => z
@@ -585,6 +616,23 @@ let adj_pos = (d: Direction.t, z: t): t =>
 let put_down_core = (seg: Segment.t, z: t): t =>
   z |> replace_selection(Right, seg) |> unselect;
 
+/* Like put_down_core but skips Relatives.reassemble.
+ * Used for Inner-caret edits where the replaced token would
+ * otherwise be absorbed back into an ancestor tile during
+ * reassembly, leaving the caret pointing at the wrong piece. */
+let put_down_no_reassemble = (seg: Segment.t, z: t): t => {
+  let z = z |> replace_selection(Right, seg);
+  let relatives =
+    z.relatives
+    |> Relatives.prepend(z.selection.focus, z.selection.content);
+  let selection = Selection.empty;
+  {
+    ...z,
+    selection,
+    relatives,
+  };
+};
+
 let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
 
@@ -745,10 +793,16 @@ module Caret = {
         | Some(tok) => inner_offset_for_token(idx, tok)
         | None => idx + 1
         };
-      {row: m.origin.row, col: m.origin.col + offset};
+      {
+        row: m.origin.row,
+        col: m.origin.col + offset,
+      };
     | _ =>
       let Point.{row, col} = base_point(measured, z);
-      {row, col: col + offset(z)};
+      {
+        row,
+        col: col + offset(z),
+      };
     };
 
   type t = ZipperBase.caret;
@@ -760,7 +814,7 @@ module Caret = {
 let selection_trim_offsets = (z: t): (int, int) => {
   let left_trim = (inner_n, content, focus) => {
     let p =
-      switch (focus: Direction.t) {
+      switch ((focus: Direction.t)) {
       | Right => List.hd(content)
       | Left => ListUtil.last(content)
       };
@@ -772,7 +826,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
   };
   let right_trim = (inner_n, content, focus) => {
     let p =
-      switch (focus: Direction.t) {
+      switch ((focus: Direction.t)) {
       | Right => ListUtil.last(content)
       | Left => List.hd(content)
       };
@@ -941,7 +995,10 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
         | Some(tok) => Caret.inner_offset_for_token(idx, tok)
         | None => idx + 1
         };
-      Some({row: m.origin.row, col: m.origin.col + offset});
+      Some({
+        row: m.origin.row,
+        col: m.origin.col + offset,
+      });
     };
   | {content, focus: Left, anchor_caret, _} =>
     /* Anchor is at the RIGHT end (focus is Left, so anchor is Right) */
@@ -960,8 +1017,15 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
         };
       let p_first = List.hd(seg);
       let m_first =
-        Measured.find_p(~msg="selection_anchor_point_origin", p_first, measured);
-      Some({row: m_first.origin.row, col: m_first.origin.col + offset});
+        Measured.find_p(
+          ~msg="selection_anchor_point_origin",
+          p_first,
+          measured,
+        );
+      Some({
+        row: m_first.origin.row,
+        col: m_first.origin.col + offset,
+      });
     };
   };
 };

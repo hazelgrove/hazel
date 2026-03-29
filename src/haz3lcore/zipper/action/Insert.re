@@ -103,27 +103,61 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
   insert_shard(~id, ~d, t, z);
 };
 
-/* Like insert_shard but uses put_down_core (no adj_pos).
- * For Inner caret edits, adj_pos calls move(Left) which can
- * flatten ancestors when left siblings are empty. */
+/* Like insert_shard but uses put_down_no_reassemble (no adj_pos,
+ * no reassembly). For Inner caret edits where adj_pos would flatten
+ * ancestors and reassembly would absorb the token back. */
 let insert_shard_inplace = (~id: Id.t, t: Token.t, z: t): t => {
   let z = destroy_selection(z);
-  let sort = effective_sort(t, z);
-  let (label, delim_d) = expansion(sort, t, z);
-  let mold = Form.Molds.get(sort, label);
-  let shard =
-    Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-    |> (delim_d == Right ? ListUtil.last : List.hd);
-  Zipper.put_down_core([Tile(shard)], z);
+  if (Token.is_secondary(t)) {
+    Zipper.put_down_no_reassemble([Piece.mk_secondary(id, t)], z);
+  } else {
+    let sort = effective_sort(t, z);
+    let (label, delim_d) = expansion(sort, t, z);
+    let mold = Form.Molds.get(sort, label);
+    let shard =
+      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+      |> (delim_d == Right ? ListUtil.last : List.hd);
+    Zipper.put_down_no_reassemble([Tile(shard)], z);
+  };
 };
 
 /* Like replace_shard but without cursor position adjustment.
  * Used when caret is Inner — the token is replaced in-place
- * and the caret stays inside the right neighbor. */
+ * and the caret stays inside the right neighbor.
+ * For secondary pieces (comments, whitespace), directly swaps
+ * the piece in siblings to avoid reassembly introducing grout. */
 let replace_shard_inplace = (d: Direction.t, t: Token.t, z: t): option(t) => {
-  let id = Zipper.adjacent_monotile_or_new_id(d, z);
-  let+ z = delete(d, z);
-  insert_shard_inplace(~id, t, z);
+  let neighbor = Siblings.neighbor(d, z.relatives.siblings);
+  switch (neighbor) {
+  | Some(Secondary(w)) when Token.is_secondary(t) =>
+    /* Direct replacement: swap the secondary piece in siblings */
+    let new_piece = Piece.Secondary(Secondary.mk(w.id, t));
+    let (l, r) = z.relatives.siblings;
+    let siblings =
+      switch (d) {
+      | Right =>
+        switch (r) {
+        | [_, ...rest] => (l, [new_piece, ...rest])
+        | _ => (l, r)
+        }
+      | Left =>
+        switch (List.rev(l)) {
+        | [_, ...rest] => (List.rev([new_piece, ...rest]), r)
+        | _ => (l, r)
+        }
+      };
+    Some({
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings,
+      },
+    });
+  | _ =>
+    let id = Zipper.adjacent_monotile_or_new_id(d, z);
+    let+ z = delete(d, z);
+    insert_shard_inplace(~id, t, z);
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -489,7 +523,10 @@ let go = (~deep_reassociate=false, char: string, z: t): option(t) => {
       Token.is_potential_token(new_token)
         ? z
           |> replace_shard_inplace(Right, new_token)
-          |> Option.map(remold_regrout(Right))
+          |> Option.map(
+               Token.is_secondary(new_token)
+                 ? Fun.id : remold_regrout(Right),
+             )
         : split(z, char, idx, t);
     | (Inner(_), (_, None)) => None
     | (Outer, _) =>
@@ -522,9 +559,10 @@ let go =
     : option(t) => {
   let+ z = go(~deep_reassociate, char, z);
   let z = Triggers.insert(~ci, z);
-  let z = switch (z.caret) {
-  | Inner(_) => z
-  | Outer => Zipper.rescan_reassemble(Left, z)
-  };
+  let z =
+    switch (z.caret) {
+    | Inner(_) => z
+    | Outer => Zipper.rescan_reassemble(Left, z)
+    };
   z;
 };

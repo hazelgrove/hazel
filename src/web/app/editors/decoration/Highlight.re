@@ -448,7 +448,11 @@ let clip_char_selection =
           switch (rows) {
           | [] => []
           | [first, ...rest] => [
-              {...first, left_col: first.left_col + offset, left_tip: None},
+              {
+                ...first,
+                left_col: first.left_col + offset,
+                left_tip: None,
+              },
               ...rest,
             ]
           };
@@ -467,17 +471,19 @@ let clip_char_selection =
         | Some(tok) =>
           let offset = Zipper.Caret.inner_offset_for_token(n, tok);
           let m =
-            Measured.find_p(
-              ~msg="clip_char_sel_right",
-              last_shard,
-              measured,
-            );
+            Measured.find_p(~msg="clip_char_sel_right", last_shard, measured);
           let new_right_col = m.origin.col + offset;
           switch (ListUtil.split_last_opt(rows)) {
           | None => []
           | Some((init, last_row)) =>
             init
-            @ [{...last_row, right_col: new_right_col, right_tip: None}]
+            @ [
+              {
+                ...last_row,
+                right_col: new_right_col,
+                right_tip: None,
+              },
+            ]
           };
         | None => rows
         };

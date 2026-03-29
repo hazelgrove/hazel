@@ -26,8 +26,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left, ByChar)))
     | (Up, "ArrowRight") => now(Move(Local(Right, ByChar)))
-    | (Up, "ArrowUp") => now(Move(Vertical(Up)))
-    | (Up, "ArrowDown") => now(Move(Vertical(Down)))
+    | (Up, "ArrowUp") => now(Move(Vertical(Up, ByChar)))
+    | (Up, "ArrowDown") => now(Move(Vertical(Down, ByChar)))
     | (Up, "Home") => now(Move(Line(Left)))
     | (Up, "End") => now(Move(Line(Right)))
     | (Up, "Backspace") => now(Destruct(Left))
@@ -37,8 +37,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Down, "Tab") => now(Move(Goal(Hole(Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByChar))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByChar))))
-    | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up))))
-    | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down))))
+    | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up, ByChar))))
+    | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down, ByChar))))
     | (Down, "Home") => now(Select(Resize(Line(Left))))
     | (Down, "End") => now(Select(Resize(Line(Right))))
     | (_, "Enter") => now(Insert(Token.linebreak))
@@ -52,6 +52,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
     | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
+    | "ArrowUp" => now(Select(Resize(Vertical(Up, ByToken))))
+    | "ArrowDown" => now(Select(Resize(Vertical(Down, ByToken))))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up} =>
@@ -66,8 +68,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
     | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
-    | "ArrowUp" => now(Select(Resize(Vertical(Up))))
-    | "ArrowDown" => now(Select(Resize(Vertical(Down))))
+    | "ArrowUp" => now(Select(Resize(Vertical(Up, ByToken))))
+    | "ArrowDown" => now(Select(Resize(Vertical(Down, ByToken))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
     | _ => None

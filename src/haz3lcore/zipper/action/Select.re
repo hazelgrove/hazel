@@ -42,8 +42,7 @@ let next_sibling_piece = (z: Zipper.t): option(Piece.t) =>
 /* If the next sibling in direction d is a multi-shard tile (with
  * children), decompose it in-place so that grow_selection picks up
  * individual shards rather than the entire tile tree. */
-let decompose_multi_shard_neighbor =
-    (d: Direction.t, z: Zipper.t): Zipper.t => {
+let decompose_multi_shard_neighbor = (d: Direction.t, z: Zipper.t): Zipper.t => {
   let focus = z.selection.focus;
   let dir = Selection.is_empty(z.selection) ? d : focus;
   let (l, r) = z.relatives.siblings;
@@ -81,8 +80,7 @@ let decompose_multi_shard_neighbor =
  * direction d. Uses anchor_caret to track partial tokens at the
  * anchor end of the selection. */
 let rec local_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
-  let is_growing =
-    Selection.is_empty(z.selection) || d == z.selection.focus;
+  let is_growing = Selection.is_empty(z.selection) || d == z.selection.focus;
 
   if (is_growing) {
     grow_by_char(d, z);
@@ -96,7 +94,13 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
   /* Ensure focus direction matches growth direction */
   let z =
     if (is_empty) {
-      {...z, selection: {...z.selection, focus: d}};
+      {
+        ...z,
+        selection: {
+          ...z.selection,
+          focus: d,
+        },
+      };
     } else {
       z;
     };
@@ -114,14 +118,20 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     switch (d) {
     | Right =>
       /* Growing right: focus=Right, pop from right siblings */
-      let+ z = Zipper.grow_selection({...z, caret: Outer});
+      let+ z =
+        Zipper.grow_selection({
+          ...z,
+          caret: Outer,
+        });
       let z = {
         ...z,
-        selection: {...z.selection, anchor_caret: Anchor_inner(n)},
+        selection: {
+          ...z.selection,
+          anchor_caret: Anchor_inner(n),
+        },
       };
       n < max_idx
-        ? Zipper.Caret.set(Inner(n + 1), z)
-        : Zipper.Caret.set(Outer, z);
+        ? Zipper.Caret.set(Inner(n + 1), z) : Zipper.Caret.set(Outer, z);
     | Left =>
       /* Growing left: focus=Left. Token is on right, so move it
        * to left first, then pop it into selection from left. */
@@ -129,17 +139,22 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         {
           ...z,
           caret: Outer,
-          selection: {...z.selection, focus: Left},
+          selection: {
+            ...z.selection,
+            focus: Left,
+          },
         }
         |> Zipper.move(Right)
         |> OptUtil.and_then(z => Zipper.grow_selection(z));
       let z = {
         ...z,
-        selection: {...z.selection, anchor_caret: Anchor_inner(n)},
+        selection: {
+          ...z.selection,
+          anchor_caret: Anchor_inner(n),
+        },
       };
       n > 0
-        ? Zipper.Caret.set(Inner(n - 1), z)
-        : Zipper.Caret.set(Outer, z);
+        ? Zipper.Caret.set(Inner(n - 1), z) : Zipper.Caret.set(Outer, z);
     };
 
   | Inner(n) =>
@@ -153,11 +168,9 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
       | None => 0
       };
     switch (z.selection.focus) {
-    | Right when n < max_idx =>
-      Some(Zipper.Caret.set(Inner(n + 1), z))
+    | Right when n < max_idx => Some(Zipper.Caret.set(Inner(n + 1), z))
     | Right => Some(Zipper.Caret.set(Outer, z))
-    | Left when n > 0 =>
-      Some(Zipper.Caret.set(Inner(n - 1), z))
+    | Left when n > 0 => Some(Zipper.Caret.set(Inner(n - 1), z))
     | Left => Some(Zipper.Caret.set(Outer, z))
     };
 
@@ -170,8 +183,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     let z = decompose_multi_shard_neighbor(d, z);
     let+ z =
       d == z.selection.focus || Selection.is_empty(z.selection)
-        ? Zipper.grow_selection_raw(z)
-        : Zipper.shrink_selection(z);
+        ? Zipper.grow_selection_raw(z) : Zipper.shrink_selection(z);
     /* Check the newly-selected focus-side piece for inner positions */
     let p =
       switch (d) {
@@ -222,7 +234,7 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
           | Left => n == an + 1 || n == an
           | Right => n == an - 1 || n == an
           }
-        };
+        }
       | _ => false /* Multiple pieces: can't crossover yet */
       };
     };
@@ -240,13 +252,13 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
             Outer,
             Zipper.directional_unselect(anchor_dir, z),
           ),
-        )
+        );
       | Anchor_inner(an) =>
         /* Anchor was inside the token. We need Inner(an) to reference
          * this piece, so it must end up in right siblings.
          * directional_unselect(Left) always puts content to the right. */
         let z = Zipper.directional_unselect(Left, z);
-        Some(Zipper.Caret.set(Inner(an), z))
+        Some(Zipper.Caret.set(Inner(an), z));
       };
     } else {
       /* Not at crossover: move one position towards anchor */
@@ -265,12 +277,11 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
              * back to siblings, then continue at Outer. */
             Zipper.shrink_selection(z)
             |> Option.map(Zipper.Caret.set(Outer));
-          }
+          };
       | Left =>
         /* n == 0 but not at crossover means there are more pieces.
          * Pop the focus-side piece back to siblings. */
-        Zipper.shrink_selection(z)
-        |> Option.map(Zipper.Caret.set(Outer))
+        Zipper.shrink_selection(z) |> Option.map(Zipper.Caret.set(Outer))
       };
     };
 
@@ -281,7 +292,13 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     | None =>
       /* Empty selection — toggle and grow */
       let selection = Selection.toggle_focus(z.selection);
-      grow_by_char(d, {...z, selection});
+      grow_by_char(
+        d,
+        {
+          ...z,
+          selection,
+        },
+      );
     | Some(p) =>
       switch (piece_max_idx(p)) {
       | None =>
@@ -292,9 +309,9 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         switch (d) {
         | Left => Some(Zipper.Caret.set(Inner(max_idx), z))
         | Right => Some(Zipper.Caret.set(Inner(0), z))
-        };
+        }
       }
-    };
+    }
   };
 };
 
@@ -787,27 +804,30 @@ let smart = (term_data, info_map, n, z: t): option(t) => {
 };
 
 let vertical =
-    (d: Action.vertical, ~col_target: int, ~measured: Measured.t, z: t)
+    (
+      d: Action.vertical,
+      ~col_target: int,
+      ~measured: Measured.t,
+      ~chunkiness: Action.chunkiness=ByChar,
+      z: t,
+    )
     : option(t) => {
   let goal =
     Point.{
       col: col_target,
       row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
     };
-  Zipper.do_towards_point(
-    ~measured,
-    ~force_progress=true,
-    local_by_char,
-    goal,
-    z,
-  );
+  let step =
+    switch (chunkiness) {
+    | ByChar => local_by_char
+    | ByToken => local
+    };
+  Zipper.do_towards_point(~measured, ~force_progress=true, step, goal, z);
 };
 
 let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
   let anchor = z |> toggle_focus |> Zipper.Caret.point(measured);
-  switch (
-    Zipper.do_towards_point(~measured, ~anchor, local_by_char, goal, z)
-  ) {
+  switch (Zipper.do_towards_point(~measured, ~anchor, local_by_char, goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };
