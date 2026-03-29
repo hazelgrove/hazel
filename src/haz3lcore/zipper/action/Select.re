@@ -747,12 +747,20 @@ let vertical =
       col: col_target,
       row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
     };
-  Zipper.do_towards_point(~measured, ~force_progress=true, local, goal, z);
+  Zipper.do_towards_point(
+    ~measured,
+    ~force_progress=true,
+    local_by_char,
+    goal,
+    z,
+  );
 };
 
 let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
   let anchor = z |> toggle_focus |> Zipper.Caret.point(measured);
-  switch (Zipper.do_towards_point(~measured, ~anchor, local, goal, z)) {
+  switch (
+    Zipper.do_towards_point(~measured, ~anchor, local_by_char, goal, z)
+  ) {
   | None => Some(z)
   | Some(z) => Some(z)
   };
