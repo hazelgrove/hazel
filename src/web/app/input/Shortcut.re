@@ -281,6 +281,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       "Add New Buffer",
+      ~hotkey="alt+n",
       ~mdIcon="add",
       ~section="Buffers",
       Editors(Scratch(AddSlide)),

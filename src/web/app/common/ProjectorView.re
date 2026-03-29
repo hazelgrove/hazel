@@ -524,9 +524,9 @@ let all =
 
 let move_dir = (key: Key.t): option(Direction.t) =>
   switch (key) {
-  | {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+  | {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
     Some(Left)
-  | {key: D("ArrowRight"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+  | {key: D("ArrowRight"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
     Some(Right)
   | _ => None
   };

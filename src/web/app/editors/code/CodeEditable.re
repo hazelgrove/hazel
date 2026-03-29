@@ -185,11 +185,19 @@ module Selection = {
   let handle_key_event =
       (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
-    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.TAB)
     /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
-    | {key: D("Enter"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("Enter"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {
+        key: D("Enter"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {key: D("Enter"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
       switch (focus_indicated_probe(model)) {
       | Some(_) as result => result
       | None => focus_probe_on_row(model)
@@ -202,6 +210,7 @@ module Selection = {
         meta: Down,
         ctrl: Up,
         alt: Up,
+        _,
       }
         when
           Zipper.linebreak_on(
@@ -212,7 +221,7 @@ module Selection = {
       | Some(_) as result => result
       | None => Some(Update.Perform(Move(Line(Right))))
       }
-    | {key: D("End"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Up}
+    | {key: D("End"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Up, _}
         when
           Zipper.linebreak_on(
             Right,
@@ -223,17 +232,25 @@ module Selection = {
       | None => Some(Update.Perform(Move(Line(Right))))
       }
     /* Cmd+/ (Mac) / Ctrl+/ (PC) toggles line comment */
-    | {key: D("/"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("/"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {key: D("/"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _}
+    | {key: D("/"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
       Some(Update.Perform(ToggleLineComment))
     /* Cmd+. (Mac) / Ctrl+. (PC) opens context menu - VS Code Quick Fix convention */
-    | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _}
+    | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
       Some(Update.ContextMenu(ContextMenu.Model.Open))
     /* Shift+F10 opens context menu (VS Code convention) */
-    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.ContextMenu(ContextMenu.Model.Open))
-    | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
+    | {
+        key: D(key),
+        sys: Mac | PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>

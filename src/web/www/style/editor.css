@@ -366,10 +366,25 @@ svg.shard.selected.buffer-parsed > path {
 }
 
 .var-highlight {
-  border-bottom: 1.5px solid var(--token-exp);
-  background-color: color-mix(in srgb, var(--token-exp) 10%, transparent);
+  border-bottom: 2.3px dotted;
   box-sizing: border-box;
-  border-radius: 0.1em;
+}
+
+.var-highlight.Exp {
+  border-bottom-color: var(--token-exp);
+  background-color: color-mix(in srgb, var(--token-exp) 10%, transparent);
+}
+.var-highlight.Pat {
+  border-bottom-color: var(--token-pat);
+  background-color: color-mix(in srgb, var(--token-pat) 10%, transparent);
+}
+.var-highlight.Typ {
+  border-bottom-color: var(--token-typ);
+  background-color: color-mix(in srgb, var(--token-typ) 10%, transparent);
+}
+.var-highlight.TPat {
+  border-bottom-color: var(--token-tpat);
+  background-color: color-mix(in srgb, var(--token-tpat) 10%, transparent);
 }
 
 /* EMPTY HOLE DECO */
