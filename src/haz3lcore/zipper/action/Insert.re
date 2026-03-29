@@ -446,8 +446,10 @@ let go = (~deep_reassociate=false, char: string, z: t): option(t) => {
   ) {
   | Some(z) => Some(z)
   | None =>
-    /* Normal path: delete selection (if any) before proceeding */
-    let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
+    /* Normal path: normalize char selection then delete (if any) */
+    let z =
+      z.selection.content != []
+        ? Zipper.normalize_char_selection(z) |> Zipper.destroy_selection : z;
     switch (z.caret, neighbor_tokens(z)) {
     /* If we try to insert a quote inside an existing string, or a #
      * in a comment, we are instead moved to the righthand side of

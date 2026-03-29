@@ -3350,6 +3350,54 @@ let char_selection_tests = [
     ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Unselect(Some(Right))],
     ~goal={|hell¦o|},
   ),
+  /* H. Destruct over char selections */
+  test(
+    ~name="Delete intra-token char selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Destruct(Left)],
+    ~goal={|he¦o|},
+  ),
+  test(
+    ~name="Backspace intra-token char selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Destruct(Right)],
+    ~goal={|he¦o|},
+  ),
+  test(
+    ~name="Delete entire token via char selection",
+    ~acts=mk({|¦hello|}) @ sel_r(5) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Delete first char of token",
+    ~acts=mk({|¦hello|}) @ sel_r(1) @ [Destruct(Left)],
+    ~goal={|¦ello|},
+  ),
+  test(
+    ~name="Delete last char of token",
+    ~acts=mk({|hell¦o|}) @ sel_r(1) @ [Destruct(Left)],
+    ~goal={|hell¦|},
+  ),
+  test(
+    ~name="Delete intra-token left selection",
+    ~acts=mk({|hel¦lo|}) @ sel_l(2) @ [Destruct(Left)],
+    ~goal={|h¦lo|},
+  ),
+  /* I. Insert over char selections */
+  test(
+    ~name="Insert char over intra-token selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Insert("X")],
+    ~goal={|heX¦o|},
+  ),
+  test(
+    ~name="Insert char over entire token selection",
+    ~acts=mk({|¦hello|}) @ sel_r(5) @ [Insert("X")],
+    ~goal={|X¦|},
+  ),
+  /* J. Cross-token destruct and insert (piece-level, not char-level) */
+  test(
+    ~name="Delete cross-token piece-level selection (1+2)",
+    ~acts=mk({|1¦ + 2|}) @ sel_r(3) @ [Destruct(Left)],
+    ~goal={|1¦2|},
+  ),
 ];
 
 let tests = [

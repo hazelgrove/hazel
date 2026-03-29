@@ -116,12 +116,173 @@ let unselect = (~erase_buffer=false, z: t): t => {
   };
 };
 
+/* Create a monotile piece from a token string with a generic mold.
+ * Used for remainder pieces when splitting partial tokens during
+ * char-level selection destruction. Callers' remold_regrout will
+ * assign the correct mold. */
+let mk_remainder_piece = (tok: Token.t): Piece.t =>
+  Tile({
+    id: Id.mk(),
+    label: [tok],
+    mold: Mold.mk_op(Sort.Any, []),
+    shards: [0],
+    children: [],
+  });
+
 let destroy_selection: t => t =
   z =>
     unselect({
       ...z,
       selection: Selection.empty,
     });
+
+/* Normalize a char-level selection before destruction.
+ * Splits partial boundary tokens and keeps the exterior (unselected)
+ * portions, setting caret appropriately. Must be called explicitly
+ * by top-level actions (Destruct, Insert) — NOT from internal helpers
+ * like replace_shard which set Inner caret for other purposes. */
+let normalize_char_selection = (z: t): t => {
+  let has_char_boundary =
+    z.selection.anchor_caret != Selection.Anchor_outer
+    || z.caret != Outer && !Selection.is_empty(z.selection);
+  if (!has_char_boundary || Selection.is_empty(z.selection)) {
+    z;
+  } else {
+    let focus_dir = z.selection.focus;
+    let content = z.selection.content;
+
+    /* Determine inner offsets for left and right boundaries */
+    let (left_offset, right_offset) =
+      switch (focus_dir) {
+      | Right => (
+          switch (z.selection.anchor_caret) {
+          | Anchor_inner(n) => Some(n)
+          | Anchor_outer => None
+          },
+          switch (z.caret) {
+          | Inner(n) => Some(n)
+          | Outer => None
+          },
+        )
+      | Left => (
+          switch (z.caret) {
+          | Inner(n) => Some(n)
+          | Outer => None
+          },
+          switch (z.selection.anchor_caret) {
+          | Anchor_inner(n) => Some(n)
+          | Anchor_outer => None
+          },
+        )
+      };
+
+    /* Compute left remainder (exterior chars before left boundary) */
+    let left_remainder =
+      switch (left_offset) {
+      | None => None
+      | Some(n) =>
+        switch (content) {
+        | [] => None
+        | [p, ..._] =>
+          switch (Piece.token_of(p)) {
+          | Some(tok) =>
+            let (rest, _) = Token.split_nth(tok, n + 1);
+            rest == "" ? None : Some(rest);
+          | None => None
+          }
+        }
+      };
+
+    /* Compute right remainder (exterior chars after right boundary) */
+    let right_remainder =
+      switch (right_offset) {
+      | None => None
+      | Some(n) =>
+        switch (ListUtil.last_opt(content)) {
+        | None => None
+        | Some(p) =>
+          switch (Piece.token_of(p)) {
+          | Some(tok) =>
+            let (_, rest) = Token.split_nth(tok, n + 1);
+            rest == "" ? None : Some(rest);
+          | None => None
+          }
+        }
+      };
+
+    let left_str = Option.value(left_remainder, ~default="");
+    let right_str = Option.value(right_remainder, ~default="");
+    let is_single_piece = List.length(content) == 1;
+
+    if (is_single_piece) {
+      /* Single-piece: combine remainders into one token to avoid
+       * creating two adjacent pieces that would need grout between them.
+       * Caret is set to Inner at the seam position so callers (like
+       * Insert.go) can insert at the correct spot within the token. */
+      let combined = left_str ++ right_str;
+      let z = {
+        ...z,
+        selection: Selection.empty,
+        caret: Outer,
+      };
+      let z = unselect(z);
+      if (combined == "") {
+        z;
+      } else {
+        let piece = mk_remainder_piece(combined);
+        let seam_pos = Token.length(left_str);
+        let combined_len = Token.length(combined);
+        let max_idx = combined_len - 2;
+        if (seam_pos == 0) {
+          /* No left remainder: piece on right, caret before it */
+          let siblings =
+            Siblings.prepend(Right, [piece], z.relatives.siblings);
+          let relatives =
+            Relatives.reassemble({...z.relatives, siblings});
+          {...z, caret: Outer, relatives};
+        } else if (seam_pos >= combined_len) {
+          /* No right remainder: piece on left, caret after it */
+          let siblings =
+            Siblings.prepend(Left, [piece], z.relatives.siblings);
+          let relatives =
+            Relatives.reassemble({...z.relatives, siblings});
+          {...z, caret: Outer, relatives};
+        } else {
+          /* Seam in middle: piece on right, Inner caret at seam */
+          let siblings =
+            Siblings.prepend(Right, [piece], z.relatives.siblings);
+          let relatives =
+            Relatives.reassemble({...z.relatives, siblings});
+          {...z, caret: Inner(min(seam_pos - 1, max_idx)), relatives};
+        };
+      };
+    } else {
+      /* Multi-piece: separate remainders. Callers (Destruct.go) run
+       * merge_or_noop which will merge adjacent compatible tokens. */
+      let siblings = z.relatives.siblings;
+      let siblings =
+        switch (left_remainder) {
+        | Some(tok) =>
+          Siblings.prepend(Left, [mk_remainder_piece(tok)], siblings)
+        | None => siblings
+        };
+      let siblings =
+        switch (right_remainder) {
+        | Some(tok) =>
+          Siblings.prepend(Right, [mk_remainder_piece(tok)], siblings)
+        | None => siblings
+        };
+      let relatives =
+        Relatives.reassemble({...z.relatives, siblings});
+      {
+        ...z,
+        caret: Outer,
+        selection: Selection.empty,
+        relatives,
+      };
+    };
+  };
+};
 
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
