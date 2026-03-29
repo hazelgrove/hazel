@@ -35,8 +35,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
     | (Down, "Tab") => now(Move(Goal(Hole(Left))))
-    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByToken))))
-    | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByToken))))
+    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByChar))))
+    | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByChar))))
     | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up))))
     | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down))))
     | (Down, "Home") => now(Select(Resize(Line(Left))))
@@ -46,6 +46,12 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
       /* Note: length==1 prevent specials like
        * SHIFT from being captured here */
       now(Insert(key))
+    | _ => None
+    }
+  | {key: D(key), sys: Mac, shift: Down, meta: Up, ctrl: Up, alt: Down} =>
+    switch (key) {
+    | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
+    | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up} =>

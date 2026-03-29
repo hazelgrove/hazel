@@ -124,23 +124,22 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     };
 
   | Outer =>
-    /* At a piece boundary. Look at what's ahead in the focus direction. */
-    let ahead = Siblings.neighbor(d, z.relatives.siblings);
-    switch (ahead) {
-    | None => None /* At edge of program */
-    | Some(p) =>
-      switch (piece_max_idx(p)) {
-      | None =>
-        /* Single-char or non-token piece (grout, whitespace): select whole piece */
-        Zipper.select(d, z)
-      | Some(max_idx) =>
-        /* Multi-char token: consume it into selection, then set Inner
-         * to indicate we're only one char into it */
-        let+ z = Zipper.select(d, z);
-        switch (d) {
-        | Right => Zipper.Caret.set(Inner(0), z)
-        | Left => Zipper.Caret.set(Inner(max_idx), z)
-        };
+    /* At a piece boundary. Try to grow by one piece. Use Zipper.select
+     * (not Siblings.neighbor) so ancestor boundaries are crossed. */
+    let+ z = Zipper.select(d, z);
+    /* Check the newly-selected focus-side piece for inner positions */
+    let p =
+      switch (d) {
+      | Right => ListUtil.last(z.selection.content)
+      | Left => List.hd(z.selection.content)
+      };
+    switch (piece_max_idx(p)) {
+    | None => z /* Single-char or non-token: whole piece selected */
+    | Some(max_idx) =>
+      /* Multi-char token: set Inner to indicate one char into it */
+      switch (d) {
+      | Right => Zipper.Caret.set(Inner(0), z)
+      | Left => Zipper.Caret.set(Inner(max_idx), z)
       }
     };
   };
@@ -184,16 +183,24 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     };
 
     if (at_crossover) {
-      /* Selection becomes empty. Restore caret to anchor position.
-       * Use directional_unselect towards the anchor end (opposite
-       * of selection focus) so caret lands at the anchor side. */
+      /* Selection becomes empty. Restore caret to anchor position. */
       let anchor_caret = z.selection.anchor_caret;
-      let anchor_dir = Direction.toggle(z.selection.focus);
-      let z =
-        Zipper.Caret.set(Outer, Zipper.directional_unselect(anchor_dir, z));
       switch (anchor_caret) {
-      | Anchor_outer => Some(z)
+      | Anchor_outer =>
+        /* Anchor was at a piece boundary. Use directional_unselect
+         * towards the anchor end so caret lands at that boundary. */
+        let anchor_dir = Direction.toggle(z.selection.focus);
+        Some(
+          Zipper.Caret.set(
+            Outer,
+            Zipper.directional_unselect(anchor_dir, z),
+          ),
+        )
       | Anchor_inner(an) =>
+        /* Anchor was inside the token. We need Inner(an) to reference
+         * this piece, so it must end up in right siblings.
+         * directional_unselect(Left) always puts content to the right. */
+        let z = Zipper.directional_unselect(Left, z);
         Some(Zipper.Caret.set(Inner(an), z))
       };
     } else {

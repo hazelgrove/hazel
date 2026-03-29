@@ -3243,16 +3243,112 @@ let char_selection_tests = [
     ~acts=mk({|¦hello|}) @ sel_r(1) @ sel_l(1),
     ~goal={|¦hello|},
   ),
-  /* D. Edge cases */
+  /* D. Cross-token selections */
+  test(
+    ~name="Select across token boundary right (single char tokens)",
+    ~acts=mk({|1¦ + 2|}) @ sel_r(3),
+    ~goal={|1§ + ¦2|},
+  ),
+  test(
+    ~name="Select 1 char right from middle of 'hello' (check anchor pos)",
+    ~acts=mk({|hel¦lo|}) @ sel_r(1),
+    ~goal={|hel§l¦o|},
+  ),
+  test(
+    ~name="Select across token boundary right (multi-char tokens)",
+    ~acts=mk({|le¦t x = 1 in x|}) @ sel_r(3),
+    ~goal={|le§t x¦ = 1 in x|},
+  ),
+  test(
+    ~name="Select left across token boundary",
+    ~acts=mk({|let x = 12¦34 in x|}) @ sel_l(4),
+    ~goal={|let x ¦= 12§34 in x|},
+  ),
+  /* E. Grow then shrink (round-trip) */
+  test(
+    ~name="Grow right 3 then shrink left 1",
+    ~acts=mk({|he¦llo|}) @ sel_r(3) @ sel_l(1),
+    ~goal={|he§ll¦o|},
+  ),
+  test(
+    ~name="Grow right across token boundary then shrink",
+    ~acts=mk({|1¦ + 2|}) @ sel_r(3) @ sel_l(1),
+    ~goal={|1§ +¦ 2|},
+  ),
+  test(
+    ~name="Grow left then shrink right to empty",
+    ~acts=mk({|hel¦lo|}) @ sel_l(2) @ sel_r(2),
+    ~goal={|hel¦lo|},
+  ),
+  test(
+    ~name="Grow right then shrink right completely",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ sel_l(2),
+    ~goal={|he¦llo|},
+  ),
+  /* F. Edge cases */
   test(
     ~name="Select over grout (single char, no inner)",
     ~acts=mk({|1 + ¦? + 2|}) @ sel_r(1),
     ~goal={|1 + §?¦ + 2|},
   ),
   test(
-    ~name="Select at end of program",
+    ~name="Select at end of program going left",
     ~acts=mk({|hello¦|}) @ sel_l(1),
     ~goal={|hell¦o§|},
+  ),
+  test(
+    ~name="Select at start of program going right",
+    ~acts=mk({|¦hello|}) @ sel_r(1),
+    ~goal={|§h¦ello|},
+  ),
+  test(
+    ~name="Select entire token char by char right",
+    ~acts=mk({|¦hello|}) @ sel_r(5),
+    ~goal={|§hello¦|},
+  ),
+  test(
+    ~name="Select entire token char by char left",
+    ~acts=mk({|hello¦|}) @ sel_l(5),
+    ~goal={|¦hello§|},
+  ),
+  test(
+    ~name="Select single-char token (parens open)",
+    ~acts=mk({|¦(1, 2)|}) @ sel_r(1),
+    ~goal={|§(¦1, 2)|},
+  ),
+  /* G. Toggle focus and unselect with char selections */
+  test(
+    ~name="Toggle focus on intra-token selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Select(ToggleFocus)],
+    ~goal={|he¦ll§o|},
+  ),
+  test(
+    ~name="Toggle focus twice returns to original",
+    ~acts=
+      mk({|he¦llo|})
+      @ sel_r(2)
+      @ [Select(ToggleFocus), Select(ToggleFocus)],
+    ~goal={|he§ll¦o|},
+  ),
+  test(
+    ~name="Move left from char selection (to anchor)",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Move(Local(Left, ByChar))],
+    ~goal={|he¦llo|},
+  ),
+  test(
+    ~name="Move right from char selection (to focus)",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Move(Local(Right, ByChar))],
+    ~goal={|hell¦o|},
+  ),
+  test(
+    ~name="Unselect left from char selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Unselect(Some(Left))],
+    ~goal={|he¦llo|},
+  ),
+  test(
+    ~name="Unselect right from char selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Unselect(Some(Right))],
+    ~goal={|hell¦o|},
   ),
 ];
 

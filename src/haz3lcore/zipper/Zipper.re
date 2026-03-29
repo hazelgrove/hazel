@@ -164,8 +164,25 @@ let shrink_selection = (z: t): option(t) => {
 };
 
 let toggle_focus = (z: t): t => {
-  ...z,
-  selection: Selection.toggle_focus(z.selection),
+  /* Swap caret and anchor_caret so each end retains its position */
+  let new_anchor_caret: Selection.anchor_caret =
+    switch (z.caret) {
+    | Outer => Anchor_outer
+    | Inner(n) => Anchor_inner(n)
+    };
+  let new_caret: ZipperBase.caret =
+    switch (z.selection.anchor_caret) {
+    | Anchor_outer => Outer
+    | Anchor_inner(n) => Inner(n)
+    };
+  {
+    ...z,
+    caret: new_caret,
+    selection: {
+      ...Selection.toggle_focus(z.selection),
+      anchor_caret: new_anchor_caret,
+    },
+  };
 };
 
 let set_focus = (z: t, d: Direction.t): t => {
@@ -180,14 +197,40 @@ let set_focus = (z: t, d: Direction.t): t => {
 };
 
 let directional_unselect = (d: Direction.t, z: t): t => {
+  let landing_at_anchor = d != z.selection.focus;
+  let anchor_caret = z.selection.anchor_caret;
+  /* Determine the target caret after unselect */
+  let target_caret =
+    if (landing_at_anchor) {
+      switch (anchor_caret) {
+      | Anchor_outer => ZipperBase.Outer
+      | Anchor_inner(n) => Inner(n)
+      };
+    } else {
+      z.caret;
+    };
   let selection = {
     ...z.selection,
     focus: Direction.toggle(d),
   };
-  unselect({
-    ...z,
-    selection,
-  });
+  let z =
+    unselect({
+      ...z,
+      selection,
+    });
+  let z = {...z, caret: target_caret};
+  /* Inner(n) references the right neighbor. After unselect, if the
+   * referenced piece ended up in left siblings instead, move it right. */
+  switch (target_caret) {
+  | Inner(_) when Siblings.neighbor(Right, z.relatives.siblings) == None =>
+    switch (Relatives.pop(Left, z.relatives)) {
+    | Some((p, relatives)) =>
+      let relatives = Relatives.push(Right, p, relatives);
+      {...z, relatives};
+    | None => z
+    }
+  | _ => z
+  };
 };
 
 let unselect = (z: t): t =>
