@@ -3182,6 +3182,57 @@ let wrap_calculate_test = [
   ),
 ];
 
+/* Cut-paste across delimiter boundaries: when a selection spans a
+ * delimiter (e.g. `=` in `let...=...in`), cutting removes the shard
+ * from its parent tile. Re-pasting inserts a fresh-ID token that must
+ * be reconnected to the ancestor tile via rescan_parent_shards. */
+let sel_r_token = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, ByToken))));
+
+let cross_boundary_paste_tests = [
+  /* Select `comparison = (0` from `let comparison = (0 == 0) in comparison`,
+   * cutting the `=` shard out of the let form and the `(` out of parens.
+   * After paste, both should be structurally restored. */
+  test_case(
+    "Cut-paste spanning = delimiter in let: structural integrity",
+    `Quick,
+    () => {
+      /* Build zipper with caret after `let ` */
+      let z =
+        mk({|let ¦comparison = (0 == 0) in comparison|})
+        |> perform(Zipper.init());
+      /* Select right by token: comparison, ws, =, ws, (, 0 */
+      let z = perform(z, sel_r_token(6));
+      /* Get clipboard text */
+      let clipboard =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z.selection.content,
+        );
+      /* Cut then paste */
+      let z = perform(z, [Cut, Paste(clipboard)]);
+      /* Check structural integrity: no incomplete tiles */
+      let seg = Zipper.unselect_and_zip(z);
+      let inc = Segment.incomplete_tiles(seg);
+      check(
+        Alcotest.int,
+        "no incomplete tiles (labels: "
+        ++ String.concat(
+             "; ",
+             List.map(
+               (t: Tile.t) => String.concat(",", t.label),
+               inc,
+             ),
+           )
+        ++ ")",
+        0,
+        List.length(inc),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -3201,4 +3252,5 @@ let tests = [
   ("Editing.CommentRemold", comment_remold_tests),
   ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
   ("Editing.AncestorSort", ancestor_sort_tests),
+  ("Editing.CrossBoundaryPaste", cross_boundary_paste_tests),
 ];
