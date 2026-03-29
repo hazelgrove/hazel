@@ -811,18 +811,22 @@ module Selection = {
 
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
-    switch (selection) {
-    | Cell(selection) =>
-      switch (event) {
-      | _ =>
-        CellEditor.Selection.handle_key_event(
-          ~selection,
-          ~event,
-          List.nth(model.scratchpads, model.current).editor,
-        )
-        |> Option.map(x => Update.CellAction(x))
-      }
-    | TextBox => None
+    if (Keyboard.is_new_slide(event)) {
+      Some(AddSlide);
+    } else {
+      switch (selection) {
+      | Cell(selection) =>
+        switch (event) {
+        | _ =>
+          CellEditor.Selection.handle_key_event(
+            ~selection,
+            ~event,
+            List.nth(model.scratchpads, model.current).editor,
+          )
+          |> Option.map(x => Update.CellAction(x))
+        }
+      | TextBox => None
+      };
     };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>
