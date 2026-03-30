@@ -81,7 +81,18 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
 
-  let persist = x => x;
+  /* Clear expanded error IDs before persisting — tile IDs are ephemeral
+     and go stale across sessions. */
+  let persist = settings => {
+    ...settings,
+    sidebar: {
+      ...settings.sidebar,
+      errors: {
+        ...settings.sidebar.errors,
+        expanded: [],
+      },
+    },
+  };
   let unpersist = fix_instructor_mode;
 };
 
