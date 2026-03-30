@@ -183,11 +183,6 @@ let start = default_model => {
         };
         /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
-        if (model.model.current.current.globals.settings.sidebar.show
-            && model.model.current.current.globals.settings.sidebar.panel
-            == Errors) {
-          JsUtil.scroll_active_error_into_view();
-        };
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
         model.model.current.current.globals.settings.core.statics

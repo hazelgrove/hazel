@@ -4,6 +4,37 @@ open Util;
 open Util.WebUtil;
 open ErrorCollection;
 
+/* ---------- Scroll-into-view hook ---------- */
+
+module ScrollIntoViewHook =
+  Attr.Hooks.Make({
+    module State = Unit;
+    module Input = {
+      type t = unit;
+      let sexp_of_t = Sexplib0.Sexp_conv.sexp_of_unit;
+      let combine = ((), ()) => ();
+    };
+    let init = ((), _el) => ();
+    let on_mount = ((), (), el) =>
+      Js_of_ocaml.Js.Unsafe.coerce(el)##scrollIntoView(
+        Js_of_ocaml.Js.Unsafe.obj([|
+          (
+            "block",
+            Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string("nearest")),
+          ),
+          (
+            "inline",
+            Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string("nearest")),
+          ),
+        |]),
+      );
+    let update = (~old_input as (), ~new_input as (), (), _el) => ();
+    let destroy = ((), (), _el) => ();
+  });
+
+let scroll_active_into_view: Attr.t =
+  Attr.create_hook("scroll-active-error", ScrollIntoViewHook.create());
+
 /* ---------- View helpers ---------- */
 
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
@@ -71,8 +102,13 @@ let error_row =
       ],
       [text(is_expanded ? "▾" : "▸")],
     );
+  let scroll_attr = is_active ? scroll_active_into_view : Attr.empty;
   div(
-    ~attrs=[clss(classes), Attr.on_pointerdown(jump_to(~globals, id))],
+    ~attrs=[
+      clss(classes),
+      Attr.on_pointerdown(jump_to(~globals, id)),
+      scroll_attr,
+    ],
     [chevron, line_num_view(id, measured, row_to_line), content],
   );
 };
