@@ -583,7 +583,9 @@ module View = {
         /* Always focusable so first click gives DOM focus.
          * Key events are ignored when not selected — they bubble
          * to Page.re which handles page-level shortcuts. */
-        Attr.tabindex(0);
+        Attr.tabindex(
+          0,
+        );
       } else {
         let z = model.editor.state.zipper;
         Key.handler(~f=key => {
@@ -591,14 +593,30 @@ module View = {
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
           switch (key) {
-          | {key: D("ArrowLeft"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+          | {
+              key: D("ArrowLeft" | "ArrowUp"),
+              shift: Up,
+              meta: Up,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
               when
                 z.caret == Outer
+                && z.relatives.ancestors == []
                 && fst(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Left)])
-          | {key: D("ArrowRight"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+          | {
+              key: D("ArrowRight" | "ArrowDown"),
+              shift: Up,
+              meta: Up,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
               when
                 z.caret == Outer
+                && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
           | _ =>
@@ -613,7 +631,7 @@ module View = {
               ])
             | None => Effect.Ignore
             }
-          };
+          }
         });
       };
     Node.div(
