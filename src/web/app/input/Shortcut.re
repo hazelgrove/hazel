@@ -324,7 +324,10 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
   @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});
 
 let contextual_actions =
-    (~inject: Page.Update.t => Virtual_dom.Vdom.Effect.t(unit), sys: Util.Key.sys)
+    (
+      ~inject: Page.Update.t => Virtual_dom.Vdom.Effect.t(unit),
+      sys: Util.Key.sys,
+    )
     : list(ContextualAction.t) => {
   List.map(to_contextual_action(~inject), shortcuts(sys));
 };

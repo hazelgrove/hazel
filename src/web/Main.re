@@ -156,7 +156,9 @@ let start = default_model => {
       schedule_action(a);
       Virtual_dom.Vdom.Effect.Ignore;
     };
-    NinjaKeys.initialize(Shortcut.contextual_actions(~inject=inject_effect, sys));
+    NinjaKeys.initialize(
+      Shortcut.contextual_actions(~inject=inject_effect, sys),
+    );
     JsUtil.focus_clipboard_shim();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,

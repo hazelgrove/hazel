@@ -38,8 +38,7 @@ let of_contextual_action =
          switch (action.update_action) {
          | Some(effect) =>
            Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(effect)
-         | None =>
-           print_endline("Could not find action for " ++ action.label)
+         | None => print_endline("Could not find action for " ++ action.label)
          };
        }
    }

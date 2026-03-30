@@ -40,7 +40,11 @@ module Focus = {
       CodeEditable.Selection.handle_key_event(~selection=(), model, key)
     ) {
     | Some(action) =>
-      Effect.Many([Effect.Prevent_default, Effect.Stop_propagation, inject(action)])
+      Effect.Many([
+        Effect.Prevent_default,
+        Effect.Stop_propagation,
+        inject(action),
+      ])
     | None =>
       /* Check for arrow key escape at editor boundaries */
       switch (key) {
@@ -78,9 +82,7 @@ module Focus = {
             ~mdIcon="camera",
             ~section="Projection",
             ~action=
-              inject(
-                Perform(Project(SetIndicated(Specific(Fold)))),
-              ),
+              inject(Perform(Project(SetIndicated(Specific(Fold))))),
             "Fold",
           ),
         ]
