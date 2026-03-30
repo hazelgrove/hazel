@@ -123,10 +123,7 @@ let rescan_parent_shards = (z: t): t => {
    * ancestor using reassemble_parent-style logic. Returns updated
    * (sibs, target) or None if no conversion happened. */
   let try_absorb =
-      (
-        sibs: Siblings.t,
-        target: Ancestor.t,
-      )
+      (sibs: Siblings.t, target: Ancestor.t)
       : option((Siblings.t, Ancestor.t)) => {
     let missing = ancestor_missing(target);
     if (missing == []) {
@@ -156,8 +153,7 @@ let rescan_parent_shards = (z: t): t => {
             let (shards_l, kids_l) = flatten_match(match_l);
             let target = {
               ...target,
-              shards:
-                target.shards |> PairUtil.map_fst(ss => ss @ shards_l),
+              shards: target.shards |> PairUtil.map_fst(ss => ss @ shards_l),
               children:
                 target.children
                 |> PairUtil.map_fst(kids =>
@@ -173,8 +169,7 @@ let rescan_parent_shards = (z: t): t => {
             let (shards_r, kids_r) = flatten_match(match_r);
             let target = {
               ...target,
-              shards:
-                target.shards |> PairUtil.map_snd(ss => shards_r @ ss),
+              shards: target.shards |> PairUtil.map_snd(ss => shards_r @ ss),
               children:
                 target.children
                 |> PairUtil.map_snd(kids =>
@@ -202,8 +197,11 @@ let rescan_parent_shards = (z: t): t => {
       | [(parent, parent_sibs), ...rest_tail] =>
         switch (try_absorb(sibs, parent)) {
         | None => [(a, sibs), (parent, parent_sibs), ...rest_tail]
-        | Some((new_sibs, new_parent)) =>
-          [(a, new_sibs), (new_parent, parent_sibs), ...rest_tail]
+        | Some((new_sibs, new_parent)) => [
+            (a, new_sibs),
+            (new_parent, parent_sibs),
+            ...rest_tail,
+          ]
         }
       };
     };
@@ -237,8 +235,7 @@ let rescan_parent_shards = (z: t): t => {
  * a standalone monotile should retroactively become a shard
  * of an incomplete tile (e.g. standalone `->` matching `fun`).
  * Should be called after edits, not during cursor movement. */
-let rescan_reassemble =
-    (~with_parent=false, d: Direction.t, z: t): t => {
+let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
     if (siblings == z.relatives.siblings) {
@@ -272,7 +269,10 @@ let rescan_reassemble =
        * try_absorb already restructured the ancestors in place). */
       let relatives =
         z'.relatives |> Relatives.remold |> Relatives.regrout(d);
-      {...z', relatives};
+      {
+        ...z',
+        relatives,
+      };
     } else {
       z;
     };
@@ -845,8 +845,7 @@ let put_down_core = (seg: Segment.t, z: t): t =>
 let put_down_no_reassemble = (seg: Segment.t, z: t): t => {
   let z = z |> replace_selection(Right, seg);
   let relatives =
-    z.relatives
-    |> Relatives.prepend(z.selection.focus, z.selection.content);
+    z.relatives |> Relatives.prepend(z.selection.focus, z.selection.content);
   let selection = Selection.empty;
   {
     ...z,

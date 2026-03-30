@@ -32,12 +32,7 @@ let bools_ex : Tutorial.spec =
     your_impl =
       {
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -342,12 +337,7 @@ let cond_ex : Tutorial.spec =
     your_impl =
       {
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -496,12 +486,7 @@ let func_ex : Tutorial.spec =
     your_impl =
       {
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);

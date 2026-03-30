@@ -116,12 +116,7 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
  * no reassembly). For Inner caret edits where adj_pos would flatten
  * ancestors and reassembly would absorb the token back. */
 let insert_shard_inplace = (~id: Id.t, t: Token.t, z: t): t =>
-  insert_shard_core(
-    ~put_down=Zipper.put_down_no_reassemble,
-    ~id,
-    t,
-    z,
-  );
+  insert_shard_core(~put_down=Zipper.put_down_no_reassemble, ~id, t, z);
 
 /* Like replace_shard but without cursor position adjustment.
  * Used when caret is Inner — the token is replaced in-place

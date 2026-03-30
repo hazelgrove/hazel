@@ -22,12 +22,7 @@ let exercise : Tutorial.spec =
     your_impl =
       {
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -172,12 +167,7 @@ let scope_exercise : Tutorial.spec =
     your_impl =
       {
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);

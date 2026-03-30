@@ -8,12 +8,7 @@ let exercise : TheoremExerciseSpec.t =
       {
         refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings =
@@ -36,12 +31,7 @@ let exercise : TheoremExerciseSpec.t =
       {
         refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings =
@@ -64,12 +54,7 @@ let exercise : TheoremExerciseSpec.t =
       {
         refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings =

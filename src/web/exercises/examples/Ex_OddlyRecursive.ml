@@ -13,12 +13,7 @@ let exercise : Exercise.spec =
     prelude =
       {
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings =
@@ -262,12 +257,7 @@ let exercise : Exercise.spec =
     correct_impl =
       {
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings =
@@ -1056,12 +1046,7 @@ let exercise : Exercise.spec =
     your_impl =
       {
         selection =
-          {
-            focus = Left;
-            content = [];
-            mode = Normal;
-            anchor_caret = Outer;
-          };
+          { focus = Left; content = []; mode = Normal; anchor_caret = Outer };
         relatives =
           {
             siblings =
