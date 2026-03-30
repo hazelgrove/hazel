@@ -74,14 +74,14 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="arrow_downward",
       ~section="Navigation",
       "Go to Next Error",
-      Globals(ActiveEditor(Move(Goal(Error(Right))))),
+      Globals(ActiveEditor(Move(Goal(NextError(Right))))),
     ),
     mk_shortcut(
       ~hotkey="shift+F8",
       ~mdIcon="arrow_upward",
       ~section="Navigation",
       "Go to Previous Error",
-      Globals(ActiveEditor(Move(Goal(Error(Left))))),
+      Globals(ActiveEditor(Move(Goal(NextError(Left))))),
     ),
     mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+d",
