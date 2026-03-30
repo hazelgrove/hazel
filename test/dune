@@ -7,29 +7,24 @@
  (preprocess
   (pps ppx_deriving.show)))
 
-; Node.js flags for running tests:
-;  --stack-size=8192: increase stack to 8MB for deeply recursive tests
-;    (e.g., Pattern Coverage Checker)
-;  --require idb_stub.js: provide minimal IndexedDB globals for Node.js
-;    (Ezjs_idb captures IDBKeyRange at module init time)
-
 (rule
  (alias runtest)
  (action
-  (run
-   node
-   --stack-size=8192
-   --require
+  (setenv
+   IDB_STUB
    ./%{dep:idb_stub.js}
-   %{dep:haz3ltest.bc.js})))
+   (setenv
+    TEST_JS
+    %{dep:haz3ltest.bc.js}
+    (run bash %{dep:run_node.sh})))))
 
 (rule
  (alias test-quick)
  (action
-  (run
-   node
-   --stack-size=8192
-   --require
+  (setenv
+   IDB_STUB
    ./%{dep:idb_stub.js}
-   %{dep:haz3ltest.bc.js}
-   -q)))
+   (setenv
+    TEST_JS
+    %{dep:haz3ltest.bc.js}
+    (run bash %{dep:run_node.sh} -q)))))

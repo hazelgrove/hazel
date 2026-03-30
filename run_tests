@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Builds and runs tests via dune, which handles node flags and idb stub.
-# Pass -q for quick mode (skips property-based tests).
+# Builds the test JS and runs it, forwarding any CLI arguments.
+# Examples:
+#   ./run_tests                        # Run all tests
+#   ./run_tests test 'Statics.*' -q    # Run Statics tests, quick output
+#   ./run_tests test 'Evaluator' 19    # Run only Evaluator test 19
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
 
-if [[ " $* " == *" -q "* ]]; then
-  dune build @test-quick --profile dev
-else
-  dune build @runtest --profile dev
-fi
+dune build test --profile dev
+
+"$SCRIPT_DIR/test/run_node.sh" "$@"
