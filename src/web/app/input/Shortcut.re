@@ -1,16 +1,15 @@
-open Js_of_ocaml;
-
-type t = {
-  update_action: option(Page.Update.t),
-  hotkey: option(string),
-  label: string,
-  mdIcon: option(string),
-  section: option(string),
-};
-
-let mk_shortcut = (~hotkey=?, ~mdIcon=?, ~section=?, label, update_action): t => {
+let mk_shortcut =
+    (
+      ~hotkey=?,
+      ~mdIcon=?,
+      ~section=?,
+      label,
+      ~inject: Page.Update.t => Virtual_dom.Vdom.Effect.t(unit),
+      update_action: Page.Update.t,
+    )
+    : ContextualAction.t => {
   {
-    update_action: Some(update_action),
+    update_action: Some(inject(update_action)),
     hotkey,
     label,
     mdIcon,
@@ -18,34 +17,37 @@ let mk_shortcut = (~hotkey=?, ~mdIcon=?, ~section=?, label, update_action): t =>
   };
 };
 
-let instructor_shortcuts: list(t) = [
+let instructor_shortcuts = (~inject): list(ContextualAction.t) => [
   mk_shortcut(
     ~mdIcon="download",
     ~section="Export",
     "Export Exercise Module",
-    Editors(Exercises(ExportModule)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+    ~inject,
+    Editors(Exercises(ExportModule)),
   ),
   mk_shortcut(
     ~mdIcon="download",
     ~section="Export",
     "Export Transitionary Exercise Module",
-    Editors(Exercises(ExportTransitionary)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+    ~inject,
+    Editors(Exercises(ExportTransitionary)),
   ),
 ];
 
-// List of shortcuts configured to show up in the command palette and have hotkey support
-let shortcuts = (sys: Util.Key.sys): list(t) =>
+let shortcuts = (~inject, sys: Util.Key.sys): list(ContextualAction.t) =>
   [
     mk_shortcut(
       ~mdIcon="undo",
       ~hotkey=Keyboard.meta(sys) ++ "+z",
       "Undo",
+      ~inject,
       Globals(Undo),
     ),
     mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+shift+z",
       ~mdIcon="redo",
       "Redo",
+      ~inject,
       Globals(Redo),
     ),
     mk_shortcut(
@@ -53,6 +55,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="arrow_forward",
       ~section="Navigation",
       "Go to Definition",
+      ~inject,
       Globals(ActiveEditor(Move(Goal(BindingSiteOfIndicatedVar)))),
     ),
     mk_shortcut(
@@ -60,20 +63,22 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="arrow_upward",
       ~section="Navigation",
       "Go to Previous Problem",
+      ~inject,
       Globals(ActiveEditor(Move(Goal(NextProblem(Left))))),
     ),
     mk_shortcut(
       ~mdIcon="arrow_downward",
       ~section="Navigation",
       "Go to Next Problem",
+      ~inject,
       Globals(ActiveEditor(Move(Goal(NextProblem(Right))))),
-      // Tab is overloaded so not setting it here
     ),
     mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+d",
       ~mdIcon="select_all",
       ~section="Selection",
       "Select current term",
+      ~inject,
       Globals(ActiveEditor(Select(Term(Current)))),
     ),
     mk_shortcut(
@@ -81,12 +86,14 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~hotkey=Keyboard.meta(sys) ++ "+a",
       ~section="Selection",
       "Select All",
+      ~inject,
       Globals(ActiveEditor(Select(All))),
     ),
     mk_shortcut(
       ~mdIcon="flip_horizontal",
       ~section="Selection",
       "Toggle Selection Focus",
+      ~inject,
       Globals(ActiveEditor(Select(ToggleFocus))),
     ),
     mk_shortcut(
@@ -94,6 +101,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Selection",
       ~hotkey=Keyboard.meta(sys) ++ "+alt+shift+left",
       "Set Selection Focus Left",
+      ~inject,
       Globals(ActiveEditor(Select(SetFocus(Left)))),
     ),
     mk_shortcut(
@@ -101,6 +109,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Selection",
       ~hotkey=Keyboard.meta(sys) ++ "+alt+shift+right",
       "Set Selection Focus Right",
+      ~inject,
       Globals(ActiveEditor(Select(SetFocus(Right)))),
     ),
     mk_shortcut(
@@ -122,6 +131,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="camera",
       ~section="Projection",
       "Fold",
+      ~inject,
       Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
     ),
     mk_shortcut(
@@ -129,6 +139,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="camera",
       ~section="Projection",
       "Probe",
+      ~inject,
       Globals(ActiveEditor(Probe(ToggleManual))),
     ),
     mk_shortcut(
@@ -136,6 +147,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="camera",
       ~section="Projection",
       "Statics",
+      ~inject,
       Globals(ActiveEditor(Probe(ToggleStatics))),
     ),
     mk_shortcut(
@@ -150,133 +162,154 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="camera",
       ~section="Projection",
       "Livelit",
+      ~inject,
       Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Statics",
+      ~inject,
       Globals(Set(Statics)),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Completion",
+      ~inject,
       Globals(Set(Assist)),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Whitespace",
+      ~inject,
       Globals(Set(SecondaryIcons)),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Print Benchmarks",
+      ~inject,
       Globals(Set(Benchmark)),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Dynamics",
+      ~inject,
       Globals(Set(Dynamics)),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Elaboration",
+      ~inject,
       Globals(Set(Elaborate)),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Function Bodies",
+      ~inject,
       Globals(Set(Evaluation(ShowFnBodies))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Case Clauses",
+      ~inject,
       Globals(Set(Evaluation(ShowCaseClauses))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show fixpoints",
+      ~inject,
       Globals(Set(Evaluation(ShowFixpoints))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Ascription Steps",
+      ~inject,
       Globals(Set(Evaluation(ShowAscriptionSteps))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Lookup Steps",
+      ~inject,
       Globals(Set(Evaluation(ShowLookups))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Stepper Filters",
+      ~inject,
       Globals(Set(Evaluation(ShowFilters))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Hidden Steps",
+      ~inject,
       Globals(Set(Evaluation(ShowHiddenSteps))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Sidebar",
+      ~inject,
       Globals(Set(Sidebar(ToggleShow))),
     ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Show Docs Feedback",
+      ~inject,
       Globals(Set(ExplainThis(ToggleShowFeedback))),
     ),
     mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+/",
       ~mdIcon="assistant",
       "TyDi Assistant",
-      Globals(ActiveEditor(Buffer(Set(TyDi)))) // I haven't figured out how to trigger this in the editor
+      ~inject,
+      Globals(ActiveEditor(Buffer(Set(TyDi)))),
     ),
     mk_shortcut(
       ~mdIcon="download",
       ~section="Export",
       "Export Scratch Slide",
+      ~inject,
       Editors(Scratch(Export)),
     ),
     mk_shortcut(
       ~mdIcon="download",
       ~section="Export",
       "Encode Scratch Slide in URL",
+      ~inject,
       Editors(Scratch(Encode)),
     ),
     mk_shortcut(
       ~mdIcon="download",
       ~section="Export",
       "Export For Init",
+      ~inject,
       Globals(ExportForInit),
     ),
     mk_shortcut(
       ~mdIcon="download",
       ~section="Export",
       "Export Submission",
-      Editors(Exercises(ExportSubmission)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+      ~inject,
+      Editors(Exercises(ExportSubmission)),
     ),
     mk_shortcut(
-      // ctrl+k conflicts with the command palette
       ~section="Diagnostics",
       ~mdIcon="refresh",
       "Reparse Current Editor",
+      ~inject,
       Globals(ActiveEditor(Reparse)),
     ),
     mk_shortcut(
@@ -284,6 +317,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Diagnostics",
       ~hotkey="F7",
       "Run Benchmark",
+      ~inject,
       Benchmark(Start),
     ),
     mk_shortcut(
@@ -291,6 +325,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Refactoring",
       ~hotkey=Keyboard.meta(sys) ++ "+i",
       "Introduce",
+      ~inject,
       Globals(ActiveEditor(Introduce)),
     ),
     mk_shortcut(
@@ -298,58 +333,28 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~hotkey="alt+n",
       ~mdIcon="add",
       ~section="Buffers",
+      ~inject,
       Editors(Scratch(AddSlide)),
     ),
     mk_shortcut(
       "Rename Current Buffer",
       ~mdIcon="edit",
       ~section="Buffers",
+      ~inject,
       Editors(Scratch(RenameSlide)),
     ),
     mk_shortcut(
       ~mdIcon="delete",
       ~section="Buffers",
       "Delete Current Buffer",
+      ~inject,
       Editors(Scratch(DeleteSlide)),
     ),
   ]
-  @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});
-
-let from_shortcut =
-    (schedule_action: Page.Update.t => unit, shortcut: t)
-    : {
-        .
-        "handler": Js.readonly_prop(unit => unit),
-        "id": Js.readonly_prop(string),
-        "mdIcon": Js.readonly_prop(Js.optdef(string)),
-        "hotkey": Js.readonly_prop(Js.optdef(string)),
-        "title": Js.readonly_prop(string),
-        "section": Js.readonly_prop(Js.optdef(string)),
-      } => {
-  [%js
-   {
-     val id = shortcut.label;
-     val title = shortcut.label;
-     val mdIcon = Js.Optdef.option(shortcut.mdIcon);
-     val hotkey = Js.Optdef.option(shortcut.hotkey);
-     val section = Js.Optdef.option(shortcut.section);
-     val handler =
-       () => {
-         switch (shortcut.update_action) {
-         | Some(update) => schedule_action(update)
-         | None =>
-           print_endline("Could not find action for " ++ shortcut.label)
-         };
-       }
-   }
-  ];
-};
-
-let options = (schedule_action: Page.Update.t => unit) => {
-  Array.of_list(
-    List.map(
-      from_shortcut(schedule_action),
-      shortcuts(Util.Os.is_mac^ ? Util.Key.Mac : PC),
-    ),
+  @ (
+    if (ExerciseSettings.show_instructor) {
+      instructor_shortcuts(~inject);
+    } else {
+      [];
+    }
   );
-};
