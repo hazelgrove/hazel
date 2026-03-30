@@ -23,7 +23,7 @@ type error_context = {
   warning_ids: list((Id.t, Language.Info.t)),
   segment: Haz3lcore.Segment.t,
   measured: Haz3lcore.Measured.t,
-  row_to_line: int => int,
+  row_to_line: int => option(int),
   pos: Id.t => int,
 };
 
@@ -37,17 +37,15 @@ let make_error_context =
       List.fold_left(
         ((acc, line_count), row) =>
           switch (row) {
-          | [] => ([0, ...acc], line_count)
-          | _ => ([line_count, ...acc], line_count + 1)
+          | [] => ([None, ...acc], line_count)
+          | _ => ([Some(line_count), ...acc], line_count + 1)
           },
         ([], 1),
         reversed,
       );
     let mapping = Array.of_list(List.rev(line_numbers_rev));
     let num_rows = Array.length(mapping);
-    /* Returns 0 for rows that have no visible content (e.g. projector padding).
-       Callers treat 0 as "no line number to display". */
-    row => row >= 0 && row < num_rows ? mapping[row] : 0;
+    row => row >= 0 && row < num_rows ? mapping[row] : None;
   };
   let info_map = editor.statics.info_map;
   let position_map = {

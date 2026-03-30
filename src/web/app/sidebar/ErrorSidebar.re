@@ -57,18 +57,25 @@ let error_status_view = (~globals, ci: Language.Info.t): Node.t =>
   };
 
 let line_num_view =
-    (id: Id.t, measured: Haz3lcore.Measured.t, row_to_line: int => int)
+    (
+      id: Id.t,
+      measured: Haz3lcore.Measured.t,
+      row_to_line: int => option(int),
+    )
     : Node.t =>
   switch (Haz3lcore.Measured.find_by_id(id, measured)) {
   | Some({origin, _}) =>
-    let line = row_to_line(origin.row);
-    line > 0
-      ? span(
-          ~attrs=[clss(["error-line-num"])],
-          [text("L" ++ string_of_int(line))],
-        )
-      : span([]);
-  | None => span([])
+    switch (row_to_line(origin.row)) {
+    | Some(line) =>
+      span(
+        ~attrs=[clss(["error-line-num"])],
+        [text("L" ++ string_of_int(line))],
+      )
+    | None =>
+      span(~attrs=[clss(["error-line-num", "no-line"])], [text("L?")])
+    }
+  | None =>
+    span(~attrs=[clss(["error-line-num", "no-line"])], [text("L?")])
   };
 
 let error_row =
@@ -77,7 +84,7 @@ let error_row =
       ~cursor_id: option(Id.t),
       ~expanded: list(Id.t),
       ~measured: Haz3lcore.Measured.t,
-      ~row_to_line: int => int,
+      ~row_to_line: int => option(int),
       ~cls: string,
       id: Id.t,
       content: Node.t,
@@ -167,7 +174,7 @@ let problem_row =
       ~cursor_id: option(Id.t),
       ~expanded: list(Id.t),
       ~measured: Haz3lcore.Measured.t,
-      ~row_to_line: int => int,
+      ~row_to_line: int => option(int),
       problem: problem,
     )
     : Node.t => {

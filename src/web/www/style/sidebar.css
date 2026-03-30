@@ -235,6 +235,10 @@
   flex-shrink: 0;
 }
 
+.error-line-num.no-line {
+  opacity: 0.35;
+}
+
 .error-row:hover {
   background-color: var(--R0);
   filter: brightness(0.95);
