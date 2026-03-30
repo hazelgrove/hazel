@@ -18,6 +18,7 @@ type error_context = {
   info_map: Language.Statics.Map.t,
   syntax_error_ids: list((Id.t, Language.Info.t)),
   hole_ids: list(Haz3lcore.Grout.t),
+  concave_holes: list(Haz3lcore.Grout.t),
   static_error_ids: list((Id.t, Language.Info.t)),
   warning_ids: list((Id.t, Language.Info.t)),
   segment: Haz3lcore.Segment.t,
@@ -95,14 +96,15 @@ let make_error_context =
     } else {
       [];
     };
-  /* Collect convex holes (empty holes) */
-  let hole_ids =
-    Haz3lcore.Segment.holes(editor.editor.syntax.segment)
-    |> List.filter((g: Haz3lcore.Grout.t) => g.shape == Convex);
+  /* Collect holes once and partition into convex (empty holes) and concave (missing operators) */
+  let all_holes = Haz3lcore.Segment.holes(editor.editor.syntax.segment);
+  let (hole_ids, concave_holes) =
+    List.partition((g: Haz3lcore.Grout.t) => g.shape == Convex, all_holes);
   {
     info_map,
     syntax_error_ids,
     hole_ids,
+    concave_holes,
     static_error_ids,
     warning_ids,
     segment: editor.editor.syntax.segment,
@@ -126,9 +128,8 @@ let collect_category =
   switch (cat) {
   | Syntax =>
     let grout_seq =
-      Haz3lcore.Segment.holes(ctx.segment)
+      ctx.concave_holes
       |> List.to_seq
-      |> Seq.filter((g: Haz3lcore.Grout.t) => g.shape == Concave)
       |> Seq.map((g: Haz3lcore.Grout.t) =>
            {
              id: g.id,
