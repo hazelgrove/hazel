@@ -196,6 +196,14 @@ let collect_category =
   };
 };
 
+/* ---------- Counts summary ---------- */
+
+let counts_of_context =
+    (ctx: error_context): list((SidebarModel.Settings.error_category, int)) => {
+  SidebarModel.Settings.all_of_error_category
+  |> List.map(cat => (cat, collect_category(ctx, cat) |> Seq.length));
+};
+
 /* ---------- Convenience: all problems ---------- */
 
 let collect_all_problems = (ctx: error_context): list(problem) => {

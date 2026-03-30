@@ -43,6 +43,34 @@ module Settings = {
     | Warning => "Warning"
     };
 
+  /* Badge severity: categories with higher values take priority in the tab icon.
+     Categories that share a badge group should share severity. */
+  let category_badge_severity = cat =>
+    switch (cat) {
+    | Syntax
+    | Static => 2
+    | Warning => 1
+    | Hole => 0
+    };
+
+  /* CSS class for the tab badge indicator */
+  let category_badge_cls = cat =>
+    switch (cat) {
+    | Syntax
+    | Static => "has-errors"
+    | Warning => "has-warnings"
+    | Hole => "has-holes"
+    };
+
+  /* Singular label for the badge tooltip */
+  let category_badge_label = cat =>
+    switch (cat) {
+    | Syntax
+    | Static => "error"
+    | Warning => "warning"
+    | Hole => "hole"
+    };
+
   /* Derived CSS helpers */
   let category_row_cls = cat => "error-" ++ category_cls(cat);
   let category_section_cls = cat => category_cls(cat) ++ "-errors";

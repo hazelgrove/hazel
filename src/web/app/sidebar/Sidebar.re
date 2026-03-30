@@ -83,32 +83,43 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
   );
 
 let errors_tab_icon =
-    (error_count: int, hole_count: int, warning_count: int): Node.t => {
+    (counts: list((SidebarModel.Settings.error_category, int))): Node.t => {
+  open SidebarModel.Settings;
   let digit_cls = n =>
     n >= 100 ? "digits-3" : n >= 10 ? "digits-2" : "digits-1";
+  /* Aggregate counts by badge group: sum counts sharing the same badge_cls */
+  let grouped =
+    List.fold_left(
+      (acc, (cat, n)) => {
+        let cls = category_badge_cls(cat);
+        let sev = category_badge_severity(cat);
+        let label = category_badge_label(cat);
+        switch (List.assoc_opt(cls, acc)) {
+        | Some((total, s, _)) => [
+            (cls, (total + n, max(s, sev), label)),
+            ...List.remove_assoc(cls, acc),
+          ]
+        | None => [(cls, (n, sev, label)), ...acc]
+        };
+      },
+      [],
+      counts,
+    );
+  let sorted =
+    List.sort(
+      ((_, (_, s1, _)), (_, (_, s2, _))) => compare(s2, s1),
+      grouped,
+    );
   let (status_class, icon_text, title) =
-    if (error_count > 0) {
+    switch (List.find_opt(((_, (n, _, _))) => n > 0, sorted)) {
+    | Some((cls, (n, _, label))) =>
+      let plural = n > 1 ? label ++ "s" : label;
       (
-        "has-errors " ++ digit_cls(error_count),
-        string_of_int(error_count),
-        string_of_int(error_count) ++ " error" ++ (error_count > 1 ? "s" : ""),
+        cls ++ " " ++ digit_cls(n),
+        string_of_int(n),
+        string_of_int(n) ++ " " ++ plural,
       );
-    } else if (warning_count > 0) {
-      (
-        "has-warnings " ++ digit_cls(warning_count),
-        string_of_int(warning_count),
-        string_of_int(warning_count)
-        ++ " warning"
-        ++ (warning_count > 1 ? "s" : ""),
-      );
-    } else if (hole_count > 0) {
-      (
-        "has-holes " ++ digit_cls(hole_count),
-        string_of_int(hole_count),
-        string_of_int(hole_count) ++ " hole" ++ (hole_count > 1 ? "s" : ""),
-      );
-    } else {
-      ("no-errors", {|✓|}, "No errors");
+    | None => ("no-errors", {|✓|}, "No errors")
     };
   div(
     ~attrs=[
@@ -121,18 +132,13 @@ let errors_tab_icon =
 
 let errors_tab =
     (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
-  let error_count = List.length(editor.statics.error_ids);
-  let hole_count =
-    Haz3lcore.Segment.holes(editor.editor.syntax.segment)
-    |> List.filter((g: Haz3lcore.Grout.t) => g.shape == Convex)
-    |> List.length;
-  let warning_count =
-    globals.settings.core.display_warnings
-      ? List.length(editor.statics.warning_ids) : 0;
+  let ctx =
+    ErrorCollection.make_error_context(~settings=globals.settings, ~editor);
+  let counts = ErrorCollection.counts_of_context(ctx);
   tab_of(
     ~panel=Errors,
     ~cls=["errors-button"],
-    ~icon=errors_tab_icon(error_count, hole_count, warning_count),
+    ~icon=errors_tab_icon(counts),
     ~tooltip="Switch to Errors Panel",
     ~globals,
   );
