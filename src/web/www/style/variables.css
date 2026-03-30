@@ -146,6 +146,11 @@
   --warning-hole-stroke: var(--O1);
   --warning-hole-fill: var(--WARNHOLE);
 
+  /* EMPTY HOLE DECO (sidebar) */
+  --hole-stroke: oklch(60% 0.15 250);
+  --hole-fill: oklch(92% 0.04 250);
+  --hole-active: oklch(50% 0.2 250);
+
   /* BACKPACK DECO */
 
   --backpack-selection: var(--shard-selected);

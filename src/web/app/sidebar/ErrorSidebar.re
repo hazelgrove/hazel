@@ -119,7 +119,7 @@ let legend_view =
   let items =
     List.filter_map(
       ((cat, rows)) =>
-        rows != []
+        !List.is_empty(rows)
           ? Some(
               span(
                 ~attrs=[clss(["legend-item"])],
@@ -151,7 +151,7 @@ let section_view =
       div(
         ~attrs=[clss(["error-section-header"]), Attr.on_click(on_toggle)],
         [
-          text(collapsed ? "▶ " : "▼ "),
+          text(collapsed ? "▸ " : "▾ "),
           text(title ++ " (" ++ string_of_int(List.length(items)) ++ ")"),
         ],
       ),
@@ -239,7 +239,8 @@ let view =
       [Syntax, Hole, Static, Warning],
     );
   let errors_settings = globals.settings.sidebar.errors;
-  let has_any_errors = List.exists(((_, rows)) => rows != [], categories);
+  let has_any_errors =
+    List.exists(((_, rows)) => !List.is_empty(rows), categories);
   let toggle_view =
     div(
       ~attrs=[clss(["error-view-toggle"])],
@@ -322,7 +323,7 @@ let view =
         } else {
           List.filter_map(
             ((cat, problems)) =>
-              problems != []
+              !List.is_empty(problems)
                 ? Some(
                     section_view(
                       ~title=SidebarModel.Settings.category_label(cat),

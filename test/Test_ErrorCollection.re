@@ -3,8 +3,30 @@ open Alcotest;
 module ErrorCollection = Web.ErrorCollection;
 module SidebarSettings = Web.SidebarModel.Settings;
 
+let from_string =
+    (s: string)
+    : option((ErrorCollection.error_context, list(ErrorCollection.problem))) =>
+  switch (Haz3lcore.Parser.to_zipper(s)) {
+  | None => None
+  | Some(z) =>
+    let editor = Haz3lcore.Editor.Model.mk(z);
+    let statics =
+      Haz3lcore.CachedStatics.init(
+        ~settings=Language.CoreSettings.on,
+        ~is_dynamic_term=false,
+        ~stitch=Fun.id,
+        editor.state.zipper,
+      );
+    let cws_model = Web.CodeWithStatics.Model.mk(~statics, editor);
+    let settings = Web.Settings.Model.init;
+    let ctx =
+      ErrorCollection.make_error_context(~settings, ~editor=cws_model);
+    let problems = ErrorCollection.collect_all_problems(ctx);
+    Some((ctx, problems));
+  };
+
 let from_string_exn = (s: string) =>
-  switch (ErrorCollection.from_string(s)) {
+  switch (from_string(s)) {
   | Some(result) => result
   | None => fail("Failed to parse: " ++ s)
   };

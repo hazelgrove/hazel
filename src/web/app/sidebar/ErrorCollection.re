@@ -45,6 +45,8 @@ let make_error_context =
       );
     let mapping = Array.of_list(List.rev(line_numbers_rev));
     let num_rows = Array.length(mapping);
+    /* Returns 0 for rows that have no visible content (e.g. projector padding).
+       Callers treat 0 as "no line number to display". */
     row => row >= 0 && row < num_rows ? mapping[row] : 0;
   };
   let info_map = editor.statics.info_map;
@@ -209,28 +211,4 @@ let counts_of_context =
 let collect_all_problems = (ctx: error_context): list(problem) => {
   [SidebarModel.Settings.Syntax, Hole, Static, Warning]
   |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
-};
-
-/* ---------- From-string entry point for testing ---------- */
-
-let from_string = (s: string): option((error_context, list(problem))) => {
-  Haz3lcore.(
-    switch (Parser.to_zipper(s)) {
-    | None => None
-    | Some(z) =>
-      let editor = Editor.Model.mk(z);
-      let statics =
-        CachedStatics.init(
-          ~settings=Language.CoreSettings.on,
-          ~is_dynamic_term=false,
-          ~stitch=Fun.id,
-          editor.state.zipper,
-        );
-      let cws_model = CodeWithStatics.Model.mk(~statics, editor);
-      let settings = Settings.Model.init;
-      let ctx = make_error_context(~settings, ~editor=cws_model);
-      let problems = collect_all_problems(ctx);
-      Some((ctx, problems));
-    }
-  );
 };
