@@ -580,7 +580,10 @@ module View = {
 
     let key_handler_attr =
       if (!selected) {
-        Virtual_dom.Vdom.Attr.empty;
+        /* Always focusable so first click gives DOM focus.
+         * Key events are ignored when not selected — they bubble
+         * to Page.re which handles page-level shortcuts. */
+        Attr.tabindex(0);
       } else {
         let z = model.editor.state.zipper;
         Key.handler(~f=key => {
