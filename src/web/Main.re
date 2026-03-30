@@ -152,10 +152,7 @@ let start = default_model => {
       )
       >= 0;
     let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
-    let inject_effect = a => {
-      schedule_action(a);
-      Virtual_dom.Vdom.Effect.Ignore;
-    };
+    let inject_effect = a => Bonsai.Effect.of_sync_fun(schedule_action, a);
     NinjaKeys.initialize(
       Shortcut.contextual_actions(~inject=inject_effect, sys),
     );
