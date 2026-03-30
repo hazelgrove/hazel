@@ -49,7 +49,8 @@ import '@inkandswitch/patchwork-elements';
 
 // ---- Logging ----------------------------------------------------------------
 
-const LOG = '[space]';
+const LOG = '[spaze]';
+console.log(LOG, 'module loaded v9');
 
 // ---- Types ------------------------------------------------------------------
 
@@ -175,17 +176,42 @@ function dispatchArrowEvent(
 ): void {
   if (binding.typeName !== 'binding' || binding.type !== 'arrow') return;
 
+  console.log(LOG, 'dispatchArrowEvent', eventName, 'binding:', binding.id, 'toId:', binding.toId, 'terminal:', binding.props?.terminal);
+
   const thisShape = editor.getShape(binding.toId);
-  if (!thisShape || thisShape.type !== PATCHWORK_DOC_SHAPE_TYPE) return;
+  if (!thisShape || thisShape.type !== PATCHWORK_DOC_SHAPE_TYPE) {
+    console.log(LOG, '  bail: thisShape not patchwork-doc', thisShape?.type);
+    return;
+  }
 
   const otherBinding = findSiblingBinding(editor, binding, removedRecords);
-  if (!otherBinding) return;
+  if (!otherBinding) {
+    console.log(LOG, '  bail: no sibling binding found');
+    return;
+  }
 
   const otherShape = editor.getShape(otherBinding.toId);
-  if (!otherShape || otherShape.type !== PATCHWORK_DOC_SHAPE_TYPE) return;
+  if (!otherShape || otherShape.type !== PATCHWORK_DOC_SHAPE_TYPE) {
+    console.log(LOG, '  bail: otherShape not patchwork-doc', otherShape?.type);
+    return;
+  }
 
+  const thisDocUrl = (thisShape as any).props?.docUrl;
   const otherDocUrl = (otherShape as any).props?.docUrl;
-  if (!otherDocUrl) return;
+  if (!otherDocUrl) {
+    console.log(LOG, '  bail: no otherDocUrl');
+    return;
+  }
+
+  // Skip self-loops: by shape ID or by doc URL
+  if (binding.toId === otherBinding.toId) {
+    console.log(LOG, '  SKIP self-loop (same shape ID)', binding.toId);
+    return;
+  }
+  if (thisDocUrl && thisDocUrl === otherDocUrl) {
+    console.log(LOG, '  SKIP self-loop (same doc URL)', thisDocUrl);
+    return;
+  }
 
   const direction = binding.props.terminal === 'end' ? 'in' : 'out';
 
