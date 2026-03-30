@@ -528,14 +528,58 @@ module View = {
       let meta_effects =
         model.globals.meta_down == meta_down
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+      /* Page-level keys only. Editor-specific keys are handled by
+       * each editor's own Key.handler and won't bubble here
+       * (they call Stop_propagation). */
+      let page_action =
+        switch (key) {
+        | {
+            key: D("F7"),
+            sys: Mac | PC,
+            shift: Down,
+            meta: Up,
+            ctrl: Up,
+            alt: Up,
+          } =>
+          Some(Update.Benchmark(Start))
+        | {
+            key: D("Z" | "z"),
+            sys: Mac,
+            shift: Down,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+          }
+        | {
+            key: D("Z" | "z"),
+            sys: PC,
+            shift: Down,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+          } =>
+          Some(Update.Globals(Redo))
+        | {
+            key: D("Z" | "z"),
+            sys: Mac,
+            shift: Up,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+          }
+        | {
+            key: D("Z" | "z"),
+            sys: PC,
+            shift: Up,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+          } =>
+          Some(Update.Globals(Undo))
+        | _ => None
+        };
       Effect.(
-        switch (
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=key,
-            model,
-          )
-        ) {
+        switch (page_action) {
         | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
           Many(
@@ -546,7 +590,7 @@ module View = {
       );
     };
     [
-      Key.handler(~f=handle_key_event),
+      Key.listener(~f=handle_key_event),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
         model.globals.meta_down
@@ -586,24 +630,7 @@ module View = {
             Effect.Ignore;
           } else {
             copy(cursor);
-            Option.map(
-              inject,
-              Selection.handle_key_event(
-                ~selection=Some(model.selection),
-                ~event=
-                  Key.{
-                    key: D("Delete"),
-                    code: "Delete",
-                    sys: Os.is_mac^ ? Mac : PC,
-                    shift: Up,
-                    meta: Up,
-                    ctrl: Up,
-                    alt: Up,
-                  },
-                model,
-              ),
-            )
-            |> Option.value(~default=Effect.Ignore);
+            inject(Globals(ActiveEditor(Destruct(Right))));
           };
         | None => Effect.Ignore
         };

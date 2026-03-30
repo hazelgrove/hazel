@@ -372,6 +372,7 @@ module View = {
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
+        ~escape: Util.Direction.t => Ui_effect.t(unit)=_ => Ui_effect.Ignore,
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
@@ -577,6 +578,41 @@ module View = {
 
     let display_line_numbers: bool = lines && globals.settings.line_numbers;
 
+    let key_handler_attr =
+      if (!selected) {
+        Virtual_dom.Vdom.Attr.empty;
+      } else {
+        let z = model.editor.state.zipper;
+        Key.handler(~f=key => {
+          /* 1. Check for arrow key escape at boundaries FIRST.
+           *    Keyboard.handle_key_event always returns Some for arrows,
+           *    so boundary escape must be checked before delegation. */
+          switch (key) {
+          | {key: D("ArrowLeft"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                z.caret == Outer
+                && fst(Siblings.neighbors(z.relatives.siblings)) == None =>
+            Effect.Many([Effect.Prevent_default, escape(Left)])
+          | {key: D("ArrowRight"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                z.caret == Outer
+                && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
+            Effect.Many([Effect.Prevent_default, escape(Right)])
+          | _ =>
+            /* 2. Normal editor key handling:
+             *    context menu → projector handoff → Keyboard */
+            switch (Selection.handle_key_event(~selection=(), model, key)) {
+            | Some(action) =>
+              Effect.Many([
+                Effect.Prevent_default,
+                Effect.Stop_propagation,
+                inject(action),
+              ])
+            | None => Effect.Ignore
+            }
+          };
+        });
+      };
     Node.div(
       ~attrs=[
         Attr.classes(
@@ -584,6 +620,7 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
+        key_handler_attr,
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
           | {button: Right, ctrl: Up, _} =>

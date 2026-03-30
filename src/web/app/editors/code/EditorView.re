@@ -3,18 +3,13 @@ open Util;
 
 /* Focus module for code editors.
  *
- * This module provides the new keyboard event handling pattern where
- * handlers return Effect.t(unit) directly (instead of option(Update.t))
- * and support escape callbacks for boundary navigation.
- *
- * Usage:
- *   Key.handler(~f=EditorView.Focus.handle_key_event(
- *     ~inject, ~escape, model
- *   ))
+ * Provides effect-based keyboard handling where each editor handles
+ * its own key events directly. Unhandled events bubble to the parent
+ * (Page.re) for page-level shortcuts like undo/redo.
  *
  * The escape callback is called when arrow keys hit an editor boundary
- * (caret at Outer position with no further movement possible),
- * allowing the parent to navigate to adjacent cells or projectors.
+ * (caret at Outer position with no neighbor on that side), allowing
+ * the parent to navigate to adjacent cells or projectors.
  *
  * NOTE on escape direction: the direction parameter means "which side
  * to escape TO", matching the arrow key direction. Left arrow at the
@@ -22,72 +17,40 @@ open Util;
  * the caret to jump to the wrong side of adjacent projectors.
  *
  * NOTE on tabindex/scroll: Key.handler adds tabindex(0) which makes
- * the element focusable. This means arrow keys will scroll the element
- * by default. Call Prevent_default on handled arrow key events to
- * avoid unwanted scrolling. */
+ * the element focusable. Arrow keys will scroll by default — call
+ * Prevent_default on handled arrow key events to avoid this. */
 module Focus = {
   let handle_key_event =
       (
-        ~inject: CodeEditable.Update.t => Effect.t(unit),
+        ~handle: Key.t => option('action),
+        ~inject: 'action => Effect.t(unit),
         ~escape: Direction.t => Effect.t(unit),
-        model: CodeEditable.Model.t,
+        ~is_at_boundary: Direction.t => bool,
         key: Key.t,
       )
       : Effect.t(unit) => {
-    /* First try the existing CodeEditable handler chain
-     * (context menu → projector handoff → Keyboard.handle_key_event) */
-    switch (
-      CodeEditable.Selection.handle_key_event(~selection=(), model, key)
-    ) {
-    | Some(action) =>
-      Effect.Many([
-        Effect.Prevent_default,
-        Effect.Stop_propagation,
-        inject(action),
-      ])
-    | None =>
-      /* Check for arrow key escape at editor boundaries */
-      switch (key) {
-      | {key: D("ArrowLeft"), shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
-        let z = model.editor.state.zipper;
-        switch (z.caret, Haz3lcore.Siblings.neighbors(z.relatives.siblings)) {
-        | (Outer, (None, _)) =>
-          Effect.Many([Effect.Prevent_default, escape(Left)])
-        | _ => Effect.Ignore
-        };
-      | {key: D("ArrowRight"), shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
-        let z = model.editor.state.zipper;
-        switch (z.caret, Haz3lcore.Siblings.neighbors(z.relatives.siblings)) {
-        | (Outer, (_, None)) =>
-          Effect.Many([Effect.Prevent_default, escape(Right)])
-        | _ => Effect.Ignore
-        };
-      | _ => Effect.Ignore
+    /* 1. Check for arrow key escape at editor boundaries FIRST.
+     *    Must be before the normal handler because Keyboard.handle_key_event
+     *    always returns Some for arrow keys (Move actions), which would
+     *    prevent escape from ever triggering. */
+    switch (key) {
+    | {key: D("ArrowLeft"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+        when is_at_boundary(Left) =>
+      Effect.Many([Effect.Prevent_default, escape(Left)])
+    | {key: D("ArrowRight"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+        when is_at_boundary(Right) =>
+      Effect.Many([Effect.Prevent_default, escape(Right)])
+    | _ =>
+      /* 2. Normal editor key handling */
+      switch (handle(key)) {
+      | Some(action) =>
+        Effect.Many([
+          Effect.Prevent_default,
+          Effect.Stop_propagation,
+          inject(action),
+        ])
+      | None => Effect.Ignore
       }
     };
-  };
-
-  let get_cursor_info =
-      (
-        ~inject: CodeEditable.Update.t => Effect.t(unit),
-        model: CodeEditable.Model.t,
-      )
-      : list(ContextualAction.t) => {
-    /* Projector-specific contextual actions based on indicated piece */
-    let projector_actions =
-      switch (Haz3lcore.Indicated.piece(model.editor.state.zipper)) {
-      | Some(_) => [
-          ContextualAction.mk(
-            ~hotkey="alt+f",
-            ~mdIcon="camera",
-            ~section="Projection",
-            ~action=
-              inject(Perform(Project(SetIndicated(Specific(Fold))))),
-            "Fold",
-          ),
-        ]
-      | None => []
-      };
-    projector_actions;
   };
 };
