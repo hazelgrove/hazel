@@ -1013,7 +1013,7 @@ async function initializeSync(
           }
         }
 
-        console.log(LOG, 'tldraw→am handle.change() succeeded');
+        // console.log(LOG, 'tldraw→am handle.change() succeeded');
       } catch (e) {
         console.error(LOG, 'tldraw→am handle.change() THREW', e);
       }
