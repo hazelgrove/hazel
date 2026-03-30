@@ -523,21 +523,16 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
-    let update_meta =
-        (evt: Js.t(Dom_html.keyboardEvent)): list(Effect.t(unit)) => {
-      let meta_down = Js.to_bool(evt##.metaKey);
-      model.globals.meta_down == meta_down
-        ? [] : [inject(Globals(SetMetaDown(meta_down)))];
-    };
-    let key_handler =
-        (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) => {
-      let meta_effects = update_meta(evt);
+    let handle_key_event = (key: Key.t): Effect.t(unit) => {
+      let meta_down = key.meta == Down;
+      let meta_effects =
+        model.globals.meta_down == meta_down
+          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
       Effect.(
         switch (
           Selection.handle_key_event(
             ~selection=Some(model.selection),
-            ~event=Key.mk(dir, evt),
+            ~event=key,
             model,
           )
         ) {
@@ -551,8 +546,7 @@ module View = {
       );
     };
     [
-      Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
-      Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
+      Key.handler(~f=handle_key_event),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
         model.globals.meta_down
