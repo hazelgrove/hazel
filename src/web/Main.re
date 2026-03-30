@@ -145,15 +145,18 @@ let start = default_model => {
     );
 
   // Other Initialization
-  let on_startup = (inject, ()): unit => {
+  let on_startup = (schedule_action, ()): unit => {
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
-    NinjaKeys.initialize(
-      Shortcut.shortcuts(~inject, Util.Os.is_mac^ ? Util.Key.Mac : PC),
-    );
+    let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
+    let inject_effect = a => {
+      schedule_action(a);
+      Virtual_dom.Vdom.Effect.Ignore;
+    };
+    NinjaKeys.initialize(Shortcut.contextual_actions(~inject=inject_effect, sys));
     JsUtil.focus_clipboard_shim();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
@@ -181,7 +184,10 @@ let start = default_model => {
         let%map app_inject = app_inject;
         Bonsai.Effect.Many([
           // Initialize state
-          Bonsai.Effect.of_sync_fun(on_startup(app_inject), ()),
+          Bonsai.Effect.of_sync_fun(
+            on_startup(x => x |> app_inject |> Bonsai.Effect.Expert.handle),
+            (),
+          ),
           // Initialize evaluation on a worker
           app_inject(Start),
         ]);
