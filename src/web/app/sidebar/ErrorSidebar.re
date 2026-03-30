@@ -195,7 +195,11 @@ let view =
   let categories:
     list((SidebarModel.Settings.error_category, list(problem))) =
     List.map(
-      cat => (cat, collect_category(ctx, cat) |> List.of_seq),
+      cat =>
+        (
+          cat,
+          collect_category(ctx, cat) |> List.of_seq |> sort_by_pos(ctx),
+        ),
       [Syntax, Hole, Static, Warning],
     );
   let errors_settings = globals.settings.sidebar.errors;

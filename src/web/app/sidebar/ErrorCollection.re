@@ -112,28 +112,34 @@ let make_error_context =
   };
 };
 
-/* ---------- Per-category collection ---------- */
+/* ---------- Sorting helper (exposed for consumers) ---------- */
+
+let sort_by_pos =
+    (ctx: error_context, problems: list(problem)): list(problem) =>
+  List.sort((a, b) => compare(ctx.pos(a.id), ctx.pos(b.id)), problems);
+
+/* ---------- Per-category collection (lazy) ---------- */
 
 let collect_category =
     (ctx: error_context, cat: SidebarModel.Settings.error_category)
-    : Seq.t(problem) => {
-  let sort_by_pos = problems =>
-    List.sort((a, b) => compare(ctx.pos(a.id), ctx.pos(b.id)), problems);
+    : Seq.t(problem) =>
   switch (cat) {
   | Syntax =>
-    let grout_problems =
+    let grout_seq =
       Haz3lcore.Segment.holes(ctx.segment)
-      |> List.filter((g: Haz3lcore.Grout.t) => g.shape == Concave)
-      |> List.map((g: Haz3lcore.Grout.t) =>
+      |> List.to_seq
+      |> Seq.filter((g: Haz3lcore.Grout.t) => g.shape == Concave)
+      |> Seq.map((g: Haz3lcore.Grout.t) =>
            {
              id: g.id,
              category: Syntax,
              source: Structural("Missing operator"),
            }
          );
-    let incomplete_problems =
+    let incomplete_seq =
       Haz3lcore.Segment.incomplete_tiles_deep(ctx.segment)
-      |> List.map((t: Haz3lcore.Tile.t) => {
+      |> List.to_seq
+      |> Seq.map((t: Haz3lcore.Tile.t) => {
            let all_indices = List.init(List.length(t.label), Fun.id);
            let missing_labels =
              List.filter(i => !List.mem(i, t.shards), all_indices)
@@ -146,55 +152,48 @@ let collect_category =
              source: Structural(description),
            };
          });
-    let syntax_info_problems =
+    let syntax_info_seq =
       ctx.syntax_error_ids
-      |> List.map(((id, ci)) => {
+      |> List.to_seq
+      |> Seq.map(((id, ci)) =>
            {
              id,
              category: Syntax,
              source: FromInfo(ci),
            }
-         });
-    grout_problems
-    @ incomplete_problems
-    @ syntax_info_problems
-    |> sort_by_pos
-    |> List.to_seq;
+         );
+    Seq.append(grout_seq, Seq.append(incomplete_seq, syntax_info_seq));
   | Hole =>
     ctx.hole_ids
-    |> List.map((g: Haz3lcore.Grout.t) =>
+    |> List.to_seq
+    |> Seq.map((g: Haz3lcore.Grout.t) =>
          {
            id: g.id,
            category: Hole,
            source: Structural("Empty hole"),
          }
        )
-    |> sort_by_pos
-    |> List.to_seq
   | Static =>
     ctx.static_error_ids
-    |> List.map(((id, ci)) => {
+    |> List.to_seq
+    |> Seq.map(((id, ci)) =>
          {
            id,
            category: Static,
            source: FromInfo(ci),
          }
-       })
-    |> sort_by_pos
-    |> List.to_seq
+       )
   | Warning =>
     ctx.warning_ids
-    |> List.map(((id, ci)) => {
+    |> List.to_seq
+    |> Seq.map(((id, ci)) =>
          {
            id,
            category: Warning,
            source: FromInfo(ci),
          }
-       })
-    |> sort_by_pos
-    |> List.to_seq
+       )
   };
-};
 
 /* ---------- Counts summary ---------- */
 
