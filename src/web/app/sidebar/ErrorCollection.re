@@ -24,7 +24,7 @@ type error_context = {
   segment: Haz3lcore.Segment.t,
   measured: Haz3lcore.Measured.t,
   row_to_line: int => option(int),
-  pos: Id.t => int,
+  pos: Id.t => Point.t,
 };
 
 let make_error_context =
@@ -48,23 +48,13 @@ let make_error_context =
     row => row >= 0 && row < num_rows ? mapping[row] : None;
   };
   let info_map = editor.statics.info_map;
-  let position_map = {
-    let piece_ids =
-      measured.piece_rows
-      |> List.rev
-      |> List.concat_map(row => List.rev_map(Haz3lcore.Piece.id, row));
-    List.fold_left(
-      (map, id) =>
-        Id.Map.mem(id, map)
-          ? map : Id.Map.add(id, Id.Map.cardinal(map), map),
-      Id.Map.empty,
-      piece_ids,
-    );
-  };
   let pos = id =>
-    switch (Id.Map.find_opt(id, position_map)) {
-    | Some(i) => i
-    | None => max_int
+    switch (Haz3lcore.Measured.find_by_id(id, measured)) {
+    | Some(m) => m.origin
+    | None => {
+        row: max_int,
+        col: max_int,
+      }
     };
   /* Partition error_ids into syntax and static in a single pass */
   let (syntax_error_ids, static_error_ids) =
