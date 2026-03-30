@@ -226,7 +226,7 @@ let view =
     (
       ~globals: Globals.t,
       ~cursor: Cursor.cursor(Editors.Update.t),
-      ~editor: CodeWithStatics.Model.t,
+      ~ctx: ErrorCollection.error_context,
     )
     : Node.t => {
   let cursor_id =
@@ -234,7 +234,6 @@ let view =
     | Some(ci) => Some(Language.Info.id_of(ci))
     | None => None
     };
-  let ctx = make_error_context(~settings=globals.settings, ~editor);
   let categories:
     list((SidebarModel.Settings.error_category, list(problem))) =
     List.map(

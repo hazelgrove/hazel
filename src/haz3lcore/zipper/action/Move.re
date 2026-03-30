@@ -127,18 +127,19 @@ let to_linebreak = (d: Direction.t, z: t): option(t) =>
   do_until_linebreak(local(ByToken, d), d, z);
 
 let to_next_problem =
-    (~measured: Measured.t, ~problem_ids: list(Id.t), d: Direction.t, z: t)
+    (~measured: Measured.t, ~problem_ids: Seq.t(Id.t), d: Direction.t, z: t)
     : option(t) => {
   let cursor_pos = Zipper.Caret.point(measured, z);
   /* Sort problem IDs by measured position */
   let sorted =
     problem_ids
-    |> List.filter_map(id =>
+    |> Seq.filter_map(id =>
          switch (Measured.find_by_id(id, measured)) {
          | Some({origin, _}) => Some((id, origin))
          | None => None
          }
        )
+    |> List.of_seq
     |> List.sort(((_, p1), (_, p2)) => Point.compare(p1, p2));
   switch (sorted) {
   | [] => None
@@ -177,7 +178,7 @@ let to_next_problem =
 let move_dispatch =
     (
       ~statics: Language.Statics.Map.t,
-      ~problem_ids: list(Id.t),
+      ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       d: Action.move,
@@ -217,7 +218,7 @@ let pre_unselect = (a: Action.move, z: t): t => {
 let go =
     (
       ~statics: Language.Statics.Map.t,
-      ~problem_ids: list(Id.t),
+      ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       a: Action.move,

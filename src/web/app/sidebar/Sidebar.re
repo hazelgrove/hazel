@@ -131,10 +131,11 @@ let errors_tab_icon =
 };
 
 let errors_tab =
-    (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
-  let ctx =
-    ErrorCollection.make_error_context(~settings=globals.settings, ~editor);
-  let counts = ErrorCollection.counts_of_context(ctx);
+    (
+      ~globals: Globals.t,
+      ~counts: list((SidebarModel.Settings.error_category, int)),
+    )
+    : Node.t =>
   tab_of(
     ~panel=Errors,
     ~cls=["errors-button"],
@@ -142,7 +143,6 @@ let errors_tab =
     ~tooltip="Switch to Errors Panel",
     ~globals,
   );
-};
 
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
@@ -154,7 +154,11 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
   );
 };
 
-let persistent_view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t) =>
+let persistent_view =
+    (
+      ~globals: Globals.t,
+      ~counts: list((SidebarModel.Settings.error_category, int)),
+    ) =>
   div(
     ~attrs=[Attr.id("persistent")],
     [
@@ -164,7 +168,7 @@ let persistent_view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t) =>
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
-          errors_tab(~globals, ~editor),
+          errors_tab(~globals, ~counts),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
@@ -272,6 +276,9 @@ let view =
       ~editor: CodeWithStatics.Model.t,
       ~signal,
     ) => {
+  let ctx =
+    ErrorCollection.make_error_context(~settings=globals.settings, ~editor);
+  let counts = ErrorCollection.counts_of_context(ctx);
   let sub =
     globals.settings.sidebar.show
       ? div(
@@ -301,7 +308,7 @@ let view =
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )
-            | Errors => ErrorSidebar.view(~globals, ~cursor, ~editor)
+            | Errors => ErrorSidebar.view(~globals, ~cursor, ~ctx)
             },
           ],
         )
@@ -311,6 +318,6 @@ let view =
       };
   div(
     ~attrs=[Attr.id("sidebars")],
-    [sub, persistent_view(~globals, ~editor)],
+    [sub, persistent_view(~globals, ~counts)],
   );
 };
