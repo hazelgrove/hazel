@@ -126,13 +126,13 @@ let to_end: t => t = do_to_extreme(local(ByToken, Right));
 let to_linebreak = (d: Direction.t, z: t): option(t) =>
   do_until_linebreak(local(ByToken, d), d, z);
 
-let to_next_error =
-    (~measured: Measured.t, ~error_ids: list(Id.t), d: Direction.t, z: t)
+let to_next_problem =
+    (~measured: Measured.t, ~problem_ids: list(Id.t), d: Direction.t, z: t)
     : option(t) => {
   let cursor_pos = Zipper.Caret.point(measured, z);
-  /* Sort error IDs by measured position */
+  /* Sort problem IDs by measured position */
   let sorted =
-    error_ids
+    problem_ids
     |> List.filter_map(id =>
          switch (Measured.find_by_id(id, measured)) {
          | Some({origin, _}) => Some((id, origin))
@@ -177,7 +177,7 @@ let to_next_error =
 let move_dispatch =
     (
       ~statics: Language.Statics.Map.t,
-      ~error_ids: list(Id.t),
+      ~problem_ids: list(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       d: Action.move,
@@ -192,7 +192,7 @@ let move_dispatch =
   | Vertical(d) => vertical(~measured, ~col_target, d, z)
   | Point(goal) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
-  | Goal(NextError(d)) => to_next_error(~measured, ~error_ids, d, z)
+  | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
   | Goal(BindingSiteOfIndicatedVar) =>
     let* ci = Indicated.ci_of(z, statics);
@@ -217,7 +217,7 @@ let pre_unselect = (a: Action.move, z: t): t => {
 let go =
     (
       ~statics: Language.Statics.Map.t,
-      ~error_ids: list(Id.t),
+      ~problem_ids: list(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       a: Action.move,
@@ -225,7 +225,7 @@ let go =
     )
     : option(t) =>
   if (Selection.is_empty(z.selection)) {
-    move_dispatch(~statics, ~error_ids, ~col_target, ~measured, a, z);
+    move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z);
   } else {
     let z = pre_unselect(a, z);
     switch (a) {
@@ -234,7 +234,7 @@ let go =
     | Local(Right, ByChar) => Some(z)
     | _ =>
       switch (
-        move_dispatch(~statics, ~error_ids, ~col_target, ~measured, a, z)
+        move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z)
       ) {
       | Some(z) => Some(z)
       /* Always empty selection on move action,

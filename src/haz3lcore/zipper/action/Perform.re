@@ -67,7 +67,7 @@ let go =
   | Move(d) =>
     Move.go(
       ~statics=statics.info_map,
-      ~error_ids=
+      ~problem_ids=
         statics.error_ids
         @ statics.warning_ids
         @ (

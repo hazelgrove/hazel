@@ -169,7 +169,7 @@ let nav_btn =
       clss(["error-nav-btn"]),
       Attr.on_click(_ =>
         globals.inject_global(
-          ActiveEditor(Move(Goal(NextError(direction)))),
+          ActiveEditor(Move(Goal(NextProblem(direction)))),
         )
       ),
       Attr.title(tooltip),

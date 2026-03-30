@@ -8,7 +8,7 @@ type chunkiness =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
   | Hole(Direction.t)
-  | NextError(Direction.t)
+  | NextProblem(Direction.t)
   | TileId([@equal (_, _) => true] Id.t)
   | BindingSiteOfIndicatedVar;
 
