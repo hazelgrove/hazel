@@ -4,6 +4,16 @@
   position: relative;
 }
 
+.code-container.show-row-lines {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) var(--row-height-px)
+  );
+}
+
 /* Use this style for all text that should
  * be formatted like code, even if it's not
  * going to be inside an editor. For example,

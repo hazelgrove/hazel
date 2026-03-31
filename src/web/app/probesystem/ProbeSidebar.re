@@ -415,7 +415,7 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
 let toggle =
     (~tooltip, ~explain_this_inject, ~label1, ~label2, ~active, ~action) =>
   Widgets.toggle_named(
-    ~tooltip,
+    ~name=tooltip,
     active ? label1 : label2,
     active,
     _ => {

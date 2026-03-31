@@ -20,6 +20,7 @@ module Model = {
     line_numbers: bool,
     relative_line_numbers: bool,
     cap_undo_stack: bool,
+    show_row_lines: bool,
   };
 
   let init = {
@@ -68,6 +69,7 @@ module Model = {
     line_numbers: false,
     relative_line_numbers: false,
     cap_undo_stack: false,
+    show_row_lines: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -134,7 +136,8 @@ module Update = {
     | AutoprobeMode
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
-    | CapUndoStack;
+    | CapUndoStack
+    | ShowRowLines;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -356,6 +359,10 @@ module Update = {
       | CapUndoStack => {
           ...settings,
           cap_undo_stack: !settings.cap_undo_stack,
+        }
+      | ShowRowLines => {
+          ...settings,
+          show_row_lines: !settings.show_row_lines,
         }
       }
     )
