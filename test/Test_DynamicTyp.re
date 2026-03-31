@@ -14,6 +14,7 @@ let settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   show_ascriptions: true,
+  raise_if_padding: false,
 };
 
 /* Walk a segment producing (text, classes) fragments for each atomic part */
