@@ -11,6 +11,7 @@ let view =
       ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
       ~code_with_statics: CodeWithStatics.Model.t,
+      ~eval_result: EvalResult.Model.t,
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
@@ -226,6 +227,7 @@ let view =
               ~agent_inject,
               ~signal,
               ~code_with_statics,
+              ~eval_result,
             )
           | Agent.Chat.Model.Workbench =>
             WorkbenchView.view(~globals, ~agent_model, ~agent_inject, ~signal)
@@ -241,6 +243,7 @@ let view =
               ~agent_inject,
               ~signal,
               ~code_with_statics,
+              ~eval_result,
             )
           };
         // Shared bottom bar (only show for Messages and Workbench views)

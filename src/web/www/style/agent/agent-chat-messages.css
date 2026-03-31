@@ -1537,14 +1537,144 @@
   align-items: stretch;
 }
 
-.agent-context-editor-wrap {
-  width: 100%;
+/* Full-screen .view-content uses overflow-x: hidden; allow code to scroll horizontally */
+.view-content.agent-context-body {
   overflow-x: auto;
 }
 
-.agent-context-remainder {
+.agent-context-section {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.65em 0.75em;
+  background-color: var(--T1);
+  border-radius: 6px;
+  border: 0.6px solid var(--BR2);
+  box-sizing: border-box;
+}
+
+.agent-context-section-title {
+  font-size: 0.72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--STONE);
+}
+
+.agent-context-code-scroll {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 0.5em 0.65em;
+  background-color: var(--T2);
+  border-radius: 4px;
+  border: 0.6px solid var(--BR2);
+}
+
+.agent-context-code {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+}
+
+.agent-context-code.tool-call-diff-segment .code {
+  font-size: 0.75em;
+}
+
+.agent-context-empty {
+  font-size: 0.85em;
+  color: var(--BR2);
+  font-style: italic;
+}
+
+.agent-context-static-ok {
+  font-size: 0.85em;
+  color: var(--G0);
+}
+
+.agent-context-static-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.agent-context-static-line {
+  font-family: var(--code-font);
+  font-size: 0.78em;
+  line-height: 1.35;
+  color: var(--R2);
+  padding: 0.35em 0.45em;
+  background-color: var(--T2);
+  border-radius: 4px;
+  border-left: 3px solid var(--R1);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.agent-context-muted {
+  font-size: 0.82em;
+  color: var(--BR2);
+  line-height: 1.35;
+}
+
+.agent-context-test-summary {
+  font-size: 0.82em;
+  color: var(--STONE);
+  line-height: 1.35;
+  margin-bottom: 0.25em;
+}
+
+.agent-context-test-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.agent-context-test-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.35em 0.45em;
+  border-radius: 4px;
+  background-color: var(--T2);
+  font-size: 0.82em;
+}
+
+.agent-context-test-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-context-test-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.agent-context-test-pass .agent-context-test-icon svg {
+  fill: var(--G0);
+}
+
+.agent-context-test-fail .agent-context-test-icon svg {
+  fill: var(--R1);
+}
+
+.agent-context-test-indet .agent-context-test-icon svg {
+  fill: var(--BR2);
+}
+
+.agent-context-test-label {
+  color: var(--STONE);
+  font-family: var(--code-font);
+  font-size: 0.92em;
 }
 
 /* Prompt and Developer Notes Display */

@@ -29,6 +29,7 @@ let view =
         ~agent_inject,
         ~signal,
         ~code_with_statics=scratchpad.editor.editor,
+        ~eval_result=scratchpad.editor.result,
       );
     | Tutorial(_)
     | Exercises(_) =>

@@ -51,6 +51,19 @@ let context_length_for_active = (model: Model.t): option(int) => {
   };
 };
 
+/** For the context meter: 80% of the provider's context window, then round **down** to a multiple of 1000 tokens (headroom for summarization). E.g. 131072 → 104000. */
+let effective_context_meter_limit = (raw_context_length: int): int => {
+  let scaled = float_of_int(raw_context_length) *. 0.8;
+  max(1000, int_of_float(Float.floor(scaled /. 1000.0)) * 1000);
+};
+
+/** Like [context_length_for_active], but capped for UI / budgeting (see [effective_context_meter_limit]). */
+let context_meter_limit_for_active = (model: Model.t): option(int) =>
+  Option.map(
+    effective_context_meter_limit,
+    context_length_for_active(model),
+  );
+
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =

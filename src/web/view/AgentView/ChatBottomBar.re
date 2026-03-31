@@ -217,8 +217,10 @@ let view =
       messages,
     );
   let context_limit_opt =
-    AgentGlobals.context_length_for_active(globals.settings.agent_globals);
-  let (meter_label, fill_pct_opt, hover_title) = {
+    AgentGlobals.context_meter_limit_for_active(
+      globals.settings.agent_globals,
+    );
+  let (meter_label, fill_pct_opt, hover_title_pct) = {
     let n_str =
       switch (last_prompt_tokens_opt) {
       | Some(n) => string_of_int(n)
@@ -230,58 +232,15 @@ let view =
       | None => "—"
       };
     let label = n_str ++ " / " ++ m_str ++ " context used";
-    let (pct, title) =
+    let (pct, title_pct) =
       switch (last_prompt_tokens_opt, context_limit_opt) {
-      | (Some(n), Some(m)) =>
-        if (m > 0) {
-          let frac = float_of_int(n) /. float_of_int(m);
-          let pct = min(100, int_of_float(ceil(frac *. 100.0)));
-          (
-            Some(pct),
-            Some(
-              Printf.sprintf(
-                "%.6f of model context used (%d / %d tokens)",
-                frac,
-                n,
-                m,
-              ),
-            ),
-          );
-        } else {
-          (
-            None,
-            Some(
-              Printf.sprintf(
-                "Prompt tokens from last model response: %d. Reported context limit is 0 (unknown).",
-                n,
-              ),
-            ),
-          );
-        }
-      | (Some(n), None) => (
-          None,
-          Some(
-            Printf.sprintf(
-              "Prompt tokens from last model response: %d. Model context limit not available (refresh models after setting API key).",
-              n,
-            ),
-          ),
-        )
-      | (None, Some(m)) => (
-          None,
-          Some(
-            Printf.sprintf(
-              "No usage yet. Model context limit: %d tokens.",
-              m,
-            ),
-          ),
-        )
-      | (None, None) => (
-          None,
-          Some("Send a message to see context usage from the provider."),
-        )
+      | (Some(n), Some(m)) when m > 0 =>
+        let frac = float_of_int(n) /. float_of_int(m);
+        let bar_pct = min(100, int_of_float(ceil(frac *. 100.0)));
+        (Some(bar_pct), Some(Printf.sprintf("%.2f%%", frac *. 100.0)));
+      | _ => (None, None)
       };
-    (label, pct, title);
+    (label, pct, title_pct);
   };
 
   // Input area at bottom with buttons above
@@ -336,7 +295,10 @@ let view =
           div(
             ~attrs=[
               clss(["token-context-meter"]),
-              Attr.title(Option.value(~default="", hover_title)),
+              ...switch (hover_title_pct) {
+                 | Some(t) => [Attr.title(t)]
+                 | None => []
+                 },
             ],
             [
               div(
