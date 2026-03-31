@@ -25,7 +25,8 @@ module Model = {
     let globals = Globals.Model.init(~font_metrics?, ());
     let settings = globals.settings;
     let instructor_mode = globals.settings.instructor_mode;
-    let editors = Editors.Store.reset(~settings, ~instructor_mode);
+    let editors =
+      Editors.Store.reset(~settings=settings.core, ~instructor_mode);
     {
       globals,
       editors,

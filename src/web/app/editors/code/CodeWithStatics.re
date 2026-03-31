@@ -175,7 +175,9 @@ module View = {
         warning_ids,
       );
     let container_classes =
-      ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
+      ["code-container"]
+      @ (globals.meta_down ? ["meta-down"] : [])
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
     let result =
       Node.div(
         ~attrs=[Attr.classes(container_classes)],
