@@ -12,10 +12,11 @@ module Model = {
     benchmark: bool,
     show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
-    assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
+    agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    show_row_lines: bool,
   };
 
   let init = {
@@ -56,18 +57,14 @@ module Model = {
       show_feedback: false,
       highlight: NoHighlight,
     },
-    assistant: {
-      mode: CodeSuggestion,
-      ongoing_chat: false,
-      show_history: false,
-      show_api_key: false,
-    },
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
     },
+    agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
+    show_row_lines: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -131,10 +128,10 @@ module Update = {
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
-    | Assistant(AssistantSettings.action)
     | FlipAnimations
     | ToggleLineNumbers
-    | ToggleRelativeLineNumbers;
+    | ToggleRelativeLineNumbers
+    | ShowRowLines;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -317,37 +314,6 @@ module Update = {
           ...settings,
           explainThis,
         };
-      | Assistant(u) =>
-        switch (u) {
-        | UpdateChatStatus => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              ongoing_chat: !settings.assistant.ongoing_chat,
-            },
-          }
-        | SwitchMode(mode) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              mode,
-            },
-          }
-        | ToggleHistory => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_history: !settings.assistant.show_history,
-            },
-          }
-        | ToggleAPIKeyVisibility => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_api_key: !settings.assistant.show_api_key,
-            },
-          }
-        }
       | ShowLogPanel => {
           ...settings,
           show_log_panel:
@@ -373,7 +339,6 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
@@ -381,6 +346,10 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | ShowRowLines => {
+          ...settings,
+          show_row_lines: !settings.show_row_lines,
         }
       }
     )

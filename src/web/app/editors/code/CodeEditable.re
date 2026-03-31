@@ -84,6 +84,7 @@ module Update = {
              | Dump => true
              | Project(_)
              | Unselect(_)
+             | Structural(_)
              | Probe(_) => false
              };
            },
