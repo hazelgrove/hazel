@@ -248,7 +248,13 @@ module ViewComponents = {
               ~attrs=[
                 clss(["agent-context-code", "tool-call-diff-segment"]),
               ],
-              [ToolResultView.render_segment(~globals, segment)],
+              [
+                ToolResultView.render_segment(
+                  ~globals,
+                  ~shallow_complete=false,
+                  segment,
+                ),
+              ],
             ),
           ],
         );
@@ -291,7 +297,7 @@ module ViewComponents = {
               [
                 div(
                   ~attrs=[clss(["agent-context-section-title"])],
-                  [text("Program")],
+                  [text("Program View")],
                 ),
                 program_section,
               ],
@@ -1199,10 +1205,7 @@ let view =
             ~attrs=[clss(["compaction-notice-method"])],
             [text("Method: " ++ method)],
           ),
-          div(
-            ~attrs=[clss(["compaction-notice-body"])],
-            [text(content)],
-          ),
+          div(~attrs=[clss(["compaction-notice-body"])], [text(content)]),
         ],
       )
     | Agent.ChunkedUIChat.Model.ErrorMessage(error_content) =>

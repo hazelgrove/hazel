@@ -2118,3 +2118,10 @@
   color: var(--STONE);
 }
 
+/* Fold marker (⋱) in read-only code / agent context */
+.agent-context-body .fold-projector {
+  font-weight: 600;
+  color: var(--BR3);
+  padding: 0 0.1em;
+}
+

@@ -5,9 +5,17 @@ open Util.WebUtil;
 open Haz3lcore;
 open CodeViewable;
 
-let render_segment = (~globals: Globals.t, segment: Segment.t): Node.t => {
-  let completed_segment = Indentation.shallow_complete_segment(segment);
-  view_segment(~globals, completed_segment);
+let render_segment =
+    (
+      ~globals: Globals.t,
+      ~shallow_complete: bool=true,
+      segment: Segment.t,
+    )
+    : Node.t => {
+  let segment' =
+    shallow_complete
+      ? Indentation.shallow_complete_segment(segment) : segment;
+  view_segment(~globals, segment');
 };
 
 let render_pretty_args = (args: API.Json.t): Node.t => {
