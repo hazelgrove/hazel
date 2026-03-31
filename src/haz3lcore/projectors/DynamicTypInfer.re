@@ -15,8 +15,8 @@ let type_of_sample = (~ctx: Ctx.t, sample: Sample.t): option(Typ.t) => {
 };
 
 /* Compute the dynamic type from a list of samples by inferring each
-   sample's type and meeting them all. Returns None if no samples,
-   if any sample fails to type-check, or if the types are inconsistent. */
+   sample's type and meeting them all. Returns None if any sample
+   fails to type-check or if the types are inconsistent. */
 let dynamic_typ_of_samples =
     (~ctx: Ctx.t, samples: list(Sample.t)): option(Typ.t) => {
   let types =
