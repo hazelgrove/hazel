@@ -1,6 +1,6 @@
 # PR: `coding-agent-ui-updates` → `dev`
 
-Branch commits (newest first): compaction/OpenRouter polish → `.gitignore` for `.cursor/` → slash `/compact` → read-only fold `⋱` fix → Program View crash fix → auto-compaction on context limit → context meter UI → chunk UI + context meter foundation.
+Branch commits (newest first): **`Test_AgentUX`** (unit tests for slash menu, compaction slice, `CompactionPrompt`, OpenRouter `handle_chat`, context meter) → compaction/OpenRouter polish → `.gitignore` for `.cursor/` → slash `/compact` → read-only fold `⋱` fix → Program View crash fix → auto-compaction on context limit → context meter UI → chunk UI + context meter foundation.
 
 Use this list as the full merge description; it is meant to match **everything** we intend to land from this branch.
 
@@ -37,6 +37,10 @@ Use this list as the full merge description; it is meant to match **everything**
 
 - Assistant **`content`** may be a **JSON array** of parts (e.g. `{"type":"text","text":"…"}`); **`first_message_content`** now decodes string / null / array and optionally falls back to a top-level **`reasoning`** string when content is empty — avoids **empty compaction/chat text** when providers return non-string `content`.
 
+## Tests
+
+- **`test/Test_AgentUX.re`:** Alcotest suite **“Agent UX”** (registered in `haz3ltest.re`) covering **`ChatSlashCommands.filtered`**, **`derive_slash_menu_from_content`** + slash menu selection updates, **`dialogue_slice_for_compaction_summary`**, **`CompactionPrompt.mk_system_prompt`**, **`OpenRouter.Utils.handle_chat`** (string / multipart / reasoning fallback), and **`AgentGlobals.effective_context_meter_limit`**. Tool-call editing tests remain in **`Test_AgentTools`**.
+
 ## Repo / tooling
 
 - **`.gitignore`:** Ignore **`.cursor/`** for local IDE noise. **`PR-merge-to-dev.md`** is intentionally tracked (e.g. `git add -f`) so this checklist lives in the repo for reviewers.
@@ -45,4 +49,4 @@ Use this list as the full merge description; it is meant to match **everything**
 
 ## Files / areas touched (high level)
 
-`Agent.re`, `AgentGlobals.re`, `OpenRouter.re`, `CompactionPrompt.re`, `CompositionPrompt.re` (removal of inline compaction blurb), `ChatMessagesView.re`, `ChatBottomBar.re`, `ChatView.re`, `Code.re`, `CodeViewable.re` / tool-result views, `agent-chat-messages.css`, `.gitignore`, this file.
+`Agent.re`, `AgentGlobals.re`, `OpenRouter.re`, `CompactionPrompt.re`, `CompositionPrompt.re` (removal of inline compaction blurb), `ChatMessagesView.re`, `ChatBottomBar.re`, `ChatView.re`, `Code.re`, `CodeViewable.re` / tool-result views, `agent-chat-messages.css`, **`test/Test_AgentUX.re`**, **`test/haz3ltest.re`**, `.gitignore`, this file.
