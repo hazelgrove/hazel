@@ -1,4 +1,3 @@
-TEST_DIR="$(shell pwd)/_build/default/test"
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
@@ -79,12 +78,10 @@ repl:
 
 test:
 	dune fmt --auto-promote || true
-	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
-	node --stack-size=8192 --require $(TEST_DIR)/idb_stub.js $(TEST_DIR)/haz3ltest.bc.js
+	dune build @ocaml-index @src/fmt @test/fmt @runtest --auto-promote --profile dev
 
 test-quick:
-	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
-	node --stack-size=8192 --require $(TEST_DIR)/idb_stub.js $(TEST_DIR)/haz3ltest.bc.js -q
+	dune build @ocaml-index @src/fmt @test/fmt @test-quick --auto-promote --profile dev
 
 watch-test:
 	dune build @ocaml-index @fmt @runtest @default --profile dev --auto-promote --watch
