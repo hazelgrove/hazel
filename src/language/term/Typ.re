@@ -1319,5 +1319,7 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
     []
   | (Sum(_), _) => get_ids()
+  | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
+  | (Sig(_), _) => get_ids()
   };
 };
