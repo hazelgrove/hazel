@@ -64,7 +64,7 @@ let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
     };
   };
   let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
-  Zipper.remold_regrout(Left, z);
+  Zipper.rescan_reassemble(~with_parent=true, Left, z);
 };
 
 /* Check if the zipper is at a "safe split point": top level with

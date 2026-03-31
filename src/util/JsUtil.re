@@ -94,30 +94,6 @@ let reset_file_input = (input_id: string): unit => {
   };
 };
 
-let set_localstore = (k: string, v: string): unit => {
-  let local_store =
-    Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
-  local_store##setItem(Js.string(k), Js.string(v));
-};
-
-let get_localstore = (k: string): option(string) =>
-  try({
-    let local_store =
-      Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
-    local_store##getItem(Js.string(k))
-    |> (
-      x => Js.Opt.get(x, () => assert(false)) |> Js.to_string |> Option.some
-    );
-  }) {
-  | _ => None
-  };
-
-let clear_localstore = () => {
-  let local_store =
-    Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
-  local_store##clear;
-};
-
 let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
@@ -286,6 +262,16 @@ let hasPointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
     e,
     "hasPointerCapture",
     [|Js.Unsafe.inject(pointerId)|],
+  );
+
+let set_css_custom_property = (name: string, value: string): unit =>
+  Js.Unsafe.meth_call(
+    Dom_html.document##.documentElement##.style,
+    "setProperty",
+    [|
+      Js.Unsafe.inject(Js.string(name)),
+      Js.Unsafe.inject(Js.string(value)),
+    |],
   );
 
 let delay = (delay: float, callback: unit => unit) => {

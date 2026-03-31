@@ -69,23 +69,185 @@ let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
  * a standalone monotile should retroactively become a shard
  * of an incomplete tile (e.g. standalone `->` matching `fun`).
  * Should be called after edits, not during cursor movement. */
-let rescan_reassemble = (d: Direction.t, z: t): t => {
-  let siblings = Siblings.rescan(z.relatives.siblings);
-  if (siblings == z.relatives.siblings) {
+/* Rescan ancestor-level siblings: converts standalone monotiles that
+ * match a parent ancestor's missing shards, giving them the parent's
+ * ID, then absorbs them into the parent via reassemble_parent-style
+ * logic. This handles delimiters (e.g. =) re-inserted via paste with
+ * fresh IDs that don't match their ancestor tile. */
+let rescan_parent_shards = (z: t): t => {
+  /* For each ancestor, compute its missing shards as (token, index) pairs */
+  let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
+    let all_shards = fst(a.shards) @ snd(a.shards);
+    List.init(List.length(a.label), Fun.id)
+    |> List.filter(i => !List.mem(i, all_shards))
+    |> List.map(i => (List.nth(a.label, i), i));
+  };
+
+  let convert_piece =
+      (a: Ancestor.t, missing: list((string, int)), p: Piece.t): Piece.t =>
+    switch (p) {
+    | Tile(t) when List.length(t.shards) == 1 && t.id != a.Ancestor.id =>
+      let tok = List.hd(Tile.effective_label(t));
+      switch (List.assoc_opt(tok, missing)) {
+      | Some(idx) =>
+        Tile({
+          ...t,
+          id: a.Ancestor.id,
+          label: a.Ancestor.label,
+          mold: a.Ancestor.mold,
+          shards: [idx],
+        })
+      | None => p
+      };
+    | _ => p
+    };
+
+  /* Try converting sibs against target ancestor's missing shards.
+   * If conversion happens, absorb converted shards into the target
+   * ancestor using reassemble_parent-style logic. Returns updated
+   * (sibs, target) or None if no conversion happened. */
+  let try_absorb =
+      (sibs: Siblings.t, target: Ancestor.t)
+      : option((Siblings.t, Ancestor.t)) => {
+    let missing = ancestor_missing(target);
+    if (missing == []) {
+      None;
+    } else {
+      let convert = convert_piece(target, missing);
+      let (l, r) = sibs;
+      let new_sibs = (List.map(convert, l), List.map(convert, r));
+      if (new_sibs == sibs) {
+        None;
+      } else {
+        /* Absorb converted shards into target using split_by_matching */
+        let flatten_match =
+          Aba.fold_right(
+            (t: Tile.t, kid, (shards, kids)) =>
+              Aba.mk(t.shards @ shards, t.children @ [kid, ...kids]),
+            (t: Tile.t) => Aba.mk(t.shards, t.children),
+          );
+        let (l_match, r_match) =
+          new_sibs
+          |> Siblings.split_by_matching(target.Ancestor.id)
+          |> TupleUtil.map2(Aba.trim);
+        let (target, new_l) =
+          switch (l_match) {
+          | None => (target, fst(new_sibs))
+          | Some((outer_l, match_l, inner_l)) =>
+            let (shards_l, kids_l) = flatten_match(match_l);
+            let target = {
+              ...target,
+              shards: target.shards |> PairUtil.map_fst(ss => ss @ shards_l),
+              children:
+                target.children
+                |> PairUtil.map_fst(kids =>
+                     Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+                   ),
+            };
+            (target, inner_l);
+          };
+        let (target, new_r) =
+          switch (r_match) {
+          | None => (target, snd(new_sibs))
+          | Some((inner_r, match_r, outer_r)) =>
+            let (shards_r, kids_r) = flatten_match(match_r);
+            let target = {
+              ...target,
+              shards: target.shards |> PairUtil.map_snd(ss => shards_r @ ss),
+              children:
+                target.children
+                |> PairUtil.map_snd(kids =>
+                     Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+                   ),
+            };
+            (target, inner_r);
+          };
+        Some(((new_l, new_r), target));
+      };
+    };
+  };
+
+  /* Walk ancestor chain. For each (inner, sibs), try to absorb
+   * converted shards from `sibs` into the parent ancestor.
+   * Also try direct siblings against the immediate ancestor. */
+  let rec go = (ancestors: Ancestors.t): Ancestors.t =>
+    switch (ancestors) {
+    | [] => []
+    | [(a, sibs)] => [(a, sibs)]
+    | [(a, sibs), (parent, parent_sibs), ...rest] =>
+      let rest = go([(parent, parent_sibs), ...rest]);
+      switch (rest) {
+      | [] => [(a, sibs)]
+      | [(parent, parent_sibs), ...rest_tail] =>
+        switch (try_absorb(sibs, parent)) {
+        | None => [(a, sibs), (parent, parent_sibs), ...rest_tail]
+        | Some((new_sibs, new_parent)) => [
+            (a, new_sibs),
+            (new_parent, parent_sibs),
+            ...rest_tail,
+          ]
+        }
+      };
+    };
+
+  let ancestors = go(z.relatives.ancestors);
+  let (siblings, ancestors) =
+    switch (ancestors) {
+    | [] => (z.relatives.siblings, ancestors)
+    | [(a, a_sibs), ...rest] =>
+      switch (try_absorb(z.relatives.siblings, a)) {
+      | None => (z.relatives.siblings, ancestors)
+      | Some((new_sibs, new_a)) => (new_sibs, [(new_a, a_sibs), ...rest])
+      }
+    };
+
+  if (ancestors == z.relatives.ancestors && siblings == z.relatives.siblings) {
     z;
   } else {
-    let relatives =
-      {
-        ...z.relatives,
-        siblings,
-      }
-      |> Relatives.reassemble
-      |> Relatives.remold
-      |> Relatives.regrout(d);
     {
       ...z,
-      relatives,
+      relatives: {
+        siblings,
+        ancestors,
+      },
     };
+  };
+};
+
+let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
+  let siblings = Siblings.rescan(z.relatives.siblings);
+  let z =
+    if (siblings == z.relatives.siblings) {
+      z;
+    } else {
+      let relatives =
+        {
+          ...z.relatives,
+          siblings,
+        }
+        |> Relatives.reassemble
+        |> Relatives.remold
+        |> Relatives.regrout(d);
+      {
+        ...z,
+        relatives,
+      };
+    };
+  if (with_parent) {
+    let z' = rescan_parent_shards(z);
+    if (z'.relatives.ancestors != z.relatives.ancestors
+        || z'.relatives.siblings != z.relatives.siblings) {
+      let relatives =
+        z'.relatives |> Relatives.remold |> Relatives.regrout(d);
+      {
+        ...z',
+        relatives,
+      };
+    } else {
+      z;
+    };
+  } else {
+    z;
   };
 };
 

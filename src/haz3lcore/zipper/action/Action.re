@@ -142,6 +142,7 @@ type t =
   | Probe(probe)
   | PrettyPrint
   | Dump
+  | ToggleLineComment
   | Structural(Structural.t);
 
 module Failure = {
@@ -182,7 +183,8 @@ let is_edit: t => bool =
   | PrettyPrint
   | Buffer(Accept | Clear | Set(_))
   | Structural(_)
-  | Dump => true
+  | Dump
+  | ToggleLineComment => true
   | Copy
   | Move(_)
   | Select(_)
@@ -217,7 +219,8 @@ let is_historic: t => bool =
   | Introduce
   | PrettyPrint
   | Structural(_)
-  | Dump => true
+  | Dump
+  | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -247,7 +250,8 @@ let prevent_in_read_only_editor = (a: t) =>
   | Introduce
   | PrettyPrint
   | Structural(_)
-  | Dump => true
+  | Dump
+  | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true
@@ -289,7 +293,8 @@ let should_animate: t => bool =
   | Structural(_)
   | Probe(_)
   | PrettyPrint
-  | Dump => true
+  | Dump
+  | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)

@@ -32,34 +32,56 @@ module StoreMode =
   });
 
 module Store = {
+  let scratch_defaults = () => {
+    let (current, slides) = Init.startup.scratch;
+    (current, List.map(fst, slides));
+  };
+
+  let doc_defaults = () => {
+    let (current, slides) = Init.startup.documentation;
+    (current, List.map(fst, slides));
+  };
+
   let load = (~settings, ~instructor_mode) => {
-    // Check if both name and share URL parameters are present
     let has_share_params =
       JsUtil.QueryParams.get_param("name") != None
       && JsUtil.QueryParams.get_param("share") != None;
 
-    // If share parameters exist, force Scratch mode regardless of stored mode
     if (has_share_params) {
+      let (default_current, default_names) = scratch_defaults();
       Model.Scratch(
-        ScratchMode.Store.load()
-        |> ScratchMode.Store.integrate_share
-        |> ScratchMode.Model.unpersist(~settings),
+        ScratchMode.Persist.load_all(
+          "scratch",
+          ~settings,
+          ~default_names,
+          ~default_current,
+        )
+        |> ScratchMode.integrate_share(~settings),
       );
     } else {
-      // Otherwise, proceed with normal mode loading
       let mode = StoreMode.load();
       switch (mode) {
       | Scratch =>
+        let (default_current, default_names) = scratch_defaults();
         Model.Scratch(
-          ScratchMode.Store.load()
-          |> ScratchMode.Store.integrate_share
-          |> ScratchMode.Model.unpersist(~settings),
-        )
+          ScratchMode.Persist.load_all(
+            "scratch",
+            ~settings,
+            ~default_names,
+            ~default_current,
+          )
+          |> ScratchMode.integrate_share(~settings),
+        );
       | Documentation =>
+        let (default_current, default_names) = doc_defaults();
         Model.Documentation(
-          ScratchMode.StoreDocumentation.load()
-          |> ScratchMode.Model.unpersist(~settings),
-        )
+          ScratchMode.Persist.load_all(
+            "doc",
+            ~settings,
+            ~default_names,
+            ~default_current,
+          ),
+        );
       | Tutorial =>
         Model.Tutorial(
           TutorialsMode.Store.load(~settings, ~instructor_mode)
@@ -78,10 +100,10 @@ module Store = {
     switch (model) {
     | Model.Scratch(m) =>
       StoreMode.save(Scratch);
-      ScratchMode.Store.save(ScratchMode.Model.persist(m));
+      ScratchMode.Persist.save_current("scratch", m);
     | Model.Documentation(m) =>
       StoreMode.save(Documentation);
-      ScratchMode.StoreDocumentation.save(ScratchMode.Model.persist(m));
+      ScratchMode.Persist.save_current("doc", m);
     | Model.Tutorial(m) =>
       StoreMode.save(Tutorial);
       TutorialsMode.Store.save(~instructor_mode, m);
@@ -93,8 +115,7 @@ module Store = {
 
   let reset = (~settings, ~instructor_mode) => {
     StoreMode.save(Tutorial);
-    let _ = ScratchMode.Store.reset();
-    let _ = ScratchMode.StoreDocumentation.reset();
+    HazelDB.kv_clear();
     let _ = TutorialsMode.Store.reset(~settings, ~instructor_mode);
     let _ = ExercisesMode.Store.reset(~settings, ~instructor_mode);
     load(~settings, ~instructor_mode);
@@ -181,16 +202,27 @@ module Update = {
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       ScratchMode.reset_persist_state();
+      let (default_current, default_names) = Store.scratch_defaults();
       Model.Scratch(
-        ScratchMode.Store.load()
-        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
+        ScratchMode.Persist.load_all(
+          "scratch",
+          ~settings=globals.settings.core,
+          ~default_names,
+          ~default_current,
+        )
+        |> ScratchMode.integrate_share(~settings=globals.settings.core),
       )
       |> return;
     | (SwitchMode(Documentation), _) =>
       ScratchMode.reset_persist_state();
+      let (default_current, default_names) = Store.doc_defaults();
       Model.Documentation(
-        ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
+        ScratchMode.Persist.load_all(
+          "doc",
+          ~settings=globals.settings.core,
+          ~default_names,
+          ~default_current,
+        ),
       )
       |> return;
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action

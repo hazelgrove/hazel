@@ -303,39 +303,182 @@ let insert_or_append = (char: string, z: t): option(t) => {
   adjust_caret_pos(~z_final, ~z_init);
 };
 
-let go = (char: string, z: t): option(t) => {
-  /* If there's a selection, delete it before proceeding */
-  let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
-  switch (z.caret, neighbor_tokens(z)) {
-  /* If we try to insert a quote inside an existing string, or a #
-   * in a comment, we are instead moved to the righthand side of
-   * the operand. Note that this behavior is load-bearing for the
-   * current parsing approach including Paste */
-  | (_, (_, Some(t))) when Token.closing_stringlit_or_comment(char, t) =>
-    z |> Caret.set(Outer) |> Zipper.move(Right)
-  | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
-    Some(z)
-  | (Inner(idx), (_, Some(t))) =>
-    let idx = idx + 1;
-    let new_token = Token.insert_nth(idx, char, t);
-    let z = Caret.set(Inner(idx), z);
-    Token.is_potential_token(new_token)
-      ? z
-        |> replace_shard(Right, new_token)
-        |> Option.map(remold_regrout(Right))
-      : split(z, char, idx, t);
-  | (Inner(_), (_, None)) => None
-  | (Outer, _) =>
-    let z =
-      Caret.set(
-        switch (sibling_appendability(char, z)) {
-        | Some((Right, _)) => Inner(0)
-        | None
-        | Some((Left, _)) => Outer
-        },
-        z,
-      );
-    insert_or_append(char, z);
+/* === SELECTION WRAPPING ===
+ * When the user types an opening delimiter with an active selection,
+ * wrap the selection in that delimiter rather than replacing it.
+ * Balanced delimiters (parens, brackets, braces) create a wrapping
+ * tile with the selection as child. Quote delimiters (double-quote,
+ * backtick, hash) serialize the selection to text and create a
+ * token or secondary piece. */
+
+let is_opening_delimiter = (char: string): bool =>
+  char == "(" || char == "[" || char == "{";
+
+let delimiter_label = (char: string): Label.t =>
+  switch (char) {
+  | "(" => ["(", ")"]
+  | "[" => ["[", "]"]
+  | "{" => ["{", "}"]
+  | _ => failwith("not a delimiter: " ++ char)
+  };
+
+/* Wrap selection in balanced delimiters. Creates the wrapping tile
+ * as an ancestor with the content inside, retaining the selection. */
+let wrap_balanced = (~deep_reassociate=false, char: string, z: t): t => {
+  let content = z.selection.content;
+  let sort = Relatives.sort(z.relatives);
+  let (left_sibs, right_sibs) = z.relatives.siblings;
+  let label = delimiter_label(char);
+  let mold = Form.Molds.get(sort, label);
+  let ancestor: Ancestor.t = {
+    id: Id.mk(),
+    label,
+    mold,
+    shards: ([0], [1]),
+    children: ([], []),
+  };
+  /* Re-ID incomplete shards in the content whose counterparts remain
+   * in the outer siblings. Wrapping places these at different nesting
+   * levels, and shared IDs would cause MakeTerm to create duplicate
+   * terms, leading to infinite recursion in the elaborator. */
+  let outer_ids =
+    Segment.incomplete_tiles(left_sibs @ right_sibs)
+    |> List.map((t: Tile.t) => t.id);
+  let content =
+    List.map(
+      fun
+      | Piece.Tile(t) when !Tile.is_complete(t) && List.mem(t.id, outer_ids) =>
+        Piece.Tile({
+          ...t,
+          id: Id.mk(),
+        })
+      | p => p,
+      content,
+    );
+  /* Place content as right siblings inside the new ancestor,
+   * remold/regrout with empty selection, then re-select */
+  let z = {
+    ...z,
+    caret: Outer,
+    selection: Selection.empty,
+    relatives: {
+      siblings: ([], content),
+      ancestors: [
+        (ancestor, (left_sibs, right_sibs)),
+        ...z.relatives.ancestors,
+      ],
+    },
+  };
+  let z = remold_regrout(Right, z);
+  let z = deep_reassociate ? Reassociate.go(z) : z;
+  let right = snd(z.relatives.siblings);
+  {
+    ...z,
+    selection: Selection.mk(~focus=Right, right),
+    relatives: {
+      ...z.relatives,
+      siblings: (fst(z.relatives.siblings), []),
+    },
+  };
+};
+
+/* Get the text of a segment for quote wrapping validation */
+let segment_text = (content: Segment.t): string =>
+  Segment.to_string(
+    ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
+    ~projector_to_segment=Triggers.projector_to_invoke,
+    content,
+  );
+
+/* Check if text is valid for wrapping in the given delimiter.
+ * Rejects text containing the delimiter char or newlines. */
+let is_valid_quote_content = (delim: string, text: string): bool =>
+  !String.contains(text, '\n') && !String.contains(text, delim.[0]);
+
+/* Wrap selection in a quote delimiter (string, label, or comment).
+ * Returns None if the text contains invalid characters, causing
+ * fallthrough to normal insert behavior (selection replacement). */
+let wrap_quote = (char: string, z: t): option(t) => {
+  let content = z.selection.content;
+  let text = segment_text(content);
+  if (!is_valid_quote_content(char, text)) {
+    None;
+  } else {
+    let z = destroy_selection(z);
+    if (Token.is_comment_delim(char)) {
+      let comment = "#" ++ text ++ "#";
+      let piece = Piece.mk_secondary(Id.mk(), comment);
+      Some(Zipper.insert_segment(z, [piece]));
+    } else {
+      let token = char ++ text ++ char;
+      let sort = Relatives.sort(z.relatives);
+      let mold = Form.Molds.get(sort, [token]);
+      let tile: Piece.t =
+        Tile({
+          id: Id.mk(),
+          label: [token],
+          mold,
+          shards: [0],
+          children: [],
+        });
+      Some(Zipper.insert_segment(z, [tile]));
+    };
+  };
+};
+
+/* Try to wrap selection in a delimiter. Returns Some if wrapping
+ * occurred, None to fall through to normal insert behavior. */
+let try_wrap_selection =
+    (~deep_reassociate=false, char: string, z: t): option(t) =>
+  if (is_opening_delimiter(char)) {
+    Some(wrap_balanced(~deep_reassociate, char, z));
+  } else if (Token.is_string_or_comment_delim(char)) {
+    wrap_quote(char, z);
+  } else {
+    None;
+  };
+
+let go = (~deep_reassociate=false, char: string, z: t): option(t) => {
+  /* If there's a selection, try wrapping before falling through */
+  switch (
+    z.selection.content != []
+      ? try_wrap_selection(~deep_reassociate, char, z) : None
+  ) {
+  | Some(z) => Some(z)
+  | None =>
+    /* Normal path: delete selection (if any) before proceeding */
+    let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
+    switch (z.caret, neighbor_tokens(z)) {
+    /* If we try to insert a quote inside an existing string, or a #
+     * in a comment, we are instead moved to the righthand side of
+     * the operand. Note that this behavior is load-bearing for the
+     * current parsing approach including Paste */
+    | (_, (_, Some(t))) when Token.closing_stringlit_or_comment(char, t) =>
+      z |> Caret.set(Outer) |> Zipper.move(Right)
+    | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
+      Some(z)
+    | (Inner(idx), (_, Some(t))) =>
+      let idx = idx + 1;
+      let new_token = Token.insert_nth(idx, char, t);
+      let z = Caret.set(Inner(idx), z);
+      Token.is_potential_token(new_token)
+        ? z
+          |> replace_shard(Right, new_token)
+          |> Option.map(remold_regrout(Right))
+        : split(z, char, idx, t);
+    | (Inner(_), (_, None)) => None
+    | (Outer, _) =>
+      let z =
+        Caret.set(
+          switch (sibling_appendability(char, z)) {
+          | Some((Right, _)) => Inner(0)
+          | None
+          | Some((Left, _)) => Outer
+          },
+          z,
+        );
+      insert_or_append(char, z);
+    };
   };
 };
 
@@ -344,8 +487,15 @@ let go_inner = go;
 
 /* This is a wrapper intended to effectuate after-insertion conditional
  * operations. See Triggers.re for more details */
-let go = (~ci: option(Language.Info.t)=None, char: string, z: t): option(t) => {
-  let+ z = go(char, z);
+let go =
+    (
+      ~deep_reassociate=false,
+      ~ci: option(Language.Info.t)=None,
+      char: string,
+      z: t,
+    )
+    : option(t) => {
+  let+ z = go(~deep_reassociate, char, z);
   let z = Triggers.insert(~ci, z);
   Zipper.rescan_reassemble(Left, z);
 };

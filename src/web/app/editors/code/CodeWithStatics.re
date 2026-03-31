@@ -145,7 +145,7 @@ module Update = {
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, dynamics: _}: Model.t,
+        {editor, statics, context_menu, dynamics: _, _}: Model.t,
       )
       : Model.t => {
     /* Capture ephemerals before editor calculation to detect auto probe changes */
@@ -235,7 +235,9 @@ module View = {
         warning_ids,
       );
     let container_classes =
-      ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
+      ["code-container"]
+      @ (globals.meta_down ? ["meta-down"] : [])
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
     Node.div(
       ~attrs=[Attr.classes(container_classes)],
       // errors after warnings to prioritize errors over warnings
