@@ -314,13 +314,6 @@ module Selection = {
       );
     Update.Tutorial(ci);
   };
-  let handle_key_event = (~selection, ~event, model: Model.t) =>
-    TutorialMode.Selection.handle_key_event(
-      ~selection,
-      ~event,
-      List.nth(model.exercises, model.current),
-    )
-    |> Option.map(a => Update.Tutorial(a));
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
     TutorialMode.Selection.jump_to_tile(

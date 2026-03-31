@@ -373,34 +373,6 @@ module Selection = {
     };
   };
 
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | TextBox => None
-    | Prelude(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.prelude,
-        ~event,
-      )
-      |> Option.map(x => Update.Prelude(x))
-    | Lemmas(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.lemmas,
-        ~event,
-      )
-      |> Option.map(x => Update.Lemmas(x))
-    | Theorem(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.theorem,
-        ~event,
-      )
-      |> Option.map(x => Update.Theorem(x))
-    };
-  };
-
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
     open OptUtil.Syntax;
     let (let.or) = (v: option('b), f: unit => option('b)) => {

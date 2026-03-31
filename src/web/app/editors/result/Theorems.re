@@ -307,24 +307,6 @@ module Focus = {
     };
   };
 
-  let handle_key_event = (~focus: t, ~event: Key.t, model: Model.t) => {
-    let id_and_thm = {
-      open OptUtil.Syntax;
-      let* id = List.nth_opt(model.thms |> Calc.get_saved([]), focus |> fst);
-      let* thm = Id.Map.find_opt(id, model.thm_map);
-      Some((id, thm));
-    };
-    switch (id_and_thm) {
-    | Some((_id, thm)) =>
-      StepperView.Focus.handle_key_event(
-        ~focus=snd(focus),
-        ~event,
-        thm.stepper_view,
-      )
-      |> Option.map((x): Update.t => Update.TheoremUpdate(fst(focus), x))
-    | None => None
-    };
-  };
 };
 
 module View = {

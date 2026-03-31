@@ -547,24 +547,6 @@ module Selection = {
     };
   };
 
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | Cell(pos, s) =>
-      switch (Exercise.get_stitched(pos, model.cells)) {
-      | cell_editor =>
-        CellEditor.Selection.handle_key_event(
-          ~selection=s,
-          ~event,
-          cell_editor,
-        )
-        |> Option.map(a => Update.Editor(pos, a))
-      | exception (Failure(_)) => None
-      }
-    | TextBox => None
-    };
-  };
-
   let jump_to_tile =
       (~settings: Settings.t, id: Id.t, model: Model.t)
       : option((Update.t, t)) => {

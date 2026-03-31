@@ -194,22 +194,6 @@ module Selection = {
     };
   };
 
-  let handle_key_event =
-      (~selection, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | MainEditor =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=(),
-        model.editor,
-        event,
-      )
-      |> Option.map(x => Update.MainEditor(x))
-    | Result(selection) =>
-      EvalResult.Selection.handle_key_event(~selection, model.result, ~event)
-      |> Option.map(x => Update.ResultAction(x))
-    };
-  };
-
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
     CodeEditable.Selection.jump_to_tile(tile, model.editor)
     |> Option.map(x => (Update.MainEditor(x), MainEditor));

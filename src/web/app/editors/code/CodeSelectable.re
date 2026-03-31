@@ -74,10 +74,6 @@ module Selection = {
         }
     )
     |> Cursor.map_opt(Update.convert_action);
-  let handle_key_event =
-      (~selection, model: Model.t, key: Key.t): option(Update.t) =>
-    CodeEditable.Selection.handle_key_event(~selection, model, key)
-    |> Option.bind(_, Update.convert_action);
 };
 
 module View = {

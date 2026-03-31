@@ -89,8 +89,6 @@ module Focus = {
     ci;
   };
 
-  let handle_key_event = (~focus: t, ~event, model: Model.t) =>
-    StepperBase.Stepper.handle_key_event(~focus, ~event, model.root);
 };
 
 module View = {

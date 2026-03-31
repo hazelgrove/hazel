@@ -165,14 +165,6 @@ module F =
       }
     );
 
-  let handle_key_event =
-      (~focus: focus, ~event: Key.t, model: model): option(action) =>
-    switch (focus) {
-    | InnerExp(a) =>
-      Stepper.handle_key_event(~focus=a, ~event, model.inner_stepper)
-      |> Option.map((x): action => InnerExp(x))
-    };
-
   let view_justification =
       (
         ~globals as _: Globals.t,

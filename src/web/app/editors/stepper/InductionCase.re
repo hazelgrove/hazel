@@ -288,21 +288,6 @@ module F = (Stepper: STEPPER) => {
     );
   };
 
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) => {
-    switch (focus, model) {
-    | (Pattern(a), _) =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=a,
-        model.pattern,
-        event,
-      )
-      |> Option.map(x => PatternUpdate(x))
-    | (Stepper(a), _) =>
-      Stepper.handle_key_event(~focus=a, ~event, model.step)
-      |> Option.map(x => StepUpdate(x))
-    };
-  };
-
   let view =
       (
         ~globals: Globals.t,

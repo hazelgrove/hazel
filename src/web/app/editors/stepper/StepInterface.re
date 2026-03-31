@@ -41,9 +41,6 @@ module type STEP = {
 
   let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
 
-  let handle_key_event:
-    (~focus: focus, ~event: Key.t, model) => option(action);
-
   let view_justification:
     (
       ~globals: Globals.t,
@@ -102,9 +99,6 @@ module type STEPPER = {
     (model, Calc.t(Exp.t), Calc.t(option(bool)) /* Truth */);
 
   let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
-
-  let handle_key_event:
-    (~focus: focus, ~event: Key.t, model) => option(action);
 
   let view:
     (

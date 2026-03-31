@@ -347,21 +347,6 @@ module Selection = {
       Update.TheoremsAction(ci);
     };
 
-  let handle_key_event =
-      (~selection: t, ~event, mr: Model.t): option(Update.t) =>
-    switch (selection, mr.display) {
-    | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      CodeSelectable.Selection.handle_key_event(~selection, editor, event)
-      |> Option.map(x => Update.EvalEditorAction(x))
-    | (Stepper(focus), Stepper(s)) =>
-      StepperView.Focus.handle_key_event(~focus, s, ~event)
-      |> Option.map(x => Update.StepperAction(x))
-    | (Evaluation(_), _) => None
-    | (Stepper(_), _) => None
-    | (Theorems(focus), _) =>
-      Theorems.Focus.handle_key_event(~focus, ~event, mr.theorems)
-      |> Option.map(x => Update.TheoremsAction(x))
-    };
 };
 
 module View = {

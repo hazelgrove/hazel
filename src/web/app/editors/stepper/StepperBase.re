@@ -364,36 +364,6 @@ module rec StepKind: {
       }
     );
 
-  let handle_key_event =
-      (~focus: focus, ~event: Key.t, model: model): option(action) =>
-    switch (focus, model) {
-    | (SingleStep(focus), SingleStep(model)) =>
-      SingleStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => SingleStep(x))
-    | (InductionStep(focus), InductionStep(model)) =>
-      InductionStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => InductionStep(x))
-    | (ForallStep(focus), ForallStep(model)) =>
-      ForallStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => ForallStep(x))
-    | (MissingStep(selection), MissingStep(model)) =>
-      MissingStep.Selection.handle_key_event(~selection, ~event, ~model)
-      |> Option.map((x): action => MissingStep(x))
-    | (AxiomStep(focus), AxiomStep(model)) =>
-      AxiomStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => AxiomStep(x))
-    | (AlgebriteStep(focus), AlgebriteStep(model)) =>
-      AlgebriteStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => AlgebriteStep(x))
-    | (
-        SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
-        AxiomStep(_) |
-        AlgebriteStep(_),
-        _,
-      ) =>
-      None
-    };
-
   let view_content =
       (
         ~globals: Globals.t,
@@ -876,28 +846,6 @@ and Stepper: {
       | (Next(_), _, None) => Cursor.empty
       }
     );
-  };
-
-  let rec handle_key_event =
-          (~focus: step_focus, ~event: Key.t, model: step_model)
-          : option(step_action) => {
-    switch (focus, model.step_kind, model.next_step) {
-    | (StepKindFocus(sk), skm, _) =>
-      StepKind.handle_key_event(~focus=sk, ~event, skm)
-      |> Option.map((x): step_action => StepKindAction(x))
-    | (Here(a), _, _) =>
-      StepperEditor.Selection.handle_key_event(
-        ~selection=a,
-        model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
-        event,
-      )
-      |> Option.map((x): step_action => EditorAction(x))
-    | (Next(a), _, Some(next_step)) =>
-      next_step
-      |> handle_key_event(~focus=a, ~event)
-      |> Option.map((x): step_action => NextStep(x))
-    | _ => None
-    };
   };
 
   let rec view_step =

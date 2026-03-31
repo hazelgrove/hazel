@@ -349,21 +349,6 @@ module F =
       }
     );
 
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) =>
-    switch (focus) {
-    | Scrut(a) =>
-      let editor = model.scrut;
-      CodeEditable.Selection.handle_key_event(~selection=a, editor, event)
-      |> Option.map(x => ScrutUpdate(x));
-    | Case(i, a) =>
-      switch (List.nth_opt(model.cases, i)) {
-      | Some(case) =>
-        InductionCase.handle_key_event(~focus=a, ~event, case)
-        |> Option.map(x => CaseUpdate(i, x))
-      | None => None
-      }
-    };
-
   let view_justification =
       (
         ~globals as _: Globals.t,

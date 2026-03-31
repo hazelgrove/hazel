@@ -487,21 +487,6 @@ module Selection = {
        );
   };
 
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    let current = List.nth(model.exercises, model.current);
-    switch (current, selection) {
-    | (Implementation(e), Implementation(selection)) =>
-      ExerciseMode.Selection.handle_key_event(~selection, ~event, e)
-      |> Option.map(a => Update.Exercise(a))
-    | (Implementation(_), _) => None
-    | (Theorem(e), TheoremExercise(selection)) =>
-      TheoremExerciseMode.Selection.handle_key_event(~selection, ~event, e)
-      |> Option.map(a => Update.TheoremExercise(a))
-    | (Theorem(_), _) => None
-    };
-  };
-
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) => {
     let current = List.nth(model.exercises, model.current);

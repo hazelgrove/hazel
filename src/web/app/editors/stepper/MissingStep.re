@@ -314,18 +314,6 @@ module Selection = {
     };
   };
 
-  let handle_key_event = (~selection: t, ~event, ~model: Model.t) => {
-    switch (selection, model.open_box) {
-    | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
-      CodeEditable.Selection.handle_key_event(~selection, editor, event)
-      |> Option.map(x => Update.RewriteEditorAction(x))
-    | (RewriteEditor(_), _) => None
-    | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
-      AxiomsBox.Selection.handle_key_event(~selection, m, event)
-      |> Option.map(x => Update.AxiomBoxAction(x))
-    | (AxiomBoxSelection(_), _) => None
-    };
-  };
 };
 
 module View = {

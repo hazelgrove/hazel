@@ -117,11 +117,6 @@ module F =
     | _ => .
     };
 
-  let handle_key_event = (~focus: focus, ~event as _: Key.t, _model: model) =>
-    switch (focus) {
-    | _ => .
-    };
-
   let view_justification =
       (
         ~globals as _: Globals.t,
