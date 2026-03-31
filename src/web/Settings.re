@@ -18,6 +18,7 @@ module Model = {
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    show_row_lines: bool,
   };
 
   let init = {
@@ -65,6 +66,7 @@ module Model = {
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
+    show_row_lines: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -130,7 +132,8 @@ module Update = {
     | Quiver
     | Backpack
     | ToggleLineNumbers
-    | ToggleRelativeLineNumbers;
+    | ToggleRelativeLineNumbers
+    | ShowRowLines;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -345,6 +348,10 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | ShowRowLines => {
+          ...settings,
+          show_row_lines: !settings.show_row_lines,
         }
       }
     )
