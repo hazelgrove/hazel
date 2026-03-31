@@ -234,18 +234,21 @@ module Local = {
     };
   };
 
+  let projector_to_segment = (pr: Base.projector): Segment.t =>
+    switch (pr.kind) {
+    | Fold => [Piece.mk_tile(Form.mk_atom_op(Exp, {|⋱|}), [])]
+    | _ => Triggers.projector_to_invoke(pr)
+    };
+
   module Printer = {
-    let fold_abbrev_projector_to_segment = (pr: Base.projector): Segment.t =>
-      switch (pr.kind) {
-      | Fold => [Piece.mk_tile(Form.mk_atom_op(Exp, {|⋱|}), [])]
-      | _ => Triggers.projector_to_invoke(pr)
-      };
+    let print_segment = (segment: Segment.t): string =>
+      Printer.of_segment(~holes="?", ~projector_to_segment, segment);
 
     let print_zipper = (z: Zipper.t): string =>
       Printer.of_zipper(
         ~holes="?",
         ~concave_holes="~",
-        ~projector_to_segment=fold_abbrev_projector_to_segment,
+        ~projector_to_segment,
         z,
       );
 
@@ -263,7 +266,7 @@ module Local = {
       | None =>
         let has_probes = !List.is_empty(z.refractors.manuals);
         if (has_probes) {
-          ProbeText.of_zipper(~probe_map, z);
+          ProbeText.of_zipper(~projector_to_segment, ~probe_map, z);
         } else {
           print_zipper(z);
         };
@@ -281,7 +284,7 @@ module Local = {
           ViewUtils.collapse_definitions(~z, ~ids=ids_to_collapse, ~info_map);
         let has_probes = !List.is_empty(z'.refractors.manuals);
         if (has_probes) {
-          ProbeText.of_zipper(~probe_map, z');
+          ProbeText.of_zipper(~projector_to_segment, ~probe_map, z');
         } else {
           print_zipper(z');
         };
@@ -291,6 +294,7 @@ module Local = {
 };
 
 module Public = {
+  let print_segment = Local.Printer.print_segment;
   let print = Local.Printer.print;
   let print_zipper = Local.Printer.print_zipper;
 };
