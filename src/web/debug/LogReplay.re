@@ -42,13 +42,13 @@ let replay = (log_export: Export.log_export): result => {
   let noop_get_log_and = (_f: string => unit): unit => ();
   let noop_import_log = (_s: string): unit => ();
 
-  // Initial calculate to move fields out of Calc.Pending
+  // Initial calculate to move fields out of Calc.Pending without forcing eval.
   model :=
     History.Update.calculate(
       ~schedule_action=noop,
       ~is_edited=true,
-      ~dynamics=false,
-      ~force_sync_eval=true,
+      ~dynamics=true,
+      ~force_sync_eval=false,
       model^,
     );
 
@@ -75,22 +75,24 @@ let replay = (log_export: Export.log_export): result => {
       update_time := update_time^ +. (t1 -. t0);
       model := updated.model;
 
-      switch (action) {
-      | EvalComplete =>
-        dynamics_count := dynamics_count^ + 1;
-        let t2 = now();
-        model :=
-          History.Update.calculate(
-            ~schedule_action=noop,
-            ~is_edited=true,
-            ~dynamics=true,
-            ~force_sync_eval=true,
-            model^,
-          );
-        let t3 = now();
-        calc_time := calc_time^ +. (t3 -. t2);
-      | _ => ()
-      };
+      let should_eval =
+        switch (action) {
+        | EvalComplete =>
+          dynamics_count := dynamics_count^ + 1;
+          true
+        | _ => false
+        };
+      let t2 = now();
+      model :=
+        History.Update.calculate(
+          ~schedule_action=noop,
+          ~is_edited=true,
+          ~dynamics=true,
+          ~force_sync_eval=should_eval,
+          model^,
+        );
+      let t3 = now();
+      calc_time := calc_time^ +. (t3 -. t2);
 
       completed := completed^ + 1;
       if (completed^ mod 100 == 0) {
