@@ -104,7 +104,8 @@ module Action = {
       )
     | ResetAppView // Reset App View to show evaluation result
     | RethrowException
-    | ClearException;
+    | ClearException
+    | RestoreLastKnownGood;
 };
 
 module Model = {
@@ -207,6 +208,7 @@ module Update = {
     | Log(_) => false
     | RethrowException => false
     | ClearException => false
+    | RestoreLastKnownGood => false
     };
   };
 };

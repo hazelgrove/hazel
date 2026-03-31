@@ -594,9 +594,10 @@ module Update = {
     | Undo
     | Redo
     | RethrowException
-    | ClearException =>
+    | ClearException
+    | RestoreLastKnownGood =>
       failwith(
-        "Undo/Redo/Log import/RethrowException/ClearException are handled in higher-level modules",
+        "Undo/Redo/Log import/RethrowException/ClearException/RestoreLastKnownGood are handled in higher-level modules",
       )
     };
   };

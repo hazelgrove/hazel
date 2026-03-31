@@ -2,10 +2,12 @@ open Util;
 
 type current_exception =
   | Update(string)
-  | Calculate(string);
+  | Calculate(string)
+  | View(string);
 
 let last_exception: ref(option(exn)) = ref(None);
 let current_exception: ref(option(current_exception)) = ref(None);
+let last_known_good: ref(option(Logged.Model.t)) = ref(None);
 
 let set_last_exception = exn => {
   last_exception := Some(exn);
@@ -57,6 +59,21 @@ module Update = {
       switch (last_exception^) {
       | None => model |> Updated.return_quiet
       | Some(exn) => raise(exn)
+      }
+    | Globals(RestoreLastKnownGood) =>
+      switch (last_known_good^) {
+      | Some(good_model) =>
+        clear_last_exception();
+        clear_current_exception();
+        Model.{model: good_model} |> Updated.return_quiet;
+      | None =>
+        /* No known-good state (e.g. first render crashed).
+           Redirect to #debug so the user can reset. */
+        Js_of_ocaml.Dom_html.window##.location##replace(
+          Js_of_ocaml.Js.string("#debug"),
+        );
+        Js_of_ocaml.Dom_html.window##.location##reload;
+        model |> Updated.return_quiet;
       }
     | _ when current_exception^ == None =>
       try({
@@ -220,18 +237,29 @@ module View = {
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) =>
     switch (current_exception^) {
     | None =>
-      try(Logged.View.view(~get_log_and, ~inject, model.model)) {
+      try({
+        let result = Logged.View.view(~get_log_and, ~inject, model.model);
+        last_known_good := Some(model.model);
+        result;
+      }) {
       | exn =>
         set_last_exception(exn);
         let msg = Printexc.to_string(exn);
-        set_current_exception(Update(msg));
+        set_current_exception(View(msg));
         hsod_view(
           ~title="Exception during View",
           ~msg,
-          ~inject_backtrack=inject(Globals(Undo)),
+          ~inject_backtrack=inject(Globals(RestoreLastKnownGood)),
           ~inject_rethrow=inject(Globals(RethrowException)),
         );
       }
+    | Some(View(msg)) =>
+      hsod_view(
+        ~title="Exception during View",
+        ~msg,
+        ~inject_backtrack=inject(Globals(RestoreLastKnownGood)),
+        ~inject_rethrow=inject(Globals(RethrowException)),
+      )
     | Some(Update(msg)) =>
       hsod_view(
         ~title="Exception during Update",
