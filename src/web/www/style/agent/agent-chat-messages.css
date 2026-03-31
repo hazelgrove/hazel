@@ -801,6 +801,53 @@
   gap: 0.5em;
 }
 
+/* Slash commands: palette above the composer (triggered by typing "/") */
+.chat-slash-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  z-index: 25;
+  max-height: 12rem;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 0.6px solid var(--BR3);
+  background-color: var(--SAND);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  padding: 0.25em 0;
+}
+
+.chat-slash-menu-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65em;
+  padding: 0.45em 0.75em;
+  cursor: pointer;
+  font-size: 0.88em;
+  color: var(--STONE);
+  transition: background-color 0.12s ease;
+}
+
+.chat-slash-menu-item:hover,
+.chat-slash-menu-item.selected {
+  background-color: var(--T2);
+}
+
+.chat-slash-cmd {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-family: var(--code-font);
+  color: var(--BR4);
+}
+
+.chat-slash-desc {
+  flex: 1;
+  min-width: 0;
+  color: var(--BR2);
+  font-size: 0.95em;
+}
+
 .chat-message-input {
   width: 100%;
   padding: 0.6em 0.8em;
