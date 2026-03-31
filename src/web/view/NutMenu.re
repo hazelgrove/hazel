@@ -220,18 +220,6 @@ let code_display_group = (~globals: Globals.t) => {
         setting: ToggleLineNumbers,
         tooltip: None,
       },
-      {
-        name: "Relative Numbers",
-        active: globals.settings.relative_line_numbers,
-        setting: ToggleRelativeLineNumbers,
-        tooltip: Some("Show line numbers relative to cursor position"),
-      },
-      {
-        name: "Line Numbers",
-        active: globals.settings.line_numbers,
-        setting: ToggleLineNumbers,
-        tooltip: None,
-      },
     ]
     @ (
       globals.settings.line_numbers
@@ -254,7 +242,7 @@ let settings_menu = (~globals) => {
     semantics_group(~globals),
     values_group(~globals),
     stepper_group(~globals),
-    dev_group(~globals),
     code_display_group(~globals),
+    dev_group(~globals),
   ];
 };
