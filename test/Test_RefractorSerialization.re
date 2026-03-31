@@ -110,7 +110,41 @@ let probe_tests = [
   ),
 ];
 
+/* Module round-trip tests */
+let module_tests = [
+  test_round_trip(~name="Module single binding", ~code="{ let x = 1 }"),
+  test_round_trip(
+    ~name="Module multiple bindings",
+    ~code="{ let x = 1; let y = 2 }",
+  ),
+  test_round_trip(
+    ~name="Module with type alias",
+    ~code="{ type T = Int; let x : T = 1 }",
+  ),
+  test_round_trip(
+    ~name="Module keyword",
+    ~code="module M = { let x = 1 } in M.x",
+  ),
+  test_round_trip(
+    ~name="Module keyword lowercase",
+    ~code="module m = { let x = 1 } in m.x",
+  ),
+  test_round_trip(
+    ~name="Module in let binding",
+    ~code="let m = { let x = 1 } in m.x",
+  ),
+  test_round_trip(
+    ~name="Probe inside module",
+    ~code="{ let x = ^^probe(1 + 2) }",
+  ),
+  test_round_trip(
+    ~name="Probe on module expression",
+    ~code="^^probe({ let x = 1 })",
+  ),
+];
+
 let tests = [
   ("RoundTrip.Basic", basic_tests),
   ("RoundTrip.Probes", probe_tests),
+  ("RoundTrip.Modules", module_tests),
 ];

@@ -1,8 +1,30 @@
 (include_subdirs unqualified)
 
-(test
+(executable
  (name haz3ltest)
  (libraries web menhirParser junit_alcotest bisect_ppx.runtime)
  (modes js)
  (preprocess
   (pps ppx_deriving.show ppx_sexp_conv)))
+
+(rule
+ (alias runtest)
+ (action
+  (setenv
+   IDB_STUB
+   ./%{dep:idb_stub.js}
+   (setenv
+    TEST_JS
+    %{dep:haz3ltest.bc.js}
+    (run bash %{dep:run_node.sh})))))
+
+(rule
+ (alias test-quick)
+ (action
+  (setenv
+   IDB_STUB
+   ./%{dep:idb_stub.js}
+   (setenv
+    TEST_JS
+    %{dep:haz3ltest.bc.js}
+    (run bash %{dep:run_node.sh} -q)))))

@@ -12,6 +12,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,
@@ -337,6 +338,9 @@ let tests = (
         ),
       )
     }),
+    test_case("Cons followed by negation", `Quick, () =>
+      equivalent_to_make_term({|"":: - a|})
+    ),
     test_case("Function call", `Quick, () => {
       equivalent_to_make_term("a(1, 2)")
     }),
@@ -439,6 +443,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,
@@ -713,6 +718,40 @@ end|}),
     roundtrip_test({|Theorem: simple|}, {|theorem x = 1 in x|}),
     roundtrip_test({|Theorem: spaced|}, {|theorem x  =  1  in  x|}),
     roundtrip_test({|Theorem: compact|}, {|theorem x=1 in x|}),
+    /* Module expressions: empty module roundtrip */
+    roundtrip_test({|Module: empty|}, {|{}|}),
+    /* Module text round-trip tests */
+    roundtrip_test({|Module: single let|}, {|{ let x = 1 }|}),
+    roundtrip_test({|Module: multiple lets|}, {|{ let x = 1; let y = 2 }|}),
+    roundtrip_test({|Module: compact spacing|}, {|{let x = 1}|}),
+    roundtrip_test(
+      {|Module: with type alias|},
+      {|{ type T = Int; let x = 1 }|},
+    ),
+    /* ModuleExp round-trip tests */
+    roundtrip_test({|ModuleExp: basic|}, {|module M = { let x = 1 } in M|}),
+    roundtrip_test(
+      {|ModuleExp: with sig annotation|},
+      {|module M : { let x : Int } = { let x = 1 } in M|},
+    ),
+    roundtrip_test(
+      {|ModuleExp: nested module keyword|},
+      {|module M = { module N = { let x = 1 } } in M|},
+    ),
+    /* Module: with module keyword item */
+    roundtrip_test(
+      {|Module: module keyword item|},
+      {|{ module Inner = { let x = 1 } }|},
+    ),
+    /* Sig text round-trip tests */
+    roundtrip_test(
+      {|Sig: single let|},
+      {|let m : { let x : Int } = { let x = 1 } in m|},
+    ),
+    roundtrip_test(
+      {|Sig: multiple lets|},
+      {|let m : { let x : Int; let y : Bool } = { let x = 1; let y = true } in m|},
+    ),
   ],
 );
 
@@ -1018,6 +1057,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,

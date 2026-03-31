@@ -705,6 +705,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | UnOp(_)
   | BinOp(_)
   | BuiltinFun(_)
+  | Module(_)
   | Asc(_)
   | ProofObject(_)
   | Match(_) => {
@@ -750,6 +751,13 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Use(t, ebody'),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
+    };
+  | ModuleExp(mp, def, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: ModuleExp(mp, def, ebody'),
       annotation:
         Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
@@ -837,8 +845,10 @@ let pos_of_key = (key: string): pos =>
 
 let editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
+  /* Reset non-persistable refractor state before serialization.
+   * See Refractors.for_serialization - keeps manuals, resets autos/sample_cursor. */
+  let zipper = Zipper.update_refractors(zipper, Refractors.for_serialization);
   let serialization = Zipper.show(zipper);
-  // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
   Format.pp_print_string(fmt, serialization);
 };
 

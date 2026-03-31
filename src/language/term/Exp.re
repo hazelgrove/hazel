@@ -44,7 +44,9 @@ type cls =
   | Asc
   | LivelitName
   | LivelitAp
-  | ListConcat;
+  | ListConcat
+  | Module
+  | ModuleExp;
 
 include TermBase.Exp;
 
@@ -126,7 +128,9 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | BuiltinFun(_) => BuiltinFun
   | Match(_) => Match
   | LivelitName(_) => LivelitName
-  | Asc(_) => Asc;
+  | Asc(_) => Asc
+  | Module(_) => Module
+  | ModuleExp(_) => ModuleExp;
 
 let show_cls: cls => string =
   fun
@@ -179,7 +183,9 @@ let show_cls: cls => string =
   | LivelitName => "Livelit name"
   | LivelitAp => "Livelit application"
   | Projector => "Projector"
-  | Asc => "Type ascription expression";
+  | Asc => "Type ascription expression"
+  | Module => "Module expression"
+  | ModuleExp => "Module definition";
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
   e => {
@@ -262,7 +268,9 @@ let rec is_fun = (e: t) => {
   | BinOp(_)
   | Match(_)
   | LivelitName(_)
-  | Constructor(_) => false
+  | Constructor(_)
+  | Module(_)
+  | ModuleExp(_) => false
   };
 };
 
@@ -328,7 +336,9 @@ let rec is_tuple_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
-    | Constructor(_) => false
+    | Constructor(_)
+    | Module(_)
+    | ModuleExp(_) => false
     }
   );
 
@@ -393,7 +403,9 @@ let rec get_num_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
-    | Constructor(_) => None
+    | Constructor(_)
+    | Module(_)
+    | ModuleExp(_) => None
     };
   };
 

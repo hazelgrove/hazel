@@ -48,6 +48,13 @@ let timestamp = () => date_now()##valueOf;
 
 let precise_timestamp = () => Js.Unsafe.global##.performance##now()##valueOf;
 
+let print_timestamp = (ts: float): string => {
+  let date =
+    Js.Unsafe.new_obj(Js.date_fromTimeValue, [|Js.Unsafe.inject(ts)|]);
+  let date_str = date##toLocaleString(Js.undefined, Js.undefined);
+  date_str;
+};
+
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
   let blob = File.blob_from_string(~contentType=content_type, contents);
@@ -80,28 +87,11 @@ let read_file = (file, k) => {
     });
 };
 
-let set_localstore = (k: string, v: string): unit => {
-  let local_store =
-    Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
-  local_store##setItem(Js.string(k), Js.string(v));
-};
-
-let get_localstore = (k: string): option(string) =>
-  try({
-    let local_store =
-      Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
-    local_store##getItem(Js.string(k))
-    |> (
-      x => Js.Opt.get(x, () => assert(false)) |> Js.to_string |> Option.some
-    );
-  }) {
-  | _ => None
+let reset_file_input = (input_id: string): unit => {
+  switch (get_elem_by_id_opt(input_id)) {
+  | Some(elem) => Js.Unsafe.set(elem, "value", Js.string(""))
+  | None => ()
   };
-
-let clear_localstore = () => {
-  let local_store =
-    Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
-  local_store##clear;
 };
 
 let confirm = message => {
@@ -365,4 +355,25 @@ module QueryParams = {
            Js.some(Js.string(href)),
          );
        });
+};
+
+/* Walk up the DOM (max_depth levels) checking if any ancestor has the given CSS class */
+let has_ancestor_class =
+    (~max_depth=5, el: Js.t(Dom_html.element), class_name: string): bool => {
+  let rec go = (el: Js.t(Dom_html.element), depth: int): bool =>
+    if (depth > max_depth) {
+      false;
+    } else if (Js.to_bool(el##.classList##contains(Js.string(class_name)))) {
+      true;
+    } else {
+      switch (Js.Opt.to_option(el##.parentNode)) {
+      | Some(parent_node) =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(parent_node))) {
+        | Some(parent) => go(parent, depth + 1)
+        | None => false
+        }
+      | None => false
+      };
+    };
+  go(el, 0);
 };

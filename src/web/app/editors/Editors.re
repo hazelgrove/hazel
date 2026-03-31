@@ -32,34 +32,56 @@ module StoreMode =
   });
 
 module Store = {
+  let scratch_defaults = () => {
+    let (current, slides) = Init.startup.scratch;
+    (current, List.map(fst, slides));
+  };
+
+  let doc_defaults = () => {
+    let (current, slides) = Init.startup.documentation;
+    (current, List.map(fst, slides));
+  };
+
   let load = (~settings, ~instructor_mode) => {
-    // Check if both name and share URL parameters are present
     let has_share_params =
       JsUtil.QueryParams.get_param("name") != None
       && JsUtil.QueryParams.get_param("share") != None;
 
-    // If share parameters exist, force Scratch mode regardless of stored mode
     if (has_share_params) {
+      let (default_current, default_names) = scratch_defaults();
       Model.Scratch(
-        ScratchMode.Store.load()
-        |> ScratchMode.Store.integrate_share
-        |> ScratchMode.Model.unpersist(~settings),
+        ScratchMode.Persist.load_all(
+          "scratch",
+          ~settings,
+          ~default_names,
+          ~default_current,
+        )
+        |> ScratchMode.integrate_share(~settings),
       );
     } else {
-      // Otherwise, proceed with normal mode loading
       let mode = StoreMode.load();
       switch (mode) {
       | Scratch =>
+        let (default_current, default_names) = scratch_defaults();
         Model.Scratch(
-          ScratchMode.Store.load()
-          |> ScratchMode.Store.integrate_share
-          |> ScratchMode.Model.unpersist(~settings),
-        )
+          ScratchMode.Persist.load_all(
+            "scratch",
+            ~settings,
+            ~default_names,
+            ~default_current,
+          )
+          |> ScratchMode.integrate_share(~settings),
+        );
       | Documentation =>
+        let (default_current, default_names) = doc_defaults();
         Model.Documentation(
-          ScratchMode.StoreDocumentation.load()
-          |> ScratchMode.Model.unpersist(~settings),
-        )
+          ScratchMode.Persist.load_all(
+            "doc",
+            ~settings,
+            ~default_names,
+            ~default_current,
+          ),
+        );
       | Tutorial =>
         Model.Tutorial(
           TutorialsMode.Store.load(~settings, ~instructor_mode)
@@ -78,10 +100,10 @@ module Store = {
     switch (model) {
     | Model.Scratch(m) =>
       StoreMode.save(Scratch);
-      ScratchMode.Store.save(ScratchMode.Model.persist(m));
+      ScratchMode.Persist.save_current("scratch", m);
     | Model.Documentation(m) =>
       StoreMode.save(Documentation);
-      ScratchMode.StoreDocumentation.save(ScratchMode.Model.persist(m));
+      ScratchMode.Persist.save_current("doc", m);
     | Model.Tutorial(m) =>
       StoreMode.save(Tutorial);
       TutorialsMode.Store.save(~instructor_mode, m);
@@ -89,6 +111,14 @@ module Store = {
       StoreMode.save(Exercises);
       ExercisesMode.Store.save(~instructor_mode, m);
     };
+  };
+
+  let reset = (~settings, ~instructor_mode) => {
+    StoreMode.save(Tutorial);
+    HazelDB.kv_clear();
+    let _ = TutorialsMode.Store.reset(~settings, ~instructor_mode);
+    let _ = ExercisesMode.Store.reset(~settings, ~instructor_mode);
+    load(~settings, ~instructor_mode);
   };
 };
 
@@ -117,7 +147,6 @@ module Update = {
       (
         ~globals: Globals.t,
         ~schedule_action: t => unit,
-        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
         action: t,
         model: Model.t,
       ) => {
@@ -126,7 +155,6 @@ module Update = {
       let* scratch =
         ScratchMode.Update.update(
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~send_assistant_insertion_info,
           ~is_documentation=false,
           ~settings=globals.settings,
           action,
@@ -138,7 +166,6 @@ module Update = {
         ScratchMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~send_assistant_insertion_info,
           ~is_documentation=true,
           action,
           m,
@@ -168,24 +195,35 @@ module Update = {
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Scratch(_))
-    | (Exercises(_), Documentation(_)) => model |> return_quiet
+    | (Exercises(_), Tutorial(_))
+    | (Exercises(_), Documentation(_)) => model |> raise_invalid_action
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
-    | (Exercises(_), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
+      let (default_current, default_names) = Store.scratch_defaults();
       Model.Scratch(
-        ScratchMode.Store.load()
-        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
+        ScratchMode.Persist.load_all(
+          "scratch",
+          ~settings=globals.settings.core,
+          ~default_names,
+          ~default_current,
+        )
+        |> ScratchMode.integrate_share(~settings=globals.settings.core),
       )
-      |> return
+      |> return;
     | (SwitchMode(Documentation), _) =>
+      let (default_current, default_names) = Store.doc_defaults();
       Model.Documentation(
-        ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
+        ScratchMode.Persist.load_all(
+          "doc",
+          ~settings=globals.settings.core,
+          ~default_names,
+          ~default_current,
+        ),
       )
-      |> return
-    | (SwitchMode(Tutorial), Tutorial(_)) => model |> return_quiet
+      |> return;
+    | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(
         TutorialsMode.Store.load(
@@ -261,7 +299,9 @@ module Selection = {
   type t =
     | Scratch(ScratchMode.Selection.t)
     | Exercises(ExercisesMode.Selection.t)
-    | Tutorial(TutorialMode.Selection.t);
+    | Tutorial(TutorialMode.Selection.t)
+    | Assistant;
+  /* Assistant = user has focus in the sidebar (e.g. agent panel text box) */
 
   let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
     switch (selection, editors) {
@@ -271,6 +311,7 @@ module Selection = {
     | (Scratch(selection), Documentation(m)) =>
       let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
       Update.Scratch(ci);
+    | (Assistant, _) => empty
     | (Tutorial(selection), Tutorial(m)) =>
       let+ ci = TutorialsMode.Selection.get_cursor_info(~selection, m);
       Update.Tutorial(ci);
@@ -303,15 +344,8 @@ module Selection = {
     | (Some(Exercises(selection)), Exercises(m)) =>
       ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Exercises(x))
-    | (Some(Scratch(_)), Exercises(_))
-    | (Some(Scratch(_)), Tutorial(_))
-    | (Some(Exercises(_)), Tutorial(_))
-    | (Some(Exercises(_)), Scratch(_))
-    | (Some(Exercises(_)), Documentation(_))
-    | (Some(Tutorial(_)), Scratch(_))
-    | (Some(Tutorial(_)), Documentation(_))
-    | (Some(Tutorial(_)), Exercises(_))
-    | (None, _) => None
+    | (Some(Assistant), _)
+    | _ => None
     };
   };
 
@@ -358,6 +392,7 @@ module View = {
         editors: Model.t,
       ) =>
     switch (editors) {
+    // Add in the line numbering for Scratch editor
     | Scratch(m) =>
       ScratchMode.View.view(
         ~signal=
@@ -372,6 +407,7 @@ module View = {
         ~inject=a => Update.Scratch(a) |> inject,
         m,
       )
+    // Add in the line numbering for Documentation editor
     | Documentation(m) =>
       ScratchMode.View.view(
         ~signal=

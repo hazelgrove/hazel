@@ -5,9 +5,11 @@ open Util;
 open Language;
 
 let errc = "error";
+let warnc = "warning";
 let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
+let div_warn = div(~attrs=[clss(["status", warnc])]);
 let code_box_container = x =>
   div(~attrs=[clss(["code-box-container"])], [x]);
 
@@ -54,7 +56,15 @@ let term_view = (~globals: Globals.t, ci) => {
 
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
+      clss(
+        ["ci-header", sort]
+        @ (
+          Info.is_error(ci)
+            ? [errc]
+            : Info.is_warning(ci) && globals.settings.core.display_warnings
+                ? [warnc] : [okc]
+        ),
+      ),
     ],
     [
       ctx_toggle(~globals),
@@ -83,6 +93,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
   raise_if_padding: false,
@@ -164,6 +175,7 @@ let common_err_view =
           ? []
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
+    | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
         label_view(name),
@@ -220,6 +232,16 @@ let common_err_view =
   );
 };
 
+let common_warn_view = (warning: Warning.t) => {
+  switch (warning) {
+  | WarningPat(UnusedVar(name)) => [
+      text("Warning: Variable"),
+      code(name),
+      text("is unused."),
+    ]
+  | None => []
+  };
+};
 let common_ok_view =
     (
       ~globals,
@@ -444,15 +466,15 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | InvalidLabel(name, expected_labels) =>
     switch (expected_labels) {
     | [] => [
-        text("Invalid label: "),
+        text("Member "),
         label_view(name),
-        text(". No labels were expected."),
+        text(" not found — no members available"),
       ]
     | _ => [
-        text("Invalid label: "),
+        text("Member "),
         label_view(name),
-        text(" is not part of the expected labels: "),
-        ...List.map(code, expected_labels),
+        text(" not found. Available: "),
+        text(String.concat(", ", expected_labels)),
       ]
     }
   | DuplicateLabels(labels, _) => [
@@ -691,7 +713,7 @@ let rec pat_view =
       ),
     )
   | NotInHole(ok) =>
-    div_ok(
+    let ok_view =
       common_ok_view(
         ~globals,
         ~lifted_ty,
@@ -705,8 +727,16 @@ let rec pat_view =
         ~label_sort=info.label_sort,
         cls,
         ok,
-      ),
-    )
+      );
+    switch (info.warning) {
+    | WarningPat(_) =>
+      if (globals.settings.core.display_warnings) {
+        div_warn(common_warn_view(info.warning));
+      } else {
+        div_ok(ok_view);
+      }
+    | _ => div_ok(ok_view)
+    };
   };
 };
 
@@ -748,6 +778,9 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
+  | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, status, _} as ie) =>
     wrapper(exp_view(~globals, cls, status, ie))
   | InfoPat({cls, status, _} as ip) =>
@@ -757,11 +790,16 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals, ci): Node.t =>
+let inspector_view = (~globals: Globals.t, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
-      clss([Info.is_error(ci) ? errc : okc]),
+      clss([
+        Info.is_error(ci)
+          ? errc
+          : Info.is_warning(ci) && globals.settings.core.display_warnings
+              ? warnc : okc,
+      ]),
     ],
     view_of_info(~globals, ci),
   );

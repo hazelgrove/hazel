@@ -199,6 +199,7 @@ module View = {
         ~caption: option(Node.t)=?,
         ~result_kind=?,
         ~locked=false,
+        ~lines=false,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -249,6 +250,7 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
+          ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,
         ),
