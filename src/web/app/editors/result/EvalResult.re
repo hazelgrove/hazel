@@ -403,9 +403,14 @@ module View = {
             ~signal=
               fun
               | MakeActive => signal(MakeActive(Evaluation())),
-            ~inject=a => inject(EvalEditorAction(a)),
+            ~edit_mode=
+              EditMode.Editable({
+                inject: a => inject(EvalEditorAction(a)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: selected ? Some() : None,
+              }),
             ~globals,
-            ~selected,
             ~dynamics=editor.dynamics,
             editor,
           ),

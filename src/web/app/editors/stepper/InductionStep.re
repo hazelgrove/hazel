@@ -394,13 +394,18 @@ module F =
         ~signal=
           fun
           | MakeActive => take_focus(Scrut()),
-        ~inject=x => inject(ScrutUpdate(x)),
-        ~selected=
-          switch (focus) {
-          | Some(Scrut(_)) => true
-          | Some(_)
-          | None => false
-          },
+        ~edit_mode=
+          EditMode.Editable({
+            inject: x => inject(ScrutUpdate(x)),
+            escape: _ => Ui_effect.Ignore,
+            take_focus: _ => Ui_effect.Ignore,
+            focus:
+              switch (focus) {
+              | Some(Scrut(_)) => Some()
+              | Some(_)
+              | None => None
+              },
+          }),
         ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );

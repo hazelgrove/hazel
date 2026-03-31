@@ -326,12 +326,17 @@ module F = (Stepper: STEPPER) => {
         ~signal=
           fun
           | MakeActive => take_focus(Pattern()),
-        ~inject=x => inject(PatternUpdate(x)),
-        ~selected=
-          switch (focus) {
-          | Some(Pattern ()) => true
-          | _ => false
-          },
+        ~edit_mode=
+          EditMode.Editable({
+            inject: x => inject(PatternUpdate(x)),
+            escape: _ => Ui_effect.Ignore,
+            take_focus: _ => Ui_effect.Ignore,
+            focus:
+              switch (focus) {
+              | Some(Pattern ()) => Some()
+              | _ => None
+              },
+          }),
         ~dynamics=Dynamics.Map.empty,
         model.pattern,
       );

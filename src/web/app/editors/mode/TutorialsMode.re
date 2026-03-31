@@ -300,7 +300,13 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = TutorialMode.Selection.t;
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (
+        ~inject as _: Update.t => Ui_effect.t(unit),
+        ~selection,
+        model: Model.t,
+      )
+      : cursor(Update.t) => {
     let+ ci =
       TutorialMode.Selection.get_cursor_info(
         ~selection,

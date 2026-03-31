@@ -274,11 +274,15 @@ module View = {
               ? _ => Ui_effect.Ignore
               : fun
                 | MakeActive => signal(MakeActive(MainEditor)),
-          ~inject=
+          ~edit_mode=
             locked
-              ? _ => Ui_effect.Ignore
-              : (action => inject(MainEditor(action))),
-          ~selected=selected == Some(MainEditor),
+              ? EditMode.ReadOnly
+              : Editable({
+                  inject: action => inject(MainEditor(action)),
+                  escape: _ => Ui_effect.Ignore,
+                  take_focus: _ => Ui_effect.Ignore,
+                  focus: selected == Some(MainEditor) ? Some() : None,
+                }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),

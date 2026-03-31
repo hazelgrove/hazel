@@ -370,15 +370,24 @@ module View = {
       (
         ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~selected: bool,
-        ~escape: Util.Direction.t => Ui_effect.t(unit)=_ => Ui_effect.Ignore,
+        ~edit_mode: EditMode.t(Update.t, unit),
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
         ~expand_selection=?,
         model: Model.t,
       ) => {
+    let selected = EditMode.is_active(edit_mode);
+    let inject =
+      switch (edit_mode) {
+      | ReadOnly => (_ => Ui_effect.Ignore)
+      | Editable({inject, _}) => inject
+      };
+    let escape =
+      switch (edit_mode) {
+      | ReadOnly => (_ => Ui_effect.Ignore)
+      | Editable({escape, _}) => escape
+      };
     /* Sync document-level click listener for closing context menu */
     ContextMenuListener.sync(
       selected && Model.context_menu_is_open(model),

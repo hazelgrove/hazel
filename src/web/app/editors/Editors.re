@@ -308,21 +308,51 @@ module Selection = {
     | Assistant;
   /* Assistant = user has focus in the sidebar (e.g. agent panel text box) */
 
-  let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selection: t,
+        editors: Model.t,
+      )
+      : cursor(Update.t) => {
     switch (selection, editors) {
     | (Scratch(selection), Scratch(m)) =>
-      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
-      Update.Scratch(ci);
+      let ci =
+        ScratchMode.Selection.get_cursor_info(
+          ~inject=a => inject(Scratch(a)),
+          ~selection,
+          m,
+        );
+      let+ a = ci;
+      Update.Scratch(a);
     | (Scratch(selection), Documentation(m)) =>
-      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
-      Update.Scratch(ci);
+      let ci =
+        ScratchMode.Selection.get_cursor_info(
+          ~inject=a => inject(Scratch(a)),
+          ~selection,
+          m,
+        );
+      let+ a = ci;
+      Update.Scratch(a);
     | (Assistant, _) => empty
     | (Tutorial(selection), Tutorial(m)) =>
-      let+ ci = TutorialsMode.Selection.get_cursor_info(~selection, m);
-      Update.Tutorial(ci);
+      let ci =
+        TutorialsMode.Selection.get_cursor_info(
+          ~inject=a => inject(Tutorial(a)),
+          ~selection,
+          m,
+        );
+      let+ a = ci;
+      Update.Tutorial(a);
     | (Exercises(selection), Exercises(m)) =>
-      let+ ci = ExercisesMode.Selection.get_cursor_info(~selection, m);
-      Update.Exercises(ci);
+      let ci =
+        ExercisesMode.Selection.get_cursor_info(
+          ~inject=a => inject(Exercises(a)),
+          ~selection,
+          m,
+        );
+      let+ a = ci;
+      Update.Exercises(a);
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Tutorial(_))
     | (Scratch(_), Exercises(_))

@@ -796,17 +796,53 @@ module Selection = {
     | Cell(CellEditor.Selection.t)
     | TextBox;
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    switch (selection) {
-    | Cell(selection) =>
-      let+ a =
-        CellEditor.Selection.get_cursor_info(
-          ~selection,
-          List.nth(model.scratchpads, model.current).editor,
-        );
-      Update.CellAction(a);
-    | TextBox => empty
-    };
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
+    let cursor =
+      switch (selection) {
+      | Cell(selection) =>
+        let+ a =
+          CellEditor.Selection.get_cursor_info(
+            ~selection,
+            List.nth(model.scratchpads, model.current).editor,
+          );
+        Update.CellAction(a);
+      | TextBox => empty
+      };
+    cursor
+    |> Cursor.with_actions([
+         ContextualAction.mk(
+           ~mdIcon="download",
+           ~section="Export",
+           ~action=inject(Export),
+           "Export Scratch Slide",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="download",
+           ~section="Export",
+           ~action=inject(Encode),
+           "Encode Scratch Slide in URL",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="add",
+           ~section="Buffers",
+           ~action=inject(AddSlide),
+           "Add New Buffer",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="edit",
+           ~section="Buffers",
+           ~action=inject(RenameSlide),
+           "Rename Current Buffer",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="delete",
+           ~section="Buffers",
+           ~action=inject(DeleteSlide),
+           "Delete Current Buffer",
+         ),
+       ]);
   };
 
   let handle_key_event =

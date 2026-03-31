@@ -181,9 +181,14 @@ module View = {
       ~signal=
         fun
         | MakeActive => signal(MakeActive),
-      ~selected,
+      ~edit_mode=
+        EditMode.Editable({
+          inject,
+          escape: _ => Ui_effect.Ignore,
+          take_focus: _ => Ui_effect.Ignore,
+          focus: selected ? Some() : None,
+        }),
       ~globals,
-      ~inject,
       ~overlays=
         overlays
         @ deco(

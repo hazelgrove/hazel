@@ -233,6 +233,7 @@ module Update = {
     | ActiveEditor(action) =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
+          ~inject=_ => Ui_effect.Ignore,
           ~selection=model.selection,
           model.editors,
         );
@@ -361,6 +362,7 @@ module Update = {
       );
     let cursor_info =
       Editors.Selection.get_cursor_info(
+        ~inject=_ => Ui_effect.Ignore,
         ~selection=model.selection,
         model.editors,
       );
@@ -383,87 +385,280 @@ module Selection = {
   open Cursor;
 
   type t = selection;
-
-  let handle_key_event =
-      (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
-    switch (event) {
-    | {
-        key: D("F7"),
-        sys: Mac | PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Up,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Benchmark(Start))
-    | {
-        key: D("Z" | "z"),
-        sys: Mac,
-        shift: Down,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("Z" | "z"),
-        sys: PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Redo))
-    | {
-        key: D("Z" | "z"),
-        sys: Mac,
-        shift: Up,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("Z" | "z"),
-        sys: PC,
-        shift: Up,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Undo))
-    /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
-    | {
-        key: D("P" | "p"),
-        sys: Mac,
-        shift: Up,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("P" | "p"),
-        sys: PC,
-        shift: Up,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Set(AutoprobeMode)))
-    | _ =>
-      Editors.Selection.handle_key_event(~selection, ~event, model.editors)
-      |> Option.map(x => Update.Editors(x))
-    };
-  };
-
   let get_cursor_info =
-      (~selection: t, model: Model.t): cursor(Editors.Update.t) => {
-    Editors.Selection.get_cursor_info(~selection, model.editors);
+      (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
+      : cursor(Editors.Update.t) => {
+    let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
+    let meta = Keyboard.meta(sys);
+    let mk = ContextualAction.mk;
+    Editors.Selection.get_cursor_info(
+      ~inject=a => inject(Editors(a)),
+      ~selection,
+      model.editors,
+    )
+    |> Cursor.with_actions([
+         /* Undo / Redo */
+         mk(
+           ~mdIcon="undo",
+           ~hotkey=meta ++ "+z",
+           ~action=inject(Globals(Undo)),
+           "Undo",
+         ),
+         mk(
+           ~mdIcon="redo",
+           ~hotkey=meta ++ "+shift+z",
+           ~action=inject(Globals(Redo)),
+           "Redo",
+         ),
+         /* Navigation */
+         mk(
+           ~hotkey="F12",
+           ~mdIcon="arrow_forward",
+           ~section="Navigation",
+           ~action=
+             inject(
+               Globals(
+                 ActiveEditor(Move(Goal(BindingSiteOfIndicatedVar))),
+               ),
+             ),
+           "Go to Definition",
+         ),
+         mk(
+           ~hotkey="shift+tab",
+           ~mdIcon="arrow_upward",
+           ~section="Navigation",
+           ~action=
+             inject(
+               Globals(ActiveEditor(Move(Goal(NextProblem(Left))))),
+             ),
+           "Go to Previous Problem",
+         ),
+         mk(
+           ~mdIcon="arrow_downward",
+           ~section="Navigation",
+           ~action=
+             inject(
+               Globals(ActiveEditor(Move(Goal(NextProblem(Right))))),
+             ),
+           "Go to Next Problem",
+         ),
+         /* Selection */
+         mk(
+           ~hotkey=meta ++ "+d",
+           ~mdIcon="select_all",
+           ~section="Selection",
+           ~action=inject(Globals(ActiveEditor(Select(Term(Current))))),
+           "Select current term",
+         ),
+         mk(
+           ~mdIcon="select_all",
+           ~hotkey=meta ++ "+a",
+           ~section="Selection",
+           ~action=inject(Globals(ActiveEditor(Select(All)))),
+           "Select All",
+         ),
+         mk(
+           ~mdIcon="flip_horizontal",
+           ~section="Selection",
+           ~action=inject(Globals(ActiveEditor(Select(ToggleFocus)))),
+           "Toggle Selection Focus",
+         ),
+         mk(
+           ~mdIcon="border_left",
+           ~section="Selection",
+           ~hotkey=meta ++ "+alt+shift+left",
+           ~action=inject(Globals(ActiveEditor(Select(SetFocus(Left))))),
+           "Set Selection Focus Left",
+         ),
+         mk(
+           ~mdIcon="border_right",
+           ~section="Selection",
+           ~hotkey=meta ++ "+alt+shift+right",
+           ~action=inject(Globals(ActiveEditor(Select(SetFocus(Right))))),
+           "Set Selection Focus Right",
+         ),
+         mk(
+           ~mdIcon="chevron_left",
+           ~section="Selection",
+           ~hotkey="alt+shift+left",
+           ~action=
+             inject(
+               Globals(ActiveEditor(Select(Resize(Local(Left, ByToken))))),
+             ),
+           "Extend Selection Left by Token",
+         ),
+         mk(
+           ~mdIcon="chevron_right",
+           ~section="Selection",
+           ~hotkey="alt+shift+right",
+           ~action=
+             inject(
+               Globals(ActiveEditor(Select(Resize(Local(Right, ByToken))))),
+             ),
+           "Extend Selection Right by Token",
+         ),
+         /* Projection */
+         mk(
+           ~hotkey="alt+f",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=
+             inject(
+               Globals(
+                 ActiveEditor(Project(SetIndicated(Specific(Fold)))),
+               ),
+             ),
+           "Fold",
+         ),
+         mk(
+           ~hotkey=meta ++ "+e",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=inject(Globals(ActiveEditor(Probe(ToggleManual)))),
+           "Probe",
+         ),
+         mk(
+           ~hotkey="alt+t",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=inject(Globals(ActiveEditor(Probe(ToggleStatics)))),
+           "Statics",
+         ),
+         mk(
+           ~hotkey="alt+l",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=
+             inject(
+               Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
+             ),
+           "Livelit",
+         ),
+         /* Settings */
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Statics))),
+           "Toggle Statics",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Assist))),
+           "Toggle Completion",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(SecondaryIcons))),
+           "Toggle Show Whitespace",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Benchmark))),
+           "Toggle Print Benchmarks",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Dynamics))),
+           "Toggle Dynamics",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Elaborate))),
+           "Toggle Show Elaboration",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFnBodies)))),
+           "Toggle Show Function Bodies",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowCaseClauses)))),
+           "Toggle Show Case Clauses",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFixpoints)))),
+           "Toggle Show fixpoints",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowAscriptionSteps)))),
+           "Toggle Show Ascription Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowLookups)))),
+           "Toggle Show Lookup Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFilters)))),
+           "Toggle Show Stepper Filters",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowHiddenSteps)))),
+           "Toggle Show Hidden Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Sidebar(ToggleShow)))),
+           "Toggle Show Sidebar",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
+           "Toggle Show Docs Feedback",
+         ),
+         /* Editor tools */
+         mk(
+           ~hotkey=meta ++ "+/",
+           ~mdIcon="assistant",
+           ~action=inject(Globals(ActiveEditor(Buffer(Set(TyDi))))),
+           "TyDi Assistant",
+         ),
+         mk(
+           ~mdIcon="download",
+           ~section="Export",
+           ~action=inject(Globals(ExportForInit)),
+           "Export For Init",
+         ),
+         mk(
+           ~section="Diagnostics",
+           ~mdIcon="refresh",
+           ~action=inject(Globals(ActiveEditor(Reparse))),
+           "Reparse Current Editor",
+         ),
+         mk(
+           ~mdIcon="timer",
+           ~section="Diagnostics",
+           ~hotkey="F7",
+           ~action=inject(Benchmark(Start)),
+           "Run Benchmark",
+         ),
+         mk(
+           ~mdIcon="bolt",
+           ~section="Refactoring",
+           ~hotkey=meta ++ "+i",
+           ~action=inject(Globals(ActiveEditor(Introduce))),
+           "Introduce",
+         ),
+       ]);
   };
 };
 
@@ -540,6 +735,7 @@ module View = {
             meta: Up,
             ctrl: Up,
             alt: Up,
+            _,
           } =>
           Some(Update.Benchmark(Start))
         | {
@@ -549,6 +745,7 @@ module View = {
             meta: Down,
             ctrl: Up,
             alt: Up,
+            _,
           }
         | {
             key: D("Z" | "z"),
@@ -557,6 +754,7 @@ module View = {
             meta: Up,
             ctrl: Down,
             alt: Up,
+            _,
           } =>
           Some(Update.Globals(Redo))
         | {
@@ -566,6 +764,7 @@ module View = {
             meta: Down,
             ctrl: Up,
             alt: Up,
+            _,
           }
         | {
             key: D("Z" | "z"),
@@ -574,6 +773,7 @@ module View = {
             meta: Up,
             ctrl: Down,
             alt: Up,
+            _,
           } =>
           Some(Update.Globals(Undo))
         | _ => None
@@ -857,7 +1057,9 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
-    let cursor = Selection.get_cursor_info(~selection=model.selection, model);
+    let cursor =
+      Selection.get_cursor_info(~inject, ~selection=model.selection, model);
+    NinjaKeys.initialize(cursor.contextual_actions);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]

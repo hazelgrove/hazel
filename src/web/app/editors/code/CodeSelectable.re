@@ -83,11 +83,24 @@ module Selection = {
 module View = {
   type event = CodeEditable.View.event;
 
-  let view = (~inject: Update.t => 'a) =>
-    CodeEditable.View.view(~inject=a =>
-      switch (Update.convert_action(a)) {
-      | Some(action) => inject(action)
-      | None => Ui_effect.Ignore
-      }
-    );
+  let wrap_edit_mode =
+      (edit_mode: EditMode.t(Update.t, unit))
+      : EditMode.t(CodeEditable.Update.t, unit) =>
+    switch (edit_mode) {
+    | ReadOnly => ReadOnly
+    | Editable({inject, escape, take_focus, focus}) =>
+      Editable({
+        inject: a =>
+          switch (Update.convert_action(a)) {
+          | Some(action) => inject(action)
+          | None => Ui_effect.Ignore
+          },
+        escape,
+        take_focus,
+        focus,
+      })
+    };
+
+  let view = (~edit_mode) =>
+    CodeEditable.View.view(~edit_mode=wrap_edit_mode(edit_mode));
 };

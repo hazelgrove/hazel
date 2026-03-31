@@ -151,11 +151,6 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
-    let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
-    let inject_effect = a => Bonsai.Effect.of_sync_fun(schedule_action, a);
-    NinjaKeys.initialize(
-      Shortcut.contextual_actions(~inject=inject_effect, sys),
-    );
     JsUtil.focus_clipboard_shim();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,

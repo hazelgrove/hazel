@@ -618,12 +618,18 @@ module View = {
                                 fun
                                 | MakeActive =>
                                   signal(MakeActive(RewriteEditor())),
-                              ~inject=x => inject(RewriteEditorAction(x)),
-                              ~selected=
-                                switch (selected) {
-                                | Some(RewriteEditor ()) => true
-                                | _ => false
-                                },
+                              ~edit_mode=
+                                EditMode.Editable({
+                                  inject: x =>
+                                    inject(RewriteEditorAction(x)),
+                                  escape: _ => Ui_effect.Ignore,
+                                  take_focus: _ => Ui_effect.Ignore,
+                                  focus:
+                                    switch (selected) {
+                                    | Some(RewriteEditor ()) => Some()
+                                    | _ => None
+                                    },
+                                }),
                               ~dynamics=Dynamics.Map.empty,
                               editor,
                             ),
