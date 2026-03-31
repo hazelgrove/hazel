@@ -4,5 +4,11 @@
  (name haz3ltest)
  (libraries web menhirParser junit_alcotest bisect_ppx.runtime)
  (modes js)
+ ; Increase Node.js stack size to 8MB to prevent stack overflows
+ ; in deeply recursive tests (e.g., Pattern Coverage Checker).
+ ; idb_stub.js provides minimal IndexedDB globals for Node.js
+ ; (Ezjs_idb captures IDBKeyRange at module init time)
+ (action
+  (run node --stack-size=8192 --require ./%{dep:idb_stub.js} %{test}))
  (preprocess
   (pps ppx_deriving.show)))

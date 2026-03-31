@@ -73,6 +73,15 @@ let probes_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let log_control_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=LogControl,
+    ~cls=["log-control-button"],
+    ~icon=Icons.gear,
+    ~tooltip="Switch to Log Control Panel",
+    ~globals,
+  );
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -93,7 +102,10 @@ let persistent_view = (~globals: Globals.t) =>
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
-        ],
+        ]
+        @ (
+          globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
+        ),
       ),
     ],
   );
@@ -189,12 +201,13 @@ let view =
       ~globals: Globals.t,
       ~cursor: Cursor.cursor(Editors.Update.t),
       ~explain_this_inject,
-      ~assistant_inject,
-      ~signal,
       ~explainThisModel: ExplainThisModel.t,
-      ~assistantModel: AssistantModel.t,
-      ~editor,
-      info: option(Language.Info.t),
+      ~log_model: LogSidebar.Model.t,
+      ~log_count: int,
+      ~editors_inject,
+      ~editors: Editors.Model.t,
+      ~editor: CodeWithStatics.Model.t,
+      ~signal,
     ) => {
   let sub =
     globals.settings.sidebar.show
@@ -208,22 +221,22 @@ let view =
                 ~globals,
                 ~inject=explain_this_inject,
                 ~explainThisModel,
-                info,
+                cursor.info,
               )
             | HelpfulAssistant =>
-              AssistantView.view(
-                ~globals,
-                ~signal,
-                ~inject=assistant_inject,
-                ~model=assistantModel,
-                ~editor,
-              )
+              AgentView.view(~globals, ~editors_inject, ~editors, ~signal)
             | Probes =>
               ProbeSidebar.view(
                 ~globals,
                 ~explain_this_inject,
                 ~cursor,
                 ~editor,
+              )
+            | LogControl =>
+              LogSidebar.view(
+                ~globals,
+                ~model=log_model,
+                ~log_entries_count=log_count,
               )
             },
           ],

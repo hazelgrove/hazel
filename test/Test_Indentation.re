@@ -404,4 +404,65 @@ fun x ->
   ),
 ];
 
-let tests = [("Editing.Indentation", indentation_tests)];
+let module_indentation_tests = [
+  test_indent(
+    ~name="Module body indents inside braces",
+    ~init={|{
+let x = 1
+}|},
+    ~goal={|{
+  let x = 1
+}|},
+  ),
+  test_indent(
+    ~name="Module with multiple items indents",
+    ~init={|{
+let x = 1;
+let y = 2
+}|},
+    ~goal={|{
+  let x = 1;
+  let y = 2
+}|},
+  ),
+  test_indent(
+    ~name="Module in let binding indents",
+    ~init={|let m = {
+let x = 1;
+let y = 2
+} in 1|},
+    ~goal={|let m = {
+  let x = 1;
+  let y = 2
+} in 1|},
+  ),
+  test_indent(
+    ~name="Nested module double indents",
+    ~init={|{
+let inner = {
+let x = 1
+}
+}|},
+    ~goal={|{
+  let inner = {
+    let x = 1
+  }
+}|},
+  ),
+  test_indent(
+    ~name="Module keyword indents",
+    ~init={|module m = {
+let x = 1
+} in
+m.x|},
+    ~goal={|module m = {
+  let x = 1
+} in
+m.x|},
+  ),
+];
+
+let tests = [
+  ("Editing.Indentation", indentation_tests),
+  ("Editing.Indentation.Modules", module_indentation_tests),
+];

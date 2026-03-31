@@ -9,8 +9,12 @@
 @import "style/type-display.css";
 @import "style/explainthis.css";
 @import "style/assistant.css";
+@import "style/agent/agent-main-menu.css";
+@import "style/agent/agent-chat.css";
+@import "style/agent/agent-chat-messages.css";
 @import "style/probesystem.css";
 @import "style/sidebar.css";
+@import "style/project.css";
 @import "style/exercise-mode.css";
 @import "style/tutorial-mode.css";
 @import "style/test-panel.css";
@@ -19,6 +23,7 @@
 @import "style/stepper.css";
 @import "style/toggle.css";
 @import "style/theorems.css";
+@import "style/hsod.css";
 
 /* BASE ELEMENTS */
 

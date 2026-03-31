@@ -225,10 +225,13 @@ module Update = {
     let stitched_scratch =
       Exercise.append_exp(just_prelude_term, just_lemmas_term);
     let stitched_theorem =
-      Exercise.append_exp(
-        stitched_scratch,
-        Language.Exp.replace_all_ids(just_prelude_term),
-      )
+      stitched_scratch
+      |> Exercise.append_exp(
+           _,
+           just_prelude_term
+           |> Language.ProofHacks.strip_theorems
+           |> Language.Exp.replace_all_ids,
+         )
       |> Exercise.append_exp(_, just_theorem_term);
 
     // Worker Setup

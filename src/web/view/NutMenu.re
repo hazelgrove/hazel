@@ -67,6 +67,7 @@ let values_group = (~globals: Globals.t) => {
       ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
       ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
       ("☰", "Tables", s.project_tables, Evaluation(ProjectTables)),
+      (":", "Ascriptions", s.show_ascriptions, Evaluation(ShowAscriptions)),
     ],
   );
 };
@@ -112,29 +113,81 @@ let stepper_group = (~globals: Globals.t) => {
   );
 };
 
-let dev_group = (~globals) => {
+let dev_group = (~globals: Globals.t) => {
   settings_group(
     ~globals,
     "Developer",
     [
-      ("✓", "Benchmarks", globals.settings.benchmark, Benchmark),
+      (
+        "✓",
+        "Benchmarks",
+        globals.settings.benchmark,
+        Settings.Update.Benchmark,
+      ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
-      ("↵", "Whitespace", globals.settings.secondary_icons, SecondaryIcons),
+    ]
+    @ (
+      ExerciseSettings.show_instructor
+        ? [
+          (
+            "📃",
+            "Log Panel",
+            globals.settings.show_log_panel,
+            ShowLogPanel,
+          ),
+        ]
+        : []
+    ),
+  );
+};
+
+let code_display_group = (~globals: Globals.t) => {
+  settings_group(
+    ~globals,
+    "Code Display",
+    [
+      (
+        "↵",
+        "Whitespace",
+        globals.settings.secondary_icons,
+        SecondaryIcons: Settings.Update.t,
+      ),
       (
         "a",
         "Animations",
         globals.settings.core.flip_animations,
         FlipAnimations,
       ),
-    ],
+      (
+        "w",
+        "Warnings",
+        globals.settings.core.display_warnings,
+        DisplayWarnings,
+      ),
+      ("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers),
+    ]
+    @ (
+      globals.settings.line_numbers
+        ? [
+          (
+            "r",
+            "Relative Numbers",
+            globals.settings.relative_line_numbers,
+            ToggleRelativeLineNumbers,
+          ),
+        ]
+        : []
+    ),
   );
 };
 
+//("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers)
 let settings_menu = (~globals) => {
   [
     semantics_group(~globals),
     values_group(~globals),
     stepper_group(~globals),
     dev_group(~globals),
+    code_display_group(~globals),
   ];
 };

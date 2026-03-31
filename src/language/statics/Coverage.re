@@ -141,7 +141,8 @@ module Ctr = {
     | Parens(_)
     | Projector(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
       )
@@ -424,7 +425,8 @@ module UnseenPatternList: UnseenPatternList = {
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "prepend_ctr called with a non-normalized type: "
         ++ Typ.show(col_type),
@@ -561,7 +563,8 @@ module UnseenPatternList: UnseenPatternList = {
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "cons_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),
@@ -624,7 +627,8 @@ module UnseenPatternList: UnseenPatternList = {
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "prepend_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),

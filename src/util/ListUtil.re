@@ -305,6 +305,8 @@ let rec zip_defaults =
     ]
   };
 
+let opt_zip = combine_opt;
+
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
   | (_, []) => []
@@ -502,6 +504,9 @@ let rec fold_left_opt =
   };
 };
 
+let intersection_f = (f: 'a => 'b, xs, ys) =>
+  List.filter((x: 'a) => List.exists((y: 'a) => f(x) == f(y), ys), xs);
+
 let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
   let rec aux = (acc: list('y), remaining: list('x)) => {
     switch (remaining) {
@@ -587,3 +592,21 @@ let assoc_update = (key, f, assoc) => {
 
 let remove_assoc = (key, assoc) =>
   List.filter(((k, _)) => k != key, assoc);
+
+let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    Some(
+      List.fold_left(
+        (current_max, candidate) =>
+          switch (cmp(current_max, candidate)) {
+          | Left => current_max
+          | Right => candidate
+          },
+        x,
+        xs,
+      ),
+    )
+  };
+};
