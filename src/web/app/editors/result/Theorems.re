@@ -288,7 +288,7 @@ module Focus = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (int, StepperView.Focus.t);
 
-  let get_cursor_info = (~focus: t, model: Model.t) => {
+  let get_cursor_info = (~inject, ~focus: t, model: Model.t) => {
     let id_and_thm = {
       open OptUtil.Syntax;
       let* id = List.nth_opt(model.thms |> Calc.get_saved([]), focus |> fst);
@@ -299,6 +299,7 @@ module Focus = {
     | Some((_id, thm)) =>
       let+ c =
         StepperView.Focus.get_cursor_info(
+          ~inject=x => inject(Update.TheoremUpdate(focus |> fst, x)),
           ~focus=snd(focus),
           thm.stepper_view,
         );

@@ -351,13 +351,19 @@ module Selection = {
   type t =
     | Cell(Tutorial.pos, CellEditor.Selection.t)
     | TextBox;
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | Cell(pos, s) =>
       switch (Tutorial.get_stitched(pos, model.cells)) {
       | cell_editor =>
         let+ a =
-          CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(Editor(pos, a)),
+            ~selection=s,
+            cell_editor,
+          );
         Update.Editor(pos, a);
       | exception (Failure(_)) => empty
       }

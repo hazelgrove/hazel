@@ -138,13 +138,130 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = unit;
 
-  let get_cursor_info = (~selection as (), model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selection as (),
+        model: Model.t,
+      )
+      : cursor(Update.t) => {
+    let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
+    let meta = Keyboard.meta(sys);
+    let mk = ContextualAction.mk;
+    let action = a => inject(Perform(a));
     {
       ...
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
-    };
+    }
+    |> Cursor.with_actions([
+         /* Navigation */
+         mk(
+           ~hotkey="F12",
+           ~mdIcon="arrow_forward",
+           ~section="Navigation",
+           ~action=action(Move(Goal(BindingSiteOfIndicatedVar))),
+           "Go to Definition",
+         ),
+         mk(
+           ~hotkey="shift+tab",
+           ~mdIcon="arrow_upward",
+           ~section="Navigation",
+           ~action=action(Move(Goal(NextProblem(Left)))),
+           "Go to Previous Problem",
+         ),
+         mk(
+           ~mdIcon="arrow_downward",
+           ~section="Navigation",
+           ~action=action(Move(Goal(NextProblem(Right)))),
+           "Go to Next Problem",
+         ),
+         /* Selection */
+         mk(
+           ~hotkey=meta ++ "+d",
+           ~mdIcon="select_all",
+           ~section="Selection",
+           ~action=action(Select(Term(Current))),
+           "Select current term",
+         ),
+         mk(
+           ~mdIcon="select_all",
+           ~hotkey=meta ++ "+a",
+           ~section="Selection",
+           ~action=action(Select(All)),
+           "Select All",
+         ),
+         mk(
+           ~mdIcon="flip_horizontal",
+           ~section="Selection",
+           ~action=action(Select(ToggleFocus)),
+           "Toggle Selection Focus",
+         ),
+         mk(
+           ~mdIcon="border_left",
+           ~section="Selection",
+           ~hotkey=meta ++ "+alt+shift+left",
+           ~action=action(Select(SetFocus(Left))),
+           "Set Selection Focus Left",
+         ),
+         mk(
+           ~mdIcon="border_right",
+           ~section="Selection",
+           ~hotkey=meta ++ "+alt+shift+right",
+           ~action=action(Select(SetFocus(Right))),
+           "Set Selection Focus Right",
+         ),
+         /* Projection */
+         mk(
+           ~hotkey="alt+f",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=action(Project(SetIndicated(Specific(Fold)))),
+           "Fold",
+         ),
+         mk(
+           ~hotkey=meta ++ "+e",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=action(Probe(ToggleManual)),
+           "Probe",
+         ),
+         mk(
+           ~hotkey="alt+t",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=action(Probe(ToggleStatics)),
+           "Statics",
+         ),
+         mk(
+           ~hotkey="alt+l",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=action(Project(SetIndicated(ChooseLivelit))),
+           "Livelit",
+         ),
+         /* Editor tools */
+         mk(
+           ~hotkey=meta ++ "+/",
+           ~mdIcon="assistant",
+           ~action=action(Buffer(Set(TyDi))),
+           "TyDi Assistant",
+         ),
+         mk(
+           ~section="Diagnostics",
+           ~mdIcon="refresh",
+           ~action=inject(Perform(Reparse)),
+           "Reparse Current Editor",
+         ),
+         mk(
+           ~mdIcon="bolt",
+           ~section="Refactoring",
+           ~hotkey=meta ++ "+i",
+           ~action=action(Introduce),
+           "Introduce",
+         ),
+       ]);
   };
 
   /* Focus the indicated probe (if any) */

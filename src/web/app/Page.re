@@ -410,6 +410,7 @@ module Selection = {
            ~action=inject(Globals(Redo)),
            "Redo",
          ),
+<<<<<<< HEAD
          /* Navigation */
          mk(
            ~hotkey="F12",
@@ -534,6 +535,8 @@ module Selection = {
              ),
            "Livelit",
          ),
+=======
+>>>>>>> 5a25e50671 (Move actions down)
          /* Settings */
          mk(
            ~section="Settings",
@@ -625,13 +628,7 @@ module Selection = {
            ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
            "Toggle Show Docs Feedback",
          ),
-         /* Editor tools */
-         mk(
-           ~hotkey=meta ++ "+/",
-           ~mdIcon="assistant",
-           ~action=inject(Globals(ActiveEditor(Buffer(Set(TyDi))))),
-           "TyDi Assistant",
-         ),
+         /* Export / Diagnostics */
          mk(
            ~mdIcon="download",
            ~section="Export",
@@ -639,24 +636,11 @@ module Selection = {
            "Export For Init",
          ),
          mk(
-           ~section="Diagnostics",
-           ~mdIcon="refresh",
-           ~action=inject(Globals(ActiveEditor(Reparse))),
-           "Reparse Current Editor",
-         ),
-         mk(
            ~mdIcon="timer",
            ~section="Diagnostics",
            ~hotkey="F7",
            ~action=inject(Benchmark(Start)),
            "Run Benchmark",
-         ),
-         mk(
-           ~mdIcon="bolt",
-           ~section="Refactoring",
-           ~hotkey=meta ++ "+i",
-           ~action=inject(Globals(ActiveEditor(Introduce))),
-           "Introduce",
          ),
        ]);
   };
@@ -830,7 +814,10 @@ module View = {
             Effect.Ignore;
           } else {
             copy(cursor);
-            inject(Globals(ActiveEditor(Destruct(Right))));
+            switch (cursor.editor_action(Destruct(Right))) {
+            | Some(action) => inject(Editors(action))
+            | None => Effect.Ignore
+            };
           };
         | None => Effect.Ignore
         };

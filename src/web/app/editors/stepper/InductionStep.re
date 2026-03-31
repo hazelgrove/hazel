@@ -332,17 +332,26 @@ module F =
     ));
   };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
+  let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
       switch (focus) {
       | Scrut(a) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.scrut);
+          CodeEditable.Selection.get_cursor_info(
+            ~inject=a => inject(ScrutUpdate(a)),
+            ~selection=a,
+            model.scrut,
+          );
         ScrutUpdate(ci);
       | Case(i, a) =>
         switch (List.nth_opt(model.cases, i)) {
         | Some(case) =>
-          let+ ci = InductionCase.get_cursor_info(~focus=a, case);
+          let+ ci =
+            InductionCase.get_cursor_info(
+              ~inject=x => inject(CaseUpdate(i, x)),
+              ~focus=a,
+              case,
+            );
           CaseUpdate(i, ci);
         | None => Cursor.empty
         }

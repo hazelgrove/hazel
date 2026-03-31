@@ -112,7 +112,7 @@ module F =
     );
   };
 
-  let get_cursor_info = (~focus: focus, _model: model) =>
+  let get_cursor_info = (~inject as _, ~focus: focus, _model: model) =>
     switch (focus) {
     | _ => .
     };

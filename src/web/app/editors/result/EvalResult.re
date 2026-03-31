@@ -332,18 +332,34 @@ module Selection = {
     | Stepper(StepperView.Focus.t)
     | Theorems(Theorems.Focus.t);
 
-  let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
+  let get_cursor_info =
+      (~inject, ~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.display) {
     | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
+      let+ ci =
+        CodeSelectable.Selection.get_cursor_info(
+          ~inject=x => inject(Update.EvalEditorAction(x)),
+          ~selection,
+          editor,
+        );
       Update.EvalEditorAction(ci);
     | (Stepper(focus), Stepper(s)) =>
-      let+ ci = StepperView.Focus.get_cursor_info(~focus, s);
+      let+ ci =
+        StepperView.Focus.get_cursor_info(
+          ~inject=x => inject(Update.StepperAction(x)),
+          ~focus,
+          s,
+        );
       Update.StepperAction(ci);
     | (Evaluation(_), _) => Cursor.empty
     | (Stepper(_), _) => Cursor.empty
     | (Theorems(focus), _) =>
-      let+ ci = Theorems.Focus.get_cursor_info(~focus, mr.theorems);
+      let+ ci =
+        Theorems.Focus.get_cursor_info(
+          ~inject=x => inject(Update.TheoremsAction(x)),
+          ~focus,
+          mr.theorems,
+        );
       Update.TheoremsAction(ci);
     };
 };

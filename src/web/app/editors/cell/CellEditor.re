@@ -181,15 +181,25 @@ module Selection = {
     | MainEditor
     | Result(EvalResult.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | MainEditor =>
       let+ ci =
-        CodeEditable.Selection.get_cursor_info(~selection=(), model.editor);
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(MainEditor(a)),
+          ~selection=(),
+          model.editor,
+        );
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci =
-        EvalResult.Selection.get_cursor_info(~selection, model.result);
+        EvalResult.Selection.get_cursor_info(
+          ~inject=a => inject(ResultAction(a)),
+          ~selection,
+          model.result,
+        );
       Update.ResultAction(ci);
     };
   };

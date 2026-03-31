@@ -64,8 +64,17 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CodeEditable.Selection.t;
-  let get_cursor_info = (~selection, model) =>
-    CodeEditable.Selection.get_cursor_info(~selection, model)
+  let get_cursor_info = (~inject, ~selection, model) =>
+    CodeEditable.Selection.get_cursor_info(
+      ~inject=
+        a =>
+          switch (Update.convert_action(a)) {
+          | Some(action) => inject(action)
+          | None => Ui_effect.Ignore
+          },
+      ~selection,
+      model,
+    )
     |> (
       ci =>
         Cursor.{

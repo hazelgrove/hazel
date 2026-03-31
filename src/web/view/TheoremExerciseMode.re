@@ -346,12 +346,15 @@ module Selection = {
     | Lemmas(CellEditor.Selection.t)
     | Theorem(CellEditor.Selection.t);
 
-  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | TextBox => Cursor.empty
     | Prelude(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Prelude(a)),
           ~selection=s,
           model.cells.prelude,
         );
@@ -359,6 +362,7 @@ module Selection = {
     | Lemmas(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Lemmas(a)),
           ~selection=s,
           model.cells.lemmas,
         );
@@ -366,6 +370,7 @@ module Selection = {
     | Theorem(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Theorem(a)),
           ~selection=s,
           model.cells.theorem,
         );

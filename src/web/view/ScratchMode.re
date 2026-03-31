@@ -804,6 +804,7 @@ module Selection = {
       | Cell(selection) =>
         let+ a =
           CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(CellAction(a)),
             ~selection,
             List.nth(model.scratchpads, model.current).editor,
           );
@@ -953,7 +954,7 @@ module View = {
     let reparse =
       Widgets.button_named(
         Icons.backpack,
-        _ => globals.inject_global(ActiveEditor(Reparse)),
+        _ => inject(CellAction(MainEditor(Perform(Reparse)))),
         ~tooltip="Reparse Editor",
       );
 

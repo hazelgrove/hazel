@@ -125,7 +125,12 @@ module F =
     );
   };
 
-  let get_cursor_info = (~focus: focus, _model: model) =>
+  let get_cursor_info =
+      (
+        ~inject as _: action => Ui_effect.t(unit),
+        ~focus: focus,
+        _model: model,
+      ) =>
     switch (focus) {
     | _ => .
     };

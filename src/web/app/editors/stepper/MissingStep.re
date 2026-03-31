@@ -301,10 +301,16 @@ module Selection = {
     | RewriteEditor(CodeEditable.Selection.t)
     | AxiomBoxSelection(AxiomsBox.Selection.t);
 
-  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject, ~selection: t, model: Model.t): cursor(Update.t) => {
     switch (selection, model.open_box) {
     | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
-      let+ ci = CodeEditable.Selection.get_cursor_info(~selection, editor);
+      let+ ci =
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(Update.RewriteEditorAction(a)),
+          ~selection,
+          editor,
+        );
       Update.RewriteEditorAction(ci);
     | (RewriteEditor(_), _) => empty
     | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>

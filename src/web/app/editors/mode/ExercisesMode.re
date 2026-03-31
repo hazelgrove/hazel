@@ -445,12 +445,21 @@ module Selection = {
     let cursor =
       switch (current, selection) {
       | (Implementation(e), Implementation(selection)) =>
-        let+ ci = ExerciseMode.Selection.get_cursor_info(~selection, e);
+        let+ ci =
+          ExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(Exercise(a)),
+            ~selection,
+            e,
+          );
         Update.Exercise(ci);
       | (Implementation(_), _) => Cursor.empty
       | (Theorem(e), TheoremExercise(selection)) =>
         let+ ci =
-          TheoremExerciseMode.Selection.get_cursor_info(~selection, e);
+          TheoremExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(TheoremExercise(a)),
+            ~selection,
+            e,
+          );
         Update.TheoremExercise(ci);
       | (Theorem(_), _) => Cursor.empty
       };

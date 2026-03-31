@@ -274,15 +274,24 @@ module F = (Stepper: STEPPER) => {
     );
   };
 
-  let get_cursor_info = (~focus: focus, model: model) => {
+  let get_cursor_info = (~inject, ~focus: focus, model: model) => {
     Cursor.(
       switch (focus) {
       | Pattern(a) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.pattern);
+          CodeEditable.Selection.get_cursor_info(
+            ~inject=a => inject(PatternUpdate(a)),
+            ~selection=a,
+            model.pattern,
+          );
         PatternUpdate(ci);
       | Stepper(a) =>
-        let+ ci = Stepper.get_cursor_info(~focus=a, model.step);
+        let+ ci =
+          Stepper.get_cursor_info(
+            ~inject=a => inject(StepUpdate(a)),
+            ~focus=a,
+            model.step,
+          );
         StepUpdate(ci);
       }
     );

@@ -156,11 +156,16 @@ module F =
     );
   };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
+  let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
       switch (focus) {
       | InnerExp(a) =>
-        let+ ci = Stepper.get_cursor_info(~focus=a, model.inner_stepper);
+        let+ ci =
+          Stepper.get_cursor_info(
+            ~inject=a => inject(InnerExp(a): action),
+            ~focus=a,
+            model.inner_stepper,
+          );
         (InnerExp(ci): action);
       }
     );

@@ -333,27 +333,56 @@ module rec StepKind: {
       (AlgebriteStep(m): model, h, e, v);
     };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
+  let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
       switch (focus, model) {
       | (SingleStep(focus), SingleStep(model)) =>
-        let+ focus_info = SingleStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          SingleStep.get_cursor_info(
+            ~inject=x => inject(SingleStep(x): action),
+            ~focus,
+            model,
+          );
         (SingleStep(focus_info): action);
       | (InductionStep(focus), InductionStep(model)) =>
-        let+ focus_info = InductionStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          InductionStep.get_cursor_info(
+            ~inject=x => inject(InductionStep(x): action),
+            ~focus,
+            model,
+          );
         (InductionStep(focus_info): action);
       | (ForallStep(focus), ForallStep(model)) =>
-        let+ focus_info = ForallStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          ForallStep.get_cursor_info(
+            ~inject=x => inject(ForallStep(x): action),
+            ~focus,
+            model,
+          );
         (ForallStep(focus_info): action);
       | (MissingStep(selection), MissingStep(model)) =>
         let+ focus_info =
-          MissingStep.Selection.get_cursor_info(~selection, model);
+          MissingStep.Selection.get_cursor_info(
+            ~inject=x => inject(MissingStep(x): action),
+            ~selection,
+            model,
+          );
         (MissingStep(focus_info): action);
       | (AxiomStep(focus), AxiomStep(model)) =>
-        let+ focus_info = AxiomStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          AxiomStep.get_cursor_info(
+            ~inject=x => inject(AxiomStep(x): action),
+            ~focus,
+            model,
+          );
         (AxiomStep(focus_info): action);
       | (AlgebriteStep(focus), AlgebriteStep(model)) =>
-        let+ focus_info = AlgebriteStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          AlgebriteStep.get_cursor_info(
+            ~inject=x => inject(AlgebriteStep(x): action),
+            ~focus,
+            model,
+          );
         (AlgebriteStep(focus_info): action);
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
@@ -827,21 +856,33 @@ and Stepper: {
   };
 
   let rec get_cursor_info =
-          (~focus: step_focus, model: step_model): Cursor.cursor(step_action) => {
+          (~inject, ~focus: step_focus, model: step_model)
+          : Cursor.cursor(step_action) => {
     Cursor.(
       switch (focus, model.step_kind, model.next_step) {
       | (StepKindFocus(sk), skm, _) =>
-        let+ ci = StepKind.get_cursor_info(~focus=sk, skm);
+        let+ ci =
+          StepKind.get_cursor_info(
+            ~inject=x => inject(StepKindAction(x)),
+            ~focus=sk,
+            skm,
+          );
         StepKindAction(ci);
       | (Here(a), _, _) =>
         let+ ci =
           StepperEditor.Selection.get_cursor_info(
+            ~inject=x => inject(EditorAction(x)),
             ~selection=a,
             model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
           );
         EditorAction(ci);
       | (Next(a), _, Some(next_step)) =>
-        let+ ci = get_cursor_info(~focus=a, next_step);
+        let+ ci =
+          get_cursor_info(
+            ~inject=x => inject(NextStep(x): action),
+            ~focus=a,
+            next_step,
+          );
         NextStep(ci);
       | (Next(_), _, None) => Cursor.empty
       }
