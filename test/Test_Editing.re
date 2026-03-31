@@ -3220,10 +3220,7 @@ let cross_boundary_paste_tests = [
         "no incomplete tiles (labels: "
         ++ String.concat(
              "; ",
-             List.map(
-               (t: Tile.t) => String.concat(",", t.label),
-               inc,
-             ),
+             List.map((t: Tile.t) => String.concat(",", t.label), inc),
            )
         ++ ")",
         0,
