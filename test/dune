@@ -1,14 +1,30 @@
 (include_subdirs unqualified)
 
-(test
+(executable
  (name haz3ltest)
  (libraries web menhirParser junit_alcotest bisect_ppx.runtime)
  (modes js)
- ; Increase Node.js stack size to 8MB to prevent stack overflows
- ; in deeply recursive tests (e.g., Pattern Coverage Checker).
- ; idb_stub.js provides minimal IndexedDB globals for Node.js
- ; (Ezjs_idb captures IDBKeyRange at module init time)
- (action
-  (run node --stack-size=8192 --require ./%{dep:idb_stub.js} %{test}))
  (preprocess
   (pps ppx_deriving.show ppx_sexp_conv)))
+
+(rule
+ (alias runtest)
+ (action
+  (setenv
+   IDB_STUB
+   ./%{dep:idb_stub.js}
+   (setenv
+    TEST_JS
+    %{dep:haz3ltest.bc.js}
+    (run bash %{dep:run_node.sh})))))
+
+(rule
+ (alias test-quick)
+ (action
+  (setenv
+   IDB_STUB
+   ./%{dep:idb_stub.js}
+   (setenv
+    TEST_JS
+    %{dep:haz3ltest.bc.js}
+    (run bash %{dep:run_node.sh} -q)))))
