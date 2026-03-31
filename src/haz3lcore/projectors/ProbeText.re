@@ -125,16 +125,21 @@ let format_probe_values =
 /* Main entry point: generate text representation of program with probes */
 let of_segment =
     (
+      ~projector_to_segment: Base.projector => Segment.t=Triggers.projector_to_invoke,
       ~window: Sample.Window.mode=Single,
       ~probe_map: Sample.Map.t,
       ~refractors: Zipper.Refractor.RefractorList.t,
       segment: Segment.t,
     )
     : string => {
-  /* Convert segment to string using Printer, which uses Triggers to wrap
-   * probed expressions with ^^probe(...) notation */
   let base_text =
-    Printer.of_segment(~holes=" ", ~indent="  ", ~refractors, segment);
+    Printer.of_segment(
+      ~holes=" ",
+      ~indent="  ",
+      ~projector_to_segment,
+      ~refractors,
+      segment,
+    );
 
   /* If no refractors, just return the base text */
   if (List.is_empty(refractors)) {
@@ -178,6 +183,7 @@ let of_segment =
 /* Convenience function for use from zipper */
 let of_zipper =
     (
+      ~projector_to_segment: Base.projector => Segment.t=Triggers.projector_to_invoke,
       ~window: Sample.Window.mode=Single,
       ~probe_map: Sample.Map.t,
       zipper: Zipper.t,
@@ -185,5 +191,11 @@ let of_zipper =
     : string => {
   let segment = Zipper.unselect_and_zip(~erase_buffer=true, zipper);
   let refractors = zipper.refractors.manuals;
-  of_segment(~window, ~probe_map, ~refractors, segment);
+  of_segment(
+    ~projector_to_segment,
+    ~window,
+    ~probe_map,
+    ~refractors,
+    segment,
+  );
 };
