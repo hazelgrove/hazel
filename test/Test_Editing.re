@@ -29,21 +29,20 @@ let printer = (z: Zipper.t): string => {
   );
 };
 
-let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
-  /* Compute statics so that Smart selection can look up parent terms */
-  let statics_settings = {
-    ...Language.CoreSettings.off,
-    statics: true,
-  };
+let default_settings = {
+  ...Language.CoreSettings.off,
+  statics: true,
+};
+
+let perform =
+    (~settings=default_settings, zip: Zipper.t, actions: list(Action.t))
+    : Zipper.t => {
   let perform = (a: Action.t, z: Zipper.t) => {
     let term = MakeTerm.from_zip_for_sem(z).term;
     let statics =
-      CachedStatics.init_from_term(
-        ~settings=statics_settings,
-        ~is_dynamic_term=true,
-        term,
-      );
+      CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
     Perform.go(
+      ~settings,
       ~statics,
       ~syntax=CachedSyntax.init(z),
       a,
@@ -82,13 +81,12 @@ let mv_r_token = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Right, ByToken)));
 
 let mk = (init: string): list(Action.t) => {
-  /* This harness uses a  to represent caret position.
-   * This assumes there are no literal instances of the caret
-   * char proceeding the caret ¦ in the syntax. This creates
-   * a list of actions intended to insert the init string into the
-   * zipper character-by-character, except for the caret character,
-   * and then move left character by character until the indicated
-   * caret position is reached */
+  /* Builds actions from a string with ¦ for caret position.
+   * Does not support § — use mk_zipper for selections. */
+  let chars = Token.to_list(init);
+  if (List.exists(c => c == selection_char, chars)) {
+    Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
+  };
   let rec split =
           (before: list(string), rest: list(string))
           : (list(string), list(string)) =>
@@ -101,14 +99,72 @@ let mk = (init: string): list(Action.t) => {
         split([hd, ...before], tl);
       }
     };
-  let (before, after) = split([], Token.to_list(init));
-  let init_without_caret_clusters = before @ after;
-  let init_without_caret = Token.of_list(init_without_caret_clusters);
-  /* After inserting all characters, we need to move left by the number
-   * of characters that come after the caret position */
+  let (before, after) = split([], chars);
+  let clean = Token.of_list(before @ after);
   let chars_after_caret = List.length(after);
-  string_to_ltr_actions(init_without_caret) @ mv_l(chars_after_caret);
+  string_to_ltr_actions(clean) @ mv_l(chars_after_caret);
 };
+
+/* mk_zipper: builds a zipper with optional selection from a string.
+ * Uses ¦ for caret (focus) and § for selection anchor.
+ *
+ * Implementation:
+ * 1. Create two single-caret versions of the input string
+ *    - version_a: caret at the § position (anchor)
+ *    - version_b: caret at the ¦ position (focus)
+ * 2. Build zippers from both via mk + perform
+ * 3. Get Point.t coordinates from each via Measured
+ * 4. Apply Select(PointToPoint) to create the selection */
+let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
+  let chars = Token.to_list(init);
+  let has_anchor = List.exists(c => c == selection_char, chars);
+  if (!has_anchor) {
+    /* No selection — just use mk */
+    mk(init) |> perform(~settings, Zipper.init());
+  } else {
+    /* version_a: replace § with ¦, remove original ¦ */
+    let version_a =
+      chars
+      |> List.map(c =>
+           if (c == selection_char) {
+             caret_char;
+           } else if (c == caret_char) {
+             "";
+           } else {
+             c;
+           }
+         )
+      |> List.filter(c => c != "")
+      |> Token.of_list;
+    /* version_b: remove §, keep ¦ */
+    let version_b =
+      chars |> List.filter(c => c != selection_char) |> Token.of_list;
+    /* Build zippers */
+    let z_a = mk(version_a) |> perform(~settings, Zipper.init());
+    let z_b = mk(version_b) |> perform(~settings, Zipper.init());
+    /* Get caret Points from each */
+    let measured_a = CachedSyntax.init(z_a).measured;
+    let measured_b = CachedSyntax.init(z_b).measured;
+    let anchor_pt = Zipper.Caret.point(measured_a, z_a);
+    let focus_pt = Zipper.Caret.point(measured_b, z_b);
+    /* Apply PointToPoint: moves to anchor, selects to focus */
+    [Action.Select(PointToPoint((anchor_pt, focus_pt)))]
+    |> perform(~settings, z_b);
+  };
+};
+
+/* Printer that includes indentation. mk_zipper produces Points in
+ * Measured space (which includes indentation), so round-trip tests
+ * must use a printer that also includes indentation for consistency. */
+let printer_indented = (z: Zipper.t): string =>
+  Printer.of_zipper(
+    ~holes=convex_char,
+    ~concave_holes=concave_char,
+    ~caret=caret_char,
+    ~selection_anchor=selection_char,
+    ~indent=" ",
+    z,
+  );
 
 let test = (~name, ~acts, ~goal): test_case(_) =>
   test_case(name, `Quick, () =>
@@ -117,6 +173,16 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
       goal,
       goal,
       acts |> perform(Zipper.init()) |> printer,
+    )
+  );
+
+let test_with_settings = (~settings, ~name, ~acts, ~goal): test_case(_) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      goal,
+      goal,
+      acts |> perform(~settings, Zipper.init()) |> printer,
     )
   );
 
@@ -940,6 +1006,73 @@ let move_tests = [
 ];
 
 let selection_tests = [
+  /* mk_zipper round-trip tests. Use printer_indented because Points
+   * from Measured include indentation columns. */
+  test_case(
+    "mk_zipper: single-line anchor left",
+    `Quick,
+    () => {
+      let z = mk_zipper({|let x = §1 in¦ x|});
+      let goal = {|let x = §1 in¦ x|};
+      check(
+        testable(Fmt.string, String.equal),
+        goal,
+        goal,
+        printer_indented(z),
+      );
+    },
+  ),
+  test_case(
+    "mk_zipper: single-line anchor right",
+    `Quick,
+    () => {
+      let z = mk_zipper({|let x = ¦1 in§ x|});
+      let goal = {|let x = ¦1 in§ x|};
+      check(
+        testable(Fmt.string, String.equal),
+        goal,
+        goal,
+        printer_indented(z),
+      );
+    },
+  ),
+  test_case(
+    "mk_zipper: multi-line let selection",
+    `Quick,
+    () => {
+      let z = mk_zipper({|let x = 1 in
+§let y = 2 in¦
+x + y|});
+      let goal = {|let x = 1 in
+§let y = 2 in¦
+x + y|};
+      check(
+        testable(Fmt.string, String.equal),
+        goal,
+        goal,
+        printer_indented(z),
+      );
+    },
+  ),
+  test_case(
+    "mk_zipper: multi-line if/then/else selection",
+    `Quick,
+    () => {
+      let z = mk_zipper({|if a then
+§fun b ->
+if c then d ¦else e
+else f|});
+      let result = printer_indented(z);
+      /* Check selection was created (has both markers) */
+      let has_anchor =
+        List.exists(c => c == selection_char, Token.to_list(result));
+      let has_caret =
+        List.exists(c => c == caret_char, Token.to_list(result));
+      if (!has_anchor || !has_caret) {
+        Alcotest.fail("mk_zipper failed to create selection");
+      };
+    },
+  ),
   test(
     ~name="Move to right from selection",
     ~acts=
@@ -2469,6 +2602,634 @@ let remold_sort_tests = [
   ),
 ];
 
+/* === Selection Wrapping Tests ===
+ * Test wrapping selected content in delimiters by typing the
+ * opening delimiter with an active selection. */
+let wrap_selection_tests = [
+  /* --- Balanced delimiter wrapping (parens, brackets, braces) --- */
+  test(
+    ~name="Wrap single token in parens",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|(§x¦) + y|},
+  ),
+  test(
+    ~name="Wrap expression in parens via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("(")],
+    ~goal={|(§1 + 2¦)|},
+  ),
+  test(
+    ~name="Wrap expression in square brackets via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("[")],
+    ~goal={|[§1 + 2¦]|},
+  ),
+  test(
+    ~name="Wrap expression in curly braces via Select(All)",
+    ~acts=mk({|¦1 + 2|}) @ [Action.Select(All)] @ [Action.Insert("{")],
+    ~goal={|{§1 + 2¦}|},
+  ),
+  test(
+    ~name="Wrap single operand via Term(Current)",
+    ~acts=
+      mk({|¦1 + 2|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§1¦) + 2|},
+  ),
+  test(
+    ~name="Wrap subexpression in parens",
+    ~acts=
+      mk({|1 + ¦2 * 3|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|1 + (§2¦) * 3|},
+  ),
+  test(
+    ~name="Wrap in parens then unselect and type after",
+    ~acts=
+      mk({|¦x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")]
+      @ [Action.Unselect(None)]
+      @ string_to_ltr_actions(" + z"),
+    ~goal={|(x + z¦)|},
+  ),
+  /* --- Quote wrapping (string, label, comment) --- */
+  test(
+    ~name="Wrap token in string quotes",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})],
+    ~goal={|"abc"¦|},
+  ),
+  test(
+    ~name="Wrap token in backtick quotes",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")],
+    ~goal={|`abc`¦|},
+  ),
+  test(
+    ~name="Wrap token in comment delimiters",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("#")],
+    ~goal={|?#abc#¦|},
+  ),
+  /* --- Quote wrapping validation (fallthrough to replacement) --- */
+  test(
+    ~name=
+      "String wrap fails with embedded quote: falls through to replacement",
+    ~acts=
+      mk({|¦"hello"|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})],
+    ~goal={|"¦"|},
+  ),
+  /* --- Closing delimiter does NOT wrap (replaces selection) --- */
+  test(
+    ~name="Closing paren replaces selection, does not wrap",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert(")")],
+    ~goal={|?)¦ + y|},
+  ),
+  test(
+    ~name="Closing bracket replaces selection, does not wrap",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("]")],
+    ~goal={|?]¦ + y|},
+  ),
+  /* --- Edge cases --- */
+  test(
+    ~name="Wrap empty hole in parens",
+    ~acts=
+      mk({|let x = ¦? in x|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|let x = (§?¦) in x|},
+  ),
+  test(
+    ~name="Wrap parenthesized expression adds outer parens",
+    ~acts=
+      mk({|¦(1 + 2)|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§(1 + 2)¦)|},
+  ),
+  test(
+    ~name="Wrap multi-token selection in parens via char select",
+    ~acts=
+      mk({|¦x + y|})
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Insert("(")],
+    ~goal={|(§x + y¦)|},
+  ),
+  test(
+    ~name="Wrap single number in brackets",
+    ~acts=
+      mk({|¦42|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("[")],
+    ~goal={|[§42¦]|},
+  ),
+  test(
+    ~name="Double wrap: parens then brackets",
+    ~acts=
+      mk({|¦x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")]
+      @ [Action.Insert("[")],
+    ~goal={|([§x¦])|},
+  ),
+  test(
+    ~name="Wrap string literal in parens",
+    ~acts=
+      mk({|¦"hello"|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|(§"hello"¦)|},
+  ),
+  test(
+    ~name="Wrap in pattern context",
+    ~acts=
+      mk({|let ¦x = 1 in x|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("(")],
+    ~goal={|let (§x¦) = 1 in x|},
+  ),
+  test(
+    ~name="Backtick wrap fails on backtick content: falls through",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")]
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert("`")],
+    ~goal={|`¦`|},
+  ),
+  test(
+    ~name="Left-focused selection wraps correctly",
+    ~acts=
+      mk({|x + y¦|})
+      @ [Action.Select(Resize(Local(Left, ByToken)))]
+      @ [Action.Insert("(")],
+    ~goal={|x + (§y¦)|},
+  ),
+];
+
+let unwrap_quote_tests = [
+  /* --- String unwrapping --- */
+  test(
+    ~name="Backspace string from right unwraps content",
+    ~acts=mk({|"hello"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Delete string from left unwraps content",
+    ~acts=mk({|¦"hello"|}) @ [Action.Destruct(Right)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Backspace empty string just deletes",
+    ~acts=mk({|""¦|}) @ [Action.Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Single char string unwraps",
+    ~acts=mk({|"a"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|a¦|},
+  ),
+  /* --- Backtick label unwrapping --- */
+  test(
+    ~name="Backspace backtick label unwraps",
+    ~acts=mk({|`abc`¦|}) @ [Action.Destruct(Left)],
+    ~goal={|abc¦|},
+  ),
+  /* --- Comment unwrapping --- */
+  test(
+    ~name="Delete comment from left unwraps",
+    ~acts=mk({|¦#stuff#|}) @ [Action.Destruct(Right)],
+    ~goal={|stuff¦|},
+  ),
+  /* --- Context preservation --- */
+  test(
+    ~name="Unwrap string in expression context",
+    ~acts=mk({|x + "hello"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|x + hello¦|},
+  ),
+  test(
+    ~name="Unwrap string in let binding",
+    ~acts=mk({|let x = "hello"¦ in x|}) @ [Action.Destruct(Left)],
+    ~goal={|let x = hello¦ in x|},
+  ),
+  /* --- Content re-parses as code --- */
+  test(
+    ~name="Unwrap string with spaces produces separate tokens",
+    ~acts=mk({|"hello world"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|hello ~world¦|},
+  ),
+  test(
+    ~name="Unwrap string with operators re-parses as expression",
+    ~acts=mk({|"1 + 2"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|1 + 2¦|},
+  ),
+  /* --- Inner boundary deletion --- */
+  test(
+    ~name="Backspace at opening delimiter boundary unwraps",
+    ~acts=mk({|¦"hello"|}) @ mv_r(1) @ [Action.Destruct(Left)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Delete at closing delimiter boundary unwraps",
+    ~acts=mk({|"hello"¦|}) @ mv_l(1) @ [Action.Destruct(Right)],
+    ~goal={|hello¦|},
+  ),
+  /* --- Roundtrip with wrapping --- */
+  test(
+    ~name="Wrap then unwrap is identity",
+    ~acts=
+      mk({|¦abc|})
+      @ [Action.Select(Term(Current))]
+      @ [Action.Insert({|"|})]
+      @ [Action.Destruct(Left)],
+    ~goal={|abc¦|},
+  ),
+];
+
+/* --- Comment Toggle tests --- */
+let comment_toggle_tests = [
+  /* Single line commenting */
+  test(
+    ~name="Comment a code line",
+    ~acts=mk({|¦hello|}) @ [Action.ToggleLineComment],
+    ~goal={|?#hello#¦|},
+  ),
+  test(
+    ~name="Comment an expression",
+    ~acts=mk({|¦1 + 2|}) @ [Action.ToggleLineComment],
+    ~goal={|?#1 + 2#¦|},
+  ),
+  test(
+    ~name="Comment with caret in middle of line",
+    ~acts=mk({|he¦llo|}) @ [Action.ToggleLineComment],
+    ~goal={|?#hello#¦|},
+  ),
+  /* Toggle empty line is a no-op */
+  test(
+    ~name="Toggle empty line is no-op",
+    ~acts=mk({|¦|}) @ [Action.ToggleLineComment],
+    ~goal={|?¦|},
+  ),
+  /* Roundtrip: comment then uncomment */
+  test(
+    ~name="Roundtrip: comment then uncomment identifier",
+    ~acts=
+      mk({|¦hello|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Roundtrip: comment then uncomment expression",
+    ~acts=
+      mk({|¦1 + 2|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|1 + 2¦|},
+  ),
+  test(
+    ~name="Roundtrip: comment then uncomment with caret in middle",
+    ~acts=
+      mk({|he¦llo|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  /* Single line in multiline context */
+  test(
+    ~name="Comment second line only",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.ToggleLineComment],
+    ~goal="x\n# y#¦",
+  ),
+  test(
+    ~name="Comment second line roundtrip",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n ~y¦",
+  ),
+  /* Multi-line with selection: comment all lines */
+  test(
+    ~name="Multi: select all and comment two lines",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="§?#x#\n# y#¦",
+  ),
+  /* Multi-line: select one line and comment */
+  test(
+    ~name="Multi: select line 2 and comment",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(Resize(Line(Left)))]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n§# y#¦",
+  ),
+  /* Multi-line: mixed state does nothing */
+  test(
+    ~name="Multi: mixed code and comment is no-op",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("#y#")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="x\n#y#¦",
+  ),
+  /* Multi-line roundtrip */
+  test(
+    ~name="Multi: comment all then uncomment all",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment]
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="§x\n ~y¦",
+  ),
+];
+
+/* Collect (token, sort) pairs from all tiles in a segment, recursively */
+let rec tile_sorts_of_seg = (seg: Segment.t): list((string, Sort.t)) =>
+  List.concat_map(tile_sorts_of_piece, seg)
+and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
+  switch (p) {
+  | Tile(t) =>
+    let label_sorts = List.map(tok => (tok, t.mold.out), t.label);
+    let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
+    label_sorts @ child_sorts;
+  | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
+  | Grout(_)
+  | Secondary(_) => []
+  };
+
+let tile_sorts_of_zip = (z: Zipper.t): list((string, Sort.t)) =>
+  tile_sorts_of_seg(Zipper.zip(z));
+
+let show_tile_sorts = (sorts: list((string, Sort.t))): string =>
+  sorts
+  |> List.map(((tok, sort)) => tok ++ ":" ++ Sort.show(sort))
+  |> String.concat(" ");
+
+/* Test that molds match between fresh typing and comment roundtrip */
+let remold_test = (~name, ~fresh_acts, ~roundtrip_acts) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let fresh_z = fresh_acts |> perform(Zipper.init());
+      let roundtrip_z = roundtrip_acts |> perform(Zipper.init());
+      let fresh_str = show_tile_sorts(tile_sorts_of_zip(fresh_z));
+      let roundtrip_str = show_tile_sorts(tile_sorts_of_zip(roundtrip_z));
+      check(
+        testable(Fmt.string, String.equal),
+        name,
+        fresh_str,
+        roundtrip_str,
+      );
+    },
+  );
+
+let comment_remold_tests = [
+  /* Single-line let roundtrip */
+  remold_test(
+    ~name="Molds: single-line let roundtrip",
+    ~fresh_acts=mk({|¦let a = 1 in a|}),
+    ~roundtrip_acts=
+      mk({|¦let a = 1 in a|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* Multi-line let: comment/uncomment first line */
+  remold_test(
+    ~name="Molds: multi-line let roundtrip line 1",
+    ~fresh_acts=mk({|let a =
+1
+in a¦|}),
+    ~roundtrip_acts=
+      mk({|let a =
+1
+in a¦|})
+      @ [Action.Move(Start)]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* Annotated let roundtrip */
+  remold_test(
+    ~name="Molds: annotated let roundtrip",
+    ~fresh_acts=mk({|¦let a : (Int) = 1 in a|}),
+    ~roundtrip_acts=
+      mk({|¦let a : (Int) = 1 in a|})
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+];
+
+/* Additional comment toggle coverage */
+let comment_toggle_extra_tests = [
+  /* Uncomment a manually-typed comment */
+  test(
+    ~name="Uncomment manually typed comment",
+    ~acts=mk({|¦#hello#|}) @ [Action.ToggleLineComment],
+    ~goal={|hello¦|},
+  ),
+  /* Mixed single line (code + comment) is no-op */
+  test(
+    ~name="Mixed single line is no-op",
+    ~acts=mk({|x ¦#hello#|}) @ [Action.ToggleLineComment],
+    ~goal={|x #hello#¦|},
+  ),
+  /* Multi-shard tile: comment then branch of if-then-else */
+  test(
+    ~name="Comment then branch of if-then-else",
+    ~acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment],
+    ~goal="if true\n#then 1#¦\nelse 2",
+  ),
+  /* Multi-shard tile roundtrip */
+  test(
+    ~name="If-then-else roundtrip then branch",
+    ~acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+    ~goal="if true\nthen 1¦\nelse 2",
+  ),
+  /* Multi-line with empty line in between */
+  test(
+    ~name="Comment with empty line between",
+    ~acts=
+      mk({|x¦|})
+      @ string_to_ltr_actions("\n\n")
+      @ string_to_ltr_actions("y")
+      @ [Action.Select(All)]
+      @ [Action.ToggleLineComment],
+    ~goal="§?#x#\n##\n# y#¦",
+  ),
+];
+
+/* Ancestor.sort fix: molds preserved in non-comment contexts */
+let ancestor_sort_tests = [
+  /* Deleting = from let preserves Pat mold on a */
+  remold_test(
+    ~name="Molds: delete = from let preserves Pat",
+    ~fresh_acts=mk({|let a ¦1 in a|}),
+    ~roundtrip_acts=mk({|let a =¦ 1 in a|}) @ [Action.Destruct(Left)],
+  ),
+  /* type...=...in roundtrip preserves TPat mold */
+  remold_test(
+    ~name="Molds: type alias roundtrip line 1",
+    ~fresh_acts=mk({|type t =
+Int
+in 1¦|}),
+    ~roundtrip_acts=
+      mk({|type t =
+Int
+in 1¦|})
+      @ [Action.Move(Start)]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+  /* If-then-else roundtrip preserves Exp molds */
+  remold_test(
+    ~name="Molds: if-then-else roundtrip then line",
+    ~fresh_acts=mk({|if true
+then 1
+else 2¦|}),
+    ~roundtrip_acts=
+      mk({|if true
+then 1
+else 2¦|})
+      @ [Action.Move(Start)]
+      @ [Action.Move(Vertical(Down))]
+      @ [Action.ToggleLineComment]
+      @ [Action.ToggleLineComment],
+  ),
+];
+
+/* Test that wrapping a selection across a tile boundary doesn't cause
+ * stack overflow. Scenario: (§1)¦ + Insert("(") produces orphan shards
+ * from the original (...) tile at different nesting levels. Without the
+ * fix, duplicate IDs cause infinite recursion in the elaborator. */
+let wrap_calculate_test = [
+  test_case(
+    "Wrap across tile boundary: no stack overflow in statics",
+    `Quick,
+    () => {
+      let acts =
+        mk({|(1)¦|})
+        @ [
+          Action.Select(Resize(Local(Left, ByChar))),
+          Action.Select(Resize(Local(Left, ByChar))),
+          Action.Insert("("),
+        ];
+      let z = perform(Zipper.init(), acts);
+      let _statics =
+        CachedStatics.init(
+          ~settings=Language.CoreSettings.on,
+          ~stitch=x => x,
+          ~is_dynamic_term=false,
+          z,
+        );
+      check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
+    },
+  ),
+];
+
+/* Cut-paste across delimiter boundaries: when a selection spans a
+ * delimiter (e.g. `=` in `let...=...in`), cutting removes the shard
+ * from its parent tile. Re-pasting inserts a fresh-ID token that must
+ * be reconnected to the ancestor tile via rescan_parent_shards. */
+let sel_r_token = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, ByToken))));
+
+let cross_boundary_paste_tests = [
+  /* Select `comparison = (0` from `let comparison = (0 == 0) in comparison`,
+   * cutting the `=` shard out of the let form and the `(` out of parens.
+   * After paste, both should be structurally restored. */
+  test_case(
+    "Cut-paste spanning = delimiter in let: structural integrity",
+    `Quick,
+    () => {
+      /* Build zipper with caret after `let ` */
+      let z =
+        mk({|let ¦comparison = (0 == 0) in comparison|})
+        |> perform(Zipper.init());
+      /* Select right by token: comparison, ws, =, ws, (, 0 */
+      let z = perform(z, sel_r_token(6));
+      /* Get clipboard text */
+      let clipboard =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z.selection.content,
+        );
+      /* Cut then paste */
+      let z = perform(z, [Cut, Paste(clipboard)]);
+      /* Check structural integrity: no incomplete tiles */
+      let seg = Zipper.unselect_and_zip(z);
+      let inc = Segment.incomplete_tiles(seg);
+      check(
+        Alcotest.int,
+        "no incomplete tiles (labels: "
+        ++ String.concat(
+             "; ",
+             List.map((t: Tile.t) => String.concat(",", t.label), inc),
+           )
+        ++ ")",
+        0,
+        List.length(inc),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
@@ -2481,4 +3242,12 @@ let tests = [
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
+  ("Editing.WrapSelection", wrap_selection_tests),
+  ("Editing.WrapCalculate", wrap_calculate_test),
+  ("Editing.UnwrapQuote", unwrap_quote_tests),
+  ("Editing.CommentToggle", comment_toggle_tests),
+  ("Editing.CommentRemold", comment_remold_tests),
+  ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
+  ("Editing.AncestorSort", ancestor_sort_tests),
+  ("Editing.CrossBoundaryPaste", cross_boundary_paste_tests),
 ];

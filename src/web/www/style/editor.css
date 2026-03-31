@@ -4,6 +4,16 @@
   position: relative;
 }
 
+.code-container.show-row-lines {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) var(--row-height-px)
+  );
+}
+
 /* Use this style for all text that should
  * be formatted like code, even if it's not
  * going to be inside an editor. For example,
@@ -357,6 +367,34 @@ svg.shard.selected.buffer-parsed {
 svg.shard.selected.buffer-parsed > path {
   fill: var(--T1);
   stroke: var(--T1);
+}
+
+/* VAR HIGHLIGHT DECO */
+
+.var-highlights {
+  pointer-events: none;
+}
+
+.var-highlight {
+  border-bottom: 2.3px dotted;
+  box-sizing: border-box;
+}
+
+.var-highlight.Exp {
+  border-bottom-color: var(--token-exp);
+  background-color: color-mix(in srgb, var(--token-exp) 10%, transparent);
+}
+.var-highlight.Pat {
+  border-bottom-color: var(--token-pat);
+  background-color: color-mix(in srgb, var(--token-pat) 10%, transparent);
+}
+.var-highlight.Typ {
+  border-bottom-color: var(--token-typ);
+  background-color: color-mix(in srgb, var(--token-typ) 10%, transparent);
+}
+.var-highlight.TPat {
+  border-bottom-color: var(--token-tpat);
+  background-color: color-mix(in srgb, var(--token-tpat) 10%, transparent);
 }
 
 /* EMPTY HOLE DECO */

@@ -81,7 +81,8 @@ module Update = {
              | Reparse
              | Introduce
              | Probe(StepInto(_))
-             | Dump => true
+             | Dump
+             | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
              | Structural(_)
@@ -184,11 +185,19 @@ module Selection = {
   let handle_key_event =
       (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
-    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.TAB)
     /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
-    | {key: D("Enter"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("Enter"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {
+        key: D("Enter"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {key: D("Enter"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
       switch (focus_indicated_probe(model)) {
       | Some(_) as result => result
       | None => focus_probe_on_row(model)
@@ -201,6 +210,7 @@ module Selection = {
         meta: Down,
         ctrl: Up,
         alt: Up,
+        _,
       }
         when
           Zipper.linebreak_on(
@@ -211,7 +221,7 @@ module Selection = {
       | Some(_) as result => result
       | None => Some(Update.Perform(Move(Line(Right))))
       }
-    | {key: D("End"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Up}
+    | {key: D("End"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Up, _}
         when
           Zipper.linebreak_on(
             Right,
@@ -221,14 +231,26 @@ module Selection = {
       | Some(_) as result => result
       | None => Some(Update.Perform(Move(Line(Right))))
       }
+    /* Cmd+/ (Mac) / Ctrl+/ (PC) toggles line comment */
+    | {key: D("/"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _}
+    | {key: D("/"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
+      Some(Update.Perform(ToggleLineComment))
     /* Cmd+. (Mac) / Ctrl+. (PC) opens context menu - VS Code Quick Fix convention */
-    | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _}
+    | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
       Some(Update.ContextMenu(ContextMenu.Model.Open))
     /* Shift+F10 opens context menu (VS Code convention) */
-    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.ContextMenu(ContextMenu.Model.Open))
-    | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
+    | {
+        key: D(key),
+        sys: Mac | PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
@@ -304,6 +326,7 @@ module View = {
       (
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
+        ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         z: Zipper.t,
       ) => [
@@ -334,6 +357,12 @@ module View = {
       ~syntax,
       globals.color_highlights,
     ),
+    VarHighlight.view(
+      ~measured=syntax.measured,
+      ~font_metrics=globals.font_metrics,
+      ~info_map,
+      z,
+    ),
   ];
 
   let view =
@@ -358,6 +387,7 @@ module View = {
         ? deco(
             ~expand_selection?,
             ~syntax=model.editor.syntax,
+            ~info_map=model.statics.info_map,
             ~globals,
             model.editor.state.zipper,
           )
@@ -506,7 +536,7 @@ module View = {
       Effect.Ignore;
     };
 
-    let drag_select = (pointer: Pointer.Event.t) => {
+    let drag_select_or_hover = (pointer: Pointer.Event.t) => {
       let left_button_held = pointer.buttons land 1 != 0;
       if (!left_button_held && MouseState.is_button_down()) {
         /* Recover from stuck state: buttons bitmask says left is up
@@ -566,7 +596,9 @@ module View = {
         Attr.on_pointerup(evt =>
           toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
-        Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
+        Attr.on_mousemove(evt =>
+          drag_select_or_hover(Pointer.Event.mk(evt))
+        ),
       ],
       display_line_numbers
         ? LineNumbers.View.view(

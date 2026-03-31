@@ -25,7 +25,8 @@ module Model = {
     let globals = Globals.Model.init(~font_metrics?, ());
     let settings = globals.settings;
     let instructor_mode = globals.settings.instructor_mode;
-    let editors = Editors.Store.reset(~settings, ~instructor_mode);
+    let editors =
+      Editors.Store.reset(~settings=settings.core, ~instructor_mode);
     {
       globals,
       editors,
@@ -321,7 +322,7 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
-    | Start => model |> return // Triggers recalculation at the start
+    | Start => model |> return
     | Save =>
       print_endline("Saving...");
       Store.save(model);
@@ -385,7 +386,15 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
     switch (event) {
-    | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+    | {
+        key: D("F7"),
+        sys: Mac | PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Up,
+        alt: Up,
+        _,
+      } =>
       Some(Update.Benchmark(Start))
     | {
         key: D("Z" | "z"),
@@ -394,6 +403,7 @@ module Selection = {
         meta: Down,
         ctrl: Up,
         alt: Up,
+        _,
       }
     | {
         key: D("Z" | "z"),
@@ -402,14 +412,47 @@ module Selection = {
         meta: Up,
         ctrl: Down,
         alt: Up,
+        _,
       } =>
       Some(Update.Globals(Redo))
-    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {
+        key: D("Z" | "z"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {
+        key: D("Z" | "z"),
+        sys: PC,
+        shift: Up,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+        _,
+      } =>
       Some(Update.Globals(Undo))
     /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
-    | {key: D("P" | "p"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("P" | "p"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {
+        key: D("P" | "p"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {
+        key: D("P" | "p"),
+        sys: PC,
+        shift: Up,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+        _,
+      } =>
       Some(Update.Globals(Set(AutoprobeMode)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
@@ -555,6 +598,7 @@ module View = {
                 ~event=
                   Key.{
                     key: D("Delete"),
+                    code: "Delete",
                     sys: Os.is_mac^ ? Mac : PC,
                     shift: Up,
                     meta: Up,
