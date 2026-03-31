@@ -1,52 +1,12 @@
 # PR: `coding-agent-ui-updates` → `dev`
 
-Branch commits (newest first): **`Test_AgentUX`** (unit tests for slash menu, compaction slice, `CompactionPrompt`, OpenRouter `handle_chat`, context meter) → compaction/OpenRouter polish → `.gitignore` for `.cursor/` → slash `/compact` → read-only fold `⋱` fix → Program View crash fix → auto-compaction on context limit → context meter UI → chunk UI + context meter foundation.
+Branch summary (for the GitHub merge description):
 
-Use this list as the full merge description; it is meant to match **everything** we intend to land from this branch.
-
----
-
-## Agent chat UI & context budget
-
-- **Chunked UI chat:** Messages are grouped into user chunks and agent response chunks (`ChunkedUIChat`) for rendering in `ChatMessagesView` / `ChatView` / `ChatBottomBar`.
-- **Context meter:** Bottom bar shows **last response `prompt_tokens` / `total_tokens`** vs the active model’s **`context_length`** (from OpenRouter’s model list), with a **themed progress bar** and **hover tooltip** (usage fraction to six decimals where applicable).
-- **`AgentGlobals`:** Parses optional **`context_length`** per model; **`effective_context_meter_limit`** / **`context_meter_limit_for_active`** cap the budget used for the meter and for **auto-compaction** (below).
-- **Styling:** Related chat/agent UI tweaks in `agent-chat-messages.css` (and connected views).
-
-## Agent Context / “Program View”
-
-- **`<agentEditorView>` in chat:** The agent context area shows the program using the **same read-only Hazel segment pipeline** as tool-result diffs (live editor semantics + collapse rules where applicable), with surrounding context text still below.
-- **Section title:** **“Program View”** (not a generic “Program” label).
-- **Crash fix:** Incomplete/bad syntax no longer crashes the Program View path (`bc527b680d`).
-
-## Read-only code & folds (`Code.re`)
-
-- **`CodeViewable.view_segment`** uses an **empty `shape_map`**, so the generic projector path used to render **nothing** for folds.
-- **Fix:** When `pr.kind == Fold` and `shape_map` is empty, render the canonical **⋱** glyph with **`fold-projector`** styling (aligned with `FoldProj`). The **main editor** still uses a non-empty `shape_map`; its fold layout is unchanged.
-
-## Compaction (auto + manual) & slash commands
-
-- **Auto-compaction:** After **`HandleLLMResponse`**, if **`prompt_tokens` ≥ context meter limit** (and no compaction already running), start the same compaction flow as manual (shared `maybe_start_compaction`).
-- **Slash commands:** Typing **`/`** opens a **palette** (filter, alphabetical commands, **ArrowUp/Down**, **Enter** to run, **Escape** to dismiss). **`/compact`** forces compaction (same path as auto).
-- **`ChatSystem`:** `slash_menu` state; **`RequestForcedCompaction`**; optional **`compaction_method_override`** (e.g. “Slash command (/compact)”) for the compaction summary line.
-- **`CompactionPrompt.re`:** Long summarizer system prompt lives in **`prompt_factory/`** next to `CompositionPrompt` (not inlined in `Agent.re`). Payload includes a **truncated live agent system prompt** + **developer notes**.
-- **Agent view in compaction API:** A **final `<context>` message** is appended (same shape as production: **`<agentEditorView>`**, static errors, test results, workbench) built from the **current** editor + **`agent_view`** — **read-only**; does not change UI folds/state.
-- **UI:** **“Conversation compacted”** notice (method + summary body); **“Compacting conversation…”** banner at the **bottom** of the scrollable log (above the composer).
-
-## OpenRouter response parsing
-
-- Assistant **`content`** may be a **JSON array** of parts (e.g. `{"type":"text","text":"…"}`); **`first_message_content`** now decodes string / null / array and optionally falls back to a top-level **`reasoning`** string when content is empty — avoids **empty compaction/chat text** when providers return non-string `content`.
-
-## Tests
-
-- **`test/Test_AgentUX.re`:** Alcotest suite **“Agent UX”** (registered in `haz3ltest.re`) covering **`ChatSlashCommands.filtered`**, **`derive_slash_menu_from_content`** + slash menu selection updates, **`dialogue_slice_for_compaction_summary`**, **`CompactionPrompt.mk_system_prompt`**, **`OpenRouter.Utils.handle_chat`** (string / multipart / reasoning fallback), and **`AgentGlobals.effective_context_meter_limit`**. Tool-call editing tests remain in **`Test_AgentTools`**.
-
-## Repo / tooling
-
-- **`.gitignore`:** Ignore **`.cursor/`** for local IDE noise. **`PR-merge-to-dev.md`** is intentionally tracked (e.g. `git add -f`) so this checklist lives in the repo for reviewers.
-
----
-
-## Files / areas touched (high level)
-
-`Agent.re`, `AgentGlobals.re`, `OpenRouter.re`, `CompactionPrompt.re`, `CompositionPrompt.re` (removal of inline compaction blurb), `ChatMessagesView.re`, `ChatBottomBar.re`, `ChatView.re`, `Code.re`, `CodeViewable.re` / tool-result views, `agent-chat-messages.css`, **`test/Test_AgentUX.re`**, **`test/haz3ltest.re`**, `.gitignore`, this file.
+- **Chunked chat UI** — User/agent message chunks in chat views; bottom bar **context meter** (tokens vs model `context_length`, bar + tooltip).
+- **AgentGlobals** — Model `context_length`, **`effective_context_meter_limit`** for meter + **auto-compaction** when `prompt_tokens` crosses the cap.
+- **Program View** — Read-only `<agentEditorView>` in agent context (same pipeline as tool diffs); crash fix for bad syntax; section titled **“Program View”**.
+- **Folds in read-only code** — Empty `shape_map` fold path renders **⋱** (`fold-projector`); main editor unchanged.
+- **Compaction** — Manual **`/compact`** slash palette + shared auto path; **`CompactionPrompt`** in `prompt_factory/`; compaction API appends final **`<context>`** (read-only); compacted notice + bottom **“Compacting…”** banner.
+- **OpenRouter** — Decode assistant `content` as string, array of text parts, or empty + **`reasoning`** fallback.
+- **Tests** — **`test/Test_AgentUX.re`** (“Agent UX” in `haz3ltest`): slash menu, dialogue slice, compaction prompt, `handle_chat`, context meter (tool tests stay in **`Test_AgentTools`**).
+- **Repo** — **`.gitignore`** `.cursor/`; this file tracked with **`git add -f`** for reviewers.
