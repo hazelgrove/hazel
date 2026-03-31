@@ -26,7 +26,6 @@ type state =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
 
-/* Calculator actions that can be performed on the integer */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action = a;
 
