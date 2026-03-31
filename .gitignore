@@ -51,6 +51,9 @@ setup.log
 .history
 .code-workspace
 
+# Cursor IDE
+.cursor/
+
 # unit tests
 *.xml
 
