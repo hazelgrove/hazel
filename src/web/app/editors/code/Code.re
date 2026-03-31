@@ -147,7 +147,8 @@ let view =
     | _ =>
       let indent = measure_of(Projector(pr)).last.col;
       let size = DeferredLinebreaks.of_projector(pr, shape_map);
-      let token = whitespace_token(size.row, size.row == 0 ? size.col : indent);
+      let token =
+        whitespace_token(size.row, size.row == 0 ? size.col : indent);
       Node.text(token);
     };
   };

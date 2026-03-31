@@ -260,9 +260,9 @@ module Utils = {
   };
 
   /** Decode [content] the way several providers return it: plain string, null,
-      or an array of parts like [{"type":"text","text":"..."}]. String-only
-      parsing used to drop array-shaped replies and surface as empty text. */
-  let message_content_string = (content: Json.t): option(string) => {
+      array of parts (with [text], nested [content], or bare strings in the list),
+      or a single object with [text]/[content]. */
+  let rec message_content_string = (content: Json.t): option(string) => {
     switch (content) {
     | `Null => Some("")
     | `String(s) => Some(s)
@@ -270,13 +270,38 @@ module Utils = {
       let texts =
         List.filter_map(
           (part: Json.t) =>
-            switch (Json.dot("text", part)) {
-            | Some(t) => Json.str(t)
-            | None => None
+            switch (part) {
+            | `String(s) => Some(s)
+            | _ =>
+              switch (Json.dot("text", part)) {
+              | Some(t) =>
+                switch (Json.str(t)) {
+                | Some(s) => Some(s)
+                | None => message_content_string(t)
+                }
+              | None =>
+                switch (Json.dot("content", part)) {
+                | Some(c) => message_content_string(c)
+                | None => None
+                }
+              }
             },
           parts,
         );
       Some(String.concat("", texts));
+    | `Assoc(_) as assoc =>
+      switch (Json.dot("text", assoc)) {
+      | Some(t) =>
+        switch (Json.str(t)) {
+        | Some(s) => Some(s)
+        | None => message_content_string(t)
+        }
+      | None =>
+        switch (Json.dot("content", assoc)) {
+        | Some(c) => message_content_string(c)
+        | None => None
+        }
+      }
     | _ => None
     };
   };
@@ -295,16 +320,22 @@ module Utils = {
       | Some(c) => message_content_string(c)
       };
     let from_reasoning = Option.bind(Json.dot("reasoning", delta), Json.str);
-    let combined =
-      switch (from_content) {
-      | Some(c) when String.trim(c) != "" => Some(c)
-      | _ =>
-        switch (from_reasoning) {
-        | Some(r) when String.trim(r) != "" => Some(r)
-        | _ => from_content
-        }
-      };
-    combined;
+    let from_reasoning_content =
+      Option.bind(Json.dot("reasoning_content", delta), Json.str);
+    let from_thinking = Option.bind(Json.dot("thinking", delta), Json.str);
+    switch (
+      List.find_map(
+        (o: option(string)) =>
+          switch (o) {
+          | Some(s) when String.trim(s) != "" => Some(s)
+          | _ => None
+          },
+        [from_content, from_reasoning_content, from_reasoning, from_thinking],
+      )
+    ) {
+    | Some(s) => Some(s)
+    | None => from_content
+    };
   };
 
   let parse_tool_args = (args: Json.t): Json.t => {

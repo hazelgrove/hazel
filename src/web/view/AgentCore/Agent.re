@@ -1907,6 +1907,9 @@ module Agent = {
         } else {
           let context_msg =
             compaction_context_snapshot_message(model, cell_editor, chat_id);
+          /* Send the live program snapshot as a **user** message, not a second
+             system message. Some providers return empty assistant text when the
+             request ends with [system] after [assistant]. */
           let summary_api_msgs =
             [
               OpenRouter.Message.Utils.mk_system_msg(
@@ -1917,12 +1920,12 @@ module Agent = {
               ),
             ]
             @ List.filter_map(Message.Utils.api_message_of_message, dialogue)
-            @ (
-              switch (Message.Utils.api_message_of_message(context_msg)) {
-              | Some(m) => [m]
-              | None => []
-              }
-            );
+            @ [
+              OpenRouter.Message.Utils.mk_user_msg(
+                "[Compaction: current Hazel program / workbench snapshot]\n\n"
+                ++ context_msg.content,
+              ),
+            ];
           switch (
             settings.agent_globals.api_key,
             AgentGlobals.get_active_llm_id(settings.agent_globals),
@@ -2643,7 +2646,28 @@ module Agent = {
           compaction_method_override: None,
         };
         let content = String.trim(reply.content);
-        if (content == "") {
+        if (content == "" && reply.tool_calls != []) {
+          let err =
+            Message.Utils.mk_api_failure_message(
+              "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AppendMessage(err),
+                chat_id,
+              ),
+              model_cleared.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          (
+            {
+              ...model_cleared,
+              chat_system,
+            },
+            editor |> Updated.return,
+          );
+        } else if (content == "") {
           let err =
             Message.Utils.mk_api_failure_message(
               "Compaction returned an empty summary.",

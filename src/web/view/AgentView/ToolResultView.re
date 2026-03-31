@@ -6,11 +6,7 @@ open Haz3lcore;
 open CodeViewable;
 
 let render_segment =
-    (
-      ~globals: Globals.t,
-      ~shallow_complete: bool=true,
-      segment: Segment.t,
-    )
+    (~globals: Globals.t, ~shallow_complete: bool=true, segment: Segment.t)
     : Node.t => {
   let segment' =
     shallow_complete

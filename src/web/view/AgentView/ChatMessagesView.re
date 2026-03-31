@@ -1148,7 +1148,10 @@ let view =
             };
 
           div(
-            ~attrs=[clss(["agent-tool-summary"]), Attr.id(summary_dom_id)],
+            ~attrs=[
+              clss(["agent-tool-summary", "collapsed"]),
+              Attr.id(summary_dom_id),
+            ],
             [
               div(
                 ~attrs=[
