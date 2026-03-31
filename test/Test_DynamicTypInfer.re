@@ -73,8 +73,7 @@ let testable_typ_string = testable(Fmt.string, String.equal);
 /* Test helper: given code with a probe, compute the dynamic type and check
    it matches `expected`. Pass `Some("Int")` for a successful meet or
    `None` when sample types are inconsistent. */
-let dynamic_typ_test =
-    (name: string, code: string, expected: option(string)) =>
+let dynamic_typ_test = (name: string, code: string, expected: option(string)) =>
   test_case(
     name,
     `Quick,

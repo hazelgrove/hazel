@@ -1341,6 +1341,11 @@ let rec diff = (~ctx: option(Ctx.t)=?, ty: t, ty': t): list(Id.t) => {
     | Some(expanded) => diff(~ctx?, expanded, ty')
     | None => get_ids()
     }
+  | (_, Var(name)) =>
+    switch (ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join) {
+    | Some(expanded) => diff(~ctx?, ty, expanded)
+    | None => get_ids()
+    }
   | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
     diff(~ctx?, t1, t2)
   | (Rec(_), _) => get_ids()
@@ -1368,34 +1373,40 @@ let rec diff = (~ctx: option(Ctx.t)=?, ty: t, ty': t): list(Id.t) => {
     diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
   | (ProdExtension(_, _), _) => get_ids()
   | (Sum(sm1), Sum(sm2)) =>
-    let (inter, _left, right) =
+    let (inter, left, right) =
       ConstructorMap.venn_regions(
         ConstructorMap.same_constructor(fast_equal),
         sm1,
         sm2,
       );
-    let matched_ids =
-      List.concat_map(
-        ((v1, v2)) =>
-          switch (v1, v2) {
-          | (
-              ConstructorMap.Variant(_, _, Some(t1)),
-              ConstructorMap.Variant(_, _, Some(t2)),
-            ) =>
-            diff(~ctx?, t1, t2)
-          | (
-              ConstructorMap.Variant(_, _, None),
-              ConstructorMap.Variant(_, _, None),
-            ) =>
-            []
-          | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
-            diff(~ctx?, t1, t2)
-          | (_, v2) => variant_all_ids(v2)
-          },
-        inter,
-      );
-    let right_ids = List.concat_map(variant_all_ids, right);
-    matched_ids @ right_ids;
+    if (left != []) {
+      /* Static type has constructors missing from dynamic — the dynamic
+         Sum is structurally different, so mark all of it as different */
+      get_ids();
+    } else {
+      let matched_ids =
+        List.concat_map(
+          ((v1, v2)) =>
+            switch (v1, v2) {
+            | (
+                ConstructorMap.Variant(_, _, Some(t1)),
+                ConstructorMap.Variant(_, _, Some(t2)),
+              ) =>
+              diff(~ctx?, t1, t2)
+            | (
+                ConstructorMap.Variant(_, _, None),
+                ConstructorMap.Variant(_, _, None),
+              ) =>
+              []
+            | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
+              diff(~ctx?, t1, t2)
+            | (_, v2) => variant_all_ids(v2)
+            },
+          inter,
+        );
+      let right_ids = List.concat_map(variant_all_ids, right);
+      matched_ids @ right_ids;
+    };
   | (Sum(_), _) => get_ids()
   | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
   | (Sig(_), _) => get_ids()

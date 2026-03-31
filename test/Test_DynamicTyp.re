@@ -303,6 +303,55 @@ let alias_partial_diff_test =
     },
   );
 
+let sum_missing_constructor_test =
+  test_case(
+    "Sum type — dynamic missing constructor (+None +Some(Int) vs +Some(Int))",
+    `Quick,
+    () => {
+      let result =
+        classify_regions(
+          mk_sum_none_some_int(),
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant(
+                "Some",
+                ann,
+                Some(Typ.fresh(Atom(Atom.Int))),
+              ),
+            ]),
+          ),
+        );
+      /* Dynamic is missing None, so entire dynamic Sum is highlighted */
+      check(list(region), "all dynamic", [d("+ Some(Int)")], result);
+    },
+  );
+
+let alias_on_dynamic_side_test =
+  test_case(
+    "Type alias — [Int] vs Var(MyList) with alias MyList = [Int]",
+    `Quick,
+    () => {
+      let ctx =
+        Ctx.extend_tvar(
+          Ctx.empty,
+          {
+            name: "MyList",
+            id: Id.mk(),
+            kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+          },
+        );
+      let result =
+        classify_regions_ctx(
+          ~ctx,
+          Typ.fresh(List(Typ.fresh(Atom(Atom.Int)))),
+          Typ.fresh(Var("MyList")),
+        );
+      /* Rendered as the alias name, but no dynamic highlighting since
+         the alias expands to the same type */
+      check(list(region), "all static", [s("MyList")], result);
+    },
+  );
+
 let qcheck_all_piece_ids_classified =
   QCheck_alcotest.to_alcotest(
     QCheck.Test.make(
@@ -333,10 +382,12 @@ let tests = [
       sum_partial_diff_test,
       sum_fully_diff_test,
       sum_same_test,
+      sum_missing_constructor_test,
       prod_partial_diff_test,
       arrow_diff_codomain_test,
       alias_exact_match_test,
       alias_partial_diff_test,
+      alias_on_dynamic_side_test,
       qcheck_all_piece_ids_classified,
     ],
   ),
