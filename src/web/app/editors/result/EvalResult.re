@@ -346,7 +346,6 @@ module Selection = {
       let+ ci = Theorems.Focus.get_cursor_info(~focus, mr.theorems);
       Update.TheoremsAction(ci);
     };
-
 };
 
 module View = {

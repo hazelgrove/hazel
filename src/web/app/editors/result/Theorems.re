@@ -306,7 +306,6 @@ module Focus = {
     | None => Cursor.empty
     };
   };
-
 };
 
 module View = {

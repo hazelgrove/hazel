@@ -27,9 +27,3 @@ let is_active =
   | ReadOnly => false
   | Editable({focus: Some(_), _}) => true
   | Editable({focus: None, _}) => false;
-
-let inject_or_ignore = (edit_mode, action) =>
-  switch (edit_mode) {
-  | ReadOnly => Effect.Ignore
-  | Editable({inject, _}) => inject(action)
-  };

@@ -88,7 +88,6 @@ module Focus = {
     let+ ci = StepperBase.Stepper.get_cursor_info(~focus, model.root);
     ci;
   };
-
 };
 
 module View = {

@@ -109,7 +109,6 @@ module Selection = {
       (~selection as (): t, _model: Model.t): cursor(Update.t) => {
     empty;
   };
-
 };
 
 module View = {
