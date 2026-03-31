@@ -101,13 +101,45 @@ module ViewComponents = {
     );
   };
 
+  let strip_agent_editor_view_block = (content: string): string => {
+    let start_marker = "<agentEditorView>";
+    let end_marker = "</agentEditorView>";
+    let start = StringUtil.plain_search(start_marker, content, 0);
+    if (start < 0) {
+      content;
+    } else {
+      let search_from = start + String.length(start_marker);
+      let end_idx = StringUtil.plain_search(end_marker, content, search_from);
+      if (end_idx < 0) {
+        content;
+      } else {
+        let tail_start = end_idx + String.length(end_marker);
+        String.sub(content, 0, start)
+        ++ String.sub(
+             content,
+             tail_start,
+             String.length(content) - tail_start,
+           );
+      };
+    };
+  };
+
   let context_view =
       (
+        ~globals: Globals.t,
         ~content: string,
+        ~code_with_statics: CodeWithStatics.Model.t,
+        ~agent_view: AgentContext.Model.t,
         ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
+    let segment =
+      CompositionView.Public.segment_for_agent_context(
+        code_with_statics.editor,
+        agent_view,
+      );
+    let rest_text = strip_agent_editor_view_block(content) |> String.trim;
     div(
       ~attrs=[clss(["full-screen-view"])],
       [
@@ -139,8 +171,27 @@ module ViewComponents = {
           ],
         ),
         div(
-          ~attrs=[clss(["view-content", "system-message"])],
-          [text(content)],
+          ~attrs=[clss(["view-content", "agent-context-body"])],
+          [
+            div(
+              ~attrs=[clss(["agent-context-editor-wrap"])],
+              [
+                div(
+                  ~attrs=[clss(["tool-call-diff-scrollable"])],
+                  [
+                    div(
+                      ~attrs=[clss(["tool-call-diff-segment"])],
+                      [ToolResultView.render_segment(~globals, segment)],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            div(
+              ~attrs=[clss(["agent-context-remainder", "system-message"])],
+              [text(rest_text)],
+            ),
+          ],
         ),
       ],
     );
@@ -366,6 +417,7 @@ let view =
       ~agent_model: Agent.Agent.Model.t,
       ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
+      ~code_with_statics: CodeWithStatics.Model.t,
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
@@ -1105,7 +1157,10 @@ let view =
   | Agent.Chat.Model.StaticErrors =>
     // Both AgentEditorView and StaticErrors now show context
     ViewComponents.context_view(
+      ~globals,
       ~content=chunked_chat.context,
+      ~code_with_statics,
+      ~agent_view=current_chat.agent_view,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )

@@ -71,6 +71,10 @@
   --WARNHOLE: oklch(0.97 0.04 78.17);
   --CREASE: oklch(0% 0 0 / 40%);
 
+  /* Agent chat — context meter (track = dark shale, fill = bright blue) */
+  --context-meter-track: var(--BR4);
+  --context-meter-fill: oklch(58% 0.2 250);
+
   /* CODE BACKGROUND */
 
   --main-bkg: var(--T3);

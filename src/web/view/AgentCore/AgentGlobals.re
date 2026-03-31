@@ -29,6 +29,28 @@ let get_active_llm_id = (model: Model.t): option(string) => {
   };
 };
 
+/** Context window from OpenRouter model metadata, or from [available_llms] if active llm omits it. */
+let context_length_for_active = (model: Model.t): option(int) => {
+  let from_catalog = (id: string): option(int) =>
+    switch (
+      List.find_opt(
+        (m: OpenRouter.AvailableLLMs.Model.llm_info) => m.id == id,
+        model.available_llms,
+      )
+    ) {
+    | Some(m) => m.context_length
+    | None => None
+    };
+  switch (model.active_llm) {
+  | Some(llm) =>
+    switch (llm.context_length) {
+    | Some(_) as known => known
+    | None => from_catalog(llm.id)
+    }
+  | None => None
+  };
+};
+
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =

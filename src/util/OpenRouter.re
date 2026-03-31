@@ -387,6 +387,8 @@ module AvailableLLMs = {
       id: string,
       name: string,
       pricing,
+      [@yojson.default None]
+      context_length: option(int),
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -449,6 +451,12 @@ module AvailableLLMs = {
                     let pricing_opt = List.assoc_opt("pricing", model_fields);
                     let params_opt =
                       List.assoc_opt("supported_parameters", model_fields);
+                    let context_length =
+                      switch (List.assoc_opt("context_length", model_fields)) {
+                      | Some(`Int(n)) => Some(n)
+                      | Some(`Float(f)) => Some(int_of_float(f))
+                      | _ => None
+                      };
 
                     if (!has_required_parameters(params_opt)) {
                       None;
@@ -472,6 +480,7 @@ module AvailableLLMs = {
                                 prompt: p,
                                 completion: c,
                               },
+                              context_length,
                             }: Model.llm_info,
                           )
                         | _ => None

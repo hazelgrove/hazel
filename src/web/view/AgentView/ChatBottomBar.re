@@ -204,18 +204,85 @@ let view =
     Effect.Stop_propagation;
   };
 
-  // Calculate total tokens
   let messages = Agent.Chat.Utils.get(current_chat);
-  let total_tokens =
+  /** Last API round's prompt size (full messages array tokenized by provider). */
+  let last_prompt_tokens_opt: option(int) =
     List.fold_left(
       (acc, msg: Agent.Message.Model.t) =>
         switch (msg.role) {
-        | Agent(Some(usage)) => acc + usage.total_tokens
+        | Agent(Some(usage)) => Some(usage.prompt_tokens)
         | _ => acc
         },
-      0,
+      None,
       messages,
     );
+  let context_limit_opt =
+    AgentGlobals.context_length_for_active(globals.settings.agent_globals);
+  let (meter_label, fill_pct_opt, hover_title) = {
+    let n_str =
+      switch (last_prompt_tokens_opt) {
+      | Some(n) => string_of_int(n)
+      | None => "—"
+      };
+    let m_str =
+      switch (context_limit_opt) {
+      | Some(m) => string_of_int(m)
+      | None => "—"
+      };
+    let label = n_str ++ " / " ++ m_str ++ " context used";
+    let (pct, title) =
+      switch (last_prompt_tokens_opt, context_limit_opt) {
+      | (Some(n), Some(m)) =>
+        if (m > 0) {
+          let frac = float_of_int(n) /. float_of_int(m);
+          let pct = min(100, int_of_float(ceil(frac *. 100.0)));
+          (
+            Some(pct),
+            Some(
+              Printf.sprintf(
+                "%.6f of model context used (%d / %d tokens)",
+                frac,
+                n,
+                m,
+              ),
+            ),
+          );
+        } else {
+          (
+            None,
+            Some(
+              Printf.sprintf(
+                "Prompt tokens from last model response: %d. Reported context limit is 0 (unknown).",
+                n,
+              ),
+            ),
+          );
+        }
+      | (Some(n), None) => (
+          None,
+          Some(
+            Printf.sprintf(
+              "Prompt tokens from last model response: %d. Model context limit not available (refresh models after setting API key).",
+              n,
+            ),
+          ),
+        )
+      | (None, Some(m)) => (
+          None,
+          Some(
+            Printf.sprintf(
+              "No usage yet. Model context limit: %d tokens.",
+              m,
+            ),
+          ),
+        )
+      | (None, None) => (
+          None,
+          Some("Send a message to see context usage from the provider."),
+        )
+      };
+    (label, pct, title);
+  };
 
   // Input area at bottom with buttons above
   div(
@@ -266,10 +333,43 @@ let view =
               },
             ],
           ),
-          // Token usage display
           div(
-            ~attrs=[clss(["token-usage-display"])],
-            [text("tokens: " ++ string_of_int(total_tokens))],
+            ~attrs=[
+              clss(["token-context-meter"]),
+              Attr.title(Option.value(~default="", hover_title)),
+            ],
+            [
+              div(
+                ~attrs=[clss(["token-context-meter-label"])],
+                [text(meter_label)],
+              ),
+              div(
+                ~attrs=[clss(["context-meter-track"])],
+                [
+                  div(
+                    ~attrs=[
+                      clss(["context-meter-fill"]),
+                      ...switch (fill_pct_opt) {
+                         | Some(pct) => [
+                             Attr.style(
+                               Css_gen.create(
+                                 ~field="width",
+                                 ~value=string_of_int(pct) ++ "%",
+                               ),
+                             ),
+                           ]
+                         | None => [
+                             Attr.style(
+                               Css_gen.create(~field="width", ~value="0%"),
+                             ),
+                           ]
+                         },
+                    ],
+                    [],
+                  ),
+                ],
+              ),
+            ],
           ),
           // Right side export and copy buttons
           div(

@@ -211,10 +211,39 @@
   gap: 0.75em;
 }
 
-.token-usage-display {
+.token-context-meter {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2em;
+  min-width: 9.5rem;
+  max-width: 11rem;
+  flex-shrink: 0;
+}
+
+.token-context-meter-label {
   font-family: monospace;
-  font-size: 0.9em;
+  font-size: 0.72em;
   color: var(--BR4);
+  text-align: center;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.context-meter-track {
+  height: 5px;
+  border-radius: 3px;
+  background-color: var(--context-meter-track);
+  overflow: hidden;
+  width: 100%;
+}
+
+.context-meter-fill {
+  height: 100%;
+  border-radius: 3px;
+  background-color: var(--context-meter-fill);
+  min-width: 0;
+  transition: width 0.2s ease;
 }
 
 /* Toast notification for copy */
@@ -1498,6 +1527,24 @@
   font-style: italic;
   padding: 0.5em;
   text-align: center;
+}
+
+/* Agent Context: program block matches tool diff segment styling */
+.agent-context-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.agent-context-editor-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.agent-context-remainder {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Prompt and Developer Notes Display */
