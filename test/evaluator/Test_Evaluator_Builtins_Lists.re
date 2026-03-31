@@ -458,20 +458,20 @@ let tests = (
     test_case("pivot_table", `Quick, () =>
       parse_and_evaluate_test(
         {|
-      [(index="x", `A`=2, `B`=1, `C`=0), (index="y", `A`=1, `B`=1, `C`=1)]
+      [(index=true, `A`=60, `B`=30, `C`=0), (index=false, `A`=20, `B`=40, `C`=60)]
       |},
         {|pivot_table(
   [
-    ("A", "x"),
-    ("A", "y"),
-    ("B", "x"),
-    ("B", "y"),
-    ("A", "x"),
-    ("C", "y")
+    ("A", true, 10),
+    ("A", false, 20),
+    ("B", true, 30),
+    ("B", false, 40),
+    ("A", true, 50),
+    ("C", false, 60)
   ],
-  fun (r, _) -> r,
-  fun (_, c) -> c,
-  length
+  fun (r, _, _) -> r,
+  fun (_, c, _) -> c,
+  fold_left(_, fun (acc, (_, _, v)) -> acc + v, 0)
 )
 |},
       )
