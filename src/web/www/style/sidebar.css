@@ -2,6 +2,38 @@
   text-transform: none;
 }
 
+/* Make all text in the sidebar selectable */
+#side-bar {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+#side-bar * {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* But allow buttons and interactive elements to remain non-selectable for better UX */
+#side-bar button,
+#side-bar .chat-action-button,
+#side-bar .branch-nav-button,
+#side-bar .history-menu-item,
+#side-bar .chat-view-button,
+#side-bar .chat-view-header-button,
+#side-bar .chat-view-header-icon-button,
+#side-bar input,
+#side-bar textarea,
+#side-bar .resize-handle {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
 /* Persistent Sidebar */
 
 #persistent {
@@ -64,4 +96,6 @@
   cursor: col-resize;
   background-color: transparent;
   transition: background-color 0.2s ease;
+  z-index: 1000; /* Ensure resize handle is above other content */
+  pointer-events: auto;
 }

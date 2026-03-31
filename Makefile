@@ -80,11 +80,11 @@ repl:
 test:
 	dune fmt --auto-promote || true
 	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
-	node --stack-size=8192 $(TEST_DIR)/haz3ltest.bc.js
+	node --stack-size=8192 --require $(TEST_DIR)/idb_stub.js $(TEST_DIR)/haz3ltest.bc.js
 
 test-quick:
 	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
-	node --stack-size=8192 $(TEST_DIR)/haz3ltest.bc.js -q
+	node --stack-size=8192 --require $(TEST_DIR)/idb_stub.js $(TEST_DIR)/haz3ltest.bc.js -q
 
 watch-test:
 	dune build @ocaml-index @fmt @runtest @default --profile dev --auto-promote --watch

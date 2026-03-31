@@ -138,6 +138,106 @@ let prefixes = (s: string): list(string) => {
   };
 };
 
+let levenshtein_distance = (a: string, b: string): int => {
+  let a_len = String.length(a);
+  let b_len = String.length(b);
+  if (a_len == 0) {
+    b_len;
+  } else if (b_len == 0) {
+    a_len;
+  } else {
+    let prev = Array.init(b_len + 1, i => i);
+    let curr = Array.make(b_len + 1, 0);
+    for (i in 1 to a_len) {
+      curr[0] = i;
+      let ai = a.[i - 1];
+      for (j in 1 to b_len) {
+        let bj = b.[j - 1];
+        let cost =
+          if (ai == bj) {
+            0;
+          } else {
+            1;
+          };
+        let deletion = prev[j] + 1;
+        let insertion = curr[j - 1] + 1;
+        let substitution = prev[j - 1] + cost;
+        let m =
+          if (deletion < insertion) {
+            deletion;
+          } else {
+            insertion;
+          };
+        curr[j] = (
+          if (m < substitution) {
+            m;
+          } else {
+            substitution;
+          }
+        );
+      };
+      for (k in 0 to b_len) {
+        prev[k] = curr[k];
+      };
+    };
+    prev[b_len];
+  };
+};
+
+/* Compute edit distance between two lists of strings using the Levenshtein algorithm */
+let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
+  let a_len = List.length(a);
+  let b_len = List.length(b);
+  /* Fast-paths */
+  if (a_len == 0) {
+    b_len;
+  } else if (b_len == 0) {
+    a_len;
+  } else {
+    let a_arr = Array.of_list(a);
+    let b_arr = Array.of_list(b);
+    let prev = Array.init(b_len + 1, i => i);
+    let curr = Array.make(b_len + 1, 0);
+
+    let min3 = (x, y, z) => {
+      let m =
+        if (x < y) {
+          x;
+        } else {
+          y;
+        };
+      if (m < z) {
+        m;
+      } else {
+        z;
+      };
+    };
+
+    for (i in 1 to a_len) {
+      curr[0] = i;
+      let ai = a_arr[i - 1];
+      for (j in 1 to b_len) {
+        let bj = b_arr[j - 1];
+        let cost =
+          if (ai == bj) {
+            0;
+          } else {
+            1;
+          };
+        let deletion = prev[j] + 1;
+        let insertion = curr[j - 1] + 1;
+        let substitution = prev[j - 1] + cost;
+        curr[j] = min3(deletion, insertion, substitution);
+      };
+      /* copy curr into prev for next iteration */
+      for (k in 0 to b_len) {
+        prev[k] = curr[k];
+      };
+    };
+    prev[b_len];
+  };
+};
+
 // Removes double quotes from string and escapes newlines
 // Update once https://github.com/hazelgrove/hazel/issues/786 is done
 let sanitize_for_string_expression = (s: string): string => {
