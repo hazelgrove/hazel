@@ -56,7 +56,12 @@ module Store = {
           ),
         slides,
       );
-    Model.Scratch(ScratchMode.Model.{current, scratchpads});
+    Model.Scratch(
+      ScratchMode.Model.{
+        current,
+        scratchpads,
+      },
+    );
   };
 
   let load = (~settings, ~instructor_mode) => {
