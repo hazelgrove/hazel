@@ -49,14 +49,27 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
   );
 
-let toggle_named = (~tooltip="", icon, active, action) =>
+let toggle_named = (~name="", ~tooltip=?, icon, active, action) => {
+  let tooltip_attrs =
+    switch (tooltip) {
+    | Some(t) => [Attr.title(t)]
+    | None => []
+    };
   div(
-    ~attrs=[
-      clss(["named-menu-item"] @ (active ? ["active"] : [])),
-      Attr.on_pointerdown(action),
+    ~attrs=
+      [
+        clss(["named-menu-item"] @ (active ? ["active"] : [])),
+        Attr.on_pointerdown(action),
+      ]
+      @ tooltip_attrs,
+    [
+      toggle(~tooltip=Option.value(~default="", tooltip), icon, active, _ =>
+        Effect.Ignore
+      ),
+      div([text(name)]),
     ],
-    [toggle(icon, active, _ => Effect.Ignore), div([text(tooltip)])],
   );
+};
 
 let file_select_button = (~tooltip="", id, icon, on_input) => {
   /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
