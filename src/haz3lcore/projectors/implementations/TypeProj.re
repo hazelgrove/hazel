@@ -25,35 +25,14 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   };
 
 let get_dynamic_typ = (info: info): Typ.t => {
-  let dynamic_typ =
-    info.dynamics
-    |> Option.bind(
-         _,
-         (d: Dynamics.Info.t) => {
-           let statics =
-             Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-           let type_of = (c: Sample.t) => {
-             IdTagged.rep_id(c.value)
-             |> Id.Map.find_opt(_, statics(c.value))
-             |> Option.bind(
-                  _,
-                  fun
-                  | InfoExp(e) => {
-                      Some(e.ty);
-                    }
-                  | _ => None,
-                );
-           };
-           let types = List.map(type_of, d.samples) |> Util.OptUtil.sequence;
-
-           Option.bind(
-             types,
-             Typ.meet_all(~empty=Typ.fresh(Unknown(Internal)), Ctx.empty),
-           );
-         },
-       )
-    |> Option.value(~default=Typ.fresh(Unknown(Internal)));
-  dynamic_typ;
+  let ctx =
+    Option.map(Info.ctx_of, info.statics)
+    |> Option.value(~default=Builtins.ctx_init(Some(Int)));
+  info.dynamics
+  |> Option.map((d: Dynamics.Info.t) =>
+       DynamicTypInfer.dynamic_typ_of_samples_or_unknown(~ctx, d.samples)
+     )
+  |> Option.value(~default=Typ.fresh(Unknown(Internal)));
 };
 
 module M: Projector = {
