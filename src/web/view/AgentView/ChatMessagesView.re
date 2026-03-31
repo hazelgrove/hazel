@@ -1234,18 +1234,7 @@ let view =
         // Chunks display area
         div(
           ~attrs=[clss(["chat-messages-container"])],
-          (
-            switch (agent_model.compaction_in_progress) {
-            | Some(id) when id == current_chat_id => [
-                div(
-                  ~attrs=[clss(["compaction-in-progress-banner"])],
-                  [text("Compacting conversation…")],
-                ),
-              ]
-            | _ => []
-            }
-          )
-          @ List.mapi(render_chunk, chunked_chat.log)
+          List.mapi(render_chunk, chunked_chat.log)
           @ (
             switch (agent_model.awaiting_response) {
             | Some(awaiting_id) when awaiting_id == current_chat_id => [
@@ -1269,6 +1258,17 @@ let view =
                       ],
                     ),
                   ],
+                ),
+              ]
+            | _ => []
+            }
+          )
+          @ (
+            switch (agent_model.compaction_in_progress) {
+            | Some(id) when id == current_chat_id => [
+                div(
+                  ~attrs=[clss(["compaction-in-progress-banner"])],
+                  [text("Compacting conversation…")],
                 ),
               ]
             | _ => []

@@ -1029,7 +1029,7 @@ module ChunkedUIChat = {
 /** Slash commands in the chat input (see ChatBottomBar). Alphabetically ordered names. */
 module ChatSlashCommands = {
   let all_alphabetical: list((string, string)) = [
-    ("compact", "Summarize and compact the conversation"),
+    ("compact", "Summarize the conversation"),
   ];
 
   let filtered = (filter: string): list((string, string)) => {
@@ -1732,10 +1732,57 @@ module Agent = {
       OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
     };
 
-    let compaction_summarizer_system_prompt =
-      "You compress a coding-assistant chat for the assistant's memory. "
-      ++ "Write a concise third-person summary. Preserve user goals, decisions, errors, "
-      ++ "tool outcomes, symbols or paths, and open tasks. No first-person; plain prose only.";
+    let test_results_string =
+        (test_results: option(Language.TestResults.t)): string => {
+      switch (test_results) {
+      | None => "No test results available (evaluator may still be running)."
+      | Some(results) when results.total == 0 => "No tests in program."
+      | Some(results) =>
+        let summary = Language.TestResults.test_summary_str(results);
+        let details =
+          List.mapi(
+            (i, status: Language.TestStatus.t) => {
+              let status_str = Language.TestStatus.to_string(status);
+              "Test " ++ string_of_int(i + 1) ++ ": " ++ status_str;
+            },
+            results.statuses,
+          );
+        summary ++ "\n" ++ String.concat("\n", details);
+      };
+    };
+
+    /** Same [[context]] payload the main agent sees ([[mk_context_message]]), built from the
+        live editor and [[agent_view]] — appended last to the compaction API so the summarizer
+        has current program text, errors, tests, and workbench (without changing UI state). */
+    let compaction_context_snapshot_message =
+        (model: Model.t, cell_editor: CellEditor.Model.t, chat_id: Id.t)
+        : Message.Model.t => {
+      let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+      let cws = cell_editor.editor;
+      let agent_editor_view_string =
+        CompositionView.Public.print(
+          ~probe_map=cws.dynamics,
+          cws.editor,
+          curr_chat.agent_view,
+        );
+      let static_errors_info_string =
+        ErrorPrint.all(
+          CompositionGo.Public.mk_statics(cws.editor.state.zipper),
+        )
+        |> String.concat("\n");
+      let test_results_info_string =
+        test_results_string(
+          EvalResult.Model.test_results(cell_editor.result),
+        );
+      Message.Utils.mk_context_message(
+        agent_editor_view_string,
+        static_errors_info_string,
+        test_results_info_string,
+        AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
+          curr_chat.agent_workbench,
+        ),
+      );
+    };
 
     let compaction_summary_method_label = "Model-generated summary";
 
@@ -1791,6 +1838,7 @@ module Agent = {
           ~chat_id: Id.t,
           ~settings: Settings.t,
           ~schedule_action: Action.t => unit,
+          ~cell_editor: CellEditor.Model.t,
         )
         : Model.t =>
       if (Option.is_some(model.compaction_in_progress)) {
@@ -1857,13 +1905,24 @@ module Agent = {
             model;
           };
         } else {
+          let context_msg =
+            compaction_context_snapshot_message(model, cell_editor, chat_id);
           let summary_api_msgs =
             [
               OpenRouter.Message.Utils.mk_system_msg(
-                compaction_summarizer_system_prompt,
+                CompactionPrompt.mk_system_prompt(
+                  ~agent_system_prompt=model.prompting.system_prompt,
+                  ~dev_notes=model.prompting.dev_notes,
+                ),
               ),
             ]
-            @ List.filter_map(Message.Utils.api_message_of_message, dialogue);
+            @ List.filter_map(Message.Utils.api_message_of_message, dialogue)
+            @ (
+              switch (Message.Utils.api_message_of_message(context_msg)) {
+              | Some(m) => [m]
+              | None => []
+              }
+            );
           switch (
             settings.agent_globals.api_key,
             AgentGlobals.get_active_llm_id(settings.agent_globals),
@@ -2032,25 +2091,6 @@ module Agent = {
             awaiting_response: Some(chat_id),
           });
         };
-      };
-    };
-
-    let test_results_string =
-        (test_results: option(Language.TestResults.t)): string => {
-      switch (test_results) {
-      | None => "No test results available (evaluator may still be running)."
-      | Some(results) when results.total == 0 => "No tests in program."
-      | Some(results) =>
-        let summary = Language.TestResults.test_summary_str(results);
-        let details =
-          List.mapi(
-            (i, status: Language.TestStatus.t) => {
-              let status_str = Language.TestStatus.to_string(status);
-              "Test " ++ string_of_int(i + 1) ++ ": " ++ status_str;
-            },
-            results.statuses,
-          );
-        summary ++ "\n" ++ String.concat("\n", details);
       };
     };
 
@@ -2517,6 +2557,7 @@ module Agent = {
                   ~chat_id,
                   ~settings,
                   ~schedule_action,
+                  ~cell_editor,
                 );
               (model', cell_editor |> Updated.return_quiet);
             } else {
@@ -2654,6 +2695,7 @@ module Agent = {
             ~chat_id,
             ~settings,
             ~schedule_action,
+            ~cell_editor=editor,
           );
         (model', editor |> Updated.return);
       | HandleChatNamingResponse(title, chat_id) =>

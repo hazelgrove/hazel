@@ -259,6 +259,28 @@ module Utils = {
     );
   };
 
+  /** Decode [content] the way several providers return it: plain string, null,
+      or an array of parts like [{"type":"text","text":"..."}]. String-only
+      parsing used to drop array-shaped replies and surface as empty text. */
+  let message_content_string = (content: Json.t): option(string) => {
+    switch (content) {
+    | `Null => Some("")
+    | `String(s) => Some(s)
+    | `List(parts) =>
+      let texts =
+        List.filter_map(
+          (part: Json.t) =>
+            switch (Json.dot("text", part)) {
+            | Some(t) => Json.str(t)
+            | None => None
+            },
+          parts,
+        );
+      Some(String.concat("", texts));
+    | _ => None
+    };
+  };
+
   let first_message_content = (choices: Json.t): option(string) => {
     let* choices = Json.list(choices);
     let* hd = ListUtil.hd_opt(choices);
@@ -267,8 +289,22 @@ module Utils = {
       | Some(message) => Some(message)
       | None => Json.dot("delta", hd)
       };
-    let* content = Json.dot("content", delta);
-    Json.str(content);
+    let from_content =
+      switch (Json.dot("content", delta)) {
+      | None => None
+      | Some(c) => message_content_string(c)
+      };
+    let from_reasoning = Option.bind(Json.dot("reasoning", delta), Json.str);
+    let combined =
+      switch (from_content) {
+      | Some(c) when String.trim(c) != "" => Some(c)
+      | _ =>
+        switch (from_reasoning) {
+        | Some(r) when String.trim(r) != "" => Some(r)
+        | _ => from_content
+        }
+      };
+    combined;
   };
 
   let parse_tool_args = (args: Json.t): Json.t => {
