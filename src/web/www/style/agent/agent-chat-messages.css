@@ -2084,3 +2084,37 @@
   padding-top: 0.15em;
 }
 
+/* Auto-compaction: in-progress banner + completed notice */
+.compaction-in-progress-banner {
+  padding: 0.65em 0.85em;
+  border-radius: 6px;
+  background: oklch(0.55 0.08 250 / 0.12);
+  border: 1px solid oklch(0.55 0.08 250 / 0.35);
+  font-size: 0.9em;
+  color: var(--STONE);
+}
+
+.compaction-notice-container {
+  border-left: 3px solid var(--BR2);
+  padding-left: 0.75em;
+  margin: 0.25em 0;
+}
+
+.compaction-notice-identifier {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.compaction-notice-method {
+  font-size: 0.8em;
+  color: var(--BR3);
+  margin-bottom: 0.35em;
+}
+
+.compaction-notice-body {
+  font-size: 0.88em;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--STONE);
+}
+

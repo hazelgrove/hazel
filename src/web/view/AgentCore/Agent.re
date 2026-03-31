@@ -55,7 +55,8 @@ module Message = {
       | DeveloperNotes // Only one should exist
       | Prompt // Only one should exist
       | Context
-      | RetryNote; // Research transparency: empty/API retries
+      | RetryNote // Research transparency: empty/API retries
+      | CompactionSummary(string); // method label for UI; ends API prefix before this on older turns
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     // Separating like such, as agent messages appear on left
@@ -287,6 +288,25 @@ module Message = {
       };
     };
 
+    /** Summary of prior turns for the API; [method] is shown in the chat UI. */
+    let mk_compaction_summary = (~method: string, content: string): Model.t => {
+      let sanitized_content = String.trim(content);
+      let api_text =
+        "[Prior conversation summary — "
+        ++ method
+        ++ "]\n\n"
+        ++ sanitized_content;
+      {
+        id: Id.mk(),
+        content: sanitized_content,
+        timestamp: JsUtil.timestamp(),
+        role: System(CompactionSummary(method)),
+        api_message: Some(OpenRouter.Message.Utils.mk_system_msg(api_text)),
+        children: [],
+        current_child: None,
+      };
+    };
+
     let api_message_of_message =
         (message: Model.t): option(OpenRouter.Message.Model.t) => {
       switch (message.api_message) {
@@ -317,6 +337,8 @@ module Message = {
             | Prompt => `String("prompt")
             | Context => `String("context")
             | RetryNote => `String("retry_note")
+            | CompactionSummary(method) =>
+              `Assoc([("compaction_summary", `String(method))])
             }
           | ToolResult(tool_result) =>
             `Assoc([
@@ -643,6 +665,53 @@ module Chat = {
       };
     };
 
+    let rec last_compaction_index =
+            (i: int, acc: option(int), msgs: list(Message.Model.t))
+            : option(int) => {
+      switch (msgs) {
+      | [] => acc
+      | [m, ...rest] =>
+        let acc' =
+          switch (m.role) {
+          | Message.Model.System(Message.Model.CompactionSummary(_)) =>
+            Some(i)
+          | _ => acc
+          };
+        last_compaction_index(i + 1, acc', rest);
+      };
+    };
+
+    /** Transcript segment to summarize: after dev notes (or after the latest compaction on this branch). */
+    let dialogue_slice_for_compaction_summary = (chat: Model.t): list(Message.Model.t) => {
+      let linear = linearize(chat);
+      let start =
+        switch (last_compaction_index(0, None, linear)) {
+        | None => 2
+        | Some(i) => i + 1
+        };
+      ListUtil.remove_first_n(start, linear);
+    };
+
+    /** OpenRouter payload for the main agent: always prompt + dev notes + active suffix from latest compaction, then context. */
+    let messages_for_openrouter = (chat: Model.t): list(Message.Model.t) => {
+      let linear = linearize(chat);
+      let trimmed =
+        switch (last_compaction_index(0, None, linear)) {
+        | None => linear
+        | Some(idx) =>
+          switch (linear) {
+          | [p, d, ..._] =>
+            let suffix = ListUtil.remove_first_n(idx, linear);
+            [p, d, ...suffix];
+          | _ => linear
+          }
+        };
+      switch (chat.context) {
+      | Some(context) => trimmed @ [context]
+      | None => trimmed
+      };
+    };
+
     let init = (~system_prompt: string, ~dev_notes: string): Model.t => {
       let system_prompt = Message.Utils.mk_prompt_message(system_prompt);
       let chat: Model.t = {
@@ -765,9 +834,16 @@ module ChunkedUIChat = {
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
+    type compaction_notice = {
+      method: string,
+      content: string,
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type chunk =
       | UserMessage(user_message)
       | AgentResponseChunk(agent_response_chunk)
+      | CompactionNotice(compaction_notice)
       | ErrorMessage(string);
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -901,6 +977,17 @@ module ChunkedUIChat = {
               log: acc_model.log @ [chunk],
             };
             convert_helper(rest, updated_model);
+          | System(CompactionSummary(method)) =>
+            let chunk =
+              Model.CompactionNotice({
+                method,
+                content: message.content,
+              });
+            let updated_model = {
+              ...acc_model,
+              log: acc_model.log @ [chunk],
+            };
+            convert_helper(rest, updated_model);
           | System(RetryNote) =>
             switch (curr_last_chunk(acc_model)) {
             | AgentResponseChunk(agent_response_chunk) =>
@@ -917,6 +1004,7 @@ module ChunkedUIChat = {
               };
               convert_helper(rest, updated_model);
             | UserMessage(_)
+            | CompactionNotice(_)
             | ErrorMessage(_) =>
               let chunk = mk_agent_response_chunk(message);
               let updated_model = {
@@ -1105,6 +1193,8 @@ module Agent = {
       last_empty_retry_attempt: option(int),
       last_active_task_nudge_attempt: option(int),
       tools_view_expanded: list(string),
+      [@yojson.default None]
+      compaction_in_progress: option(Id.t),
     };
   };
 
@@ -1119,6 +1209,7 @@ module Agent = {
         last_empty_retry_attempt: None,
         last_active_task_nudge_attempt: None,
         tools_view_expanded: [],
+        compaction_in_progress: None,
       };
     };
 
@@ -1130,6 +1221,7 @@ module Agent = {
         last_empty_retry_attempt: None,
         last_active_task_nudge_attempt: None,
         tools_view_expanded: [],
+        compaction_in_progress: None,
       };
     };
   };
@@ -1229,6 +1321,7 @@ module Agent = {
         last_empty_retry_attempt: None,
         last_active_task_nudge_attempt: None,
         tools_view_expanded: [],
+        compaction_in_progress: None,
       };
     };
   };
@@ -1470,6 +1563,7 @@ module Agent = {
         | ChatSystemAction(ChatSystem.Update.Action.t)
         | SendMessage(Message.Model.t, Id.t)
         | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t)
+        | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t)
         | HandleChatNamingResponse(string, Id.t)
         | ApiErrorResponse(Id.t, Message.Model.t)
         | RetryApiError(Id.t, int)
@@ -1533,6 +1627,55 @@ module Agent = {
       OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
     };
 
+    let compaction_summarizer_system_prompt =
+      "You compress a coding-assistant chat for the assistant's memory. "
+      ++ "Write a concise third-person summary. Preserve user goals, decisions, errors, "
+      ++ "tool outcomes, symbols or paths, and open tasks. No first-person; plain prose only.";
+
+    let compaction_summary_method_label = "Model-generated summary";
+
+    let send_compaction_request =
+        (
+          ~api_key: string,
+          ~llm_id: string,
+          ~messages: list(OpenRouter.Message.Model.t),
+          ~schedule_action: Action.t => unit,
+          ~chat_id: Id.t,
+        )
+        : unit => {
+      let handler = (response: option(API.Json.t)): unit => {
+        switch (OpenRouter.Utils.handle_chat(response)) {
+        | Some(OpenRouter.Model.Reply(reply)) =>
+          schedule_action(Action.HandleCompactionLLMReply(reply, chat_id))
+        | Some(OpenRouter.Model.Error({message, code})) =>
+          let api_error_content =
+            "Compaction failed (code "
+            ++ string_of_int(code)
+            ++ "): "
+            ++ message;
+          let api_error_message =
+            Message.Utils.mk_api_failure_message(api_error_content);
+          schedule_action(Action.ApiErrorResponse(chat_id, api_error_message));
+        | None =>
+          schedule_action(
+            Action.ApiErrorResponse(
+              chat_id,
+              Message.Utils.mk_api_failure_message(
+                "Compaction failed: empty API response.",
+              ),
+            ),
+          );
+        };
+      };
+      let payload =
+        OpenRouter.Payload.Utils.mk_default(
+          ~model_id=llm_id,
+          ~messages,
+          ~tools=[],
+        );
+      OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
+    };
+
     let send_llm_request =
         (
           ~api_key: string,
@@ -1574,6 +1717,9 @@ module Agent = {
           schedule_action: Action.t => unit,
         )
         : Result.t(Model.t) => {
+      switch (model.compaction_in_progress) {
+      | Some(id) when id == chat_id => Ok(model)
+      | _ => {
       let chat_system = model.chat_system;
       let chat_system =
         ChatSystem.Update.update(
@@ -1629,7 +1775,7 @@ module Agent = {
               ~model_id=llm_id,
               ~messages=
                 Chat.Utils.api_messages_of_messages(
-                  Chat.Utils.get(
+                  Chat.Utils.messages_for_openrouter(
                     ChatSystem.Utils.find_chat(chat_id, chat_system),
                   ),
                 ),
@@ -1654,6 +1800,8 @@ module Agent = {
           awaiting_response: Some(chat_id),
         });
       };
+      }
+    };
     };
 
     let test_results_string =
@@ -2114,14 +2262,70 @@ module Agent = {
               cell_editor |> Updated.return_quiet,
             );
           } else {
-            (
-              {
-                ...model,
-                awaiting_response: None,
-                last_active_task_nudge_attempt: None,
-              },
-              cell_editor |> Updated.return_quiet,
-            );
+            let model_idle = {
+              ...model,
+              awaiting_response: None,
+              last_active_task_nudge_attempt: None,
+            };
+            let limit_opt =
+              AgentGlobals.context_meter_limit_for_active(
+                settings.agent_globals,
+              );
+            let should_compact =
+              switch (reply.usage, limit_opt) {
+              | (Some(usage), Some(limit)) =>
+                usage.prompt_tokens >= limit
+              | _ => false
+              };
+            let may_start_compaction =
+              Option.is_none(model_idle.compaction_in_progress);
+            let chat =
+              ChatSystem.Utils.find_chat(chat_id, model_idle.chat_system);
+            let dialogue =
+              Chat.Utils.dialogue_slice_for_compaction_summary(chat);
+            if (should_compact
+                && may_start_compaction
+                && dialogue != []) {
+              let summary_api_msgs =
+                [
+                  OpenRouter.Message.Utils.mk_system_msg(
+                    compaction_summarizer_system_prompt,
+                  ),
+                ]
+                @ List.filter_map(
+                    Message.Utils.api_message_of_message,
+                    dialogue,
+                  );
+              switch (
+                settings.agent_globals.api_key,
+                AgentGlobals.get_active_llm_id(settings.agent_globals),
+              ) {
+              | (Some(api_key), Some(llm_id)) =>
+                send_compaction_request(
+                  ~api_key,
+                  ~llm_id,
+                  ~messages=summary_api_msgs,
+                  ~schedule_action,
+                  ~chat_id,
+                );
+                (
+                  {
+                    ...model_idle,
+                    compaction_in_progress: Some(chat_id),
+                  },
+                  cell_editor |> Updated.return_quiet,
+                );
+              | _ => (
+                  model_idle,
+                  cell_editor |> Updated.return_quiet,
+                )
+              };
+            } else {
+              (
+                model_idle,
+                cell_editor |> Updated.return_quiet,
+              );
+            };
           };
         };
       };
@@ -2190,6 +2394,56 @@ module Agent = {
           settings,
           schedule_action,
         )
+      | HandleCompactionLLMReply(reply, chat_id) =>
+        let model_cleared = {
+          ...model,
+          compaction_in_progress: None,
+        };
+        let content = String.trim(reply.content);
+        if (content == "") {
+          let err =
+            Message.Utils.mk_api_failure_message(
+              "Compaction returned an empty summary.",
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AppendMessage(err),
+                chat_id,
+              ),
+              model_cleared.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          (
+            {
+              ...model_cleared,
+              chat_system,
+            },
+            editor |> Updated.return,
+          );
+        } else {
+          let summary =
+            Message.Utils.mk_compaction_summary(
+              ~method=compaction_summary_method_label,
+              content,
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AppendMessage(summary),
+                chat_id,
+              ),
+              model_cleared.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          (
+            {
+              ...model_cleared,
+              chat_system,
+            },
+            editor |> Updated.return,
+          );
+        }
       | HandleChatNamingResponse(title, chat_id) =>
         let chat_system =
           ChatSystem.Update.update(
@@ -2222,6 +2476,11 @@ module Agent = {
             ...model,
             chat_system,
             awaiting_response: None,
+            compaction_in_progress:
+              switch (model.compaction_in_progress) {
+              | Some(id) when id == chat_id => None
+              | c => c
+              },
           },
           editor |> Updated.return,
         );
@@ -2280,7 +2539,7 @@ module Agent = {
                 ~model_id=llm_id,
                 ~messages=
                   Chat.Utils.api_messages_of_messages(
-                    Chat.Utils.get(
+                    Chat.Utils.messages_for_openrouter(
                       ChatSystem.Utils.find_chat(chat_id, chat_system),
                     ),
                   ),
@@ -2351,7 +2610,7 @@ module Agent = {
                 ~model_id=llm_id,
                 ~messages=
                   Chat.Utils.api_messages_of_messages(
-                    Chat.Utils.get(
+                    Chat.Utils.messages_for_openrouter(
                       ChatSystem.Utils.find_chat(chat_id, model.chat_system),
                     ),
                   ),

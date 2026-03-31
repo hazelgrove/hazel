@@ -21,6 +21,11 @@ let view =
   let chat_system = agent_model.chat_system;
   let current_chat =
     Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
+  let is_compacting =
+    switch (agent_model.compaction_in_progress) {
+    | Some(id) when id == current_chat_id => true
+    | _ => false
+    };
 
   // Auto-resize textarea helper
   let autosize_textarea = (id: string) => {
@@ -57,6 +62,9 @@ let view =
 
   // Send message handler
   let send_message = _ => {
+    if (is_compacting) {
+      Effect.Stop_propagation;
+    } else {
     let message_content = String.trim(current_text);
     if (String.length(message_content) > 0) {
       let user_message = Agent.Message.Utils.mk_user_message(message_content);
@@ -76,6 +84,7 @@ let view =
       ]);
     } else {
       Effect.Stop_propagation;
+    };
     };
   };
 
@@ -364,7 +373,10 @@ let view =
             ~attrs=[
               clss(["chat-message-input"]),
               Attr.id("chat-message-input"),
-              Attr.placeholder("Type your message..."),
+              Attr.placeholder(
+                is_compacting
+                  ? "Compacting conversation…" : "Type your message...",
+              ),
               Attr.property("autocomplete", Js.Unsafe.inject("off")),
               Attr.on_focus(_ => {
                 Js.Opt.iter(
@@ -398,6 +410,9 @@ let view =
                 let shift_pressed = Key.shift_held(event);
                 switch (key) {
                 | Some("Enter") when !shift_pressed =>
+                  if (is_compacting) {
+                    Effect.Stop_propagation;
+                  } else {
                   Js.Opt.iter(
                     Dom_html.document##getElementById(
                       Js.string("chat-message-input"),
@@ -412,6 +427,7 @@ let view =
                     Effect.Prevent_default,
                     Effect.Stop_propagation,
                   ]);
+                  };
                 | Some("Enter") => Effect.Stop_propagation
                 | _ => Effect.Stop_propagation
                 };
@@ -428,7 +444,7 @@ let view =
             ],
             [text(current_text)],
           ),
-          if (String.length(String.trim(current_text)) > 0) {
+          if (String.length(String.trim(current_text)) > 0 && !is_compacting) {
             div(
               ~attrs=[
                 clss(["send-button", "icon", "chat-message-send-button"]),
