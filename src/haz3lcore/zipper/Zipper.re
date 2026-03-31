@@ -313,13 +313,17 @@ let unselect = (~erase_buffer=false, z: t): t => {
  * char-level selection destruction. Callers' remold_regrout will
  * assign the correct mold. */
 let mk_remainder_piece = (tok: Token.t): Piece.t =>
-  Tile({
-    id: Id.mk(),
-    label: [tok],
-    mold: Mold.mk_op(Sort.Any, []),
-    shards: [0],
-    children: [],
-  });
+  if (Token.is_secondary(tok)) {
+    Secondary(Secondary.mk(Id.mk(), tok));
+  } else {
+    Tile({
+      id: Id.mk(),
+      label: [tok],
+      mold: Mold.mk_op(Sort.Any, []),
+      shards: [0],
+      children: [],
+    });
+  };
 
 let destroy_selection: t => t =
   z =>

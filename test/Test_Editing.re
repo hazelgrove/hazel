@@ -3826,12 +3826,75 @@ let cross_boundary_tests = [
   test_destruct_char(
     ~name="Delete selection including opening comment hash",
     ~init={|§#he¦llo#?|},
-    ~goal={|#¦llo#~?|},
+    ~goal={|#¦llo#?|},
   ),
   test_destruct_char(
     ~name="Delete selection including closing comment hash",
     ~init={|#hel§lo#¦?|},
-    ~goal={|#hel¦#~?|},
+    ~goal={|#hel¦#?|},
+  ),
+  /* --- Delete within comment (both delimiters intact) --- */
+  test_destruct_char(
+    ~name="Delete char selection within comment (text)",
+    ~init={|#he§ll¦o#|},
+    ~goal={|#he¦o#?|},
+  ),
+  test_case(
+    "Delete within comment preserves Secondary piece type",
+    `Quick,
+    () => {
+      let z = mk_zipper({|#he§ll¦o#|});
+      let z = perform(z, [Destruct(Left)]);
+      let seg = Zipper.unselect_and_zip(z);
+      let has_comment =
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(s) => Secondary.is_comment(s)
+            | _ => false
+            },
+          seg,
+        );
+      check(Alcotest.bool, "comment piece exists", true, has_comment);
+    },
+  ),
+  test_case(
+    "Delete within comment in expr context preserves Secondary",
+    `Quick,
+    () => {
+      let z = mk_zipper({|1 + #he§ll¦o# + 2|});
+      let z = perform(z, [Destruct(Left)]);
+      let seg = Zipper.unselect_and_zip(z);
+      let has_comment =
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(s) => Secondary.is_comment(s)
+            | _ => false
+            },
+          seg,
+        );
+      check(Alcotest.bool, "comment piece exists", true, has_comment);
+    },
+  ),
+  test_case(
+    "Cut within comment preserves Secondary piece type",
+    `Quick,
+    () => {
+      let z = mk_zipper({|#he§ll¦o#|});
+      let z = perform(z, [Cut]);
+      let seg = Zipper.unselect_and_zip(z);
+      let has_comment =
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(s) => Secondary.is_comment(s)
+            | _ => false
+            },
+          seg,
+        );
+      check(Alcotest.bool, "comment piece exists", true, has_comment);
+    },
   ),
   /* --- Token merging after paste --- */
   test_cut_paste(
