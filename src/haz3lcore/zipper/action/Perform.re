@@ -68,18 +68,16 @@ let go =
     Move.go(
       ~statics=statics.info_map,
       ~problem_ids=
-        () =>
+        Seq.append(
+          List.to_seq(statics.error_ids),
           Seq.append(
-            List.to_seq(statics.error_ids),
-            Seq.append(
-              List.to_seq(statics.warning_ids),
-              Seq.filter_map(
-                (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
-                List.to_seq(Segment.holes(syntax.segment)),
-              ),
+            List.to_seq(statics.warning_ids),
+            Seq.filter_map(
+              (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
+              List.to_seq(Segment.holes(syntax.segment)),
             ),
-            (),
           ),
+        ),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
       d,
