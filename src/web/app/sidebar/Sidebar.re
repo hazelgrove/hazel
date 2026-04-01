@@ -82,8 +82,8 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
-let errors_tab_icon =
-    (counts: list((SidebarModel.Settings.error_category, int))): Node.t => {
+let problems_tab_icon =
+    (counts: list((SidebarModel.Settings.problem_category, int))): Node.t => {
   open SidebarModel.Settings;
   let digit_cls = n =>
     n >= 100 ? "digits-3" : n >= 10 ? "digits-2" : "digits-1";
@@ -130,17 +130,17 @@ let errors_tab_icon =
   );
 };
 
-let errors_tab =
+let problems_tab =
     (
       ~globals: Globals.t,
-      ~counts: list((SidebarModel.Settings.error_category, int)),
+      ~counts: list((SidebarModel.Settings.problem_category, int)),
     )
     : Node.t =>
   tab_of(
-    ~panel=Errors,
-    ~cls=["errors-button"],
-    ~icon=errors_tab_icon(counts),
-    ~tooltip="Switch to Errors Panel",
+    ~panel=Problems,
+    ~cls=["problems-button"],
+    ~icon=problems_tab_icon(counts),
+    ~tooltip="Switch to Problems Panel",
     ~globals,
   );
 
@@ -157,7 +157,7 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
 let persistent_view =
     (
       ~globals: Globals.t,
-      ~counts: list((SidebarModel.Settings.error_category, int)),
+      ~counts: list((SidebarModel.Settings.problem_category, int)),
     ) =>
   div(
     ~attrs=[Attr.id("persistent")],
@@ -168,7 +168,7 @@ let persistent_view =
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
-          errors_tab(~globals, ~counts),
+          problems_tab(~globals, ~counts),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
@@ -277,8 +277,11 @@ let view =
       ~signal,
     ) => {
   let ctx =
-    ErrorCollection.make_error_context(~settings=globals.settings, ~editor);
-  let counts = ErrorCollection.counts_of_context(ctx);
+    ProblemCollection.make_problem_context(
+      ~settings=globals.settings,
+      ~editor,
+    );
+  let counts = ProblemCollection.counts_of_context(ctx);
   let sub =
     globals.settings.sidebar.show
       ? div(
@@ -308,7 +311,7 @@ let view =
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )
-            | Errors => ErrorSidebar.view(~globals, ~cursor, ~ctx)
+            | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctx)
             },
           ],
         )

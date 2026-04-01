@@ -153,9 +153,9 @@
   pointer-events: auto;
 }
 
-/* Errors Panel */
+/* Problems Panel */
 
-.errors-panel {
+.problems-panel {
   display: flex;
   flex-direction: column;
   padding: 0.5em;
@@ -163,14 +163,14 @@
   overflow-y: auto;
 }
 
-.error-section-header {
+.problem-section-header {
   font-weight: bold;
   cursor: pointer;
   padding: 0.5em;
   user-select: none;
 }
 
-.error-row-chevron {
+.problem-row-chevron {
   flex-shrink: 0;
   cursor: pointer;
   font-size: 0.7em;
@@ -178,11 +178,11 @@
   user-select: none;
 }
 
-.error-row-chevron:hover {
+.problem-row-chevron:hover {
   opacity: 0.6;
 }
 
-.error-row {
+.problem-row {
   display: flex;
   align-items: baseline;
   gap: 0.5em;
@@ -196,8 +196,8 @@
   transition: background-color 0.15s ease;
 }
 
-.error-row > .status,
-.error-row > .error-description {
+.problem-row > .status,
+.problem-row > .problem-description {
   display: inline;
   overflow: hidden;
   white-space: nowrap;
@@ -206,29 +206,29 @@
   flex: 1;
 }
 
-.error-row > .status *,
-.error-row > .error-description * {
+.problem-row > .status *,
+.problem-row > .problem-description * {
   display: inline;
 }
 
-.error-row > .status .code-box-container,
-.error-row > .status .code {
+.problem-row > .status .code-box-container,
+.problem-row > .status .code {
   margin-inline: 0.3em;
 }
 
-.error-row.expanded > .status,
-.error-row.expanded > .error-description {
+.problem-row.expanded > .status,
+.problem-row.expanded > .problem-description {
   white-space: normal;
   overflow: visible;
   text-overflow: unset;
 }
 
-.error-row.expanded > .status *,
-.error-row.expanded > .error-description * {
+.problem-row.expanded > .status *,
+.problem-row.expanded > .problem-description * {
   display: revert;
 }
 
-.error-line-num {
+.problem-line-num {
   font-family: var(--mono-font);
   font-size: 0.85em;
   color: var(--TXT2);
@@ -236,72 +236,72 @@
   flex-shrink: 0;
 }
 
-.error-line-num.no-line {
+.problem-line-num.no-line {
   opacity: 0.35;
 }
 
-.error-row:hover {
+.problem-row:hover {
   background-color: var(--R0);
   filter: brightness(0.95);
 }
 
-.error-row.active {
+.problem-row.active {
   border-left: 5px solid var(--R2);
   background-color: var(--ci-status-error-bkg);
   box-shadow: inset 0 0 0 1px var(--R1);
   font-weight: 600;
 }
 
-.error-row.error-syntax {
+.problem-row.syntax {
   border-left: 3px solid color-mix(in srgb, var(--Y1) 60%, transparent);
   background-color: color-mix(in srgb, var(--Y0) 50%, transparent);
 }
 
-.error-row.error-syntax:hover {
+.problem-row.syntax:hover {
   background-color: var(--Y0);
 }
 
-.error-row.error-syntax.active {
+.problem-row.syntax.active {
   border-left: 5px solid var(--Y2);
   background-color: color-mix(in srgb, var(--Y0) 80%, transparent);
   box-shadow: inset 0 0 0 1px var(--Y1);
 }
 
-.error-row.error-hole {
+.problem-row.hole {
   border-left: 3px solid color-mix(in srgb, var(--hole-stroke) 60%, transparent);
   background-color: color-mix(in srgb, var(--hole-fill) 50%, transparent);
 }
 
-.error-row.error-hole:hover {
+.problem-row.hole:hover {
   background-color: var(--hole-fill);
 }
 
-.error-row.error-hole.active {
+.problem-row.hole.active {
   border-left: 5px solid var(--hole-active);
   background-color: color-mix(in srgb, var(--hole-fill) 80%, transparent);
   box-shadow: inset 0 0 0 1px var(--hole-stroke);
 }
 
-.error-row.error-warning {
+.problem-row.warning {
   border-left: 3px solid color-mix(in srgb, var(--warning-hole-stroke) 60%, transparent);
   background-color: color-mix(in srgb, var(--warning-hole-fill) 50%, transparent);
 }
 
-.error-row.error-warning:hover {
+.problem-row.warning:hover {
   background-color: var(--warning-hole-fill);
 }
 
-.error-row.error-warning.active {
+.problem-row.warning.active {
   border-left: 5px solid var(--warning-hole-stroke);
   background-color: color-mix(in srgb, var(--warning-hole-fill) 80%, transparent);
   box-shadow: inset 0 0 0 1px var(--warning-hole-stroke);
 }
 
-.error-description {
+.problem-description {
   font-size: 0.9em;
 }
 
-.error-legend {
+.problem-legend {
   display: flex;
   gap: 0.75em;
   padding: 0.4em 0.5em;
@@ -337,13 +337,13 @@
   background-color: var(--warning-hole-stroke);
 }
 
-.error-nav-buttons {
+.problem-nav-buttons {
   display: flex;
   gap: 2px;
   margin-left: auto;
 }
 
-.error-nav-btn {
+.problem-nav-btn {
   cursor: pointer;
   width: 20px;
   height: 20px;
@@ -358,12 +358,12 @@
   background: transparent;
 }
 
-.error-nav-btn:hover {
+.problem-nav-btn:hover {
   background: color-mix(in oklch, var(--main-text-color) 12%, transparent);
   color: var(--main-text-color);
 }
 
-.error-view-toggle {
+.problem-view-toggle {
   display: flex;
   gap: 0;
   padding: 0.25em 0.5em;
@@ -398,7 +398,7 @@
   font-weight: 600;
 }
 
-.no-errors-message {
+.no-problems-message {
   text-align: center;
   color: var(--BR3);
   padding: 1em;

@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util;
 open Util.WebUtil;
-open ErrorCollection;
+open ProblemCollection;
 
 /* ---------- Scroll-into-view hook ---------- */
 
@@ -33,14 +33,14 @@ module ScrollIntoViewHook =
   });
 
 let scroll_active_into_view: Attr.t =
-  Attr.create_hook("scroll-active-error", ScrollIntoViewHook.create());
+  Attr.create_hook("scroll-active-problem", ScrollIntoViewHook.create());
 
 /* ---------- View helpers ---------- */
 
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
 
-let error_status_view = (~globals, ci: Language.Info.t): Node.t =>
+let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   switch (ci) {
   | InfoExp({cls, status, _} as ie) =>
     CursorInspector.exp_view(
@@ -80,17 +80,17 @@ let line_num_view =
     switch (row_to_line(origin.row)) {
     | Some(line) =>
       span(
-        ~attrs=[clss(["error-line-num"])],
+        ~attrs=[clss(["problem-line-num"])],
         [text("L" ++ string_of_int(line))],
       )
     | None =>
-      span(~attrs=[clss(["error-line-num", "no-line"])], [text("L?")])
+      span(~attrs=[clss(["problem-line-num", "no-line"])], [text("L?")])
     }
   | None =>
-    span(~attrs=[clss(["error-line-num", "no-line"])], [text("L?")])
+    span(~attrs=[clss(["problem-line-num", "no-line"])], [text("L?")])
   };
 
-let error_row =
+let row_view =
     (
       ~globals: Globals.t,
       ~cursor_id: option(Id.t),
@@ -106,17 +106,19 @@ let error_row =
     Option.map(Id.equal(id), cursor_id) |> Option.value(~default=false);
   let is_expanded = is_active || List.mem(id, expanded);
   let classes =
-    ["error-row", cls]
+    ["problem-row", cls]
     @ (is_active ? ["active"] : [])
     @ (is_expanded ? ["expanded"] : []);
   let chevron =
     span(
       ~attrs=[
-        clss(["error-row-chevron"]),
+        clss(["problem-row-chevron"]),
         Attr.on_pointerdown(evt => {
           Js_of_ocaml.Dom.preventDefault(evt);
           Js_of_ocaml.Dom_html.stopPropagation(evt);
-          globals.inject_global(Set(Sidebar(Errors(ToggleExpanded(id)))));
+          globals.inject_global(
+            Set(Sidebar(Problems(ToggleExpanded(id)))),
+          );
         }),
       ],
       [text(is_expanded ? "▾" : "▸")],
@@ -133,7 +135,7 @@ let error_row =
 };
 
 let legend_view =
-    (categories: list((SidebarModel.Settings.error_category, list('a))))
+    (categories: list((SidebarModel.Settings.problem_category, list('a))))
     : Node.t => {
   let items =
     List.filter_map(
@@ -159,16 +161,16 @@ let legend_view =
           : None,
       categories,
     );
-  div(~attrs=[clss(["error-legend"])], items);
+  div(~attrs=[clss(["problem-legend"])], items);
 };
 
 let section_view =
     (~title: string, ~cls: string, ~collapsed: bool, ~on_toggle, items) =>
   div(
-    ~attrs=[clss(["error-section", cls])],
+    ~attrs=[clss(["problem-section", cls])],
     [
       div(
-        ~attrs=[clss(["error-section-header"]), Attr.on_click(on_toggle)],
+        ~attrs=[clss(["problem-section-header"]), Attr.on_click(on_toggle)],
         [
           text(collapsed ? "▸ " : "▾ "),
           text(title ++ " (" ++ string_of_int(List.length(items)) ++ ")"),
@@ -194,10 +196,10 @@ let problem_row =
   let content =
     switch (problem.source) {
     | Structural(desc) =>
-      span(~attrs=[clss(["error-description"])], [text(desc)])
-    | FromInfo(ci) => error_status_view(~globals, ci)
+      span(~attrs=[clss(["problem-description"])], [text(desc)])
+    | FromInfo(ci) => problem_status_view(~globals, ci)
     };
-  error_row(
+  row_view(
     ~globals,
     ~cursor_id,
     ~expanded,
@@ -221,7 +223,7 @@ let nav_btn =
     : Node.t =>
   div(
     ~attrs=[
-      clss(["error-nav-btn"]),
+      clss(["problem-nav-btn"]),
       Attr.on_pointerdown(evt => {
         Js_of_ocaml.Dom.preventDefault(evt);
         globals.inject_global(
@@ -239,7 +241,7 @@ let view =
     (
       ~globals: Globals.t,
       ~cursor: Cursor.cursor(Editors.Update.t),
-      ~ctx: ErrorCollection.error_context,
+      ~ctx: ProblemCollection.problem_context,
     )
     : Node.t => {
   let cursor_id =
@@ -248,7 +250,7 @@ let view =
     | None => None
     };
   let categories:
-    list((SidebarModel.Settings.error_category, list(problem))) =
+    list((SidebarModel.Settings.problem_category, list(problem))) =
     List.map(
       cat =>
         (
@@ -257,21 +259,21 @@ let view =
         ),
       [Syntax, Hole, Static, Warning],
     );
-  let errors_settings = globals.settings.sidebar.errors;
-  let has_any_errors =
+  let problems_settings = globals.settings.sidebar.problems;
+  let has_any_problems =
     List.exists(((_, rows)) => !List.is_empty(rows), categories);
   let toggle_view =
     div(
-      ~attrs=[clss(["error-view-toggle"])],
+      ~attrs=[clss(["problem-view-toggle"])],
       [
         span(
           ~attrs=[
             clss(
-              ["toggle-option"] @ (errors_settings.flat ? [] : ["active"]),
+              ["toggle-option"] @ (problems_settings.flat ? [] : ["active"]),
             ),
             Attr.on_click(_ =>
-              if (errors_settings.flat) {
-                globals.inject_global(Set(Sidebar(Errors(ToggleFlat))));
+              if (problems_settings.flat) {
+                globals.inject_global(Set(Sidebar(Problems(ToggleFlat))));
               } else {
                 Virtual_dom.Vdom.Effect.Ignore;
               }
@@ -282,11 +284,11 @@ let view =
         span(
           ~attrs=[
             clss(
-              ["toggle-option"] @ (errors_settings.flat ? ["active"] : []),
+              ["toggle-option"] @ (problems_settings.flat ? ["active"] : []),
             ),
             Attr.on_click(_ =>
-              if (!errors_settings.flat) {
-                globals.inject_global(Set(Sidebar(Errors(ToggleFlat))));
+              if (!problems_settings.flat) {
+                globals.inject_global(Set(Sidebar(Problems(ToggleFlat))));
               } else {
                 Virtual_dom.Vdom.Effect.Ignore;
               }
@@ -295,7 +297,7 @@ let view =
           [text("Flat")],
         ),
         div(
-          ~attrs=[clss(["error-nav-buttons"])],
+          ~attrs=[clss(["problem-nav-buttons"])],
           [
             nav_btn(
               ~globals,
@@ -317,24 +319,21 @@ let view =
     problem_row(
       ~globals,
       ~cursor_id,
-      ~expanded=errors_settings.expanded,
+      ~expanded=problems_settings.expanded,
       ~measured=ctx.measured,
       ~row_to_line=ctx.row_to_line,
       problem,
     );
   div(
-    ~attrs=[clss(["errors-panel"])],
-    if (!has_any_errors) {
+    ~attrs=[clss(["problems-panel"])],
+    if (!has_any_problems) {
       [
-        div(
-          ~attrs=[clss(["no-errors-message"])],
-          [text("No errors or warnings")],
-        ),
+        div(~attrs=[clss(["no-problems-message"])], [text("No problems")]),
       ];
     } else {
       [legend_view(categories), toggle_view]
       @ (
-        if (errors_settings.flat) {
+        if (problems_settings.flat) {
           let all_problems =
             List.concat_map(snd, categories)
             |> List.sort((a, b) => compare(ctx.pos(a.id), ctx.pos(b.id)));
@@ -350,12 +349,12 @@ let view =
                       ~collapsed=
                         SidebarModel.Settings.is_collapsed(
                           cat,
-                          errors_settings,
+                          problems_settings,
                         ),
                       ~on_toggle=
                         _ =>
                           globals.inject_global(
-                            Set(Sidebar(Errors(ToggleCollapsed(cat)))),
+                            Set(Sidebar(Problems(ToggleCollapsed(cat)))),
                           ),
                       List.map(render_row, problems),
                     ),

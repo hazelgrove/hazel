@@ -8,13 +8,13 @@ type problem_source =
 
 type problem = {
   id: Id.t,
-  category: SidebarModel.Settings.error_category,
+  category: SidebarModel.Settings.problem_category,
   source: problem_source,
 };
 
-/* ---------- Error context ---------- */
+/* ---------- Problem context ---------- */
 
-type error_context = {
+type problem_context = {
   info_map: Language.Statics.Map.t,
   syntax_error_ids: list((Id.t, Language.Info.t)),
   hole_ids: list(Haz3lcore.Grout.t),
@@ -27,8 +27,8 @@ type error_context = {
   pos: Id.t => Point.t,
 };
 
-let make_error_context =
-    (~settings: Settings.t, ~editor: CodeWithStatics.Model.t): error_context => {
+let make_problem_context =
+    (~settings: Settings.t, ~editor: CodeWithStatics.Model.t): problem_context => {
   let measured = editor.editor.syntax.measured;
   /* Build row→display-line mapping: skip empty rows added by projectors */
   let row_to_line = {
@@ -107,13 +107,13 @@ let make_error_context =
 /* ---------- Sorting helper (exposed for consumers) ---------- */
 
 let sort_by_pos =
-    (ctx: error_context, problems: list(problem)): list(problem) =>
+    (ctx: problem_context, problems: list(problem)): list(problem) =>
   List.sort((a, b) => compare(ctx.pos(a.id), ctx.pos(b.id)), problems);
 
 /* ---------- Per-category collection (lazy) ---------- */
 
 let collect_category =
-    (ctx: error_context, cat: SidebarModel.Settings.error_category)
+    (ctx: problem_context, cat: SidebarModel.Settings.problem_category)
     : Seq.t(problem) =>
   switch (cat) {
   | Syntax =>
@@ -189,14 +189,15 @@ let collect_category =
 /* ---------- Counts summary ---------- */
 
 let counts_of_context =
-    (ctx: error_context): list((SidebarModel.Settings.error_category, int)) => {
-  SidebarModel.Settings.all_of_error_category
+    (ctx: problem_context)
+    : list((SidebarModel.Settings.problem_category, int)) => {
+  SidebarModel.Settings.all_of_problem_category
   |> List.map(cat => (cat, collect_category(ctx, cat) |> Seq.length));
 };
 
 /* ---------- Convenience: all problems ---------- */
 
-let collect_all_problems = (ctx: error_context): list(problem) => {
+let collect_all_problems = (ctx: problem_context): list(problem) => {
   [SidebarModel.Settings.Syntax, Hole, Static, Warning]
   |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
 };

@@ -7,10 +7,10 @@ module Settings = {
     | HelpfulAssistant
     | Probes
     | LogControl
-    | Errors;
+    | Problems;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
-  type error_category =
+  type problem_category =
     | Syntax
     | Hole
     | Static
@@ -72,12 +72,12 @@ module Settings = {
     };
 
   /* Derived CSS helpers */
-  let category_row_cls = cat => "error-" ++ category_cls(cat);
-  let category_section_cls = cat => category_cls(cat) ++ "-errors";
+  let category_row_cls = category_cls;
+  let category_section_cls = category_cls;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type errors_settings = {
-    collapsed: list(error_category),
+  type problems_settings = {
+    collapsed: list(problem_category),
     flat: bool,
     expanded: list(Id.t),
   };
@@ -113,8 +113,8 @@ module Settings = {
     };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type errors_action =
-    | ToggleCollapsed(error_category)
+  type problems_action =
+    | ToggleCollapsed(problem_category)
     | ToggleFlat
     | ToggleExpanded(Id.t);
 
@@ -122,12 +122,12 @@ module Settings = {
   type t = {
     show: bool,
     panel,
-    errors: errors_settings,
+    problems: problems_settings,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
     | SwitchPanel(panel)
-    | Errors(errors_action);
+    | Problems(problems_action);
 };

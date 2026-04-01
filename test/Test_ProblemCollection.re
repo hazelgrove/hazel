@@ -1,11 +1,13 @@
 open Alcotest;
 
-module ErrorCollection = Web.ErrorCollection;
+module ProblemCollection = Web.ProblemCollection;
 module SidebarSettings = Web.SidebarModel.Settings;
 
 let from_string =
     (s: string)
-    : option((ErrorCollection.error_context, list(ErrorCollection.problem))) =>
+    : option(
+        (ProblemCollection.problem_context, list(ProblemCollection.problem)),
+      ) =>
   switch (Haz3lcore.Parser.to_zipper(s)) {
   | None => None
   | Some(z) =>
@@ -20,8 +22,8 @@ let from_string =
     let cws_model = Web.CodeWithStatics.Model.mk(~statics, editor);
     let settings = Web.Settings.Model.init;
     let ctx =
-      ErrorCollection.make_error_context(~settings, ~editor=cws_model);
-    let problems = ErrorCollection.collect_all_problems(ctx);
+      ProblemCollection.make_problem_context(~settings, ~editor=cws_model);
+    let problems = ProblemCollection.collect_all_problems(ctx);
     Some((ctx, problems));
   };
 
@@ -31,14 +33,18 @@ let from_string_exn = (s: string) =>
   | None => fail("Failed to parse: " ++ s)
   };
 
-let count_by_category = (cat: SidebarSettings.error_category, problems) =>
+let count_by_category = (cat: SidebarSettings.problem_category, problems) =>
   List.length(
-    List.filter((p: ErrorCollection.problem) => p.category == cat, problems),
+    List.filter(
+      (p: ProblemCollection.problem) => p.category == cat,
+      problems,
+    ),
   );
 
-let has_structural = (desc: string, problems: list(ErrorCollection.problem)) =>
+let has_structural =
+    (desc: string, problems: list(ProblemCollection.problem)) =>
   List.exists(
-    (p: ErrorCollection.problem) =>
+    (p: ProblemCollection.problem) =>
       switch (p.source) {
       | Structural(d) => d == desc
       | FromInfo(_) => false
@@ -46,9 +52,9 @@ let has_structural = (desc: string, problems: list(ErrorCollection.problem)) =>
     problems,
   );
 
-let has_multihole_error = (problems: list(ErrorCollection.problem)) =>
+let has_multihole_error = (problems: list(ProblemCollection.problem)) =>
   List.exists(
-    (p: ErrorCollection.problem) =>
+    (p: ProblemCollection.problem) =>
       switch (p.source) {
       | FromInfo(InfoExp({status: InHole(Common(NoType(MultiHole))), _})) =>
         true
@@ -123,7 +129,7 @@ let trailing_var_after_let = () => {
 };
 
 let tests = (
-  "ErrorCollection",
+  "ProblemCollection",
   [
     test_case("Clean program has no errors", `Quick, clean_program),
     test_case("Juxtaposed literals", `Quick, juxtaposed_literals),

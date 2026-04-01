@@ -58,7 +58,7 @@ module Model = {
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
-      errors: {
+      problems: {
         collapsed: [],
         flat: false,
         expanded: [],
@@ -83,14 +83,14 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
 
-  /* Clear expanded error IDs before persisting — tile IDs are ephemeral
+  /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
      and go stale across sessions. */
   let persist = settings => {
     ...settings,
     sidebar: {
       ...settings.sidebar,
-      errors: {
-        ...settings.sidebar.errors,
+      problems: {
+        ...settings.sidebar.problems,
         expanded: [],
       },
     },
@@ -294,35 +294,35 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
-      | Sidebar(Errors(ToggleCollapsed(cat))) => {
+      | Sidebar(Problems(ToggleCollapsed(cat))) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            errors:
+            problems:
               SidebarModel.Settings.toggle_collapsed(
                 cat,
-                settings.sidebar.errors,
+                settings.sidebar.problems,
               ),
           },
         }
-      | Sidebar(Errors(ToggleFlat)) => {
+      | Sidebar(Problems(ToggleFlat)) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            errors: {
-              ...settings.sidebar.errors,
-              flat: !settings.sidebar.errors.flat,
+            problems: {
+              ...settings.sidebar.problems,
+              flat: !settings.sidebar.problems.flat,
             },
           },
         }
-      | Sidebar(Errors(ToggleExpanded(id))) => {
+      | Sidebar(Problems(ToggleExpanded(id))) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            errors:
+            problems:
               SidebarModel.Settings.toggle_expanded(
                 id,
-                settings.sidebar.errors,
+                settings.sidebar.problems,
               ),
           },
         }
