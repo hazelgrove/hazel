@@ -1267,7 +1267,11 @@ let for_projection =
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
         | MPat => Some(MPat(mpat(unsorted)))
-        | Any => Some(Any()) /* grout */
+        | Any =>
+          switch (exp(unsorted)) {
+          | {term: Tuple(_), _} => None
+          | e => Some(Grammar.Exp(e))
+          }
         };
       };
     }
