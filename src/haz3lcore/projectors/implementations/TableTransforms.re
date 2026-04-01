@@ -113,41 +113,39 @@ let conversion_functions = (cls: Atom.cls) =>
   | _ => []
   };
 
-/* Single conversion point: transform list → Base.segment */
-let to_segment = (info: info, transforms: list(transform)): Base.segment => {
+/* Apply a list of transforms to a base expression, producing the
+ * piped result: base |> transform1 |> transform2 |> ... */
+let apply_transforms = (base: Exp.t, transforms: list(transform)): Exp.t => {
+  open IdTagged.FreshGrammar;
   let to_listwise = (t: transform): Exp.t =>
     switch (t) {
     | Rowwise(row_fn) =>
-      IdTagged.FreshGrammar.Exp.(
-        ap(Forward, var("map"), tuple([deferral(InAp), row_fn]))
-      )
+      Exp.(deferred_ap(var("map"), [deferral(InAp), row_fn]))
     | Listwise(expr) => expr
     };
   let transformations = List.map(to_listwise, transforms);
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        ~inline=false,
-        fun
-        | Exp({term: exp_term, _}) => {
-            let base = strip_parens(exp_term |> DHExp.fresh);
-            let result =
-              List.fold_left(
-                (acc, transformation) =>
-                  Exp.(ap(Reverse, transformation, acc)),
-                base,
-                transformations,
-              );
-            Exp(result);
-          }
-        | _ => failwith("TableTransforms: to_segment: not an expression"),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableTransforms: to_segment: lift failed")
-    }
+  let base = strip_parens(base);
+  List.fold_left(
+    (acc, transformation) => Exp.ap(Reverse, transformation, acc),
+    base,
+    transformations,
   );
+};
+
+/* Single conversion point: transform list → Base.segment */
+let to_segment = (info: info, transforms: list(transform)): Base.segment => {
+  switch (
+    info.utility.lift_syntax(
+      ~inline=false,
+      fun
+      | Exp(exp) => Exp(apply_transforms(exp, transforms))
+      | _ => failwith("TableTransforms: to_segment: not an expression"),
+      info.syntax,
+    )
+  ) {
+  | Some(s) => s
+  | None => failwith("TableTransforms: to_segment: lift failed")
+  };
 };
 
 /* Column transformation operations */
@@ -155,11 +153,7 @@ let drop_column = (column: string): transform => {
   IdTagged.FreshGrammar.(
     Rowwise(
       Exp.(
-        ap(
-          Forward,
-          var("omit_labels"),
-          tuple([deferral(InAp), label(column)]),
-        )
+        deferred_ap(var("omit_labels"), [deferral(InAp), label(column)])
       ),
     )
   );
@@ -276,10 +270,9 @@ let group_by_column = (column: string): transform => {
   IdTagged.FreshGrammar.(
     Listwise(
       Exp.(
-        ap(
-          Forward,
+        deferred_ap(
           var("group_on_key"),
-          tuple([
+          [
             deferral(InAp),
             fn(
               Pat.var("row"),
@@ -287,7 +280,7 @@ let group_by_column = (column: string): transform => {
               None,
               None,
             ),
-          ]),
+          ],
         )
       ),
     )
@@ -298,10 +291,9 @@ let filter_by_column = (op, column: string): transform => {
   IdTagged.FreshGrammar.(
     Listwise(
       Exp.(
-        ap(
-          Forward,
+        deferred_ap(
           var("filter"),
-          tuple([
+          [
             deferral(InAp),
             fn(
               Pat.var("row"),
@@ -309,7 +301,7 @@ let filter_by_column = (op, column: string): transform => {
               None,
               None,
             ),
-          ]),
+          ],
         )
       ),
     )
@@ -320,10 +312,9 @@ let drop_nones_column = (column: string): transform => {
   IdTagged.FreshGrammar.(
     Listwise(
       Exp.(
-        ap(
-          Forward,
+        deferred_ap(
           var("filter_map"),
-          tuple([
+          [
             deferral(InAp),
             fn(
               Pat.var("row"),
@@ -346,7 +337,7 @@ let drop_nones_column = (column: string): transform => {
               None,
               None,
             ),
-          ]),
+          ],
         )
       ),
     )
@@ -367,9 +358,9 @@ let provide_default_column = (column: string): transform => {
                 match(
                   dot(var("row"), label(column)),
                   [
-                    (BuiltinsADT.Option.pat_none, empty_hole()),
+                    (Pat.constructor("None", None), empty_hole()),
                     (
-                      Pat.ap(BuiltinsADT.Option.pat_some, Pat.var("v")),
+                      Pat.ap(Pat.constructor("Some", None), Pat.var("v")),
                       var("v"),
                     ),
                   ],
@@ -412,10 +403,9 @@ let move_column =
         Some(
           Rowwise(
             IdTagged.FreshGrammar.Exp.(
-              ap(
-                Forward,
+              deferred_ap(
                 var("select_labels"),
-                tuple([deferral(InAp)] @ List.map(label, new_columns)),
+                [deferral(InAp)] @ List.map(label, new_columns),
               )
             ),
           ),
@@ -447,10 +437,9 @@ let sort_column =
       Listwise(
         IdTagged.FreshGrammar.(
           Exp.(
-            ap(
-              Forward,
+            deferred_ap(
               var("sort"),
-              tuple([
+              [
                 fn(
                   Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
                   ap(
@@ -465,7 +454,7 @@ let sort_column =
                   None,
                 ),
                 deferral(InAp),
-              ]),
+              ],
             )
           )
         ),
