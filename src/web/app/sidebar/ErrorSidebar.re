@@ -43,9 +43,21 @@ let jump_to = (~globals: Globals.t, id: Id.t, _) =>
 let error_status_view = (~globals, ci: Language.Info.t): Node.t =>
   switch (ci) {
   | InfoExp({cls, status, _} as ie) =>
-    CursorInspector.exp_view(~globals, cls, status, ie)
+    CursorInspector.exp_view(
+      ~globals,
+      ~show_type_colon=false,
+      cls,
+      status,
+      ie,
+    )
   | InfoPat({cls, status, _} as ip) =>
-    CursorInspector.pat_view(~globals, cls, status, ip)
+    CursorInspector.pat_view(
+      ~globals,
+      ~show_type_colon=false,
+      cls,
+      status,
+      ip,
+    )
   | InfoTyp({cls, status, _}) =>
     CursorInspector.typ_view(~globals, cls, status)
   | InfoTPat({cls, status, _}) =>
