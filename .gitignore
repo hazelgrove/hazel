@@ -51,9 +51,6 @@ setup.log
 .history
 .code-workspace
 
-# Cursor IDE
-.cursor/
-
 # unit tests
 *.xml
 
@@ -70,3 +67,6 @@ node_modules
 
 # Project plans (local only)
 plans/
+
+# Cursor IDE (local)
+.cursor/
