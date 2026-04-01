@@ -443,8 +443,7 @@ let diff_tests = (
       `Quick,
       () => {
         let ann = ConstructorMap.empty_variant_ann;
-        let ann_with_id =
-          ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_with_id = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
         let static_typ =
           Typ.fresh(Sum([ConstructorMap.Variant("A", ann, None)]));
         let dynamic_typ =
