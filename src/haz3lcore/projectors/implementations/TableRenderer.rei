@@ -7,15 +7,7 @@ type m = {menu_state};
 type a =
   | CloseMenu
   | ShowMenu(int)
-  | ShowSubmenu(list(string))
-  | DropColumn(string)
-  | ConversionColumn(string, string)
-  | RenameColumn(string, string)
-  | AddColumn(string, string)
-  | GroupByColumn(string)
-  | FilterGreaterThan(string)
-  | FilterLessThan(string)
-  | FilterEquals(string);
+  | ShowSubmenu(list(string));
 type v = (list(option(string)), list(list(Language.Exp.t))); /* (headers, rows) */
 
 include

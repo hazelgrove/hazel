@@ -18,15 +18,7 @@ type m = {menu_state};
 type a =
   | CloseMenu
   | ShowMenu(int)
-  | ShowSubmenu(list(string))
-  | DropColumn(string)
-  | ConversionColumn(string, string)
-  | RenameColumn(string, string)
-  | AddColumn(string, string)
-  | GroupByColumn(string)
-  | FilterGreaterThan(string)
-  | FilterLessThan(string)
-  | FilterEquals(string);
+  | ShowSubmenu(list(string));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -518,7 +510,6 @@ let update: (model, action) => model =
       | Some((col, _)) => {menu_state: Some((col, path))}
       | None => model
       }
-    | _ => model /* Other actions do not affect the menu state */
     };
   };
 
