@@ -223,7 +223,9 @@ let go =
           |> Language.Exp.rep_id;
         switch (do_replace()) {
         | Some(z) =>
-          Ok(ZipperBase.add_manual(~model=?manual_model, new_id, kind, z))
+          let z =
+            Zipper.update_manuals(List.filter(((mid, _)) => mid != id), z);
+          Ok(ZipperBase.add_manual(~model=?manual_model, new_id, kind, z));
         | None => Error(Cant_project)
         };
       };
