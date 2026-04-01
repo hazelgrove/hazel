@@ -388,8 +388,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
       : cursor(Editors.Update.t) => {
-    let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
-    let meta = Keyboard.meta(sys);
+    let meta = Keyboard.meta();
     let mk = ContextualAction.mk;
     Editors.Selection.get_cursor_info(
       ~inject=a => inject(Editors(a)),
@@ -410,133 +409,6 @@ module Selection = {
            ~action=inject(Globals(Redo)),
            "Redo",
          ),
-<<<<<<< HEAD
-         /* Navigation */
-         mk(
-           ~hotkey="F12",
-           ~mdIcon="arrow_forward",
-           ~section="Navigation",
-           ~action=
-             inject(
-               Globals(
-                 ActiveEditor(Move(Goal(BindingSiteOfIndicatedVar))),
-               ),
-             ),
-           "Go to Definition",
-         ),
-         mk(
-           ~hotkey="shift+tab",
-           ~mdIcon="arrow_upward",
-           ~section="Navigation",
-           ~action=
-             inject(
-               Globals(ActiveEditor(Move(Goal(NextProblem(Left))))),
-             ),
-           "Go to Previous Problem",
-         ),
-         mk(
-           ~mdIcon="arrow_downward",
-           ~section="Navigation",
-           ~action=
-             inject(
-               Globals(ActiveEditor(Move(Goal(NextProblem(Right))))),
-             ),
-           "Go to Next Problem",
-         ),
-         /* Selection */
-         mk(
-           ~hotkey=meta ++ "+d",
-           ~mdIcon="select_all",
-           ~section="Selection",
-           ~action=inject(Globals(ActiveEditor(Select(Term(Current))))),
-           "Select current term",
-         ),
-         mk(
-           ~mdIcon="select_all",
-           ~hotkey=meta ++ "+a",
-           ~section="Selection",
-           ~action=inject(Globals(ActiveEditor(Select(All)))),
-           "Select All",
-         ),
-         mk(
-           ~mdIcon="flip_horizontal",
-           ~section="Selection",
-           ~action=inject(Globals(ActiveEditor(Select(ToggleFocus)))),
-           "Toggle Selection Focus",
-         ),
-         mk(
-           ~mdIcon="border_left",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+left",
-           ~action=inject(Globals(ActiveEditor(Select(SetFocus(Left))))),
-           "Set Selection Focus Left",
-         ),
-         mk(
-           ~mdIcon="border_right",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+right",
-           ~action=inject(Globals(ActiveEditor(Select(SetFocus(Right))))),
-           "Set Selection Focus Right",
-         ),
-         mk(
-           ~mdIcon="chevron_left",
-           ~section="Selection",
-           ~hotkey="alt+shift+left",
-           ~action=
-             inject(
-               Globals(ActiveEditor(Select(Resize(Local(Left, ByToken))))),
-             ),
-           "Extend Selection Left by Token",
-         ),
-         mk(
-           ~mdIcon="chevron_right",
-           ~section="Selection",
-           ~hotkey="alt+shift+right",
-           ~action=
-             inject(
-               Globals(ActiveEditor(Select(Resize(Local(Right, ByToken))))),
-             ),
-           "Extend Selection Right by Token",
-         ),
-         /* Projection */
-         mk(
-           ~hotkey="alt+f",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=
-             inject(
-               Globals(
-                 ActiveEditor(Project(SetIndicated(Specific(Fold)))),
-               ),
-             ),
-           "Fold",
-         ),
-         mk(
-           ~hotkey=meta ++ "+e",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=inject(Globals(ActiveEditor(Probe(ToggleManual)))),
-           "Probe",
-         ),
-         mk(
-           ~hotkey="alt+t",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=inject(Globals(ActiveEditor(Probe(ToggleStatics)))),
-           "Statics",
-         ),
-         mk(
-           ~hotkey="alt+l",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=
-             inject(
-               Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
-             ),
-           "Livelit",
-         ),
-=======
->>>>>>> 5a25e50671 (Move actions down)
          /* Settings */
          mk(
            ~section="Settings",
@@ -875,10 +747,7 @@ module View = {
                 NinjaKeys.open_command_palette();
                 Effect.Ignore;
               },
-              ~tooltip=
-                "Command Palette ("
-                ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
-                ++ " + k)",
+              ~tooltip="Command Palette (" ++ Keyboard.meta() ++ " + k)",
             ),
             link(
               Icons.github,

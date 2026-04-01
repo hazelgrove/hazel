@@ -145,8 +145,7 @@ module Selection = {
         model: Model.t,
       )
       : cursor(Update.t) => {
-    let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
-    let meta = Keyboard.meta(sys);
+    let meta = Keyboard.meta();
     let mk = ContextualAction.mk;
     let action = a => inject(Perform(a));
     {
@@ -211,6 +210,20 @@ module Selection = {
            ~hotkey=meta ++ "+alt+shift+right",
            ~action=action(Select(SetFocus(Right))),
            "Set Selection Focus Right",
+         ),
+         mk(
+           ~mdIcon="chevron_left",
+           ~section="Selection",
+           ~hotkey="alt+shift+left",
+           ~action=action(Select(Resize(Local(Left, ByToken)))),
+           "Extend Selection Left by Token",
+         ),
+         mk(
+           ~mdIcon="chevron_right",
+           ~section="Selection",
+           ~hotkey="alt+shift+right",
+           ~action=action(Select(Resize(Local(Right, ByToken)))),
+           "Extend Selection Right by Token",
          ),
          /* Projection */
          mk(
