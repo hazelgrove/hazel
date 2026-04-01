@@ -295,9 +295,16 @@ module Update = {
           |> {
             let.calc sctx = ctx
             and.calc to_exp = cached_exp
-            and.calc from_exp = exp;
+            and.calc from_exp = selected_exp;
             let env = SemanticCtx.get_env(sctx);
-            let from_exp = Substitution.in_exp(env, from_exp);
+            let from_exp =
+              Substitution.in_exp(
+                env,
+                from_exp
+                |> Option.value(
+                     ~default=IdTagged.FreshGrammar.Exp.empty_hole(),
+                   ),
+              );
             let to_exp = Substitution.in_exp(env, to_exp);
             RewriteChecker.check_rewrite(~settings, ~env, from_exp, to_exp);
           };
@@ -331,9 +338,16 @@ module Update = {
           |> {
             let.calc sctx = ctx
             and.calc to_exp = cached_exp
-            and.calc from_exp = exp;
+            and.calc from_exp = selected_exp;
             let env = SemanticCtx.get_env(sctx);
-            let from_exp = Substitution.in_exp(env, from_exp);
+            let from_exp =
+              Substitution.in_exp(
+                env,
+                from_exp
+                |> Option.value(
+                     ~default=IdTagged.FreshGrammar.Exp.empty_hole(),
+                   ),
+              );
             let to_exp = Substitution.in_exp(env, to_exp);
             RewriteChecker.check_written_step(
               ~settings,

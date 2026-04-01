@@ -292,7 +292,11 @@ let equality =
       open OptUtil.Syntax;
       let lookup1 = {
         let* env1 = env1;
-        Environment.lookup(env1, x);
+        let v = Environment.lookup(env1, x);
+        switch (v) {
+        | Some({term: Var(v), _}) when v == x => None
+        | _ => v
+        };
       };
       switch (lookup1) {
       | Some(v1) => exp'(v1, e2)
@@ -306,7 +310,11 @@ let equality =
       open OptUtil.Syntax;
       let lookup2 = {
         let* env2 = env2;
-        Environment.lookup(env2, y);
+        let v = Environment.lookup(env2, y);
+        switch (v) {
+        | Some({term: Var(v), _}) when v == y => None
+        | _ => v
+        };
       };
       switch (lookup2) {
       | Some(v2) => exp'(e1, v2)
