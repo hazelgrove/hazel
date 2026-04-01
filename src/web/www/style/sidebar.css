@@ -211,7 +211,8 @@
   display: inline;
 }
 
-.error-row > .status .code-box-container {
+.error-row > .status .code-box-container,
+.error-row > .status .code {
   margin-inline: 0.3em;
 }
 
