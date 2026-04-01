@@ -222,11 +222,12 @@ let nav_btn =
   div(
     ~attrs=[
       clss(["error-nav-btn"]),
-      Attr.on_click(_ =>
+      Attr.on_pointerdown(evt => {
+        Js_of_ocaml.Dom.preventDefault(evt);
         globals.inject_global(
           ActiveEditor(Move(Goal(NextProblem(direction)))),
-        )
-      ),
+        );
+      }),
       Attr.title(tooltip),
     ],
     [text(label)],
