@@ -317,29 +317,21 @@ let add_ids_from_auto_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let auto_ids = Id.Map.bindings(z.refractors.autos.ids) |> List.map(fst);
   let ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
-  /* Build a set for O(log n) membership checks */
-  let new_ids_set =
-    List.fold_left((map, id) => Id.Map.add(id, (), map), Id.Map.empty, ids);
   Zipper.update_ephemerals(
-    old_ephemerals => {
-      /* Keep existing entries that are still valid (preserves models) */
-      let kept =
-        Id.Map.filter(
-          (id, _) => Id.Map.mem(id, new_ids_set),
-          old_ephemerals,
-        );
-      /* Add new entries only for IDs not already present */
+    old_ephemerals =>
       List.fold_left(
-        (map, id) =>
-          if (Id.Map.mem(id, map)) {
-            map; /* Already exists with model, keep it */
-          } else {
-            Id.Map.add(id, Refractors.mk_entry(Probe), map);
-          },
-        kept,
+        (map, id) => {
+          /* Preserve existing entry (and its model) if still valid */
+          let entry =
+            switch (Id.Map.find_opt(id, old_ephemerals)) {
+            | Some(entry) => entry
+            | None => Refractors.mk_entry(Probe)
+            };
+          Id.Map.add(id, entry, map);
+        },
+        Id.Map.empty,
         ids,
-      );
-    },
+      ),
     z,
   );
 };
