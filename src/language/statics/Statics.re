@@ -289,7 +289,7 @@ and uexp_to_info_map =
     )
     : (Info.exp, Map.t) => {
   let calculate_dynamic_type = (uexp: Exp.t) => {
-    let (ie, m) =
+    let (ie, _) =
       uexp_to_info_map(
         ~dynamics=DynamicStatics.Map.empty,
         ~ctx,
@@ -1848,7 +1848,7 @@ and upat_to_info_map =
     )
     : (Info.pat, Map.t) => {
   let calculate_dynamic_type = uexp => {
-    let (ie, m) =
+    let (ie, _) =
       uexp_to_info_map(
         ~dynamics,
         ~ancestors,
