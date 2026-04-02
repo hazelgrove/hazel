@@ -49,7 +49,7 @@ module ViewComponents = {
           ],
         ),
         div(
-          ~attrs=[clss(["view-content", "system-message"])],
+          ~attrs=[clss(["view-content", "full-screen-doc"])],
           [text(content)],
         ),
       ],
@@ -94,7 +94,7 @@ module ViewComponents = {
           ],
         ),
         div(
-          ~attrs=[clss(["view-content", "system-message"])],
+          ~attrs=[clss(["view-content", "full-screen-doc"])],
           [text(content)],
         ),
       ],
@@ -375,7 +375,13 @@ module ViewComponents = {
           Effect.Stop_propagation,
         ]);
       div(
-        ~attrs=[clss(["tools-view-item"])],
+        ~attrs=[
+          clss(
+            ["tools-view-item"]
+            @ (is_enabled ? [] : ["tools-view-item-disabled"])
+            @ (is_expanded ? ["tools-view-item-expanded"] : []),
+          ),
+        ],
         [
           div(
             ~attrs=[
@@ -391,6 +397,11 @@ module ViewComponents = {
                 ~attrs=[
                   clss(["tools-view-item-toggle"]),
                   Attr.on_click(toggle_tool),
+                  Attr.title(
+                    is_enabled
+                      ? "Disable tool for this chat"
+                      : "Enable tool for this chat",
+                  ),
                 ],
                 [
                   is_enabled
@@ -522,6 +533,127 @@ type timeline_node = {
   segment: option(Segment.t),
   label: string,
   index: int,
+};
+
+/** Changes when the messages pane content or trailing banners change height. */
+let chat_messages_scroll_stamp =
+    (
+      ~chunked_chat: Agent.ChunkedUIChat.Model.t,
+      ~awaiting_dots: bool,
+      ~compaction_banner: bool,
+    )
+    : int => {
+  let acc = ref(0);
+  let mix = (n: int) => acc := Hashtbl.hash((acc^, n));
+  List.iter(
+    (chunk: Agent.ChunkedUIChat.Model.chunk) =>
+      switch (chunk) {
+      | UserMessage({content, origin_id}) =>
+        mix(1);
+        mix(String.length(content));
+        mix(Hashtbl.hash(origin_id));
+      | AgentResponseChunk({content, agent_reasoning, tool_results}) =>
+        mix(2);
+        List.iter(
+          (m: Agent.Message.Model.t) => {
+            mix(String.length(m.content));
+            mix(Hashtbl.hash(m.id));
+            switch (m.role) {
+            | ToolResult(tr) => mix(tr.expanded ? 1 : 0)
+            | Agent(_) => mix(3)
+            | User => mix(4)
+            | System(_) => mix(5)
+            };
+          },
+          content,
+        );
+        List.iter(s => mix(String.length(s)), agent_reasoning);
+        mix(List.length(tool_results));
+      | CompactionNotice({method, content}) =>
+        mix(6);
+        mix(String.length(method));
+        mix(String.length(content));
+      | ErrorMessage(s) =>
+        mix(7);
+        mix(String.length(s));
+      },
+    chunked_chat.log,
+  );
+  mix(awaiting_dots ? 11 : 0);
+  mix(compaction_banner ? 13 : 0);
+  acc^;
+};
+
+/** Scroll the messages list to the bottom only while the user stays pinned to the bottom. */
+module ChatMessagesScrollHook = {
+  module State = {
+    type t = {
+      mutable stick_to_bottom: bool,
+      mutable listener_id: option(Dom_html.event_listener_id),
+    };
+  };
+
+  module Input = {
+    [@deriving sexp_of]
+    type t = int;
+
+    let combine = (_, y) => y;
+  };
+
+  let bottom_slack_px = 4.0;
+
+  let is_near_bottom = (el: Js.t(Dom_html.element)): bool => {
+    let h = Js.Unsafe.coerce(el);
+    let st = float_of_int(h##.scrollTop);
+    let ch = float_of_int(h##.clientHeight);
+    let sh = float_of_int(h##.scrollHeight);
+    sh -. st -. ch <= bottom_slack_px;
+  };
+
+  let scroll_to_bottom = (el: Js.t(Dom_html.element)): unit => {
+    let h = Js.Unsafe.coerce(el);
+    h##.scrollTop :=  h##.scrollHeight;
+  };
+
+  include Virtual_dom.Vdom.Attr.Hooks.Make({
+    module State = State;
+    module Input = Input;
+
+    let init = (_input: Input.t, _element) =>
+      State.{
+        stick_to_bottom: true,
+        listener_id: None,
+      };
+
+    let on_mount = (_input: Input.t, state: State.t, element) => {
+      scroll_to_bottom(element);
+      let handler =
+        Dom.handler(_evt => {
+          state.stick_to_bottom = is_near_bottom(element);
+          Js._true;
+        });
+      let id =
+        Dom.addEventListener(
+          element,
+          Dom_html.Event.scroll,
+          handler,
+          Js._false,
+        );
+      state.listener_id = Some(id);
+    };
+
+    let update =
+        (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) =>
+      if (old_input != new_input && state.stick_to_bottom) {
+        scroll_to_bottom(element);
+      };
+
+    let destroy = (_input: Input.t, state: State.t, _element) =>
+      switch (state.listener_id) {
+      | Some(id) => Dom_html.removeEventListener(id)
+      | None => ()
+      };
+  });
 };
 
 let view =
@@ -986,24 +1118,9 @@ let view =
         ]);
       };
 
-      let edit_calls_summary =
+      let edit_summary_nodes =
         switch (edit_tool_results) {
-        | [] =>
-          div(
-            ~attrs=[
-              clss(["agent-tool-summary", "agent-tool-summary-empty"]),
-            ],
-            [
-              div(
-                ~attrs=[clss(["agent-tool-summary-header"])],
-                [text("Edits Performed")],
-              ),
-              div(
-                ~attrs=[clss(["agent-tool-summary-empty-text"])],
-                [text("No edit tool calls were made in this response.")],
-              ),
-            ],
-          )
+        | [] => []
         | [first, ...rest] =>
           let all_edits = [first, ...rest];
 
@@ -1147,37 +1264,39 @@ let view =
             | None => div(~attrs=[], [])
             };
 
-          div(
-            ~attrs=[
-              clss(["agent-tool-summary", "collapsed"]),
-              Attr.id(summary_dom_id),
-            ],
-            [
-              div(
-                ~attrs=[
-                  clss(["agent-tool-summary-header"]),
-                  Attr.on_click(toggle_summary_collapsed),
-                ],
-                [
-                  div(
-                    ~attrs=[clss(["agent-tool-summary-title"])],
-                    [
-                      span(
-                        ~attrs=[clss(["summary-collapse-icon"])],
-                        [text({|▾|})],
-                      ),
-                      text("Edits Performed"),
-                    ],
-                  ),
-                  restore_button,
-                ],
-              ),
-              div(
-                ~attrs=[clss(["agent-tool-summary-content"])],
-                interleaved_elements,
-              ),
-            ],
-          );
+          [
+            div(
+              ~attrs=[
+                clss(["agent-tool-summary", "collapsed"]),
+                Attr.id(summary_dom_id),
+              ],
+              [
+                div(
+                  ~attrs=[
+                    clss(["agent-tool-summary-header"]),
+                    Attr.on_click(toggle_summary_collapsed),
+                  ],
+                  [
+                    div(
+                      ~attrs=[clss(["agent-tool-summary-title"])],
+                      [
+                        span(
+                          ~attrs=[clss(["summary-collapse-icon"])],
+                          [text({|▾|})],
+                        ),
+                        text("Edits Performed"),
+                      ],
+                    ),
+                    restore_button,
+                  ],
+                ),
+                div(
+                  ~attrs=[clss(["agent-tool-summary-content"])],
+                  interleaved_elements,
+                ),
+              ],
+            ),
+          ];
         };
 
       div(
@@ -1190,7 +1309,7 @@ let view =
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
-            linear_display @ [edit_calls_summary],
+            linear_display @ edit_summary_nodes,
           ),
         ],
       );
@@ -1226,6 +1345,22 @@ let view =
   switch (current_chat.current_view) {
   | Agent.Chat.Model.Messages =>
     // Normal messages view (content only, bottom bar handled in ChatView)
+    let awaiting_dots =
+      switch (agent_model.awaiting_response) {
+      | Some(id) when id == current_chat_id => true
+      | _ => false
+      };
+    let compaction_banner =
+      switch (agent_model.compaction_in_progress) {
+      | Some(id) when id == current_chat_id => true
+      | _ => false
+      };
+    let scroll_sync_stamp =
+      chat_messages_scroll_stamp(
+        ~chunked_chat,
+        ~awaiting_dots,
+        ~compaction_banner,
+      );
     div(
       ~attrs=[clss(["chat-messages-view"])],
       [
@@ -1236,7 +1371,13 @@ let view =
         ),
         // Chunks display area
         div(
-          ~attrs=[clss(["chat-messages-container"])],
+          ~attrs=[
+            clss(["chat-messages-container"]),
+            Attr.create_hook(
+              "hazel-chat-messages-auto-scroll",
+              ChatMessagesScrollHook.create(scroll_sync_stamp),
+            ),
+          ],
           List.mapi(render_chunk, chunked_chat.log)
           @ (
             switch (agent_model.awaiting_response) {
@@ -1279,7 +1420,7 @@ let view =
           ),
         ),
       ],
-    )
+    );
   | Agent.Chat.Model.Prompt =>
     ViewComponents.prompt_view(
       ~content=chunked_chat.prompt,
