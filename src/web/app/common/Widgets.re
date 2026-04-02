@@ -49,7 +49,7 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
   );
 
-let toggle_named = (~name="", ~tooltip=?, icon, active, action) => {
+let toggle_named = (~name="", ~tooltip=?, ~warning=?, icon, active, action) => {
   let tooltip_attrs =
     switch (tooltip) {
     | Some(t) => [Attr.title(t)]
@@ -66,7 +66,17 @@ let toggle_named = (~name="", ~tooltip=?, icon, active, action) => {
       toggle(~tooltip=Option.value(~default="", tooltip), icon, active, _ =>
         Effect.Ignore
       ),
-      div([text(name)]),
+      div([
+        text(name),
+        switch (warning) {
+        | Some(msg) =>
+          span(
+            ~attrs=[Attr.title(msg)],
+            [text("\xE2\x9A\xA0\xEF\xB8\x8F")],
+          )
+        | None => none
+        },
+      ]),
     ],
   );
 };
