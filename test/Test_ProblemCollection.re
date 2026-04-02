@@ -1,7 +1,6 @@
 open Alcotest;
 
-module ProblemCollection = Web.ProblemCollection;
-module SidebarSettings = Web.SidebarModel.Settings;
+module ProblemCollection = Haz3lcore.ProblemCollection;
 
 let from_string =
     (s: string)
@@ -19,10 +18,12 @@ let from_string =
         ~stitch=Fun.id,
         editor.state.zipper,
       );
-    let cws_model = Web.CodeWithStatics.Model.mk(~statics, editor);
-    let settings = Web.Settings.Model.init;
     let ctx =
-      ProblemCollection.make_problem_context(~settings, ~editor=cws_model);
+      ProblemCollection.make_problem_context(
+        ~display_warnings=true,
+        ~statics,
+        ~syntax=editor.syntax,
+      );
     let problems = ProblemCollection.collect_all_problems(ctx);
     Some((ctx, problems));
   };
@@ -33,7 +34,7 @@ let from_string_exn = (s: string) =>
   | None => fail("Failed to parse: " ++ s)
   };
 
-let count_by_category = (cat: SidebarSettings.problem_category, problems) =>
+let count_by_category = (cat: ProblemCollection.problem_category, problems) =>
   List.length(
     List.filter(
       (p: ProblemCollection.problem) => p.category == cat,

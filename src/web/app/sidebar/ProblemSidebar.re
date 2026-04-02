@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util;
 open Util.WebUtil;
-open ProblemCollection;
+open Haz3lcore.ProblemCollection;
 
 /* ---------- Scroll-into-view hook ---------- */
 
@@ -241,7 +241,7 @@ let view =
     (
       ~globals: Globals.t,
       ~cursor: Cursor.cursor(Editors.Update.t),
-      ~ctx: ProblemCollection.problem_context,
+      ~ctx: Haz3lcore.ProblemCollection.problem_context,
     )
     : Node.t => {
   let cursor_id =

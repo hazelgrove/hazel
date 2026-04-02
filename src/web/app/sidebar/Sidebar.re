@@ -277,11 +277,12 @@ let view =
       ~signal,
     ) => {
   let ctx =
-    ProblemCollection.make_problem_context(
-      ~settings=globals.settings,
-      ~editor,
+    Haz3lcore.ProblemCollection.make_problem_context(
+      ~display_warnings=globals.settings.core.display_warnings,
+      ~statics=editor.statics,
+      ~syntax=editor.editor.syntax,
     );
-  let counts = ProblemCollection.counts_of_context(ctx);
+  let counts = Haz3lcore.ProblemCollection.counts_of_context(ctx);
   let sub =
     globals.settings.sidebar.show
       ? div(

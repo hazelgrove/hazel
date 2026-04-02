@@ -11,10 +11,8 @@ module Settings = {
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
-    | Syntax
-    | Hole
-    | Static
-    | Warning;
+    Haz3lcore.ProblemCollection.problem_category =
+      | Syntax | Hole | Static | Warning;
 
   /* Base CSS class for a category */
   let category_cls = cat =>
