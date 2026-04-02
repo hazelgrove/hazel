@@ -429,6 +429,147 @@ let diff_tests = (
         );
       },
     ),
+    test_case(
+      "diff Var alias expanded on right side",
+      `Quick,
+      () => {
+        let ctx =
+          Ctx.extend_tvar(
+            Ctx.empty,
+            {
+              name: "MyList",
+              id: Id.mk(),
+              kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+            },
+          );
+        let static_typ = Typ.fresh(List(Typ.fresh(Atom(Atom.Int))));
+        let dynamic_typ = Typ.fresh(Var("MyList"));
+        check(
+          list(testable_id),
+          "alias on right expands to same type",
+          [],
+          Typ.diff(~ctx, static_typ, dynamic_typ),
+        );
+      },
+    ),
+    test_case(
+      "diff Var alias on right with partial diff",
+      `Quick,
+      () => {
+        let ctx =
+          Ctx.extend_tvar(
+            Ctx.empty,
+            {
+              name: "Pair",
+              id: Id.mk(),
+              kind:
+                Singleton(
+                  Typ.fresh(
+                    Prod([
+                      Typ.fresh(Atom(Atom.Int)),
+                      Typ.fresh(Unknown(Internal)),
+                    ]),
+                  ),
+                ),
+            },
+          );
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let static_typ =
+          Typ.fresh(Prod([Typ.fresh(Atom(Atom.Int)), string_typ]));
+        let dynamic_typ = Typ.fresh(Var("Pair"));
+        let result = Typ.diff(~ctx, static_typ, dynamic_typ);
+        /* The Unknown in Pair's expansion differs from String */
+        check(
+          bool,
+          "alias expansion produces diff",
+          true,
+          List.length(result) > 0,
+        );
+      },
+    ),
+    test_case(
+      "diff Sum missing constructor in dynamic",
+      `Quick,
+      () => {
+        let ann = ConstructorMap.empty_variant_ann;
+        let static_typ =
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant("None", ann, None),
+              ConstructorMap.Variant(
+                "Some",
+                ann,
+                Some(Typ.fresh(Atom(Atom.Int))),
+              ),
+            ]),
+          );
+        let some_int = Typ.fresh(Atom(Atom.Int));
+        let dynamic_typ =
+          Typ.fresh(
+            Sum([ConstructorMap.Variant("Some", ann, Some(some_int))]),
+          );
+        let result = Typ.diff(static_typ, dynamic_typ);
+        /* Dynamic is missing None, so entire dynamic Sum is different */
+        check(
+          bool,
+          "missing constructor marks all dynamic IDs",
+          true,
+          List.length(result) > 0,
+        );
+      },
+    ),
+    test_case(
+      "diff Sum extra constructor in dynamic",
+      `Quick,
+      () => {
+        let ann = ConstructorMap.empty_variant_ann;
+        let ann_with_id = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let static_typ =
+          Typ.fresh(Sum([ConstructorMap.Variant("A", ann, None)]));
+        let dynamic_typ =
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant("A", ann, None),
+              ConstructorMap.Variant("B", ann_with_id, None),
+            ]),
+          );
+        let result = Typ.diff(static_typ, dynamic_typ);
+        /* B is extra in dynamic — its variant_ann ID should be in the diff */
+        check(
+          bool,
+          "extra constructor produces diff",
+          true,
+          List.length(result) > 0,
+        );
+      },
+    ),
+    test_case(
+      "diff Sum same constructors no diff",
+      `Quick,
+      () => {
+        let ann = ConstructorMap.empty_variant_ann;
+        let static_typ =
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant("A", ann, None),
+              ConstructorMap.Variant("B", ann, None),
+            ]),
+          );
+        let dynamic_typ =
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant("A", ann, None),
+              ConstructorMap.Variant("B", ann, None),
+            ]),
+          );
+        check(
+          list(testable_id),
+          "same constructors produce no diff",
+          [],
+          Typ.diff(static_typ, dynamic_typ),
+        );
+      },
+    ),
   ],
 );
 

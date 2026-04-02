@@ -37,6 +37,56 @@ let pad_variant_ann =
   | BadEntry(_) => v
   };
 
+/* Replace all variant_ann.ids with fresh IDs throughout a type */
+let rec freshen_variant_anns = (ty: Typ.t): Typ.t => {
+  let term: Typ.term =
+    switch (ty.term) {
+    | Sum(variants) =>
+      Sum(
+        List.map(
+          fun
+          | ConstructorMap.Variant(c, ann, payload) =>
+            ConstructorMap.Variant(
+              c,
+              {
+                ...ann,
+                ids: List.map(_ => Id.mk(), ann.ids),
+              },
+              Option.map(freshen_variant_anns, payload),
+            )
+          | ConstructorMap.BadEntry(t) =>
+            ConstructorMap.BadEntry(freshen_variant_anns(t)),
+          variants,
+        ),
+      )
+    | Arrow(t1, t2) =>
+      Arrow(freshen_variant_anns(t1), freshen_variant_anns(t2))
+    | Prod(ts) => Prod(List.map(freshen_variant_anns, ts))
+    | List(t) => List(freshen_variant_anns(t))
+    | TupLabel(t1, t2) =>
+      TupLabel(freshen_variant_anns(t1), freshen_variant_anns(t2))
+    | Parens(t) => Parens(freshen_variant_anns(t))
+    | Rec(tp, t) => Rec(tp, freshen_variant_anns(t))
+    | Poly(tp, t) => Poly(tp, freshen_variant_anns(t))
+    | Projector(d, t) => Projector(d, freshen_variant_anns(t))
+    | ProdProjection(t1, t2) =>
+      ProdProjection(freshen_variant_anns(t1), freshen_variant_anns(t2))
+    | ProdExtension(t1, t2) =>
+      ProdExtension(freshen_variant_anns(t1), freshen_variant_anns(t2))
+    | Unknown(_)
+    | Atom(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Var(_)
+    | ProofOf(_)
+    | Sig(_) => ty.term
+    };
+  {
+    ...ty,
+    term,
+  };
+};
+
 /* Recursively pad variant_ann.ids throughout a type */
 let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
   let term: Typ.term =
@@ -88,8 +138,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
 
 /**
  * Pads type IDs to ensure ExpToSegment uses them instead of creating new ones,
- * preserving ID correspondence for styling. Test_PadIds property test that checks
- *  ExpToSegment compatibility and padding equivalence.
+ * preserving ID correspondence for styling.
  */
 let pad_typ_ids = (ty: Typ.t): Typ.t => {
   let ty =
@@ -116,14 +165,17 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
   pad_variant_anns(ty);
 };
 
-/* Compute the is_dynamic predicate for a type, given static and dynamic types.
-   Handles fresh ID assignment, padding, and diffing in one place. */
+/* Compute CSS classes for dynamic type highlighting, given static and dynamic types.
+   Returns a function mapping tile IDs to CSS classes (["dynamic"] for differing parts). */
 let compute_dynamic_ids =
-    (~static_typ: Typ.t, ~dynamic_typ: Typ.t): (Id.t => bool, Typ.t) => {
+    (~ctx: option(Ctx.t)=?, ~static_typ: Typ.t, ~dynamic_typ: Typ.t, ())
+    : (Id.t => list(string), Typ.t) => {
   let dynamic_typ =
     dynamic_typ
     |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh())
+    |> freshen_variant_anns
     |> pad_typ_ids;
-  let dynamic_ids: list(Id.t) = Typ.diff(static_typ, dynamic_typ);
-  (id => List.mem(id, dynamic_ids), dynamic_typ);
+  let dynamic_ids =
+    Typ.diff(~ctx?, static_typ, dynamic_typ) |> Id.Set.of_list;
+  (id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [], dynamic_typ);
 };

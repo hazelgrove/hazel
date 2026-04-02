@@ -938,6 +938,12 @@ let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
     ts,
   );
 
+let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
+  meet(ctx, ty1, ty2) != None;
+
+/* Lattice join on types — returns the LEAST precise (widest) type that
+   is at least as imprecise as both inputs. Unknown dominates:
+   join(Unknown, Int) = Unknown. This is the dual of meet. */
 let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
   let join' = join(ctx);
   switch (term_of(ty1), term_of(ty2)) {
@@ -948,25 +954,20 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
-    Unknown(meet_type_provenance(p1, p2)) |> temp // Should we have a join of provenance?
+    Unknown(meet_type_provenance(p1, p2)) |> temp
   | (Unknown(_), _) => ty1
   | (_, Unknown(_)) => ty2
   | (Var(n1), Var(n2)) when n1 == n2 => ty1
   | (Var(name), _) =>
     switch (Ctx.lookup_alias(ctx, name)) {
-    | Some(ty_name) =>
-      let ty_join = join'(ty_name, ty2);
-      ty_join;
+    | Some(ty_name) => join'(ty_name, ty2)
     | None => Unknown(Internal) |> temp
     }
   | (_, Var(name)) =>
     switch (Ctx.lookup_alias(ctx, name)) {
-    | Some(ty_name) =>
-      let ty_join = join'(ty_name, ty1);
-      ty_join;
+    | Some(ty_name) => join'(ty_name, ty1)
     | None => Unknown(Internal) |> temp
     }
-  /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
@@ -990,12 +991,6 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
     let ty_body = join(ctx, ty1', ty2);
     Poly(x2, ty_body) |> temp;
-  /* Note for above: there is no danger of free variable capture as
-     subst itself performs capture avoiding substitution. However this
-     may generate internal type variable names that in corner cases can
-     be exposed to the user. We preserve the variable name of the
-     second type to preserve synthesized type variable names, which
-     come from user annotations. */
   | (Poly(_), _) => Unknown(Internal) |> temp
   | (Atom(c1), Atom(c2)) when c1 == c2 => ty1
   | (Atom(_), _) => Unknown(Internal) |> temp
@@ -1005,53 +1000,33 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
       when LabeledTuple.match_labels(name1, name2) => ty1
   | (Label(_), _) => Unknown(Internal) |> temp
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let ty1 = join'(ty1, ty1');
-    let ty2 = join'(ty2, ty2');
-    Arrow(ty1, ty2) |> temp;
+    Arrow(join'(ty1, ty1'), join'(ty2, ty2')) |> temp
   | (Arrow(_), _) => Unknown(Internal) |> temp
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-    let lab = join'(lab1, lab2);
-    let ty = join'(ty1', ty2');
-    TupLabel(lab, ty) |> temp;
+    TupLabel(join'(lab1, lab2), join'(ty1', ty2')) |> temp
   | (TupLabel(_), _) => Unknown(Internal) |> temp
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       Unknown(Internal) |> temp;
     } else {
-      let tys = List.map2(join', tys1, tys2);
-      Prod(tys) |> temp;
+      Prod(List.map2(join', tys1, tys2)) |> temp;
     }
   | (Prod(_), _) => Unknown(Internal) |> temp
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.semantic.exp(e1, e2) ? ty1 : Unknown(Internal) |> temp
   | (ProofOf(_), _) => Unknown(Internal) |> temp
   | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
-    // I think the map has to be fully equal to have a join
     Sum(sm1) |> temp
   | (Sum(_), _) => Unknown(Internal) |> temp
-  | (List(ty1), List(ty2)) =>
-    let ty = join'(ty1, ty2);
-    List(ty) |> temp;
+  | (List(ty1), List(ty2)) => List(join'(ty1, ty2)) |> temp
   | (List(_), _) => Unknown(Internal) |> temp
-  // We would prefer for this to be a sort difference and never appear in a join.
-  // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => Unknown(Internal) |> temp
   | (Sig(_), _) => Unknown(Internal) |> temp
   };
 };
 
-/**
- * Computes the join of all types in a list.
- *
- * @param ctx The type checking context containing variable bindings and aliases
- * @param ts The list of types to find the meet of
- * @return Some of the join type of all the types, None if the list is empty
- */
 let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
   ListUtil.reduce((acc, ty) => join(ctx, acc, ty), ts);
-
-let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
-  meet(ctx, ty1, ty2) != None;
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
@@ -1444,7 +1419,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
-    | ProofOf(_) => ()
+    | ProofOf(_)
     | Sig(_) => ()
     };
   };
@@ -1461,14 +1436,14 @@ let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
   };
 
 /* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids. */
-let rec diff = (ty: t, ty': t): list(Id.t) => {
+let rec diff = (~ctx: option(Ctx.t)=?, ty: t, ty': t): list(Id.t) => {
   let get_ids = () => all_ids(ty');
   switch (term_of(ty), term_of(ty')) {
-  | (Parens(t1), Parens(t2)) => diff(t1, t2)
-  | (Parens(t1), _) => diff(t1, ty')
-  | (_, Projector(_, t2)) => diff(ty, t2)
-  | (Projector(_, t1), _) => diff(t1, ty')
-  | (_, Parens(t2)) => diff(ty, t2)
+  | (Parens(t1), Parens(t2)) => diff(~ctx?, t1, t2)
+  | (Parens(t1), _) => diff(~ctx?, t1, ty')
+  | (_, Projector(_, t2)) => diff(~ctx?, ty, t2)
+  | (Projector(_, t1), _) => diff(~ctx?, t1, ty')
+  | (_, Parens(t2)) => diff(~ctx?, ty, t2)
   | (Unknown(_), Unknown(_)) => []
   | (Unknown(_), _) => get_ids()
   | (Atom(c1), Atom(c2)) when c1 == c2 => []
@@ -1478,63 +1453,79 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (ExplicitNonlabel, ExplicitNonlabel) => []
   | (ExplicitNonlabel, _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
-  | (Var(_), _) => get_ids()
+  | (Var(name), _) =>
+    switch (ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join) {
+    | Some(expanded) => diff(~ctx?, expanded, ty')
+    | None => get_ids()
+    }
+  | (_, Var(name)) =>
+    switch (ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join) {
+    | Some(expanded) => diff(~ctx?, ty, expanded)
+    | None => get_ids()
+    }
   | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
-    diff(t1, t2)
+    diff(~ctx?, t1, t2)
   | (Rec(_), _) => get_ids()
   | (Poly(tp1, t1), Poly(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
-    diff(t1, t2)
+    diff(~ctx?, t1, t2)
   | (Poly(_), _) => get_ids()
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.syntactic.exp(e1, e2) ? [] : get_ids()
   | (ProofOf(_), _) => get_ids()
-  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
+  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) =>
+    diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
   | (Arrow(_), _) => get_ids()
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    List.map2(diff, tys1, tys2) |> List.concat
+    List.map2(diff(~ctx?), tys1, tys2) |> List.concat
   | (Prod(_), _) => get_ids()
-  | (TupLabel(l1, t1), TupLabel(l2, t2)) => diff(l1, l2) @ diff(t1, t2)
+  | (TupLabel(l1, t1), TupLabel(l2, t2)) =>
+    diff(~ctx?, l1, l2) @ diff(~ctx?, t1, t2)
   | (TupLabel(_, _), _) => get_ids()
-  | (List(t1), List(t2)) => diff(t1, t2)
+  | (List(t1), List(t2)) => diff(~ctx?, t1, t2)
   | (List(_), _) => get_ids()
   | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
-    diff(t1, t1') @ diff(t2, t2')
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
   | (ProdProjection(_, _), _) => get_ids()
   | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
-    diff(t1, t1') @ diff(t2, t2')
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
   | (ProdExtension(_, _), _) => get_ids()
   | (Sum(sm1), Sum(sm2)) =>
-    let (inter, _left, right) =
+    let (inter, left, right) =
       ConstructorMap.venn_regions(
         ConstructorMap.same_constructor(fast_equal),
         sm1,
         sm2,
       );
-    /* Matched constructors: diff recursively on inner types only */
-    let matched_ids =
-      List.concat_map(
-        ((v1, v2)) =>
-          switch (v1, v2) {
-          | (
-              ConstructorMap.Variant(_, _, Some(t1)),
-              ConstructorMap.Variant(_, _, Some(t2)),
-            ) =>
-            diff(t1, t2)
-          | (
-              ConstructorMap.Variant(_, _, None),
-              ConstructorMap.Variant(_, _, None),
-            ) =>
-            []
-          | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
-            diff(t1, t2)
-          | (_, v2) => variant_all_ids(v2)
-          },
-        inter,
-      );
-    /* Unmatched constructors in ty': include all their IDs */
-    let right_ids = List.concat_map(variant_all_ids, right);
-    matched_ids @ right_ids;
+    if (left != []) {
+      /* Static type has constructors missing from dynamic — the dynamic
+         Sum is structurally different, so mark all of it as different */
+      get_ids();
+    } else {
+      let matched_ids =
+        List.concat_map(
+          ((v1, v2)) =>
+            switch (v1, v2) {
+            | (
+                ConstructorMap.Variant(_, _, Some(t1)),
+                ConstructorMap.Variant(_, _, Some(t2)),
+              ) =>
+              diff(~ctx?, t1, t2)
+            | (
+                ConstructorMap.Variant(_, _, None),
+                ConstructorMap.Variant(_, _, None),
+              ) =>
+              []
+            | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
+              diff(~ctx?, t1, t2)
+            | (_, v2) => variant_all_ids(v2)
+            },
+          inter,
+        );
+      let right_ids = List.concat_map(variant_all_ids, right);
+      matched_ids @ right_ids;
+    };
   | (Sum(_), _) => get_ids()
+  | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
   | (Sig(_), _) => get_ids()
   };
 };

@@ -89,6 +89,8 @@ let show = id =>
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
 
+module Set = Set.Make(Uuidm);
+
 module Map = {
   include Map.Make(Uuidm);
 

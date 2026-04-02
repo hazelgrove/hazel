@@ -17,39 +17,43 @@ let settings: ExpToSegment.Settings.t = {
   raise_if_padding: false,
 };
 
-/* Walk a segment producing (text, is_dynamic) fragments for each atomic part */
+/* Walk a segment producing (text, classes) fragments for each atomic part */
 let rec segment_fragments =
-        (is_dynamic: Id.t => bool, seg: Segment.t): list((string, bool)) =>
-  List.concat_map(piece_fragments(is_dynamic), seg)
+        (classes: Id.t => list(string), seg: Segment.t)
+        : list((string, list(string))) =>
+  List.concat_map(piece_fragments(classes), seg)
 and piece_fragments =
-    (is_dynamic: Id.t => bool, p: Piece.t): list((string, bool)) =>
+    (classes: Id.t => list(string), p: Piece.t)
+    : list((string, list(string))) =>
   switch (p) {
-  | Tile(t) => tile_fragments(is_dynamic, t)
-  | Grout(g) => [("?", is_dynamic(g.id))]
+  | Tile(t) => tile_fragments(classes, t)
+  | Grout(g) => [("?", classes(g.id))]
   | Secondary(w) =>
     let text =
       switch (w.content) {
       | Whitespace(s)
       | Comment(s) => s
       };
-    [(text, false)];
+    [(text, [])];
   | Projector(_) => []
   }
 and tile_fragments =
-    (is_dynamic: Id.t => bool, t: Tile.t): list((string, bool)) => {
-  let dyn = is_dynamic(t.id);
+    (classes: Id.t => list(string), t: Tile.t)
+    : list((string, list(string))) => {
+  let clss = classes(t.id);
   Aba.mk(t.shards, t.children)
   |> Aba.join(
-       shard => [(List.nth(t.label, shard), dyn)],
-       segment_fragments(is_dynamic),
+       shard => [(List.nth(t.label, shard), clss)],
+       segment_fragments(classes),
      )
   |> List.concat;
 };
 
-/* Group contiguous fragments with the same dynamic status, concatenating text.
+/* Group contiguous fragments with the same class status, concatenating text.
    Whitespace-only fragments are absorbed into their neighbor's group. */
 let group_regions =
-    (fragments: list((string, bool))): list((string, bool)) => {
+    (fragments: list((string, list(string))))
+    : list((string, list(string))) => {
   let rec go =
     fun
     | [] => []
@@ -69,27 +73,33 @@ let group_regions =
   go(fragments) |> List.filter(((text, _)) => text != "");
 };
 
-/* Given static and dynamic types, return grouped regions of (text, is_dynamic) */
+/* Given static and dynamic types, return grouped regions of (text, classes) */
 let classify_regions =
-    (static_typ: Typ.t, dynamic_typ: Typ.t): list((string, bool)) => {
-  let (is_dynamic, padded_dyn) =
-    PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ);
+    (static_typ: Typ.t, dynamic_typ: Typ.t): list((string, list(string))) => {
+  let (classes, padded_dyn) =
+    PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ, ());
   let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
-  segment_fragments(is_dynamic, segment) |> group_regions;
+  segment_fragments(classes, segment) |> group_regions;
 };
 
 let region =
   testable(
     Fmt.using(
-      ((text, is_dyn)) =>
-        (is_dyn ? "dynamic" : "static") ++ "(\"" ++ text ++ "\")",
+      ((text, clss)) => {
+        let label =
+          switch (clss) {
+          | [] => "static"
+          | _ => String.concat(" ", clss)
+          };
+        label ++ "(\"" ++ text ++ "\")";
+      },
       Fmt.string,
     ),
     (==),
   );
 
-let s = text => (text, false);
-let d = text => (text, true);
+let s = text => (text, []);
+let d = text => (text, ["dynamic"]);
 
 let ann = ConstructorMap.empty_variant_ann;
 
@@ -217,6 +227,131 @@ let arrow_diff_codomain_test =
     },
   );
 
+/* Given static and dynamic types and a ctx, return grouped regions */
+let classify_regions_ctx =
+    (~ctx: Ctx.t, static_typ: Typ.t, dynamic_typ: Typ.t)
+    : list((string, list(string))) => {
+  let (classes, padded_dyn) =
+    PadIds.compute_dynamic_ids(~ctx, ~static_typ, ~dynamic_typ, ());
+  let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
+  segment_fragments(classes, segment) |> group_regions;
+};
+
+let alias_exact_match_test =
+  test_case(
+    "Type alias — Var(MyList) vs [Int] with alias MyList = [Int]",
+    `Quick,
+    () => {
+      let ctx =
+        Ctx.extend_tvar(
+          Ctx.empty,
+          {
+            name: "MyList",
+            id: Id.mk(),
+            kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+          },
+        );
+      let result =
+        classify_regions_ctx(
+          ~ctx,
+          Typ.fresh(Var("MyList")),
+          Typ.fresh(List(Typ.fresh(Atom(Atom.Int)))),
+        );
+      check(list(region), "all static", [s("[Int]")], result);
+    },
+  );
+
+let alias_partial_diff_test =
+  test_case(
+    "Type alias — Var(Pair) expands to (Int, ?) vs (Int, String)",
+    `Quick,
+    () => {
+      let ctx =
+        Ctx.extend_tvar(
+          Ctx.empty,
+          {
+            name: "Pair",
+            id: Id.mk(),
+            kind:
+              Singleton(
+                Typ.fresh(
+                  Prod([
+                    Typ.fresh(Atom(Atom.Int)),
+                    Typ.fresh(Unknown(Internal)),
+                  ]),
+                ),
+              ),
+          },
+        );
+      let result =
+        classify_regions_ctx(
+          ~ctx,
+          Typ.fresh(Var("Pair")),
+          Typ.fresh(
+            Prod([
+              Typ.fresh(Atom(Atom.Int)),
+              Typ.fresh(Atom(Atom.String)),
+            ]),
+          ),
+        );
+      check(
+        list(region),
+        "Int static, String dynamic",
+        [s("(Int,"), d("String"), s(")")],
+        result,
+      );
+    },
+  );
+
+let sum_missing_constructor_test =
+  test_case(
+    "Sum type — dynamic missing constructor (+None +Some(Int) vs +Some(Int))",
+    `Quick,
+    () => {
+      let result =
+        classify_regions(
+          mk_sum_none_some_int(),
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant(
+                "Some",
+                ann,
+                Some(Typ.fresh(Atom(Atom.Int))),
+              ),
+            ]),
+          ),
+        );
+      /* Dynamic is missing None, so entire dynamic Sum is highlighted */
+      check(list(region), "all dynamic", [d("+ Some(Int)")], result);
+    },
+  );
+
+let alias_on_dynamic_side_test =
+  test_case(
+    "Type alias — [Int] vs Var(MyList) with alias MyList = [Int]",
+    `Quick,
+    () => {
+      let ctx =
+        Ctx.extend_tvar(
+          Ctx.empty,
+          {
+            name: "MyList",
+            id: Id.mk(),
+            kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+          },
+        );
+      let result =
+        classify_regions_ctx(
+          ~ctx,
+          Typ.fresh(List(Typ.fresh(Atom(Atom.Int)))),
+          Typ.fresh(Var("MyList")),
+        );
+      /* Rendered as the alias name, but no dynamic highlighting since
+         the alias expands to the same type */
+      check(list(region), "all static", [s("MyList")], result);
+    },
+  );
+
 let qcheck_all_piece_ids_classified =
   QCheck_alcotest.to_alcotest(
     QCheck.Test.make(
@@ -227,12 +362,15 @@ let qcheck_all_piece_ids_classified =
         QCheck_Util.arb_typ(~minimal_idents=true, 7),
       ),
       ((static_typ, dynamic_typ)) => {
-        let (is_dynamic, padded_dyn) =
-          PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ);
+        let (classes, padded_dyn) =
+          PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ, ());
         let segment = ExpToSegment.typ_to_segment(~settings, padded_dyn);
-        let fragments = segment_fragments(is_dynamic, segment);
-        /* Every fragment should be classified as either dynamic or not */
-        List.for_all(((_text, is_dyn)) => is_dyn || !is_dyn, fragments);
+        let fragments = segment_fragments(classes, segment);
+        /* Every fragment should produce a valid class list (empty or non-empty) */
+        List.for_all(
+          ((_text, clss)) => clss == [] || clss == ["dynamic"],
+          fragments,
+        );
       },
     ),
   );
@@ -244,8 +382,12 @@ let tests = [
       sum_partial_diff_test,
       sum_fully_diff_test,
       sum_same_test,
+      sum_missing_constructor_test,
       prod_partial_diff_test,
       arrow_diff_codomain_test,
+      alias_exact_match_test,
+      alias_partial_diff_test,
+      alias_on_dynamic_side_test,
       qcheck_all_piece_ids_classified,
     ],
   ),

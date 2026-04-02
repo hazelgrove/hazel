@@ -25,35 +25,14 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   };
 
 let get_dynamic_typ = (info: info): Typ.t => {
-  let dynamic_typ =
-    info.dynamics
-    |> Option.bind(
-         _,
-         (d: Dynamics.Info.t) => {
-           let statics =
-             Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-           let type_of = (c: Sample.t) => {
-             IdTagged.rep_id(c.value)
-             |> Id.Map.find_opt(_, statics(c.value))
-             |> Option.bind(
-                  _,
-                  fun
-                  | InfoExp(e) => {
-                      Some(e.ty);
-                    }
-                  | _ => None,
-                );
-           };
-           let types = List.map(type_of, d.samples) |> Util.OptUtil.sequence;
-
-           Option.bind(
-             types,
-             Typ.meet_all(~empty=Typ.fresh(Unknown(Internal)), Ctx.empty),
-           );
-         },
-       )
-    |> Option.value(~default=Typ.fresh(Unknown(Internal)));
-  dynamic_typ;
+  let ctx =
+    Option.map(Info.ctx_of, info.statics)
+    |> Option.value(~default=Builtins.ctx_init(Some(Int)));
+  info.dynamics
+  |> Option.map((d: Dynamics.Info.t) =>
+       DynamicTypInfer.dynamic_typ_of_samples_or_unknown(~ctx, d.samples)
+     )
+  |> Option.value(~default=Typ.fresh(Unknown(Internal)));
 };
 
 module M: Projector = {
@@ -110,7 +89,7 @@ module M: Projector = {
     );
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    let (is_dynamic, typ) =
+    let (classes, typ) =
       switch (model) {
       | Dynamic =>
         let dynamic_typ = get_dynamic_typ(info);
@@ -119,13 +98,14 @@ module M: Projector = {
             ~default=Typ.fresh(Unknown(Internal)),
             self_ty(info.statics),
           );
-        PadIds.compute_dynamic_ids(~static_typ, ~dynamic_typ);
+        let ctx = Option.map(Info.ctx_of, info.statics);
+        PadIds.compute_dynamic_ids(~ctx?, ~static_typ, ~dynamic_typ, ());
       | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
-          (_ => false),
+          (_ => []),
           self_ty(info.statics) |> totalize_ty,
         )
-      | Expected => ((_ => false), expected_ty(info.statics) |> totalize_ty)
-      | Self => ((_ => false), self_ty(info.statics) |> totalize_ty)
+      | Expected => ((_ => []), expected_ty(info.statics) |> totalize_ty)
+      | Self => ((_ => []), self_ty(info.statics) |> totalize_ty)
       };
 
     div(
@@ -133,7 +113,7 @@ module M: Projector = {
       [
         Typ(typ)
         |> utility.term_to_seg
-        |> view_seg(~single_line=true, ~is_dynamic, Sort.Typ),
+        |> view_seg(~single_line=true, ~classes, Sort.Typ),
       ],
     );
   };

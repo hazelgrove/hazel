@@ -173,7 +173,8 @@ let legend_sample_view =
         ~single_line=true,
         ~background=false,
         ~text_only,
-        ~is_dynamic=?None,
+        ~classes=_ =>
+        []
       ),
     _ => Effect.Ignore,
     _ => Effect.Ignore,

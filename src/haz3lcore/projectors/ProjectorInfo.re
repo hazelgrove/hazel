@@ -7,12 +7,13 @@ open Language;
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
-  let term_to_seg =
+  let term_to_seg = any =>
     ExpToSegment.any_to_segment(
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
       },
+      any,
     );
   let lift_syntax =
       (fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) =>

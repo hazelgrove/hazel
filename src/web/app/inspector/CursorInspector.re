@@ -124,19 +124,15 @@ let view_type = (~globals, ~dynamic_info: option(Info.t), typ: Typ.t) => {
     | Some(InfoPat({self, _})) => self |> Self.typ_of_pat
     | _ => None
     };
-  let (is_dynamic, display_typ) =
+  let (classes, display_typ) =
     switch (dyn_type) {
     | Some(dynamic_typ) =>
-      PadIds.compute_dynamic_ids(~static_typ=typ, ~dynamic_typ)
-    | None => ((_ => false), typ)
+      PadIds.compute_dynamic_ids(~static_typ=typ, ~dynamic_typ, ())
+    | None => ((_ => []), typ)
     };
 
   display_typ
-  |> CodeViewable.view_typ(
-       ~globals,
-       ~settings=code_view_settings,
-       ~is_dynamic,
-     )
+  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings, ~classes)
   |> code_box_container;
 };
 let common_err_view =
