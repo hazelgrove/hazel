@@ -24,7 +24,8 @@ type cls =
   | Poly
   | ProofOf
   | ProdProjection
-  | ProdExtension;
+  | ProdExtension
+  | Sig;
 
 include TermBase.Typ;
 
@@ -96,7 +97,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Poly(_) => Poly
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
-  | ProdExtension(_) => ProdExtension;
+  | ProdExtension(_) => ProdExtension
+  | Sig(_) => Sig;
 
 let show_cls: cls => string =
   fun
@@ -121,7 +123,8 @@ let show_cls: cls => string =
   | Poly => "Type quantifier"
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
-  | ProdExtension => "Tuple extension";
+  | ProdExtension => "Tuple extension"
+  | Sig => "Signature type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -141,7 +144,8 @@ let rec is_arrow = (typ: t) => {
   | ProofOf(_)
   | Rec(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 };
 
@@ -163,7 +167,8 @@ let is_atom = (ty: t): bool =>
   | Poly(_)
   | Rec(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 
 let rec has_fun = (typ: t) =>
@@ -191,6 +196,7 @@ let rec has_fun = (typ: t) =>
     )
   | Prod(tys) => List.exists(has_fun, tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
+  | Sig(_) => false
   };
 
 let rec is_poly = (typ: t) => {
@@ -211,7 +217,8 @@ let rec is_poly = (typ: t) => {
   | Sum(_)
   | Rec(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 };
 
@@ -286,6 +293,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Poly(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   | ProofOf(_) => []
+  | Sig(_) => []
   };
 
 let rec vars = (ty: t): list(Var.t) =>
@@ -319,6 +327,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | TupLabel(_, ty)
   | ProdProjection(ty, _) => vars(ty)
   | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Sig(_) => []
   };
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
@@ -376,6 +385,7 @@ let rec num_nodes = (ty: t): int => {
   | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
   | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | Sig(_) => 1
   };
 };
 
@@ -410,6 +420,7 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Sig(_) => 0
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
@@ -432,6 +443,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | ExplicitNonlabel
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
+  | Sig(_) => false
   };
 
 let rec contains_unknown = (ty: t): bool =>
@@ -461,6 +473,7 @@ let rec contains_unknown = (ty: t): bool =>
   | ExplicitNonlabel
   | Label(_) => false
   | TupLabel(_, ty) => contains_unknown(ty)
+  | Sig(_) => false
   };
 
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
@@ -493,6 +506,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | ProdExtension(t1, t2) =>
       ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProofOf(e) => ProofOf(e) |> rewrap
+    | Sig(_) => ty
     };
   | None => ty
   };
@@ -663,6 +677,86 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
+  | Sig(items) =>
+    /* Desugar signature to labeled tuple type:
+       { let x : Int; let y : Bool } => (x=Int, y=Bool)
+       Type aliases (SigType) don't contribute to the exported type. */
+    let fields =
+      items
+      |> List.filter_map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(pat) =>
+             /* Extract name and type from pattern.
+                let x : T => name="x", typ=T
+                let x     => name="x", typ=Unknown */
+             switch (pat.term) {
+             | Asc({term: Var(name), _}, typ) =>
+               Some(
+                 TupLabel(Label(name) |> temp, normalize(ctx, typ)) |> temp,
+               )
+             | Var(name) =>
+               Some(
+                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
+                 |> temp,
+               )
+             | _ => None
+             }
+           | SigType(_, _)
+           | Invalid(_)
+           | EmptyHole
+           | MultiHole(_) => None
+           }
+         );
+    switch (fields) {
+    | [] => Prod([]) |> rewrap
+    | _ => normalize(ctx, Prod(fields) |> rewrap)
+    };
+  };
+};
+
+/* Targeted Sig desugaring: Only converts Sig nodes to Prod (labeled tuples),
+   preserving Parens and everything else. Use this instead of normalize when
+   you need to desugar Sig types without stripping Parens wrappers. */
+let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
+  let (term, rewrap) = unwrap(ty);
+  switch (term) {
+  | Sig(items) =>
+    let fields =
+      items
+      |> List.filter_map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(pat) =>
+             switch (pat.term) {
+             | Asc({term: Var(name), _}, typ) =>
+               Some(
+                 TupLabel(Label(name) |> temp, desugar_sig(ctx, typ))
+                 |> temp,
+               )
+             | Var(name) =>
+               Some(
+                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
+                 |> temp,
+               )
+             | _ => None
+             }
+           | SigType(_, _)
+           | Invalid(_)
+           | EmptyHole
+           | MultiHole(_) => None
+           }
+         );
+    switch (fields) {
+    | [] => Prod([]) |> rewrap
+    | _ => Prod(fields) |> rewrap
+    };
+  | Parens(t) => Parens(desugar_sig(ctx, t)) |> rewrap
+  | Arrow(t1, t2) =>
+    Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
+  | Prod(ts) => Prod(List.map(desugar_sig(ctx), ts)) |> rewrap
+  | List(t) => List(desugar_sig(ctx, t)) |> rewrap
+  | TupLabel(label, ty) =>
+    TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
+  | _ => ty
   };
 };
 
@@ -788,6 +882,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => None
+  | (Sig(_), _) => None
   };
 };
 
@@ -832,6 +927,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible poly is `Poly Syn -> Syn`
   | (Poly(_), Poly(_)) => t2
   | (Poly(_), _) => t1
+  | (Sig(_), _) => t1
   };
 };
 
@@ -940,6 +1036,7 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
   // We would prefer for this to be a sort difference and never appear in a join.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => Unknown(Internal) |> temp
+  | (Sig(_), _) => Unknown(Internal) |> temp
   };
 };
 
@@ -1131,7 +1228,8 @@ let rec is_syn = (ty: t): bool =>
   | Sum(_)
   | ProdProjection(_)
   | ProdExtension(_)
-  | ExplicitNonlabel => false
+  | ExplicitNonlabel
+  | Sig(_) => false
   };
 
 let rec is_ana_atom = (ty: t) =>
@@ -1152,7 +1250,8 @@ let rec is_ana_atom = (ty: t) =>
   | Prod(_)
   | ProdProjection(_)
   | ProdExtension(_)
-  | Sum(_) => None
+  | Sum(_)
+  | Sig(_) => None
   };
 
 let rec is_syn_plus = (ty: t): bool =>
@@ -1174,7 +1273,8 @@ let rec is_syn_plus = (ty: t): bool =>
   | Prod(_)
   | Sum(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
@@ -1197,6 +1297,7 @@ let rec needs_parens = (ty: t): bool =>
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  | Sig(_) => false /* already wrapped in {} */
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -1254,6 +1355,33 @@ let rec pretty_print = (ty: t): string =>
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | ProofOf(_e) => "yes <e> indeed"
+  | Sig(items) =>
+    let sig_item_str = (item: Sig.t) =>
+      switch (item.term) {
+      | SigLet(p) =>
+        "let "
+        ++ (
+          switch (IdTagged.term_of(p)) {
+          | Var(x) => x
+          | Asc(p', t) =>
+            (
+              switch (IdTagged.term_of(p')) {
+              | Var(x) => x
+              | _ => "?"
+              }
+            )
+            ++ " : "
+            ++ pretty_print(t)
+          | _ => "?"
+          }
+        )
+      | SigType(tp, t) =>
+        "type " ++ pretty_print_tvar(tp) ++ " = " ++ pretty_print(t)
+      | EmptyHole => "?"
+      | Invalid(s) => s
+      | MultiHole(_) => "?"
+      };
+    "{ " ++ String.concat("; ", List.map(sig_item_str, items)) ++ " }";
   }
 and ctr_pretty_print =
   fun
@@ -1317,6 +1445,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | ExplicitNonlabel
     | Var(_)
     | ProofOf(_) => ()
+    | Sig(_) => ()
     };
   };
   collect_ann_ids(ty);
@@ -1406,5 +1535,6 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
     let right_ids = List.concat_map(variant_all_ids, right);
     matched_ids @ right_ids;
   | (Sum(_), _) => get_ids()
+  | (Sig(_), _) => get_ids()
   };
 };

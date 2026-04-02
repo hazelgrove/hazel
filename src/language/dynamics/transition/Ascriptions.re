@@ -288,7 +288,9 @@ let rec transition =
     | (HintedTest(_), _)
     | (Cons(_), _)
     | (ProofObject(_), _)
-    | (Constructor(_), _) => SampleWriter.return(None)
+    | (Constructor(_), _)
+    | (Module(_), _)
+    | (ModuleExp(_), _) => SampleWriter.return(None)
     }
   | _ => SampleWriter.return(None)
   };

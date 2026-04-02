@@ -5,7 +5,8 @@ module Settings = {
   type panel =
     | LanguageDocumentation
     | HelpfulAssistant
-    | Probes;
+    | Probes
+    | LogControl;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

@@ -94,6 +94,13 @@ let go =
     |> return(Cant_select)
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
+  | Select(PointToPoint((p1, p2))) =>
+    z
+    |> Move.to_point(~measured=syntax.measured, ~goal=p1)
+    |> OptUtil.and_then(z =>
+         Select.to_point(~measured=syntax.measured, ~goal=p2, z)
+       )
+    |> return(Cant_select)
   | Select(Term(Current)) =>
     Select.current_term(
       syntax.term_data,
@@ -134,4 +141,5 @@ let go =
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };

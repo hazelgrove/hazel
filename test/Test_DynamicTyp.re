@@ -13,7 +13,6 @@ let settings: ExpToSegment.Settings.t = {
   hide_fixpoints: false,
   show_filters: true,
   show_unknown_as_hole: true,
-  project_tables: false,
   show_ascriptions: true,
   raise_if_padding: false,
 };

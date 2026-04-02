@@ -251,12 +251,21 @@ module View = {
         ~refractor_shape_map=Id.Map.empty,
         (),
       );
-    let statics_decos =
+    let error_decos =
       Arms.Errors.of_ids(
         ~is_dynamic=false,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
+      );
+    let warning_ids =
+      globals.settings.core.display_warnings ? model.statics.warning_ids : [];
+    let warning_decos =
+      Arms.Errors.of_ids(
+        ~is_warning=true,
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        warning_ids,
       );
     let dynamic_static_decos =
       Arms.Errors.of_ids(
@@ -266,10 +275,14 @@ module View = {
         model.statics.dynamic_error_ids,
       );
     let container_classes =
-      ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
+      ["code-container"]
+      @ (globals.meta_down ? ["meta-down"] : [])
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
     Node.div(
       ~attrs=[Attr.classes(container_classes)],
-      [code_text_view, statics_decos, dynamic_static_decos] @ overlays,
+      // errors after warnings to prioritize errors over warnings
+      [code_text_view, warning_decos, error_decos, dynamic_static_decos]
+      @ overlays,
     );
   };
 };
