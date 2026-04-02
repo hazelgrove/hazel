@@ -317,7 +317,9 @@ module ViewComponents = {
         ~chat_id: Id.t,
       )
       : Node.t => {
-    let tools = agent_model.prompting.tools;
+    /* Use [[CompositionUtils.Public.tools]], not [[prompting.tools]]: the latter is
+       persisted with the scratchpad and can lag behind the in-code registry. */
+    let tools = CompositionUtils.Public.tools;
     let disabled = agent_model.prompting.disabled_tool_names;
     let expanded = agent_model.tools_view_expanded;
 
@@ -568,7 +570,15 @@ let chat_messages_scroll_stamp =
           content,
         );
         List.iter(s => mix(String.length(s)), agent_reasoning);
-        mix(List.length(tool_results));
+        List.iter(
+          (tr: AgentToolResult.tool_result) => {
+            mix(String.length(tr.content));
+            mix(tr.expanded ? 1 : 0);
+            mix(tr.success ? 1 : 0);
+            mix(Hashtbl.hash(tr.tool_call.id));
+          },
+          tool_results,
+        );
       | CompactionNotice({method, content}) =>
         mix(6);
         mix(String.length(method));
@@ -600,7 +610,7 @@ module ChatMessagesScrollHook = {
     let combine = (_, y) => y;
   };
 
-  let bottom_slack_px = 4.0;
+  let bottom_slack_px = 12.0;
 
   let is_near_bottom = (el: Js.t(Dom_html.element)): bool => {
     let h = Js.Unsafe.coerce(el);
@@ -615,6 +625,26 @@ module ChatMessagesScrollHook = {
     h##.scrollTop :=  h##.scrollHeight;
   };
 
+  /** After vdom patch, flex layout and user-message textarea autosize (rAF + [delay 0])
+      can grow [scrollHeight] without changing the scroll stamp — schedule follow-up scrolls. */
+  let schedule_scroll_to_bottom = (el: Js.t(Dom_html.element)): unit => {
+    let run = () => scroll_to_bottom(el);
+    ignore(
+      Dom_html.window##requestAnimationFrame(
+        Js.wrap_callback((_: float) => {
+          run();
+          JsUtil.delay(
+            0.0,
+            () => {
+              run();
+              JsUtil.delay(0.0, run);
+            },
+          );
+        }),
+      ),
+    );
+  };
+
   include Virtual_dom.Vdom.Attr.Hooks.Make({
     module State = State;
     module Input = Input;
@@ -627,6 +657,7 @@ module ChatMessagesScrollHook = {
 
     let on_mount = (_input: Input.t, state: State.t, element) => {
       scroll_to_bottom(element);
+      schedule_scroll_to_bottom(element);
       let handler =
         Dom.handler(_evt => {
           state.stick_to_bottom = is_near_bottom(element);
@@ -646,6 +677,7 @@ module ChatMessagesScrollHook = {
         (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) =>
       if (old_input != new_input && state.stick_to_bottom) {
         scroll_to_bottom(element);
+        schedule_scroll_to_bottom(element);
       };
 
     let destroy = (_input: Input.t, state: State.t, _element) =>

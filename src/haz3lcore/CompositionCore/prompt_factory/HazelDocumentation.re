@@ -72,7 +72,7 @@ let summarized_docs = [
   "   fun n -> if n == 0 then false else even(n - 1))",
   "in even(4);",
   "```",
-  "- Projectors and livelits provide visual editing tools in Hazel's GUI.",
+  "- Projectors (folds, probes, statics overlays, livelits such as checkbox/slider/csv) are summarized in Filbert’s system prompt projector catalog.",
   "- Hazel allows tests to be included inline.",
   "```",
   "test 2 + 2 == 4 end;",

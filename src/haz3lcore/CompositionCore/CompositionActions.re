@@ -14,10 +14,17 @@ type probe_action =
   | ToggleProbe(list(string));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type statics_action =
+  | PlaceStatics(list(string))
+  | RemoveStatics(list(string))
+  | ToggleStatics(list(string));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | EditorAction(Action.Structural.t)
   | LanguageServerAction(language_server)
   | Initialize(string) /* replace entire program content (select-all + paste) */
   | WorkbenchAction(AgentWorkbench.Update.Action.BackendAction.action)
   | AgentContextAction(AgentContext.Update.action)
-  | ProbeAction(probe_action);
+  | ProbeAction(probe_action)
+  | StaticsAction(statics_action);

@@ -296,7 +296,7 @@ let set_active_subtask: API.Json.t =
 let mark_active_task_complete_description = {|
 Marks the active task as complete with a summary describing what was accomplished.
 The summary is visible to the user — make it clear and informative.
-All subtasks should be complete before marking the task complete.
+Any subtasks that are still open are **automatically marked complete** with a short system note when you call this tool, so you do not need to call `mark_active_subtask_complete` on each one first.
 
 Parameters:
 summary: string — a clear description of what was built/changed and how it works
@@ -369,7 +369,7 @@ let mark_active_task_incomplete: API.Json.t =
 
 let mark_active_subtask_complete_description = {|
 Marks the active subtask as complete and automatically advances to the next incomplete subtask.
-If all subtasks are complete, no subtask will be active (proceed to mark the task complete).
+If all subtasks are complete, no subtask will be active; you can then call `mark_active_task_complete` (which also auto-completes any remaining open subtasks if you skip straight to it).
 
 Parameters:
 summary: string — a brief description of what was done to complete this milestone

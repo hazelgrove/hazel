@@ -1,5 +1,6 @@
 let self = [
-  "<hazelLanguageGuide>",
+  "## Hazel language guide",
+  "",
   "Hazel is a typed, live functional programming language with structure-aware editing.",
   "Every edit state maintains a valid AST. Typed holes (`?`) represent missing code and still typecheck/evaluate.",
   "",
@@ -233,5 +234,4 @@ let self = [
   "sum([1, 2, 3, 4, 5])",
   "```",
   "",
-  "</hazelLanguageGuide>",
 ];

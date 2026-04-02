@@ -2,6 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 open Action;
+open CompositionActions;
 open Util;
 
 let mk_zipper = (code: string): Zipper.t => {
@@ -1551,6 +1552,55 @@ let composition_utils_tests = (
       },
     ),
     test_case(
+      "parse place_statics tool call",
+      `Quick,
+      () => {
+        let args =
+          `Assoc([("paths", `List([`String("x"), `String("y")]))]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="place_statics", ~args)
+        ) {
+        | Action(StaticsAction(PlaceStatics(["x", "y"]))) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse remove_statics tool call",
+      `Quick,
+      () => {
+        let args = `Assoc([("paths", `List([`String("foo")]))]);
+        switch (
+          CompositionUtils.Public.action_of(
+            ~tool_name="remove_statics",
+            ~args,
+          )
+        ) {
+        | Action(StaticsAction(RemoveStatics(["foo"]))) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse toggle_statics tool call",
+      `Quick,
+      () => {
+        let args = `Assoc([("paths", `List([`String("bar")]))]);
+        switch (
+          CompositionUtils.Public.action_of(
+            ~tool_name="toggle_statics",
+            ~args,
+          )
+        ) {
+        | Action(StaticsAction(ToggleStatics(["bar"]))) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
       "unknown tool name returns Failure",
       `Quick,
       () => {
@@ -2352,7 +2402,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        check(int, "tool count", 25, List.length(tools));
+        check(int, "tool count", 30, List.length(tools));
       },
     ),
     test_case(
@@ -2455,13 +2505,16 @@ let tool_json_tests = (
       },
     ),
     test_case(
-      "probe tools have required paths parameter",
+      "view tools with paths have required paths parameter",
       `Quick,
       () => {
         let probe_tool_names = [
           "place_probe",
           "remove_probe",
           "toggle_probe",
+          "place_statics",
+          "remove_statics",
+          "toggle_statics",
         ];
         let tools = CompositionUtils.Public.tools;
         List.iter(
@@ -2501,6 +2554,184 @@ let tool_json_tests = (
 );
 
 /* ============================================================
+   STATICS REFRACTOR (path-based helpers)
+   ============================================================ */
+
+let statics_refractor_tests = (
+  "AgentTools.StaticsRefractor",
+  [
+    test_case(
+      "place_statics_at then remove_statics_at clears statics status",
+      `Quick,
+      () => {
+        let code = "let x = 1 in x";
+        let z = mk_zipper(code);
+        let info_map = mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None => Alcotest.fail("expected high-level node map")
+        | Some(nm) =>
+          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "x")) {
+          | None => Alcotest.fail("expected path x")
+          | Some(id) =>
+            let syntax = CachedSyntax.init(z);
+            let z2 = ProbePerform.place_statics_at(~syntax, id, info_map, z);
+            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            | Statics(_) => ()
+            | _ =>
+              Alcotest.fail("expected Statics status after place_statics_at")
+            };
+            let z3 =
+              ProbePerform.remove_statics_at(~syntax, id, info_map, z2);
+            switch (ProbePerform.probe_status(id, info_map, z3.refractors)) {
+            | Non => ()
+            | _ =>
+              Alcotest.fail(
+                "expected Non status after remove_statics_at (statics only)",
+              )
+            };
+          }
+        };
+      },
+    ),
+    test_case(
+      "remove_statics_at does not strip a runtime probe",
+      `Quick,
+      () => {
+        let code = "let x = 1 in x";
+        let z = mk_zipper(code);
+        let info_map = mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None => Alcotest.fail("expected high-level node map")
+        | Some(nm) =>
+          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "x")) {
+          | None => Alcotest.fail("expected path x")
+          | Some(id) =>
+            let syntax = CachedSyntax.init(z);
+            let z2 = ProbePerform.add_manual(~syntax, id, info_map, z);
+            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            | Manual(_) => ()
+            | _ => Alcotest.fail("expected Manual probe after add_manual")
+            };
+            let z3 =
+              ProbePerform.remove_statics_at(~syntax, id, info_map, z2);
+            switch (ProbePerform.probe_status(id, info_map, z3.refractors)) {
+            | Manual(_) => ()
+            | _ =>
+              Alcotest.fail(
+                "remove_statics_at should leave manual probe in place",
+              )
+            };
+          }
+        };
+      },
+    ),
+  ],
+);
+
+/* ============================================================
+   AGENT TOOLS WITH SYNTAX PROJECTORS / LIVELITS IN PROGRAM TEXT
+   Projector concrete syntax: ^^<kind>(<exp>) — see Test_ExpToSegment roundtrip tests.
+   ============================================================ */
+
+let agent_tools_with_projectors_tests = (
+  "AgentTools.WithProjectors",
+  [
+    test_case(
+      "update_definition replaces binding whose definition uses slider projector",
+      `Quick,
+      () => {
+        let code = {|let x = ^^slider(50) in x + 1|};
+        let result = apply_and_render(code, Update(Definition, "x", "100"));
+        check_rendered(
+          "slider projector def replaced",
+          "let x = 100 in x + 1",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition replaces checkbox projector binding",
+      `Quick,
+      () => {
+        let code = {|let b = ^^check(true) in b|};
+        let result =
+          apply_and_render(code, Update(Definition, "b", "false"));
+        check_rendered(
+          "checkbox projector def replaced",
+          "let b = false in b",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_body works when a binding uses nested fold + slider projectors",
+      `Quick,
+      () => {
+        let code = {|let n = ^^fold(^^slider(10) + 1) in n|};
+        let result = apply_and_render(code, Update(Body, "n", "0"));
+        check_rendered(
+          "body update with nested projectors",
+          "let n = ^^fold(^^slider(10) + 1) in 0",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "place_statics_at on binding with projector in definition",
+      `Quick,
+      () => {
+        let code = {|let v = ^^slider(42) in v|};
+        let z = mk_zipper(code);
+        let info_map = mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None => Alcotest.fail("expected high-level node map")
+        | Some(nm) =>
+          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "v")) {
+          | None => Alcotest.fail("expected path v")
+          | Some(id) =>
+            let syntax = CachedSyntax.init(z);
+            let z2 = ProbePerform.place_statics_at(~syntax, id, info_map, z);
+            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            | Statics(_) => ()
+            | _ =>
+              Alcotest.fail(
+                "expected Statics after place_statics_at on projector def",
+              )
+            };
+          }
+        };
+      },
+    ),
+    test_case(
+      "add_manual probe on binding with csv projector wrapper",
+      `Quick,
+      () => {
+        let code = {|let rows = ^^csv([]) in rows|};
+        let z = mk_zipper(code);
+        let info_map = mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None => Alcotest.fail("expected high-level node map")
+        | Some(nm) =>
+          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "rows")) {
+          | None => Alcotest.fail("expected path rows")
+          | Some(id) =>
+            let syntax = CachedSyntax.init(z);
+            let z2 = ProbePerform.add_manual(~syntax, id, info_map, z);
+            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            | Manual(_) => ()
+            | _ =>
+              Alcotest.fail(
+                "expected Manual probe on binding with csv projector",
+              )
+            };
+          }
+        };
+      },
+    ),
+  ],
+);
+
+/* ============================================================
    AGGREGATE ALL TESTS
    ============================================================ */
 
@@ -2519,6 +2750,8 @@ let tests = [
   high_level_node_map_tests,
   composition_view_print_tests,
   composition_utils_tests,
+  statics_refractor_tests,
+  agent_tools_with_projectors_tests,
   sequential_operations_tests,
   type_alias_tests,
   complex_program_tests,

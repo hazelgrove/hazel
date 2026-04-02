@@ -757,33 +757,49 @@ module Update = {
         switch (MainUtils.active_task(model)) {
         | None => Failure("No active task to mark complete")
         | Some(active_task) =>
-          switch (TaskUtils.get_incompleted_subtasks(active_task)) {
-          | [] =>
-            let clock_it = JsUtil.timestamp();
-            let task = {
-              ...active_task,
-              completion_info:
-                Some({
-                  summary,
-                  elapsed_time: clock_it -. active_task.metadata.began_at,
-                  status: Completed,
-                }),
-              metadata: {
-                ...active_task.metadata,
-                completed_at: Some(clock_it),
-                last_updated_at: clock_it,
+          let clock_it = JsUtil.timestamp();
+          let task_with_subtasks_done =
+            List.fold_left(
+              (task, subtask: subtask) => {
+                let updated_subtask = {
+                  ...subtask,
+                  completion_info:
+                    Some({
+                      summary: "(Auto-completed when the parent task was marked complete.)",
+                      elapsed_time: clock_it -. subtask.metadata.began_at,
+                      status: Completed,
+                    }),
+                  metadata: {
+                    ...subtask.metadata,
+                    completed_at: Some(clock_it),
+                    last_updated_at: clock_it,
+                  },
+                };
+                TaskUtils.write_subtask(~task, ~subtask=updated_subtask);
               },
-            };
-            UpdateUtils.write_task(~model, ~task);
-          | incompleted_subtasks =>
-            let incompleted_titles =
-              incompleted_subtasks
-              |> List.map((subtask: subtask) => subtask.title);
-            Failure(
-              "Cannot mark active task complete. Please complete the following subtasks first before marking the task complete: "
-              ++ String.concat(", ", incompleted_titles),
+              active_task,
+              TaskUtils.get_incompleted_subtasks(active_task),
             );
-          }
+          let task = {
+            ...task_with_subtasks_done,
+            active_subtask:
+              TaskUtils.get_next_incomplete_subtask_title(
+                task_with_subtasks_done,
+              ),
+            completion_info:
+              Some({
+                summary,
+                elapsed_time:
+                  clock_it -. task_with_subtasks_done.metadata.began_at,
+                status: Completed,
+              }),
+            metadata: {
+              ...task_with_subtasks_done.metadata,
+              completed_at: Some(clock_it),
+              last_updated_at: clock_it,
+            },
+          };
+          UpdateUtils.write_task(~model, ~task);
         }
       | MarkActiveTaskIncomplete =>
         /*

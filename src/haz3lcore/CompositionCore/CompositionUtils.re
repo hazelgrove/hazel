@@ -16,6 +16,9 @@ module Local = {
     ProbeTools.place_probe,
     ProbeTools.remove_probe,
     ProbeTools.toggle_probe,
+    StaticsTools.place_statics,
+    StaticsTools.remove_statics,
+    StaticsTools.toggle_statics,
     EditTools.initialize,
     EditTools.update_definition,
     EditTools.update_body,
@@ -36,6 +39,8 @@ module Local = {
     WorkbenchTools.mark_active_subtask_incomplete,
     WorkbenchTools.mark_active_subtask_failed,
     WorkbenchTools.mark_active_task_failed,
+    WorkbenchTools.add_new_subtask_to_active_task,
+    WorkbenchTools.reorder_subtasks_in_active_task,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {
@@ -81,6 +86,12 @@ module Local = {
               ProbeAction(RemoveProbe(get_string_list(args, "paths")))
             | "toggle_probe" =>
               ProbeAction(ToggleProbe(get_string_list(args, "paths")))
+            | "place_statics" =>
+              StaticsAction(PlaceStatics(get_string_list(args, "paths")))
+            | "remove_statics" =>
+              StaticsAction(RemoveStatics(get_string_list(args, "paths")))
+            | "toggle_statics" =>
+              StaticsAction(ToggleStatics(get_string_list(args, "paths")))
             | "initialize" => Initialize(get_string(args, "code"))
             | "update_definition" =>
               EditorAction(
@@ -217,6 +228,12 @@ module Local = {
       "remove_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | ProbeAction(ToggleProbe(paths)) =>
       "toggle_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | StaticsAction(PlaceStatics(paths)) =>
+      "place_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | StaticsAction(RemoveStatics(paths)) =>
+      "remove_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | StaticsAction(ToggleStatics(paths)) =>
+      "toggle_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | LanguageServerAction(ShowUseSites(path)) =>
       "show_use_sites(\"" ++ path ++ "\")"
     | LanguageServerAction(ShowReferences(path)) =>

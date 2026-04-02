@@ -1306,6 +1306,10 @@ module Agent = {
     let persist = (model: Model.t): t => {
       {
         ...model,
+        prompting: {
+          ...model.prompting,
+          tools: CompositionUtils.Public.tools,
+        },
         restore_editor_state: None,
         last_empty_retry_attempt: None,
         last_active_task_nudge_attempt: None,
@@ -1318,6 +1322,12 @@ module Agent = {
     let unpersist = (p: t): Model.t => {
       {
         ...p,
+        prompting: {
+          ...p.prompting,
+          /* Always use the in-code tool registry so new tools (probes, statics, …)
+             appear after upgrades; disabled_tool_names still applies per name. */
+          tools: CompositionUtils.Public.tools,
+        },
         awaiting_response: None,
         restore_editor_state: None,
         last_empty_retry_attempt: None,
@@ -1364,6 +1374,9 @@ module Agent = {
                 "place_probe",
                 "remove_probe",
                 "toggle_probe",
+                "place_statics",
+                "remove_statics",
+                "toggle_statics",
               ],
             ) => "View"
       | n
@@ -1398,6 +1411,8 @@ module Agent = {
                 "mark_active_subtask_incomplete",
                 "mark_active_subtask_failed",
                 "mark_active_task_failed",
+                "add_new_subtask_to_active_task",
+                "reorder_subtasks_in_active_task",
               ],
             ) => "Workbench"
       | _ => "Other"
@@ -1656,6 +1671,112 @@ module Agent = {
             Ok((agent, new_cws));
           };
         };
+      | StaticsAction(statics_action) =>
+        let z = editor.editor.state.zipper;
+        let info_map = CompositionGo.Public.mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None =>
+          Error(
+            Failure.Info(
+              "No bindings in the program. Add let/type bindings first.",
+            ),
+          )
+        | Some(node_map) =>
+          let syntax = CachedSyntax.init(z);
+          let resolve_path = (path: string): option(Id.t) =>
+            HighLevelNodeMap.Public.path_to_id_opt(node_map, path);
+
+          let apply_statics_action =
+              (z: Zipper.t, paths: list(string)): (Zipper.t, list(string)) => {
+            List.fold_left(
+              ((z, expanded), path) =>
+                switch (resolve_path(path)) {
+                | Some(id) =>
+                  switch (statics_action) {
+                  | PlaceStatics(_) =>
+                    let z =
+                      ProbePerform.place_statics_at(~syntax, id, info_map, z);
+                    let expanded =
+                      switch (
+                        ProbePerform.probe_status(id, info_map, z.refractors)
+                      ) {
+                      | Statics(_) => [path, ...expanded]
+                      | _ => expanded
+                      };
+                    (z, expanded);
+                  | RemoveStatics(_) =>
+                    let z =
+                      ProbePerform.remove_statics_at(
+                        ~syntax,
+                        id,
+                        info_map,
+                        z,
+                      );
+                    (z, expanded);
+                  | ToggleStatics(_) =>
+                    let z =
+                      ProbePerform.toggle_statics_at(
+                        ~syntax,
+                        id,
+                        info_map,
+                        z,
+                      );
+                    let expanded =
+                      switch (
+                        ProbePerform.probe_status(id, info_map, z.refractors)
+                      ) {
+                      | Statics(_) => [path, ...expanded]
+                      | _ => expanded
+                      };
+                    (z, expanded);
+                  }
+                | None => (z, expanded)
+                },
+              (z, []),
+              paths,
+            );
+          };
+
+          let paths =
+            switch (statics_action) {
+            | PlaceStatics(p)
+            | RemoveStatics(p)
+            | ToggleStatics(p) => p
+            };
+          let (new_z, paths_to_expand) = apply_statics_action(z, paths);
+          let new_z = Dump.to_zipper(new_z);
+          let new_editor_model = Editor.Model.mk(new_z);
+          let new_cws =
+            CodeWithStatics.Model.mk(
+              ~dynamics=editor.dynamics,
+              new_editor_model,
+            );
+
+          if (List.length(paths_to_expand) > 0) {
+            let expand_action = AgentContext.Update.Expand(paths_to_expand);
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AgentContextAction(expand_action),
+                  chat_id,
+                ),
+                agent.chat_system,
+              );
+            switch (chat_system) {
+            | Ok(updated_chat_system) =>
+              Ok((
+                {
+                  ...agent,
+                  chat_system: updated_chat_system,
+                },
+                new_cws,
+              ))
+            | Error(_) => Ok((agent, new_cws))
+            };
+          } else {
+            Ok((agent, new_cws));
+          };
+        };
       };
     };
   };
@@ -1693,7 +1814,7 @@ module Agent = {
           | Some(name) => !List.mem(name, prompting.disabled_tool_names)
           | None => true
           },
-        prompting.tools,
+        CompositionUtils.Public.tools,
       );
     // Exponential backoff
     let backoff_ms = (attempt: int): float =>
@@ -2218,7 +2339,8 @@ module Agent = {
       switch (action) {
       | EditorAction(_)
       | Initialize(_)
-      | ProbeAction(_) =>
+      | ProbeAction(_)
+      | StaticsAction(_) =>
         let old_segment =
           Select.all(old_editor.state.zipper).selection.content;
         let new_segment =
@@ -2861,7 +2983,7 @@ module Agent = {
           "[Retry "
           ++ string_of_int(attempt + 1)
           ++ "/2] Your previous response was empty or invalid. "
-          ++ "If a task or subtask is active, close it first: call mark_active_task_complete, mark_active_task_failed, mark_active_subtask_complete, or mark_active_subtask_failed. "
+          ++ "If a task or subtask is active, close it: `mark_active_task_complete` auto-finishes open subtasks, or use mark_active_task_failed / mark_active_subtask_complete / mark_active_subtask_failed. "
           ++ "Never end your turn with an active task/subtask. Then respond with a message for the user—either directly answering their question or summarizing what you did.";
         let retry_message =
           Message.Utils.mk_retry_note_message(
