@@ -375,7 +375,7 @@ in
       "typfun uses dynamic type env with correct type",
       `Quick,
       () => {
-        let program = {|typfun a -> fun x : a -> (x : a))@<String>("")|};
+        let program = {|(typfun a -> fun x : a -> (x : a))@<String>("")|};
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
 
