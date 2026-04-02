@@ -14,6 +14,9 @@ let div_ok = div(~attrs=[clss(["status", okc])]);
 let div_warn = div(~attrs=[clss(["status", warnc])]);
 let code_box_container = x =>
   div(~attrs=[clss(["code-box-container"])], [x]);
+/* When true, prefixes type displays with ":" (e.g. ": Int").
+   Appropriate in the cursor inspector but not in the error sidebar. */
+let colon_prefix = show_type_colon => show_type_colon ? [text(":")] : [];
 
 let code = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
@@ -138,6 +141,7 @@ let view_type = (~globals, ~dynamic_info: option(Info.t), typ: Typ.t) => {
 let common_err_view =
     (
       ~globals,
+      ~show_type_colon=true,
       ~introduced_labels: list(LabeledTuple.label),
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
@@ -179,6 +183,7 @@ let common_err_view =
         label_view(name),
         text(" is here, but another sort is expected."),
       ]
+    | NoType(MultiHole) => [text("Broken expression")]
 
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
@@ -219,8 +224,8 @@ let common_err_view =
           code(an_label),
         ]
       | _ =>
-        [
-          text(":"),
+        colon_prefix(show_type_colon)
+        @ [
           view_type(~dynamic_info, syn) |> code_box_container,
           text("inconsistent with expected type"),
           view_type(~dynamic_info=None, ana) |> code_box_container,
@@ -278,6 +283,7 @@ let common_warn_view = (warning: Warning.t) => {
 let common_ok_view =
     (
       ~globals,
+      ~show_type_colon=true,
       ~reordered: bool,
       ~introduced_labels: list(LabeledTuple.label),
       ~lifted_ty: option(Typ.t),
@@ -314,18 +320,17 @@ let common_ok_view =
     | (_, Syn(syn)) =>
       switch (syn.term) {
       | Label(l) => [label_view(l)]
-      | _ => [text(":"), view_type(~dynamic_info, syn)]
+      | _ => colon_prefix(show_type_colon) @ [view_type(~dynamic_info, syn)]
       }
-    | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
-        text(":"),
-        view_type(~dynamic_info, ana),
-      ]
+    | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) =>
+      colon_prefix(show_type_colon) @ [view_type(~dynamic_info, ana)]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
-        [text(":"), view_type(~dynamic_info, syn)]
+        colon_prefix(show_type_colon)
+        @ [view_type(~dynamic_info, syn)]
         @ [text("equals expected type")]
         @ (
           switch (lifted_ty) {
@@ -360,11 +365,9 @@ let common_ok_view =
       (
         switch (syn.term) {
         | Label(l) => [code(l), text(" is a valid label")]
-        | _ => [
-            text(":"),
-            view_type(~dynamic_info, syn),
-            text("consistent with expected type"),
-          ]
+        | _ =>
+          colon_prefix(show_type_colon)
+          @ [view_type(~dynamic_info, syn), text("consistent with expected type")]
         }
       )
       @ [view_type(~dynamic_info=None, ana)]
@@ -565,6 +568,7 @@ let rec exp_view =
         (
           ~globals,
           ~dynamic_info: option(Info.t),
+          ~show_type_colon=true,
           cls: Cls.t,
           status: Info.status_exp,
           info: Info.exp,
@@ -604,7 +608,7 @@ let rec exp_view =
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
-        exp_view(~globals, ~dynamic_info, cls, InHole(Common(err)), info)
+        exp_view(~globals, ~dynamic_info, ~show_type_colon, cls, InHole(Common(err)), info)
         |> code_box_container,
         text(
           "; "
@@ -682,6 +686,7 @@ let rec exp_view =
     div_err(
       common_err_view(
         ~globals,
+        ~show_type_colon,
         ~introduced_labels,
         ~lifted_ty,
         ~inferred_label,
@@ -718,6 +723,7 @@ let rec exp_view =
     div_ok(
       common_ok_view(
         ~globals,
+        ~show_type_colon,
         ~lifted_ty,
         ~reordered,
         ~introduced_labels,
@@ -735,6 +741,7 @@ let rec pat_view =
         (
           ~globals,
           ~dynamic_info: option(Info.t),
+          ~show_type_colon=true,
           cls: Cls.t,
           status: Info.status_pat,
           info: Info.pat,
@@ -760,7 +767,7 @@ let rec pat_view =
     | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
       div_err([
-        pat_view(~globals, ~dynamic_info, cls, InHole(err), info)
+        pat_view(~globals, ~dynamic_info, ~show_type_colon, cls, InHole(err), info)
         |> code_box_container,
         text("; pattern is redundant"),
       ])
@@ -769,6 +776,7 @@ let rec pat_view =
     div_err(
       common_err_view(
         ~globals,
+        ~show_type_colon,
         ~inferred_label,
         ~introduced_labels,
         ~lifted_ty,
@@ -781,6 +789,7 @@ let rec pat_view =
     let ok_view =
       common_ok_view(
         ~globals,
+        ~show_type_colon,
         ~lifted_ty,
         ~reordered=
           switch (info.label_inference) {
