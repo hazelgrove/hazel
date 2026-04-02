@@ -57,31 +57,17 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       ~hotkey="shift+tab",
-      ~mdIcon="swipe_left_alt",
-      ~section="Navigation",
-      "Go to Previous Hole",
-      Globals(ActiveEditor(Move(Goal(Hole(Left))))),
-    ),
-    mk_shortcut(
-      ~mdIcon="swipe_right_alt",
-      ~section="Navigation",
-      "Go To Next Hole",
-      Globals(ActiveEditor(Move(Goal(Hole(Right))))),
-      // Tab is overloaded so not setting it here
-    ),
-    mk_shortcut(
-      ~hotkey="F8",
-      ~mdIcon="arrow_downward",
-      ~section="Navigation",
-      "Go to Next Problem",
-      Globals(ActiveEditor(Move(Goal(NextProblem(Right))))),
-    ),
-    mk_shortcut(
-      ~hotkey="shift+F8",
       ~mdIcon="arrow_upward",
       ~section="Navigation",
       "Go to Previous Problem",
       Globals(ActiveEditor(Move(Goal(NextProblem(Left))))),
+    ),
+    mk_shortcut(
+      ~mdIcon="arrow_downward",
+      ~section="Navigation",
+      "Go to Next Problem",
+      Globals(ActiveEditor(Move(Goal(NextProblem(Right))))),
+      // Tab is overloaded so not setting it here
     ),
     mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+d",
