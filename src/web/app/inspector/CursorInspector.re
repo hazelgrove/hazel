@@ -367,7 +367,10 @@ let common_ok_view =
         | Label(l) => [code(l), text(" is a valid label")]
         | _ =>
           colon_prefix(show_type_colon)
-          @ [view_type(~dynamic_info, syn), text("consistent with expected type")]
+          @ [
+            view_type(~dynamic_info, syn),
+            text("consistent with expected type"),
+          ]
         }
       )
       @ [view_type(~dynamic_info=None, ana)]
@@ -608,7 +611,14 @@ let rec exp_view =
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
-        exp_view(~globals, ~dynamic_info, ~show_type_colon, cls, InHole(Common(err)), info)
+        exp_view(
+          ~globals,
+          ~dynamic_info,
+          ~show_type_colon,
+          cls,
+          InHole(Common(err)),
+          info,
+        )
         |> code_box_container,
         text(
           "; "
@@ -767,7 +777,14 @@ let rec pat_view =
     | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
       div_err([
-        pat_view(~globals, ~dynamic_info, ~show_type_colon, cls, InHole(err), info)
+        pat_view(
+          ~globals,
+          ~dynamic_info,
+          ~show_type_colon,
+          cls,
+          InHole(err),
+          info,
+        )
         |> code_box_container,
         text("; pattern is redundant"),
       ])
