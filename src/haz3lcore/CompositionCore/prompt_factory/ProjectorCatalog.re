@@ -84,8 +84,12 @@ let blurb_for_composition_prompt: list(string) = {
   @ [
     "",
     "### Syntax projector tools (Filbert)",
-    "`place_syntax_projector(kind, paths)`, `remove_syntax_projector(paths)`, and `toggle_syntax_projector(kind, paths)` apply **syntax projectors** to the term selected by each path.",
+    "`place_syntax_projector(kind, paths)`, `remove_syntax_projector(paths)`, and `toggle_syntax_projector(kind, paths)` apply **syntax projector** UIs to the term selected by each path.",
     "`kind` must be a menu projector name (`fold`, `slider`, `sliderf`, `check`, `text`, `card`, `csv`, `livelit`) — not `probe` or `statics` (those use the probe/statics tools).",
+    "",
+    "**CRITICAL — livelits are not automatic:** Ordinary Hazel code (`let speed = 50`, `let is_active = true`, list literals, records) renders as **plain text** until you call **`place_syntax_projector`**.",
+    "If the user asks how livelits work, or wants sliders/checkboxes/CSV editors/text boxes, you **must** call `place_syntax_projector` with the right `kind` on each binding path (e.g. `slider` on `\"speed\"`, `check` on `\"is_active\"`, `text` on `\"message\"`, `csv` on `\"colors\"`, nested paths like `\"config/volume\"`).",
+    "**Never** describe interactive widgets as present based only on `initialize` or other edit tools — that is false unless the matching `place_syntax_projector` calls succeeded.",
     "",
   ]
   @ [refractors_vs_syntax_sentence, ""];

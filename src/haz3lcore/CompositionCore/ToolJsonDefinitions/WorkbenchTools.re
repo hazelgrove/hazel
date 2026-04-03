@@ -4,6 +4,9 @@ let create_new_task_description = {|
 Creates a task plan with a title, description, and subtask milestones.
 Sets this as the active task. The first subtask becomes active automatically.
 
+Does NOT modify the Hazel program, probes, statics, or syntax projectors — only the workbench.
+You must still call edit tools (initialize, update_*, insert_*, delete_*) and placement tools (place_probe, place_statics, place_syntax_projector, …) to change what the user sees.
+
 Use this BEFORE starting any code work to establish a clear plan.
 Subtasks should be meaningful milestones (e.g., "Implement core logic", "Add tests"),
 not individual tool calls (e.g., NOT "update definition", "add line break").
@@ -295,11 +298,14 @@ let set_active_subtask: API.Json.t =
 
 let mark_active_task_complete_description = {|
 Marks the active task as complete with a summary describing what was accomplished.
+This tool only updates the workbench — it does NOT edit code or place probes/statics/projectors.
+Only use it after the corresponding program and overlay changes were already applied via the appropriate tools.
+
 The summary is visible to the user — make it clear and informative.
 Any subtasks that are still open are **automatically marked complete** with a short system note when you call this tool, so you do not need to call `mark_active_subtask_complete` on each one first.
 
 Parameters:
-summary: string — a clear description of what was built/changed and how it works
+summary: string — a clear description of what was built/changed and how it works (must match edits/placements you actually ran)
 |};
 
 let mark_active_task_complete: API.Json.t =
@@ -369,10 +375,12 @@ let mark_active_task_incomplete: API.Json.t =
 
 let mark_active_subtask_complete_description = {|
 Marks the active subtask as complete and automatically advances to the next incomplete subtask.
+Does NOT modify the program or overlays — only the workbench. Call edit and placement tools first.
+
 If all subtasks are complete, no subtask will be active; you can then call `mark_active_task_complete` (which also auto-completes any remaining open subtasks if you skip straight to it).
 
 Parameters:
-summary: string — a brief description of what was done to complete this milestone
+summary: string — a brief description of what was done to complete this milestone (must reflect real tool-driven changes)
 |};
 
 let mark_active_subtask_complete: API.Json.t =

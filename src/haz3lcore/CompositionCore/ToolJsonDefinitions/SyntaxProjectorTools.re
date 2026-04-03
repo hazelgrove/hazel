@@ -13,11 +13,13 @@ let place_syntax_projector_description =
 Wraps the expression at each path in a **syntax projector** (livelit-style GUI: slider, checkbox, fold, etc.).
 This changes program structure like the editor’s projector menu; it is not the same as probe/statics refractors.
 
+Plain literals in the source (e.g. `50`, `true`, a string) do **not** show sliders or other widgets until this tool (or the human projector menu) applies a projector. Do not tell the user interactive livelits are active based only on `initialize` or other edit tools.
+
 If the binding already has that projector kind, the path is left unchanged (idempotent).
 
 Parameters:
 - kind: string — projector name (see allowed kinds below).
-- paths: list(string) — **binding paths** in the HighLevelNodeMap sense: top-level `let` names like `map` or `filter`, or nested paths like `outer/inner`. Do **not** pass pretty-printed expressions, type-applied text (e.g. containing `@<Int>`), or sub-expressions copied from statics overlays — those will not resolve and the tool will fail.
+- paths: list(string) — **binding paths** (pattern names): top-level `let` names like `speed` or `map`, or nested paths like `outer/inner`. The tool wraps each binding's **definition** (right-hand side), not the whole `let … in …`. Do **not** pass pretty-printed expressions, type-applied text (e.g. containing `@<Int>`), or fragments from statics overlays — those will not resolve and the tool will fail.
 
 |}
   ++ allowed_kinds_line

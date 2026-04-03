@@ -188,7 +188,11 @@ let view =
         "Tool Call: "
         ++ tool_result.tool_call.name
         ++ " "
-        ++ (tool_result.success ? "[success]" : "[failure]")
+        ++ (
+          tool_result.skipped
+            ? "[not executed]"
+            : tool_result.success ? "[success]" : "[failure]"
+        )
         ++ "\n\n"
       | Agent.Message.Model.System(_) => ""
       };

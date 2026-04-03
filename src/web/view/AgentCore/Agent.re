@@ -210,6 +210,75 @@ module Message = {
         current_child: None,
       };
     };
+    /** Exact [content] string embedded in the context system message on the API (tags + footer).
+        Program text is [[CompositionView.Public.print]] with probes when present (see [[CompositionView]]). */
+    let context_snapshot_body_for_llm =
+        (
+          agent_editor_content: string,
+          static_errors_content: string,
+          test_results_content: string,
+          workbench_content: string,
+        )
+        : string => {
+      let sanitized_agent_editor_content = String.trim(agent_editor_content);
+      let sanitized_static_errors_content =
+        String.trim(static_errors_content);
+      let sanitized_test_results_content = String.trim(test_results_content);
+      let sanitized_workbench_content = String.trim(workbench_content);
+
+      let agent_editor_content_prefix = "\n<agentEditorView>\n```";
+      let agent_editor_content_suffix = "```\n</agentEditorView>\n";
+      let agent_editor_block =
+        agent_editor_content_prefix
+        ++ sanitized_agent_editor_content
+        ++ agent_editor_content_suffix;
+
+      let static_errors_content_prefix = "\n<staticErrorsInfo>\n";
+      let static_errors_content_suffix = "\n</staticErrorsInfo>\n";
+      let static_errors_block =
+        static_errors_content_prefix
+        ++ sanitized_static_errors_content
+        ++ static_errors_content_suffix;
+
+      let test_results_content_prefix = "\n<testResultsInfo>\n";
+      let test_results_content_suffix = "\n</testResultsInfo>\n";
+      let test_results_block =
+        test_results_content_prefix
+        ++ sanitized_test_results_content
+        ++ test_results_content_suffix;
+
+      let workbench_content_prefix = "\n<workbenchTaskInfo>\n";
+      let workbench_content_suffix = "\n</workbenchTaskInfo>\n";
+      let workbench_block =
+        workbench_content_prefix
+        ++ sanitized_workbench_content
+        ++ workbench_content_suffix;
+
+      let context_prefix = "\n<context>\n";
+      let context_suffix = "\n</context>\n";
+      let context_content =
+        context_prefix
+        ++ agent_editor_block
+        ++ static_errors_block
+        ++ test_results_block
+        ++ workbench_block
+        ++ context_suffix;
+      context_content
+      ++ "\n[CONTEXT UPDATE — Do not respond to this. It is an automated snapshot of the current program state. Continue with your current task without acknowledging this message.]";
+    };
+
+    let mk_context_system_message = (content: string): Model.t => {
+      {
+        id: Id.mk(),
+        content,
+        timestamp: JsUtil.timestamp(),
+        role: System(Context),
+        api_message: Some(OpenRouter.Message.Utils.mk_system_msg(content)),
+        children: [],
+        current_child: None,
+      };
+    };
+
     /** Rolling environment snapshot for the model: editor + **static errors** + tests + workbench.
         Diagnostics belong in [<staticErrorsInfo>], not in separate system messages. See file header. */
     let mk_context_message =
@@ -220,62 +289,14 @@ module Message = {
           workbench_content: string,
         )
         : Model.t => {
-      let sanitized_agent_editor_content = String.trim(agent_editor_content);
-      let sanitized_static_errors_content =
-        String.trim(static_errors_content);
-      let sanitized_test_results_content = String.trim(test_results_content);
-      let sanitized_workbench_content = String.trim(workbench_content);
-
-      let agent_editor_content_prefix = "\n<agentEditorView>\n```";
-      let agent_editor_content_suffix = "```\n</agentEditorView>\n";
-      let agent_editor_content =
-        agent_editor_content_prefix
-        ++ sanitized_agent_editor_content
-        ++ agent_editor_content_suffix;
-
-      let static_errors_content_prefix = "\n<staticErrorsInfo>\n";
-      let static_errors_content_suffix = "\n</staticErrorsInfo>\n";
-      let static_errors_content =
-        static_errors_content_prefix
-        ++ sanitized_static_errors_content
-        ++ static_errors_content_suffix;
-
-      let test_results_content_prefix = "\n<testResultsInfo>\n";
-      let test_results_content_suffix = "\n</testResultsInfo>\n";
-      let test_results_content =
-        test_results_content_prefix
-        ++ sanitized_test_results_content
-        ++ test_results_content_suffix;
-
-      let workbench_content_prefix = "\n<workbenchTaskInfo>\n";
-      let workbench_content_suffix = "\n</workbenchTaskInfo>\n";
-      let workbench_content =
-        workbench_content_prefix
-        ++ sanitized_workbench_content
-        ++ workbench_content_suffix;
-
-      let context_prefix = "\n<context>\n";
-      let context_suffix = "\n</context>\n";
-      let context_content =
-        context_prefix
-        ++ agent_editor_content
-        ++ static_errors_content
-        ++ test_results_content
-        ++ workbench_content
-        ++ context_suffix;
-      let content =
-        context_content
-        ++ "\n[CONTEXT UPDATE — Do not respond to this. It is an automated snapshot of the current program state. Continue with your current task without acknowledging this message.]";
-
-      {
-        id: Id.mk(),
-        content,
-        timestamp: JsUtil.timestamp(),
-        role: System(Context),
-        api_message: Some(OpenRouter.Message.Utils.mk_system_msg(content)),
-        children: [],
-        current_child: None,
-      };
+      mk_context_system_message(
+        context_snapshot_body_for_llm(
+          agent_editor_content,
+          static_errors_content,
+          test_results_content,
+          workbench_content,
+        ),
+      );
     };
 
     let mk_api_failure_message = (content: string): Model.t => {
@@ -352,6 +373,7 @@ module Message = {
                 `String(Yojson.Safe.to_string(tool_result.tool_call.args)),
               ),
               ("success", `Bool(tool_result.success)),
+              ("skipped", `Bool(tool_result.skipped)),
               (
                 "diff",
                 switch (tool_result.diff) {
@@ -1449,6 +1471,58 @@ module Agent = {
         compaction_method_override: None,
       };
     };
+
+    let test_results_for_context =
+        (test_results: option(Language.TestResults.t)): string => {
+      switch (test_results) {
+      | None => "No test results available (evaluator may still be running)."
+      | Some(results) when results.total == 0 => "No tests in program."
+      | Some(results) =>
+        let summary = Language.TestResults.test_summary_str(results);
+        let details =
+          List.mapi(
+            (i, status: Language.TestStatus.t) => {
+              let status_str = Language.TestStatus.to_string(status);
+              "Test " ++ string_of_int(i + 1) ++ ": " ++ status_str;
+            },
+            results.statuses,
+          );
+        summary ++ "\n" ++ String.concat("\n", details);
+      };
+    };
+
+    /** Exact context snapshot string the API uses ([[Message.Utils.context_snapshot_body_for_llm]]),
+        from the live scratchpad and chat agent view / workbench — same as [[mk_context_message]]
+        when built from the same inputs (e.g. after [[Update.update_context]] on send). */
+    let llm_context_snapshot_text =
+        (
+          ~cell_result: EvalResult.Model.t,
+          cws: CodeWithStatics.Model.t,
+          chat: Chat.Model.t,
+        )
+        : string => {
+      let agent_editor_view_string =
+        CompositionView.Public.print(
+          ~probe_map=cws.dynamics,
+          cws.editor,
+          chat.agent_view,
+        );
+      let static_errors_info_string =
+        ErrorPrint.all(
+          CompositionGo.Public.mk_statics(cws.editor.state.zipper),
+        )
+        |> String.concat("\n");
+      let test_results_info_string =
+        test_results_for_context(EvalResult.Model.test_results(cell_result));
+      Message.Utils.context_snapshot_body_for_llm(
+        agent_editor_view_string,
+        static_errors_info_string,
+        test_results_info_string,
+        AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
+          chat.agent_workbench,
+        ),
+      );
+    };
   };
 
   module ToolCallHandler = {
@@ -1796,7 +1870,10 @@ module Agent = {
         | Some(node_map) =>
           let syntax = CachedSyntax.init(z);
           let resolve_path = (path: string): option(Id.t) =>
-            HighLevelNodeMap.Public.path_to_id_opt(node_map, path);
+            HighLevelNodeMap.Public.path_to_syntax_projector_target_id_opt(
+              node_map,
+              path,
+            );
 
           let apply_syntax_projector_action =
               (z: Zipper.t, paths: list(string))
@@ -1967,25 +2044,6 @@ module Agent = {
       OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
     };
 
-    let test_results_string =
-        (test_results: option(Language.TestResults.t)): string => {
-      switch (test_results) {
-      | None => "No test results available (evaluator may still be running)."
-      | Some(results) when results.total == 0 => "No tests in program."
-      | Some(results) =>
-        let summary = Language.TestResults.test_summary_str(results);
-        let details =
-          List.mapi(
-            (i, status: Language.TestStatus.t) => {
-              let status_str = Language.TestStatus.to_string(status);
-              "Test " ++ string_of_int(i + 1) ++ ": " ++ status_str;
-            },
-            results.statuses,
-          );
-        summary ++ "\n" ++ String.concat("\n", details);
-      };
-    };
-
     /** Same [[context]] payload the main agent sees ([[mk_context_message]]), built from the
         live editor and [[agent_view]] — appended last to the compaction API so the summarizer
         has current program text, errors, tests, and workbench (without changing UI state). */
@@ -1993,28 +2051,11 @@ module Agent = {
         (model: Model.t, cell_editor: CellEditor.Model.t, chat_id: Id.t)
         : Message.Model.t => {
       let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-      let cws = cell_editor.editor;
-      let agent_editor_view_string =
-        CompositionView.Public.print(
-          ~probe_map=cws.dynamics,
-          cws.editor,
-          curr_chat.agent_view,
-        );
-      let static_errors_info_string =
-        ErrorPrint.all(
-          CompositionGo.Public.mk_statics(cws.editor.state.zipper),
-        )
-        |> String.concat("\n");
-      let test_results_info_string =
-        test_results_string(
-          EvalResult.Model.test_results(cell_editor.result),
-        );
-      Message.Utils.mk_context_message(
-        agent_editor_view_string,
-        static_errors_info_string,
-        test_results_info_string,
-        AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
-          curr_chat.agent_workbench,
+      Message.Utils.mk_context_system_message(
+        Utils.llm_context_snapshot_text(
+          ~cell_result=cell_editor.result,
+          cell_editor.editor,
+          curr_chat,
         ),
       );
     };
@@ -2332,6 +2373,86 @@ module Agent = {
       };
     };
 
+    /** Start the next model turn after tool result messages are already on the chat (no extra append). */
+    let dispatch_follow_up_llm =
+        (
+          model: Model.t,
+          chat_id: Id.t,
+          settings: Settings.t,
+          schedule_action: Action.t => unit,
+        )
+        : Model.t => {
+      switch (model.compaction_in_progress) {
+      | Some(id) when id == chat_id => model
+      | _ =>
+        switch (
+          settings.agent_globals.api_key,
+          AgentGlobals.get_active_llm_id(settings.agent_globals),
+        ) {
+        | (None, _) =>
+          let api_failure_message =
+            Message.Utils.mk_api_failure_message(
+              "An API key is required. Please set an API key in the settings.",
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                AppendMessage(api_failure_message),
+                chat_id,
+              ),
+              model.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          {
+            ...model,
+            chat_system,
+            awaiting_response: None,
+          };
+        | (_, None) =>
+          let api_failure_message =
+            Message.Utils.mk_api_failure_message(
+              "LLM ID is required. Please select an LLM in the settings.",
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                AppendMessage(api_failure_message),
+                chat_id,
+              ),
+              model.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          {
+            ...model,
+            chat_system,
+            awaiting_response: None,
+          };
+        | (Some(api_key), Some(llm_id)) =>
+          send_llm_request(
+            ~api_key,
+            ~payload=
+              OpenRouter.Payload.Utils.mk_default(
+                ~model_id=llm_id,
+                ~messages=
+                  Chat.Utils.api_messages_of_messages(
+                    Chat.Utils.messages_for_openrouter(
+                      ChatSystem.Utils.find_chat(chat_id, model.chat_system),
+                    ),
+                  ),
+                ~tools=enabled_tools(model.prompting),
+              ),
+            ~schedule_action,
+            ~chat_id,
+            ~retry_attempt=0,
+          );
+          {
+            ...model,
+            awaiting_response: Some(chat_id),
+          };
+        }
+      };
+    };
+
     let update_context =
         (
           ~test_results: option(Language.TestResults.t)=?,
@@ -2352,7 +2473,8 @@ module Agent = {
           CompositionGo.Public.mk_statics(editor.editor.state.zipper),
         )
         |> String.concat("\n");
-      let test_results_info_string = test_results_string(test_results);
+      let test_results_info_string =
+        Utils.test_results_for_context(test_results);
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
@@ -2487,15 +2609,16 @@ module Agent = {
       };
     };
 
-    let handle_tool_call =
+    /** Run one tool; returns chat message to append (caller batches append + one LLM request). */
+    let execute_one_tool_call =
         (
           ~tool_call: OpenRouter.Reply.Model.tool_call,
           ~model: Model.t,
           ~cell_editor: CellEditor.Model.t,
           ~settings: Settings.t,
-          ~schedule_action: Action.t => unit,
           ~chat_id: Id.t,
-        ) => {
+        )
+        : (Model.t, Updated.t(CellEditor.Model.t), Message.Model.t) => {
       switch (
         CompositionUtils.Public.action_of(
           ~tool_name=tool_call.name,
@@ -2550,6 +2673,7 @@ module Agent = {
             let tool_result: AgentToolResult.tool_result = {
               tool_call,
               success: false,
+              skipped: false,
               expanded: false,
               diff: None,
               before_segment:
@@ -2567,17 +2691,16 @@ module Agent = {
                 ~model,
                 ~chat_id,
               );
-            schedule_action(
-              Action.SendMessage(
-                Message.Utils.mk_tool_result_message(tool_result),
-                chat_id,
-              ),
+            (
+              model,
+              cell_editor |> Updated.return_quiet,
+              Message.Utils.mk_tool_result_message(tool_result),
             );
-            (model, cell_editor |> Updated.return_quiet);
           | Ok(diff) =>
             let tool_result: AgentToolResult.tool_result = {
               tool_call,
               success: true,
+              skipped: false,
               expanded: false,
               diff,
               before_segment,
@@ -2591,12 +2714,6 @@ module Agent = {
                 ~model,
                 ~chat_id,
               );
-            schedule_action(
-              Action.SendMessage(
-                Message.Utils.mk_tool_result_message(tool_result),
-                chat_id,
-              ),
-            );
             (
               model,
               {
@@ -2604,6 +2721,7 @@ module Agent = {
                 editor,
               }
               |> Updated.return,
+              Message.Utils.mk_tool_result_message(tool_result),
             );
           };
         | Error(error) =>
@@ -2621,6 +2739,7 @@ module Agent = {
             let tool_result: AgentToolResult.tool_result = {
               tool_call,
               success: false,
+              skipped: false,
               expanded: false,
               diff: None,
               before_segment,
@@ -2634,19 +2753,18 @@ module Agent = {
                 ~model,
                 ~chat_id,
               );
-            schedule_action(
-              Action.SendMessage(
-                Message.Utils.mk_tool_result_message(tool_result),
-                chat_id,
-              ),
+            (
+              model,
+              cell_editor |> Updated.return_quiet,
+              Message.Utils.mk_tool_result_message(tool_result),
             );
-            (model, cell_editor |> Updated.return_quiet);
           }
         }
       | Failure(msg) =>
         let tool_result: AgentToolResult.tool_result = {
           tool_call,
           success: false,
+          skipped: false,
           expanded: false,
           diff: None,
           before_segment: None,
@@ -2654,13 +2772,11 @@ module Agent = {
           content: msg,
         };
         // Do not add unparseable tool calls to subtask tool results for now
-        schedule_action(
-          Action.SendMessage(
-            Message.Utils.mk_tool_result_message(tool_result),
-            chat_id,
-          ),
+        (
+          model,
+          cell_editor |> Updated.return_quiet,
+          Message.Utils.mk_tool_result_message(tool_result),
         );
-        (model, cell_editor |> Updated.return_quiet);
       };
     };
 
@@ -2674,12 +2790,11 @@ module Agent = {
           schedule_action: Action.t => unit,
         )
         : (Model.t, Updated.t(CellEditor.Model.t)) => {
-      let tool_call = ListUtil.hd_opt(reply.tool_calls);
       let is_empty = String.trim(reply.content) == "";
       let max_empty_retries = 2;
 
       // Empty response with no tool calls: retry with failure context (up to max_empty_retries)
-      if (tool_call == None && is_empty) {
+      if (reply.tool_calls == [] && is_empty) {
         let current_retry =
           Option.value(~default=-1, model.last_empty_retry_attempt);
         let next_retry = current_retry + 1;
@@ -2742,17 +2857,23 @@ module Agent = {
           last_empty_retry_attempt: None,
           last_active_task_nudge_attempt: None,
         };
-        switch (tool_call) {
-        | Some(tool_call) =>
-          handle_tool_call(
-            ~tool_call,
-            ~model,
-            ~cell_editor,
-            ~settings,
-            ~schedule_action,
-            ~chat_id,
-          )
-        | None =>
+        let merge_cell_editor_updates =
+            (
+              acc: Updated.t(CellEditor.Model.t),
+              step: Updated.t(CellEditor.Model.t),
+            )
+            : Updated.t(CellEditor.Model.t) => {
+          {
+            model: step.model,
+            is_edit: acc.is_edit || step.is_edit,
+            recalculate: acc.recalculate || step.recalculate,
+            scroll_active: acc.scroll_active || step.scroll_active,
+            logged: acc.logged || step.logged,
+            historic: acc.historic || step.historic,
+          };
+        };
+        switch (reply.tool_calls) {
+        | [] =>
           let max_task_nudges = 1;
           let current_chat =
             ChatSystem.Utils.find_chat(chat_id, model.chat_system);
@@ -2831,6 +2952,74 @@ module Agent = {
               (model_idle, cell_editor |> Updated.return_quiet);
             };
           };
+        | tool_calls =>
+          let (model_after_tools, _, tool_msgs_rev, cell_editor_updated, _) =
+            List.fold_left(
+              ((m, ce_model, msgs, ce_updated, prior_failed), tc) =>
+                if (prior_failed) {
+                  let skipped = AgentToolResult.mk_skipped(tc);
+                  let msg = Message.Utils.mk_tool_result_message(skipped);
+                  (m, ce_model, [msg, ...msgs], ce_updated, true);
+                } else {
+                  let (m2, step_u, msg) =
+                    execute_one_tool_call(
+                      ~tool_call=tc,
+                      ~model=m,
+                      ~cell_editor=ce_model,
+                      ~settings,
+                      ~chat_id,
+                    );
+                  let failed =
+                    switch (msg.role) {
+                    | ToolResult(tr) => !tr.success && !tr.skipped
+                    | _ => false
+                    };
+                  (
+                    m2,
+                    step_u.model,
+                    [msg, ...msgs],
+                    merge_cell_editor_updates(ce_updated, step_u),
+                    failed,
+                  );
+                },
+              (
+                model,
+                cell_editor,
+                [],
+                cell_editor |> Updated.return_quiet,
+                false,
+              ),
+              tool_calls,
+            );
+          let tool_msgs = List.rev(tool_msgs_rev);
+          let chat_system_after_tools =
+            List.fold_left(
+              (cs, msg) =>
+                ChatSystem.Update.get(
+                  ChatSystem.Update.update(
+                    ChatSystem.Update.Action.ChatAction(
+                      Chat.Update.Action.AppendMessage(msg),
+                      chat_id,
+                    ),
+                    cs,
+                  ),
+                ),
+              model_after_tools.chat_system,
+              tool_msgs,
+            );
+          let model_with_tool_msgs = {
+            ...model_after_tools,
+            chat_system: chat_system_after_tools,
+          };
+          (
+            dispatch_follow_up_llm(
+              model_with_tool_msgs,
+              chat_id,
+              settings,
+              schedule_action,
+            ),
+            cell_editor_updated,
+          );
         };
       };
     };

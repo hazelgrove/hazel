@@ -623,6 +623,35 @@ let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
      );
 };
 
+/** Map nodes are keyed by the **binding** expression (Let / TyAlias / ModuleExp).
+    [[Select.term]] + syntax projectors must target the **definition** (rhs), not the whole binding. */
+let binding_id_to_syntax_projector_target_id =
+    (node_map: t, binding_id: Id.t): option(Id.t) => {
+  switch (Id.Map.find_opt(binding_id, node_map)) {
+  | None => None
+  | Some(node) =>
+    switch (node.info) {
+    | InfoExp({term, _}) =>
+      switch (Exp.term_of(term)) {
+      | Let(_, def, _) => Some(Exp.rep_id(def))
+      | TyAlias(_, typ, _) => Some(Typ.rep_id(typ))
+      | ModuleExp(_, def, _) => Some(Exp.rep_id(def))
+      | _ => None
+      }
+    | _ => None
+    }
+  };
+};
+
+let path_to_syntax_projector_target_id_opt =
+    (node_map: t, path: string): option(Id.t) => {
+  switch (path_to_id_opt(node_map, path)) {
+  | None => None
+  | Some(binding_id) =>
+    binding_id_to_syntax_projector_target_id(node_map, binding_id)
+  };
+};
+
 let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
   // Prefer matching the **last** path segment (binding name) so nested bindings
   // like outer/t rank above top-level outer when the user typed "t".
@@ -844,6 +873,9 @@ module Public = {
   let path_to_id_opt =
     // Gets the node id from a path, returns None if the path is not found
     path_to_id_opt;
+  let path_to_syntax_projector_target_id_opt =
+    // Rep id of the binding's definition term (for place_syntax_projector / toggle / remove)
+    path_to_syntax_projector_target_id_opt;
   let path_to_node =
     // Gets the node from a path
     path_to_node;

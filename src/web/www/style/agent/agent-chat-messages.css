@@ -1399,6 +1399,15 @@
   background-color: var(--R1);
 }
 
+.summary-tool-link .tool-call-skipped ~ .summary-tool-link-name {
+  opacity: 0.55;
+}
+
+.summary-tool-link:has(.tool-call-skipped)::before {
+  background-color: var(--BR3);
+  opacity: 0.75;
+}
+
 .agent-restore-original-button {
   display: flex;
   align-items: center;
@@ -1586,6 +1595,11 @@
 
 .tool-call-status-icon.tool-call-failure {
   fill: var(--R1);
+}
+
+.tool-call-status-icon.tool-call-skipped {
+  fill: var(--BR3);
+  opacity: 0.85;
 }
 
 .tool-call-name {
@@ -1931,6 +1945,13 @@
   font-size: 1em;
   font-weight: 600;
   color: var(--STONE);
+}
+
+.view-header-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.15em;
 }
 
 .view-close-button {

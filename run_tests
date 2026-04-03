@@ -7,11 +7,13 @@ set -e
 # Resolve the directory this script lives in
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Path to the JS target relative to the script
-JS_TARGET="$SCRIPT_DIR/_build/default/test/haz3ltest.bc.js"
+# Path to the JS target relative to the script (keep in sync with [Makefile] [test] target)
+TEST_DIR="$SCRIPT_DIR/_build/default/test"
+JS_TARGET="$TEST_DIR/haz3ltest.bc.js"
+IDB_STUB="$TEST_DIR/idb_stub.js"
 
 # Run Dune in the script's directory
 (cd "$SCRIPT_DIR" && dune build test)
 
-# Execute the compiled JavaScript with node
-node "$JS_TARGET" "$@"
+# Execute the compiled JavaScript with node (IndexedDB stub + stack size match Makefile)
+exec node --stack-size=8192 --require "$IDB_STUB" "$JS_TARGET" "$@"

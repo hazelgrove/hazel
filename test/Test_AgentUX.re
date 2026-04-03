@@ -1,6 +1,6 @@
 /** Unit tests for coding-agent UX: slash commands, compaction dialogue slicing,
     CompactionPrompt assembly, OpenRouter chat response parsing, and context-meter math.
-    (Tool-call editing tests live in [[Test_AgentTools]].) */
+    (Structural tool-call editing tests: [[Test_AgentTools]]; multi-tool LLM replies: [[Test_AgentMultiTool]].) */
 open Alcotest;
 open Util;
 open Haz3lcore;
@@ -312,13 +312,23 @@ let openrouter_tests = [
 
 let context_meter_tests = [
   test_case(
-    "effective_context_meter_limit: 131072 -> 104000 (80% floored to 1k steps)",
+    "effective_context_meter_limit: 131072 -> 80% rounded then capped at 100k",
     `Quick,
     () => {
     check_int(
       "131072",
-      104000,
+      100_000,
       AgentGlobals.effective_context_meter_limit(131072),
+    )
+  }),
+  test_case(
+    "effective_context_meter_limit: under cap keeps 80% rounded to 1k steps",
+    `Quick,
+    () => {
+    check_int(
+      "65536 -> 80% 52428.8 floored to 52000",
+      52_000,
+      AgentGlobals.effective_context_meter_limit(65_536),
     )
   }),
   test_case(
@@ -327,6 +337,86 @@ let context_meter_tests = [
     () => {
     check_int("tiny", 1000, AgentGlobals.effective_context_meter_limit(100))
   }),
+  test_case(
+    "effective_context_meter_limit: capped at default_context_meter_max_tokens",
+    `Quick,
+    () => {
+    check_int(
+      "200000 context -> 80% rounded 160000 -> min cap 100000",
+      100_000,
+      AgentGlobals.effective_context_meter_limit(200_000),
+    )
+  }),
+];
+
+/* -------------------------------------------------------------------------- */
+/* LLM context snapshot (Message.Utils + Agent.Agent.Utils.llm_context_snapshot_text) */
+
+let context_llm_snapshot_tests = [
+  test_case(
+    "context_snapshot_body_for_llm equals mk_context_message.content",
+    `Quick,
+    () => {
+      let body =
+        Agent.Message.Utils.context_snapshot_body_for_llm(
+          "  prog  ",
+          " err ",
+          " tests ",
+          " wb ",
+        );
+      let msg =
+        Agent.Message.Utils.mk_context_message(
+          "  prog  ",
+          " err ",
+          " tests ",
+          " wb ",
+        );
+      check_string("body vs message.content", body, msg.content);
+    },
+  ),
+  test_case(
+    "llm_context_snapshot_text matches mk_context_message from same editor/chat inputs",
+    `Quick,
+    () => {
+      let z =
+        switch (Parser.to_zipper("2")) {
+        | Some(z) => z
+        | None => fail("expected parse")
+        };
+      let editor = Editor.Model.mk(z);
+      let cws = CodeWithStatics.Model.mk(editor);
+      let chat = Agent.Chat.Utils.init(~system_prompt="p", ~dev_notes="d");
+      let eval_result = EvalResult.Model.init;
+      let prog =
+        CompositionView.Public.print(
+          ~probe_map=cws.dynamics,
+          cws.editor,
+          chat.agent_view,
+        );
+      let errs =
+        ErrorPrint.all(
+          CompositionGo.Public.mk_statics(cws.editor.state.zipper),
+        )
+        |> String.concat("\n");
+      let tests =
+        Agent.Agent.Utils.test_results_for_context(
+          EvalResult.Model.test_results(eval_result),
+        );
+      let wb =
+        AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
+          chat.agent_workbench,
+        );
+      let expected =
+        Agent.Message.Utils.mk_context_message(prog, errs, tests, wb).content;
+      let actual =
+        Agent.Agent.Utils.llm_context_snapshot_text(
+          ~cell_result=eval_result,
+          cws,
+          chat,
+        );
+      check_string("snapshot vs mk_context_message", expected, actual);
+    },
+  ),
 ];
 
 let tests = (
@@ -336,5 +426,6 @@ let tests = (
   @ dialogue_slice_tests
   @ compaction_prompt_tests
   @ openrouter_tests
-  @ context_meter_tests,
+  @ context_meter_tests
+  @ context_llm_snapshot_tests,
 );

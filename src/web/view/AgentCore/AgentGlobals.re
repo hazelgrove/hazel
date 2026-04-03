@@ -51,10 +51,15 @@ let context_length_for_active = (model: Model.t): option(int) => {
   };
 };
 
-/** For the context meter: 80% of the provider's context window, then round **down** to a multiple of 1000 tokens (headroom for summarization). E.g. 131072 → 104000. */
+/** Default ceiling for [[effective_context_meter_limit]] (tokens). */
+let default_context_meter_max_tokens = 100_000;
+
+/** For the context meter: 80% of the provider's context window, round **down** to a multiple of 1000 tokens (headroom for summarization), clamp to at least 1000, then cap at [[default_context_meter_max_tokens]]. E.g. 131072 → 104000 before cap → 100000; 200000 → 160000 → 100000; smaller models stay under the cap (e.g. 100000 raw → 80000). */
 let effective_context_meter_limit = (raw_context_length: int): int => {
   let scaled = float_of_int(raw_context_length) *. 0.8;
-  max(1000, int_of_float(Float.floor(scaled /. 1000.0)) * 1000);
+  let rounded =
+    max(1000, int_of_float(Float.floor(scaled /. 1000.0)) * 1000);
+  min(default_context_meter_max_tokens, rounded);
 };
 
 /** Like [context_length_for_active], but capped for UI / budgeting (see [effective_context_meter_limit]). */

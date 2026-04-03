@@ -107,6 +107,7 @@ module ViewComponents = {
         ~code_with_statics: CodeWithStatics.Model.t,
         ~agent_view: AgentContext.Model.t,
         ~eval_result: EvalResult.Model.t,
+        ~current_chat: Agent.Chat.Model.t,
         ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
@@ -267,25 +268,50 @@ module ViewComponents = {
           [
             div(~attrs=[clss(["view-title"])], [text("Agent Context")]),
             div(
-              ~attrs=[
-                clss(["view-close-button", "icon"]),
-                Attr.on_click(_ =>
-                  Effect.Many([
-                    agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
-                          chat_id,
-                        ),
-                      ),
+              ~attrs=[clss(["view-header-actions"])],
+              [
+                div(
+                  ~attrs=[
+                    clss(["view-close-button", "icon"]),
+                    Attr.title(
+                      "Copy the exact context snapshot text sent to the model (XML-style blocks + footer).",
                     ),
-                    Effect.Stop_propagation,
-                  ])
+                    Attr.on_click(_ => {
+                      let snapshot =
+                        Agent.Agent.Utils.llm_context_snapshot_text(
+                          ~cell_result=eval_result,
+                          code_with_statics,
+                          current_chat,
+                        );
+                      copy_via_shim(snapshot);
+                      show_copy_toast();
+                      Effect.Stop_propagation;
+                    }),
+                  ],
+                  [Icons.copy],
+                ),
+                div(
+                  ~attrs=[
+                    clss(["view-close-button", "icon"]),
+                    Attr.on_click(_ =>
+                      Effect.Many([
+                        agent_inject(
+                          Agent.Agent.Update.Action.ChatSystemAction(
+                            Agent.ChatSystem.Update.Action.ChatAction(
+                              Agent.Chat.Update.Action.SwitchView(
+                                Agent.Chat.Model.Messages,
+                              ),
+                              chat_id,
+                            ),
+                          ),
+                        ),
+                        Effect.Stop_propagation,
+                      ])
+                    ),
+                  ],
+                  [Icons.cancel],
                 ),
               ],
-              [Icons.cancel],
             ),
           ],
         ),
@@ -1207,7 +1233,13 @@ let view =
           let render_summary_tool_link =
               (tool_result: AgentToolResult.tool_result) => {
             let status_class =
-              tool_result.success ? "tool-call-success" : "tool-call-failure";
+              if (tool_result.skipped) {
+                "tool-call-skipped";
+              } else if (tool_result.success) {
+                "tool-call-success";
+              } else {
+                "tool-call-failure";
+              };
             let msg_id_opt =
               List.find_opt(
                 ((_, msg_tr): (Id.t, AgentToolResult.tool_result)) =>
@@ -1231,7 +1263,15 @@ let view =
               [
                 div(
                   ~attrs=[clss(["tool-call-status-icon", status_class])],
-                  [tool_result.success ? Icons.confirm : Icons.cancel],
+                  [
+                    if (tool_result.skipped) {
+                      Icons.circle_with_minus;
+                    } else if (tool_result.success) {
+                      Icons.confirm;
+                    } else {
+                      Icons.cancel;
+                    },
+                  ],
                 ),
                 span(
                   ~attrs=[clss(["summary-tool-link-name"])],
@@ -1479,6 +1519,7 @@ let view =
       ~code_with_statics,
       ~agent_view=current_chat.agent_view,
       ~eval_result,
+      ~current_chat,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )

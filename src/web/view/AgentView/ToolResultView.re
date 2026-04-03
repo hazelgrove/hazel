@@ -4,6 +4,7 @@ open Util;
 open Util.WebUtil;
 open Haz3lcore;
 open CodeViewable;
+open Icons;
 
 let render_segment =
     (~globals: Globals.t, ~shallow_complete: bool=true, segment: Segment.t)
@@ -92,9 +93,14 @@ let view =
       ~toggle_expanded: 'a => Effect.t(unit),
     )
     : Node.t => {
-  let status_icon = tool_result.success ? Icons.confirm : Icons.cancel;
-  let status_class =
-    tool_result.success ? "tool-call-success" : "tool-call-failure";
+  let (status_icon, status_class) =
+    if (tool_result.skipped) {
+      (circle_with_minus, "tool-call-skipped");
+    } else if (tool_result.success) {
+      (confirm, "tool-call-success");
+    } else {
+      (cancel, "tool-call-failure");
+    };
   let dom_id = "tool-call-" ++ tool_result.tool_call.id;
   div(
     ~attrs=[clss(["agent-tool-call-inline"]), Attr.id(dom_id)],
