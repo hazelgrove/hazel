@@ -1572,7 +1572,8 @@ module Agent = {
           | _ =>
             Error(
               Failure.Info(
-                "Unknown error occured when trying to apply tool request to editor",
+                Action.Failure.show(err)
+                ++ " (structural editor tool could not be applied)",
               ),
             )
           }
@@ -2971,7 +2972,7 @@ module Agent = {
                     );
                   let failed =
                     switch (msg.role) {
-                    | ToolResult(tr) => !tr.success && !tr.skipped
+                    | ToolResult(tr) => !tr.skipped && !tr.success
                     | _ => false
                     };
                   (

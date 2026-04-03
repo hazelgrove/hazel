@@ -212,6 +212,54 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   };
 };
 
+/** After a pattern edit, the post-edit [[Let]]'s [[co_ctx]] can already treat
+    stale body spellings (old pattern name) as outer/free, so they wrongly
+    survive the [[entire_coctx]] filter in [[get_refs_to]]. Use the pre-edit
+    [[Let]]'s [[co_ctx]] for that filter, while still taking the body from the
+    post-edit term and resolving it in the current [[info_map]]. */
+let get_refs_to_after_pattern_edit =
+    (
+      ~pre_edit_let_info: Info.t,
+      ~post_edit_let_info: Info.t,
+      info_map: Id.Map.t(Info.t),
+    )
+    : CoCtx.t => {
+  let exp_to_info = (term: Exp.t): Info.t => exp_to_info(term, info_map);
+  switch (pre_edit_let_info, post_edit_let_info) {
+  | (InfoExp(pre_let), InfoExp(term_after)) =>
+    let entire_coctx = pre_let.co_ctx;
+    let body_coctx =
+      switch (Exp.term_of(term_after.term)) {
+      | Let(_, _, body)
+      | TyAlias(_, _, body)
+      | ModuleExp(_, _, body) =>
+        switch (exp_to_info(body)) {
+        | InfoExp({co_ctx, _}) => co_ctx
+        | _ =>
+          raise(
+            Failure("Body of let/type alias/module is not an expression"),
+          )
+        }
+      | _ =>
+        raise(
+          Failure(
+            "Current node is not a let, type alias, or module expression",
+          ),
+        )
+      };
+    VarMap.filter(
+      ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
+      body_coctx,
+    );
+  | _ =>
+    raise(
+      Failure(
+        "get_refs_to_after_pattern_edit: expected expression infos for both arguments",
+      ),
+    )
+  };
+};
+
 let get_var_names_from_pat = (curr: Info.t): list(string) => {
   let rec go = (pat: Pat.t, vars: list(string)): list(string) => {
     switch (pat.term) {

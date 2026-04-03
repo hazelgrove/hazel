@@ -338,7 +338,37 @@ module Local = {
             )
           ) {
           | Some(e) => Error(Action.Failure.Composition_action_failure(e))
-          | None => Ok(new_z)
+          | None =>
+            let z_after_projectors =
+              try({
+                let fresh_syn = CachedSyntax.init(new_z);
+                let binding_node = path_to_node(new_node_map, path);
+                let def_id = Utils.get_inner_term_id(Def, binding_node);
+                switch (
+                  Select.term(
+                    ~defs_exclude_bodies=false,
+                    ~case_rules=false,
+                    fresh_syn.term_data,
+                    def_id,
+                    new_z,
+                  )
+                ) {
+                | None => new_z
+                | Some(z_sel) =>
+                  let seg = z_sel.selection.content;
+                  let focus = z_sel.selection.focus;
+                  let (z_sel', new_seg, did_change) =
+                    ProjectorPerform.sanitize_projectors_in_segment(
+                      z_sel,
+                      seg,
+                    );
+                  did_change
+                    ? Zipper.replace_selection(focus, new_seg, z_sel') : new_z;
+                };
+              }) {
+              | Failure(_) => new_z
+              };
+            Ok(z_after_projectors);
           }
         };
       };
@@ -417,12 +447,17 @@ module Local = {
               |> OptUtil.get_or_fail(
                    "Failed trying to rename all occurences of the pattern. Could not find the new pattern in the statics map.",
                  );
+            /* Hybrid refs: pre-edit [[co_ctx]] for the filter, post-edit term +
+               [[new_info_map]] for the body, so renames see stale spellings but
+               paths stay consistent after follow-up edits (see
+               [[GeneralTreeUtils.get_refs_to_after_pattern_edit]]). */
             Ok(
               GeneralTreeUtils.update_use_sites_of_pat(
                 ~z=new_z,
                 ~co_ctx=
-                  GeneralTreeUtils.get_refs_to(
-                    initial_node.info,
+                  GeneralTreeUtils.get_refs_to_after_pattern_edit(
+                    ~pre_edit_let_info=initial_node.info,
+                    ~post_edit_let_info=new_node.info,
                     new_info_map,
                   ),
                 ~old_names=GeneralTreeUtils.get_var_names_from_pat(old_pat),

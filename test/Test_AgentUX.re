@@ -352,6 +352,55 @@ let context_meter_tests = [
 /* -------------------------------------------------------------------------- */
 /* LLM context snapshot (Message.Utils + Agent.Agent.Utils.llm_context_snapshot_text) */
 
+/* -------------------------------------------------------------------------- */
+/* ToolCallHandler — non-composition failures surface Action.Failure.show */
+
+let toolcall_handler_tests = [
+  test_case(
+    "structural EditorAction on empty editor returns descriptive error, not generic unknown",
+    `Quick,
+    () => {
+      let settings = Settings.Model.init;
+      let agent = Agent.Agent.Utils.init();
+      let chat_id = agent.chat_system.current;
+      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(Zipper.init()));
+      let action =
+        CompositionActions.EditorAction(
+          Action.Structural.Update(Action.Structural.Definition, "a", "1"),
+        );
+      switch (
+        Agent.Agent.ToolCallHandler.update(
+          ~settings,
+          action,
+          agent,
+          cws,
+          chat_id,
+        )
+      ) {
+      | Ok(_) =>
+        fail(
+          "expected structural tool to fail on empty editor (no derivable AST)",
+        )
+      | Error(Agent.Failure.Info(msg)) =>
+        let unknown = "Unknown error occured when trying to apply tool request to editor";
+        check_bool("not the old opaque message", false, msg == unknown);
+        check_bool(
+          "includes Action.Failure.show text (Cant_derive or similar)",
+          true,
+          StringUtil.plain_search("Cant_derive", msg, 0) >= 0
+          || StringUtil.plain_search("Cant_move", msg, 0) >= 0
+          || StringUtil.plain_search("Cant_select", msg, 0) >= 0,
+        );
+        check_bool(
+          "suffix explains tool context",
+          true,
+          StringUtil.plain_search("structural editor tool", msg, 0) >= 0,
+        );
+      };
+    },
+  ),
+];
+
 let context_llm_snapshot_tests = [
   test_case(
     "context_snapshot_body_for_llm equals mk_context_message.content",
@@ -427,5 +476,6 @@ let tests = (
   @ compaction_prompt_tests
   @ openrouter_tests
   @ context_meter_tests
+  @ toolcall_handler_tests
   @ context_llm_snapshot_tests,
 );

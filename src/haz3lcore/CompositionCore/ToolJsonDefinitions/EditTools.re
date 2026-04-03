@@ -59,7 +59,7 @@ This overwrites the ENTIRE definition — including any nested let bindings with
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner")
+path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner"). Avoid shadowing duplicate names across nested scopes; if a path is ambiguous, use a nested path or rename.
 code: string — the new definition code
 
 Example:
@@ -132,7 +132,7 @@ The body is the rest of the program that follows this binding.
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the binding whose body to replace
+path: string — slash-delimited path to the binding whose body to replace. Avoid shadowing duplicate names; use nested paths (outer/inner) when several bindings could match the same name.
 code: string — the new body code
 
 Example:
@@ -203,7 +203,7 @@ Renames or changes the pattern (left-hand side of `=`) of the binding at the giv
 Automatically updates all use sites of the variable throughout the program.
 
 Parameters:
-path: string — slash-delimited path to the binding to rename
+path: string — slash-delimited path to the binding to rename. Avoid ambiguous paths when names shadow; prefer nested paths or unique names.
 code: string — the new pattern (may include type annotation)
 
 Example:

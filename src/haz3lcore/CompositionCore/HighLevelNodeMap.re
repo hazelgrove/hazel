@@ -613,14 +613,17 @@ let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
   // Convert each node's path (list of Ids) to a list of names and compare
   // XXX: Very hacky and ineffecient (O(n) in size of node_map)
   // TODO: Implement a method which improves the efficiency of this operation
-  Id.Map.bindings(node_map)
-  |> List.find_map(((id: Id.t, node: node)) =>
-       if (id_path_to_name_path(node.path, node_map) == path_names) {
-         Some(id);
-       } else {
-         None;
-       }
-     );
+  let matches =
+    Id.Map.bindings(node_map)
+    |> List.filter_map(((id: Id.t, node: node)) =>
+         id_path_to_name_path(node.path, node_map) == path_names
+           ? Some(id) : None
+       );
+  switch (matches) {
+  | [id] => Some(id)
+  | []
+  | [_, _, ..._] => None
+  };
 };
 
 /** Map nodes are keyed by the **binding** expression (Let / TyAlias / ModuleExp).
@@ -731,19 +734,14 @@ let path_to_id = (node_map: t, path: string): Id.t => {
   // Convert each node's path (list of Ids) to a list of names and compare
   // XXX: Very hacky and ineffecient (O(n) in size of node_map)
   // TODO: Implement a method which improves the efficiency of this operation
-  try(
-    Option.get(
-      Id.Map.bindings(node_map)
-      |> List.find_map(((id: Id.t, node: node)) =>
-           if (id_path_to_name_path(node.path, node_map) == path_names) {
-             Some(id);
-           } else {
-             None;
-           }
-         ),
-    )
-  ) {
-  | _ =>
+  let matches =
+    Id.Map.bindings(node_map)
+    |> List.filter_map(((id: Id.t, node: node)) =>
+         id_path_to_name_path(node.path, node_map) == path_names
+           ? Some(id) : None
+       );
+  switch (matches) {
+  | [] =>
     raise(
       Failure(
         "Path \""
@@ -753,6 +751,16 @@ let path_to_id = (node_map: t, path: string): Id.t => {
         ++ closest_valid_path_to_ill_path(node_map, path)
         ++ "\"?"
         ++ "\nNested bindings use paths like outer/inner (not just the inner name).",
+      ),
+    )
+  | [id] => id
+  | [_, _, ..._] =>
+    raise(
+      Failure(
+        "Ambiguous path \""
+        ++ path
+        ++ "\": multiple bindings share this name path (often from shadowing). "
+        ++ "Use a nested path such as outer/inner to name the intended binding.",
       ),
     )
   };

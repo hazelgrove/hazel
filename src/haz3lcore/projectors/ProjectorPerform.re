@@ -379,3 +379,76 @@ let try_remove_syntax_projector =
     }
   );
 };
+
+/** Re-validate projectors under a segment after the underlying syntax may have
+    changed. Strips a projector (exposing underlying syntax) when
+    [[MakeTerm.for_projection]] or [[ProjectorInit.init]] fails, migrating
+    refractors to the underlying term id when possible. */
+let sanitize_projectors_in_segment =
+    (z: Zipper.t, seg: Base.segment): (Zipper.t, Base.segment, bool) => {
+  let rec go_seg =
+          (z: Zipper.t, seg: Base.segment): (Zipper.t, Base.segment, bool) => {
+    List.fold_left(
+      ((z, acc, any_ch), p) => {
+        let (z'', parts, p_ch) = go_piece(z, p);
+        (z'', acc @ parts, any_ch || p_ch);
+      },
+      (z, [], false),
+      seg,
+    );
+  }
+  and go_piece =
+      (z: Zipper.t, piece: Base.piece): (Zipper.t, Base.segment, bool) =>
+    switch (piece) {
+    | Tile(t) =>
+      let (z', children, ch) =
+        List.fold_left(
+          ((z, rev_chs, any_ch), c) => {
+            let (z'', c', c_ch) = go_seg(z, c);
+            (z'', [c', ...rev_chs], any_ch || c_ch);
+          },
+          (z, [], false),
+          t.children,
+        );
+      let children = List.rev(children);
+      (
+        z',
+        [
+          Tile({
+            ...t,
+            children,
+          }),
+        ],
+        ch,
+      );
+    | Grout(_)
+    | Secondary(_) => (z, [piece], false)
+    | Projector(pr) =>
+      let inner0 = Piece.unparenthesize(pr.syntax);
+      let (z1, inner_seg, inner_ch) = go_seg(z, inner0);
+      switch (MakeTerm.for_projection(inner_seg)) {
+      | None =>
+        let z2 =
+          switch (seg_root_id(inner_seg)) {
+          | Some(tid) => migrate_refractor(pr.id, tid, z1)
+          | None => z1
+          };
+        (z2, inner_seg, true);
+      | Some(any) =>
+        switch (
+          ProjectorInit.init(pr.kind, Segment.parenthesize(inner_seg), any)
+        ) {
+        | None =>
+          let z2 =
+            switch (seg_root_id(inner_seg)) {
+            | Some(tid) => migrate_refractor(pr.id, tid, z1)
+            | None => z1
+            };
+          (z2, inner_seg, true);
+        | Some(syn) => inner_ch ? (z1, [syn], true) : (z1, [piece], false)
+        }
+      };
+    };
+
+  go_seg(z, seg);
+};

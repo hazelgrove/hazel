@@ -72,12 +72,26 @@ let run_initialize = (code: string, new_code: string) => {
   };
 };
 
+/** Test-only string compare for rendered programs: keep [[StringUtil]] minimal;
+    normalization lives here, not in shared utils. */
+let normalize_rendered_for_compare = (s: string): string => {
+  let trim_horizontal_edges_line = (line: string): string => {
+    line
+    |> StringUtil.replace(StringUtil.regexp("^[\\t \\r]+"), _, "")
+    |> StringUtil.replace(StringUtil.regexp("[\\t \\r]+$"), _, "");
+  };
+  s
+  |> StringUtil.replace(StringUtil.regexp("\r\n"), _, "\n")
+  |> StringUtil.replace(StringUtil.regexp("\r"), _, "\n")
+  |> String.split_on_char('\n')
+  |> List.map(trim_horizontal_edges_line)
+  |> String.concat("\n")
+  |> String.trim
+  |> StringUtil.replace(StringUtil.regexp("[\\s]+"), _, " ");
+};
+
 let check_rendered = (name: string, expected: string, actual: string) => {
-  let normalized = s =>
-    s
-    |> StringUtil.trim_trailing_whitespace
-    |> StringUtil.replace(StringUtil.regexp("[\\s]+"), _, " ")
-    |> String.trim;
+  let normalized = normalize_rendered_for_compare;
   check(
     testable(Fmt.string, (a, b) =>
       String.equal(normalized(a), normalized(b))
@@ -97,6 +111,37 @@ let apply_and_render = (code: string, a: Action.Structural.t): string => {
       ++ Action.Failure.show(err)
       ++ "\nCode: "
       ++ code,
+    )
+  };
+};
+
+/** Run structural actions in order on the zipper produced by each step. */
+let apply_chain_render =
+    (code: string, actions: list(Action.Structural.t)): string => {
+  let rec go = (z: Zipper.t, acts: list(Action.Structural.t)) =>
+    switch (acts) {
+    | [] => Ok(z)
+    | [a, ...rest] =>
+      switch (
+        Perform.go(
+          ~statics=CachedStatics.empty,
+          ~syntax=CachedSyntax.init(z),
+          Structural(a),
+          {
+            zipper: z,
+            col_target: None,
+          },
+        )
+      ) {
+      | Ok(z') => go(z', rest)
+      | Error(e) => Error(e)
+      }
+    };
+  switch (go(mk_zipper(code), actions)) {
+  | Ok(z) => render_zipper(z)
+  | Error(err) =>
+    Alcotest.fail(
+      "Agent chain failed: " ++ Action.Failure.show(err) ++ "\nCode: " ++ code,
     )
   };
 };
@@ -621,6 +666,25 @@ let update_pattern_tests = (
         );
       },
     ),
+    test_case(
+      "update_pattern then update_definition resolves new binding path",
+      `Quick,
+      () => {
+        let result =
+          apply_chain_render(
+            "let speed = 50 in speed",
+            [
+              Update(Pattern, "speed", "velocity"),
+              Update(Definition, "velocity", "99"),
+            ],
+          );
+        check_rendered(
+          "rename_then_update_def",
+          "let velocity = 99 in velocity",
+          result,
+        );
+      },
+    ),
   ],
 );
 
@@ -1103,6 +1167,18 @@ let invalid_path_tests = (
         "nonexistent_path_insert_after",
       )
     }),
+    test_case(
+      "deeply repeated path segments fail without applying edit (regression: agent bug 3)",
+      `Quick,
+      () => {
+        let long_path = String.concat("/", List.init(40, _ => "a"));
+        expect_any_failure(
+          "let a = 1 in a",
+          Update(Body, long_path, "2"),
+          "long_repeated_path_segments",
+        );
+      },
+    ),
   ],
 );
 
@@ -2056,6 +2132,54 @@ let sequential_operations_tests = (
       },
     ),
     test_case(
+      "update_body introduces nested recursive helper (regression: agent bug 1 / tools)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let f = fun x -> x in f(3)",
+            Update(
+              Body,
+              "f",
+              "let g = fun y -> if y == 0 then 0 else 1 + g(y - 1) in g(3)",
+            ),
+          );
+        check(
+          bool,
+          "render mentions recursive call g(y - 1)",
+          true,
+          StringUtil.plain_search("g\\(y - 1\\)", result, 0) >= 0,
+        );
+        let z = mk_zipper(result);
+        let errs = ErrorPrint.all(mk_statics(z));
+        check(
+          int,
+          "still no static errors after edit",
+          0,
+          List.length(errs),
+        );
+      },
+    ),
+    test_case(
+      "update_binding_clause then insert_after new binding path resolves (regression: agent bug 2)",
+      `Quick,
+      () => {
+        let result =
+          apply_chain_render(
+            "let speed = 1 in 2",
+            [
+              Update(BindingClause, "speed", "let is_winner = true in"),
+              Insert(After, "is_winner", "let score = 0 in"),
+            ],
+          );
+        check_rendered(
+          "clause_replace_then_insert_after_new_name",
+          "let is_winner = true in let score = 0 in 2",
+          result,
+        );
+      },
+    ),
+    test_case(
       "delete then insert at same position",
       `Quick,
       () => {
@@ -2517,6 +2641,22 @@ let error_print_tests = (
         check(int, "hole has no hard errors", 0, List.length(errors));
       },
     ),
+    test_case(
+      "nested recursive let inside outer function — inner self-reference is bound (regression: agent bug 1)",
+      `Quick,
+      () => {
+        let code = "let f = fun x -> let g = fun y -> if y == 0 then 0 else 1 + g(y - 1) in g(x) in f(3)";
+        let z = mk_zipper(code);
+        let info_map = mk_statics(z);
+        let errors = ErrorPrint.all(info_map);
+        check(
+          int,
+          "no static errors for nested recursive helper",
+          0,
+          List.length(errors),
+        );
+      },
+    ),
   ],
 );
 
@@ -2845,6 +2985,20 @@ let agent_tools_with_projectors_tests = (
         check_rendered(
           "slider projector def replaced",
           "let x = 100 in x + 1",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition strips slider projector when new def is not an Int literal",
+      `Quick,
+      () => {
+        let code = {|let speed = ^^slider(50) in speed|};
+        let result =
+          apply_and_render(code, Update(Definition, "speed", "\"hello\""));
+        check_rendered(
+          "slider stripped for string def",
+          "let speed = \"hello\" in speed",
           result,
         );
       },
