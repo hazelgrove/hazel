@@ -120,6 +120,10 @@
   border: 1px dotted var(--cell-result-border);
 }
 
+#main .inline-editor-wrapper .code-editor {
+  padding-left: 0;
+}
+
 /* PROVER */
 
 .missing-step-overlay-align {
