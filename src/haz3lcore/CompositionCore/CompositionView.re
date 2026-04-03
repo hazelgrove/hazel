@@ -65,6 +65,7 @@ module Local = {
               z',
               [],
               [],
+              ~elaborated=CachedStatics.empty.elaborated,
             )
           ) {
           | Ok(z'') => fold_terms(z'', rest)

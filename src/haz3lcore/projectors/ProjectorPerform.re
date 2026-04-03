@@ -23,19 +23,88 @@ open OptUtil.Syntax;
  * neighboring infix operation was added which binds tighter. Again,
  * this is the same as would happen if unparenthesizing a subterm. */
 
-let init = (kind: ProjectorCore.Kind.t, seg: Base.segment): option(syntax) =>
-  /* Projected syntax always gets parenthesized, but only the contents
-   * of those parentheses are passed to the projector implementations  */
-  switch (MakeTerm.for_projection(seg)) {
-  | None => None
-  | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)
-  };
-
 /* Get the root term ID from a segment, if it's a well-formed term */
 let seg_root_id = (seg: Base.segment): option(Id.t) =>
   try(Some(Segment.root_id(Segment.skel(seg), seg))) {
   | _ => None
   };
+
+let exp_to_seg = (exp: Language.Exp.t): Base.segment =>
+  ExpToSegment.any_to_segment(
+    ~settings={
+      ...
+        ExpToSegment.Settings.of_core(
+          ~inline=true,
+          Language.CoreSettings.off,
+        ),
+      show_unknown_as_hole: false,
+      fold_fn_bodies: `NoFold,
+    },
+    Exp(exp),
+  );
+
+/* Initialize a projector on a segment. For projectors with
+ * elaborate_syntax=true, first tries the elaborated version of the
+ * syntax (which has auto-labels etc.), falling back to the original
+ * if elaboration doesn't apply. When elaborated syntax is used,
+ * the original is preserved in original_syntax for restoration. */
+let init =
+    (
+      kind: ProjectorCore.Kind.t,
+      seg: Base.segment,
+      ~elaborated: Language.Exp.t,
+    )
+    : option(syntax) => {
+  let (module P) = ProjectorInit.to_module(kind);
+  let orig_piece = Segment.parenthesize(seg);
+
+  /* Try elaborated syntax first if the projector requests it */
+  let elaborated_result =
+    if (P.elaborate_syntax) {
+      switch (seg_root_id(seg)) {
+      | Some(term_id) =>
+        switch (Language.Exp.find_by_id(term_id, elaborated)) {
+        | Some(elab_exp) =>
+          let elab_seg = exp_to_seg(elab_exp);
+          let elab_piece = Segment.parenthesize(elab_seg);
+          switch (MakeTerm.for_projection([elab_piece])) {
+          | Some(any) =>
+            switch (P.init(any)) {
+            | Some(model) =>
+              let model_str =
+                model |> P.sexp_of_model |> Sexplib.Sexp.to_string;
+              Some(
+                Base.Projector(
+                  ProjectorCore.mk(
+                    ~original_syntax=Some(orig_piece),
+                    kind,
+                    elab_piece,
+                    model_str,
+                  ),
+                ),
+              );
+            | None => None
+            }
+          | None => None
+          };
+        | None => None
+        }
+      | None => None
+      };
+    } else {
+      None;
+    };
+
+  /* Fall back to normal init on original syntax */
+  switch (elaborated_result) {
+  | Some(_) as result => result
+  | None =>
+    switch (MakeTerm.for_projection(seg)) {
+    | None => None
+    | Some(any) => ProjectorInit.init(kind, orig_piece, any)
+    }
+  };
+};
 
 /* Migrate a refractor from one ID to another (if present) */
 let migrate_refractor = (from_id: Id.t, to_id: Id.t, z: Zipper.t): Zipper.t =>
@@ -85,6 +154,7 @@ let go =
       z: Zipper.t,
       projector_list: list(Id.t),
       refractor_list: list(Id.t),
+      ~elaborated: Language.Exp.t,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
   let projector_idx_to_id = (idx: int): Id.t =>
@@ -117,17 +187,19 @@ let go =
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
-      /* Remove projector: migrate refractor back to underlying term */
-      let underlying_seg = Piece.unparenthesize(pr.syntax);
+      /* Remove projector: restore original syntax if elaborated */
+      let restore_syntax =
+        Option.value(~default=pr.syntax, pr.original_syntax);
+      let underlying_seg = Piece.unparenthesize(restore_syntax);
       let z =
         switch (seg_root_id(underlying_seg)) {
         | Some(term_id) => migrate_refractor(pr.id, term_id, z)
         | None => z
         };
-      Some(remove(pr.syntax, focus, z));
+      Some(remove(restore_syntax, focus, z));
     | [Projector(pr)] =>
       /* Switch projector kind: migrate refractor to new projector */
-      let+ piece = init(kind, Piece.unparenthesize(pr.syntax));
+      let+ piece = init(kind, Piece.unparenthesize(pr.syntax), ~elaborated);
       let z =
         switch (piece) {
         | Projector(new_pr) => migrate_refractor(pr.id, new_pr.id, z)
@@ -136,7 +208,7 @@ let go =
       replace_selection_and_unselect(piece, focus, z);
     | seg =>
       /* Add projector: migrate refractor from term to projector */
-      let+ piece = init(kind, seg);
+      let+ piece = init(kind, seg, ~elaborated);
       let z =
         switch (seg_root_id(seg), piece) {
         | (Some(term_id), Projector(new_pr)) =>
@@ -151,14 +223,16 @@ let go =
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] =>
-      /* Migrate refractor back to underlying term */
-      let underlying_seg = Piece.unparenthesize(pr.syntax);
+      /* Restore original syntax if elaborated */
+      let restore_syntax =
+        Option.value(~default=pr.syntax, pr.original_syntax);
+      let underlying_seg = Piece.unparenthesize(restore_syntax);
       let z =
         switch (seg_root_id(underlying_seg)) {
         | Some(term_id) => migrate_refractor(pr.id, term_id, z)
         | None => z
         };
-      Some(remove(pr.syntax, focus, z));
+      Some(remove(restore_syntax, focus, z));
     | _ => None
     };
   };

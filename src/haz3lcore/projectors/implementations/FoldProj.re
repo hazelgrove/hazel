@@ -34,6 +34,7 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
 
   let placeholder = (m, _) =>
     ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);

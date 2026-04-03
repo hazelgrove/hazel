@@ -479,6 +479,7 @@ module M: Projector = {
   type action = a;
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
 
   let init = (info: TermBase.Any.t): option(model) =>
     SyntaxTerm.get_opt(info) != None ? Some({mode: Show}) : None;

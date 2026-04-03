@@ -77,6 +77,7 @@ module M: Projector = {
     };
 
   let dynamics = false;
+  let elaborate_syntax = false;
 
   let view = ({info, parent, _}: View.args(model, action)) => {
     let ctx =

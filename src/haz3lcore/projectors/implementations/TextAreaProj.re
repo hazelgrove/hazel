@@ -115,6 +115,7 @@ module M: Projector = {
       keyboard: Some(focus_keyboard),
     };
   let dynamics = false;
+  let elaborate_syntax = false;
   let placeholder = (_, info) => {
     let str = info |> get;
     ProjectorCore.Shape.{

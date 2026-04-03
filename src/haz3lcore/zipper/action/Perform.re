@@ -63,6 +63,7 @@ let go =
       z,
       syntax.projector_list,
       refractor_list,
+      ~elaborated=statics.elaborated,
     );
   | Move(d) =>
     Move.go(

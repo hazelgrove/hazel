@@ -96,6 +96,7 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
   let placeholder = (m, _) =>
     switch (m) {
     | FileLoaded({filename, _}) =>

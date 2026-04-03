@@ -27,7 +27,11 @@ let exp_to_seg =
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   let* name = Token.of_projector_invoke(name);
   let kind = ProjectorCore.Kind.of_name(name);
-  ProjectorPerform.init(kind, syntax);
+  ProjectorPerform.init(
+    kind,
+    syntax,
+    ~elaborated=CachedStatics.empty.elaborated,
+  );
 };
 
 let expand_projector = (z: t): option(t) => {
@@ -95,7 +99,12 @@ let expand_livelit = (~ctx, z: t): option(t) =>
     let (l, _space) = ListUtil.split_last(fst(z.relatives.siblings));
     let (l, name) = ListUtil.split_last(l);
     let seg = [name, Piece.mk_tile(Form.get(ApExp), [seg])];
-    let+ pr = ProjectorPerform.init(Livelit, seg);
+    let+ pr =
+      ProjectorPerform.init(
+        Livelit,
+        seg,
+        ~elaborated=CachedStatics.empty.elaborated,
+      );
     Zipper.update_siblings(((_, r)) => (l @ [pr], r), z);
   | _ => None
   };

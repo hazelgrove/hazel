@@ -44,6 +44,7 @@ module M: Projector = {
   };
 
   let dynamics = false;
+  let elaborate_syntax = false;
   let focusable = Focusable.non;
 
   let display_ty = (model, statics): option(Typ.t) =>

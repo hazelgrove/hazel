@@ -193,6 +193,11 @@ module type Projector = {
    * instrumented with a probe to collect dynamic
    * information during evaluation */
   let dynamics: bool;
+  /* If elaborate_syntax is true, the projector's underlying
+   * syntax will be replaced with the elaborated version at
+   * init time (which has auto-labels inserted/rearranged).
+   * The original syntax is preserved for restoration on removal. */
+  let elaborate_syntax: bool;
   /* Renders the DOM views for the projector */
   let view: View.args(model, action) => View.t;
   /* The space left for the projector in the base editor */
@@ -220,6 +225,7 @@ module Cook = (C: Projector) : Cooked => {
   let init = any => C.init(any) |> Option.map(serialize_m);
   let focusable = C.focusable;
   let dynamics = C.dynamics;
+  let elaborate_syntax = C.elaborate_syntax;
   let view = (args: View.args(model, action)) =>
     C.view({
       model: deserialize_m(args.model),
