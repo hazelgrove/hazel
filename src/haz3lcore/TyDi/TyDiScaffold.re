@@ -46,29 +46,20 @@ let is_scaffold = (z: Zipper.t): bool =>
   };
 
 /* Extract insertable text from a scaffold buffer segment.
- * Keeps commas, label names, and label = operators — all are
- * syntactically meaningful for tuple structure.
- * Skips Grout (holes), Whitespace, and non-label/non-comma Tiles.
- * e.g. [,, " ", ?]  => ","
- *      [,, " ", x, =, ?] => ",x="  */
+ * Keeps commas, label names, label = operators, and whitespace —
+ * all are meaningful for producing well-formatted code.
+ * Skips only Grout (holes) and non-label/non-comma Tiles.
+ * e.g. [,, " ", ?]  => ", "
+ *      [" ", ?, ,, " "] => " , "
+ *      [,, " ", x, =, ?] => ", x="  */
 let insertable = (content: Segment.t): Token.t =>
   String.concat(
     "",
     List.filter_map(
       (p: Piece.t) =>
         switch (p) {
-        | Secondary({content: Comment(s), _}) =>
-          /* Strip spaces from label text */
-          let buf = Stdlib.Buffer.create(String.length(s));
-          String.iter(
-            c =>
-              if (c != ' ') {
-                Stdlib.Buffer.add_char(buf, c);
-              },
-            s,
-          );
-          let stripped = Stdlib.Buffer.contents(buf);
-          stripped == "" ? None : Some(stripped);
+        | Secondary({content: Comment(s), _}) => Some(s)
+        | Secondary({content: Whitespace(s), _}) => Some(s)
         | Tile({label: [","], _}) => Some(",")
         | Tile({label: ["="], _}) => Some("=")
         | Tile({
@@ -386,6 +377,22 @@ let left_boundary_empty = (scoped_l: list(Piece.t)): bool => {
   check(List.rev(scoped_l));
 };
 
+/* Is the immediate left context a comma without trailing space?
+ * Used to add a leading space to the scaffold for formatting:
+ * f(1,¦ should show " ?, " not "?, ".
+ * f(1, ¦ already has a space so no extra needed. */
+let left_needs_space = (l: list(Piece.t)): bool =>
+  switch (l) {
+  | [Piece.Grout(_), ...rest] =>
+    /* Skip grout then check for bare comma */
+    switch (rest) {
+    | [Piece.Tile({label: [","], _}), ..._] => true
+    | _ => false
+    }
+  | [Piece.Tile({label: [","], _}), ..._] => true
+  | _ => false
+  };
+
 /* Does the right side have a convex tile (not grout) that fills the
  * last element position? If so, no trailing hole is needed. */
 let right_has_convex = (r: list(Piece.t)): bool => {
@@ -443,7 +450,20 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
       |> List.filteri((i, _) => i >= label_start)
       |> (lst => List.filteri((i, _) => i < remaining, lst));
     let labels = List.map(label_of_prod_elem, remaining_tys);
-    Some(mk_segment(~holes_first, ~trailing_hole, ~labels, remaining));
+    let seg = mk_segment(~holes_first, ~trailing_hole, ~labels, remaining);
+    /* If caret immediately follows a comma without a trailing space,
+     * prepend a space so the scaffold reads "f(1, ?" not "f(1,?". */
+    let seg =
+      left_needs_space(l)
+        ? [
+          Piece.Secondary({
+            id: Id.mk(),
+            content: Whitespace(" "),
+          }),
+          ...seg,
+        ]
+        : seg;
+    Some(seg);
   };
 };
 

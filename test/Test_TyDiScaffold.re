@@ -911,6 +911,27 @@ let after_comma_tests = (
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦",
       ~expect=None,
     ),
+    /* After typing comma without space: g(1,¦ → scaffold should have
+     * leading space for formatting: " ?, " not "?, " */
+    scaffold_test(
+      ~name="After comma no space: leading space in scaffold",
+      ~code=def3 ++ "g(1,¦",
+      ~expect=Some(" " ++ hole_char ++ ", "),
+    ),
+    /* 2-arg after comma no space: f(1,¦ → no remaining commas but
+     * still no scaffold (all commas placed) */
+    scaffold_test(
+      ~name="After comma no space 2-arg: no scaffold",
+      ~code=def2 ++ "f(1,¦",
+      ~expect=None,
+    ),
+    /* After comma no space: Tab inserts just the formatting space.
+     * g(1,¦ → Tab → g(1, ¦? — caret ready for next arg */
+    accept_test(
+      ~name="After comma no space: Tab inserts space",
+      ~code=def3 ++ "g(1,¦",
+      ~goal=def3 ++ "g(1, ¦?",
+    ),
   ],
 );
 

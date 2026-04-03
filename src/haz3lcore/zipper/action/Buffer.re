@@ -70,46 +70,73 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
 
 /* For scaffold buffers, extract the text to emit on Tab.
  * Emits one "chunk" at a time for progressive acceptance.
- * Walks the buffer segment's Comment pieces (skipping Grout),
- * concatenates their text, then extracts the first chunk:
+ * The insertable text includes formatting whitespace, so each
+ * chunk includes any trailing space after a comma.
  *
- * - If the insertable starts with a label (e.g. "x=,..."):
+ * - If the insertable starts with a label (e.g. "x=, ..."):
  *   emit just the label prefix "x=" so the user can fill in the value
- * - Otherwise: emit up to and including the first comma
+ * - Otherwise: emit up to and including the first comma and its
+ *   trailing space (e.g. ", " not just ",")
  *
- * e.g. [", ", ?]         → insertable ","    → emit ","
- *      [", ", ?, ", ", ?] → insertable ",,"   → emit ","
- *      ["x=", ?, ", "]   → insertable "x=,"  → emit "x="
- *      [", ", "y=", ?]   → insertable ",y="  → emit ","  */
+ * e.g. ", ?"         → insertable ", "    → emit ", "
+ *      ", ?, , ?"    → insertable ", , "  → emit ", "
+ *      "x=?, , "     → insertable "x=, "  → emit "x="
+ *      ", y=?"       → insertable ", y="  → emit ", "  */
 let scaffold_emit_text = (content: Segment.t): string => {
   let insertable = TyDiScaffold.insertable(content);
   let len = String.length(insertable);
-  /* Check if the insertable starts with a label prefix (chars before '=').
-   * If so, emit just the label prefix (up to and including '='). */
-  let rec find_eq_before_comma = (i: int): option(int) =>
+  /* Skip leading whitespace to find the first structural character */
+  let rec skip_space = (i: int): int =>
     if (i >= len) {
-      None;
-    } else if (insertable.[i] == '=') {
-      Some(i + 1);
-    } else if (insertable.[i] == ',') {
-      None; /* Comma comes before any '=' */
+      i;
+    } else if (insertable.[i] == ' ') {
+      skip_space(i + 1);
     } else {
-      find_eq_before_comma(i + 1);
+      i;
     };
-  switch (find_eq_before_comma(0)) {
-  | Some(end_pos) => String.sub(insertable, 0, end_pos)
-  | None =>
-    /* No leading label — emit up to and including the first comma */
-    let rec find_comma = (i: int): int =>
+  let first_nonspace = skip_space(0);
+  /* If there's leading whitespace (formatting fixup for a user-typed
+   * comma without trailing space), emit just the space so the caret
+   * lands right after it — ready for the user to type the next arg.
+   * The remaining scaffold regenerates on the next cycle. */
+  if (first_nonspace > 0) {
+    String.sub(insertable, 0, first_nonspace);
+  } else {
+    /* No leading space — check for label prefix or comma chunk */
+    /* Check if the insertable starts with a label prefix (chars before '=').
+     * If so, emit just the label prefix (up to and including '='). */
+    let rec find_eq_before_comma = (i: int): option(int) =>
       if (i >= len) {
-        len;
+        None;
+      } else if (insertable.[i] == '=') {
+        Some(i + 1);
       } else if (insertable.[i] == ',') {
-        i + 1;
+        None; /* Comma comes before any '=' */
       } else {
-        find_comma(i + 1);
+        find_eq_before_comma(i + 1);
       };
-    let end_pos = find_comma(0);
-    String.sub(insertable, 0, end_pos);
+    switch (find_eq_before_comma(0)) {
+    | Some(end_pos) => String.sub(insertable, 0, end_pos)
+    | None =>
+      /* Emit up to and including the first comma plus any
+       * trailing space after it */
+      let rec find_comma = (i: int): int =>
+        if (i >= len) {
+          len;
+        } else if (insertable.[i] == ',') {
+          /* Include trailing space after comma if present */
+          let after = i + 1;
+          if (after < len && insertable.[after] == ' ') {
+            after + 1;
+          } else {
+            after;
+          };
+        } else {
+          find_comma(i + 1);
+        };
+      let end_pos = find_comma(0);
+      String.sub(insertable, 0, end_pos);
+    };
   };
 };
 
@@ -119,14 +146,10 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   | Buffer(Parsed) => Some(Zipper.directional_unselect(Right, z))
   | Buffer(Unparsed) when TyDiScaffold.is_scaffold(z) =>
     /* Scaffold buffer: emit one chunk progressively.
-     * Add a trailing space after commas for readability
-     * (f(1, ?) instead of f(1,?)), but not after label
-     * prefixes (f(x=¦ not f(x= ¦)). */
+     * The scaffold segment includes formatting whitespace (spaces
+     * after commas), so insertable/emit_text preserves it — no
+     * post-hoc space insertion needed. */
     let to_emit = scaffold_emit_text(z.selection.content);
-    let ends_with_comma =
-      String.length(to_emit) > 0
-      && to_emit.[String.length(to_emit) - 1] == ',';
-    let to_emit = ends_with_comma ? to_emit ++ " " : to_emit;
     let z = Zipper.clear_unparsed_buffer(z);
     Parser.to_zipper(~zipper_init=z, to_emit);
   | Buffer(Unparsed) =>
