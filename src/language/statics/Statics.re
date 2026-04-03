@@ -55,41 +55,38 @@ let rec collect_pat_ctr_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   | _ => CoCtx.empty
   };
 let rec any_to_info_map =
-        (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
+        (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t)
+        : (CoCtx.t, Any.t, Map.t) =>
   switch (any) {
   | Exp(e) =>
-    let ({co_ctx, _}: Info.exp, _, m) =
+    let ({co_ctx, _}: Info.exp, elab, m) =
       uexp_to_info_map(
         ~ctx,
         ~ancestors,
-        ~duplicates=[],
         ~expected_labels=None,
         ~label_sort=false,
         e,
         m,
       );
-    (co_ctx, m);
+    (co_ctx, Exp(elab), m);
   | Pat(p) =>
-    let (_, _, m) =
+    let (_, elab, m) =
       upat_to_info_map(
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~ancestors,
         ~duplicate_bindings=[],
-        ~duplicate_labels=[],
         ~ctx,
         p,
         m,
       );
-    (CoCtx.empty, m);
-  | TPat(tp) => (
-      CoCtx.empty,
-      utpat_to_info_map(~ctx, ~ancestors, tp, m) |> snd,
-    )
-  | Typ(ty) => (
-      CoCtx.empty,
-      utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
-    )
+    (CoCtx.empty, Pat(elab), m);
+  | TPat(tp) =>
+    let m = utpat_to_info_map(~ctx, ~ancestors, tp, m) |> snd;
+    (CoCtx.empty, TPat(tp), m);
+  | Typ(ty) =>
+    let m = utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd;
+    (CoCtx.empty, Typ(ty), m);
   | Rul(r) =>
     switch (r.term) {
     | Rules(scrut, rules) =>
@@ -111,8 +108,8 @@ let rec any_to_info_map =
       );
     | MultiHole(tms) =>
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
-      (CoCtx.union(co_ctxs), m);
-    | Invalid(_) => (CoCtx.empty, m)
+      (CoCtx.union(co_ctxs), Rul(r), m);
+    | Invalid(_) => (CoCtx.empty, Rul(r), m)
     }
   | Mod(m_term) =>
     let ids = IdTagged.ids(m_term);
@@ -132,25 +129,25 @@ let rec any_to_info_map =
       );
     switch (m_term.term) {
     | Invalid(_)
-    | EmptyHole => (CoCtx.empty, add_mod_info(m))
+    | EmptyHole => (CoCtx.empty, Mod(m_term), add_mod_info(m))
     | MultiHole(tms) =>
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
-      (CoCtx.union(co_ctxs), add_mod_info(m));
+      (CoCtx.union(co_ctxs), Mod(m_term), add_mod_info(m));
     | ModLet(p, e) =>
-      let (co_ctx_e, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, Pat(p), m);
-      (co_ctx_e, add_mod_info(m));
+      let (co_ctx_e, _, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Pat(p), m);
+      (co_ctx_e, Mod(m_term), add_mod_info(m));
     | ModType(tp, t) =>
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
-      (CoCtx.empty, add_mod_info(m));
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
+      (CoCtx.empty, Mod(m_term), add_mod_info(m));
     | ModExp(e) =>
-      let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
-      (co_ctx, add_mod_info(m));
+      let (co_ctx, _, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
+      (co_ctx, Mod(m_term), add_mod_info(m));
     | ModuleMod(mp, e) =>
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
-      let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
-      (co_ctx, add_mod_info(m));
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
+      let (co_ctx, _, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
+      (co_ctx, Mod(m_term), add_mod_info(m));
     };
   | Sig(s_term) =>
     let ids = IdTagged.ids(s_term);
@@ -170,10 +167,10 @@ let rec any_to_info_map =
       );
     switch (s_term.term) {
     | Invalid(_)
-    | EmptyHole => (CoCtx.empty, add_sig_info(m))
+    | EmptyHole => (CoCtx.empty, Sig(s_term), add_sig_info(m))
     | MultiHole(tms) =>
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
-      (CoCtx.union(co_ctxs), add_sig_info(m));
+      (CoCtx.union(co_ctxs), Sig(s_term), add_sig_info(m));
     | SigLet(p) =>
       let hole_co_ctx =
         CoCtx.singleton(
@@ -190,11 +187,11 @@ let rec any_to_info_map =
           p,
           m,
         );
-      (CoCtx.empty, add_sig_info(m));
+      (CoCtx.empty, Sig(s_term), add_sig_info(m));
     | SigType(tp, t) =>
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
-      (CoCtx.empty, add_sig_info(m));
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
+      (CoCtx.empty, Sig(s_term), add_sig_info(m));
     };
   | MPat(mp_term) =>
     let ids = IdTagged.ids(mp_term);
@@ -215,21 +212,21 @@ let rec any_to_info_map =
     switch (mp_term.term) {
     | Invalid(_)
     | EmptyHole
-    | Var(_) => (CoCtx.empty, add_mpat_info(m))
+    | Var(_) => (CoCtx.empty, MPat(mp_term), add_mpat_info(m))
     | MultiHole(tms) =>
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
-      (CoCtx.union(co_ctxs), add_mpat_info(m));
+      (CoCtx.union(co_ctxs), MPat(mp_term), add_mpat_info(m));
     | Asc(inner, typ) =>
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, MPat(inner), m);
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, Typ(typ), m);
-      (CoCtx.empty, add_mpat_info(m));
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, MPat(inner), m);
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(typ), m);
+      (CoCtx.empty, MPat(mp_term), add_mpat_info(m));
     };
-  | Any () => (CoCtx.empty, m)
+  | Any () => (CoCtx.empty, Any(), m)
   }
 and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
-      let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, any, m);
+      let (co_ctx, _, m) = any_to_info_map(~ctx, ~ancestors, any, m);
       (co_ctxs @ [co_ctx], m);
     },
     ([], m),
@@ -241,7 +238,6 @@ and uexp_to_info_map =
       ~ana=syn,
       ~is_in_filter=false,
       ~ancestors,
-      ~duplicates: list(string),
       ~expected_labels: option(list(string)),
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
@@ -302,7 +298,6 @@ and uexp_to_info_map =
         ~ana=syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
-        ~duplicates=[],
         ~expected_labels=?,
         ~inferred_label: option(string)=?,
         ~override_self=?,
@@ -316,7 +311,6 @@ and uexp_to_info_map =
       ~ana,
       ~is_in_filter,
       ~ancestors,
-      ~duplicates,
       ~expected_labels,
       ~override_self?,
       ~inferred_label?,
@@ -351,7 +345,6 @@ and uexp_to_info_map =
     (
       ~ana: TermBase.typ_t=?,
       ~is_in_filter: bool=?,
-      ~duplicates: list(string)=?,
       ~expected_labels: list(string)=?,
       ~inferred_label: string=?,
       ~override_self: Self.exp=?,
@@ -362,10 +355,10 @@ and uexp_to_info_map =
     ) =>
     (Info.exp, Exp.t, Map.t) =
     go'(~ctx);
-  let map_m_go = (m, ~duplicates=[]) =>
+  let map_m_go = m =>
     List.fold_left2(
       (((es, elabs), m), ana, e) =>
-        go(~ana, ~duplicates, e, m)
+        go(~ana, e, m)
         |> (((e, elab, m)) => ((es @ [e], elabs @ [elab]), m)),
       (([], []), m),
     );
@@ -382,18 +375,17 @@ and uexp_to_info_map =
           ~ana=labmode,
           ~override_self=Common(InvalidLabel(name, expected_labels)),
           ~label_sort=true,
-          ~duplicates,
           label,
           m,
         );
       (None, i, i_elab, m);
     | (Label(lab), _) =>
       let (i, i_elab, m) =
-        go(~ana=labmode, ~label_sort=true, ~duplicates, label, m);
+        go(~ana=labmode, ~label_sort=true, label, m);
       (Some(lab), i, i_elab, m);
     | (EmptyHole, _) =>
       let (i, i_elab, m) =
-        go(~ana=labmode, ~label_sort=true, ~duplicates, label, m);
+        go(~ana=labmode, ~label_sort=true, label, m);
       (None, i, i_elab, m);
     | _ =>
       let (i, i_elab, m) =
@@ -401,7 +393,6 @@ and uexp_to_info_map =
           ~ana=labmode,
           ~override_self=Common(BadLabel(Exp(label))),
           ~label_sort=true,
-          ~duplicates,
           label,
           m,
         );
@@ -867,8 +858,19 @@ and uexp_to_info_map =
       let new_labels =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
-      let duplicate_labels =
+      let unique_duplicate_labels =
         LabeledTuple.get_duplicate_labels(Exp.match_tup_label, es);
+      /* Build list with one entry per duplicate occurrence (matching old behavior) */
+      let duplicate_labels =
+        List.filter_map(
+          (e: Exp.t) =>
+            switch (Exp.match_tup_label(e)) {
+            | Some((name, _)) when List.mem(name, unique_duplicate_labels) =>
+              Some(name)
+            | _ => None
+            },
+          es,
+        );
 
       let (es', es_elab, m) =
         List.fold_left2(
@@ -876,7 +878,6 @@ and uexp_to_info_map =
             go(
               ~ana,
               ~inferred_label?,
-              ~duplicates=duplicate_labels,
               ~expected_labels?,
               e,
               m,
@@ -887,12 +888,74 @@ and uexp_to_info_map =
           ana_tys,
           List.combine(inferred, es),
         );
+
+      /* Mark duplicate labels in the map. We patch each duplicate Label
+         node's and its parent TupLabel node's info entries directly,
+         rather than threading a duplicates parameter down. */
+      let m =
+        List.fold_left2(
+          (m, e: Exp.t, e_info: Info.exp) =>
+            switch (e.term) {
+            | TupLabel({term: Label(name), _} as label, _)
+                when List.mem(name, duplicate_labels) =>
+              /* Patch the Label node */
+              let m =
+                switch (Id.Map.find_opt(Exp.rep_id(label), m)) {
+                | Some(Info.InfoExp(label_info)) =>
+                  let inner_self =
+                    switch (label_info.self) {
+                    | Common(s) => s
+                    | _ => Just(Label(name) |> Typ.temp)
+                    };
+                  let self: Self.exp =
+                    Common(DuplicateLabel(name, inner_self));
+                  let new_info =
+                    Info.derived_exp(
+                      ~uexp=label_info.term,
+                      ~ctx=label_info.ctx,
+                      ~ana=label_info.ana,
+                      ~ancestors=label_info.ancestors,
+                      ~self,
+                      ~co_ctx=label_info.co_ctx,
+                      ~label_inference=label_info.label_inference,
+                      ~inferred_label=label_info.inferred_label,
+                      ~dot_labels=label_info.dot_labels,
+                      ~label_sort=label_info.label_sort,
+                    );
+                  add_info(
+                    IdTagged.ids(label_info.term),
+                    InfoExp(new_info),
+                    m,
+                  );
+                | _ => m
+                };
+              /* Patch the TupLabel node */
+              let tuplabel_self: Self.exp =
+                Common(
+                  TupleLabelError({
+                    malformed_labels: [],
+                    duplicate_labels: [name],
+                    invalid_labels: [],
+                    typ: e_info.ty,
+                  }),
+                );
+              let (_, _, m) =
+                replace_self(m, e_info, tuplabel_self);
+              m;
+            | _ => m
+            },
+          m,
+          es,
+          es',
+        );
+
       let ty_list = List.map(Info.exp_ty, es');
 
-      let (malformed_labels, duplicate_labels, invalid_labels) =
+      /* Collect malformed/invalid label errors from children.
+         Duplicate labels are already known from line above. */
+      let (malformed_labels, invalid_labels) =
         List.fold_left2(
-          ((a, b, c), e: Exp.t, e_info: Info.exp) => {
-            // Only collect errors from TupLabel elements
+          ((a, c), e: Exp.t, e_info: Info.exp) => {
             switch (e.term, e_info.status) {
             | (
                 TupLabel(_, _),
@@ -900,7 +963,6 @@ and uexp_to_info_map =
                   Common(
                     TupleLabelError({
                       malformed_labels,
-                      duplicate_labels,
                       invalid_labels,
                       _,
                     }),
@@ -908,13 +970,12 @@ and uexp_to_info_map =
                 ),
               ) => (
                 a @ malformed_labels,
-                b @ duplicate_labels,
                 c @ invalid_labels,
               )
-            | _ => (a, b, c)
+            | _ => (a, c)
             }
           },
-          ([], [], []),
+          ([], []),
           es,
           es',
         );
@@ -1017,8 +1078,7 @@ and uexp_to_info_map =
     | ExplicitNonlabel => atomic(ExplicitNonlabel)
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
-      List.exists(l => name == l, duplicates)
-        ? atomic(DuplicateLabel(name, self)) : atomic(self);
+      atomic(self);
     | Label(name) =>
       let self = Self.UnexpectedLabelSort(name);
       atomic(self);
@@ -2122,7 +2182,7 @@ and uexp_to_info_map =
     | ModuleExp(mp, def, body) =>
       /* Expand module M = def in body → let M = def in body.
          Process the MPat for cursor info, then expand to Let and type-check. */
-      let (_, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
+      let (_, _, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
       let pat = ExpandModule.mpat_to_pat(mp);
       let expanded =
         IdTagged.fast_copy(
@@ -2197,7 +2257,6 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicate_bindings: list(string)=[],
-      ~duplicate_labels: list(string)=[],
       ~expected_labels=?,
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
@@ -2274,7 +2333,6 @@ and upat_to_info_map =
         ~co_ctx,
         ~ancestors,
         ~duplicate_bindings=[],
-        ~duplicate_labels=[],
         ~expected_labels=?,
         ~ana,
         ~under_ascription=false,
@@ -2290,7 +2348,6 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors,
       ~duplicate_bindings,
-      ~duplicate_labels,
       ~ana,
       ~under_ascription,
       ~override_self?,
@@ -2308,14 +2365,13 @@ and upat_to_info_map =
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
-  let ctx_fold = (ctx: Ctx.t, m, ~duplicate_bindings=[], ~duplicate_labels=[]) =>
+  let ctx_fold = (ctx: Ctx.t, m, ~duplicate_bindings=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m, info_all, elabs), e, ana) =>
         go(
           ~ctx,
           ~ana,
           ~duplicate_bindings,
-          ~duplicate_labels,
           ~inferred_label?,
           e,
           m,
@@ -2530,7 +2586,6 @@ and upat_to_info_map =
               ~ana=labmode,
               ~override_self=?label_self,
               ~duplicate_bindings,
-              ~duplicate_labels,
               ~label_sort=true,
               label,
               m,
@@ -2561,7 +2616,6 @@ and upat_to_info_map =
                 | _ => Some(BadLabel(Pat(label)))
                 },
               ~duplicate_bindings,
-              ~duplicate_labels,
               label,
               m,
             );
@@ -2663,7 +2717,6 @@ and upat_to_info_map =
               // Perhaps multiple copies of something in duplicates, but probably not an issue.
               // Needed so that nested tuples can have duplicate bindings saved.
               ~duplicate_bindings=duplicate_bindings @ new_duplicate_bindings,
-              ~duplicate_labels=new_duplicate_labels,
               ~expected_labels?,
               e,
               m,
@@ -2683,31 +2736,109 @@ and upat_to_info_map =
           modes,
         );
       let constraint_ = Coverage.Constraint.Tuple(cons);
-      let (malformed_labels, duplicate_labels, invalid_labels) =
+
+      /* Build duplicate_labels with one entry per occurrence (matching old behavior) */
+      let duplicate_labels =
+        List.filter_map(
+          (p: Pat.t) =>
+            switch (Pat.match_tup_label(p)) {
+            | Some((name, _)) when List.mem(name, new_duplicate_labels) =>
+              Some(name)
+            | _ => None
+            },
+          ps,
+        );
+
+      /* Patch Label and TupLabel map entries for duplicates */
+      let m =
         List.fold_left(
-          ((a, b, c), e: Info.pat) => {
+          (m, (p: Pat.t, p_info: Info.pat)) =>
+            switch (p.term) {
+            | TupLabel({term: Label(name), _} as label, _)
+                when List.mem(name, new_duplicate_labels) =>
+              /* Patch the Label node */
+              let m =
+                switch (Id.Map.find_opt(Pat.rep_id(label), m)) {
+                | Some(Info.InfoPat(label_info)) =>
+                  let inner_self =
+                    switch (label_info.self) {
+                    | Common(s) => s
+                    | _ => Just(Label(name) |> Typ.temp)
+                    };
+                  let self: Self.pat =
+                    Common(DuplicateLabel(name, inner_self));
+                  let new_info =
+                    Info.derived_pat(
+                      ~upat=label_info.term,
+                      ~ctx=label_info.ctx,
+                      ~co_ctx=label_info.co_ctx,
+                      ~prev_synswitch=label_info.prev_synswitch,
+                      ~ana=label_info.ana,
+                      ~ancestors=label_info.ancestors,
+                      ~self,
+                      ~constraint_=label_info.constraint_,
+                      ~label_inference=label_info.label_inference,
+                      ~inferred_label=label_info.inferred_label,
+                      ~label_sort=label_info.label_sort,
+                    );
+                  add_info(
+                    IdTagged.ids(label_info.term),
+                    InfoPat(new_info),
+                    m,
+                  );
+                | _ => m
+                };
+              /* Patch the TupLabel node */
+              let tuplabel_self: Self.pat =
+                Common(
+                  TupleLabelError({
+                    malformed_labels: [],
+                    duplicate_labels: [name],
+                    invalid_labels: [],
+                    typ: p_info.ty,
+                  }),
+                );
+              let new_info =
+                Info.derived_pat(
+                  ~upat=p_info.term,
+                  ~ctx=p_info.ctx,
+                  ~co_ctx=p_info.co_ctx,
+                  ~prev_synswitch=p_info.prev_synswitch,
+                  ~ana=p_info.ana,
+                  ~ancestors=p_info.ancestors,
+                  ~self=tuplabel_self,
+                  ~constraint_=p_info.constraint_,
+                  ~label_inference=p_info.label_inference,
+                  ~inferred_label=p_info.inferred_label,
+                  ~label_sort=p_info.label_sort,
+                );
+              add_info(IdTagged.ids(p_info.term), InfoPat(new_info), m);
+            | _ => m
+            },
+          m,
+          List.combine(ps, info_pats),
+        );
+
+      /* Collect malformed/invalid label errors from children */
+      let (malformed_labels, invalid_labels) =
+        List.fold_left(
+          ((a, c), e: Info.pat) => {
             switch (e.term.term, e.status) {
             | (
                 TupLabel(_, _),
                 InHole(
                   Common(
-                    TupleLabelError({
-                      malformed_labels,
-                      duplicate_labels,
-                      invalid_labels,
-                      _,
-                    }),
+                    TupleLabelError({malformed_labels, invalid_labels, _}),
                   ),
                 ),
               ) => (
                 a @ malformed_labels,
-                b @ duplicate_labels,
                 c @ invalid_labels,
               )
-            | _ => (a, b, c)
+            | _ => (a, c)
             }
           },
-          ([], [], []),
+          ([], []),
           info_pats,
         );
 
@@ -2735,12 +2866,10 @@ and upat_to_info_map =
       );
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
-      List.exists(l => name == l, duplicate_labels)
-        ? atomic(DuplicateLabel(name, self), Coverage.Constraint.Truth)
-        : atomic(self, Coverage.Constraint.Truth);
+      atomic(self, Coverage.Constraint.Truth);
     | Parens(p) =>
       let (p, p_elab, m) =
-        go(~ctx, ~ana, p, ~duplicate_bindings, ~duplicate_labels, m);
+        go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add'(
         ~elab=Parens(p_elab) |> rewrap,
         ~self=p.self,
@@ -2750,7 +2879,7 @@ and upat_to_info_map =
       );
     | Projector(data, p) =>
       let (p, p_elab, m) =
-        go(~ctx, ~ana, p, ~duplicate_bindings, ~duplicate_labels, m);
+        go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add'(
         ~elab=Projector(data, p_elab) |> rewrap,
         ~self=p.self,
@@ -3011,7 +3140,7 @@ and utyp_to_info_map =
         ~ctx,
         ~ancestors,
         ~ana=Atom(Bool) |> Typ.temp,
-        ~duplicates=[],
+
         ~expected_labels=None,
         ~label_sort=false,
         e,
@@ -3049,7 +3178,7 @@ and utyp_to_info_map =
     let m =
       List.fold_left(
         (m, item: Sig.t) => {
-          let (_, m) = any_to_info_map(~ctx, ~ancestors, Sig(item), m);
+          let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Sig(item), m);
           m;
         },
         m,
@@ -3125,7 +3254,7 @@ let mk =
           ~ana,
           ~ctx,
           ~ancestors=[],
-          ~duplicates=[],
+  
           ~expected_labels=None,
           ~label_sort=false,
           e,
