@@ -69,7 +69,14 @@ let mk_info =
       })
     | None => None
     },
-  elaborated: Option.bind(elaborated, Exp.find_by_id(p.id)),
+  elaborated: {
+    let (module P) = ProjectorInit.to_module(p.kind);
+    if (P.elaborate_syntax) {
+      Option.bind(elaborated, Exp.find_by_id(p.id));
+    } else {
+      None;
+    };
+  },
   utility,
 };
 

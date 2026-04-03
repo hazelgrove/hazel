@@ -27,6 +27,10 @@ let exp_to_seg =
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   let* name = Token.of_projector_invoke(name);
   let kind = ProjectorCore.Kind.of_name(name);
+  /* Statics haven't run yet at trigger time, so we pass the empty
+   * elaborated expression. This means elaborate_syntax projectors
+   * will fall back to the raw syntax path, which is correct —
+   * elaboration happens on the next statics cycle after init. */
   ProjectorPerform.init(
     kind,
     syntax,
@@ -99,6 +103,8 @@ let expand_livelit = (~ctx, z: t): option(t) =>
     let (l, _space) = ListUtil.split_last(fst(z.relatives.siblings));
     let (l, name) = ListUtil.split_last(l);
     let seg = [name, Piece.mk_tile(Form.get(ApExp), [seg])];
+    /* No statics available at trigger time; empty elaborated is fine
+     * since Livelit has elaborate_syntax=false. */
     let+ pr =
       ProjectorPerform.init(
         Livelit,

@@ -193,10 +193,38 @@ module type Projector = {
    * instrumented with a probe to collect dynamic
    * information during evaluation */
   let dynamics: bool;
-  /* If elaborate_syntax is true, the projector's underlying
-   * syntax will be replaced with the elaborated version at
-   * init time (which has auto-labels inserted/rearranged).
-   * The original syntax is preserved for restoration on removal. */
+  /* Whether this projector needs type-elaborated syntax.
+   *
+   * Some projectors (e.g. TableProj) require syntactic features
+   * that only exist after elaboration — for example, auto-labels
+   * inserted by `LabeledTuple.rearrange` during type-directed
+   * elaboration. Without elaboration, a list of unlabeled tuples
+   * like `[("Alice", 12)]` has no `TupLabel` nodes, so the
+   * projector can't determine column headers.
+   *
+   * When this flag is true:
+   *
+   * 1. At init time (`ProjectorPerform.init`), the system looks
+   *    up the elaborated sub-expression (via `Exp.find_by_id` on
+   *    `CachedStatics.elaborated`), converts it back to syntax,
+   *    and passes it to the projector's `init` for validation.
+   *    If the elaborated form is accepted, it replaces the
+   *    projector's `syntax` and the user's original syntax is
+   *    saved in `ProjectorCore.t.original_syntax`.
+   *
+   * 2. At render time, `info.elaborated` is populated with the
+   *    elaborated sub-expression so the projector can use it.
+   *
+   * 3. When the projector is removed, the original (pre-elaboration)
+   *    syntax is restored from `original_syntax`.
+   *
+   * 4. The context menu also checks the elaborated form when
+   *    deciding applicability, so the menu item appears even
+   *    when the raw syntax wouldn't pass `init`.
+   *
+   * If elaboration is unavailable (e.g. during trigger-based
+   * invocation before statics have run), the elaborated path
+   * is skipped and the projector falls back to the raw syntax. */
   let elaborate_syntax: bool;
   /* Renders the DOM views for the projector */
   let view: View.args(model, action) => View.t;
