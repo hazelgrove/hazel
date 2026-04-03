@@ -185,7 +185,6 @@ module type ExpressionStatics = {
       ~ana: Typ.t=?,
       ~is_in_filter: bool=?,
       ~ancestors: Info.ancestors=?,
-      ~duplicates: list(string)=?,
       ~expected_labels: list(string)=?,
       ~inferred_label: string=?,
       ~override_self: Self.exp=?,

@@ -48,7 +48,7 @@ let subtree_of =
                   ~ana=def_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=def_info.ancestors,
-                  ~duplicates=[],
+
                   ~expected_labels=None,
                   ~label_sort=false,
                   def,
@@ -67,7 +67,7 @@ let subtree_of =
                   ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
-                  ~duplicates=[],
+
                   ~expected_labels=None,
                   ~label_sort=false,
                   body,
@@ -114,7 +114,7 @@ let subtree_of =
                   ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
-                  ~duplicates=[],
+
                   ~expected_labels=None,
                   ~label_sort=false,
                   body,
@@ -144,7 +144,7 @@ let subtree_of =
                   ~ana=def_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=def_info.ancestors,
-                  ~duplicates=[],
+
                   ~expected_labels=None,
                   ~label_sort=false,
                   def,
@@ -163,7 +163,7 @@ let subtree_of =
                   ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
-                  ~duplicates=[],
+
                   ~expected_labels=None,
                   ~label_sort=false,
                   body,
