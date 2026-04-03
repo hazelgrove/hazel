@@ -44,7 +44,7 @@ let introduction_test = (before: string, expected: string) => {
         ~case_rules=false,
         zip,
       );
-    let statics =
+    let (statics, _) =
       Statics.mk(
         CoreSettings.on,
         Builtins.ctx_init(Some(Operators.default_mode)),

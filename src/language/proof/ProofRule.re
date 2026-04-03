@@ -133,7 +133,7 @@ let get_coctx = (ctx: Ctx.t, ana: Typ.t, rule: t): CoCtx.t => {
   /* TODO[Matt]: using full statics here feels a little overblown
      especially given we need to fake some settings to it, perhaps
      discuss with Andrew */
-  let statics = Statics.mk(~ana, CoreSettings.on, full_ctx, c_exp);
+  let (statics, _) = Statics.mk(~ana, CoreSettings.on, full_ctx, c_exp);
   let root_id = Exp.rep_id(c_exp);
   let info = Statics.Map.lookup(root_id, statics);
   let inner_coctx =

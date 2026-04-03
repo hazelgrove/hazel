@@ -58,7 +58,8 @@ let testable_info_error_exp =
 let testable_error: testable(Info.error) =
   testable(Fmt.using(Info.show_error, Fmt.string), Info.equal_error);
 
-let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+let statics = term =>
+  fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
 
 let parse_exp = (s: string) => {
   switch (Haz3lcore.Parser.to_term(s)) {

@@ -23,49 +23,58 @@ let subtree_of =
 
         let pat_map =
           of_pat
-            ? Statics.upat_to_info_map(
-                ~is_synswitch=false,
-                ~ctx=pat_info.ctx,
-                ~co_ctx=pat_info.co_ctx,
-                ~ana=pat_info.ana,
-                ~ancestors=pat_info.ancestors,
-                ~duplicate_bindings=[],
-                pat,
-                Statics.Map.empty,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.upat_to_info_map(
+                  ~is_synswitch=false,
+                  ~ctx=pat_info.ctx,
+                  ~co_ctx=pat_info.co_ctx,
+                  ~ana=pat_info.ana,
+                  ~ancestors=pat_info.ancestors,
+                  ~duplicate_bindings=[],
+                  pat,
+                  Statics.Map.empty,
+                );
+              m;
+            }
             : Statics.Map.empty;
 
         let def_map =
           of_def
-            ? Statics.uexp_to_info_map(
-                ~ctx=def_info.ctx,
-                ~ana=def_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=def_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                def,
-                pat_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~ctx=def_info.ctx,
+                  ~ana=def_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=def_info.ancestors,
+                  ~duplicates=[],
+                  ~expected_labels=None,
+                  ~label_sort=false,
+                  def,
+                  pat_map,
+                );
+              m;
+            }
             : pat_map;
 
         let body_map =
           of_body
-            ? Statics.uexp_to_info_map(
-                ~ctx=body_info.ctx,
-                ~ana=body_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=body_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                body,
-                def_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~ctx=body_info.ctx,
+                  ~ana=body_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=body_info.ancestors,
+                  ~duplicates=[],
+                  ~expected_labels=None,
+                  ~label_sort=false,
+                  body,
+                  def_map,
+                );
+              m;
+            }
             : def_map;
 
         body_map;
@@ -98,18 +107,21 @@ let subtree_of =
 
         let body_map =
           of_body
-            ? Statics.uexp_to_info_map(
-                ~ctx=body_info.ctx,
-                ~ana=body_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=body_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                body,
-                tpat_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~ctx=body_info.ctx,
+                  ~ana=body_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=body_info.ancestors,
+                  ~duplicates=[],
+                  ~expected_labels=None,
+                  ~label_sort=false,
+                  body,
+                  tpat_map,
+                );
+              m;
+            }
             : tpat_map;
 
         body_map;
@@ -125,34 +137,40 @@ let subtree_of =
 
         let def_map =
           of_def
-            ? Statics.uexp_to_info_map(
-                ~ctx=def_info.ctx,
-                ~ana=def_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=def_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                def,
-                mp_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~ctx=def_info.ctx,
+                  ~ana=def_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=def_info.ancestors,
+                  ~duplicates=[],
+                  ~expected_labels=None,
+                  ~label_sort=false,
+                  def,
+                  mp_map,
+                );
+              m;
+            }
             : mp_map;
 
         let body_map =
           of_body
-            ? Statics.uexp_to_info_map(
-                ~ctx=body_info.ctx,
-                ~ana=body_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=body_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                body,
-                def_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~ctx=body_info.ctx,
+                  ~ana=body_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=body_info.ancestors,
+                  ~duplicates=[],
+                  ~expected_labels=None,
+                  ~label_sort=false,
+                  body,
+                  def_map,
+                );
+              m;
+            }
             : def_map;
 
         body_map;

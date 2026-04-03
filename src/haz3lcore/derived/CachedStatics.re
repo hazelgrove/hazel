@@ -26,9 +26,6 @@ let empty: t = {
   targets: Sample.no_targets,
 };
 
-let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
-
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
 /* Predicate for whether a term should be probed when ProbeAll is on.
@@ -92,7 +89,7 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let info_map = Statics.mk(~ana?, settings, ctx_init, term);
+  let (info_map, stalaborated) = Statics.mk(~ana?, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
@@ -100,11 +97,7 @@ let init_from_term =
     | _ when !settings.statics => dh_err("Statics disabled")
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
-    | _ =>
-      switch (elaborate(info_map, term)) {
-      | DoesNotElaborate => dh_err("Elaboration returns None")
-      | Elaborates(d, _) => d
-      }
+    | _ => stalaborated
     };
   let targets = compute_targets(~settings, ~info_map, ~probe_ids);
   {
