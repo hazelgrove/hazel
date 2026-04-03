@@ -277,6 +277,9 @@ The code you provide should end with `in` (not include a final body expression).
 You can introduce multiple bindings in one call (e.g., `let x = 1 in let y = 2 in`).
 Works for let, type, and module bindings (e.g. path "M" for module M = { ... }).
 
+The path is resolved against the program **as it exists before** this edit (the `code` argument does not change path lookup). Use the same paths you would get from reading the current buffer, not from hypothetical replacement text.
+Bindings nested **inside another binding's definition** use paths like `outer/inner`. A chain `let a = ... in let b = ... in body` treats `a` and `b` as separate top-level path segments (`a`, `b`), not `a/b`, because `b` is in the outer body, not inside `a`'s definition.
+
 To update both the binding clause AND the body, call this tool followed by update_body.
 
 Parameters:

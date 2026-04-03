@@ -648,6 +648,49 @@ let update_binding_clause_tests = (
       },
     ),
     test_case(
+      "update_binding_clause path t on already-typed single binding",
+      `Quick,
+      () => {
+        let code = "let t : Int = 42 in t";
+        let result =
+          apply_and_render(
+            code,
+            Update(
+              BindingClause,
+              "t",
+              "let double : Int -> Int = fun x -> x * 2 in\nlet result = double(5) in",
+            ),
+          );
+        check_rendered(
+          "update_bc_t_typed_single",
+          "let double : Int -> Int = fun x -> x * 2 in\nlet result = double(5) in t",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_binding_clause def-nested t requires double/t not t",
+      `Quick,
+      () => {
+        let code = "let double = let t : Int = 42 in t in double";
+        expect_any_failure(
+          code,
+          Update(BindingClause, "t", "let t : Int = 99 in"),
+          "def_nested_path_must_use_outer_slash_t",
+        );
+        let result =
+          apply_and_render(
+            code,
+            Update(BindingClause, "double/t", "let t : Int = 99 in"),
+          );
+        check_rendered(
+          "update_bc_def_nested_t",
+          "let double = let t : Int = 99 in t in double",
+          result,
+        );
+      },
+    ),
+    test_case(
       "update_binding_clause introduces new binding",
       `Quick,
       () => {
@@ -1235,6 +1278,76 @@ let high_level_node_map_tests = (
       },
     ),
     test_case(
+      "path_to_id works for typed pattern let t : Int = ...",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let t : Int = 42 in t");
+        let id_t = HighLevelNodeMap.path_to_id(node_map, "t");
+        check(
+          string,
+          "typed binding name",
+          "t",
+          HighLevelNodeMap.id_to_name(node_map, id_t),
+        );
+      },
+    ),
+    test_case(
+      "body-chain let: inner binding has top-level path name (not outer/inner)",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let double = 1 in let t : Int = 42 in t");
+        let id_t = HighLevelNodeMap.path_to_id(node_map, "t");
+        check(
+          string,
+          "t is sibling in map, not double/t",
+          "t",
+          HighLevelNodeMap.id_to_name(node_map, id_t),
+        );
+        check(
+          bool,
+          "double/t absent for body-nested sibling chain",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "double/t") == None,
+        );
+      },
+    ),
+    test_case(
+      "single-segment path does not match def-nested binding; use outer/t",
+      `Quick,
+      () => {
+        /* `let outer = 1 in let inner in body` puts `inner` in the body chain
+           (sibling of `outer`), so path `inner` is valid. Nesting must be in
+           the *definition*: `let outer = let inner ... in ... in body`. */
+        let node_map =
+          build_node_map("let double = let t : Int = 42 in t in double");
+        check(
+          bool,
+          "bare t not in map when def-nested",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "t") == None,
+        );
+        let id_nt = HighLevelNodeMap.path_to_id(node_map, "double/t");
+        check(
+          string,
+          "nested path resolves",
+          "t",
+          HighLevelNodeMap.id_to_name(node_map, id_nt),
+        );
+      },
+    ),
+    test_case(
+      "closest path for ill single-segment t prefers outer/t over outer",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let double = let t : Int = 42 in t in double");
+        let suggestion =
+          HighLevelNodeMap.closest_valid_path_to_ill_path(node_map, "t");
+        check(string, "suggest nested binding path", "double/t", suggestion);
+      },
+    ),
+    test_case(
       "build returns None for non-binding program",
       `Quick,
       () => {
@@ -1597,6 +1710,93 @@ let composition_utils_tests = (
         | Action(StaticsAction(ToggleStatics(["bar"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse place_syntax_projector tool call",
+      `Quick,
+      () => {
+        let args =
+          `Assoc([
+            ("kind", `String("slider")),
+            ("paths", `List([`String("n"), `String("m")])),
+          ]);
+        switch (
+          CompositionUtils.Public.action_of(
+            ~tool_name="place_syntax_projector",
+            ~args,
+          )
+        ) {
+        | Action(
+            SyntaxProjectorAction(PlaceSyntaxProjector(Slider, ["n", "m"])),
+          ) =>
+          ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse remove_syntax_projector tool call",
+      `Quick,
+      () => {
+        let args = `Assoc([("paths", `List([`String("x")]))]);
+        switch (
+          CompositionUtils.Public.action_of(
+            ~tool_name="remove_syntax_projector",
+            ~args,
+          )
+        ) {
+        | Action(SyntaxProjectorAction(RemoveSyntaxProjector(["x"]))) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse toggle_syntax_projector tool call",
+      `Quick,
+      () => {
+        let args =
+          `Assoc([
+            ("kind", `String("check")),
+            ("paths", `List([`String("flag")])),
+          ]);
+        switch (
+          CompositionUtils.Public.action_of(
+            ~tool_name="toggle_syntax_projector",
+            ~args,
+          )
+        ) {
+        | Action(
+            SyntaxProjectorAction(
+              ToggleSyntaxProjector(Checkbox, ["flag"]),
+            ),
+          ) =>
+          ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "syntax projector kind probe returns Failure",
+      `Quick,
+      () => {
+        let args =
+          `Assoc([
+            ("kind", `String("probe")),
+            ("paths", `List([`String("x")])),
+          ]);
+        switch (
+          CompositionUtils.Public.action_of(
+            ~tool_name="place_syntax_projector",
+            ~args,
+          )
+        ) {
+        | Action(_) => Alcotest.fail("Expected Failure when kind is probe")
+        | Failure(_) => ()
         };
       },
     ),
@@ -2402,7 +2602,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        check(int, "tool count", 30, List.length(tools));
+        check(int, "tool count", 33, List.length(tools));
       },
     ),
     test_case(

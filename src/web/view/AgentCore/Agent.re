@@ -4,36 +4,28 @@ open Haz3lcore;
 open OptUtil.Syntax;
 open Ppx_yojson_conv_lib.Yojson_conv;
 
-/* Thinkpad
-   We will want 3 types of display messages
-   - Agent
-   - User
-   - System(system)
-   where system can be any of:
-   - Error
-   - Prompt
-   - AgentView
-   - ToolCall
-   etc.
-   i.e. They are backend messages.
+/* Agent chat: UI roles vs API payload ([[Message.Model.api_message]])
 
-   We could technically add things like `user` message types, with:
-   - Initial
-   - Followup
-   etc.
+   Policy for what we send to the LLM (see also [[CompositionPrompt.message_channels]]):
 
-   We could also have `agent` with:
-   - Text
-   - Thinking/Reasoning
-   - Tool
-   etc.
+   - **System (prompt, context, compaction summary)** — Use [[OpenRouter.Message.Utils.mk_system_msg]].
+     Hazel's "developer notes" use [[mk_developer_msg]], which serializes as **system** in
+     [[OpenRouter.Message.Utils.json_of_message]] (there is no separate developer role on the wire).
 
-   OpenRouter messages must be of the following types:
-   - System
-   - Agent
-   - User
-   - Tool
-   - Developer
+   - **Context snapshot** ([[Message.Utils.mk_context_message]]) — One structured message: program
+     view, static/type diagnostics inside `<staticErrorsInfo>`, tests, workbench. Refresh in place
+     via [[Chat.Utils.update_context]]; do **not** emit separate "linter" system messages per error.
+     Future language-service feedback should use extra tagged blocks here, same cadence.
+
+   - **Tool results** — [[OpenRouter.Message.Utils.mk_tool_msg]]; short, actionable success/failure text.
+
+   - **Mandatory protocol nudges** (empty reply, open subtask) — [[Message.Utils.mk_retry_note_message]]
+     with [deliver_as_user_on_api]: UI stays [[System(RetryNote)]], API uses **user** plus an explicit
+     prefix so the model attends without confusing the human's messages.
+
+   - **UI-only** — e.g. [[mk_api_failure_message]] with [api_message: None]: never sent to the API.
+
+   OpenRouter wire roles: system, user, assistant, tool (see [[OpenRouter.Message.Model.role]]).
    */
 
 module Failure = {
@@ -111,19 +103,28 @@ module Message = {
       };
     };
     let mk_retry_note_message =
-        (~content: string, ~sent_to_api: bool): Model.t => {
+        (~content: string, ~sent_to_api: bool, ~deliver_as_user_on_api: bool)
+        : Model.t => {
       let sanitized_content = String.trim(content);
+      let api_message =
+        switch (sent_to_api, deliver_as_user_on_api) {
+        | (false, _) => None
+        | (true, true) =>
+          Some(
+            OpenRouter.Message.Utils.mk_user_msg(
+              "[Required follow-up — injected by Hazel, not the human user]\n"
+              ++ sanitized_content,
+            ),
+          )
+        | (true, false) =>
+          Some(OpenRouter.Message.Utils.mk_developer_msg(sanitized_content))
+        };
       {
         id: Id.mk(),
         content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: System(RetryNote),
-        api_message:
-          sent_to_api
-            ? Some(
-                OpenRouter.Message.Utils.mk_developer_msg(sanitized_content),
-              )
-            : None,
+        api_message,
         children: [],
         current_child: None,
       };
@@ -209,6 +210,8 @@ module Message = {
         current_child: None,
       };
     };
+    /** Rolling environment snapshot for the model: editor + **static errors** + tests + workbench.
+        Diagnostics belong in [<staticErrorsInfo>], not in separate system messages. See file header. */
     let mk_context_message =
         (
           agent_editor_content: string,
@@ -1377,6 +1380,9 @@ module Agent = {
                 "place_statics",
                 "remove_statics",
                 "toggle_statics",
+                "place_syntax_projector",
+                "remove_syntax_projector",
+                "toggle_syntax_projector",
               ],
             ) => "View"
       | n
@@ -1775,6 +1781,114 @@ module Agent = {
             };
           } else {
             Ok((agent, new_cws));
+          };
+        };
+      | SyntaxProjectorAction(syntax_projector_action) =>
+        let z = editor.editor.state.zipper;
+        let info_map = CompositionGo.Public.mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None =>
+          Error(
+            Failure.Info(
+              "No bindings in the program. Add let/type bindings first.",
+            ),
+          )
+        | Some(node_map) =>
+          let syntax = CachedSyntax.init(z);
+          let resolve_path = (path: string): option(Id.t) =>
+            HighLevelNodeMap.Public.path_to_id_opt(node_map, path);
+
+          let apply_syntax_projector_action =
+              (z: Zipper.t, paths: list(string))
+              : (Zipper.t, list(string), int) => {
+            List.fold_left(
+              ((z, expanded, n_placed), path) =>
+                switch (resolve_path(path)) {
+                | Some(id) =>
+                  let z_opt =
+                    switch (syntax_projector_action) {
+                    | PlaceSyntaxProjector(kind, _) =>
+                      ProjectorPerform.try_place_syntax_projector(
+                        ~term_data=syntax.term_data,
+                        id,
+                        kind,
+                        z,
+                      )
+                    | ToggleSyntaxProjector(kind, _) =>
+                      ProjectorPerform.try_toggle_syntax_projector(
+                        ~term_data=syntax.term_data,
+                        id,
+                        kind,
+                        z,
+                      )
+                    | RemoveSyntaxProjector(_) =>
+                      ProjectorPerform.try_remove_syntax_projector(
+                        ~term_data=syntax.term_data,
+                        id,
+                        z,
+                      )
+                    };
+                  switch (z_opt) {
+                  | Some(z2) => (z2, [path, ...expanded], n_placed + 1)
+                  | None => (z, expanded, n_placed)
+                  };
+                | None => (z, expanded, n_placed)
+                },
+              (z, [], 0),
+              paths,
+            );
+          };
+
+          let paths =
+            switch (syntax_projector_action) {
+            | PlaceSyntaxProjector(_, p)
+            | ToggleSyntaxProjector(_, p)
+            | RemoveSyntaxProjector(p) => p
+            };
+          let (new_z, paths_to_expand, n_placed) =
+            apply_syntax_projector_action(z, paths);
+          if (List.length(paths) > 0 && n_placed == 0) {
+            Error(
+              Failure.Info(
+                "Syntax projector tool did not update the program: no path produced a change. "
+                ++ "Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"filter\", or \"outer/inner\" for nested lets), "
+                ++ "not pretty-printed expressions or type-applied text from statics overlays. "
+                ++ "If a path matched but placement failed, the term at that binding may not support this projector kind.",
+              ),
+            );
+          } else {
+          let new_z = Dump.to_zipper(new_z);
+          let new_editor_model = Editor.Model.mk(new_z);
+          let new_cws =
+            CodeWithStatics.Model.mk(
+              ~dynamics=editor.dynamics,
+              new_editor_model,
+            );
+
+          if (List.length(paths_to_expand) > 0) {
+            let expand_action = AgentContext.Update.Expand(paths_to_expand);
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AgentContextAction(expand_action),
+                  chat_id,
+                ),
+                agent.chat_system,
+              );
+            switch (chat_system) {
+            | Ok(updated_chat_system) =>
+              Ok((
+                {
+                  ...agent,
+                  chat_system: updated_chat_system,
+                },
+                new_cws,
+              ))
+            | Error(_) => Ok((agent, new_cws))
+            };
+          } else {
+            Ok((agent, new_cws));
+          };
           };
         };
       };
@@ -2308,25 +2422,42 @@ module Agent = {
           action: CompositionActions.action,
         )
         : option(AgentToolResult.diff) => {
-      let* edit_action =
-        switch (action) {
-        | EditorAction(edit_action) => Some(edit_action)
-        | _ => None
-        };
-      let* diff =
-        CompositionGo.Local.get_diff(
-          old_editor.state.zipper,
-          new_editor.state.zipper,
-          edit_action,
-          CompositionGo.Public.mk_statics,
-          old_editor.syntax,
-        );
-      Some(
-        AgentToolResult.{
-          old_segment: diff |> fst,
-          new_segment: diff |> snd,
-        },
-      );
+      switch (action) {
+      | EditorAction(edit_action) =>
+        switch (
+          CompositionGo.Local.get_diff(
+            old_editor.state.zipper,
+            new_editor.state.zipper,
+            edit_action,
+            CompositionGo.Public.mk_statics,
+            old_editor.syntax,
+          )
+        ) {
+        | Some((old_segment, new_segment)) =>
+          Some(AgentToolResult.{old_segment, new_segment})
+        | None => None
+        }
+      | SyntaxProjectorAction(_)
+      | ProbeAction(_)
+      | StaticsAction(_) =>
+        let old_segment =
+          Select.all(old_editor.state.zipper).selection.content;
+        let new_segment =
+          Select.all(new_editor.state.zipper).selection.content;
+        let old_s = CompositionView.Public.print_segment(old_segment);
+        let new_s = CompositionView.Public.print_segment(new_segment);
+        if (old_s == new_s) {
+          None;
+        } else {
+          Some(
+            AgentToolResult.{
+              old_segment,
+              new_segment: Some(new_segment),
+            },
+          );
+        }
+      | _ => None
+      };
     };
 
     let mk_segment_snapshots =
@@ -2340,7 +2471,8 @@ module Agent = {
       | EditorAction(_)
       | Initialize(_)
       | ProbeAction(_)
-      | StaticsAction(_) =>
+      | StaticsAction(_)
+      | SyntaxProjectorAction(_) =>
         let old_segment =
           Select.all(old_editor.state.zipper).selection.content;
         let new_segment =
@@ -2558,9 +2690,9 @@ module Agent = {
         } else {
           // Exhausted retries: show fallback message
           let fallback_content =
-            "(The assistant returned an empty response after retries. "
-            ++ "This often happens when the agent left a task or subtask active — the agent must close it (mark complete or failed) before responding. "
-            ++ "Never end the tool loop with an active task/subtask. You can try rephrasing your message.)";
+            "(The assistant returned an empty response after retries and did not produce the required user acknowledgment. "
+            ++ "Close any open workbench task or subtask (e.g. mark_active_task_complete), then reply with at least one sentence for the user. "
+            ++ "You can try rephrasing your message.)";
           let new_message =
             Message.Utils.mk_agent_message(fallback_content, reply.usage);
           let chat_system =
@@ -2643,11 +2775,16 @@ module Agent = {
           let nudge_count =
             Option.value(~default=0, model.last_active_task_nudge_attempt);
           if (has_incomplete_active_subtask && nudge_count < max_task_nudges) {
-            let nudge_content = "[System] You still have an active task/subtask in progress. Please do one of the following:\n1. If the subtask is complete, call mark_active_subtask_complete with a summary.\n2. If you want to continue working on it, make your next tool call.\n3. If the subtask is unattainable or you are stuck, call mark_active_subtask_failed with a reason.";
+            let nudge_content =
+              "[Workbench] You still have an active task or subtask.\n"
+              ++ "MANDATORY: Your next assistant message MUST include at least one full sentence to the user (acknowledge their request or briefly say what you did next). Empty assistant text is invalid.\n"
+              ++ "Then either: (1) call mark_active_subtask_complete with a summary if the current subtask is done, (2) call another tool to continue work, or (3) call mark_active_subtask_failed with a reason if stuck.\n"
+              ++ "Before you finish for the user, close the workbench: mark_active_task_complete (closes remaining subtasks automatically) or mark_active_task_failed as appropriate.";
             let nudge_message =
               Message.Utils.mk_retry_note_message(
                 ~content=nudge_content,
                 ~sent_to_api=true,
+                ~deliver_as_user_on_api=true,
               );
             schedule_action(Action.SendMessage(nudge_message, chat_id));
             (
@@ -2902,6 +3039,7 @@ module Agent = {
               ++ string_of_int(delay_s)
               ++ "s...",
             ~sent_to_api=false,
+            ~deliver_as_user_on_api=false,
           );
         let chat_system =
           ChatSystem.Update.update(
@@ -2982,13 +3120,15 @@ module Agent = {
         let retry_msg =
           "[Retry "
           ++ string_of_int(attempt + 1)
-          ++ "/2] Your previous response was empty or invalid. "
-          ++ "If a task or subtask is active, close it: `mark_active_task_complete` auto-finishes open subtasks, or use mark_active_task_failed / mark_active_subtask_complete / mark_active_subtask_failed. "
-          ++ "Never end your turn with an active task/subtask. Then respond with a message for the user—either directly answering their question or summarizing what you did.";
+          ++ "/2] Your previous assistant message had no visible text (empty or whitespace-only). That is not allowed.\n"
+          ++ "MANDATORY: Reply now with at least one full sentence addressed to the user — acknowledge what they asked for, or summarize what you changed or attempted. Do not send an empty message again.\n"
+          ++ "If the workbench still has an open task or subtask, close it first using mark_active_task_complete (auto-finishes open subtasks), mark_active_task_failed, mark_active_subtask_complete, or mark_active_subtask_failed, then in the same turn or the next, write the required user-facing sentence.\n"
+          ++ "Never end with both empty text and no tool calls.";
         let retry_message =
           Message.Utils.mk_retry_note_message(
             ~content=retry_msg,
             ~sent_to_api=true,
+            ~deliver_as_user_on_api=true,
           );
         let chat_system =
           ChatSystem.Update.update(

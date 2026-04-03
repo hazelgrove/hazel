@@ -1,5 +1,6 @@
 open Util;
 open CompositionActions;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action_wrapper =
@@ -19,6 +20,9 @@ module Local = {
     StaticsTools.place_statics,
     StaticsTools.remove_statics,
     StaticsTools.toggle_statics,
+    SyntaxProjectorTools.place_syntax_projector,
+    SyntaxProjectorTools.remove_syntax_projector,
+    SyntaxProjectorTools.toggle_syntax_projector,
     EditTools.initialize,
     EditTools.update_definition,
     EditTools.update_body,
@@ -65,6 +69,18 @@ module Local = {
     };
   };
 
+  let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
+    let k = ProjectorKind.of_name(String.trim(s));
+    if (ProjectorKind.is_refractor(k)) {
+      raise(
+        Failure(
+          "syntax projector kind cannot be probe or statics — use the probe or statics tools",
+        ),
+      );
+    };
+    k;
+  };
+
   let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     /* Possible arguments */
     /* Parsing here to avoid redundancy */
@@ -92,6 +108,24 @@ module Local = {
               StaticsAction(RemoveStatics(get_string_list(args, "paths")))
             | "toggle_statics" =>
               StaticsAction(ToggleStatics(get_string_list(args, "paths")))
+            | "place_syntax_projector" =>
+              SyntaxProjectorAction(
+                PlaceSyntaxProjector(
+                  syntax_projector_kind_of_string(get_string(args, "kind")),
+                  get_string_list(args, "paths"),
+                ),
+              )
+            | "remove_syntax_projector" =>
+              SyntaxProjectorAction(
+                RemoveSyntaxProjector(get_string_list(args, "paths")),
+              )
+            | "toggle_syntax_projector" =>
+              SyntaxProjectorAction(
+                ToggleSyntaxProjector(
+                  syntax_projector_kind_of_string(get_string(args, "kind")),
+                  get_string_list(args, "paths"),
+                ),
+              )
             | "initialize" => Initialize(get_string(args, "code"))
             | "update_definition" =>
               EditorAction(
@@ -234,6 +268,20 @@ module Local = {
       "remove_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | StaticsAction(ToggleStatics(paths)) =>
       "toggle_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | SyntaxProjectorAction(PlaceSyntaxProjector(kind, paths)) =>
+      "place_syntax_projector(kind="
+      ++ ProjectorKind.name(kind)
+      ++ ", paths=["
+      ++ String.concat(", ", paths)
+      ++ "])"
+    | SyntaxProjectorAction(RemoveSyntaxProjector(paths)) =>
+      "remove_syntax_projector(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | SyntaxProjectorAction(ToggleSyntaxProjector(kind, paths)) =>
+      "toggle_syntax_projector(kind="
+      ++ ProjectorKind.name(kind)
+      ++ ", paths=["
+      ++ String.concat(", ", paths)
+      ++ "])"
     | LanguageServerAction(ShowUseSites(path)) =>
       "show_use_sites(\"" ++ path ++ "\")"
     | LanguageServerAction(ShowReferences(path)) =>

@@ -624,50 +624,65 @@ let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
 };
 
 let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
-  // Returns the most similar name of a node in the tree to the given ill-formed path
-  // This uses the levenshtein distance to find the closest match
+  // Prefer matching the **last** path segment (binding name) so nested bindings
+  // like outer/t rank above top-level outer when the user typed "t".
   let path_names = split_path(path);
 
   let path_str = path;
+  let want_last = ListUtil.last_opt(path_names) |> Option.value(~default="");
 
-  /* Helper to compute distance between a candidate node's name-path and the input */
-  let distance_for_node = (node: node): (int, int) => {
+  /* suffix_dist, list_dist, char_dist, neg_depth (deeper wins on tie). */
+  let distance_for_node = (node: node): (int, int, int, int) => {
     let candidate_names = id_path_to_name_path(node.path, node_map);
+    let cand_last =
+      ListUtil.last_opt(candidate_names) |> Option.value(~default="");
+    let suffix_dist = StringUtil.levenshtein_distance(want_last, cand_last);
     let list_dist =
       StringUtil.levenshtein_list_distance(path_names, candidate_names);
     let candidate_str = String.concat("/", candidate_names);
     let char_dist = StringUtil.levenshtein_distance(path_str, candidate_str);
-    (list_dist, char_dist);
+    let neg_depth = - List.length(node.path);
+    (suffix_dist, list_dist, char_dist, neg_depth);
   };
 
-  /* Iterate over the map to find the minimum distance candidate */
+  let is_better =
+      (
+        (s1, l1, c1, d1): (int, int, int, int),
+        (s2, l2, c2, d2): (int, int, int, int),
+      )
+      : bool =>
+    if (s1 < s2) {
+      true;
+    } else if (s1 > s2) {
+      false;
+    } else if (l1 < l2) {
+      true;
+    } else if (l1 > l2) {
+      false;
+    } else if (c1 < c2) {
+      true;
+    } else if (c1 > c2) {
+      false;
+    } else {
+      d1 < d2;
+    };
+
   switch (Id.Map.bindings(node_map)) {
   | [] =>
     raise(Failure("No nodes to compare when searching for closest path"))
   | bindings =>
     let (first_id, first_node) = List.hd(bindings);
-    let initial_acc = (first_id, first_node, distance_for_node(first_node));
+    let d0 = distance_for_node(first_node);
+    let initial_acc = (first_id, first_node, d0);
 
     let (best_id, _best_node, _best_dist) =
       List.fold_left(
-        ((acc_id, acc_node, (acc_ld, acc_cd)), (id, node)) => {
-          let (ld, cd) = distance_for_node(node);
-          if (ld < acc_ld) {
-            (id, node, (ld, cd));
-          } else if (ld == acc_ld) {
-            if (cd < acc_cd) {
-              (id, node, (ld, cd));
-            } else if (cd == acc_cd) {
-              if (List.length(node.path) < List.length(acc_node.path)) {
-                (id, node, (ld, cd));
-              } else {
-                (acc_id, acc_node, (acc_ld, acc_cd));
-              };
-            } else {
-              (acc_id, acc_node, (acc_ld, acc_cd));
-            };
+        ((acc_id, acc_node, acc_d), (id, node)) => {
+          let d = distance_for_node(node);
+          if (is_better(d, acc_d)) {
+            (id, node, d);
           } else {
-            (acc_id, acc_node, (acc_ld, acc_cd));
+            (acc_id, acc_node, acc_d);
           };
         },
         initial_acc,
@@ -707,7 +722,8 @@ let path_to_id = (node_map: t, path: string): Id.t => {
         ++ "\" not found in node map"
         ++ "\nPerhaps you meant \""
         ++ closest_valid_path_to_ill_path(node_map, path)
-        ++ "\"?",
+        ++ "\"?"
+        ++ "\nNested bindings use paths like outer/inner (not just the inner name).",
       ),
     )
   };

@@ -1016,7 +1016,7 @@ let view =
                  Some(
                    div(
                      ~attrs=[clss(["agent-message"])],
-                     [text(msg.content)],
+                     [AgentMessageMarkdown.view(msg.content)],
                    ),
                  );
                } else {

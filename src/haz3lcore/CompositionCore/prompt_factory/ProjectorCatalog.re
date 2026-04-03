@@ -81,7 +81,14 @@ let blurb_for_composition_prompt: list(string) = {
     "",
   ]
   @ livelit_block
-  @ ["", refractors_vs_syntax_sentence, ""];
+  @ [
+    "",
+    "### Syntax projector tools (Filbert)",
+    "`place_syntax_projector(kind, paths)`, `remove_syntax_projector(paths)`, and `toggle_syntax_projector(kind, paths)` apply **syntax projectors** to the term selected by each path.",
+    "`kind` must be a menu projector name (`fold`, `slider`, `sliderf`, `check`, `text`, `card`, `csv`, `livelit`) — not `probe` or `statics` (those use the probe/statics tools).",
+    "",
+  ]
+  @ [refractors_vs_syntax_sentence, ""];
 };
 
 /** Short taxonomy for the compaction summarizer (3–6 lines). */
@@ -89,5 +96,6 @@ let blurb_for_compaction: list(string) = [
   "**Projectors**: **Folds** display as `⋱` (collapsed defs; expand/collapse in the full prompt).",
   "**Refractors** overlay bindings: **probes** show runtime values (`≡` in context); **statics** add a type overlay in the GUI.",
   "**Livelits** are alternate UIs for literals (checkbox, slider/sliderf, text, card, csv, livelit, plus fold in the menu).",
+  "**Agent tools**: `place_syntax_projector` / `remove_syntax_projector` / `toggle_syntax_projector` (see full prompt).",
   "Full detail lives in Filbert’s live system prompt **Projectors and the agent view** section (this excerpt may be truncated).",
 ];
