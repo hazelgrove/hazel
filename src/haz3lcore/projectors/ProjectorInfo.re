@@ -54,6 +54,7 @@ let mk_info =
       ~sample_cursor: Sample.Cursor.t,
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
+      ~elaborated: option(Exp.t),
     )
     : ProjectorBase.info => {
   id: p.id,
@@ -68,6 +69,7 @@ let mk_info =
       })
     | None => None
     },
+  elaborated: Option.bind(elaborated, Exp.find_by_id(p.id)),
   utility,
 };
 
@@ -77,11 +79,15 @@ module ShapeMapSemantics = {
         sample_cursor: Language.Sample.Cursor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
+        ~elaborated: option(Exp.t),
         p: Base.projector,
       )
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~sample_cursor, ~statics, ~dynamics));
+    P.placeholder(
+      p.model,
+      mk_info(p, ~sample_cursor, ~statics, ~dynamics, ~elaborated),
+    );
   };
 
   let mk =
@@ -90,10 +96,16 @@ module ShapeMapSemantics = {
         refractors: ZipperBase.Refractor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
+        ~elaborated: option(Exp.t),
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
     Id.Map.map(
-      from_semantics(refractors.sample_cursor, statics, dynamics),
+      from_semantics(
+        refractors.sample_cursor,
+        statics,
+        dynamics,
+        ~elaborated,
+      ),
       proj_map,
     );
 };

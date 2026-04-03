@@ -16,11 +16,23 @@ let table_of =
   };
 
 let get =
-    (info: info): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
-  switch (info.syntax |> info.utility.seg_to_term) {
-  | Some(s) => table_of(s)
-  | None => None
+    (info: info): option((list(LabeledTuple.label), list(list(Exp.t)))) => {
+  /* Try elaborated expression first (has auto-labels + reordering) */
+  let elaborated_result =
+    switch (info.elaborated) {
+    | Some(exp) => table_of(Exp(exp))
+    | None => None
+    };
+  switch (elaborated_result) {
+  | Some(_) as result => result
+  | None =>
+    /* Fall back to pre-elaboration syntax */
+    switch (info.syntax |> info.utility.seg_to_term) {
+    | Some(s) => table_of(s)
+    | None => None
+    }
   };
+};
 
 let table =
     (
@@ -59,7 +71,25 @@ module M: Projector = {
   let init = (any: Any.t) =>
     switch (table_of(any)) {
     | Some(_) => Some()
-    | None => None
+    | None =>
+      /* Accept unlabeled list-of-tuples -- get() will resolve
+         labels via the elaborated expression at render time */
+      switch (any) {
+      | Exp({term: ListLit(es), _})
+          when
+            es != []
+            && List.for_all(
+                 (e: Exp.t) =>
+                   switch (e.term) {
+                   | Tuple(_)
+                   | Parens({term: Tuple(_), _}) => true
+                   | _ => false
+                   },
+                 es,
+               ) =>
+        Some()
+      | _ => None
+      }
     };
 
   let focusable =

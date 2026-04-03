@@ -89,6 +89,10 @@ type info = {
    * disabled by the user; this case (None) must be
    * handled by projector authors */
   dynamics: option(Language.Dynamics.Info.t),
+  /* The elaborated sub-expression at this projector's ID.
+   * Available when statics/elaboration is enabled. The elaborated
+   * form has labels inserted/rearranged by the elaborator. */
+  elaborated: option(Language.Exp.t),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

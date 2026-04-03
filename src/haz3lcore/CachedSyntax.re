@@ -37,7 +37,7 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~info_map, ~dyn_map, z): t => {
+let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
@@ -47,6 +47,7 @@ let mk = (~info_map, ~dyn_map, z): t => {
       z.refractors,
       info_map,
       dyn_map,
+      ~elaborated,
     );
   let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
   let measured =
@@ -74,9 +75,9 @@ let mark_old: t => t =
     old: true,
   };
 
-let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
+let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
   old.old
-    ? mk(z, ~info_map, ~dyn_map)
+    ? mk(z, ~info_map, ~dyn_map, ~elaborated)
     : {
       ...old,
       selection_ids: Selection.selection_ids(z.selection),

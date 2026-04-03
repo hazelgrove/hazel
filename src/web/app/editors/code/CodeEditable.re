@@ -368,6 +368,7 @@ module View = {
           ~dynamics,
           ~sample_cursor=zipper.refractors.sample_cursor,
           ~editor_active=selected,
+          ~elaborated=Some(model.statics.elaborated),
         ),
         model.editor.syntax.projector_list,
       );
