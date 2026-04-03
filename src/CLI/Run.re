@@ -1,12 +1,10 @@
 open Language;
 
-let elaborate = (exp: Exp.t): Exp.t =>
-  fst(
-    Elaborator.elaborate(
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
-      exp,
-    ),
-  );
+let elaborate = (exp: Exp.t): Exp.t => {
+  let (_, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+  elab;
+};
 
 let evaluate = (exp: Exp.t): Exp.t =>
   fst(Evaluator.evaluate(~env=Builtins.env_init, elaborate(exp)));

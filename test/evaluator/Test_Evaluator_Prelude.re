@@ -53,8 +53,9 @@ let parse_exp = (s: string) => {
   };
 };
 
-/* Parse code with probes (^^probe syntax) and build targets */
-let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
+/* Parse code with probes (^^probe syntax), elaborate it, and build targets */
+let parse_with_probes =
+    (s: string): (Exp.t, Exp.t, Statics.Map.t, Sample.targets) => {
   switch (Haz3lcore.Parser.to_zipper(s)) {
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   | Some(z) =>
@@ -69,8 +70,8 @@ let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
         Id.Map.map(_ => (), z.refractors.autos.ephemerals),
       );
 
-    /* Build statics map for refs lookup */
-    let info_map =
+    /* Build statics map for refs lookup and evaluation */
+    let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
     /* Build targets from probe_ids, computing refs for each */
@@ -90,20 +91,25 @@ let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
         Id.Map.empty,
       );
 
-    (term, info_map, targets);
+    (term, elaborated, info_map, targets);
   };
 };
 
-let elaborate = u =>
-  Elaborator.elaborate(
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
-    u,
-  )
-  |> fst;
+let elaborate = u => {
+  let (_, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
+  elab;
+};
 
-/* Elaborate an expression with existing statics map */
-let elaborate_with_info = (info_map, u) =>
-  Elaborator.elaborate(info_map, u) |> fst;
+let elaborated_type = (info_map: Statics.Map.t, exp: Exp.t): Typ.t =>
+  switch (Statics.Map.lookup(Exp.rep_id(exp), info_map)) {
+  | Some(InfoExp({ana, ty, ctx, _})) =>
+    Typ.match_synswitch(ana, ty) |> Typ.normalize(ctx) |> Typ.all_ids_temp
+  | _ =>
+    Alcotest.fail(
+      "Preservation check failed: No type information found for expression",
+    )
+  };
 
 (exp, probes) => (
   {
@@ -169,13 +175,13 @@ let full_small_step_reduction =
 };
 
 let full_preservation_test = (uexp: TermBase.exp_t): unit => {
-  let statics =
+  let (statics, elaborated) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
-  let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+  let ty = elaborated_type(statics, uexp);
 
   let evaluated =
     Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
-  let new_statics =
+  let (new_statics, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated);
 
   let new_ty =

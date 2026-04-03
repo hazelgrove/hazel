@@ -57,7 +57,7 @@ let analyze_argument =
       arg,
     ) => {
   open S;
-  let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+  let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
   switch (extract_entries(Typ.normalize(ctx, arg_info.ty))) {
   | Success(entries) => (
@@ -67,7 +67,7 @@ let analyze_argument =
     )
   | Unknown => (None, arg_info, m)
   | Failure =>
-    let (_, m) =
+    let (_, _, m) =
       uexp_to_info_map(~ctx, ~ana=syn, ~override_self=error_override, arg, m);
     (None, arg_info, m);
   };
@@ -118,7 +118,7 @@ let labels_to_info_map =
     : (list(option(string)), Map.t) => {
   List.fold_left(
     ((labels: list(option(string)), m: Map.t), label) => {
-      let (label, _, m) =
+      let (label, _, _, m) =
         S.label_to_info_map(expected_labels, syn, label, m);
       (labels @ [label], m);
     },
@@ -131,7 +131,7 @@ let labels_to_info_map =
 let invalid_args_fallback =
     (module S: ExpressionStatics, ~ctx, ~fn_info: Info.exp, ~error, m, arg) => {
   S.(
-    let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+    let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
     add'(
       ~self=error,
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
@@ -344,7 +344,7 @@ let group_by_label_statics =
         analyze_table_argument((module S), ~ctx, m, table);
 
       let expected_labels = Option.map(extract_labels, row_info);
-      let (label, _, m) =
+      let (label, _, _, m) =
         label_to_info_map(expected_labels, syn, pivot_label, m);
 
       let m =
@@ -393,7 +393,7 @@ let group_by_label_statics =
             pivot_label,
             m,
           )
-          |> snd
+          |> (((_, _, m)) => m)
         | _ => m
         };
 
@@ -428,7 +428,7 @@ let to_lvs_statics =
     ) => {
   open S;
   let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
-  let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
+  let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
   | Prod(entries) =>
@@ -497,7 +497,7 @@ let omit_all_labels_statics =
     ) => {
   S.(
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
-    let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
+    let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
     | Prod(entries) =>
@@ -543,7 +543,8 @@ let validate_label_arguments =
     : (list(option(string)), Map.t) => {
   List.fold_left(
     ((labels: list(option(string)), m: Map.t), arg) => {
-      let (label, _, m) = S.label_to_info_map(expected_labels, syn, arg, m);
+      let (label, _, _, m) =
+        S.label_to_info_map(expected_labels, syn, arg, m);
       (labels @ [label], m);
     },
     ([], m),
@@ -567,7 +568,7 @@ let custom_statics_deferred_ap =
     switch (kind, args) {
     | (ProjectLabels | SelectLabels | OmitLabels, [tup, ...labels])
         when List.length(labels) > 0 =>
-      let (tup_info, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
+      let (tup_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
       let (_, m) =
         validate_label_arguments((module S), ~ctx, None, labels, m);
 
@@ -578,7 +579,7 @@ let custom_statics_deferred_ap =
       );
 
     | (GroupByLabel, [table, pivot_label]) =>
-      let (table_info, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
+      let (table_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
       let (_, m) =
         validate_label_arguments((module S), ~ctx, None, [pivot_label], m);
 
@@ -589,7 +590,7 @@ let custom_statics_deferred_ap =
       );
 
     | (ToLvs | OmitAllLabels, [arg]) =>
-      let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+      let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
       add'(
         ~self=Common(Just(unknown)),
@@ -603,7 +604,7 @@ let custom_statics_deferred_ap =
       let (args_info, m) =
         List.fold_left(
           ((acc_info, acc_m), arg) => {
-            let (info, new_m) =
+            let (info, _, new_m) =
               S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
             (acc_info @ [info], new_m);
           },
@@ -629,7 +630,7 @@ let custom_statics_deferred_ap =
       let (args_info, m) =
         List.fold_left(
           ((acc_info, acc_m), arg) => {
-            let (info, new_m) =
+            let (info, _, new_m) =
               S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
             (acc_info @ [info], new_m);
           },
@@ -654,7 +655,7 @@ let custom_statics_deferred_ap =
       let (args_info, m) =
         List.fold_left(
           ((acc_info, acc_m), arg) => {
-            let (info, new_m) =
+            let (info, _, new_m) =
               S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
             (acc_info @ [info], new_m);
           },

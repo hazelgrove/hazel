@@ -7,7 +7,8 @@ let testable_error_map =
     Statics.Map.equal_errors,
   );
 
-let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+let statics = term =>
+  fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
 
 let parse_menhir = (s: string) => {
   MenhirParser.Conversion.Exp.of_menhir_ast(

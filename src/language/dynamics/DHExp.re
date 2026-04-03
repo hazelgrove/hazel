@@ -2,7 +2,7 @@
 
    This module is specifically for dynamic expressions. They are stored
    using the same data structure as user expressions, have been modified
-   slightly as described in Elaborator.re.
+   slightly during elaboration (performed as part of Statics.re).
    */
 
 open Util;

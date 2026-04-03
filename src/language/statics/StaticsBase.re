@@ -141,6 +141,17 @@ let map_m = (f, xs, m: Map.t) =>
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
+let add_missing_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
+  ids
+  |> List.fold_left(
+       (m, id) =>
+         switch (Id.Map.find_opt(id, m)) {
+         | Some(_) => m
+         | None => Id.Map.add(id, info, m)
+         },
+       m,
+     );
+
 let rec is_arrow_like = (t: Typ.t) => {
   switch (t |> Typ.term_of) {
   | Unknown(_) => true
@@ -183,16 +194,17 @@ module type ExpressionStatics = {
       Exp.t,
       Map.t
     ) =>
-    (Info.exp, Map.t);
+    (Info.exp, Exp.t, Map.t);
   let add':
     (
+      ~elab: Exp.t=?,
       ~label_inference: Info.label_inference(Info.exp)=?,
       ~self: Self.exp,
       ~co_ctx: CoCtx.t,
       Map.t
     ) =>
-    (Info.exp, Map.t);
+    (Info.exp, Exp.t, Map.t);
   let label_to_info_map:
     (option(list(string)), Typ.t, Exp.t, Map.t) =>
-    (option(string), Info.exp, Map.t);
+    (option(string), Info.exp, Exp.t, Map.t);
 };

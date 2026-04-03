@@ -224,7 +224,8 @@ module F =
           )
         ) {
         | Some(Info.InfoExp({ty, _})) => ty
-        | _ => raise(Elaborator.MissingTypeInfo)
+        | _ =>
+          raise(Failure("Missing type info for induction step scrutinee"))
         };
       Calc.set(~eq=Typ.fast_equal, self_ty, scrut_ty);
     };

@@ -66,7 +66,7 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
         Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
         Id.Map.map(_ => (), z.refractors.autos.ephemerals),
       );
-    let info_map =
+    let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
     let targets: Sample.targets =
       Id.Map.fold(
@@ -84,8 +84,6 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
         Id.Map.empty,
       );
 
-    /* Elaborate and evaluate */
-    let elaborated = Elaborator.elaborate(info_map, term) |> fst;
     let (_, state) =
       Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
     let probes = EvaluatorState.get_probes(state);
