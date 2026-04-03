@@ -30,43 +30,6 @@
 
 include StaticsBase;
 
-/* Collect module variable references from type annotations.
-   For M.T (= ProdProjection(Var("M"), Label("T"))), free_vars returns ["M"].
-   We filter to names that are expression variables (not type aliases). */
-let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => {
-  Typ.free_vars(typ)
-  |> List.filter_map(name =>
-       switch (Ctx.lookup_var(ctx, name)) {
-       | Some(_) =>
-         Some(CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp))
-       | None => None
-       }
-     )
-  |> CoCtx.union;
-};
-
-/* Walk a Pat.t AST and collect module refs from any Asc(_, ann) sub-patterns. */
-let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
-  switch (pat.term) {
-  | Asc(p, ann) =>
-    CoCtx.union([
-      collect_module_refs_in_typ(ctx, Typ.rep_id(ann), ann),
-      collect_pat_type_refs(ctx, p),
-    ])
-  | Tuple(ps)
-  | ListLit(ps) => CoCtx.union(List.map(collect_pat_type_refs(ctx), ps))
-  | Cons(p1, p2)
-  | TupLabel(p1, p2)
-  | Ap(p1, p2) =>
-    CoCtx.union([
-      collect_pat_type_refs(ctx, p1),
-      collect_pat_type_refs(ctx, p2),
-    ])
-  | Parens(p)
-  | Projector(_, p) => collect_pat_type_refs(ctx, p)
-  | _ => CoCtx.empty
-  };
-
 /* Walk a Pat.t AST and collect constructor references as co_ctx entries.
  * Pattern constructors are uses of the constructor (for highlighting). */
 let rec collect_pat_ctr_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
@@ -91,7 +54,6 @@ let rec collect_pat_ctr_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   | Asc(p, _) => collect_pat_ctr_refs(ctx, p)
   | _ => CoCtx.empty
   };
-
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
@@ -332,49 +294,6 @@ and uexp_to_info_map =
       }
     );
   };
-  let rec strip_module_sig_pats = (exp: Exp.t): Exp.t => {
-    let (term, rewrap) = Exp.unwrap(exp);
-    switch (term) {
-    | Let({term: Asc(p, _), _}, def, body) =>
-      Let(
-        strip_module_sig_pats_in_pat(p),
-        strip_module_sig_pats(def),
-        strip_module_sig_pats(body),
-      )
-      |> rewrap
-    | Let(p, def, body) =>
-      Let(
-        strip_module_sig_pats_in_pat(p),
-        strip_module_sig_pats(def),
-        strip_module_sig_pats(body),
-      )
-      |> rewrap
-    | TyAlias(tpat, typ, body) =>
-      TyAlias(tpat, typ, strip_module_sig_pats(body)) |> rewrap
-    | Parens(inner) => Parens(strip_module_sig_pats(inner)) |> rewrap
-    | _ => exp
-    };
-  }
-  and strip_module_sig_pats_in_pat = (pat: Pat.t): Pat.t => {
-    let (term, rewrap) = Pat.unwrap(pat);
-    switch (term) {
-    | Asc(inner, _) => strip_module_sig_pats_in_pat(inner)
-    | Parens(inner) => Parens(strip_module_sig_pats_in_pat(inner)) |> rewrap
-    | _ => pat
-    };
-  };
-  let rec restore_module_body_id = (~id, exp: Exp.t): Exp.t => {
-    let (term, rewrap) = Exp.unwrap(exp);
-    switch (term) {
-    | Let(p, def, body) =>
-      Let(p, def, restore_module_body_id(~id, body)) |> rewrap
-    | TyAlias(tpat, typ, body) =>
-      TyAlias(tpat, typ, restore_module_body_id(~id, body)) |> rewrap
-    | Parens(inner) => Parens(restore_module_body_id(~id, inner)) |> rewrap
-    | Tuple(_) => IdTagged.fast_copy(id, exp)
-    | _ => exp
-    };
-  };
   let (_, rewrap) = Exp.unwrap(uexp);
   let ancestors = [Exp.rep_id(uexp)] @ ancestors;
   let uexp_to_info_map =
@@ -606,7 +525,7 @@ and uexp_to_info_map =
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.term);
       let (e, e_elab, m) = go'(~ana=t_ty, ~ctx=t.ctx, e, m);
-      let typ_refs = collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
+      let typ_refs = ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
         ~elab=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
         ~self=Just(t_ty),
@@ -715,52 +634,6 @@ and uexp_to_info_map =
         ~co_ctx=e.co_ctx,
         m,
       );
-    | UnOp(Meta(Unquote), e) when is_in_filter =>
-      let unquote_elab =
-        switch (e.term) {
-        | Var("e") =>
-          Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
-          |> rewrap
-        | Var("v") =>
-          Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
-          |> rewrap
-        | _ => EmptyHole |> rewrap
-        };
-      let e: Exp.t = {
-        annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(e)),
-        term:
-          switch (e.term) {
-          | Var("e") =>
-            Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
-          | Var("v") =>
-            Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
-          | _ => e.term
-          },
-      };
-      let ty_in = Var("$Meta") |> Typ.temp;
-      let ty_out = Unknown(Internal) |> Typ.temp;
-      let (e, _, m) = go(~ana=ty_in, e, m);
-      let (info, elab, m) =
-        add(~elab=unquote_elab, ~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
-      let m =
-        switch (unquote_elab.term) {
-        | Constructor(_, Some(Some(typ))) =>
-          go_typ(typ, ~expects=Info.TypeExpected, m) |> snd
-        | _ => m
-        };
-      (
-        info,
-        elab,
-        IdTagged.ids(unquote_elab)
-        |> List.fold_left(
-             (m, id) =>
-               switch (Id.Map.find_opt(id, m)) {
-               | Some(_) => m
-               | None => Id.Map.add(id, Info.InfoExp(info), m)
-               },
-             m,
-           ),
-      );
     | UnOp(Meta(Unquote), e) =>
       let unquote_elab =
         switch (e.term) {
@@ -772,14 +645,45 @@ and uexp_to_info_map =
           |> rewrap
         | _ => EmptyHole |> rewrap
         };
-      let (e, _, m) = go(~ana=syn, e, m);
+      let (e, _, m) =
+        if (is_in_filter) {
+          let e: Exp.t = {
+            annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(e)),
+            term:
+              switch (e.term) {
+              | Var("e") =>
+                Constructor(
+                  "$e",
+                  Some(Some(Unknown(Internal) |> Typ.fresh)),
+                )
+              | Var("v") =>
+                Constructor(
+                  "$v",
+                  Some(Some(Unknown(Internal) |> Typ.fresh)),
+                )
+              | _ => e.term
+              },
+          };
+          go(~ana=Var("$Meta") |> Typ.temp, e, m);
+        } else {
+          go(~ana=syn, e, m);
+        };
       let (info, elab, m) =
-        add'(
-          ~elab=unquote_elab,
-          ~self=BadOperator("Unquote not in filter"),
-          ~co_ctx=e.co_ctx,
-          m,
-        );
+        if (is_in_filter) {
+          add(
+            ~elab=unquote_elab,
+            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~co_ctx=e.co_ctx,
+            m,
+          );
+        } else {
+          add'(
+            ~elab=unquote_elab,
+            ~self=BadOperator("Unquote not in filter"),
+            ~co_ctx=e.co_ctx,
+            m,
+          );
+        };
       let m =
         switch (unquote_elab.term) {
         | Constructor(_, Some(Some(typ))) =>
@@ -790,14 +694,7 @@ and uexp_to_info_map =
         info,
         elab,
         IdTagged.ids(unquote_elab)
-        |> List.fold_left(
-             (m, id) =>
-               switch (Id.Map.find_opt(id, m)) {
-               | Some(_) => m
-               | None => Id.Map.add(id, Info.InfoExp(info), m)
-               },
-             m,
-           ),
+        |> add_missing_info(_, Info.InfoExp(info), m),
       );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
@@ -1386,14 +1283,7 @@ and uexp_to_info_map =
               info,
               elab,
               IdTagged.ids(expanded)
-              |> List.fold_left(
-                   (m, id) =>
-                     switch (Id.Map.find_opt(id, m)) {
-                     | Some(_) => m
-                     | None => Id.Map.add(id, Info.InfoExp(info), m)
-                     },
-                   m,
-                 ),
+              |> add_missing_info(_, Info.InfoExp(info), m),
             );
           | None =>
             // if we can't expand, flag as improper model
@@ -1577,7 +1467,7 @@ and uexp_to_info_map =
         };
       };
     | Fun(p, e, typ, n) =>
-      let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
@@ -1785,117 +1675,8 @@ and uexp_to_info_map =
         | Inexhaustive(unseen_pattern) =>
           InexhaustiveMatch(unwrapped_self, unseen_pattern)
         };
-      let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
-      /* Build elaboration: add function name, wrap with FixF if recursive */
-      let add_name: (option(string), Exp.t) => Exp.t = (
-        (name, exp) => {
-          let (term, rewrap) = Exp.unwrap(exp);
-          switch (term) {
-          | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
-          | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
-          | _ => exp
-          };
-        }
-      );
-      let rec align_labeled_tuple = (expected_ty: Typ.t, exp: Exp.t): Exp.t =>
-        switch (Typ.term_of(Typ.normalize(ctx, expected_ty))) {
-        | Prod(tys) =>
-          let align_entry = (expected_entry, exp_entry) =>
-            switch (Typ.match_tup_label(expected_entry)) {
-            | Some((label, inner_ty)) =>
-              switch (Exp.match_tup_label(exp_entry)) {
-              | Some((label', inner_exp)) when label == label' =>
-                TupLabel(
-                  Label(label) |> Exp.fresh,
-                  align_labeled_tuple(inner_ty, inner_exp),
-                )
-                |> Exp.fresh
-              | _ =>
-                TupLabel(
-                  Label(label) |> Exp.fresh,
-                  align_labeled_tuple(inner_ty, exp_entry),
-                )
-                |> Exp.fresh
-              }
-            | None => align_labeled_tuple(expected_entry, exp_entry)
-            };
-          switch (exp.term) {
-          | Parens(inner) => align_labeled_tuple(expected_ty, inner)
-          | Tuple(ds) =>
-            let arranged =
-              LabeledTuple.rearrange(
-                Typ.match_tup_label,
-                Exp.match_tup_label,
-                tys,
-                ds,
-                (label, body) => {
-                TupLabel(Label(label) |> Exp.fresh, body) |> Exp.fresh
-              });
-            let arranged =
-              List.length(tys) == List.length(arranged)
-                ? List.map2(align_entry, tys, arranged) : arranged;
-            Tuple(arranged) |> Exp.fresh;
-          | _ =>
-            switch (tys) {
-            | [ty] =>
-              switch (Typ.match_tup_label(ty), Exp.match_tup_label(exp)) {
-              | (Some((label, inner_ty)), Some((label', inner_exp)))
-                  when label == label' =>
-                Tuple([
-                  TupLabel(
-                    Label(label) |> Exp.fresh,
-                    align_labeled_tuple(inner_ty, inner_exp),
-                  )
-                  |> Exp.fresh,
-                ])
-                |> Exp.fresh
-              | (Some((label, inner_ty)), _) =>
-                Tuple([
-                  TupLabel(
-                    Label(label) |> Exp.fresh,
-                    align_labeled_tuple(inner_ty, exp),
-                  )
-                  |> Exp.fresh,
-                ])
-                |> Exp.fresh
-              | _ => exp
-              }
-            | _ => exp
-            }
-          };
-        | _ => exp
-        };
-      let rec has_aligned_labeled_tuple_shape =
-              (expected_ty: Typ.t, exp: Exp.t): bool =>
-        switch (Typ.term_of(Typ.normalize(ctx, expected_ty))) {
-        | Prod(tys) =>
-          switch (exp.term) {
-          | Parens(_) => false
-          | Tuple(ds) =>
-            List.length(tys) == List.length(ds)
-            && List.for_all2(
-                 (expected_entry, exp_entry) =>
-                   switch (Typ.match_tup_label(expected_entry)) {
-                   | Some((label, inner_ty)) =>
-                     switch (Exp.match_tup_label(exp_entry)) {
-                     | Some((label', inner_exp)) when label == label' =>
-                       has_aligned_labeled_tuple_shape(inner_ty, inner_exp)
-                     | _ => false
-                     }
-                   | None =>
-                     has_aligned_labeled_tuple_shape(
-                       expected_entry,
-                       exp_entry,
-                     )
-                   },
-                 tys,
-                 ds,
-               )
-          | _ => false
-          }
-        | _ => true
-        };
       let requires_fixf =
         is_rec
         && CoCtx.has_any(
@@ -1907,20 +1688,20 @@ and uexp_to_info_map =
              Pat.bound_vars(p),
            );
       let maybe_align_def_elab = def_elab =>
-        if (has_aligned_labeled_tuple_shape(p_syn.ty, def_elab)) {
+        if (LabeledTupleHelpers.is_aligned_exp(ctx, p_syn.ty, def_elab)) {
           def_elab;
         } else {
-          align_labeled_tuple(p_syn.ty, def_elab);
+          LabeledTupleHelpers.align_exp(ctx, p_syn.ty, def_elab);
         };
       let elab =
         if (!requires_fixf) {
           let def_elab =
-            maybe_align_def_elab(def_elab) |> add_name(Pat.get_var(p));
+            maybe_align_def_elab(def_elab) |> Exp.add_name(Pat.get_var(p));
           Let(p_elab, def_elab, body_elab) |> rewrap;
         } else {
           let def_elab =
             maybe_align_def_elab(def_elab)
-            |> add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
+            |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
           let fixf =
             (FixF(p_elab, def_elab, None): Exp.term)
             |> IdTagged.fresh_deterministic(Exp.rep_id(uexp));
@@ -1939,7 +1720,7 @@ and uexp_to_info_map =
         m,
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
-      let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       let (e1', e1_elab, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
@@ -1968,7 +1749,7 @@ and uexp_to_info_map =
         m,
       );
     | Theorem(p, e1, e2) =>
-      let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       let (_, e1_elab, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
@@ -2003,7 +1784,7 @@ and uexp_to_info_map =
       let (e', e_elab, m) = go'(~ctx=p'.ctx, ~ana=p'.ty, e, m);
       let (p'', p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
-      let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       let elab =
         FixF(p_elab, Asc(e_elab, p'.ty) |> Exp.fresh, env) |> rewrap;
@@ -2225,7 +2006,7 @@ and uexp_to_info_map =
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
         let typ_refs =
-          collect_module_refs_in_typ(ctx, Typ.rep_id(utyp), utyp);
+          ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(utyp), utyp);
         add(
           ~elab=body_elab,
           ~self=Just(ty_escape),
@@ -2240,7 +2021,7 @@ and uexp_to_info_map =
           go'(~ctx, ~ana, body, m);
         let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
         let typ_refs =
-          collect_module_refs_in_typ(ctx, Typ.rep_id(utyp), utyp);
+          ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(utyp), utyp);
         add(
           ~elab=body_elab,
           ~self=Just(ty_body),
@@ -2330,8 +2111,8 @@ and uexp_to_info_map =
       };
       let module_elab =
         expanded_elab
-        |> strip_module_sig_pats
-        |> restore_module_body_id(~id=Exp.rep_id(uexp));
+        |> ModuleHelpers.strip_module_sig_pats
+        |> ModuleHelpers.restore_module_body_id(~id=Exp.rep_id(uexp));
       add(
         ~elab=module_elab,
         ~self=Just(actual_ty),
@@ -2374,12 +2155,12 @@ and uexp_to_info_map =
         switch (expanded_term) {
         | Let(p_elab, _, body_elab) =>
           Let(
-            strip_module_sig_pats_in_pat(p_elab),
+            ModuleHelpers.strip_module_sig_pats_in_pat(p_elab),
             def_elab_direct,
             body_elab,
           )
           |> expanded_rewrap
-        | _ => strip_module_sig_pats(expanded_elab)
+        | _ => ModuleHelpers.strip_module_sig_pats(expanded_elab)
         };
       };
       add(
