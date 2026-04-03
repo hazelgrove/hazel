@@ -61,18 +61,18 @@ let init =
   /* Try elaborated syntax first if the projector requests it */
   let elaborated_result =
     if (P.elaborate_syntax) {
-      switch (seg_root_id(seg)) {
-      | Some(term_id) =>
+      switch (MakeTerm.for_projection(seg)) {
+      | Some(Exp(exp)) =>
+        let term_id = Language.Exp.rep_id(exp);
         switch (Language.Exp.find_by_id(term_id, elaborated)) {
         | Some(elab_exp) =>
           let elab_seg = exp_to_seg(elab_exp);
           let elab_piece = Segment.parenthesize(elab_seg);
-          switch (MakeTerm.for_projection([elab_piece])) {
+          switch (MakeTerm.for_projection(elab_seg)) {
           | Some(any) =>
             switch (P.init(any)) {
-            | Some(model) =>
-              let model_str =
-                model |> P.sexp_of_model |> Sexplib.Sexp.to_string;
+            | Some(model_str) =>
+              /* P is Cooked, so init already returns serialized model */
               Some(
                 Base.Projector(
                   ProjectorCore.mk(
@@ -82,14 +82,14 @@ let init =
                     model_str,
                   ),
                 ),
-              );
+              )
             | None => None
             }
           | None => None
           };
         | None => None
-        }
-      | None => None
+        };
+      | _ => None
       };
     } else {
       None;
