@@ -22,6 +22,7 @@ type t('syntax) = {
   id: Id.t,
   kind: Kind.t,
   syntax: 'syntax,
+  [@sexp.option]
   original_syntax: option('syntax),
   model: string,
 };
