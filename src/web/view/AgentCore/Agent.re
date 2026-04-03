@@ -1857,38 +1857,38 @@ module Agent = {
               ),
             );
           } else {
-          let new_z = Dump.to_zipper(new_z);
-          let new_editor_model = Editor.Model.mk(new_z);
-          let new_cws =
-            CodeWithStatics.Model.mk(
-              ~dynamics=editor.dynamics,
-              new_editor_model,
-            );
-
-          if (List.length(paths_to_expand) > 0) {
-            let expand_action = AgentContext.Update.Expand(paths_to_expand);
-            let chat_system =
-              ChatSystem.Update.update(
-                ChatSystem.Update.Action.ChatAction(
-                  Chat.Update.Action.AgentContextAction(expand_action),
-                  chat_id,
-                ),
-                agent.chat_system,
+            let new_z = Dump.to_zipper(new_z);
+            let new_editor_model = Editor.Model.mk(new_z);
+            let new_cws =
+              CodeWithStatics.Model.mk(
+                ~dynamics=editor.dynamics,
+                new_editor_model,
               );
-            switch (chat_system) {
-            | Ok(updated_chat_system) =>
-              Ok((
-                {
-                  ...agent,
-                  chat_system: updated_chat_system,
-                },
-                new_cws,
-              ))
-            | Error(_) => Ok((agent, new_cws))
+
+            if (List.length(paths_to_expand) > 0) {
+              let expand_action = AgentContext.Update.Expand(paths_to_expand);
+              let chat_system =
+                ChatSystem.Update.update(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.AgentContextAction(expand_action),
+                    chat_id,
+                  ),
+                  agent.chat_system,
+                );
+              switch (chat_system) {
+              | Ok(updated_chat_system) =>
+                Ok((
+                  {
+                    ...agent,
+                    chat_system: updated_chat_system,
+                  },
+                  new_cws,
+                ))
+              | Error(_) => Ok((agent, new_cws))
+              };
+            } else {
+              Ok((agent, new_cws));
             };
-          } else {
-            Ok((agent, new_cws));
-          };
           };
         };
       };
@@ -2434,7 +2434,12 @@ module Agent = {
           )
         ) {
         | Some((old_segment, new_segment)) =>
-          Some(AgentToolResult.{old_segment, new_segment})
+          Some(
+            AgentToolResult.{
+              old_segment,
+              new_segment,
+            },
+          )
         | None => None
         }
       | SyntaxProjectorAction(_)
@@ -2455,7 +2460,7 @@ module Agent = {
               new_segment: Some(new_segment),
             },
           );
-        }
+        };
       | _ => None
       };
     };
