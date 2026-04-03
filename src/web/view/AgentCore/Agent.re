@@ -738,6 +738,77 @@ module Chat = {
       };
     };
 
+    /** Rough prompt-token count for the next main-agent OpenRouter request (~4 characters per token
+        over wire content, plus a small per-message overhead). Not identical to the provider tokenizer
+        but tracks relative size changes after compaction. */
+    let estimate_openrouter_prompt_tokens = (chat: Model.t): int => {
+      let api_msgs =
+        messages_for_openrouter(chat) |> api_messages_of_messages;
+      let char_budget =
+        List.fold_left(
+          (acc, m: OpenRouter.Message.Model.t) => {
+            let tool_chars =
+              List.fold_left(
+                (a, tc: OpenRouter.Reply.Model.tool_call) =>
+                  a
+                  + String.length(tc.name)
+                  + String.length(Yojson.Safe.to_string(tc.args)),
+                0,
+                m.tool_calls,
+              );
+            acc + String.length(m.content) + tool_chars + 48;
+          },
+          0,
+          api_msgs,
+        );
+      max(1, char_budget / 4);
+    };
+
+    /** Value for the context meter: last provider [[prompt_tokens]] when an agent message **after**
+        the latest compaction already reported usage; otherwise, after compaction (or before any agent
+        usage exists), the estimated next payload size so the bar updates immediately. */
+    let context_meter_prompt_tokens = (chat: Model.t): option(int) => {
+      let messages = get(chat);
+      let (_, last_agent_idx, last_agent_tokens, last_compaction_idx) =
+        List.fold_left(
+          (
+            (i, last_agent_idx, last_agent_tokens, last_compaction_idx),
+            msg: Message.Model.t,
+          ) => {
+            let last_agent_idx' =
+              switch (msg.role) {
+              | Message.Model.Agent(Some(_)) => Some(i)
+              | _ => last_agent_idx
+              };
+            let last_agent_tokens' =
+              switch (msg.role) {
+              | Message.Model.Agent(Some(u)) => Some(u.prompt_tokens)
+              | _ => last_agent_tokens
+              };
+            let last_compaction_idx' =
+              switch (msg.role) {
+              | Message.Model.System(Message.Model.CompactionSummary(_)) =>
+                Some(i)
+              | _ => last_compaction_idx
+              };
+            (
+              i + 1,
+              last_agent_idx',
+              last_agent_tokens',
+              last_compaction_idx',
+            );
+          },
+          (0, None, None, None),
+          messages,
+        );
+      switch (last_compaction_idx, last_agent_idx, last_agent_tokens) {
+      | (Some(ci), Some(ai), Some(tok)) when ai > ci => Some(tok)
+      | (Some(_), _, _) => Some(estimate_openrouter_prompt_tokens(chat))
+      | (None, _, Some(tok)) => Some(tok)
+      | (None, _, None) => None
+      };
+    };
+
     let init = (~system_prompt: string, ~dev_notes: string): Model.t => {
       let system_prompt = Message.Utils.mk_prompt_message(system_prompt);
       let chat: Model.t = {

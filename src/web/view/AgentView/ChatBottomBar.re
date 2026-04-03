@@ -236,18 +236,10 @@ let view =
     Effect.Stop_propagation;
   };
 
-  let messages = Agent.Chat.Utils.get(current_chat);
-  /** Last API round's prompt size (full messages array tokenized by provider). */
+  /** Provider prompt_tokens after the last agent turn, or an estimated next payload size right
+      after compaction (see [[Agent.Chat.Utils.context_meter_prompt_tokens]]). */
   let last_prompt_tokens_opt: option(int) =
-    List.fold_left(
-      (acc, msg: Agent.Message.Model.t) =>
-        switch (msg.role) {
-        | Agent(Some(usage)) => Some(usage.prompt_tokens)
-        | _ => acc
-        },
-      None,
-      messages,
-    );
+    Agent.Chat.Utils.context_meter_prompt_tokens(current_chat);
   let context_limit_opt =
     AgentGlobals.context_meter_limit_for_active(
       globals.settings.agent_globals,
@@ -263,7 +255,7 @@ let view =
       | Some(m) => string_of_int(m)
       | None => "—"
       };
-    let label = n_str ++ " / " ++ m_str ++ " context used";
+    let label = n_str ++ " / " ++ m_str ++ " tokens used";
     let (pct, title_pct) =
       switch (last_prompt_tokens_opt, context_limit_opt) {
       | (Some(n), Some(m)) when m > 0 =>

@@ -78,6 +78,8 @@ let c : Int = ⋱ in
 ?
 ```
 Note: Only the definition changes. The pattern, body, and surrounding bindings are untouched.
+
+Syntax projectors (livelits): to keep a widget when overwriting the definition, include projector concrete syntax in `code`: `^^kind(expression)`. Examples: `^^slider(60)`, `^^sliderf(3.14)`, `^^check(true)`, `^^text("hello")`, `^^csv([1, 2, 3])`, `^^card({ let x = 1; let y = 2 })`. Without `^^`, the term is usually a plain literal and the projector is not preserved—then use `place_syntax_projector` if needed.
 |};
 
 let update_definition: API.Json.t =
