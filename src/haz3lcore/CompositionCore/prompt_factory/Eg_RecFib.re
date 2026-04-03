@@ -11,7 +11,7 @@ Study this example carefully — it shows HOW to think, plan, and act.
 ?
 ```
 
-**Step 1 — Plan.** Create a task with meaningful milestones (not micro-steps).
+**Step 1 — Plan.** (Illustrates the workbench on a **multi-step feature**; skip this entirely for small/trivial edits.) Create a task with meaningful milestones (not micro-steps).
 
 Tool call: `create_new_task`
 ```json
@@ -33,7 +33,7 @@ Tool call: `create_new_task`
 }
 ```
 
-**Step 2 — Implement.** The program is empty (`?`), so use `initialize` to set up the structure.
+**Step 2 — Implement.** The program is empty (`?`), so use `initialize` once to create bindings (the only option before any `let` exists). In real tasks, prefer a **minimal** first `initialize` and then `insert_*` / `update_*` for the rest; this walkthrough uses one larger `initialize` only to keep the transcript short.
 
 Tool call: `initialize`
 ```json
@@ -190,8 +190,8 @@ Tool call: `remove_probe` → `mark_active_subtask_complete` → `mark_active_ta
 
 ### Key Patterns to Notice
 
-1. **Plan first**: Create a task with coarse milestones before writing code.
-2. **Use the right tool**: `initialize` for empty programs, `insert_after`/`insert_before` for adding bindings, `update_definition`/`update_body` for modifying existing code.
+1. **Plan when it helps**: For big, multi-turn work, use coarse workbench milestones; for quick edits, skip tasks and edit directly.
+2. **Use the right tool**: `initialize` only when there are no bindings yet (keep it small when possible); `insert_after`/`insert_before` for adding bindings, `update_definition`/`update_body` for modifying existing code — prefer **many small** edits over one huge `initialize`.
 3. **Manage context**: Collapsed definitions (⋱) don't need to be expanded if tests or context already explain what they do. Expand only what you need.
 4. **Verify with probes**: After implementing, use `place_probe` to observe runtime values and confirm correctness. Clean up with `remove_probe` when done.
 5. **Check static errors**: After each edit, check the context for type errors. Fix them before moving on.

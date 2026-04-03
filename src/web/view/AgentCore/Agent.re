@@ -1366,6 +1366,11 @@ module ChatSystem = {
 };
 
 module Agent = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type llm_error_origin =
+    | MainRequest(int)
+    | CompactionRequest(int);
+
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type prompting = {
@@ -1392,6 +1397,12 @@ module Agent = {
       compaction_in_progress: option(Id.t),
       [@yojson.default None]
       compaction_method_override: option(string),
+      main_llm_seq: int,
+      compaction_llm_seq: int,
+      [@yojson.default None]
+      pending_ignore_main_reply_seq: option(int),
+      [@yojson.default None]
+      pending_ignore_compaction_reply_seq: option(int),
     };
   };
 
@@ -1412,6 +1423,10 @@ module Agent = {
         tools_view_expanded: [],
         compaction_in_progress: None,
         compaction_method_override: None,
+        main_llm_seq: 0,
+        compaction_llm_seq: 0,
+        pending_ignore_main_reply_seq: None,
+        pending_ignore_compaction_reply_seq: None,
       };
     };
 
@@ -1431,6 +1446,10 @@ module Agent = {
         tools_view_expanded: [],
         compaction_in_progress: None,
         compaction_method_override: None,
+        main_llm_seq: 0,
+        compaction_llm_seq: 0,
+        pending_ignore_main_reply_seq: None,
+        pending_ignore_compaction_reply_seq: None,
       };
     };
   };
@@ -1540,6 +1559,10 @@ module Agent = {
         tools_view_expanded: [],
         compaction_in_progress: None,
         compaction_method_override: None,
+        main_llm_seq: 0,
+        compaction_llm_seq: 0,
+        pending_ignore_main_reply_seq: None,
+        pending_ignore_compaction_reply_seq: None,
       };
     };
 
@@ -2050,10 +2073,10 @@ module Agent = {
       type t =
         | ChatSystemAction(ChatSystem.Update.Action.t)
         | SendMessage(Message.Model.t, Id.t)
-        | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t)
-        | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t)
+        | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t, int)
+        | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t, int)
         | HandleChatNamingResponse(string, Id.t)
-        | ApiErrorResponse(Id.t, Message.Model.t)
+        | ApiErrorResponse(Id.t, Message.Model.t, llm_error_origin)
         | RetryApiError(Id.t, int)
         | DoRetryApiSend(Id.t, int)
         | RetryEmptyResponse(Id.t, int)
@@ -2063,7 +2086,8 @@ module Agent = {
         | SetActiveTimelineNode(option(int))
         | SetToolEnabled(string, bool)
         | ToggleToolsViewExpanded(string)
-        | RequestForcedCompaction(Id.t);
+        | RequestForcedCompaction(Id.t)
+        | StopAgenticLoop;
     };
 
     let max_api_retries = 3;
@@ -2141,12 +2165,19 @@ module Agent = {
           ~messages: list(OpenRouter.Message.Model.t),
           ~schedule_action: Action.t => unit,
           ~chat_id: Id.t,
+          ~compaction_flight_seq: int,
         )
         : unit => {
       let handler = (response: option(API.Json.t)): unit => {
         switch (OpenRouter.Utils.handle_chat(response)) {
         | Some(OpenRouter.Model.Reply(reply)) =>
-          schedule_action(Action.HandleCompactionLLMReply(reply, chat_id))
+          schedule_action(
+            Action.HandleCompactionLLMReply(
+              reply,
+              chat_id,
+              compaction_flight_seq,
+            ),
+          )
         | Some(OpenRouter.Model.Error({message, code})) =>
           let api_error_content =
             "Compaction failed (code "
@@ -2156,7 +2187,11 @@ module Agent = {
           let api_error_message =
             Message.Utils.mk_api_failure_message(api_error_content);
           schedule_action(
-            Action.ApiErrorResponse(chat_id, api_error_message),
+            Action.ApiErrorResponse(
+              chat_id,
+              api_error_message,
+              CompactionRequest(compaction_flight_seq),
+            ),
           );
         | None =>
           schedule_action(
@@ -2165,6 +2200,7 @@ module Agent = {
               Message.Utils.mk_api_failure_message(
                 "Compaction failed: empty API response.",
               ),
+              CompactionRequest(compaction_flight_seq),
             ),
           )
         };
@@ -2211,23 +2247,27 @@ module Agent = {
         } else {
           model;
         };
-      } else if (manual && Option.is_some(model.awaiting_response)) {
-        let msg =
-          Message.Utils.mk_api_failure_message(
-            "Wait for the assistant to finish before compacting.",
-          );
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(msg),
-              chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
-        {
-          ...model,
-          chat_system,
+      } else if (Option.is_some(model.awaiting_response)) {
+        if (manual) {
+          let msg =
+            Message.Utils.mk_api_failure_message(
+              "Wait for the assistant to finish before compacting.",
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AppendMessage(msg),
+                chat_id,
+              ),
+              model.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          {
+            ...model,
+            chat_system,
+          };
+        } else {
+          model;
         };
       } else {
         let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
@@ -2279,18 +2319,21 @@ module Agent = {
             AgentGlobals.get_active_llm_id(settings.agent_globals),
           ) {
           | (Some(api_key), Some(llm_id)) =>
+            let compaction_flight_seq = model.compaction_llm_seq + 1;
             send_compaction_request(
               ~api_key,
               ~llm_id,
               ~messages=summary_api_msgs,
               ~schedule_action,
               ~chat_id,
+              ~compaction_flight_seq,
             );
             {
               ...model,
               compaction_in_progress: Some(chat_id),
               compaction_method_override:
                 manual ? Some("Slash command (/compact)") : None,
+              compaction_llm_seq: compaction_flight_seq,
             };
           | _ =>
             if (manual) {
@@ -2325,12 +2368,15 @@ module Agent = {
           ~schedule_action: Action.t => unit,
           ~chat_id: Id.t,
           ~retry_attempt: int,
+          ~main_flight_seq: int,
         )
         : unit => {
       let handler = (response: option(API.Json.t)): unit => {
         switch (OpenRouter.Utils.handle_chat(response)) {
         | Some(OpenRouter.Model.Reply(reply)) =>
-          schedule_action(Action.HandleLLMResponse(reply, chat_id))
+          schedule_action(
+            Action.HandleLLMResponse(reply, chat_id, main_flight_seq),
+          )
         | Some(OpenRouter.Model.Error({message, code})) =>
           if (is_retryable_api_error(code) && retry_attempt < max_api_retries) {
             schedule_action(Action.RetryApiError(chat_id, retry_attempt));
@@ -2340,10 +2386,23 @@ module Agent = {
             let api_error_message =
               Message.Utils.mk_api_failure_message(api_error_content);
             schedule_action(
-              Action.ApiErrorResponse(chat_id, api_error_message),
+              Action.ApiErrorResponse(
+                chat_id,
+                api_error_message,
+                MainRequest(main_flight_seq),
+              ),
             );
           }
-        | None => ()
+        | None =>
+          schedule_action(
+            Action.ApiErrorResponse(
+              chat_id,
+              Message.Utils.mk_api_failure_message(
+                "No response from the language model.",
+              ),
+              MainRequest(main_flight_seq),
+            ),
+          )
         };
       };
       OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
@@ -2359,9 +2418,43 @@ module Agent = {
           schedule_action: Action.t => unit,
         )
         : Result.t(Model.t) => {
-      switch (model.compaction_in_progress) {
-      | Some(id) when id == chat_id => Ok(model)
-      | _ =>
+      let user_trying_new_round =
+        switch (new_message.role) {
+        | User => true
+        | _ => false
+        };
+      let append_block_notice = (m: Model.t, reason: string): Model.t => {
+        let notice =
+          Message.Utils.mk_api_failure_message(
+            reason
+            ++ " Only one assistant or compaction request runs at a time.",
+          );
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AppendMessage(notice),
+              chat_id,
+            ),
+            m.chat_system,
+          )
+          |> ChatSystem.Update.get;
+        {
+          ...m,
+          chat_system,
+        };
+      };
+      if (user_trying_new_round
+          && Option.is_some(model.compaction_in_progress)) {
+        Ok(append_block_notice(model, "Compaction is in progress."));
+      } else if (user_trying_new_round
+                 && Option.is_some(model.awaiting_response)) {
+        Ok(
+          append_block_notice(
+            model,
+            "The assistant is still processing. Wait or press Stop.",
+          ),
+        );
+      } else {
         let chat_system = model.chat_system;
         let chat_system =
           ChatSystem.Update.update(
@@ -2410,6 +2503,7 @@ module Agent = {
             chat_system,
           });
         | (Some(api_key), Some(llm_id)) =>
+          let main_flight_seq = model.main_llm_seq + 1;
           send_llm_request(
             ~api_key,
             ~payload=
@@ -2426,20 +2520,25 @@ module Agent = {
             ~schedule_action,
             ~chat_id,
             ~retry_attempt=0,
+            ~main_flight_seq,
           );
           let current_chat = ChatSystem.Utils.find_chat(chat_id, chat_system);
           if (current_chat.title == "New Chat" && new_message.role == User) {
-            request_chat_name(
-              ~api_key,
-              ~user_message=new_message.content,
-              ~schedule_action,
-              ~chat_id,
-            );
+            if (Option.is_none(model.awaiting_response)
+                && Option.is_none(model.compaction_in_progress)) {
+              request_chat_name(
+                ~api_key,
+                ~user_message=new_message.content,
+                ~schedule_action,
+                ~chat_id,
+              );
+            };
           };
           Ok({
             ...model,
             chat_system,
             awaiting_response: Some(chat_id),
+            main_llm_seq: main_flight_seq,
           });
         };
       };
@@ -2455,8 +2554,8 @@ module Agent = {
         )
         : Model.t => {
       switch (model.compaction_in_progress) {
-      | Some(id) when id == chat_id => model
-      | _ =>
+      | Some(_) => model
+      | None =>
         switch (
           settings.agent_globals.api_key,
           AgentGlobals.get_active_llm_id(settings.agent_globals),
@@ -2500,6 +2599,7 @@ module Agent = {
             awaiting_response: None,
           };
         | (Some(api_key), Some(llm_id)) =>
+          let main_flight_seq = model.main_llm_seq + 1;
           send_llm_request(
             ~api_key,
             ~payload=
@@ -2516,10 +2616,12 @@ module Agent = {
             ~schedule_action,
             ~chat_id,
             ~retry_attempt=0,
+            ~main_flight_seq,
           );
           {
             ...model,
             awaiting_response: Some(chat_id),
+            main_llm_seq: main_flight_seq,
           };
         }
       };
@@ -2856,37 +2958,76 @@ module Agent = {
         (
           reply: OpenRouter.Reply.Model.t,
           chat_id: Id.t,
+          flight_seq: int,
           model: Model.t,
           cell_editor: CellEditor.Model.t,
           settings: Settings.t,
           schedule_action: Action.t => unit,
         )
         : (Model.t, Updated.t(CellEditor.Model.t)) => {
-      let is_empty = String.trim(reply.content) == "";
-      let max_empty_retries = 2;
+      switch (model.pending_ignore_main_reply_seq) {
+      | Some(ignore_seq) when ignore_seq == flight_seq => (
+          {
+            ...model,
+            pending_ignore_main_reply_seq: None,
+            awaiting_response: None,
+            last_empty_retry_attempt: None,
+          },
+          cell_editor |> Updated.return_quiet,
+        )
+      | _ =>
+        let is_empty = String.trim(reply.content) == "";
+        let max_empty_retries = 2;
 
-      // Empty response with no tool calls: retry with failure context (up to max_empty_retries)
-      if (reply.tool_calls == [] && is_empty) {
-        let current_retry =
-          Option.value(~default=-1, model.last_empty_retry_attempt);
-        let next_retry = current_retry + 1;
-        if (next_retry < max_empty_retries) {
-          schedule_action(Action.RetryEmptyResponse(chat_id, next_retry));
-          (
-            {
-              ...model,
-              last_empty_retry_attempt: Some(next_retry),
-            },
-            cell_editor |> Updated.return_quiet,
-          );
+        // Empty response with no tool calls: retry with failure context (up to max_empty_retries)
+        if (reply.tool_calls == [] && is_empty) {
+          let current_retry =
+            Option.value(~default=-1, model.last_empty_retry_attempt);
+          let next_retry = current_retry + 1;
+          if (next_retry < max_empty_retries) {
+            schedule_action(Action.RetryEmptyResponse(chat_id, next_retry));
+            (
+              {
+                ...model,
+                last_empty_retry_attempt: Some(next_retry),
+              },
+              cell_editor |> Updated.return_quiet,
+            );
+          } else {
+            // Exhausted retries: show fallback message
+            let fallback_content =
+              "(The assistant returned an empty response after retries and did not produce the required user acknowledgment. "
+              ++ "If you are using an open workbench plan, close or update it when appropriate; otherwise just reply with at least one sentence for the user. "
+              ++ "You can try rephrasing your message.)";
+            let new_message =
+              Message.Utils.mk_agent_message(fallback_content, reply.usage);
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(new_message),
+                  chat_id,
+                ),
+                model.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model,
+                chat_system,
+                awaiting_response: None,
+                last_empty_retry_attempt: None,
+              },
+              cell_editor |> Updated.return_quiet,
+            );
+          };
         } else {
-          // Exhausted retries: show fallback message
-          let fallback_content =
-            "(The assistant returned an empty response after retries and did not produce the required user acknowledgment. "
-            ++ "Close any open workbench task or subtask (e.g. mark_active_task_complete), then reply with at least one sentence for the user. "
-            ++ "You can try rephrasing your message.)";
+          let content = reply.content;
           let new_message =
-            Message.Utils.mk_agent_message(fallback_content, reply.usage);
+            Message.Utils.mk_agent_message(
+              ~tool_calls=reply.tool_calls,
+              content,
+              reply.usage,
+            );
           let chat_system =
             ChatSystem.Update.update(
               ChatSystem.Update.Action.ChatAction(
@@ -2896,202 +3037,176 @@ module Agent = {
               model.chat_system,
             )
             |> ChatSystem.Update.get;
-          (
-            {
-              ...model,
-              chat_system,
-              awaiting_response: None,
-              last_empty_retry_attempt: None,
-            },
-            cell_editor |> Updated.return_quiet,
-          );
-        };
-      } else {
-        let content = reply.content;
-        let new_message =
-          Message.Utils.mk_agent_message(
-            ~tool_calls=reply.tool_calls,
-            content,
-            reply.usage,
-          );
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(new_message),
-              chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
-        let model = {
-          ...model,
-          chat_system,
-          last_empty_retry_attempt: None,
-          last_active_task_nudge_attempt: None,
-        };
-        let merge_cell_editor_updates =
-            (
-              acc: Updated.t(CellEditor.Model.t),
-              step: Updated.t(CellEditor.Model.t),
-            )
-            : Updated.t(CellEditor.Model.t) => {
-          {
-            model: step.model,
-            is_edit: acc.is_edit || step.is_edit,
-            recalculate: acc.recalculate || step.recalculate,
-            scroll_active: acc.scroll_active || step.scroll_active,
-            logged: acc.logged || step.logged,
-            historic: acc.historic || step.historic,
+          let model = {
+            ...model,
+            chat_system,
+            last_empty_retry_attempt: None,
+            last_active_task_nudge_attempt: None,
           };
-        };
-        switch (reply.tool_calls) {
-        | [] =>
-          let max_task_nudges = 1;
-          let current_chat =
-            ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-          let workbench = current_chat.agent_workbench;
-          let has_incomplete_active_subtask =
-            switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
-            | Some(task) =>
-              switch (task.completion_info) {
-              | Some(_) => false
-              | None =>
-                switch (task.active_subtask) {
-                | Some(st) =>
-                  switch (
-                    AgentWorkbench.Utils.SubtaskUtils.find_subtask(task, st)
-                  ) {
-                  | Some(sub) =>
-                    !AgentWorkbench.Utils.SubtaskUtils.is_completed(sub)
+          let merge_cell_editor_updates =
+              (
+                acc: Updated.t(CellEditor.Model.t),
+                step: Updated.t(CellEditor.Model.t),
+              )
+              : Updated.t(CellEditor.Model.t) => {
+            {
+              model: step.model,
+              is_edit: acc.is_edit || step.is_edit,
+              recalculate: acc.recalculate || step.recalculate,
+              scroll_active: acc.scroll_active || step.scroll_active,
+              logged: acc.logged || step.logged,
+              historic: acc.historic || step.historic,
+            };
+          };
+          switch (reply.tool_calls) {
+          | [] =>
+            let max_task_nudges = 1;
+            let current_chat =
+              ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+            let workbench = current_chat.agent_workbench;
+            let has_incomplete_active_subtask =
+              switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
+              | Some(task) =>
+                switch (task.completion_info) {
+                | Some(_) => false
+                | None =>
+                  switch (task.active_subtask) {
+                  | Some(st) =>
+                    switch (
+                      AgentWorkbench.Utils.SubtaskUtils.find_subtask(task, st)
+                    ) {
+                    | Some(sub) =>
+                      !AgentWorkbench.Utils.SubtaskUtils.is_completed(sub)
+                    | None => false
+                    }
                   | None => false
                   }
-                | None => false
                 }
-              }
-            | None => false
-            };
-          let nudge_count =
-            Option.value(~default=0, model.last_active_task_nudge_attempt);
-          if (has_incomplete_active_subtask && nudge_count < max_task_nudges) {
-            let nudge_content =
-              "[Workbench] You still have an active task or subtask.\n"
-              ++ "MANDATORY: Your next assistant message MUST include at least one full sentence to the user (acknowledge their request or briefly say what you did next). Empty assistant text is invalid.\n"
-              ++ "Then either: (1) call mark_active_subtask_complete with a summary if the current subtask is done, (2) call another tool to continue work, or (3) call mark_active_subtask_failed with a reason if stuck.\n"
-              ++ "Before you finish for the user, close the workbench: mark_active_task_complete (closes remaining subtasks automatically) or mark_active_task_failed as appropriate.";
-            let nudge_message =
-              Message.Utils.mk_retry_note_message(
-                ~content=nudge_content,
-                ~sent_to_api=true,
-                ~deliver_as_user_on_api=true,
-              );
-            schedule_action(Action.SendMessage(nudge_message, chat_id));
-            (
-              {
-                ...model,
-                last_active_task_nudge_attempt: Some(nudge_count + 1),
-              },
-              cell_editor |> Updated.return_quiet,
-            );
-          } else {
-            let model_idle = {
-              ...model,
-              awaiting_response: None,
-              last_active_task_nudge_attempt: None,
-            };
-            let limit_opt =
-              AgentGlobals.context_meter_limit_for_active(
-                settings.agent_globals,
-              );
-            let should_compact =
-              switch (reply.usage, limit_opt) {
-              | (Some(usage), Some(limit)) => usage.prompt_tokens >= limit
-              | _ => false
+              | None => false
               };
-            let may_start_compaction =
-              Option.is_none(model_idle.compaction_in_progress);
-            if (should_compact && may_start_compaction) {
-              let model' =
-                maybe_start_compaction(
-                  ~manual=false,
-                  ~model=model_idle,
-                  ~chat_id,
-                  ~settings,
-                  ~schedule_action,
-                  ~cell_editor,
+            let nudge_count =
+              Option.value(~default=0, model.last_active_task_nudge_attempt);
+            if (has_incomplete_active_subtask && nudge_count < max_task_nudges) {
+              let nudge_content =
+                "[Workbench] You have an **active workbench plan** with an open subtask.\n"
+                ++ "MANDATORY: Your next assistant message MUST include at least one full sentence to the user (acknowledge their request or briefly say what you did next). Empty assistant text is invalid.\n"
+                ++ "Either: (1) continue program work with edit tools, (2) mark_active_subtask_complete if that milestone is done, (3) mark_active_subtask_failed if stuck, or (4) mark_active_task_complete / mark_active_task_failed when the whole plan is done or abandoned.\n"
+                ++ "If you no longer want this plan, close or fail it so the board matches reality.";
+              let nudge_message =
+                Message.Utils.mk_retry_note_message(
+                  ~content=nudge_content,
+                  ~sent_to_api=true,
+                  ~deliver_as_user_on_api=true,
                 );
-              (model', cell_editor |> Updated.return_quiet);
-            } else {
-              (model_idle, cell_editor |> Updated.return_quiet);
-            };
-          };
-        | tool_calls =>
-          let (model_after_tools, _, tool_msgs_rev, cell_editor_updated, _) =
-            List.fold_left(
-              ((m, ce_model, msgs, ce_updated, prior_failed), tc) =>
-                if (prior_failed) {
-                  let skipped = AgentToolResult.mk_skipped(tc);
-                  let msg = Message.Utils.mk_tool_result_message(skipped);
-                  (m, ce_model, [msg, ...msgs], ce_updated, true);
-                } else {
-                  let (m2, step_u, msg) =
-                    execute_one_tool_call(
-                      ~tool_call=tc,
-                      ~model=m,
-                      ~cell_editor=ce_model,
-                      ~settings,
-                      ~chat_id,
-                    );
-                  let failed =
-                    switch (msg.role) {
-                    | ToolResult(tr) => !tr.skipped && !tr.success
-                    | _ => false
-                    };
-                  (
-                    m2,
-                    step_u.model,
-                    [msg, ...msgs],
-                    merge_cell_editor_updates(ce_updated, step_u),
-                    failed,
-                  );
-                },
+              schedule_action(Action.SendMessage(nudge_message, chat_id));
               (
-                model,
-                cell_editor,
-                [],
+                {
+                  ...model,
+                  last_active_task_nudge_attempt: Some(nudge_count + 1),
+                },
                 cell_editor |> Updated.return_quiet,
-                false,
-              ),
-              tool_calls,
-            );
-          let tool_msgs = List.rev(tool_msgs_rev);
-          let chat_system_after_tools =
-            List.fold_left(
-              (cs, msg) =>
-                ChatSystem.Update.get(
-                  ChatSystem.Update.update(
-                    ChatSystem.Update.Action.ChatAction(
-                      Chat.Update.Action.AppendMessage(msg),
-                      chat_id,
-                    ),
-                    cs,
-                  ),
+              );
+            } else {
+              let model_idle = {
+                ...model,
+                awaiting_response: None,
+                last_active_task_nudge_attempt: None,
+              };
+              let limit_opt =
+                AgentGlobals.context_meter_limit_for_active(
+                  settings.agent_globals,
+                );
+              let should_compact =
+                switch (reply.usage, limit_opt) {
+                | (Some(usage), Some(limit)) => usage.prompt_tokens >= limit
+                | _ => false
+                };
+              let may_start_compaction =
+                Option.is_none(model_idle.compaction_in_progress);
+              if (should_compact && may_start_compaction) {
+                let model' =
+                  maybe_start_compaction(
+                    ~manual=false,
+                    ~model=model_idle,
+                    ~chat_id,
+                    ~settings,
+                    ~schedule_action,
+                    ~cell_editor,
+                  );
+                (model', cell_editor |> Updated.return_quiet);
+              } else {
+                (model_idle, cell_editor |> Updated.return_quiet);
+              };
+            };
+          | tool_calls =>
+            let (model_after_tools, _, tool_msgs_rev, cell_editor_updated, _) =
+              List.fold_left(
+                ((m, ce_model, msgs, ce_updated, prior_failed), tc) =>
+                  if (prior_failed) {
+                    let skipped = AgentToolResult.mk_skipped(tc);
+                    let msg = Message.Utils.mk_tool_result_message(skipped);
+                    (m, ce_model, [msg, ...msgs], ce_updated, true);
+                  } else {
+                    let (m2, step_u, msg) =
+                      execute_one_tool_call(
+                        ~tool_call=tc,
+                        ~model=m,
+                        ~cell_editor=ce_model,
+                        ~settings,
+                        ~chat_id,
+                      );
+                    let failed =
+                      switch (msg.role) {
+                      | ToolResult(tr) => !tr.skipped && !tr.success
+                      | _ => false
+                      };
+                    (
+                      m2,
+                      step_u.model,
+                      [msg, ...msgs],
+                      merge_cell_editor_updates(ce_updated, step_u),
+                      failed,
+                    );
+                  },
+                (
+                  model,
+                  cell_editor,
+                  [],
+                  cell_editor |> Updated.return_quiet,
+                  false,
                 ),
-              model_after_tools.chat_system,
-              tool_msgs,
+                tool_calls,
+              );
+            let tool_msgs = List.rev(tool_msgs_rev);
+            let chat_system_after_tools =
+              List.fold_left(
+                (cs, msg) =>
+                  ChatSystem.Update.get(
+                    ChatSystem.Update.update(
+                      ChatSystem.Update.Action.ChatAction(
+                        Chat.Update.Action.AppendMessage(msg),
+                        chat_id,
+                      ),
+                      cs,
+                    ),
+                  ),
+                model_after_tools.chat_system,
+                tool_msgs,
+              );
+            let model_with_tool_msgs = {
+              ...model_after_tools,
+              chat_system: chat_system_after_tools,
+            };
+            (
+              dispatch_follow_up_llm(
+                model_with_tool_msgs,
+                chat_id,
+                settings,
+                schedule_action,
+              ),
+              cell_editor_updated,
             );
-          let model_with_tool_msgs = {
-            ...model_after_tools,
-            chat_system: chat_system_after_tools,
           };
-          (
-            dispatch_follow_up_llm(
-              model_with_tool_msgs,
-              chat_id,
-              settings,
-              schedule_action,
-            ),
-            cell_editor_updated,
-          );
         };
       };
     };
@@ -3150,92 +3265,127 @@ module Agent = {
             },
           )
         };
-      | HandleLLMResponse(reply, chat_id) =>
+      | StopAgenticLoop =>
+        switch (model.awaiting_response, model.compaction_in_progress) {
+        | (Some(_), _) => (
+            {
+              ...model,
+              awaiting_response: None,
+              last_empty_retry_attempt: None,
+              last_active_task_nudge_attempt: None,
+              pending_ignore_main_reply_seq: Some(model.main_llm_seq),
+            },
+            editor |> Updated.return,
+          )
+        | (None, Some(_)) => (
+            {
+              ...model,
+              compaction_in_progress: None,
+              compaction_method_override: None,
+              pending_ignore_compaction_reply_seq:
+                Some(model.compaction_llm_seq),
+            },
+            editor |> Updated.return,
+          )
+        | (None, None) => (model, editor |> Updated.return)
+        }
+      | HandleLLMResponse(reply, chat_id, flight_seq) =>
         handle_llm_response(
           reply,
           chat_id,
+          flight_seq,
           model,
           editor,
           settings,
           schedule_action,
         )
-      | HandleCompactionLLMReply(reply, chat_id) =>
-        let method_label =
-          Option.value(
-            ~default=compaction_summary_method_label,
-            model.compaction_method_override,
-          );
-        let model_cleared = {
-          ...model,
-          compaction_in_progress: None,
-          compaction_method_override: None,
-        };
-        let content = String.trim(reply.content);
-        if (content == "" && reply.tool_calls != []) {
-          let err =
-            Message.Utils.mk_api_failure_message(
-              "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",
-            );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(err),
-                chat_id,
-              ),
-              model_cleared.chat_system,
-            )
-            |> ChatSystem.Update.get;
-          (
+      | HandleCompactionLLMReply(reply, chat_id, flight_seq) =>
+        switch (model.pending_ignore_compaction_reply_seq) {
+        | Some(ignore_seq) when ignore_seq == flight_seq => (
             {
-              ...model_cleared,
-              chat_system,
+              ...model,
+              pending_ignore_compaction_reply_seq: None,
             },
             editor |> Updated.return,
-          );
-        } else if (content == "") {
-          let err =
-            Message.Utils.mk_api_failure_message(
-              "Compaction returned an empty summary.",
+          )
+        | _ =>
+          let method_label =
+            Option.value(
+              ~default=compaction_summary_method_label,
+              model.compaction_method_override,
             );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(err),
-                chat_id,
-              ),
-              model_cleared.chat_system,
-            )
-            |> ChatSystem.Update.get;
-          (
-            {
-              ...model_cleared,
-              chat_system,
-            },
-            editor |> Updated.return,
-          );
-        } else {
-          let summary =
-            Message.Utils.mk_compaction_summary(
-              ~method=method_label,
-              content,
+          let model_cleared = {
+            ...model,
+            compaction_in_progress: None,
+            compaction_method_override: None,
+          };
+          let content = String.trim(reply.content);
+          if (content == "" && reply.tool_calls != []) {
+            let err =
+              Message.Utils.mk_api_failure_message(
+                "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",
+              );
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(err),
+                  chat_id,
+                ),
+                model_cleared.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model_cleared,
+                chat_system,
+              },
+              editor |> Updated.return,
             );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(summary),
-                chat_id,
-              ),
-              model_cleared.chat_system,
-            )
-            |> ChatSystem.Update.get;
-          (
-            {
-              ...model_cleared,
-              chat_system,
-            },
-            editor |> Updated.return,
-          );
-        };
+          } else if (content == "") {
+            let err =
+              Message.Utils.mk_api_failure_message(
+                "Compaction returned an empty summary.",
+              );
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(err),
+                  chat_id,
+                ),
+                model_cleared.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model_cleared,
+                chat_system,
+              },
+              editor |> Updated.return,
+            );
+          } else {
+            let summary =
+              Message.Utils.mk_compaction_summary(
+                ~method=method_label,
+                content,
+              );
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(summary),
+                  chat_id,
+                ),
+                model_cleared.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model_cleared,
+                chat_system,
+              },
+              editor |> Updated.return,
+            );
+          };
+        }
       | RequestForcedCompaction(chat_id) =>
         let model' =
           maybe_start_compaction(
@@ -3264,34 +3414,78 @@ module Agent = {
           },
           editor |> Updated.return,
         );
-      | ApiErrorResponse(chat_id, api_error_message) =>
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(api_error_message),
-              chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
-        (
-          {
-            ...model,
-            chat_system,
-            awaiting_response: None,
-            compaction_in_progress:
-              switch (model.compaction_in_progress) {
-              | Some(id) when id == chat_id => None
-              | c => c
+      | ApiErrorResponse(chat_id, api_error_message, origin) =>
+        switch (origin) {
+        | MainRequest(seq) =>
+          switch (model.pending_ignore_main_reply_seq) {
+          | Some(ig) when ig == seq => (
+              {
+                ...model,
+                pending_ignore_main_reply_seq: None,
+                awaiting_response: None,
               },
-            compaction_method_override:
-              switch (model.compaction_in_progress) {
-              | Some(id) when id == chat_id => None
-              | _ => model.compaction_method_override
+              editor |> Updated.return,
+            )
+          | _ =>
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(api_error_message),
+                  chat_id,
+                ),
+                model.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model,
+                chat_system,
+                awaiting_response: None,
               },
-          },
-          editor |> Updated.return,
-        );
+              editor |> Updated.return,
+            );
+          }
+        | CompactionRequest(seq) =>
+          switch (model.pending_ignore_compaction_reply_seq) {
+          | Some(ig) when ig == seq => (
+              {
+                ...model,
+                pending_ignore_compaction_reply_seq: None,
+                compaction_in_progress: None,
+                compaction_method_override: None,
+              },
+              editor |> Updated.return,
+            )
+          | _ =>
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(api_error_message),
+                  chat_id,
+                ),
+                model.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model,
+                chat_system,
+                awaiting_response: None,
+                compaction_in_progress:
+                  switch (model.compaction_in_progress) {
+                  | Some(id) when id == chat_id => None
+                  | c => c
+                  },
+                compaction_method_override:
+                  switch (model.compaction_in_progress) {
+                  | Some(id) when id == chat_id => None
+                  | _ => model.compaction_method_override
+                  },
+              },
+              editor |> Updated.return,
+            );
+          }
+        }
       | RetryApiError(chat_id, attempt) =>
         let delay_s = int_of_float(backoff_ms(attempt) /. 1000.0);
         let retry_note =
@@ -3335,127 +3529,169 @@ module Agent = {
             editor.editor,
             chat_id,
           );
-        let chat_system = model.chat_system;
-        switch (
-          settings.agent_globals.api_key,
-          AgentGlobals.get_active_llm_id(settings.agent_globals),
-        ) {
-        | (Some(api_key), Some(llm_id)) =>
-          send_llm_request(
-            ~api_key,
-            ~payload=
-              OpenRouter.Payload.Utils.mk_default(
-                ~model_id=llm_id,
-                ~messages=
-                  Chat.Utils.api_messages_of_messages(
-                    Chat.Utils.messages_for_openrouter(
-                      ChatSystem.Utils.find_chat(chat_id, chat_system),
-                    ),
-                  ),
-                ~tools=enabled_tools(model.prompting),
-              ),
-            ~schedule_action,
-            ~chat_id,
-            ~retry_attempt=attempt + 1,
-          );
-          (model, editor |> Updated.return);
-        | _ =>
-          let api_failure_message =
-            Message.Utils.mk_api_failure_message(
-              "API key or LLM not configured. Cannot retry.",
-            );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(api_failure_message),
-                chat_id,
-              ),
-              model.chat_system,
-            )
-            |> ChatSystem.Update.get;
+        if (Option.is_some(model.pending_ignore_main_reply_seq)) {
           (
             {
               ...model,
-              chat_system,
+              pending_ignore_main_reply_seq: None,
               awaiting_response: None,
             },
             editor |> Updated.return,
           );
+        } else {
+          let main_flight_seq = model.main_llm_seq + 1;
+          let chat_system = model.chat_system;
+          switch (
+            settings.agent_globals.api_key,
+            AgentGlobals.get_active_llm_id(settings.agent_globals),
+          ) {
+          | (Some(api_key), Some(llm_id)) =>
+            send_llm_request(
+              ~api_key,
+              ~payload=
+                OpenRouter.Payload.Utils.mk_default(
+                  ~model_id=llm_id,
+                  ~messages=
+                    Chat.Utils.api_messages_of_messages(
+                      Chat.Utils.messages_for_openrouter(
+                        ChatSystem.Utils.find_chat(chat_id, chat_system),
+                      ),
+                    ),
+                  ~tools=enabled_tools(model.prompting),
+                ),
+              ~schedule_action,
+              ~chat_id,
+              ~retry_attempt=attempt + 1,
+              ~main_flight_seq,
+            );
+            (
+              {
+                ...model,
+                main_llm_seq: main_flight_seq,
+              },
+              editor |> Updated.return,
+            );
+          | _ =>
+            let api_failure_message =
+              Message.Utils.mk_api_failure_message(
+                "API key or LLM not configured. Cannot retry.",
+              );
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(api_failure_message),
+                  chat_id,
+                ),
+                model.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model,
+                chat_system,
+                awaiting_response: None,
+              },
+              editor |> Updated.return,
+            );
+          };
         };
       | RetryEmptyResponse(chat_id, attempt) =>
-        let retry_msg =
-          "[Retry "
-          ++ string_of_int(attempt + 1)
-          ++ "/2] Your previous assistant message had no visible text (empty or whitespace-only). That is not allowed.\n"
-          ++ "MANDATORY: Reply now with at least one full sentence addressed to the user — acknowledge what they asked for, or summarize what you changed or attempted. Do not send an empty message again.\n"
-          ++ "If the workbench still has an open task or subtask, close it first using mark_active_task_complete (auto-finishes open subtasks), mark_active_task_failed, mark_active_subtask_complete, or mark_active_subtask_failed, then in the same turn or the next, write the required user-facing sentence.\n"
-          ++ "Never end with both empty text and no tool calls.";
-        let retry_message =
-          Message.Utils.mk_retry_note_message(
-            ~content=retry_msg,
-            ~sent_to_api=true,
-            ~deliver_as_user_on_api=true,
-          );
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(retry_message),
-              chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
-        let model = {
-          ...model,
-          chat_system,
-        };
-        switch (
-          settings.agent_globals.api_key,
-          AgentGlobals.get_active_llm_id(settings.agent_globals),
-        ) {
-        | (Some(api_key), Some(llm_id)) =>
-          send_llm_request(
-            ~api_key,
-            ~payload=
-              OpenRouter.Payload.Utils.mk_default(
-                ~model_id=llm_id,
-                ~messages=
-                  Chat.Utils.api_messages_of_messages(
-                    Chat.Utils.messages_for_openrouter(
-                      ChatSystem.Utils.find_chat(chat_id, model.chat_system),
-                    ),
-                  ),
-                ~tools=enabled_tools(model.prompting),
-              ),
-            ~schedule_action,
-            ~chat_id,
-            ~retry_attempt=0,
-          );
-          (model, editor |> Updated.return);
-        | _ =>
-          let api_failure_message =
-            Message.Utils.mk_api_failure_message(
-              "API key or LLM not configured. Cannot retry.",
-            );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(api_failure_message),
-                chat_id,
-              ),
-              model.chat_system,
-            )
-            |> ChatSystem.Update.get;
+        if (Option.is_some(model.pending_ignore_main_reply_seq)) {
           (
             {
               ...model,
-              chat_system,
+              pending_ignore_main_reply_seq: None,
               awaiting_response: None,
               last_empty_retry_attempt: None,
             },
             editor |> Updated.return,
           );
-        };
+        } else {
+          let retry_msg =
+            "[Retry "
+            ++ string_of_int(attempt + 1)
+            ++ "/2] Your previous assistant message had no visible text (empty or whitespace-only). That is not allowed.\n"
+            ++ "MANDATORY: Reply now with at least one full sentence addressed to the user — acknowledge what they asked for, or summarize what you changed or attempted. Do not send an empty message again.\n"
+            ++ "If you started a workbench plan and it is still open, update or close it when it matches your intent (e.g. mark_active_task_complete, mark_active_task_failed, or subtask tools). In the same turn or the next, write the required user-facing sentence.\n"
+            ++ "Never end with both empty text and no tool calls.";
+          let retry_message =
+            Message.Utils.mk_retry_note_message(
+              ~content=retry_msg,
+              ~sent_to_api=true,
+              ~deliver_as_user_on_api=true,
+            );
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AppendMessage(retry_message),
+                chat_id,
+              ),
+              model.chat_system,
+            )
+            |> ChatSystem.Update.get;
+          let model = {
+            ...model,
+            chat_system,
+          };
+          switch (
+            settings.agent_globals.api_key,
+            AgentGlobals.get_active_llm_id(settings.agent_globals),
+          ) {
+          | (Some(api_key), Some(llm_id)) =>
+            let main_flight_seq = model.main_llm_seq + 1;
+            send_llm_request(
+              ~api_key,
+              ~payload=
+                OpenRouter.Payload.Utils.mk_default(
+                  ~model_id=llm_id,
+                  ~messages=
+                    Chat.Utils.api_messages_of_messages(
+                      Chat.Utils.messages_for_openrouter(
+                        ChatSystem.Utils.find_chat(
+                          chat_id,
+                          model.chat_system,
+                        ),
+                      ),
+                    ),
+                  ~tools=enabled_tools(model.prompting),
+                ),
+              ~schedule_action,
+              ~chat_id,
+              ~retry_attempt=0,
+              ~main_flight_seq,
+            );
+            (
+              {
+                ...model,
+                main_llm_seq: main_flight_seq,
+              },
+              editor |> Updated.return,
+            );
+          | _ =>
+            let api_failure_message =
+              Message.Utils.mk_api_failure_message(
+                "API key or LLM not configured. Cannot retry.",
+              );
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(api_failure_message),
+                  chat_id,
+                ),
+                model.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model,
+                chat_system,
+                awaiting_response: None,
+                last_empty_retry_attempt: None,
+              },
+              editor |> Updated.return,
+            );
+          };
+        }
       | LoadTimelineSegment(segment, node_index) =>
         // On first click into history: save current editor state for Restore Original
         let restore_editor_state =

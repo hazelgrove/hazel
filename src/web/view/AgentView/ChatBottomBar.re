@@ -26,6 +26,12 @@ let view =
     | Some(id) when id == current_chat_id => true
     | _ => false
     };
+  let is_awaiting_assistant =
+    switch (agent_model.awaiting_response) {
+    | Some(id) when id == current_chat_id => true
+    | _ => false
+    };
+  let agent_busy = is_compacting || is_awaiting_assistant;
 
   let slash_menu = chat_system.ui.slash_menu;
 
@@ -81,7 +87,7 @@ let view =
 
   // Send message handler
   let send_message = _ =>
-    if (is_compacting) {
+    if (agent_busy) {
       Effect.Stop_propagation;
     } else {
       let message_content = String.trim(current_text);
@@ -169,6 +175,12 @@ let view =
   };
 
   // Copy chat as human-readable text function with toast notification
+  let stop_agent = _ =>
+    Effect.Many([
+      agent_inject(Agent.Agent.Update.Action.StopAgenticLoop),
+      Effect.Stop_propagation,
+    ]);
+
   let copy_chat = _ => {
     let messages = Agent.Chat.Utils.get(current_chat);
     let user_facing_messages =
@@ -426,7 +438,9 @@ let view =
               Attr.id("chat-message-input"),
               Attr.placeholder(
                 is_compacting
-                  ? "Compacting conversation…" : "Type your message...",
+                  ? "Compacting conversation…"
+                  : is_awaiting_assistant
+                      ? "Assistant is thinking…" : "Type your message...",
               ),
               Attr.property("autocomplete", Js.Unsafe.inject("off")),
               Attr.on_focus(_ => {
@@ -509,7 +523,7 @@ let view =
                   | None => Effect.Stop_propagation
                   }
                 | Some("Enter") when !shift_pressed =>
-                  if (is_compacting) {
+                  if (agent_busy) {
                     Effect.Stop_propagation;
                   } else {
                     switch (slash_menu) {
@@ -580,7 +594,19 @@ let view =
             ],
             [text(current_text)],
           ),
-          if (String.length(String.trim(current_text)) > 0 && !is_compacting) {
+          if (agent_busy) {
+            div(
+              ~attrs=[
+                clss(["send-button", "icon", "chat-message-stop-button"]),
+                Attr.on_click(stop_agent),
+                Attr.title("Stop — ignore the in-flight response"),
+              ],
+              [Icons.stop_square],
+            );
+          } else {
+            div(~attrs=[], []);
+          },
+          if (String.length(String.trim(current_text)) > 0 && !agent_busy) {
             div(
               ~attrs=[
                 clss(["send-button", "icon", "chat-message-send-button"]),
@@ -597,7 +623,11 @@ let view =
                   "icon",
                   "chat-message-send-button",
                 ]),
-                Attr.title("Send Message Disabled"),
+                Attr.title(
+                  agent_busy
+                    ? "Wait for the assistant or press Stop"
+                    : "Send Message Disabled",
+                ),
               ],
               [Icons.send],
             );

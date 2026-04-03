@@ -6,6 +6,8 @@ Use this when the program is EMPTY — just `?` or a standalone expression with 
 When empty, you MUST use initialize to write code; update_definition and update_body will fail (they require an existing binding).
 Once the program has let/type/module bindings, use the other edit tools instead.
 
+Incremental workflow (strongly preferred for non-trivial programs): put only a **small** first program in `code` (e.g. one `let` and a hole, or a short skeleton), then add bindings with `insert_after` / `insert_before` and fill definitions with `update_definition` / `update_body`. Avoid one monolithic `initialize` that pastes the entire solution unless the user explicitly wants a full replacement in one step.
+
 Parameters:
 code: string — the complete new program
 

@@ -246,6 +246,9 @@ let cancel =
     ],
   );
 
+/** Filled square — “stop” for in-flight generation */
+let stop_square = simple_icon(~view="0 0 24 24", ["M5 5h14v14H5z"]);
+
 let command_palette_sparkle =
   simple_icon(
     ~view="400 400 400 400",

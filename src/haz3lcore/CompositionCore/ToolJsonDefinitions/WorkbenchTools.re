@@ -7,8 +7,9 @@ Sets this as the active task. The first subtask becomes active automatically.
 Does NOT modify the Hazel program, probes, statics, or syntax projectors — only the workbench.
 You must still call edit tools (initialize, update_*, insert_*, delete_*) and placement tools (place_probe, place_statics, place_syntax_projector, …) to change what the user sees.
 
-Use this BEFORE starting any code work to establish a clear plan.
-Subtasks should be meaningful milestones (e.g., "Implement core logic", "Add tests"),
+Optional: use this for **larger or multi-turn** efforts where a visible plan helps (features, big refactors, many steps). **Skip** for trivial or one-shot edits — small fixes do not need a task; edits are not required to be tied to any task.
+
+When you do use it: subtasks should be meaningful milestones (e.g., "Implement core logic", "Add tests"),
 not individual tool calls (e.g., NOT "update definition", "add line break").
 Aim for 1-4 subtasks per task. Each subtask represents a logical stage of work.
 

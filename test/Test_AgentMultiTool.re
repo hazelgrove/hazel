@@ -69,7 +69,11 @@ let run_handle_llm_response =
     scheduled := scheduled^ @ [a];
   let (agent', _cell_ed) =
     Agent.Agent.Update.update(
-      Agent.Agent.Update.Action.HandleLLMResponse(reply, chat_id),
+      Agent.Agent.Update.Action.HandleLLMResponse(
+        reply,
+        chat_id,
+        agent.main_llm_seq,
+      ),
       agent,
       cell_editor,
       settings,
