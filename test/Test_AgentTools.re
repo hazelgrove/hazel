@@ -1238,6 +1238,22 @@ let high_level_node_map_tests = (
       },
     ),
     test_case(
+      "duplicate sibling path picks earliest let in chain",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let n = 1 in let n = 2 in n");
+        let id_n = HighLevelNodeMap.path_to_id(node_map, "n");
+        let node = HighLevelNodeMap.find(node_map, id_n);
+        check(int, "first n is sibling_idx 0", 0, node.sibling_idx);
+        check(
+          bool,
+          "path_to_id_opt matches path_to_id",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "n") == Some(id_n),
+        );
+      },
+    ),
+    test_case(
       "children reflect nested lets in def",
       `Quick,
       () => {

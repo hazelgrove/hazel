@@ -48,6 +48,7 @@ module Message = {
       | Prompt // Only one should exist
       | Context
       | RetryNote // Research transparency: empty/API retries
+      | ResponseCancelled // User stopped in-flight LLM; UI-only, not sent to API
       | CompactionSummary(string); // method label for UI; ends API prefix before this on older turns
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -102,6 +103,20 @@ module Message = {
         current_child: None,
       };
     };
+    /** Shown when the user stops the agent or compaction and the HTTP reply arrives later. */
+    let mk_response_cancelled_message = (~content: string): Model.t => {
+      let sanitized_content = String.trim(content);
+      {
+        id: Id.mk(),
+        content: sanitized_content,
+        timestamp: JsUtil.timestamp(),
+        role: System(ResponseCancelled),
+        api_message: None,
+        children: [],
+        current_child: None,
+      };
+    };
+
     let mk_retry_note_message =
         (~content: string, ~sent_to_api: bool, ~deliver_as_user_on_api: bool)
         : Model.t => {
@@ -361,6 +376,7 @@ module Message = {
             | Prompt => `String("prompt")
             | Context => `String("context")
             | RetryNote => `String("retry_note")
+            | ResponseCancelled => `String("response_cancelled")
             | CompactionSummary(method) =>
               `Assoc([("compaction_summary", `String(method))])
             }
@@ -510,6 +526,8 @@ module Chat = {
       context: option(Message.Model.t),
       created_at: float,
       current_view,
+      [@yojson.default []]
+      pending_send_queue: list(string),
     };
   };
 
@@ -706,14 +724,16 @@ module Chat = {
       };
     };
 
-    /** Transcript segment to summarize: after dev notes (or after the latest compaction on this branch). */
+    /** Transcript segment to send to the compaction LLM: after dev notes; if a prior compaction
+        summary exists on this branch, **include** that message so the model can merge it with newer
+        turns (slice starts at that summary, not after it). */
     let dialogue_slice_for_compaction_summary =
         (chat: Model.t): list(Message.Model.t) => {
       let linear = linearize(chat);
       let start =
         switch (last_compaction_index(0, None, linear)) {
         | None => 2
-        | Some(i) => i + 1
+        | Some(i) => i
         };
       ListUtil.remove_first_n(start, linear);
     };
@@ -738,35 +758,12 @@ module Chat = {
       };
     };
 
-    /** Rough prompt-token count for the next main-agent OpenRouter request (~4 characters per token
-        over wire content, plus a small per-message overhead). Not identical to the provider tokenizer
-        but tracks relative size changes after compaction. */
-    let estimate_openrouter_prompt_tokens = (chat: Model.t): int => {
-      let api_msgs =
-        messages_for_openrouter(chat) |> api_messages_of_messages;
-      let char_budget =
-        List.fold_left(
-          (acc, m: OpenRouter.Message.Model.t) => {
-            let tool_chars =
-              List.fold_left(
-                (a, tc: OpenRouter.Reply.Model.tool_call) =>
-                  a
-                  + String.length(tc.name)
-                  + String.length(Yojson.Safe.to_string(tc.args)),
-                0,
-                m.tool_calls,
-              );
-            acc + String.length(m.content) + tool_chars + 48;
-          },
-          0,
-          api_msgs,
-        );
-      max(1, char_budget / 4);
-    };
-
-    /** Value for the context meter: last provider [[prompt_tokens]] when an agent message **after**
-        the latest compaction already reported usage; otherwise, after compaction (or before any agent
-        usage exists), the estimated next payload size so the bar updates immediately. */
+    /** Value for the context meter: **only** the provider-reported [[prompt_tokens]] from the last
+        assistant message in the transcript when that message is still “current” for the bar:
+        - No compaction on the branch → last agent message’s usage (if any).
+        - Compaction present → that usage **only** if the last agent message is **after** the latest
+          compaction summary (same request shape the API already counted). Otherwise [None] so the UI
+        shows “—” (no client-side estimates). */
     let context_meter_prompt_tokens = (chat: Model.t): option(int) => {
       let messages = get(chat);
       let (_, last_agent_idx, last_agent_tokens, last_compaction_idx) =
@@ -803,7 +800,7 @@ module Chat = {
         );
       switch (last_compaction_idx, last_agent_idx, last_agent_tokens) {
       | (Some(ci), Some(ai), Some(tok)) when ai > ci => Some(tok)
-      | (Some(_), _, _) => Some(estimate_openrouter_prompt_tokens(chat))
+      | (Some(_), _, _) => None
       | (None, _, Some(tok)) => Some(tok)
       | (None, _, None) => None
       };
@@ -821,6 +818,7 @@ module Chat = {
         context: None,
         created_at: JsUtil.timestamp(),
         current_view: Messages,
+        pending_send_queue: [],
       };
       let dev_notes = Message.Utils.mk_developer_notes_message(dev_notes);
       let chat = append(dev_notes, chat);
@@ -941,7 +939,11 @@ module ChunkedUIChat = {
       | UserMessage(user_message)
       | AgentResponseChunk(agent_response_chunk)
       | CompactionNotice(compaction_notice)
-      | ErrorMessage(string);
+      | ErrorMessage(string)
+      | /** Stopped in-flight LLM/compaction — not under Filbert (see ChunkedUIChat.Utils.mk). */
+        ResponseCancelledMessage(
+          string,
+        );
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
@@ -1102,7 +1104,8 @@ module ChunkedUIChat = {
               convert_helper(rest, updated_model);
             | UserMessage(_)
             | CompactionNotice(_)
-            | ErrorMessage(_) =>
+            | ErrorMessage(_)
+            | ResponseCancelledMessage(_) =>
               let chunk = mk_agent_response_chunk(message);
               let updated_model = {
                 ...acc_model,
@@ -1110,6 +1113,13 @@ module ChunkedUIChat = {
               };
               convert_helper(rest, updated_model);
             }
+          | System(ResponseCancelled) =>
+            let chunk = Model.ResponseCancelledMessage(message.content);
+            let updated_model = {
+              ...acc_model,
+              log: acc_model.log @ [chunk],
+            };
+            convert_helper(rest, updated_model);
           }
         };
       };
@@ -2087,7 +2097,8 @@ module Agent = {
         | SetToolEnabled(string, bool)
         | ToggleToolsViewExpanded(string)
         | RequestForcedCompaction(Id.t)
-        | StopAgenticLoop;
+        | StopAgenticLoop
+        | FlushPendingSend(Id.t);
     };
 
     let max_api_retries = 3;
@@ -2423,37 +2434,28 @@ module Agent = {
         | User => true
         | _ => false
         };
-      let append_block_notice = (m: Model.t, reason: string): Model.t => {
-        let notice =
-          Message.Utils.mk_api_failure_message(
-            reason
-            ++ " Only one assistant or compaction request runs at a time.",
-          );
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(notice),
-              chat_id,
-            ),
-            m.chat_system,
-          )
-          |> ChatSystem.Update.get;
-        {
-          ...m,
-          chat_system,
+      let enqueue_while_busy = (m: Model.t, text: string): Model.t => {
+        let trimmed = String.trim(text);
+        if (trimmed == "") {
+          m;
+        } else {
+          let chat = ChatSystem.Utils.find_chat(chat_id, m.chat_system);
+          let chat' = {
+            ...chat,
+            pending_send_queue: chat.pending_send_queue @ [trimmed],
+          };
+          {
+            ...m,
+            chat_system: ChatSystem.Utils.update_chat(chat', m.chat_system),
+          };
         };
       };
       if (user_trying_new_round
-          && Option.is_some(model.compaction_in_progress)) {
-        Ok(append_block_notice(model, "Compaction is in progress."));
-      } else if (user_trying_new_round
-                 && Option.is_some(model.awaiting_response)) {
-        Ok(
-          append_block_notice(
-            model,
-            "The assistant is still processing. Wait or press Stop.",
-          ),
-        );
+          && (
+            Option.is_some(model.compaction_in_progress)
+            || Option.is_some(model.awaiting_response)
+          )) {
+        Ok(enqueue_while_busy(model, new_message.content));
       } else {
         let chat_system = model.chat_system;
         let chat_system =
@@ -2966,11 +2968,14 @@ module Agent = {
         )
         : (Model.t, Updated.t(CellEditor.Model.t)) => {
       switch (model.pending_ignore_main_reply_seq) {
-      | Some(ignore_seq) when ignore_seq == flight_seq => (
+      | Some(ignore_seq) when ignore_seq == flight_seq =>
+        /* Cancel line was already appended in StopAgenticLoop. */
+        (
           {
             ...model,
             pending_ignore_main_reply_seq: None,
-            awaiting_response: None,
+            awaiting_response:
+              model.main_llm_seq > flight_seq ? model.awaiting_response : None,
             last_empty_retry_attempt: None,
           },
           cell_editor |> Updated.return_quiet,
@@ -3211,6 +3216,24 @@ module Agent = {
       };
     };
 
+    let schedule_flush_pending_if_idle_for_chat =
+        (
+          model_after: Model.t,
+          chat_id: Id.t,
+          schedule_action: Action.t => unit,
+        )
+        : unit =>
+      if (Option.is_some(model_after.awaiting_response)
+          || Option.is_some(model_after.compaction_in_progress)) {
+        ();
+      } else {
+        let chat =
+          ChatSystem.Utils.find_chat(chat_id, model_after.chat_system);
+        if (chat.pending_send_queue != []) {
+          schedule_action(Action.FlushPendingSend(chat_id));
+        };
+      };
+
     let update =
         (
           action: Action.t,
@@ -3266,126 +3289,200 @@ module Agent = {
           )
         };
       | StopAgenticLoop =>
-        switch (model.awaiting_response, model.compaction_in_progress) {
-        | (Some(_), _) => (
-            {
+        let (m, e) =
+          switch (model.awaiting_response, model.compaction_in_progress) {
+          | (Some(awaiting_chat_id), _) =>
+            /* Append cancel immediately so it stays above e.g. a flushed
+               queued user message (late HTTP still uses pending_ignore_*). */
+            let cancelled =
+              Message.Utils.mk_response_cancelled_message(
+                ~content="Agent response cancelled.",
+              );
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(cancelled),
+                  awaiting_chat_id,
+                ),
+                model.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model,
+                chat_system,
+                awaiting_response: None,
+                last_empty_retry_attempt: None,
+                last_active_task_nudge_attempt: None,
+                pending_ignore_main_reply_seq: Some(model.main_llm_seq),
+              },
+              editor |> Updated.return,
+            );
+          | (None, Some(compaction_chat_id)) =>
+            let cancelled =
+              Message.Utils.mk_response_cancelled_message(
+                ~content="Compaction cancelled.",
+              );
+            let chat_system =
+              ChatSystem.Update.update(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.AppendMessage(cancelled),
+                  compaction_chat_id,
+                ),
+                model.chat_system,
+              )
+              |> ChatSystem.Update.get;
+            (
+              {
+                ...model,
+                chat_system,
+                compaction_in_progress: None,
+                compaction_method_override: None,
+                pending_ignore_compaction_reply_seq:
+                  Some(model.compaction_llm_seq),
+              },
+              editor |> Updated.return,
+            );
+          | (None, None) => (model, editor |> Updated.return)
+          };
+        schedule_flush_pending_if_idle_for_chat(
+          m,
+          m.chat_system.current,
+          schedule_action,
+        );
+        (m, e);
+      | FlushPendingSend(chat_id) =>
+        if (Option.is_some(model.awaiting_response)
+            || Option.is_some(model.compaction_in_progress)) {
+          (model, editor |> Updated.return);
+        } else {
+          let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+          switch (chat.pending_send_queue) {
+          | [] => (model, editor |> Updated.return)
+          | [first, ...rest] =>
+            let chat' = {
+              ...chat,
+              pending_send_queue: rest,
+            };
+            let model' = {
               ...model,
-              awaiting_response: None,
-              last_empty_retry_attempt: None,
-              last_active_task_nudge_attempt: None,
-              pending_ignore_main_reply_seq: Some(model.main_llm_seq),
-            },
-            editor |> Updated.return,
-          )
-        | (None, Some(_)) => (
-            {
+              chat_system:
+                ChatSystem.Utils.update_chat(chat', model.chat_system),
+            };
+            schedule_action(
+              Action.SendMessage(
+                Message.Utils.mk_user_message(first),
+                chat_id,
+              ),
+            );
+            (model', editor |> Updated.return);
+          };
+        }
+      | HandleLLMResponse(reply, chat_id, flight_seq) =>
+        let (m, e) =
+          handle_llm_response(
+            reply,
+            chat_id,
+            flight_seq,
+            model,
+            editor,
+            settings,
+            schedule_action,
+          );
+        schedule_flush_pending_if_idle_for_chat(m, chat_id, schedule_action);
+        (m, e);
+      | HandleCompactionLLMReply(reply, chat_id, flight_seq) =>
+        let (m, e) =
+          switch (model.pending_ignore_compaction_reply_seq) {
+          | Some(ignore_seq) when ignore_seq == flight_seq =>
+            /* "Compaction cancelled." was already appended in StopAgenticLoop. */
+            (
+              {
+                ...model,
+                pending_ignore_compaction_reply_seq: None,
+              },
+              editor |> Updated.return,
+            )
+          | _ =>
+            let method_label =
+              Option.value(
+                ~default=compaction_summary_method_label,
+                model.compaction_method_override,
+              );
+            let model_cleared = {
               ...model,
               compaction_in_progress: None,
               compaction_method_override: None,
-              pending_ignore_compaction_reply_seq:
-                Some(model.compaction_llm_seq),
-            },
-            editor |> Updated.return,
-          )
-        | (None, None) => (model, editor |> Updated.return)
-        }
-      | HandleLLMResponse(reply, chat_id, flight_seq) =>
-        handle_llm_response(
-          reply,
-          chat_id,
-          flight_seq,
-          model,
-          editor,
-          settings,
-          schedule_action,
-        )
-      | HandleCompactionLLMReply(reply, chat_id, flight_seq) =>
-        switch (model.pending_ignore_compaction_reply_seq) {
-        | Some(ignore_seq) when ignore_seq == flight_seq => (
-            {
-              ...model,
-              pending_ignore_compaction_reply_seq: None,
-            },
-            editor |> Updated.return,
-          )
-        | _ =>
-          let method_label =
-            Option.value(
-              ~default=compaction_summary_method_label,
-              model.compaction_method_override,
-            );
-          let model_cleared = {
-            ...model,
-            compaction_in_progress: None,
-            compaction_method_override: None,
+            };
+            let content = String.trim(reply.content);
+            if (content == "" && reply.tool_calls != []) {
+              let err =
+                Message.Utils.mk_api_failure_message(
+                  "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",
+                );
+              let chat_system =
+                ChatSystem.Update.update(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.AppendMessage(err),
+                    chat_id,
+                  ),
+                  model_cleared.chat_system,
+                )
+                |> ChatSystem.Update.get;
+              (
+                {
+                  ...model_cleared,
+                  chat_system,
+                },
+                editor |> Updated.return,
+              );
+            } else if (content == "") {
+              let err =
+                Message.Utils.mk_api_failure_message(
+                  "Compaction returned an empty summary.",
+                );
+              let chat_system =
+                ChatSystem.Update.update(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.AppendMessage(err),
+                    chat_id,
+                  ),
+                  model_cleared.chat_system,
+                )
+                |> ChatSystem.Update.get;
+              (
+                {
+                  ...model_cleared,
+                  chat_system,
+                },
+                editor |> Updated.return,
+              );
+            } else {
+              let summary =
+                Message.Utils.mk_compaction_summary(
+                  ~method=method_label,
+                  content,
+                );
+              let chat_system =
+                ChatSystem.Update.update(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.AppendMessage(summary),
+                    chat_id,
+                  ),
+                  model_cleared.chat_system,
+                )
+                |> ChatSystem.Update.get;
+              (
+                {
+                  ...model_cleared,
+                  chat_system,
+                },
+                editor |> Updated.return,
+              );
+            };
           };
-          let content = String.trim(reply.content);
-          if (content == "" && reply.tool_calls != []) {
-            let err =
-              Message.Utils.mk_api_failure_message(
-                "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",
-              );
-            let chat_system =
-              ChatSystem.Update.update(
-                ChatSystem.Update.Action.ChatAction(
-                  Chat.Update.Action.AppendMessage(err),
-                  chat_id,
-                ),
-                model_cleared.chat_system,
-              )
-              |> ChatSystem.Update.get;
-            (
-              {
-                ...model_cleared,
-                chat_system,
-              },
-              editor |> Updated.return,
-            );
-          } else if (content == "") {
-            let err =
-              Message.Utils.mk_api_failure_message(
-                "Compaction returned an empty summary.",
-              );
-            let chat_system =
-              ChatSystem.Update.update(
-                ChatSystem.Update.Action.ChatAction(
-                  Chat.Update.Action.AppendMessage(err),
-                  chat_id,
-                ),
-                model_cleared.chat_system,
-              )
-              |> ChatSystem.Update.get;
-            (
-              {
-                ...model_cleared,
-                chat_system,
-              },
-              editor |> Updated.return,
-            );
-          } else {
-            let summary =
-              Message.Utils.mk_compaction_summary(
-                ~method=method_label,
-                content,
-              );
-            let chat_system =
-              ChatSystem.Update.update(
-                ChatSystem.Update.Action.ChatAction(
-                  Chat.Update.Action.AppendMessage(summary),
-                  chat_id,
-                ),
-                model_cleared.chat_system,
-              )
-              |> ChatSystem.Update.get;
-            (
-              {
-                ...model_cleared,
-                chat_system,
-              },
-              editor |> Updated.return,
-            );
-          };
-        }
+        schedule_flush_pending_if_idle_for_chat(m, chat_id, schedule_action);
+        (m, e);
       | RequestForcedCompaction(chat_id) =>
         let model' =
           maybe_start_compaction(
@@ -3415,77 +3512,85 @@ module Agent = {
           editor |> Updated.return,
         );
       | ApiErrorResponse(chat_id, api_error_message, origin) =>
-        switch (origin) {
-        | MainRequest(seq) =>
-          switch (model.pending_ignore_main_reply_seq) {
-          | Some(ig) when ig == seq => (
-              {
-                ...model,
-                pending_ignore_main_reply_seq: None,
-                awaiting_response: None,
-              },
-              editor |> Updated.return,
-            )
-          | _ =>
-            let chat_system =
-              ChatSystem.Update.update(
-                ChatSystem.Update.Action.ChatAction(
-                  Chat.Update.Action.AppendMessage(api_error_message),
-                  chat_id,
-                ),
-                model.chat_system,
+        let (m, e) =
+          switch (origin) {
+          | MainRequest(seq) =>
+            switch (model.pending_ignore_main_reply_seq) {
+            | Some(ig) when ig == seq => (
+                {
+                  ...model,
+                  pending_ignore_main_reply_seq: None,
+                  awaiting_response:
+                    model.main_llm_seq > seq ? model.awaiting_response : None,
+                },
+                editor |> Updated.return,
               )
-              |> ChatSystem.Update.get;
-            (
-              {
-                ...model,
-                chat_system,
-                awaiting_response: None,
-              },
-              editor |> Updated.return,
-            );
-          }
-        | CompactionRequest(seq) =>
-          switch (model.pending_ignore_compaction_reply_seq) {
-          | Some(ig) when ig == seq => (
-              {
-                ...model,
-                pending_ignore_compaction_reply_seq: None,
-                compaction_in_progress: None,
-                compaction_method_override: None,
-              },
-              editor |> Updated.return,
-            )
-          | _ =>
-            let chat_system =
-              ChatSystem.Update.update(
-                ChatSystem.Update.Action.ChatAction(
-                  Chat.Update.Action.AppendMessage(api_error_message),
-                  chat_id,
-                ),
-                model.chat_system,
+            | _ =>
+              let chat_system =
+                ChatSystem.Update.update(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.AppendMessage(api_error_message),
+                    chat_id,
+                  ),
+                  model.chat_system,
+                )
+                |> ChatSystem.Update.get;
+              (
+                {
+                  ...model,
+                  chat_system,
+                  awaiting_response: None,
+                },
+                editor |> Updated.return,
+              );
+            }
+          | CompactionRequest(seq) =>
+            switch (model.pending_ignore_compaction_reply_seq) {
+            | Some(ig) when ig == seq => (
+                {
+                  ...model,
+                  pending_ignore_compaction_reply_seq: None,
+                  compaction_in_progress:
+                    model.compaction_llm_seq > seq
+                      ? model.compaction_in_progress : None,
+                  compaction_method_override:
+                    model.compaction_llm_seq > seq
+                      ? model.compaction_method_override : None,
+                },
+                editor |> Updated.return,
               )
-              |> ChatSystem.Update.get;
-            (
-              {
-                ...model,
-                chat_system,
-                awaiting_response: None,
-                compaction_in_progress:
-                  switch (model.compaction_in_progress) {
-                  | Some(id) when id == chat_id => None
-                  | c => c
-                  },
-                compaction_method_override:
-                  switch (model.compaction_in_progress) {
-                  | Some(id) when id == chat_id => None
-                  | _ => model.compaction_method_override
-                  },
-              },
-              editor |> Updated.return,
-            );
-          }
-        }
+            | _ =>
+              let chat_system =
+                ChatSystem.Update.update(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.AppendMessage(api_error_message),
+                    chat_id,
+                  ),
+                  model.chat_system,
+                )
+                |> ChatSystem.Update.get;
+              (
+                {
+                  ...model,
+                  chat_system,
+                  awaiting_response: None,
+                  compaction_in_progress:
+                    switch (model.compaction_in_progress) {
+                    | Some(id) when id == chat_id => None
+                    | c => c
+                    },
+                  compaction_method_override:
+                    switch (model.compaction_in_progress) {
+                    | Some(id) when id == chat_id => None
+                    | _ => model.compaction_method_override
+                    },
+                },
+                editor |> Updated.return,
+              );
+            }
+          };
+        schedule_flush_pending_if_idle_for_chat(m, chat_id, schedule_action);
+        (m, e);
       | RetryApiError(chat_id, attempt) =>
         let delay_s = int_of_float(backoff_ms(attempt) /. 1000.0);
         let retry_note =

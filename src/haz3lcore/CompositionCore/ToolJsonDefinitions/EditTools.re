@@ -61,7 +61,7 @@ This overwrites the ENTIRE definition — including any nested let bindings with
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner"). Avoid shadowing duplicate names across nested scopes; if a path is ambiguous, use a nested path or rename.
+path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner"). Inner defs use "outer/inner". If the same name appears twice in the sibling chain, the tool targets the **earliest** `let`; rename or delete that one to reach the next, or disambiguate with a nested path when one binding sits inside another's definition.
 code: string — the new definition code
 
 Example:
@@ -106,7 +106,7 @@ let update_definition: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node to update (e.g. \"b\" or \"a/b\").",
+                        "Slash-delimited path (e.g. \"b\", \"utils/helper\"). Duplicate names in the chain → earliest binding wins; nested defs use outer/inner.",
                       ),
                     ),
                   ]),
@@ -136,7 +136,7 @@ The body is the rest of the program that follows this binding.
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the binding whose body to replace. Avoid shadowing duplicate names; use nested paths (outer/inner) when several bindings could match the same name.
+path: string — slash-delimited path to the binding whose body to replace. Nested defs need ancestors (e.g. "wrap/is_odd"). Duplicate sibling names → earliest `let` is targeted until the earlier binding is renamed or removed.
 code: string — the new body code
 
 Example:
@@ -178,7 +178,7 @@ let update_body: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node whose body should be replaced.",
+                        "Slash-delimited path; outer/inner for nested defs. Duplicate chain names → earliest binding.",
                       ),
                     ),
                   ]),
@@ -207,7 +207,7 @@ Renames or changes the pattern (left-hand side of `=`) of the binding at the giv
 Automatically updates all use sites of the variable throughout the program.
 
 Parameters:
-path: string — slash-delimited path to the binding to rename. Avoid ambiguous paths when names shadow; prefer nested paths or unique names.
+path: string — slash-delimited path to the binding to rename. Nested defs: use outer/inner. Duplicate sibling names: targets the earliest `let` with that name.
 code: string — the new pattern (may include type annotation)
 
 Example:

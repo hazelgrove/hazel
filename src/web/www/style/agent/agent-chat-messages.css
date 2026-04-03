@@ -297,6 +297,16 @@
   border-radius: 0 4px 4px 0;
 }
 
+/* User stopped in-flight LLM / compaction (discarded reply) */
+.agent-system-message.agent-response-cancelled {
+  font-size: 0.82em;
+  font-style: italic;
+  color: var(--BR2);
+  opacity: 0.75;
+  padding: 0.35em 0.5em;
+  margin: 0.2em 0 0.35em;
+}
+
 /* Input Container at Bottom */
 .chat-input-container {
   padding: 0.8em 1em;
@@ -306,6 +316,36 @@
   flex-direction: column;
   gap: 0.5em;
   flex-shrink: 0; /* Prevent shrinking */
+}
+
+/* Queued user messages while the agent is busy (see Agent.Chat.pending_send_queue) */
+.chat-send-queue-panel {
+  width: 100%;
+  max-width: 100%;
+}
+
+.chat-send-queue-header {
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--BR2);
+  margin: 0 0 0.3em 0.1em;
+}
+
+.chat-send-queue-body {
+  max-height: calc(2 * 1.35em + 0.35em);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.4em 0.55em;
+  font-size: 0.88em;
+  line-height: 1.35;
+  color: var(--STONE);
+  background: var(--T1);
+  border: 0.6px solid var(--BR2);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Action buttons row - above input */
@@ -919,7 +959,7 @@
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 0.5em;
+  gap: 0;
 }
 
 /* Slash commands: palette above the composer (triggered by typing "/") */
@@ -972,7 +1012,7 @@
 .chat-message-input {
   width: 100%;
   padding: 0.6em 0.8em;
-  padding-right: 2.5em; /* Add padding for the send button */
+  padding-right: 4.25em; /* send and/or queue+stop inside composer */
   border-radius: 8px;
   border: 0.6px solid var(--BR2);
   background-color: var(--SAND);
@@ -987,6 +1027,13 @@
   box-sizing: border-box;
   outline: none;
   transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* Only the textarea is in normal flow; send/stop are position:absolute */
+.chat-message-input-container > .chat-message-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }
 
 .chat-message-input:hover {
@@ -1144,6 +1191,76 @@
 }
 
 .chat-message-input-container .chat-message-send-button:active {
+  background-color: var(--T3);
+}
+
+/* Stop — same slot and size as .chat-message-send-button (inside composer) */
+.chat-message-input-container .chat-message-stop-button {
+  position: absolute;
+  bottom: 0.6em;
+  right: 0.35em;
+  width: 20px;
+  height: 20px;
+  border: 0.75px solid var(--BR3);
+  background-color: var(--T1);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  fill: var(--STONE);
+  z-index: 11;
+  pointer-events: auto;
+}
+
+.chat-message-input-container .chat-message-stop-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chat-message-input-container .chat-message-stop-button:hover {
+  background-color: var(--T2);
+  border-color: var(--BR4);
+}
+
+.chat-message-input-container .chat-message-stop-button:active {
+  background-color: var(--T3);
+}
+
+/* Queue send (while busy) — sits left of the stop button */
+.chat-message-input-container .chat-message-queue-send-button {
+  position: absolute;
+  bottom: 0.6em;
+  right: 2.35em;
+  width: 20px;
+  height: 20px;
+  border: 0.75px solid var(--BR3);
+  background-color: var(--T1);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  fill: var(--STONE);
+  z-index: 11;
+  pointer-events: auto;
+}
+
+.chat-message-input-container .chat-message-queue-send-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chat-message-input-container .chat-message-queue-send-button:hover {
+  background-color: var(--T2);
+  border-color: var(--BR4);
+}
+
+.chat-message-input-container .chat-message-queue-send-button:active {
   background-color: var(--T3);
 }
 
@@ -2325,8 +2442,14 @@
 .compaction-notice-body {
   font-size: 0.88em;
   line-height: 1.45;
-  white-space: pre-wrap;
   color: var(--STONE);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Compaction summaries use Markdown (same Omd pipeline as Filbert replies). */
+.compaction-notice-body .agent-message-markdown {
+  white-space: normal;
 }
 
 /* Fold marker (⋱) in read-only code / agent context */

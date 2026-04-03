@@ -608,6 +608,21 @@ let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {
   List.map((id: Id.t) => id_to_name(node_map, id), id_path);
 };
 
+/** When several bindings share the same path string (e.g. two `let n` in one chain), pick the
+    **earliest** in program order: lowest [[sibling_idx]] among matches, then [[Id.compare]]. */
+let pick_id_for_ambiguous_path = (node_map: t, ids: list(Id.t)): Id.t => {
+  let cmp = (id1: Id.t, id2: Id.t): int => {
+    let n1 = find(node_map, id1);
+    let n2 = find(node_map, id2);
+    switch (Int.compare(n1.sibling_idx, n2.sibling_idx)) {
+    | 0 => Id.compare(id1, id2)
+    | c => c
+    };
+  };
+  let sorted = List.sort(cmp, ids);
+  List.hd(sorted);
+};
+
 let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
   let path_names = split_path(path);
   // Convert each node's path (list of Ids) to a list of names and compare
@@ -620,9 +635,9 @@ let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
            ? Some(id) : None
        );
   switch (matches) {
+  | [] => None
   | [id] => Some(id)
-  | []
-  | [_, _, ..._] => None
+  | [_, _, ..._] as ids => Some(pick_id_for_ambiguous_path(node_map, ids))
   };
 };
 
@@ -754,15 +769,7 @@ let path_to_id = (node_map: t, path: string): Id.t => {
       ),
     )
   | [id] => id
-  | [_, _, ..._] =>
-    raise(
-      Failure(
-        "Ambiguous path \""
-        ++ path
-        ++ "\": multiple bindings share this name path (often from shadowing). "
-        ++ "Use a nested path such as outer/inner to name the intended binding.",
-      ),
-    )
+  | [_, _, ..._] as ids => pick_id_for_ambiguous_path(node_map, ids)
   };
 };
 

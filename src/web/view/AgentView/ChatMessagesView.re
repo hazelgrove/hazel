@@ -612,6 +612,9 @@ let chat_messages_scroll_stamp =
       | ErrorMessage(s) =>
         mix(7);
         mix(String.length(s));
+      | ResponseCancelledMessage(s) =>
+        mix(8);
+        mix(String.length(s));
       },
     chunked_chat.log,
   );
@@ -1057,6 +1060,11 @@ let view =
                    [text(msg.content)],
                  ),
                )
+             | Agent.Message.Model.System(
+                 Agent.Message.Model.ResponseCancelled,
+               ) =>
+               /* Chunked as ResponseCancelledMessage — not under Filbert */
+               None
              | ToolResult(tool_result) =>
                // Tool call message - display inline with expand/collapse
                let toggle_expanded = _ => {
@@ -1399,7 +1407,10 @@ let view =
             ~attrs=[clss(["compaction-notice-method"])],
             [text("Method: " ++ method)],
           ),
-          div(~attrs=[clss(["compaction-notice-body"])], [text(content)]),
+          div(
+            ~attrs=[clss(["compaction-notice-body"])],
+            [AgentMessageMarkdown.view(content)],
+          ),
         ],
       )
     | Agent.ChunkedUIChat.Model.ErrorMessage(error_content) =>
@@ -1409,6 +1420,28 @@ let view =
           clss(["message-container", "system-message-container", "error"]),
         ],
         [div(~attrs=[clss(["system-message"])], [text(error_content)])],
+      )
+    | Agent.ChunkedUIChat.Model.ResponseCancelledMessage(content) =>
+      div(
+        ~attrs=[
+          clss([
+            "message-container",
+            "system-message-container",
+            "response-cancelled-message-container",
+          ]),
+        ],
+        [
+          div(
+            ~attrs=[
+              clss([
+                "system-message",
+                "agent-system-message",
+                "agent-response-cancelled",
+              ]),
+            ],
+            [text(content)],
+          ),
+        ],
       )
     };
   };
@@ -1463,7 +1496,7 @@ let view =
                       ~attrs=[
                         clss(["message-identifier", "llm-identifier"]),
                       ],
-                      [text("Agent")],
+                      [Icons.filbert, text("Filbert")],
                     ),
                     div(
                       ~attrs=[clss(["agent-message-loading-dots"])],

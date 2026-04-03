@@ -85,33 +85,29 @@ let view =
     ]);
   };
 
-  // Send message handler
-  let send_message = _ =>
-    if (agent_busy) {
-      Effect.Stop_propagation;
+  // Send / queue: while the agent is busy, SendMessage enqueues for later (see Agent.send_message).
+  let send_message = _ => {
+    let message_content = String.trim(current_text);
+    if (String.length(message_content) > 0) {
+      let user_message = Agent.Message.Utils.mk_user_message(message_content);
+      Effect.Many([
+        agent_inject(
+          Agent.Agent.Update.Action.SendMessage(
+            user_message,
+            current_chat_id,
+          ),
+        ),
+        agent_inject(
+          Agent.Agent.Update.Action.ChatSystemAction(
+            Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
+          ),
+        ),
+        Effect.Stop_propagation,
+      ]);
     } else {
-      let message_content = String.trim(current_text);
-      if (String.length(message_content) > 0) {
-        let user_message =
-          Agent.Message.Utils.mk_user_message(message_content);
-        Effect.Many([
-          agent_inject(
-            Agent.Agent.Update.Action.SendMessage(
-              user_message,
-              current_chat_id,
-            ),
-          ),
-          agent_inject(
-            Agent.Agent.Update.Action.ChatSystemAction(
-              Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
-            ),
-          ),
-          Effect.Stop_propagation,
-        ]);
-      } else {
-        Effect.Stop_propagation;
-      };
+      Effect.Stop_propagation;
     };
+  };
 
   // Handler functions for icon buttons
   let switch_to_prompt = _ => {
@@ -248,8 +244,8 @@ let view =
     Effect.Stop_propagation;
   };
 
-  /** Provider prompt_tokens after the last agent turn, or an estimated next payload size right
-      after compaction (see [[Agent.Chat.Utils.context_meter_prompt_tokens]]). */
+  /** Provider-reported prompt_tokens from the last agent turn when applicable; [None] → “—” in the
+      label (e.g. before any reply or after compaction until the next assistant message reports usage). */
   let last_prompt_tokens_opt: option(int) =
     Agent.Chat.Utils.context_meter_prompt_tokens(current_chat);
   let context_limit_opt =
@@ -393,6 +389,25 @@ let view =
           ),
         ],
       ),
+      if (current_chat.pending_send_queue != []) {
+        div(
+          ~attrs=[clss(["chat-send-queue-panel"])],
+          [
+            div(
+              ~attrs=[clss(["chat-send-queue-header"])],
+              [text("Queue")],
+            ),
+            div(
+              ~attrs=[clss(["chat-send-queue-body"])],
+              [
+                text(String.concat("\n\n", current_chat.pending_send_queue)),
+              ],
+            ),
+          ],
+        );
+      } else {
+        div(~attrs=[], []);
+      },
       div(
         ~attrs=[clss(["chat-message-input-container"])],
         [
@@ -438,9 +453,10 @@ let view =
               Attr.id("chat-message-input"),
               Attr.placeholder(
                 is_compacting
-                  ? "Compacting conversation…"
+                  ? "Compacting… Press Enter to queue a message (Shift+Enter newline)."
                   : is_awaiting_assistant
-                      ? "Assistant is thinking…" : "Type your message...",
+                      ? "Press Enter to queue your next message (Shift+Enter newline). Stop is click-only."
+                      : "Type your message...",
               ),
               Attr.property("autocomplete", Js.Unsafe.inject("off")),
               Attr.on_focus(_ => {
@@ -523,44 +539,25 @@ let view =
                   | None => Effect.Stop_propagation
                   }
                 | Some("Enter") when !shift_pressed =>
-                  if (agent_busy) {
-                    Effect.Stop_propagation;
-                  } else {
-                    switch (slash_menu) {
-                    | Some(sm) =>
-                      let cmds = Agent.ChatSlashCommands.filtered(sm.filter);
-                      switch (List.nth_opt(cmds, sm.selected_index)) {
-                      | Some((name, _)) =>
-                        Js.Opt.iter(
-                          Dom_html.document##getElementById(
-                            Js.string("chat-message-input"),
-                          ),
-                          el => {
-                            let textarea = Js.Unsafe.coerce(el);
-                            textarea##blur();
-                          },
-                        );
-                        Effect.Many([
-                          effect_run_slash_command(name),
-                          Effect.Prevent_default,
-                          Effect.Stop_propagation,
-                        ]);
-                      | None =>
-                        Js.Opt.iter(
-                          Dom_html.document##getElementById(
-                            Js.string("chat-message-input"),
-                          ),
-                          el => {
-                            let textarea = Js.Unsafe.coerce(el);
-                            textarea##blur();
-                          },
-                        );
-                        Effect.Many([
-                          send_message(),
-                          Effect.Prevent_default,
-                          Effect.Stop_propagation,
-                        ]);
-                      };
+                  switch (slash_menu) {
+                  | Some(sm) =>
+                    let cmds = Agent.ChatSlashCommands.filtered(sm.filter);
+                    switch (List.nth_opt(cmds, sm.selected_index)) {
+                    | Some((name, _)) =>
+                      Js.Opt.iter(
+                        Dom_html.document##getElementById(
+                          Js.string("chat-message-input"),
+                        ),
+                        el => {
+                          let textarea = Js.Unsafe.coerce(el);
+                          textarea##blur();
+                        },
+                      );
+                      Effect.Many([
+                        effect_run_slash_command(name),
+                        Effect.Prevent_default,
+                        Effect.Stop_propagation,
+                      ]);
                     | None =>
                       Js.Opt.iter(
                         Dom_html.document##getElementById(
@@ -577,6 +574,21 @@ let view =
                         Effect.Stop_propagation,
                       ]);
                     };
+                  | None =>
+                    Js.Opt.iter(
+                      Dom_html.document##getElementById(
+                        Js.string("chat-message-input"),
+                      ),
+                      el => {
+                        let textarea = Js.Unsafe.coerce(el);
+                        textarea##blur();
+                      },
+                    );
+                    Effect.Many([
+                      send_message(),
+                      Effect.Prevent_default,
+                      Effect.Stop_propagation,
+                    ]);
                   }
                 | Some("Enter") => Effect.Stop_propagation
                 | _ => Effect.Stop_propagation
@@ -594,19 +606,34 @@ let view =
             ],
             [text(current_text)],
           ),
+          if (agent_busy && String.length(String.trim(current_text)) > 0) {
+            div(
+              ~attrs=[
+                clss([
+                  "send-button",
+                  "icon",
+                  "chat-message-queue-send-button",
+                ]),
+                Attr.on_click(send_message),
+                Attr.title("Add to queue (same as Enter)"),
+              ],
+              [Icons.send],
+            );
+          } else {
+            div(~attrs=[], []);
+          },
           if (agent_busy) {
             div(
               ~attrs=[
                 clss(["send-button", "icon", "chat-message-stop-button"]),
                 Attr.on_click(stop_agent),
-                Attr.title("Stop — ignore the in-flight response"),
+                Attr.title(
+                  "Stop — ignore the in-flight response (click only; no keyboard shortcut)",
+                ),
               ],
               [Icons.stop_square],
             );
-          } else {
-            div(~attrs=[], []);
-          },
-          if (String.length(String.trim(current_text)) > 0 && !agent_busy) {
+          } else if (String.length(String.trim(current_text)) > 0) {
             div(
               ~attrs=[
                 clss(["send-button", "icon", "chat-message-send-button"]),
@@ -623,11 +650,7 @@ let view =
                   "icon",
                   "chat-message-send-button",
                 ]),
-                Attr.title(
-                  agent_busy
-                    ? "Wait for the assistant or press Stop"
-                    : "Send Message Disabled",
-                ),
+                Attr.title("Send Message Disabled"),
               ],
               [Icons.send],
             );

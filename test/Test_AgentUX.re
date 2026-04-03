@@ -180,7 +180,7 @@ let dialogue_slice_tests = [
     },
   ),
   test_case(
-    "dialogue_slice: after compaction summary, slice starts after summary",
+    "dialogue_slice: after compaction summary, slice includes summary and later turns",
     `Quick,
     () => {
       let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
@@ -194,8 +194,22 @@ let dialogue_slice_tests = [
       let chat = Agent.Chat.Utils.append(u, chat);
       let slice =
         Agent.Chat.Utils.dialogue_slice_for_compaction_summary(chat);
-      check(int, "only post-summary turns", 1, List.length(slice));
-      check_string("content", "after compact", List.hd(slice).content);
+      check(int, "summary + post-summary", 2, List.length(slice));
+      switch (List.hd(slice).role) {
+      | Agent.Message.Model.System(Agent.Message.Model.CompactionSummary(m)) =>
+        check_string("method", "test-method", m)
+      | _ => fail("expected CompactionSummary first in slice")
+      };
+      check_string(
+        "prior body",
+        "prior summary body",
+        List.hd(slice).content,
+      );
+      check_string(
+        "after content",
+        "after compact",
+        List.nth(slice, 1).content,
+      );
     },
   ),
 ];
