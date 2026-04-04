@@ -154,7 +154,7 @@ let mk_segment =
   };
 };
 
-let segment_to_string = TyDi.buffer_to_string;
+let segment_to_string = TyDiComplete.buffer_to_string;
 
 /* ---- Comma counting ---- */
 
@@ -366,7 +366,7 @@ let should_suppress =
  * alone. completion_text is the suffix (e.g., "args" for bl→blargs). */
 let completion_would_suppress =
     (~completion_text: string, ~info_map: Statics.Map.t, z: Zipper.t): bool =>
-  switch (TyDi.token_to_left(z)) {
+  switch (TyDiComplete.token_to_left(z)) {
   | None => false
   | Some(current_token) =>
     let completed = current_token ++ completion_text;
@@ -519,12 +519,32 @@ let strip_last_concave_grout = (pieces: list(Piece.t)): list(Piece.t) =>
 
 /* ---- Public API ---- */
 
-let set = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
-  switch (display(~info_map, z)) {
+/* Does a segment contain structural pieces (Tiles/Grout)?
+ * Used to determine if content needs grout stripping when set as buffer. */
+let has_structural = (content: Segment.t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      switch (p) {
+      | Grout(_)
+      | Tile(_) => true
+      | _ => false
+      },
+    content,
+  );
+
+/* Set buffer with grout stripping for structural content.
+ * When content has concave edges (comma tiles), strips adjacent
+ * sibling grout to avoid shape conflicts.
+ * If ~content is not provided, computes it via display(). */
+let set = (~info_map: Statics.Map.t, ~content=?, z: Zipper.t): Zipper.t => {
+  let content =
+    switch (content) {
+    | Some(c) => Some(c)
+    | None => display(~info_map, z)
+    };
+  switch (content) {
   | None => z
   | Some(content) =>
-    /* If a buffer edge is concave (comma tile) and the adjacent sibling
-     * has concave grout, strip the grout to avoid shape conflicts. */
     let concave_edge = (pieces: list(Piece.t)): bool => {
       let rec check = (
         fun
@@ -552,6 +572,7 @@ let set = (~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
     };
     Zipper.set_buffer(z, ~content, ~mode=Unparsed);
   };
+};
 
 /* Split buffer content into leading completion text (Comment pieces)
  * and the structural scaffold remainder (commas, labels, grout). */

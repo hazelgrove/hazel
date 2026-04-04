@@ -33,124 +33,26 @@ let set_tydi_buffer = (ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
   | Some(z) => z
   };
 
-/* Set the assist buffer. When inside a Prod context (scaffold applies),
- * completions are generated for both the full Prod type and the
- * per-element type, producing candidates like:
- *   - "args" (matches full Prod, no scaffold needed)
- *   - "g" + scaffold (arg matches element type, scaffold for rest)
- * The best candidate wins based on: element-type matches with scaffold
- * preferred over full-Prod matches without (shorter, more specific). */
+/* Set the assist buffer using the unified suggest_assist entry point.
+ * All completion + scaffold logic (element-type completions, suppression,
+ * candidate ranking) lives in TyDi.suggest_assist. This function just
+ * sets the result on the zipper, handling grout stripping for scaffold. */
 let set_assist_buffer =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t => {
-  let ci = Indicated.ci_of(z, info_map);
-  let scaffold = TyDiScaffold.display(~info_map, z);
-
-  switch (scaffold) {
-  | Some(scaffold_seg) =>
-    /* Scaffold applies — try completions at per-element type.
-     * Extract the element ana from the Prod type. */
-    let has_element_ci = ref(false);
-    let element_ci =
-      switch (ci) {
-      | Some(InfoExp(exp_info)) =>
-        let ana =
-          Language.Typ.weak_head_normalize(exp_info.ctx, exp_info.ana);
-        switch (Language.Typ.term_of(TyDiScaffold.unwrap_parens(ana))) {
-        | Prod(tys) when List.length(tys) >= 2 =>
-          /* Count existing commas to determine current element index */
-          let scoped_l = TyDiScaffold.inner_left_siblings(z);
-          let existing =
-            TyDiScaffold.count_commas_in(scoped_l)
-            + TyDiScaffold.count_commas_in(snd(z.relatives.siblings));
-          switch (List.nth_opt(tys, existing)) {
-          | Some(element_ty) =>
-            has_element_ci := true;
-            Some(
-              Language.Info.InfoExp({
-                ...exp_info,
-                ana: element_ty,
-              }),
-            );
-          | None => ci
-          };
-        | _ => ci
-        };
-      | _ => ci
-      };
-    /* Try completion at element type (e.g., ar → arg : String) */
-    let z_element = set_tydi_buffer(element_ci, z);
-    let element_completion = TyDi.get_unparsed_buffer(z_element);
-    /* Try completion at full Prod type (e.g., ar → args : (S,S,S)) */
-    let z_full = set_tydi_buffer(ci, z);
-    let full_completion = TyDi.get_unparsed_buffer(z_full);
-    switch (element_completion, full_completion) {
-    | (Some(elem_text), Some(full_text)) =>
-      /* Both match. Prefer element + scaffold if element completion
-       * is shorter (more specific match). Otherwise use full (no scaffold). */
-      if (String.length(elem_text) <= String.length(full_text)) {
-        let content = TyDi.mk_unparsed_buffer(elem_text) @ scaffold_seg;
-        Zipper.set_buffer(z, ~content, ~mode=Unparsed);
-      } else {
-        z_full;
-      }
-    | (Some(elem_text), None) =>
-      /* Only element completion — use it with scaffold */
-      let content = TyDi.mk_unparsed_buffer(elem_text) @ scaffold_seg;
+    (~info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t =>
+  switch (TyDi.suggest_assist(~info_map, z)) {
+  | None => z
+  | Some(content) =>
+    if (TyDiScaffold.has_structural(content)) {
+      /* Scaffold content needs grout stripping at buffer edges */
+      TyDiScaffold.set(
+        ~info_map,
+        ~content,
+        z,
+      );
+    } else {
       Zipper.set_buffer(z, ~content, ~mode=Unparsed);
-    | (None, Some(_)) when has_element_ci^ =>
-      /* Element ci exists but no element completion. Two cases:
-       * - Token is a valid variable at element type (exact match
-       *   suppression, e.g., arg : String) → scaffold only
-       * - No match at element type → fall through to full-Prod */
-      switch (TyDi.token_to_left(z)) {
-      | Some(tok)
-          when
-            TyDiScaffold.completion_would_suppress(
-              ~completion_text="",
-              ~info_map,
-              z,
-            )
-            == false
-            /* Check if token is a valid var at element type */
-            && {
-              let element_ana =
-                switch (element_ci) {
-                | Some(Language.Info.InfoExp({ana, _})) => Some(ana)
-                | _ => None
-                };
-              switch (element_ana) {
-              | Some(element_ty) =>
-                let ctx = Language.Info.ctx_of(Option.get(ci));
-                switch (Language.Ctx.lookup_var(ctx, tok)) {
-                | Some({typ, _}) =>
-                  Language.Typ.is_consistent(ctx, typ, element_ty)
-                | None => false
-                };
-              | None => false
-              };
-            } =>
-        /* Token is valid at element type — scaffold only */
-        TyDiScaffold.set(~info_map, z)
-      | _ =>
-        /* No element match — try full-Prod completion */
-        z_full
-      }
-    | (None, Some(_)) =>
-      /* No element ci — use full-Prod match */
-      z_full
-    | (None, None) =>
-      /* No completion — scaffold only */
-      TyDiScaffold.set(~info_map, z)
-    };
-  | None =>
-    /* No scaffold context — plain completion */
-    let z_with_completion = set_tydi_buffer(ci, z);
-    switch (TyDi.get_unparsed_buffer(z_with_completion)) {
-    | Some(_) => z_with_completion
-    | None => z
-    };
+    }
   };
-};
 
 let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   switch (
