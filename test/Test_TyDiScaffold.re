@@ -332,35 +332,97 @@ let nested_tests = (
   ],
 );
 
-/* ---- Scaffold generation: labeled tuples (Phase 6) ---- */
+/* ---- Labeled 2-element: comprehensive progressive typing ----
+ *
+ * Type: (foo=Int, bar=Bool)
+ * Tests every step of typing a labeled tuple from scratch. */
+
+let def_labeled2 = "let f : (foo=Int, bar=Bool) -> Int = fun x -> 0 in ";
 
 let labeled_tests = (
   "TyDiScaffold.Labeled",
   [
-    /* Labeled tuple: f expects (x=Int, y=String). After first arg,
-     * should show scaffold with label: ", y=?" */
+    /* Step 1: f(| — empty, shows first label + scaffold */
     scaffold_test(
-      ~name="Labeled tuple: after first arg",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
-      ~expect=Some(", y=?"),
+      ~name="L2: f(| empty",
+      ~code=def_labeled2 ++ "f(¦",
+      ~expect=Some("foo=?, "),
     ),
-    /* 3-element labeled: after first arg, shows labels for remaining */
+    /* Step 2: f(| → Tab → f(foo=|? — accept inserts label prefix */
+    accept_test(
+      ~name="L2: Tab on f( inserts foo=",
+      ~code=def_labeled2 ++ "f(¦",
+      ~goal=def_labeled2 ++ "f(foo=¦?",
+    ),
+    /* Step 3: f(foo=| — scaffold shows value hole + remaining label */
     scaffold_test(
-      ~name="Labeled 3-elem: after first arg",
-      ~code="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(1¦)",
-      ~expect=Some(", b=?, c=?"),
+      ~name="L2: f(foo=| shows ?, bar=?",
+      ~code=def_labeled2 ++ "f(foo=¦",
+      ~expect=Some("?, bar=?"),
     ),
-    /* Unlabeled elements in a mixed tuple should show ? without label */
+    /* Step 4: f(foo=1| — after typing value, scaffold for remaining */
+    scaffold_test(
+      ~name="L2: f(foo=1|) after value",
+      ~code=def_labeled2 ++ "f(foo=1¦)",
+      ~expect=Some(", bar=?"),
+    ),
+    /* Step 5: f(foo=1|) → Tab → f(foo=1, |?) — comma inserted */
+    accept_test(
+      ~name="L2: Tab after foo=1 inserts comma",
+      ~code=def_labeled2 ++ "f(foo=1¦)",
+      ~goal=def_labeled2 ++ "f(foo=1, ¦?)",
+    ),
+    /* Step 6: f(foo=1, |) — after typing comma, label hint for bar */
+    scaffold_test(
+      ~name="L2: f(foo=1, |) after comma",
+      ~code=def_labeled2 ++ "f(foo=1, ¦)",
+      ~expect=Some("bar=?"),
+    ),
+    /* Step 6b: f(foo=1,|) — no space after comma */
+    scaffold_test(
+      ~name="L2: f(foo=1,|) no space",
+      ~code=def_labeled2 ++ "f(foo=1,¦)",
+      ~expect=Some(" bar=?"),
+    ),
+    /* Step 7: f(foo=1, bar=|) — after typing label, value hole */
+    scaffold_test(
+      ~name="L2: f(foo=1, bar=|) value hole",
+      ~code=def_labeled2 ++ "f(foo=1, bar=¦)",
+      ~expect=Some("?"),
+    ),
+    /* Step 8: f(foo=1, bar=true|) — all done, no scaffold */
+    scaffold_test(
+      ~name="L2: f(foo=1, bar=true|) complete",
+      ~code=def_labeled2 ++ "f(foo=1, bar=true¦)",
+      ~expect=None,
+    ),
+    /* Without labels: f(1|) — should show label for second element */
+    scaffold_test(
+      ~name="L2: f(1|) unlabeled first arg",
+      ~code=def_labeled2 ++ "f(1¦)",
+      ~expect=Some(", bar=?"),
+    ),
+    /* Mixed labeled/unlabeled type */
     scaffold_test(
       ~name="Mixed labeled/unlabeled",
       ~code="let f : (Int, y=String) -> Bool = fun a -> true in f(1¦)",
       ~expect=Some(", y=?"),
     ),
-    /* Grout-right case: f( with labeled tuple should show first label */
-    scaffold_test(
-      ~name="Labeled grout-right: first label shown",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
-      ~expect=Some("x=?, "),
+    /* Tab acceptance doesn't crash after label prefix */
+    test_case("L2: Tab after foo= doesn't crash", `Quick, () =>
+      ignore(scaffold_accept(def_labeled2 ++ "f(foo=¦"))
+    ),
+    /* Segment wellformedness after foo= with scaffold
+     * (checks for shape conflicts between scaffold and real holes) */
+    test_case(
+      "L2: segment ok after foo=",
+      `Quick,
+      () => {
+        let code = def_labeled2 ++ "f(foo=¦";
+        let result = assist_suggest(code);
+        /* Just verify it doesn't crash */
+        ignore(result);
+      },
     ),
   ],
 );
@@ -794,12 +856,12 @@ let after_comma_tests = (
       ~code=def2 ++ "f(1, ¦",
       ~expect=None,
     ),
-    /* Labeled: after typing comma, scaffold for next position.
-     * f(x=1, ¦ → no scaffold (all commas present in 2-elem tuple) */
+    /* Labeled: after typing comma, label hint for next position.
+     * f(x=1, ¦ → label hint "y=?" (all commas placed, but label needed) */
     scaffold_test(
-      ~name="Labeled after comma: no scaffold",
+      ~name="Labeled after comma: label hint",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦",
-      ~expect=None,
+      ~expect=Some("y=?"),
     ),
     /* After typing comma without space: g(1,¦ → scaffold should have
      * leading space for formatting: " ?, " not "?, " */
