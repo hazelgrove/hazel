@@ -367,8 +367,7 @@ let labeled_tests = (
 
 /* ---- Labeled 3-element: progressive typing + acceptance ---- */
 
-let def_labeled3 =
-  "let z : (boo=Int, trall=Bool, druk=Float) -> Int = fun x -> 0 in ";
+let def_labeled3 = "let z : (boo=Int, trall=Bool, druk=Float) -> Int = fun x -> 0 in ";
 
 let labeled3_tests = (
   "TyDiScaffold.Labeled3",
@@ -385,11 +384,12 @@ let labeled3_tests = (
       ~code=def_labeled3 ++ "z(1¦)",
       ~expect=Some(", trall=?, druk=?"),
     ),
-    /* After typing boo= (label prefix) */
+    /* After typing boo= (label prefix): bare hole for value,
+     * then labeled entries for remaining elements */
     scaffold_test(
       ~name="Labeled3: z(boo=| shows remaining",
       ~code=def_labeled3 ++ "z(boo=¦",
-      ~expect=Some(", trall=?, druk=?"),
+      ~expect=Some("?, trall=?, druk=?"),
     ),
     /* After boo=1, shows remaining two labels */
     scaffold_test(
@@ -412,17 +412,14 @@ let labeled3_tests = (
     /* Explicit tuple: (| with labeled type */
     scaffold_test(
       ~name="Labeled3 explicit: (| with 3-elem labeled type",
-      ~code=
-        "let t : (boo=Int, trall=Bool, druk=Float) = (¦",
+      ~code="let t : (boo=Int, trall=Bool, druk=Float) = (¦",
       ~expect=Some("boo=?, trall=?, "),
     ),
     /* Tab acceptance for explicit tuple */
     accept_test(
       ~name="Labeled3 explicit: Tab inserts first label",
-      ~code=
-        "let t : (boo=Int, trall=Bool, druk=Float) = (¦",
-      ~goal=
-        "let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦?",
+      ~code="let t : (boo=Int, trall=Bool, druk=Float) = (¦",
+      ~goal="let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦?",
     ),
     /* Tab acceptance doesn't crash for labeled3 */
     test_case("Labeled3: Tab accept doesn't crash for z(|", `Quick, () =>
@@ -431,10 +428,15 @@ let labeled3_tests = (
     /* Tab acceptance for explicit labeled tuple */
     test_case("Labeled3 explicit: Tab accept doesn't crash", `Quick, () =>
       ignore(
-        scaffold_accept(
-          "let t : (boo=Int, trall=Bool, druk=Float) = (¦",
-        ),
+        scaffold_accept("let t : (boo=Int, trall=Bool, druk=Float) = (¦"),
       )
+    ),
+    /* After typing boo= in explicit tuple: display.
+     * Bare hole for boo's value, then labeled entries for remaining. */
+    scaffold_test(
+      ~name="Labeled3 explicit: display after boo=",
+      ~code="let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦",
+      ~expect=Some("?, trall=?, druk=?"),
     ),
     /* After typing boo= in explicit tuple, Tab accept */
     test_case("Labeled3 explicit: Tab after boo= doesn't crash", `Quick, () =>
@@ -758,12 +760,12 @@ let labeled_accept_tests = (
       ~code="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(¦",
       ~goal="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(a=¦?",
     ),
-    /* After accepting label: f(x=¦ should show ", y=?" not "x=?, "
-     * (no label duplication — grout_right is false with content to left) */
+    /* After accepting label: f(x=¦ should show bare hole for x's value,
+     * then labeled entry for y. No label duplication (x= not repeated). */
     scaffold_test(
-      ~name="Labeled after label accept: no duplication",
+      ~name="Labeled after label accept: value hole + remaining label",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦",
-      ~expect=Some(", y=?"),
+      ~expect=Some("?, y=?"),
     ),
   ],
 );

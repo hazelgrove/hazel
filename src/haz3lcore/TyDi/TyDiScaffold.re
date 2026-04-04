@@ -415,6 +415,10 @@ let left_boundary_empty = (scoped_l: list(Piece.t)): bool => {
     | [Piece.Grout(_), ...rest] => check(rest)
     | [Piece.Tile({label: [","], _}), ..._] => true
     | [Piece.Tile({label: ["(", ")"], shards: [0], _}), ..._] => true
+    /* After label= (TupleLabeledExp), the = is concave-right and
+     * needs an operand. Treat as empty boundary so scaffold starts
+     * with a hole, not a comma. */
+    | [Piece.Tile({label: ["="], _}), ..._] => true
     | _ => false;
   check(List.rev(scoped_l));
 };
@@ -486,13 +490,87 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
 
     let holes_first = left_boundary_empty(scoped_l);
     let trailing_hole = !right_has_convex(snd(z.relatives.siblings));
-    let label_start = holes_first ? existing_commas : existing_commas + 1;
+    /* label_start: which element index do labels start from?
+     * When holes_first and the boundary is a delimiter like ( or ,,
+     * the scaffold fills from the current position: label_start = existing_commas.
+     * When the boundary is = (user typed a label prefix), the current
+     * element's label is already provided: label_start = existing_commas + 1. */
+    let after_equals = {
+      let rec check =
+        fun
+        | [Piece.Secondary(_), ...rest]
+        | [Piece.Grout(_), ...rest] => check(rest)
+        | [Piece.Tile({label: ["="], _}), ..._] => true
+        | _ => false;
+      check(List.rev(scoped_l));
+    };
+    let label_start =
+      holes_first && !after_equals ? existing_commas : existing_commas + 1;
     let remaining_tys =
       tys
       |> List.filteri((i, _) => i >= label_start)
       |> (lst => List.filteri((i, _) => i < remaining, lst));
     let labels = List.map(label_of_prod_elem, remaining_tys);
-    let seg = mk_segment(~holes_first, ~trailing_hole, ~labels, remaining);
+    let seg =
+      if (after_equals) {
+        /* After = (user typed label prefix): [hole, comma, space]
+         * for current value, then [comma, space, label, =, hole]
+         * for each remaining element. */
+        let mk_space = (): Piece.t =>
+          Secondary({
+            id: Id.mk(),
+            content: Whitespace(" "),
+          });
+        let mk_hole = (): Piece.t =>
+          Piece.Grout({
+            id: Id.mk(),
+            shape: Convex,
+          });
+        let mk_comma = (): Piece.t => Piece.mk_tile(Form.get(CommaExp), []);
+        let mk_label = (i: int): list(Piece.t) =>
+          switch (List.nth_opt(labels, i)) {
+          | Some(Some(name)) => [
+              Tile({
+                id: Id.mk(),
+                label: [Token.quote_label_when_necessary(name)],
+                mold: Mold.mk_op(Sort.Exp, []),
+                shards: [0],
+                children: [],
+              }),
+              Piece.mk_tile(Form.get(TupleLabeledExp), []),
+            ]
+          | _ => []
+          };
+        /* Value hole for current element, then comma-separated
+         * labeled entries for remaining elements */
+        let n_remaining_labels = List.length(labels);
+        List.concat(
+          List.init(n_remaining_labels + 1, i =>
+            if (i == 0) {
+              [
+                /* First: bare hole for current value + comma */
+                mk_hole(),
+                mk_comma(),
+                mk_space(),
+              ];
+            } else {
+              /* Subsequent: label + hole, preceded by comma (except
+               * first which already has comma from previous entry) */
+              let label_idx = i - 1;
+              let is_last = i == n_remaining_labels;
+              let entry = mk_label(label_idx) @ [mk_hole()];
+              if (is_last) {
+                /* Last entry: no trailing comma */
+                entry;
+              } else {
+                entry @ [mk_comma(), mk_space()];
+              };
+            }
+          ),
+        );
+      } else {
+        mk_segment(~holes_first, ~trailing_hole, ~labels, remaining);
+      };
     /* If caret immediately follows a comma without a trailing space,
      * prepend a space so the scaffold reads "f(1, ?" not "f(1,?". */
     let seg =
