@@ -331,8 +331,16 @@ let has_inner_errors =
  * (which can be stale from preserve_grout_id). For complete paren
  * tiles, also checks inner element statuses. */
 let should_suppress =
-    (l: list(Piece.t), expected_ty: Typ.t, info_map: Statics.Map.t): bool =>
-  switch (l) {
+    (l: list(Piece.t), expected_ty: Typ.t, info_map: Statics.Map.t): bool => {
+  /* Skip whitespace and grout to find the nearest content piece.
+   * In multi-line contexts, newline secondaries can appear between
+   * the variable and the caret. */
+  let rec skip_non_content =
+    fun
+    | [Piece.Secondary(_), ...rest]
+    | [Piece.Grout(_), ...rest] => skip_non_content(rest)
+    | l => l;
+  switch (skip_non_content(l)) {
   | [p, ..._] when Piece.is_convex(p) =>
     let inner_ok =
       switch (p) {
@@ -359,6 +367,7 @@ let should_suppress =
     };
   | _ => false
   };
+};
 
 /* Check if accepting a text completion would produce a variable whose
  * type satisfies the expected Prod. Used by set_assist_buffer to

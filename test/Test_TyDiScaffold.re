@@ -825,31 +825,26 @@ let y = "hello" in
 y|},
       ~expect=Some(", ?, ?"),
     ),
-    /* BUG: Suppression fails in multi-line context. The single-line
-     * equivalent (f(p¦) with trailing + 1) correctly suppresses.
-     * In multi-line, should_suppress doesn't see p's type correctly.
-     * Expected: None. Actual: Some(", ?"). */
+    /* Suppression mid-program: tuple var satisfies Prod */
     scaffold_test(
-      ~name="Mid-program: suppression with tuple var (BUG)",
+      ~name="Mid-program: suppression with tuple var",
       ~code=
         {|let f : (Int, String) -> Int = fun x -> 0 in
 let p : (Int, String) = (1, "a") in
 let r = f(p¦
 let other = 5 in
 other|},
-      ~expect=Some(", ?"),
+      ~expect=None,
     ),
-    /* BUG: Same suppression issue — blargs should suppress scaffold
-     * but doesn't in multi-line context.
-     * Expected: None. Actual: Some(", ?, ?"). */
+    /* Suppression mid-program: blargs satisfies full Prod */
     scaffold_test(
-      ~name="Mid-program: blargs suppression (BUG)",
+      ~name="Mid-program: blargs suppression",
       ~code=
         {|let blargs : (String, String, String) = ? in
 "" ++ string_replace(blargs¦
 let x = 1 in
 x|},
-      ~expect=Some(", ?, ?"),
+      ~expect=None,
     ),
     /* BUG: Element completion doesn't find arg in multi-line context.
      * Expected: Some("g, ?, ?"). Actual: Some(", ?, ?"). */
