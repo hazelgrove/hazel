@@ -567,6 +567,133 @@ let labeled3_tests = (
   ],
 );
 
+/* ---- Label-aware scaffold: existing labels affect suggestions ----
+ *
+ * When labels are already present in the tuple (left or right siblings),
+ * the scaffold should exclude them and suggest the first remaining label
+ * in positional (type declaration) order.
+ *
+ * Type: (foo=Int, bar=Bool, baz=Float) */
+
+let def_fbb =
+  "let z : (foo=Int, bar=Bool, baz=Float) -> Int = fun x -> 0 in ";
+let def_fbb_tuple =
+  "let t : (foo=Int, bar=Bool, baz=Float) = ";
+
+let label_aware_tests = (
+  "TyDiScaffold.LabelAware",
+  [
+    /* -- Before existing labels -- */
+
+    /* Caret before all three filled labels: no scaffold needed */
+    scaffold_test(
+      ~name="Before all: no scaffold when complete",
+      ~code=def_fbb_tuple ++ "(¦foo=1, bar=true, baz=0.0)",
+      ~expect=None,
+    ),
+    /* Caret before existing, foo missing: suggest foo= */
+    scaffold_test(
+      ~name="Before existing, foo missing: suggest foo=",
+      ~code=def_fbb_tuple ++ "(¦bar=true, baz=0.0)",
+      ~expect=Some("foo=?, "),
+    ),
+    /* Caret before existing, bar missing: suggest bar= */
+    scaffold_test(
+      ~name="Before existing, bar missing: suggest bar=",
+      ~code=def_fbb_tuple ++ "(¦foo=1, baz=0.0)",
+      ~expect=Some("bar=?, "),
+    ),
+    /* Caret before existing, foo+bar missing: suggest foo= first */
+    scaffold_test(
+      ~name="Before existing, foo+bar missing: suggest foo=",
+      ~code=def_fbb_tuple ++ "(¦baz=0.0)",
+      ~expect=Some("foo=?, "),
+    ),
+
+    /* -- Between existing labels -- */
+
+    /* Between foo and baz, bar missing: suggest bar= */
+    scaffold_test(
+      ~name="Between foo and baz: suggest bar=",
+      ~code=def_fbb_tuple ++ "(foo=1, ¦baz=0.0)",
+      ~expect=Some("bar=?, "),
+    ),
+    /* Between bar and baz (out of order), foo missing: suggest foo= */
+    scaffold_test(
+      ~name="Between bar and baz, foo missing: suggest foo=",
+      ~code=def_fbb_tuple ++ "(bar=true, ¦baz=0.0)",
+      ~expect=Some("foo=?, "),
+    ),
+    /* Between foo and bar, baz still missing at end */
+    scaffold_test(
+      ~name="Between foo and bar: suggest baz=",
+      ~code=def_fbb_tuple ++ "(foo=1, ¦bar=true)",
+      ~expect=Some("baz=?, "),
+    ),
+
+    /* -- At end, out-of-order -- */
+
+    /* Only bar entered, at end: suggest foo= */
+    scaffold_test(
+      ~name="End after bar only: suggest foo=",
+      ~code=def_fbb_tuple ++ "(bar=true, ¦)",
+      ~expect=Some("foo=?"),
+    ),
+    /* Only baz entered, at end: suggest foo= */
+    scaffold_test(
+      ~name="End after baz only: suggest foo=",
+      ~code=def_fbb_tuple ++ "(baz=0.0, ¦)",
+      ~expect=Some("foo=?"),
+    ),
+    /* foo and baz entered, bar missing, at end */
+    scaffold_test(
+      ~name="End after foo+baz: suggest bar=",
+      ~code=def_fbb_tuple ++ "(foo=1, baz=0.0, ¦)",
+      ~expect=Some("bar=?"),
+    ),
+    /* bar and baz entered, foo missing, at end */
+    scaffold_test(
+      ~name="End after bar+baz: suggest foo=",
+      ~code=def_fbb_tuple ++ "(bar=true, baz=0.0, ¦)",
+      ~expect=Some("foo=?"),
+    ),
+
+    /* -- Partial typing with label awareness -- */
+
+    /* Typing f before bar+baz: should match foo */
+    scaffold_test(
+      ~name="Partial f before bar+baz: suggest oo=",
+      ~code=def_fbb_tuple ++ "(f¦, bar=true, baz=0.0)",
+      ~expect=Some("oo=?, "),
+    ),
+    /* Typing b when foo+baz present, bar missing: suggest ar= */
+    scaffold_test(
+      ~name="Partial b, bar missing: suggest ar=",
+      ~code=def_fbb_tuple ++ "(foo=1, b¦, baz=0.0)",
+      ~expect=Some("ar=?, "),
+    ),
+    /* Typing b when only foo present, bar+baz missing: suggest ar= (first positionally) */
+    scaffold_test(
+      ~name="Partial b, bar+baz missing: suggest ar=",
+      ~code=def_fbb_tuple ++ "(foo=1, b¦)",
+      ~expect=Some("ar=?"),
+    ),
+
+    /* -- All labels present (any order) -- */
+
+    scaffold_test(
+      ~name="All present in order: no scaffold",
+      ~code=def_fbb_tuple ++ "(foo=1, bar=true, baz=0.0¦)",
+      ~expect=None,
+    ),
+    scaffold_test(
+      ~name="All present out of order: no scaffold",
+      ~code=def_fbb_tuple ++ "(bar=true, foo=1, baz=0.0¦)",
+      ~expect=None,
+    ),
+  ],
+);
+
 /* ---- Scaffold generation: edge cases ---- */
 
 let edge_tests = (
@@ -1495,6 +1622,7 @@ let tests = [
   nested_tests,
   labeled_tests,
   labeled3_tests,
+  label_aware_tests,
   edge_tests,
   acceptance_tests,
   multi_tab_tests,
