@@ -2,9 +2,9 @@
 
 ## Overview
 
-When typing a function application or tuple literal in Hazel, the scaffold
-system anticipates the tuple structure based on type information and shows
-ghost commas and hole placeholders. This eliminates misleading type errors
+When typing a function application or tuple literal in Hazel, the scaffold  
+system anticipates the tuple structure based on type infofrmation and shows  
+ghost commas and hole placeholders. This eliminates misleading type errors  
 during left-to-right typing and provides per-element type expectations.
 
 **Example:** Given `let f : (Int, String) -> Bool`, typing `f(1` shows:
@@ -36,6 +36,7 @@ term. The real zipper (what the user edits) is unchanged.
 
 The scaffold and text completion are computed together in `TyDi.suggest_assist`.
 When typing `ar` inside `string_replace(`, the system considers both:
+
 - `arg : String` matches the first element type → show `g` + scaffold `, ?, ?`
 - `args : (String,String,String)` matches the full Prod → show `gs` alone
 
@@ -51,23 +52,27 @@ let f : (Int, String) -> Int = fun x -> 0 in f(¦
 ```
 
 1. Scaffold detects: inside parens, expected type `Prod([Int, String])`,
-   0 existing commas, arity 2 → remaining = 1.
+  0 existing commas, arity 2 → remaining = 1.
 2. Left boundary is empty (just `(`) → `holes_first = true`.
-3. Scaffold: `[Grout(?), Tile(,), Whitespace( )]` → display `?, `
+3. Scaffold: `[Grout(?), Tile(,), Whitespace( )]` → display `?,` 
 4. Statics reifies: sees `Ap(f, Tuple([?, ?]))` → per-element types Int, String.
 
 After typing `1`:
+
 ```
 f(1¦⟨, ?⟩
 ```
+
 - `holes_first = false` (content to left), scaffold: `[Tile(,), Whitespace( ), Grout(?)]`
 - Display: `, ?`
 
 After Tab:
+
 ```
 f(1, ¦?
 ```
-- `scaffold_emit_text` extracts `, ` (comma + trailing space)
+
+- `scaffold_emit_text` extracts `,`  (comma + trailing space)
 - `Parser.to_zipper` inserts it, regrout creates hole
 - Scaffold regenerates: 1 existing comma, remaining = 0 → no scaffold
 
@@ -77,7 +82,7 @@ f(1, ¦?
 let g : (Int, String, Bool) -> Int = fun x -> 0 in g(¦
 ```
 
-Display: `?, ?, ` (3 elements, holes_first)
+Display: `?, ?,`  (3 elements, holes_first)
 
 ```
 g(1¦    →  scaffold: ", ?, ?"
@@ -199,7 +204,7 @@ string_replace("",¦
 
 User typed comma without trailing space. `left_needs_space` detects bare
 comma as immediate left neighbor → prepends `Whitespace(" ")` to scaffold.
-Display: ` ?, ` (space + hole + comma + space). On Tab, the space is
+Display: `?,` (space + hole + comma + space). On Tab, the space is
 emitted first as a formatting fixup, then scaffold regenerates.
 
 ## Architecture
@@ -241,9 +246,10 @@ the buffer is updated.
 ### Progressive Tab acceptance
 
 Each Tab press emits one "chunk" from the scaffold:
+
 - A formatting space (when caret follows bare comma)
 - A label prefix like `x=`
-- A comma + trailing space like `, `
+- A comma + trailing space like `,` 
 
 The buffer is cleared after emission. Next cycle, scaffold regenerates
 with fewer remaining elements. This continues until all commas are placed.
@@ -254,6 +260,7 @@ with fewer remaining elements. This continues until all commas are placed.
 
 The original plan used text buffers (`", ○"`) with `○` as hole placeholder.
 The implementation evolved to use real Piece values because:
+
 - Grout pieces have proper convex shape, avoiding shape conflicts
 - Tile pieces for commas have correct molds for Skel processing
 - `reify` can splice structural pieces directly without re-parsing
@@ -287,10 +294,10 @@ bare tuples are syntactically ambiguous without parens.
 ## Appendix: Known Limitations
 
 1. **Pattern ancestor case**: `let (¦) : (Int, Bool)` — caret is `Inner(0)`
-   on the `(` delimiter, not `Outer` inside the paren child. Scaffold bails
+  on the `(` delimiter, not `Outer` inside the paren child. Scaffold bails
    early. Fixing requires virtual-move or buffer-set-from-caret-info.
-
 2. **token_to_left precision**: `token_to_left` only checks the immediate
-   left piece. If whitespace intervenes (e.g., caret at start of line after
+  left piece. If whitespace intervenes (e.g., caret at start of line after
    linebreak), no completion is generated. Scaffold-only still works since
    it doesn't depend on `token_to_left`.
+

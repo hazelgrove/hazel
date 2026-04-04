@@ -365,6 +365,88 @@ let labeled_tests = (
   ],
 );
 
+/* ---- Labeled 3-element: progressive typing + acceptance ---- */
+
+let def_labeled3 =
+  "let z : (boo=Int, trall=Bool, druk=Float) -> Int = fun x -> 0 in ";
+
+let labeled3_tests = (
+  "TyDiScaffold.Labeled3",
+  [
+    /* Empty paren: shows all labels (holes_first) */
+    scaffold_test(
+      ~name="Labeled3: z(| shows all labels",
+      ~code=def_labeled3 ++ "z(¦",
+      ~expect=Some("boo=?, trall=?, "),
+    ),
+    /* After first arg: remaining labels */
+    scaffold_test(
+      ~name="Labeled3: z(1| shows remaining labels",
+      ~code=def_labeled3 ++ "z(1¦)",
+      ~expect=Some(", trall=?, druk=?"),
+    ),
+    /* After typing boo= (label prefix) */
+    scaffold_test(
+      ~name="Labeled3: z(boo=| shows remaining",
+      ~code=def_labeled3 ++ "z(boo=¦",
+      ~expect=Some(", trall=?, druk=?"),
+    ),
+    /* After boo=1, shows remaining two labels */
+    scaffold_test(
+      ~name="Labeled3: z(boo=1| shows remaining",
+      ~code=def_labeled3 ++ "z(boo=1¦)",
+      ~expect=Some(", trall=?, druk=?"),
+    ),
+    /* After first comma: boo=1, | shows next label */
+    scaffold_test(
+      ~name="Labeled3: z(boo=1, | shows next label",
+      ~code=def_labeled3 ++ "z(boo=1, ¦)",
+      ~expect=Some("trall=?, "),
+    ),
+    /* Tab acceptance: z(| → Tab → z(boo=|? */
+    accept_test(
+      ~name="Labeled3: Tab inserts first label",
+      ~code=def_labeled3 ++ "z(¦",
+      ~goal=def_labeled3 ++ "z(boo=¦?",
+    ),
+    /* Explicit tuple: (| with labeled type */
+    scaffold_test(
+      ~name="Labeled3 explicit: (| with 3-elem labeled type",
+      ~code=
+        "let t : (boo=Int, trall=Bool, druk=Float) = (¦",
+      ~expect=Some("boo=?, trall=?, "),
+    ),
+    /* Tab acceptance for explicit tuple */
+    accept_test(
+      ~name="Labeled3 explicit: Tab inserts first label",
+      ~code=
+        "let t : (boo=Int, trall=Bool, druk=Float) = (¦",
+      ~goal=
+        "let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦?",
+    ),
+    /* Tab acceptance doesn't crash for labeled3 */
+    test_case("Labeled3: Tab accept doesn't crash for z(|", `Quick, () =>
+      ignore(scaffold_accept(def_labeled3 ++ "z(¦"))
+    ),
+    /* Tab acceptance for explicit labeled tuple */
+    test_case("Labeled3 explicit: Tab accept doesn't crash", `Quick, () =>
+      ignore(
+        scaffold_accept(
+          "let t : (boo=Int, trall=Bool, druk=Float) = (¦",
+        ),
+      )
+    ),
+    /* After typing boo= in explicit tuple, Tab accept */
+    test_case("Labeled3 explicit: Tab after boo= doesn't crash", `Quick, () =>
+      ignore(
+        scaffold_accept(
+          "let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦",
+        ),
+      )
+    ),
+  ],
+);
+
 /* ---- Scaffold generation: edge cases ---- */
 
 let edge_tests = (
@@ -1292,6 +1374,7 @@ let tests = [
   midexpr_tests,
   nested_tests,
   labeled_tests,
+  labeled3_tests,
   edge_tests,
   acceptance_tests,
   multi_tab_tests,
