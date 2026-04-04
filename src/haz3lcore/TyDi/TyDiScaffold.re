@@ -161,6 +161,32 @@ let segment_to_string = TyDiComplete.buffer_to_string;
 let count_commas_in = (pieces: list(Piece.t)): int =>
   List.length(List.filter(is_comma, pieces));
 
+/* ---- Label scanning ---- */
+
+/* Extract label names that are already assigned in a piece list.
+ * Looks for operand tiles immediately followed by a = tile
+ * (TupleLabeledExp pattern: label=value). Returns the set of
+ * label name strings found. */
+let used_labels_in = (pieces: list(Piece.t)): list(string) => {
+  let rec scan =
+    fun
+    | [
+        Piece.Tile({
+          label: [tok],
+          mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+          _,
+        }),
+        Piece.Tile({label: ["="], _}),
+        ...rest,
+      ] => [
+        tok,
+        ...scan(rest),
+      ]
+    | [_, ...rest] => scan(rest)
+    | [] => [];
+  scan(pieces);
+};
+
 /* ---- Paren context detection ---- */
 
 /* Get the left siblings between the caret and the nearest ( shard
@@ -175,6 +201,14 @@ let inner_left_siblings = (z: Zipper.t): list(Piece.t) => {
     | [p, ...rest] => take_until_paren([p, ...acc], rest)
     };
   take_until_paren([], l_nearest);
+};
+
+/* Collect all used labels from both left and right siblings
+ * within the current paren context. */
+let all_used_labels = (z: Zipper.t): list(string) => {
+  let scoped_l = inner_left_siblings(z);
+  let r = snd(z.relatives.siblings);
+  used_labels_in(scoped_l) @ used_labels_in(r);
 };
 
 /* Check if we're inside parentheses. Three cases:
@@ -514,16 +548,31 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
         + count_commas_in(snd(z.relatives.siblings));
       let remaining = arity - 1 - existing_commas;
 
+      /* Scan siblings for labels already assigned in the tuple.
+       * These are excluded from scaffold suggestions. */
+      let used = all_used_labels(z);
+      let is_used = (name: string): bool =>
+        List.mem(Token.quote_label_when_necessary(name), used)
+        || List.mem(name, used);
+
       /* For labeled tuples, scaffold can trigger even when remaining=0
        * (all commas placed) if the current position has an unfilled label.
        * Check: does the current element (at index existing_commas) have
-       * a label, and is the caret on an empty hole or after a comma/=? */
+       * a label that hasn't been used yet? */
       let current_element_idx = existing_commas;
-      let current_label =
-        switch (List.nth_opt(tys, current_element_idx)) {
-        | Some(ty) => label_of_prod_elem(ty)
-        | None => None
-        };
+      let current_label = {
+        /* Find the first unused label starting from the current position */
+        let rec find_unused = (i: int): option(string) =>
+          if (i >= arity) {
+            None;
+          } else {
+            switch (label_of_prod_elem(List.nth(tys, i))) {
+            | Some(name) when !is_used(name) => Some(name)
+            | _ => find_unused(i + 1)
+            };
+          };
+        find_unused(current_element_idx);
+      };
       let current_has_label = current_label != None;
 
       /* Check if the token to the left is a prefix of the current label.
@@ -554,17 +603,6 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
         | _ => None
         };
 
-      let* () =
-        remaining > 0 || current_has_label || label_suffix != None
-          ? Some() : None;
-
-      let holes_first = left_boundary_empty(scoped_l);
-      let trailing_hole = !right_has_convex(snd(z.relatives.siblings));
-      /* label_start: which element index do labels start from?
-       * When holes_first and the boundary is a delimiter like ( or ,,
-       * the scaffold fills from the current position: label_start = existing_commas.
-       * When the boundary is = (user typed a label prefix), the current
-       * element's label is already provided: label_start = existing_commas + 1. */
       let after_equals = {
         let rec check =
           fun
@@ -574,6 +612,16 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
           | _ => false;
         check(List.rev(scoped_l));
       };
+
+      let* () =
+        remaining > 0
+        || current_has_label
+        || label_suffix != None
+        || after_equals
+          ? Some() : None;
+
+      let holes_first = left_boundary_empty(scoped_l);
+      let trailing_hole = !right_has_convex(snd(z.relatives.siblings));
       /* When user is typing a label prefix, produce the suffix as a
        * text completion combined with the rest of the scaffold. */
       switch (label_suffix) {
@@ -605,11 +653,17 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
               }),
             ];
           };
-        /* Append remaining scaffold entries (commas + labels) */
+        /* Append remaining scaffold entries (commas + labels).
+         * Filter out labels already assigned in the tuple. */
         let rest_labels =
           tys
           |> List.filteri((i, _) => i > current_element_idx)
-          |> List.map(label_of_prod_elem);
+          |> List.map(label_of_prod_elem)
+          |> List.map(
+               fun
+               | Some(name) when is_used(name) => None
+               | label => label,
+             );
         if (remaining > 0) {
           let rest =
             mk_segment(
@@ -727,7 +781,14 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
             tys
             |> List.filteri((i, _) => i >= label_start)
             |> (lst => List.filteri((i, _) => i < remaining, lst));
-          let labels = List.map(label_of_prod_elem, remaining_tys);
+          let labels =
+            remaining_tys
+            |> List.map(label_of_prod_elem)
+            |> List.map(
+                 fun
+                 | Some(name) when is_used(name) => None
+                 | label => label,
+               );
           let seg =
             if (after_equals) {
               /* After = (user typed label prefix): [hole, comma, space]

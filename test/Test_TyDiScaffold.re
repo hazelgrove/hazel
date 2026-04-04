@@ -575,16 +575,13 @@ let labeled3_tests = (
  *
  * Type: (foo=Int, bar=Bool, baz=Float) */
 
-let def_fbb =
-  "let z : (foo=Int, bar=Bool, baz=Float) -> Int = fun x -> 0 in ";
-let def_fbb_tuple =
-  "let t : (foo=Int, bar=Bool, baz=Float) = ";
+let def_fbb = "let z : (foo=Int, bar=Bool, baz=Float) -> Int = fun x -> 0 in ";
+let def_fbb_tuple = "let t : (foo=Int, bar=Bool, baz=Float) = ";
 
 let label_aware_tests = (
   "TyDiScaffold.LabelAware",
   [
     /* -- Before existing labels -- */
-
     /* Caret before all three filled labels: no scaffold needed */
     scaffold_test(
       ~name="Before all: no scaffold when complete",
@@ -609,9 +606,7 @@ let label_aware_tests = (
       ~code=def_fbb_tuple ++ "(¦baz=0.0)",
       ~expect=Some("foo=?, "),
     ),
-
     /* -- Between existing labels -- */
-
     /* Between foo and baz, bar missing: suggest bar= */
     scaffold_test(
       ~name="Between foo and baz: suggest bar=",
@@ -630,9 +625,7 @@ let label_aware_tests = (
       ~code=def_fbb_tuple ++ "(foo=1, ¦bar=true)",
       ~expect=Some("baz=?, "),
     ),
-
     /* -- At end, out-of-order -- */
-
     /* Only bar entered, at end: suggest foo= */
     scaffold_test(
       ~name="End after bar only: suggest foo=",
@@ -657,9 +650,7 @@ let label_aware_tests = (
       ~code=def_fbb_tuple ++ "(bar=true, baz=0.0, ¦)",
       ~expect=Some("foo=?"),
     ),
-
     /* -- Partial typing with label awareness -- */
-
     /* Typing f before bar+baz: should match foo */
     scaffold_test(
       ~name="Partial f before bar+baz: suggest oo=",
@@ -678,9 +669,7 @@ let label_aware_tests = (
       ~code=def_fbb_tuple ++ "(foo=1, b¦)",
       ~expect=Some("ar=?"),
     ),
-
     /* -- All labels present (any order) -- */
-
     scaffold_test(
       ~name="All present in order: no scaffold",
       ~code=def_fbb_tuple ++ "(foo=1, bar=true, baz=0.0¦)",
