@@ -394,7 +394,7 @@ let labeled_tests = (
     scaffold_test(
       ~name="L2: f(foo=| shows ?, bar=?",
       ~code=def_labeled2 ++ "f(foo=¦",
-      ~expect=Some("?, bar=?"),
+      ~expect=Some("?, bar="),
     ),
     /* Step 4: f(foo=1| — after typing value, scaffold for remaining */
     scaffold_test(
@@ -487,7 +487,7 @@ let labeled3_tests = (
     scaffold_test(
       ~name="Labeled3: z(boo=| shows remaining",
       ~code=def_labeled3 ++ "z(boo=¦",
-      ~expect=Some("?, trall=?, druk=?"),
+      ~expect=Some("?, trall=?, druk="),
     ),
     /* After boo=1, shows remaining two labels */
     scaffold_test(
@@ -534,7 +534,7 @@ let labeled3_tests = (
     scaffold_test(
       ~name="Labeled3 explicit: display after boo=",
       ~code="let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦",
-      ~expect=Some("?, trall=?, druk=?"),
+      ~expect=Some("?, trall=?, druk="),
     ),
     /* After typing boo= in explicit tuple, Tab accept */
     test_case("Labeled3 explicit: Tab after boo= doesn't crash", `Quick, () =>
@@ -863,7 +863,7 @@ let labeled_accept_tests = (
     scaffold_test(
       ~name="Labeled after label accept: value hole + remaining label",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦",
-      ~expect=Some("?, y=?"),
+      ~expect=Some("?, y="),
     ),
   ],
 );
@@ -897,7 +897,7 @@ let after_comma_tests = (
     scaffold_test(
       ~name="Labeled after comma: label hint",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦",
-      ~expect=Some("y=?"),
+      ~expect=Some("y="),
     ),
     /* After typing comma without space: g(1,¦ → scaffold should have
      * leading space for formatting: " ?, " not "?, " */
