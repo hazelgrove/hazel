@@ -348,23 +348,23 @@ let labeled_tests = (
       ~code=def_labeled2 ++ "f(¦",
       ~expect=Some("foo=?, "),
     ),
-    /* Step 1a: f(f| — typed f, should suggest oo= completion */
+    /* Step 1a: f(f| — typed f, label suffix oo + = + hole + rest */
     scaffold_test(
-      ~name="L2: f(f| should suggest oo=",
+      ~name="L2: f(f| label suffix + scaffold",
       ~code=def_labeled2 ++ "f(f¦",
-      ~expect=Some("oo=?, "),
+      ~expect=Some("oo=?, bar=?"),
     ),
-    /* Step 1b: f(fo| — typed fo, should suggest o= */
+    /* Step 1b: f(fo| — typed fo, label suffix o */
     scaffold_test(
-      ~name="L2: f(fo| should suggest o=",
+      ~name="L2: f(fo| label suffix",
       ~code=def_labeled2 ++ "f(fo¦",
-      ~expect=Some("o=?, "),
+      ~expect=Some("o=?, bar=?"),
     ),
-    /* Step 1c: f(foo| — typed foo, should suggest = */
+    /* Step 1c: f(foo| — typed foo, just = needed */
     scaffold_test(
-      ~name="L2: f(foo| should suggest =",
+      ~name="L2: f(foo| suggest =",
       ~code=def_labeled2 ++ "f(foo¦",
-      ~expect=Some("=?, "),
+      ~expect=Some("=?, bar=?"),
     ),
     /* Step 2: f(| → Tab → f(foo=|? — accept inserts label prefix */
     accept_test(
@@ -378,11 +378,11 @@ let labeled_tests = (
       ~code="let t : (foo=Int, bar=Bool) = (¦",
       ~expect=Some("foo=?, "),
     ),
-    /* Step 2c: explicit tuple: (f| should suggest oo= */
+    /* Step 2c: explicit tuple: (f| label suffix + scaffold */
     scaffold_test(
-      ~name="L2 explicit: (f| suggests oo=",
+      ~name="L2 explicit: (f| label suffix",
       ~code="let t : (foo=Int, bar=Bool) = (f¦",
-      ~expect=Some("oo=?, "),
+      ~expect=Some("oo=?, bar=?"),
     ),
     /* Step 2d: explicit tuple Tab: (| → Tab → (foo=|? (one hole, not two) */
     accept_test(
