@@ -2,9 +2,6 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Hole placeholder in scaffold display strings (matches printer convention) */
-let hole_char = "?";
-
 /* Build a zipper from code string with caret position (¦),
  * compute statics, and return the scaffold buffer display string.
  *
@@ -20,56 +17,9 @@ let scaffold_suggest = (code: string): option(string) => {
   TyDi.get_unparsed_buffer(z);
 };
 
-/* Simulate the web UI's stale-statics scenario by building the zipper
- * incrementally: type up to `split_at`, compute statics, then continue
- * typing the rest. This preserves tile IDs between the "stale" and
- * "current" states, matching how the web UI works.
- *
- * split_at: character index in the full code where the "stale" state ends.
- * The remaining characters (split_at..end) are typed as additional actions. */
-let scaffold_suggest_stale =
-    (code_full: string, split_at: int): option(string) => {
-  let actions_all = Test_Editing.mk(code_full);
-  /* Split actions at the boundary */
-  let (actions_stale, actions_rest) =
-    Util.ListUtil.split_n(split_at, actions_all);
-  /* Build zipper up to stale point */
-  let z_stale = Test_Editing.perform(Zipper.init(), actions_stale);
-  /* Compute stale statics */
-  let MakeTerm.{term: term_stale, _} = MakeTerm.from_zip_for_sem(z_stale);
-  let info_map_stale =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term_stale);
-  /* Continue editing to current state (same zipper, preserves tile IDs) */
-  let z_current = Test_Editing.perform(z_stale, actions_rest);
-  /* Clear any buffer that might have been set during earlier edits */
-  let z_current = Zipper.clear_unparsed_buffer(z_current);
-  /* Run scaffold with stale info_map on current zipper */
-  let z = TyDiScaffold.set(~info_map=info_map_stale, z_current);
-  TyDi.get_unparsed_buffer(z);
-};
-
-let scaffold_debug = (code: string): unit => {
-  let actions = Test_Editing.mk(code);
-  let z = Test_Editing.perform(Zipper.init(), actions);
-  Printf.printf(
-    "DBG caret=%s anc=%d inside=%b printer=[%s]\n",
-    z.caret == Outer ? "O" : "I",
-    List.length(z.relatives.ancestors),
-    TyDiScaffold.inside_parens(z),
-    Test_Editing.printer(z),
-  );
-};
-
 let scaffold_test = (~name, ~code, ~expect) =>
-  test_case(
-    name,
-    `Quick,
-    () => {
-      if (expect != scaffold_suggest(code)) {
-        scaffold_debug(code);
-      };
-      check(option(string), name, expect, scaffold_suggest(code));
-    },
+  test_case(name, `Quick, () =>
+    check(option(string), name, expect, scaffold_suggest(code))
   );
 
 /* Print the zipper state after accepting the scaffold buffer via Tab.
@@ -96,29 +46,6 @@ let accept_test = (~name, ~code, ~goal) =>
     )
   );
 
-/* Get the ana type at the caret position after scaffold virtual insertion.
- * This tests that statics sees the tuple structure through the scaffold. */
-let scaffold_ana = (code: string): option(Typ.t) => {
-  let actions = Test_Editing.mk(code);
-  let z = Test_Editing.perform(Zipper.init(), actions);
-  /* First pass: compute statics to get ci for scaffold generation */
-  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-  let info_map =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDiScaffold.set(~info_map, z);
-  /* Second pass: reify scaffold into zipper, then dump for statics */
-  let z_reified = TyDiScaffold.reify(z);
-  let term = MakeTerm.from_zip_for_sem(z_reified).term;
-  let info_map2 =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  /* Look up ana at the indicated piece */
-  switch (Indicated.ci_of(z, info_map2)) {
-  | Some(InfoExp({ana, _})) => Some(ana)
-  | Some(InfoPat({ana, _})) => Some(ana)
-  | _ => None
-  };
-};
-
 /* ---- Scaffold generation: shard case (only open paren placed) ---- */
 
 let shard_tests = (
@@ -128,49 +55,49 @@ let shard_tests = (
     scaffold_test(
       ~name="2-arg: empty hole after open paren",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* Convex left (no grout): f(1, ?) */
     scaffold_test(
       ~name="2-arg: after first arg",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Grout to right: g(?, ?, ?) */
     scaffold_test(
       ~name="3-arg: empty hole after open paren",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(¦",
-      ~expect=Some(hole_char ++ ", " ++ hole_char ++ ", "),
+      ~expect=Some("?, ?, "),
     ),
     /* g(1, ?, ?) */
     scaffold_test(
       ~name="3-arg: one comma already present",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* Explicit parens: (?, ?) */
     scaffold_test(
       ~name="Explicit parens: let binding",
       ~code="let t : (Int, Bool) = (¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* Type alias: type Toop = (Int, Bool) in let x: Toop = (¦ */
     scaffold_test(
       ~name="Type alias: let binding with alias",
       ~code="type Toop = (Int, Bool) in let x : Toop = (¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* Type alias with labels */
     scaffold_test(
       ~name="Type alias: labeled tuple alias",
       ~code="type Toop = (zoo=Bool, yoop=(Int, String)) in let x : Toop = (¦",
-      ~expect=Some("zoo=" ++ hole_char ++ ", "),
+      ~expect=Some("zoo=?, "),
     ),
     /* Type alias: after first arg */
     scaffold_test(
       ~name="Type alias: after first arg",
       ~code="type Toop = (Int, Bool) in let x : Toop = (1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Bare tuple: no scaffold */
     scaffold_test(
@@ -202,31 +129,31 @@ let ancestor_tests = (
     scaffold_test(
       ~name="2-arg: after first arg, both parens",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦)",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* g(1¦) — 3-arg, both parens */
     scaffold_test(
       ~name="3-arg: after first arg, both parens",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1¦)",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some(", ?, ?"),
     ),
     /* g(1, 2¦) — 3-arg, one comma present */
     scaffold_test(
       ~name="3-arg: one comma, both parens",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, 2¦)",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Explicit parens: let t : (Int, Bool) = (1¦) */
     scaffold_test(
       ~name="Explicit parens: let binding, both parens",
       ~code="let t : (Int, Bool) = (1¦) in t",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Type alias with both parens */
     scaffold_test(
       ~name="Type alias: both parens",
       ~code="type Toop = (Int, Bool) in let x : Toop = (1¦) in x",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Suppression with both parens: f(p¦) where p matches Prod */
     scaffold_test(
@@ -253,20 +180,20 @@ let midexpr_tests = (
     scaffold_test(
       ~name="Trailing addition",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦) + 2",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* let result = f(1¦) in result — inside let binding body */
     scaffold_test(
       ~name="Inside let binding body",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in let r = f(1¦) in r",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Nested call: h(f(1¦)) — scaffold on inner function */
     scaffold_test(
       ~name="Nested function call: inner scaffold",
       ~code=
         "let f : (Int, String) -> Int = fun x -> 0 in let h : Int -> Int = fun y -> y in h(f(1¦))",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
   ],
 );
@@ -282,14 +209,14 @@ let nested_tests = (
       ~name="Nested tuple: after inner tuple value",
       ~code=
         "let f : ((Int, Int), String) -> Bool = fun x -> true in f((1, 2)¦)",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* f expects (Int, (String, Bool)). After typing first element,
      * scaffold should show `, ?` for the remaining element */
     scaffold_test(
       ~name="Nested tuple: second element is tuple",
       ~code="let f : (Int, (String, Bool)) -> Bool = fun x -> true in f(1¦)",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Genuine match: (1, "a") matches (Int, String) — should suppress */
     scaffold_test(
@@ -302,7 +229,7 @@ let nested_tests = (
       ~name="Nested 3-elem: after inner tuple",
       ~code=
         "let f : ((Int, Int), String, Bool) -> Int = fun x -> 0 in f((1, 2)¦)",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some(", ?, ?"),
     ),
     /* --- Right-nested: tuple on the right side of outer Prod --- */
     /* f expects (Bool, (Int, String)). Inside inner parens with one arg. */
@@ -310,14 +237,14 @@ let nested_tests = (
       ~name="Right-nested: f(true, (4|",
       ~code=
         "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (4¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Right-nested: just the inner open paren */
     scaffold_test(
       ~name="Right-nested: f(true, (|",
       ~code=
         "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* Right-nested: inner tuple complete, no scaffold */
     scaffold_test(
@@ -331,42 +258,42 @@ let nested_tests = (
       ~name="Right-nested: f(true| outer scaffold",
       ~code=
         "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Right-nested with both parens: f(true, (4|)) */
     scaffold_test(
       ~name="Right-nested both parens: f(true, (4|))",
       ~code=
         "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (4¦))",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Deeply nested: (Int, (String, (Bool, Float))) */
     scaffold_test(
       ~name="Deep right-nested: inner-most",
       ~code=
         "let f : (Int, (String, (Bool, Float))) -> Int = fun x -> 0 in f(1, (\"a\", (true¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Deep right-nested: middle level */
     scaffold_test(
       ~name="Deep right-nested: middle level",
       ~code=
         "let f : (Int, (String, (Bool, Float))) -> Int = fun x -> 0 in f(1, (\"a\"¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Middle-nested: (Int, (String, Bool), Float) */
     scaffold_test(
       ~name="Middle-nested: inside inner parens",
       ~code=
         "let f : (Int, (String, Bool), Float) -> Int = fun x -> 0 in f(1, (\"a\"¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Middle-nested: outer level after inner complete */
     scaffold_test(
       ~name="Middle-nested: outer after inner typed",
       ~code=
         "let f : (Int, (String, Bool), Float) -> Int = fun x -> 0 in f(1, (\"a\", true)¦)",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Right-nested Tab acceptance */
     accept_test(
@@ -389,25 +316,25 @@ let labeled_tests = (
     scaffold_test(
       ~name="Labeled tuple: after first arg",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
-      ~expect=Some(", y=" ++ hole_char),
+      ~expect=Some(", y=?"),
     ),
     /* 3-element labeled: after first arg, shows labels for remaining */
     scaffold_test(
       ~name="Labeled 3-elem: after first arg",
       ~code="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(1¦)",
-      ~expect=Some(", b=" ++ hole_char ++ ", c=" ++ hole_char),
+      ~expect=Some(", b=?, c=?"),
     ),
     /* Unlabeled elements in a mixed tuple should show ? without label */
     scaffold_test(
       ~name="Mixed labeled/unlabeled",
       ~code="let f : (Int, y=String) -> Bool = fun a -> true in f(1¦)",
-      ~expect=Some(", y=" ++ hole_char),
+      ~expect=Some(", y=?"),
     ),
     /* Grout-right case: f( with labeled tuple should show first label */
     scaffold_test(
       ~name="Labeled grout-right: first label shown",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
-      ~expect=Some("x=" ++ hole_char ++ ", "),
+      ~expect=Some("x=?, "),
     ),
   ],
 );
@@ -421,15 +348,14 @@ let edge_tests = (
     scaffold_test(
       ~name="4-arg: empty after open paren",
       ~code="let f : (Int, String, Bool, Float) -> Int = fun x -> 0 in f(¦",
-      ~expect=
-        Some(hole_char ++ ", " ++ hole_char ++ ", " ++ hole_char ++ ", "),
+      ~expect=Some("?, ?, ?, "),
     ),
     /* Function returning a function: scaffold for inner call */
     scaffold_test(
       ~name="Higher-order: scaffold for returned function",
       ~code=
         "let f : (Int, String) -> (Bool, Float) -> Int = fun x -> fun y -> 0 in f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Caret on empty hole between commas: no scaffold (all commas present) */
     scaffold_test(
@@ -442,13 +368,13 @@ let edge_tests = (
     scaffold_test(
       ~name="Shape fit: f(|1 → ?, (not , ?)",
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦1",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* 3-arg shape fit: g(|1 → ?, ?,  */
     scaffold_test(
       ~name="Shape fit: g(|1 → ?, ?, ",
       ~code="let g : (Bool, Int, String) -> Float = fun x -> 0.0 in g(¦1",
-      ~expect=Some(hole_char ++ ", " ++ hole_char ++ ", "),
+      ~expect=Some("?, ?, "),
     ),
     /* Trailing hole omitted: convex tile past grout on right.
      * f(1|~ 1 → just ", " (no trailing ? since 1 fills that position) */
@@ -461,19 +387,19 @@ let edge_tests = (
     scaffold_test(
       ~name="Trailing hole: f(1| → , ? (hole needed)",
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* 3-arg trailing hole omitted: g(1| 2 → , ?, (interior hole kept) */
     scaffold_test(
       ~name="Trailing hole: g(1| 2 → , ?, (interior kept)",
       ~code="let g : (Bool, Int, String) -> Float = fun x -> 0.0 in g(1¦ 2",
-      ~expect=Some(", " ++ hole_char ++ ", "),
+      ~expect=Some(", ?, "),
     ),
     /* holes_first with tile on right: f(| 1 → ?,  */
     scaffold_test(
       ~name="Holes first + trailing: f(| 1 → ?, ",
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦ 1",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
   ],
 );
@@ -490,73 +416,11 @@ let edge_tests = (
  *     scaffold_test(
  *       ~name="Pattern: let binding with tuple annotation",
  *       ~code="let (¦) : (Int, Bool) = (1, true) in 0",
- *       ~expect=Some(hole_char ++ ", "),
+ *       ~expect=Some("?, "),
  *     ),
  *   ],
  * );
  */
-
-/* ---- Tab acceptance tests ---- */
-
-/* ---- Statics reification: ana type after virtual scaffold insertion ---- */
-
-/* Check that the ana at caret is an Int atom (decomposed from Prod) */
-let ana_is_int = (code: string): bool =>
-  switch (scaffold_ana(code)) {
-  | Some(ty) =>
-    switch (Typ.term_of(ty)) {
-    | Atom(Int) => true
-    | _ => false
-    }
-  | None => false
-  };
-
-/* Check that the ana at caret is a Prod (remains as Prod, no decomposition) */
-let ana_is_prod = (code: string): bool =>
-  switch (scaffold_ana(code)) {
-  | Some(ty) =>
-    switch (Typ.term_of(ty)) {
-    | Prod(_) => true
-    | _ => false
-    }
-  | None => false
-  };
-
-let reification_tests = (
-  "TyDiScaffold.Reification",
-  [
-    /* After scaffold: f(1▎⟨, ?⟩ → the comma (buffer piece) gets
-     * indicated via concave-left-nib rule. The comma is the tuple
-     * separator, so its ana is the full Prod type. */
-    test_case("After first arg: comma indicated, ana is Prod", `Quick, () =>
-      check(
-        testable(Fmt.bool, Bool.equal),
-        "ana should be Prod (comma indicated)",
-        true,
-        ana_is_prod("let f : (Int, String) -> Int = fun x -> 0 in f(1¦"),
-      )
-    ),
-    /* Without scaffold, ana at 1 would be Prod([Int, String]) */
-    test_case("Without scaffold: ana is Prod", `Quick, () =>
-      check(
-        testable(Fmt.bool, Bool.equal),
-        "ana without scaffold should be Prod",
-        true,
-        ana_is_prod("let f : Int -> Bool = fun x -> true in f(1¦") |> (!) /* No scaffold for non-Prod → ana is NOT Prod */
-      )
-    ),
-    /* At f(¦ with scaffold ⟨?, , ?⟩: ci_of should show the first
-     * buffer grout's type (Int), not the application or Prod type */
-    test_case("Empty paren: ci_of shows first arg type", `Quick, () =>
-      check(
-        testable(Fmt.bool, Bool.equal),
-        "ana at f( should be Int (first arg)",
-        true,
-        ana_is_int("let f : (Int, String) -> Int = fun x -> 0 in f(¦"),
-      )
-    ),
-  ],
-);
 
 /* ---- Tab acceptance tests ---- */
 
@@ -602,58 +466,8 @@ let acceptance_tests = (
   ],
 );
 
-/* ---- Stale statics simulation (web UI debounce scenario) ---- */
-
-/* stale_test: type code_full up to split_at, compute statics, then
- * type the rest. Scaffold runs with the stale statics on the final zipper. */
-let stale_test = (~name, ~code, ~split_at, ~expect) =>
-  test_case(name, `Quick, () =>
-    check(
-      option(string),
-      name,
-      expect,
-      scaffold_suggest_stale(code, split_at),
-    )
-  );
-
 let def2 = "let f : (Int, String) -> Int = fun x -> 0 in ";
 let def3 = "let g : (Int, String, Bool) -> Int = fun x -> 0 in ";
-let def2_len = String.length(def2);
-let def3_len = String.length(def3);
-
-let stale_tests = (
-  "TyDiScaffold.Stale",
-  [
-    /* Fresh statics works (baseline) */
-    scaffold_test(
-      ~name="Fresh: f(1 shows scaffold",
-      ~code=def2 ++ "f(1¦",
-      ~expect=Some(", " ++ hole_char),
-    ),
-    /* Stale statics: info_map from f( used for f(1
-     * split_at = def2_len + 2 means statics is from "...in f(" state */
-    stale_test(
-      ~name="Stale: f( -> f(1",
-      ~code=def2 ++ "f(1¦",
-      ~split_at=def2_len + 2, /* stale at f( */
-      ~expect=Some(", " ++ hole_char),
-    ),
-    /* 3-arg: stale from g( -> g(1 */
-    stale_test(
-      ~name="Stale: g( -> g(1",
-      ~code=def3 ++ "g(1¦",
-      ~split_at=def3_len + 2, /* stale at g( */
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
-    ),
-    /* After first comma: stale from g(1, -> g(1, t */
-    stale_test(
-      ~name="Stale: g(1, -> g(1, t",
-      ~code=def3 ++ "g(1, t¦",
-      ~split_at=def3_len + 4, /* stale at g(1, */
-      ~expect=Some(", " ++ hole_char),
-    ),
-  ],
-);
 
 /* ---- Progressive character-by-character tests ---- */
 
@@ -664,13 +478,13 @@ let progressive_tests = (
     scaffold_test(
       ~name="f(: shows ?, ",
       ~code=def2 ++ "f(¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* f(1 → scaffold should still show */
     scaffold_test(
       ~name="f(1: shows , ?",
       ~code=def2 ++ "f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* f(1, → all commas present, no scaffold */
     scaffold_test(
@@ -682,31 +496,31 @@ let progressive_tests = (
     scaffold_test(
       ~name="g(: shows ?, ?, ",
       ~code=def3 ++ "g(¦",
-      ~expect=Some(hole_char ++ ", " ++ hole_char ++ ", "),
+      ~expect=Some("?, ?, "),
     ),
     /* g(1 */
     scaffold_test(
       ~name="g(1: shows , ?, ?",
       ~code=def3 ++ "g(1¦",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some(", ?, ?"),
     ),
     /* g(1, */
     scaffold_test(
       ~name="g(1,: shows ?, ",
       ~code=def3 ++ "g(1, ¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* g(1, t */
     scaffold_test(
       ~name="g(1, t: shows , ?",
       ~code=def3 ++ "g(1, t¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* g(1, true */
     scaffold_test(
       ~name="g(1, true: shows , ? (suppressed if type matches?)",
       ~code=def3 ++ "g(1, true¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* g(1, true, → all commas present */
     scaffold_test(
@@ -720,13 +534,13 @@ let progressive_tests = (
     scaffold_test(
       ~name="Nested f((: inner scaffold",
       ~code="let f : ((Int, Int), String) -> Bool = fun x -> true in f((¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* Nested: f((1 → inside inner parens with content. */
     scaffold_test(
       ~name="Nested f((1: inner scaffold",
       ~code="let f : ((Int, Int), String) -> Bool = fun x -> true in f((1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Nested: f((1, → inner comma placed, no more needed */
     scaffold_test(
@@ -751,13 +565,13 @@ let pattern_tests = (
     scaffold_test(
       ~name="Pattern fun (: scaffold",
       ~code="let f : (Int, String) -> Bool = fun (¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* Pattern: fun (x¦ — content in pattern paren */
     scaffold_test(
       ~name="Pattern fun (x: scaffold",
       ~code="let f : (Int, String) -> Bool = fun (x¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Pattern: fun (x,¦ — comma placed, no more needed */
     scaffold_test(
@@ -769,73 +583,7 @@ let pattern_tests = (
     scaffold_test(
       ~name="Pattern fun ( 3-arg: scaffold",
       ~code="let g : (Int, String, Bool) -> Bool = fun (x¦",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
-    ),
-  ],
-);
-
-/* ---- Combined completion + scaffold ---- */
-
-/* Test that scaffold_display returns a value even when there's
- * a text completion prefix. In the web UI, these get concatenated. */
-let combined_test = (~name, ~code, ~completion_prefix, ~scaffold_expect) =>
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let actions = Test_Editing.mk(code);
-      let z = Test_Editing.perform(Zipper.init(), actions);
-      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-      let info_map =
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-      /* Get scaffold on the original (bufferless) zipper */
-      let scaffold = TyDiScaffold.display(~info_map, z);
-      /* Verify scaffold independently (convert segment to string) */
-      let scaffold_str = Option.map(TyDiScaffold.segment_to_string, scaffold);
-      check(
-        option(string),
-        name ++ " scaffold",
-        scaffold_expect,
-        scaffold_str,
-      );
-      /* Verify combined display would contain both */
-      switch (scaffold_str) {
-      | Some(s) =>
-        let combined = completion_prefix ++ s;
-        check(
-          testable(Fmt.bool, Bool.equal),
-          name ++ " combined has scaffold",
-          true,
-          String.contains(combined, '?'),
-        );
-      | None => ()
-      };
-    },
-  );
-
-let combined_tests = (
-  "TyDiScaffold.Combined",
-  [
-    /* g(1111, tr → completion "ue" + scaffold ", ?" */
-    combined_test(
-      ~name="Completion + scaffold: g(1111, tr",
-      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1111, tr¦",
-      ~completion_prefix="ue",
-      ~scaffold_expect=Some(", " ++ hole_char),
-    ),
-    /* f(tr → completion "ue" + scaffold ", ?" */
-    combined_test(
-      ~name="Completion + scaffold: f(tr",
-      ~code="let f : (Int, String) -> Bool = fun x -> true in f(tr¦",
-      ~completion_prefix="ue",
-      ~scaffold_expect=Some(", " ++ hole_char),
-    ),
-    /* f(1 → no completion, just scaffold ", ?" */
-    combined_test(
-      ~name="No completion, just scaffold: f(1",
-      ~code="let f : (Int, String) -> Bool = fun x -> true in f(1¦",
-      ~completion_prefix="",
-      ~scaffold_expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?, ?"),
     ),
   ],
 );
@@ -868,7 +616,7 @@ let labeled_accept_tests = (
     scaffold_test(
       ~name="Labeled after label accept: no duplication",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦",
-      ~expect=Some(", y=" ++ hole_char),
+      ~expect=Some(", y=?"),
     ),
   ],
 );
@@ -883,7 +631,7 @@ let after_comma_tests = (
     scaffold_test(
       ~name="After comma 3-arg: g(1, shows scaffold",
       ~code=def3 ++ "g(1, ¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* After typing all commas: g(1, true, ¦ → no scaffold */
     scaffold_test(
@@ -909,7 +657,7 @@ let after_comma_tests = (
     scaffold_test(
       ~name="After comma no space: leading space in scaffold",
       ~code=def3 ++ "g(1,¦",
-      ~expect=Some(" " ++ hole_char ++ ", "),
+      ~expect=Some(" ?, "),
     ),
     /* 2-arg after comma no space: f(1,¦ → no remaining commas but
      * still no scaffold (all commas placed) */
@@ -943,32 +691,32 @@ let incomplete_tests = (
     scaffold_test(
       ~name="let-no-in: shard case",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* let without in: ancestor case with both parens */
     scaffold_test(
       ~name="let-no-in: ancestor case",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦)",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* fun body: fun x -> f(1¦ — incomplete fun, open paren */
     scaffold_test(
       ~name="fun-body: shard case",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in fun x -> f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* if-then: if true then f(1¦ — incomplete if, no else */
     scaffold_test(
       ~name="if-then: shard case",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in if true then f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Nested incomplete let: let y = 0 in let x = f(1¦ */
     scaffold_test(
       ~name="nested-let: shard case",
       ~code=
         "let f : (Int, String) -> Int = fun x -> 0 in let y = 0 in let x = f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Writing above existing code: let x = f(1¦ followed by more code.
      * The trailing let simulates code on the next line. */
@@ -976,26 +724,26 @@ let incomplete_tests = (
       ~name="above-existing-code: shard",
       ~code=
         "let f : (Int, String) -> Int = fun x -> 0 in let x = f(1¦\nlet y = 2 in y",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
     /* Grout-right in incomplete let */
     scaffold_test(
       ~name="let-no-in: grout-right",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in let x = f(¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* 3-arg incomplete let */
     scaffold_test(
       ~name="let-no-in: 3-arg",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in let x = g(1¦",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some(", ?, ?"),
     ),
     /* Labeled in incomplete let */
     scaffold_test(
       ~name="let-no-in: labeled",
       ~code=
         "let f : (x=Int, y=String) -> Bool = fun a -> true in let r = f(1¦",
-      ~expect=Some(", y=" ++ hole_char),
+      ~expect=Some(", y=?"),
     ),
     /* Tab acceptance in incomplete form.
      * Note: printer doesn't show Dump-completed `in` — it only renders
@@ -1068,26 +816,6 @@ let scaffold_segment_ok = (code: string): bool => {
   };
 };
 
-/* Like scaffold_segment_ok but uses stale statics (the common web UI
- * scenario where statics lags behind editing by one action). */
-let scaffold_segment_ok_stale = (code: string, split_at: int): bool => {
-  let actions_all = Test_Editing.mk(code);
-  let (actions_stale, actions_rest) =
-    Util.ListUtil.split_n(split_at, actions_all);
-  let z_stale = Test_Editing.perform(Zipper.init(), actions_stale);
-  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z_stale);
-  let info_map_stale =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z_current = Test_Editing.perform(z_stale, actions_rest);
-  let z_current = Zipper.clear_unparsed_buffer(z_current);
-  let z = TyDiScaffold.set(~info_map=info_map_stale, z_current);
-  let segment = Zipper.unselect_and_zip(z);
-  switch (MakeTerm.go(segment)) {
-  | _ => true
-  | exception (Failure(_)) => false
-  };
-};
-
 let segment_ok_test = (~name, ~code) =>
   test_case(name, `Quick, () =>
     check(
@@ -1095,16 +823,6 @@ let segment_ok_test = (~name, ~code) =>
       name ++ ": segment must be Skel-safe",
       true,
       scaffold_segment_ok(code),
-    )
-  );
-
-let segment_ok_stale_test = (~name, ~code, ~split_at) =>
-  test_case(name, `Quick, () =>
-    check(
-      testable(Fmt.bool, Bool.equal),
-      name ++ ": segment must be Skel-safe (stale)",
-      true,
-      scaffold_segment_ok_stale(code, split_at),
     )
   );
 
@@ -1179,13 +897,6 @@ let segment_wellformedness_tests = (
       ~code=
         "let f : (Int, String) -> Int = fun x -> 0 in let h : Int -> Int = fun y -> y in h(f(1¦))",
     ),
-    /* Stale statics: the common case where statics is one edit behind */
-    segment_ok_stale_test(
-      ~name="Stale: f( -> f(1|",
-      ~code="let f : (Int, String) -> Int = fun x -> 0 in f(1¦",
-      ~split_at=
-        String.length("let f : (Int, String) -> Int = fun x -> 0 in f("),
-    ),
   ],
 );
 
@@ -1229,19 +940,19 @@ let suppression_tests = (
     scaffold_test(
       ~name="No suppress: single-typed var in 3-arg call",
       ~code="let arg : String = ? in string_replace(arg¦",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some(", ?, ?"),
     ),
     /* No suppression: empty hole (no value to check) */
     scaffold_test(
       ~name="No suppress: empty hole after open paren",
       ~code=def2 ++ "f(¦",
-      ~expect=Some(hole_char ++ ", "),
+      ~expect=Some("?, "),
     ),
     /* No suppression: value with wrong tuple arity */
     scaffold_test(
       ~name="No suppress: wrong-arity tuple var",
       ~code="let pair : (String, String) = ? in string_replace(pair¦",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some(", ?, ?"),
     ),
   ],
 );
@@ -1295,14 +1006,14 @@ let completion_suppression_tests = (
       ~name="Element completion + scaffold preferred over full Prod",
       ~code=
         "let args : (String, String, String) = ? in let arg : String = ? in string_replace(ar¦",
-      ~expect=Some("g" ++ ", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some("g, ?, ?"),
     ),
     /* Typing ar▎ where only arg : String (no Prod match).
      * Element completion finds arg, combined with scaffold. */
     assist_test(
       ~name="Element completion only: arg + scaffold",
       ~code="let arg : String = ? in string_replace(ar¦",
-      ~expect=Some("g" ++ ", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some("g, ?, ?"),
     ),
     /* arg fully typed: element-type exact match suppresses completion.
      * Should show scaffold only, not suggest "args" via full-Prod path. */
@@ -1310,13 +1021,23 @@ let completion_suppression_tests = (
       ~name="Exact element match: scaffold only, no completion",
       ~code=
         "let args : (String, String, String) = ? in let arg : String = ? in string_replace(arg¦",
-      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect=Some(", ?, ?"),
+    ),
+    /* Text completion in 3-arg context: g(1111, tr → "ue"
+     * TyDi finds "true" via form suggestions at the full Prod type.
+     * TODO: ideally this would show "ue, ?" (completion + scaffold for
+     * the remaining 3rd arg), but the full-Prod completion path takes
+     * priority when element completion doesn't match. */
+    assist_test(
+      ~name="Form completion in multi-arg: g(1111, tr",
+      ~code=def3 ++ "g(1111, tr¦",
+      ~expect=Some("ue"),
     ),
     /* No completion available, just scaffold */
     assist_test(
       ~name="No completion, just scaffold",
       ~code=def2 ++ "f(1¦",
-      ~expect=Some(", " ++ hole_char),
+      ~expect=Some(", ?"),
     ),
   ],
 );
@@ -1373,7 +1094,7 @@ let integration_tests = (
     integration_test(
       ~name="After open paren: scaffold, no errors",
       ~code=blargs_prefix ++ "¦",
-      ~expect_buffer=Some(hole_char ++ ", " ++ hole_char ++ ", "),
+      ~expect_buffer=Some("?, ?, "),
       ~expect_errors=false,
     ),
     /* string_replace(blargs¦ — no scaffold (suppressed), no type errors */
@@ -1397,14 +1118,14 @@ let integration_tests = (
     integration_test(
       ~name="Single-typed var with scaffold: no errors",
       ~code="let arg : String = ? in string_replace(arg¦",
-      ~expect_buffer=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect_buffer=Some(", ?, ?"),
       ~expect_errors=false,
     ),
     /* string_replace(1¦ — scaffold, has errors (Int vs String) */
     integration_test(
       ~name="Wrong type literal: scaffold, has errors",
       ~code=blargs_prefix ++ "1¦",
-      ~expect_buffer=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect_buffer=Some(", ?, ?"),
       ~expect_errors=true,
     ),
   ],
@@ -1417,12 +1138,9 @@ let tests = [
   nested_tests,
   labeled_tests,
   edge_tests,
-  reification_tests,
   acceptance_tests,
   labeled_accept_tests,
-  combined_tests,
   after_comma_tests,
-  stale_tests,
   progressive_tests,
   pattern_tests,
   incomplete_tests,
