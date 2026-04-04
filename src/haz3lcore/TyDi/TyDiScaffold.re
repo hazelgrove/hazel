@@ -571,7 +571,7 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
             | _ => find_unused(i + 1)
             };
           };
-        find_unused(current_element_idx);
+        find_unused(0);
       };
       let current_has_label = current_label != None;
 
@@ -653,16 +653,16 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
               }),
             ];
           };
-        /* Append remaining scaffold entries (commas + labels).
-         * Filter out labels already assigned in the tuple. */
+        /* Append remaining scaffold entries: all unused labels
+         * except the one currently being completed. */
         let rest_labels =
           tys
-          |> List.filteri((i, _) => i > current_element_idx)
           |> List.map(label_of_prod_elem)
-          |> List.map(
+          |> List.filter_map(
                fun
                | Some(name) when is_used(name) => None
-               | label => label,
+               | Some(name) when current_label == Some(name) => None
+               | label => Some(label),
              );
         if (remaining > 0) {
           let rest =

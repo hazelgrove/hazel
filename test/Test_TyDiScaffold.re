@@ -600,11 +600,11 @@ let label_aware_tests = (
       ~code=def_fbb_tuple ++ "(¦foo=1, baz=0.0)",
       ~expect=Some("bar=?, "),
     ),
-    /* Caret before existing, foo+bar missing: suggest foo= first */
+    /* Caret before existing, foo+bar missing: suggest both */
     scaffold_test(
-      ~name="Before existing, foo+bar missing: suggest foo=",
+      ~name="Before existing, foo+bar missing: suggest foo= bar=",
       ~code=def_fbb_tuple ++ "(¦baz=0.0)",
-      ~expect=Some("foo=?, "),
+      ~expect=Some("foo=?, bar=?, "),
     ),
     /* -- Between existing labels -- */
     /* Between foo and baz, bar missing: suggest bar= */
@@ -626,29 +626,32 @@ let label_aware_tests = (
       ~expect=Some("baz=?, "),
     ),
     /* -- At end, out-of-order -- */
-    /* Only bar entered, at end: suggest foo= */
+    /* Only bar entered, at end: foo and baz missing.
+     * remaining=1 (1 comma present, need 2), show first unused + scaffold */
     scaffold_test(
-      ~name="End after bar only: suggest foo=",
+      ~name="End after bar only: suggest foo= + baz=",
       ~code=def_fbb_tuple ++ "(bar=true, ¦)",
-      ~expect=Some("foo=?"),
+      ~expect=Some("foo=?, baz=?, "),
     ),
-    /* Only baz entered, at end: suggest foo= */
+    /* Only baz entered, at end: foo and bar missing */
     scaffold_test(
-      ~name="End after baz only: suggest foo=",
+      ~name="End after baz only: suggest foo= + bar=",
       ~code=def_fbb_tuple ++ "(baz=0.0, ¦)",
-      ~expect=Some("foo=?"),
+      ~expect=Some("foo=?, bar=?, "),
     ),
-    /* foo and baz entered, bar missing, at end */
+    /* foo and baz entered, bar missing, at end.
+     * remaining=0 (2 commas), label hint only */
     scaffold_test(
       ~name="End after foo+baz: suggest bar=",
       ~code=def_fbb_tuple ++ "(foo=1, baz=0.0, ¦)",
-      ~expect=Some("bar=?"),
+      ~expect=Some("bar="),
     ),
-    /* bar and baz entered, foo missing, at end */
+    /* bar and baz entered, foo missing, at end.
+     * remaining=0 (2 commas), label hint only */
     scaffold_test(
       ~name="End after bar+baz: suggest foo=",
       ~code=def_fbb_tuple ++ "(bar=true, baz=0.0, ¦)",
-      ~expect=Some("foo=?"),
+      ~expect=Some("foo="),
     ),
     /* -- Partial typing with label awareness -- */
     /* Typing f before bar+baz: should match foo */
