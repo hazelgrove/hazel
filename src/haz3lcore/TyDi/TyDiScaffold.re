@@ -673,9 +673,12 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
             /* Check if token to left conflicts with the label. If the
              * user typed something that isn't a prefix of the label
              * (e.g., "bb" for label "bar"), suppress the hint. */
+            /* Check if there's an identifier token to the left that
+             * conflicts with the label. Skip commas and operators —
+             * only check convex operand tokens (potential label names). */
             let token_conflicts =
               switch (TyDiComplete.token_to_left(z), current_label) {
-              | (Some(tok), Some(name)) =>
+              | (Some(tok), Some(name)) when tok != "," && tok != "=" =>
                 let quoted = Token.quote_label_when_necessary(name);
                 !String.starts_with(~prefix=tok, quoted);
               | _ => false

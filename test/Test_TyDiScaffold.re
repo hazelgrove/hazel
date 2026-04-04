@@ -426,6 +426,19 @@ let labeled_tests = (
       ~code=def_labeled2 ++ "f(foo=1, bar=¦)",
       ~expect=Some("?"),
     ),
+    /* Step 6c: f(foo=1,|) — no space after comma, label hint with space.
+     * Trailing hole present because right sibling is grout (same position). */
+    scaffold_test(
+      ~name="L2: f(foo=1,|) label hint with space",
+      ~code=def_labeled2 ++ "f(foo=1,¦)",
+      ~expect=Some(" bar=?"),
+    ),
+    /* Step 6d: shard case — f(foo=1,| without closing paren */
+    scaffold_test(
+      ~name="L2: f(foo=1,| shard label hint",
+      ~code=def_labeled2 ++ "f(foo=1,¦",
+      ~expect=Some(" bar="),
+    ),
     /* Step 7b: f(foo=1, bb|) — non-matching prefix, no scaffold.
      * "bb" is not a prefix of "bar", so label completion shouldn't trigger. */
     scaffold_test(
