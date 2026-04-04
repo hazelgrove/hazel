@@ -33,6 +33,35 @@ let scaffold_accept = (code: string): string => {
   Test_Editing.printer(z);
 };
 
+/* Accept scaffold, recompute statics + scaffold, accept again.
+ * Simulates multiple Tab presses with scaffold regeneration between. */
+let multi_accept = (code: string, n_tabs: int): string => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let rec go = (z, remaining) =>
+    if (remaining <= 0) {
+      z;
+    } else {
+      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
+      let info_map =
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+      let z = Buffer.set_assist_buffer(~info_map, z);
+      let z = Test_Editing.perform(z, [Action.Buffer(Accept)]);
+      go(z, remaining - 1);
+    };
+  Test_Editing.printer(go(z, n_tabs));
+};
+
+let multi_accept_test = (~name, ~code, ~n_tabs, ~goal) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      goal,
+      goal,
+      multi_accept(code, n_tabs),
+    )
+  );
+
 let accept_test = (~name, ~code, ~goal) =>
   test_case(name, `Quick, () =>
     check(
@@ -581,6 +610,45 @@ let pattern_tests = (
       ~name="Pattern fun ( 3-arg: scaffold",
       ~code="let g : (Int, String, Bool) -> Bool = fun (x¦",
       ~expect=Some(", ?, ?"),
+    ),
+  ],
+);
+
+/* ---- Multi-Tab acceptance: sequential Tab presses ---- */
+
+let multi_tab_tests = (
+  "TyDiScaffold.MultiTab",
+  [
+    /* 3-arg: Tab-Tab from g(1¦ → g(1, ?, ¦? */
+    multi_accept_test(
+      ~name="3-arg: two Tabs from g(1",
+      ~code=def3 ++ "g(1¦",
+      ~n_tabs=2,
+      ~goal=def3 ++ "g(1, ?, ¦?",
+    ),
+    /* 3-arg: Tab-Tab from g(¦ → g(?, ?, ¦?
+     * First Tab emits hole+comma (scaffold holes_first chunk),
+     * second Tab emits another comma. */
+    multi_accept_test(
+      ~name="3-arg: two Tabs from g(",
+      ~code=def3 ++ "g(¦",
+      ~n_tabs=2,
+      ~goal=def3 ++ "g(?, ?, ¦?",
+    ),
+    /* 2-arg: single Tab from f(1¦ → f(1, ¦? */
+    multi_accept_test(
+      ~name="2-arg: one Tab from f(1",
+      ~code=def2 ++ "f(1¦",
+      ~n_tabs=1,
+      ~goal=def2 ++ "f(1, ¦?",
+    ),
+    /* Labeled 2-arg: Tab from f(¦ → f(x=¦?
+     * Inserts label prefix "x=" */
+    multi_accept_test(
+      ~name="Labeled: one Tab from f(",
+      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
+      ~n_tabs=1,
+      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
     ),
   ],
 );
@@ -1226,6 +1294,7 @@ let tests = [
   labeled_tests,
   edge_tests,
   acceptance_tests,
+  multi_tab_tests,
   labeled_accept_tests,
   after_comma_tests,
   progressive_tests,
