@@ -348,11 +348,47 @@ let labeled_tests = (
       ~code=def_labeled2 ++ "f(¦",
       ~expect=Some("foo=?, "),
     ),
+    /* Step 1a: f(f| — typed f, should suggest oo= completion */
+    scaffold_test(
+      ~name="L2: f(f| should suggest oo=",
+      ~code=def_labeled2 ++ "f(f¦",
+      ~expect=Some("oo=?, "),
+    ),
+    /* Step 1b: f(fo| — typed fo, should suggest o= */
+    scaffold_test(
+      ~name="L2: f(fo| should suggest o=",
+      ~code=def_labeled2 ++ "f(fo¦",
+      ~expect=Some("o=?, "),
+    ),
+    /* Step 1c: f(foo| — typed foo, should suggest = */
+    scaffold_test(
+      ~name="L2: f(foo| should suggest =",
+      ~code=def_labeled2 ++ "f(foo¦",
+      ~expect=Some("=?, "),
+    ),
     /* Step 2: f(| → Tab → f(foo=|? — accept inserts label prefix */
     accept_test(
       ~name="L2: Tab on f( inserts foo=",
       ~code=def_labeled2 ++ "f(¦",
       ~goal=def_labeled2 ++ "f(foo=¦?",
+    ),
+    /* Step 2b: explicit tuple: (| with labeled type */
+    scaffold_test(
+      ~name="L2 explicit: (| with labeled type",
+      ~code="let t : (foo=Int, bar=Bool) = (¦",
+      ~expect=Some("foo=?, "),
+    ),
+    /* Step 2c: explicit tuple: (f| should suggest oo= */
+    scaffold_test(
+      ~name="L2 explicit: (f| suggests oo=",
+      ~code="let t : (foo=Int, bar=Bool) = (f¦",
+      ~expect=Some("oo=?, "),
+    ),
+    /* Step 2d: explicit tuple Tab: (| → Tab → (foo=|? (one hole, not two) */
+    accept_test(
+      ~name="L2 explicit: Tab on ( inserts foo=",
+      ~code="let t : (foo=Int, bar=Bool) = (¦",
+      ~goal="let t : (foo=Int, bar=Bool) = (foo=¦?",
     ),
     /* Step 3: f(foo=| — scaffold shows value hole + remaining label */
     scaffold_test(
