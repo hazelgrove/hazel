@@ -856,6 +856,41 @@ x|},
       ~code="let arg : String = ? in let r = string_replace(ar¦",
       ~expect=Some("g, ?, ?"),
     ),
+    /* Multi-line function application: arguments on separate lines.
+     * Caret after 1 on an indented line, ( is on previous line. */
+    scaffold_test(
+      ~name="Multi-line app: f(\\n  1|",
+      ~code={|let f : (Int, String) -> Int = fun x -> 0 in
+f(
+  1¦|},
+      ~expect=Some(", ?"),
+    ),
+    /* Multi-line: caret on empty indented line after ( */
+    scaffold_test(
+      ~name="Multi-line app: f(\\n  |",
+      ~code={|let f : (Int, String) -> Int = fun x -> 0 in
+f(
+  ¦|},
+      ~expect=Some("?, "),
+    ),
+    /* Multi-line: caret after partial variable, f not in scope.
+     * No scaffold (f has Unknown type), but text completion still
+     * finds arg as a prefix match. */
+    scaffold_test(
+      ~name="Multi-line app: f(\\n  ar| (no scaffold, text completion)",
+      ~code={|let arg : String = ? in
+f(
+  ar¦|},
+      ~expect=Some("g"),
+    ),
+    /* Multi-line with function in scope */
+    scaffold_test(
+      ~name="Multi-line app: string_replace(\\n  ar|",
+      ~code={|let arg : String = ? in
+string_replace(
+  ar¦|},
+      ~expect=Some("g, ?, ?"),
+    ),
   ],
 );
 
@@ -1077,15 +1112,14 @@ let completion_suppression_tests = (
         "let args : (String, String, String) = ? in let arg : String = ? in string_replace(arg¦",
       ~expect=Some(", ?, ?"),
     ),
-    /* Text completion in 3-arg context: g(1111, tr → "ue"
-     * TyDi finds "true" via form suggestions at the full Prod type.
-     * TODO: ideally this would show "ue, ?" (completion + scaffold for
-     * the remaining 3rd arg), but the full-Prod completion path takes
-     * priority when element completion doesn't match. */
+    /* Form completion in 3-arg context: g(1111, tr → "ue, ?"
+     * TyDi finds "true" via form suggestions. Since true : Bool
+     * doesn't satisfy the full Prod (Int, String, Bool), scaffold
+     * for the remaining 3rd arg is combined with the completion. */
     scaffold_test(
-      ~name="Form completion in multi-arg: g(1111, tr",
+      ~name="Form completion + scaffold: g(1111, tr",
       ~code=def3 ++ "g(1111, tr¦",
-      ~expect=Some("ue"),
+      ~expect=Some("ue, ?"),
     ),
     /* No completion available, just scaffold */
     scaffold_test(

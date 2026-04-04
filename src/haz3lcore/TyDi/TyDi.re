@@ -116,13 +116,33 @@ let suggest_assist =
     let element_suffix = completion_suffix(~ci=elem_ci, z);
     let full_suffix = completion_suffix(~ci, z);
 
+    /* Check whether a full-Prod completion would satisfy the entire
+     * expected type (suppressing scaffold). If not, the completion
+     * should be combined with scaffold. */
+    let full_would_suppress = (suffix: string): bool =>
+      switch (TyDiComplete.token_to_left(z), ci) {
+      | (Some(tok), Some(ci)) =>
+        let completed = tok ++ suffix;
+        let ctx = Info.ctx_of(ci);
+        let expected = TyDiScaffold.expected_type(z, info_map);
+        switch (expected) {
+        | Some(ety) => token_is_valid_at(~ctx, ~tok=completed, ~typ=ety)
+        | None => false
+        };
+      | _ => false
+      };
+
     switch (element_suffix, full_suffix) {
     | (Some(elem_text), Some(full_text)) =>
-      /* Both match. Prefer element + scaffold if shorter. */
+      /* Both match. Prefer element + scaffold if shorter.
+       * If full-Prod wins, check if it satisfies the Prod
+       * (no scaffold) or should be combined with scaffold. */
       if (String.length(elem_text) <= String.length(full_text)) {
         Some(TyDiComplete.mk_unparsed_buffer(elem_text) @ scaffold_seg);
-      } else {
+      } else if (full_would_suppress(full_text)) {
         Some(TyDiComplete.mk_unparsed_buffer(full_text));
+      } else {
+        Some(TyDiComplete.mk_unparsed_buffer(full_text) @ scaffold_seg);
       }
     | (Some(elem_text), None) =>
       /* Only element match — completion + scaffold */
@@ -143,7 +163,11 @@ let suggest_assist =
       } else {
         switch (full_suffix) {
         | Some(full_text) =>
-          Some(TyDiComplete.mk_unparsed_buffer(full_text))
+          if (full_would_suppress(full_text)) {
+            Some(TyDiComplete.mk_unparsed_buffer(full_text));
+          } else {
+            Some(TyDiComplete.mk_unparsed_buffer(full_text) @ scaffold_seg);
+          }
         | None => Some(scaffold_seg)
         };
       };
