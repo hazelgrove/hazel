@@ -177,99 +177,34 @@ module Update = {
       statics_mode == StaticsForce
       || (is_edited || probes_changed)
       && statics_mode != StaticsDefer;
-    let statics =
-      statics_refreshed
-        ? CachedStatics.init(
+    /* When statics is refreshed, compute the correct buffer and statics
+     * together via init_with_assist. This resolves the circular dependency
+     * (buffer needs info_map, statics needs buffer) in a clean two-pass
+     * approach. Editor.calculate's buffer (from old statics) serves as a
+     * fast visual preview; this pass produces the authoritative result. */
+    let (editor, statics) =
+      if (statics_refreshed) {
+        let (zipper, statics) =
+          CachedStatics.init_with_assist(
             ~settings,
             ~stitch,
             ~ctx?,
             ~ana?,
             ~is_dynamic_term,
             editor.state.zipper,
-          )
-        : statics;
-    /* Re-evaluate scaffold with fresh statics. This handles two cases:
-     *
-     * 1. No buffer exists: the first cycle after typing ( on a multi-arg
-     *    function — old info_map didn't have the ( piece, so scaffold
-     *    couldn't be set before statics ran. Generate it now.
-     *
-     * 2. Buffer exists but should be cleared: stale statics set scaffold
-     *    when it shouldn't have (e.g., variable satisfying the full Prod
-     *    wasn't recognized with old info_map). Re-check with fresh statics.
-     *
-     * Re-run statics only when scaffold is newly generated with structural
-     * content (commas/holes) — this is a one-time cost per ( keystroke. */
-    let (editor, statics) =
-      if (statics_refreshed && settings.assist && settings.statics) {
-        let zipper = editor.state.zipper;
-        /* Check display on a buffer-free zipper — display bails early
-         * when a buffer exists (precondition), so we need to clear it
-         * first to get an accurate fresh evaluation. */
-        let clean_zipper = Zipper.clear_unparsed_buffer(zipper);
-        let fresh_scaffold =
-          TyDiScaffold.display(~info_map=statics.info_map, clean_zipper);
-        let had_scaffold = TyDiScaffold.is_scaffold(zipper);
-        switch (fresh_scaffold) {
-        | None when had_scaffold =>
-          /* Scaffold was set by old statics but fresh statics says
-           * suppress — clear the buffer (e.g., blargs now recognized
-           * as satisfying the Prod). No statics re-run needed. */
-          let zipper = Zipper.clear_unparsed_buffer(zipper);
-          let syntax = CachedSyntax.mark_old(editor.syntax);
-          let syntax =
-            CachedSyntax.calculate(
+          );
+        let syntax = CachedSyntax.mark_old(editor.syntax);
+        let syntax =
+          CachedSyntax.calculate(zipper, statics.info_map, dynamics, syntax);
+        let editor =
+          Editor.Model.{
+            state: {
+              ...editor.state,
               zipper,
-              statics.info_map,
-              dynamics,
-              syntax,
-            );
-          let editor =
-            Editor.Model.{
-              state: {
-                ...editor.state,
-                zipper,
-              },
-              syntax,
-            };
-          (editor, statics);
-        | Some(content) when !had_scaffold =>
-          /* No scaffold before, now generated — set buffer and
-           * re-run statics so elaborated term sees the tuple. */
-          let zipper = Zipper.set_buffer(zipper, ~content, ~mode=Unparsed);
-          let syntax = CachedSyntax.mark_old(editor.syntax);
-          let syntax =
-            CachedSyntax.calculate(
-              zipper,
-              statics.info_map,
-              dynamics,
-              syntax,
-            );
-          let editor =
-            Editor.Model.{
-              state: {
-                ...editor.state,
-                zipper,
-              },
-              syntax,
-            };
-          let statics =
-            TyDiScaffold.is_scaffold(zipper)
-              ? CachedStatics.init(
-                  ~settings,
-                  ~stitch,
-                  ~ctx?,
-                  ~ana?,
-                  ~is_dynamic_term,
-                  zipper,
-                )
-              : statics;
-          (editor, statics);
-        | _ =>
-          /* Either no scaffold needed and none exists, or scaffold
-           * exists and fresh statics agrees — no changes needed. */
-          (editor, statics)
-        };
+            },
+            syntax,
+          };
+        (editor, statics);
       } else {
         (editor, statics);
       };

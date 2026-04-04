@@ -155,3 +155,55 @@ let init =
     ) =>
   settings.statics
     ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~ana?, z) : empty;
+
+/* Compute the correct assist buffer and statics together, resolving
+ * the circular dependency between them:
+ *
+ * 1. Run statics on the bare zipper (no buffer) → info_map
+ * 2. Compute the assist buffer using that info_map
+ *    (completion + scaffold + suppression logic)
+ * 3. If the buffer has structural scaffold content, re-run statics
+ *    so the elaborated term includes the tuple structure via reify
+ *
+ * Returns (updated_zipper, statics). The zipper has the correct
+ * buffer set; statics reflects the reified scaffold if present. */
+let init_with_assist =
+    (
+      ~settings: CoreSettings.t,
+      ~is_dynamic_term,
+      ~stitch,
+      ~ctx=?,
+      ~ana=?,
+      z: Zipper.t,
+    )
+    : (Zipper.t, t) => {
+  /* Step 1: statics on bare zipper */
+  let clean_z = Zipper.clear_unparsed_buffer(z);
+  let statics =
+    init(~settings, ~is_dynamic_term, ~stitch, ~ctx?, ~ana?, clean_z);
+
+  if (!settings.assist || !settings.statics) {
+    (clean_z, statics);
+  } else {
+    /* Step 2: compute buffer with fresh info_map */
+    let z_with_buffer =
+      Buffer.set_assist_buffer(~info_map=statics.info_map, clean_z);
+
+    /* Step 3: if scaffold was generated, re-run statics so
+     * reify can virtually insert the commas/holes */
+    if (TyDiScaffold.is_scaffold(z_with_buffer)) {
+      let statics =
+        init(
+          ~settings,
+          ~is_dynamic_term,
+          ~stitch,
+          ~ctx?,
+          ~ana?,
+          z_with_buffer,
+        );
+      (z_with_buffer, statics);
+    } else {
+      (z_with_buffer, statics);
+    };
+  };
+};

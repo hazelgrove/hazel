@@ -1288,11 +1288,28 @@ let completion_suppression_tests = (
       ~code="let blargs : (String, String, String) = ? in string_replace(bl¦",
       ~expect=Some("args"),
     ),
-    /* Typing ar▎ where arg : String. ana is Prod([String,String,String])
-     * so TyDi doesn't suggest "arg" (type mismatch). Only scaffold. */
+    /* Typing ar▎ where arg : String AND args : (String,String,String).
+     * Element-type completion (arg, shorter) preferred over full-Prod
+     * completion (args). Result: "g" + scaffold for remaining elements. */
     assist_test(
-      ~name="No completion for wrong type: scaffold only",
+      ~name="Element completion + scaffold preferred over full Prod",
+      ~code=
+        "let args : (String, String, String) = ? in let arg : String = ? in string_replace(ar¦",
+      ~expect=Some("g" ++ ", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+    /* Typing ar▎ where only arg : String (no Prod match).
+     * Element completion finds arg, combined with scaffold. */
+    assist_test(
+      ~name="Element completion only: arg + scaffold",
       ~code="let arg : String = ? in string_replace(ar¦",
+      ~expect=Some("g" ++ ", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+    /* arg fully typed: element-type exact match suppresses completion.
+     * Should show scaffold only, not suggest "args" via full-Prod path. */
+    assist_test(
+      ~name="Exact element match: scaffold only, no completion",
+      ~code=
+        "let args : (String, String, String) = ? in let arg : String = ? in string_replace(arg¦",
       ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
     ),
     /* No completion available, just scaffold */
@@ -1300,6 +1317,95 @@ let completion_suppression_tests = (
       ~name="No completion, just scaffold",
       ~code=def2 ++ "f(1¦",
       ~expect=Some(", " ++ hole_char),
+    ),
+  ],
+);
+
+/* ---- Integration: init_with_assist produces correct buffer + statics ----
+ *
+ * These test CachedStatics.init_with_assist, the single function that
+ * resolves the buffer↔statics circular dependency:
+ *
+ * 1. Run statics on bare zipper (no buffer) → info_map
+ * 2. Compute assist buffer (completion + scaffold) using that info_map
+ * 3. If scaffold generated, re-run statics so elaboration sees the tuple
+ *
+ * Returns (buffer, statics) — both correct by construction. */
+
+let init_with_assist_result = (code: string): (option(string), bool) => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let (z, statics) =
+    CachedStatics.init_with_assist(
+      ~settings=CoreSettings.on,
+      ~is_dynamic_term=false,
+      ~stitch=x => x,
+      z,
+    );
+  let buffer = TyDi.get_unparsed_buffer(z);
+  let has_errors = statics.error_ids != [];
+  (buffer, has_errors);
+};
+
+let integration_test = (~name, ~code, ~expect_buffer, ~expect_errors) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (buffer, has_errors) = init_with_assist_result(code);
+      check(option(string), name ++ " buffer", expect_buffer, buffer);
+      check(
+        testable(Fmt.bool, Bool.equal),
+        name ++ " errors",
+        expect_errors,
+        has_errors,
+      );
+    },
+  );
+
+let blargs_prefix = "let blargs : (String, String, String) = ? in string_replace(";
+
+let integration_tests = (
+  "TyDiScaffold.Integration",
+  [
+    /* string_replace(¦ — scaffold should appear, no type errors
+     * (scaffold is reified so statics sees the full tuple) */
+    integration_test(
+      ~name="After open paren: scaffold, no errors",
+      ~code=blargs_prefix ++ "¦",
+      ~expect_buffer=Some(hole_char ++ ", " ++ hole_char ++ ", "),
+      ~expect_errors=false,
+    ),
+    /* string_replace(blargs¦ — no scaffold (suppressed), no type errors */
+    integration_test(
+      ~name="Tuple var typed: no scaffold, no errors",
+      ~code=blargs_prefix ++ "blargs¦",
+      ~expect_buffer=None,
+      ~expect_errors=false,
+    ),
+    /* string_replace(bl¦ — completion "args", no scaffold.
+     * Errors expected: "bl" is not a complete identifier, so statics
+     * flags it. The completion is ghost text, not yet accepted. */
+    integration_test(
+      ~name="Partial var: completion only, errors on incomplete id",
+      ~code=blargs_prefix ++ "bl¦",
+      ~expect_buffer=Some("args"),
+      ~expect_errors=true,
+    ),
+    /* string_replace(arg¦ where arg : String — scaffold, no errors
+     * (scaffold reification gives arg the correct per-element ana) */
+    integration_test(
+      ~name="Single-typed var with scaffold: no errors",
+      ~code="let arg : String = ? in string_replace(arg¦",
+      ~expect_buffer=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect_errors=false,
+    ),
+    /* string_replace(1¦ — scaffold, has errors (Int vs String) */
+    integration_test(
+      ~name="Wrong type literal: scaffold, has errors",
+      ~code=blargs_prefix ++ "1¦",
+      ~expect_buffer=Some(", " ++ hole_char ++ ", " ++ hole_char),
+      ~expect_errors=true,
     ),
   ],
 );
@@ -1323,5 +1429,6 @@ let tests = [
   pattern_ancestor_tests,
   suppression_tests,
   completion_suppression_tests,
+  integration_tests,
   segment_wellformedness_tests,
 ];
