@@ -670,37 +670,51 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
           } else {
             let current_label =
               label_of_prod_elem(List.nth(tys, current_element_idx));
-            switch (current_label) {
-            | Some(name) =>
-              /* Label hint: label + = + hole.
-               * Add leading space if caret follows bare comma. */
-              let hint = [
-                Piece.Tile({
-                  id: Id.mk(),
-                  label: [Token.quote_label_when_necessary(name)],
-                  mold: Mold.mk_op(Sort.Exp, []),
-                  shards: [0],
-                  children: [],
-                }),
-                Piece.mk_tile(Form.get(TupleLabeledExp), []),
-                Piece.Grout({
-                  id: Id.mk(),
-                  shape: Convex,
-                }),
-              ];
-              let hint =
-                left_needs_space(l)
-                  ? [
-                    Piece.Secondary({
-                      id: Id.mk(),
-                      content: Whitespace(" "),
-                    }),
-                    ...hint,
-                  ]
-                  : hint;
-              Some(hint);
-            | None => None
-            };
+            /* Check if token to left conflicts with the label. If the
+             * user typed something that isn't a prefix of the label
+             * (e.g., "bb" for label "bar"), suppress the hint. */
+            let token_conflicts =
+              switch (TyDiComplete.token_to_left(z), current_label) {
+              | (Some(tok), Some(name)) =>
+                let quoted = Token.quote_label_when_necessary(name);
+                !String.starts_with(~prefix=tok, quoted);
+              | _ => false
+              };
+            if (token_conflicts) {
+              None;
+            } else {
+              switch (current_label) {
+              | Some(name) =>
+                /* Label hint: label + = + hole.
+                 * Add leading space if caret follows bare comma. */
+                let hint = [
+                  Piece.Tile({
+                    id: Id.mk(),
+                    label: [Token.quote_label_when_necessary(name)],
+                    mold: Mold.mk_op(Sort.Exp, []),
+                    shards: [0],
+                    children: [],
+                  }),
+                  Piece.mk_tile(Form.get(TupleLabeledExp), []),
+                  Piece.Grout({
+                    id: Id.mk(),
+                    shape: Convex,
+                  }),
+                ];
+                let hint =
+                  left_needs_space(l)
+                    ? [
+                      Piece.Secondary({
+                        id: Id.mk(),
+                        content: Whitespace(" "),
+                      }),
+                      ...hint,
+                    ]
+                    : hint;
+                Some(hint);
+              | None => None
+              };
+            }; /* end !token_conflicts */
           };
         } else {
           let label_start =

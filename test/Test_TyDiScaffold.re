@@ -426,6 +426,13 @@ let labeled_tests = (
       ~code=def_labeled2 ++ "f(foo=1, bar=¦)",
       ~expect=Some("?"),
     ),
+    /* Step 7b: f(foo=1, bb|) — non-matching prefix, no scaffold.
+     * "bb" is not a prefix of "bar", so label completion shouldn't trigger. */
+    scaffold_test(
+      ~name="L2: f(foo=1, bb|) non-matching prefix",
+      ~code=def_labeled2 ++ "f(foo=1, bb¦)",
+      ~expect=None,
+    ),
     /* Step 8: f(foo=1, bar=true|) — all done, no scaffold */
     scaffold_test(
       ~name="L2: f(foo=1, bar=true|) complete",
