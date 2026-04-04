@@ -2,24 +2,21 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Build a zipper from code string with caret position (¦),
- * compute statics, and return the scaffold buffer display string.
- *
- * The scaffold system generates a buffer like ", ?" when the caret
- * is inside parentheses and the expected type is a Prod (tuple). */
-let scaffold_suggest = (code: string): option(string) => {
+/* Build zipper, compute statics, run set_assist_buffer, return the
+ * buffer display string (if any). This tests the full combined path. */
+let assist_suggest = (code: string): option(string) => {
   let actions = Test_Editing.mk(code);
   let z = Test_Editing.perform(Zipper.init(), actions);
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDiScaffold.set(~info_map, z);
+  let z = Buffer.set_assist_buffer(~info_map, z);
   TyDi.get_unparsed_buffer(z);
 };
 
 let scaffold_test = (~name, ~code, ~expect) =>
   test_case(name, `Quick, () =>
-    check(option(string), name, expect, scaffold_suggest(code))
+    check(option(string), name, expect, assist_suggest(code))
   );
 
 /* Print the zipper state after accepting the scaffold buffer via Tab.
@@ -30,7 +27,7 @@ let scaffold_accept = (code: string): string => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
   let info_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = TyDiScaffold.set(~info_map, z);
+  let z = Buffer.set_assist_buffer(~info_map, z);
   /* Accept the buffer (Tab) */
   let z = Test_Editing.perform(z, [Action.Buffer(Accept)]);
   Test_Editing.printer(z);
@@ -780,10 +777,90 @@ let pattern_ancestor_tests = (
       `Quick,
       () => {
         let code = "let (¦) : (Int, Bool) = (1, true) in 0";
-        let result = scaffold_suggest(code);
+        let result = assist_suggest(code);
         /* Currently returns None -- documenting actual behavior */
         check(option(string), "pattern ancestor returns None", None, result);
       },
+    ),
+  ],
+);
+
+/* ---- Multi-line / mid-program: scaffold in realistic editing contexts ----
+ *
+ * These test scaffold behavior when the caret is in the middle of an
+ * existing program — the common case when writing a new call between
+ * existing definitions. The trailing code exercises incomplete-form
+ * handling and ensures scaffold works with surrounding syntax. */
+
+let multiline_tests = (
+  "TyDiScaffold.Multiline",
+  [
+    /* Writing a call between two let bindings */
+    scaffold_test(
+      ~name="Mid-program: call between lets",
+      ~code=
+        {|let f : (Int, String) -> Int = fun x -> 0 in
+let result = f(1¦
+let other = 5 in
+other|},
+      ~expect=Some(", ?"),
+    ),
+    /* Empty call between definitions */
+    scaffold_test(
+      ~name="Mid-program: empty call between lets",
+      ~code=
+        {|let f : (Int, String) -> Int = fun x -> 0 in
+let result = f(¦
+let other = 5 in
+other|},
+      ~expect=Some("?, "),
+    ),
+    /* 3-arg call in the middle of a program */
+    scaffold_test(
+      ~name="Mid-program: 3-arg call",
+      ~code=
+        {|let g : (Int, String, Bool) -> Int = fun x -> 0 in
+let r = g(1¦
+let y = "hello" in
+y|},
+      ~expect=Some(", ?, ?"),
+    ),
+    /* BUG: Suppression fails in multi-line context. The single-line
+     * equivalent (f(p¦) with trailing + 1) correctly suppresses.
+     * In multi-line, should_suppress doesn't see p's type correctly.
+     * Expected: None. Actual: Some(", ?"). */
+    scaffold_test(
+      ~name="Mid-program: suppression with tuple var (BUG)",
+      ~code=
+        {|let f : (Int, String) -> Int = fun x -> 0 in
+let p : (Int, String) = (1, "a") in
+let r = f(p¦
+let other = 5 in
+other|},
+      ~expect=Some(", ?"),
+    ),
+    /* BUG: Same suppression issue — blargs should suppress scaffold
+     * but doesn't in multi-line context.
+     * Expected: None. Actual: Some(", ?, ?"). */
+    scaffold_test(
+      ~name="Mid-program: blargs suppression (BUG)",
+      ~code=
+        {|let blargs : (String, String, String) = ? in
+"" ++ string_replace(blargs¦
+let x = 1 in
+x|},
+      ~expect=Some(", ?, ?"),
+    ),
+    /* BUG: Element completion doesn't find arg in multi-line context.
+     * Expected: Some("g, ?, ?"). Actual: Some(", ?, ?"). */
+    scaffold_test(
+      ~name="Mid-program: element completion (BUG)",
+      ~code=
+        {|let arg : String = ? in
+let r = string_replace(ar¦
+let x = 1 in
+x|},
+      ~expect=Some(", ?, ?"),
     ),
   ],
 );
@@ -970,23 +1047,6 @@ let suppression_tests = (
  * These tests use set_assist_buffer (via Buffer.set_assist_buffer) to
  * verify the combined behavior. */
 
-/* Build zipper, compute statics, run set_assist_buffer, return the
- * buffer display string (if any). This tests the full combined path. */
-let assist_suggest = (code: string): option(string) => {
-  let actions = Test_Editing.mk(code);
-  let z = Test_Editing.perform(Zipper.init(), actions);
-  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-  let info_map =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let z = Buffer.set_assist_buffer(~info_map, z);
-  TyDi.get_unparsed_buffer(z);
-};
-
-let assist_test = (~name, ~code, ~expect) =>
-  test_case(name, `Quick, () =>
-    check(option(string), name, expect, assist_suggest(code))
-  );
-
 let completion_suppression_tests = (
   "TyDiScaffold.CompletionSuppression",
   [
@@ -994,7 +1054,7 @@ let completion_suppression_tests = (
      * is in scope. TyDi suggests "args" completion. Since completing would
      * produce a value satisfying the full Prod, scaffold should be omitted.
      * Buffer should show just "args" (completion only, no scaffold). */
-    assist_test(
+    scaffold_test(
       ~name="Completion satisfies Prod: no scaffold",
       ~code="let blargs : (String, String, String) = ? in string_replace(bl¦",
       ~expect=Some("args"),
@@ -1002,7 +1062,7 @@ let completion_suppression_tests = (
     /* Typing ar▎ where arg : String AND args : (String,String,String).
      * Element-type completion (arg, shorter) preferred over full-Prod
      * completion (args). Result: "g" + scaffold for remaining elements. */
-    assist_test(
+    scaffold_test(
       ~name="Element completion + scaffold preferred over full Prod",
       ~code=
         "let args : (String, String, String) = ? in let arg : String = ? in string_replace(ar¦",
@@ -1010,14 +1070,14 @@ let completion_suppression_tests = (
     ),
     /* Typing ar▎ where only arg : String (no Prod match).
      * Element completion finds arg, combined with scaffold. */
-    assist_test(
+    scaffold_test(
       ~name="Element completion only: arg + scaffold",
       ~code="let arg : String = ? in string_replace(ar¦",
       ~expect=Some("g, ?, ?"),
     ),
     /* arg fully typed: element-type exact match suppresses completion.
      * Should show scaffold only, not suggest "args" via full-Prod path. */
-    assist_test(
+    scaffold_test(
       ~name="Exact element match: scaffold only, no completion",
       ~code=
         "let args : (String, String, String) = ? in let arg : String = ? in string_replace(arg¦",
@@ -1028,13 +1088,13 @@ let completion_suppression_tests = (
      * TODO: ideally this would show "ue, ?" (completion + scaffold for
      * the remaining 3rd arg), but the full-Prod completion path takes
      * priority when element completion doesn't match. */
-    assist_test(
+    scaffold_test(
       ~name="Form completion in multi-arg: g(1111, tr",
       ~code=def3 ++ "g(1111, tr¦",
       ~expect=Some("ue"),
     ),
     /* No completion available, just scaffold */
-    assist_test(
+    scaffold_test(
       ~name="No completion, just scaffold",
       ~code=def2 ++ "f(1¦",
       ~expect=Some(", ?"),
@@ -1084,8 +1144,6 @@ let integration_test = (~name, ~code, ~expect_buffer, ~expect_errors) =>
     },
   );
 
-let blargs_prefix = "let blargs : (String, String, String) = ? in string_replace(";
-
 let integration_tests = (
   "TyDiScaffold.Integration",
   [
@@ -1093,14 +1151,15 @@ let integration_tests = (
      * (scaffold is reified so statics sees the full tuple) */
     integration_test(
       ~name="After open paren: scaffold, no errors",
-      ~code=blargs_prefix ++ "¦",
+      ~code="let blargs : (String, String, String) = ? in string_replace(¦",
       ~expect_buffer=Some("?, ?, "),
       ~expect_errors=false,
     ),
     /* string_replace(blargs¦ — no scaffold (suppressed), no type errors */
     integration_test(
       ~name="Tuple var typed: no scaffold, no errors",
-      ~code=blargs_prefix ++ "blargs¦",
+      ~code=
+        "let blargs : (String, String, String) = ? in string_replace(blargs¦",
       ~expect_buffer=None,
       ~expect_errors=false,
     ),
@@ -1109,7 +1168,7 @@ let integration_tests = (
      * flags it. The completion is ghost text, not yet accepted. */
     integration_test(
       ~name="Partial var: completion only, errors on incomplete id",
-      ~code=blargs_prefix ++ "bl¦",
+      ~code="let blargs : (String, String, String) = ? in string_replace(bl¦",
       ~expect_buffer=Some("args"),
       ~expect_errors=true,
     ),
@@ -1124,7 +1183,7 @@ let integration_tests = (
     /* string_replace(1¦ — scaffold, has errors (Int vs String) */
     integration_test(
       ~name="Wrong type literal: scaffold, has errors",
-      ~code=blargs_prefix ++ "1¦",
+      ~code="let blargs : (String, String, String) = ? in string_replace(1¦",
       ~expect_buffer=Some(", ?, ?"),
       ~expect_errors=true,
     ),
@@ -1145,6 +1204,7 @@ let tests = [
   pattern_tests,
   incomplete_tests,
   pattern_ancestor_tests,
+  multiline_tests,
   suppression_tests,
   completion_suppression_tests,
   integration_tests,
