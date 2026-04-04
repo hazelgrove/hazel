@@ -360,6 +360,39 @@ let should_suppress =
   | _ => false
   };
 
+/* Check if accepting a text completion would produce a variable whose
+ * type satisfies the expected Prod. Used by set_assist_buffer to
+ * decide whether to combine completion + scaffold or show completion
+ * alone. completion_text is the suffix (e.g., "args" for bl→blargs). */
+let completion_would_suppress =
+    (~completion_text: string, ~info_map: Statics.Map.t, z: Zipper.t): bool =>
+  switch (TyDi.token_to_left(z)) {
+  | None => false
+  | Some(current_token) =>
+    let completed = current_token ++ completion_text;
+    /* Look up the expected Prod type */
+    switch (expected_type(z, info_map)) {
+    | None => false
+    | Some(expected_ty) =>
+      let expected_ty = unwrap_parens(expected_ty);
+      switch (Typ.term_of(expected_ty)) {
+      | Prod(_) =>
+        /* Look up the completed variable in the context */
+        let ctx = Info.ctx_of(Indicated.ci_of(z, info_map) |> Option.get);
+        switch (Ctx.lookup_var(ctx, completed)) {
+        | None => false
+        | Some({typ, _}) =>
+          let typ = Typ.weak_head_normalize(ctx, typ);
+          switch (Typ.term_of(typ)) {
+          | Unknown(_) => false
+          | _ => Typ.is_consistent(ctx, typ, expected_ty)
+          };
+        };
+      | _ => false
+      };
+    };
+  };
+
 /* ---- Display computation ---- */
 
 /* Is the left boundary structurally empty? True when the nearest

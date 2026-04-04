@@ -35,8 +35,8 @@ let set_tydi_buffer = (ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
 
 /* Set the assist buffer, combining text completion and scaffold.
  * Runs both systems on the original zipper and merges:
- * - Both apply: concatenate completion text + scaffold segment
- *   (e.g., "ue, ?" for completion "ue" + scaffold ", ?")
+ * - Both apply, completion satisfies Prod: completion only (no scaffold)
+ * - Both apply, completion doesn't satisfy: concatenate completion + scaffold
  * - Only completion: use completion buffer
  * - Only scaffold: use scaffold buffer (with grout stripping)
  * - Neither: return zipper unchanged */
@@ -48,8 +48,16 @@ let set_assist_buffer =
   let completion = TyDi.get_unparsed_buffer(z_with_completion);
   switch (completion, scaffold) {
   | (Some(completion_text), Some(scaffold_seg)) =>
-    let content = TyDi.mk_unparsed_buffer(completion_text) @ scaffold_seg;
-    Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+    /* If accepting the completion would produce a value that satisfies
+     * the full expected Prod type, omit the scaffold — the completion
+     * alone is the right suggestion (e.g., bl→blargs where blargs
+     * has the tuple type the function expects). */
+    if (TyDiScaffold.completion_would_suppress(~completion_text, ~info_map, z)) {
+      z_with_completion;
+    } else {
+      let content = TyDi.mk_unparsed_buffer(completion_text) @ scaffold_seg;
+      Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+    }
   | (Some(_), None) => z_with_completion
   | (None, Some(_)) => TyDiScaffold.set(~info_map, z)
   | (None, None) => z

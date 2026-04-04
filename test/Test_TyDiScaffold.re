@@ -148,13 +148,6 @@ let shard_tests = (
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦",
       ~expect=Some(hole_char ++ ", "),
     ),
-    /* Suppression: f(p▎ where p satisfies the whole Prod */
-    scaffold_test(
-      ~name="Suppress: value matches full Prod type",
-      ~code=
-        "let f : (Int, String) -> Int = fun x -> 0 in let p : (Int, String) = (1, \"a\") in f(p¦",
-      ~expect=None,
-    ),
     /* Explicit parens: (?, ?) */
     scaffold_test(
       ~name="Explicit parens: let binding",
@@ -1196,6 +1189,121 @@ let segment_wellformedness_tests = (
   ],
 );
 
+/* ---- Suppression: scaffold should not appear when value satisfies Prod ----
+ *
+ * When the expression at the caret already has a type consistent with the
+ * full expected Prod type, scaffold is suppressed — no commas/holes needed.
+ * This covers:
+ * - Fully typed variable of tuple type (e.g., blargs : (String, String, String))
+ * - Ancestor case (both parens placed) and shard case () in backpack)
+ * - Single-typed values should NOT suppress (e.g., arg : String in 3-arg call)
+ *
+ * Suppression uses synthesized type (Self.typ_of_exp) to avoid stale
+ * reconciled types from preserve_grout_id. */
+
+let suppression_tests = (
+  "TyDiScaffold.Suppression",
+  [
+    /* Ancestor case: f(p▎) where p : (Int, String) — parens complete */
+    scaffold_test(
+      ~name="Ancestor: tuple var suppresses scaffold",
+      ~code=
+        "let f : (Int, String) -> Int = fun x -> 0 in let p : (Int, String) = (1, \"a\") in f(p¦)",
+      ~expect=None,
+    ),
+    /* Shard case: f(p▎ with ) in backpack */
+    scaffold_test(
+      ~name="Shard: tuple var suppresses scaffold",
+      ~code=
+        "let f : (Int, String) -> Int = fun x -> 0 in let p : (Int, String) = (1, \"a\") in f(p¦) + 1",
+      ~expect=None,
+    ),
+    /* 3-arg builtin: string_replace(blargs▎ */
+    scaffold_test(
+      ~name="3-arg: tuple var suppresses scaffold",
+      ~code=
+        "let blargs : (String, String, String) = ? in string_replace(blargs¦",
+      ~expect=None,
+    ),
+    /* No suppression: single-typed var doesn't satisfy Prod */
+    scaffold_test(
+      ~name="No suppress: single-typed var in 3-arg call",
+      ~code="let arg : String = ? in string_replace(arg¦",
+      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+    /* No suppression: empty hole (no value to check) */
+    scaffold_test(
+      ~name="No suppress: empty hole after open paren",
+      ~code=def2 ++ "f(¦",
+      ~expect=Some(hole_char ++ ", "),
+    ),
+    /* No suppression: value with wrong tuple arity */
+    scaffold_test(
+      ~name="No suppress: wrong-arity tuple var",
+      ~code="let pair : (String, String) = ? in string_replace(pair¦",
+      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+  ],
+);
+
+/* ---- Completion + suppression interaction ----
+ *
+ * When TyDi suggests completing a variable whose type would satisfy the
+ * full expected Prod, the scaffold should be omitted from the combined
+ * buffer. The completion alone is the right suggestion.
+ *
+ * set_assist_buffer combines completion and scaffold. When both apply,
+ * it should check whether the completed variable's type is consistent
+ * with the expected Prod and, if so, drop the scaffold.
+ *
+ * These tests use set_assist_buffer (via Buffer.set_assist_buffer) to
+ * verify the combined behavior. */
+
+/* Build zipper, compute statics, run set_assist_buffer, return the
+ * buffer display string (if any). This tests the full combined path. */
+let assist_suggest = (code: string): option(string) => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
+  let info_map =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let z = Buffer.set_assist_buffer(~info_map, z);
+  TyDi.get_unparsed_buffer(z);
+};
+
+let assist_test = (~name, ~code, ~expect) =>
+  test_case(name, `Quick, () =>
+    check(option(string), name, expect, assist_suggest(code))
+  );
+
+let completion_suppression_tests = (
+  "TyDiScaffold.CompletionSuppression",
+  [
+    /* Typing bl▎ inside string_replace( where blargs : (String,String,String)
+     * is in scope. TyDi suggests "args" completion. Since completing would
+     * produce a value satisfying the full Prod, scaffold should be omitted.
+     * Buffer should show just "args" (completion only, no scaffold). */
+    assist_test(
+      ~name="Completion satisfies Prod: no scaffold",
+      ~code="let blargs : (String, String, String) = ? in string_replace(bl¦",
+      ~expect=Some("args"),
+    ),
+    /* Typing ar▎ where arg : String. ana is Prod([String,String,String])
+     * so TyDi doesn't suggest "arg" (type mismatch). Only scaffold. */
+    assist_test(
+      ~name="No completion for wrong type: scaffold only",
+      ~code="let arg : String = ? in string_replace(ar¦",
+      ~expect=Some(", " ++ hole_char ++ ", " ++ hole_char),
+    ),
+    /* No completion available, just scaffold */
+    assist_test(
+      ~name="No completion, just scaffold",
+      ~code=def2 ++ "f(1¦",
+      ~expect=Some(", " ++ hole_char),
+    ),
+  ],
+);
+
 let tests = [
   shard_tests,
   ancestor_tests,
@@ -1213,5 +1321,7 @@ let tests = [
   pattern_tests,
   incomplete_tests,
   pattern_ancestor_tests,
+  suppression_tests,
+  completion_suppression_tests,
   segment_wellformedness_tests,
 ];
