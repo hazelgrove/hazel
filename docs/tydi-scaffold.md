@@ -21,9 +21,9 @@ Statics sees `Ap(f, Tuple([1, ?]))` instead of `Ap(f, 1)`, so `1` gets
 
 ### 1. Scaffold = ghost commas + holes
 
-The scaffold is a buffer of structural pieces — real Tile pieces for commas,
-real Grout pieces for holes, and Whitespace secondaries for formatting.
-It's stored in the zipper's selection as a `Buffer(Unparsed)`.
+The scaffold is a buffer of structural pieces — real Tile pieces for commas
+and label operators, real Grout pieces for holes, and Whitespace secondaries
+for formatting. It's stored in the zipper's selection as a `Buffer(Unparsed)`.
 
 ### 2. Reification = making statics see it
 
@@ -150,7 +150,22 @@ let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1111, tr¦
 3. `full_would_suppress("ue")`: checks `true` against `Prod([Int,String,Bool])` → no.
 4. Combined: `"ue"` + scaffold `, ?` → display `ue, ?`.
 
-### H. Nested tuples
+### H. Labeled tuples
+
+```
+let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)
+```
+
+Scaffold: `, y=?` — the label `y=` appears before the hole.
+
+```
+f(¦    →  scaffold: "x=?, "  (holes_first with label)
+Tab    →  f(x=¦?             (emits label prefix "x=")
+1      →  f(x=1¦)            scaffold: ", y=?"
+Tab    →  f(x=1, ¦?)         (emits ", ")
+```
+
+### I. Nested tuples
 
 ```
 let h : ((Int, Bool), String) -> Float = fun x -> 0.0 in h((1¦
@@ -168,7 +183,7 @@ When inner parens close, scaffold regenerates for the outer context.
 has Unknown ana, it falls back to the outer `(` and indexes into its
 Prod by counting commas between them.
 
-### I. Multi-line function application
+### J. Multi-line function application
 
 ```
 let f : (Int, String) -> Int = fun x -> 0 in
@@ -181,7 +196,7 @@ left siblings (not just immediate). `inner_left_siblings` walks left,
 skipping whitespace, until it hits the `(` shard. Scaffold works normally:
 `, ?`.
 
-### J. Formatting: space after user-typed comma
+### K. Formatting: space after user-typed comma
 
 ```
 string_replace("",¦
@@ -233,7 +248,8 @@ the buffer is updated.
 Each Tab press emits one "chunk" from the scaffold:
 
 - A formatting space (when caret follows bare comma)
-- A comma + trailing space like `,`
+- A label prefix like `x=`
+- A comma + trailing space like `,` 
 
 The buffer is cleared after emission. Next cycle, scaffold regenerates
 with fewer remaining elements. This continues until all commas are placed.

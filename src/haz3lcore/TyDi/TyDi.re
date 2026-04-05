@@ -109,69 +109,85 @@ let suggest_assist =
 
   switch (scaffold) {
   | Some(scaffold_seg) =>
-    /* Scaffold context — consider completions at both types */
-    let elem_ctx = element_context(~ci, z);
-    let elem_ci = Option.map(fst, elem_ctx);
-    let elem_ty = Option.map(snd, elem_ctx);
-    let element_suffix = completion_suffix(~ci=elem_ci, z);
-    let full_suffix = completion_suffix(~ci, z);
-
-    /* Check whether a full-Prod completion would satisfy the entire
-     * expected type (suppressing scaffold). If not, the completion
-     * should be combined with scaffold. */
-    let full_would_suppress = (suffix: string): bool =>
-      switch (TyDiComplete.token_to_left(z), ci) {
-      | (Some(tok), Some(ci)) =>
-        let completed = tok ++ suffix;
-        let ctx = Info.ctx_of(ci);
-        let expected = TyDiScaffold.expected_type(z, info_map);
-        switch (expected) {
-        | Some(ety) => token_is_valid_at(~ctx, ~tok=completed, ~typ=ety)
-        | None => false
-        };
+    /* If the scaffold already includes a label suffix (starts with
+     * a Comment piece for partial label completion), use it directly
+     * — the label completion takes priority over text completion. */
+    let has_label_suffix =
+      switch (scaffold_seg) {
+      | [Secondary({content: Comment(_), _}), ..._] => true
+      /* Also: scaffold starts with = tile (full label typed) */
+      | [Tile({label: ["="], _}), ..._] => true
       | _ => false
       };
+    if (has_label_suffix) {
+      Some(scaffold_seg);
+    } else {
+      /* Scaffold context — consider completions at both types */
+      let elem_ctx = element_context(~ci, z);
+      let elem_ci = Option.map(fst, elem_ctx);
+      let elem_ty = Option.map(snd, elem_ctx);
+      let element_suffix = completion_suffix(~ci=elem_ci, z);
+      let full_suffix = completion_suffix(~ci, z);
 
-    switch (element_suffix, full_suffix) {
-    | (Some(elem_text), Some(full_text)) =>
-      /* Both match. Prefer element + scaffold if shorter.
-       * If full-Prod wins, check if it satisfies the Prod
-       * (no scaffold) or should be combined with scaffold. */
-      if (String.length(elem_text) <= String.length(full_text)) {
-        Some(TyDiComplete.mk_unparsed_buffer(elem_text) @ scaffold_seg);
-      } else if (full_would_suppress(full_text)) {
-        Some(TyDiComplete.mk_unparsed_buffer(full_text));
-      } else {
-        Some(TyDiComplete.mk_unparsed_buffer(full_text) @ scaffold_seg);
-      }
-    | (Some(elem_text), None) =>
-      /* Only element match — completion + scaffold */
-      Some(TyDiComplete.mk_unparsed_buffer(elem_text) @ scaffold_seg)
-    | (None, _) =>
-      /* No element completion. If token is a valid variable at
-       * the element type (exact match suppression), show scaffold
-       * only. Otherwise try full-Prod completion. */
-      let element_suppressed =
-        switch (TyDiComplete.token_to_left(z), elem_ty) {
-        | (Some(tok), Some(ety)) =>
-          let ctx = Info.ctx_of(Option.get(ci));
-          token_is_valid_at(~ctx, ~tok, ~typ=ety);
+      /* Check whether a full-Prod completion would satisfy the entire
+       * expected type (suppressing scaffold). If not, the completion
+       * should be combined with scaffold. */
+      let full_would_suppress = (suffix: string): bool =>
+        switch (TyDiComplete.token_to_left(z), ci) {
+        | (Some(tok), Some(ci)) =>
+          let completed = tok ++ suffix;
+          let ctx = Info.ctx_of(ci);
+          let expected = TyDiScaffold.expected_type(z, info_map);
+          switch (expected) {
+          | Some(ety) => token_is_valid_at(~ctx, ~tok=completed, ~typ=ety)
+          | None => false
+          };
         | _ => false
         };
-      if (element_suppressed) {
-        Some(scaffold_seg);
-      } else {
-        switch (full_suffix) {
-        | Some(full_text) =>
-          if (full_would_suppress(full_text)) {
-            Some(TyDiComplete.mk_unparsed_buffer(full_text));
-          } else {
-            Some(TyDiComplete.mk_unparsed_buffer(full_text) @ scaffold_seg);
-          }
-        | None => Some(scaffold_seg)
+
+      switch (element_suffix, full_suffix) {
+      | (Some(elem_text), Some(full_text)) =>
+        /* Both match. Prefer element + scaffold if shorter.
+         * If full-Prod wins, check if it satisfies the Prod
+         * (no scaffold) or should be combined with scaffold. */
+        if (String.length(elem_text) <= String.length(full_text)) {
+          Some(TyDiComplete.mk_unparsed_buffer(elem_text) @ scaffold_seg);
+        } else if (full_would_suppress(full_text)) {
+          Some(TyDiComplete.mk_unparsed_buffer(full_text));
+        } else {
+          Some(TyDiComplete.mk_unparsed_buffer(full_text) @ scaffold_seg);
+        }
+      | (Some(elem_text), None) =>
+        /* Only element match — completion + scaffold */
+        Some(TyDiComplete.mk_unparsed_buffer(elem_text) @ scaffold_seg)
+      | (None, _) =>
+        /* No element completion. If token is a valid variable at
+         * the element type (exact match suppression), show scaffold
+         * only. Otherwise try full-Prod completion. */
+        let element_suppressed =
+          switch (TyDiComplete.token_to_left(z), elem_ty) {
+          | (Some(tok), Some(ety)) =>
+            let ctx = Info.ctx_of(Option.get(ci));
+            token_is_valid_at(~ctx, ~tok, ~typ=ety);
+          | _ => false
+          };
+        if (element_suppressed) {
+          Some(scaffold_seg);
+        } else {
+          switch (full_suffix) {
+          | Some(full_text) =>
+            if (full_would_suppress(full_text)) {
+              Some(TyDiComplete.mk_unparsed_buffer(full_text));
+            } else {
+              Some(
+                TyDiComplete.mk_unparsed_buffer(full_text) @ scaffold_seg,
+              );
+            }
+          | None => Some(scaffold_seg)
+          };
         };
       };
-    };
+    }; /* end !has_label_suffix */
   | None =>
     /* No scaffold — plain completion */
     let* suffix = completion_suffix(~ci, z);
