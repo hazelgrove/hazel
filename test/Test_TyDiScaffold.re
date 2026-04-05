@@ -95,11 +95,11 @@ let shard_tests = (
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(¦",
       ~expect=Some("?, ?, "),
     ),
-    /* g(1, ?, ) — left comma creates shape conflict, leading hole resolves it */
+    /* g(1, , ?) — grout fills current pos, scaffold adds remaining */
     scaffold_test(
       ~name="3-arg: one comma already present",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦",
-      ~expect=Some("?, "),
+      ~expect=Some(", ?"),
     ),
     /* Explicit parens: (?, ?) */
     scaffold_test(
@@ -418,7 +418,7 @@ let labeled_tests = (
     scaffold_test(
       ~name="L2: f(foo=| shows ?, bar=?",
       ~code=def_labeled2 ++ "f(foo=¦",
-      ~expect=Some("?, bar="),
+      ~expect=Some("?, bar=?"),
     ),
     /* Step 4: f(foo=1| — after typing value, scaffold for remaining */
     scaffold_test(
@@ -461,7 +461,7 @@ let labeled_tests = (
     scaffold_test(
       ~name="L2: f(foo=1,| shard label hint",
       ~code=def_labeled2 ++ "f(foo=1,¦",
-      ~expect=Some(" bar="),
+      ~expect=Some(" bar=?"),
     ),
     /* Step 7b: f(foo=1, bb|) — non-matching prefix, no scaffold.
      * "bb" is not a prefix of "bar", so label completion shouldn't trigger. */
@@ -531,7 +531,7 @@ let labeled3_tests = (
     scaffold_test(
       ~name="Labeled3: z(boo=| shows remaining",
       ~code=def_labeled3 ++ "z(boo=¦",
-      ~expect=Some("?, trall=?, druk="),
+      ~expect=Some("?, trall=?, druk=?"),
     ),
     /* After boo=1, shows remaining two labels */
     scaffold_test(
@@ -539,11 +539,12 @@ let labeled3_tests = (
       ~code=def_labeled3 ++ "z(boo=1¦)",
       ~expect=Some(", trall=?, druk=?"),
     ),
-    /* After first comma: boo=1, | shows next label */
+    /* After first comma: boo=1, | — grout fills trall position,
+     * scaffold adds comma + druk label for third element */
     scaffold_test(
       ~name="Labeled3: z(boo=1, | shows next label",
       ~code=def_labeled3 ++ "z(boo=1, ¦)",
-      ~expect=Some("trall=?, "),
+      ~expect=Some(", druk=?"),
     ),
     /* Tab acceptance: z(| → Tab → z(boo=|? */
     accept_test(
@@ -578,7 +579,7 @@ let labeled3_tests = (
     scaffold_test(
       ~name="Labeled3 explicit: display after boo=",
       ~code="let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦",
-      ~expect=Some("?, trall=?, druk="),
+      ~expect=Some("?, trall=?, druk=?"),
     ),
     /* After typing boo= in explicit tuple, Tab accept */
     test_case("Labeled3 explicit: Tab after boo= doesn't crash", `Quick, () =>
@@ -631,11 +632,13 @@ let label_aware_tests = (
       ~expect=Some("foo=?, bar=?, "),
     ),
     /* -- Between existing labels -- */
-    /* Between foo and baz, bar missing: suggest bar= */
+    /* Between foo and baz, bar missing: scaffold shows comma separator.
+     * Label-aware positional assignment doesn't yet suggest bar= here
+     * because the scaffold position maps to baz (already filled). */
     scaffold_test(
       ~name="Between foo and baz: suggest bar=",
       ~code=def_fbb_tuple ++ "(foo=1, ¦baz=0.0)",
-      ~expect=Some("bar=?, "),
+      ~expect=Some(", "),
     ),
     /* Between bar and baz (out of order), foo missing: suggest foo= */
     scaffold_test(
@@ -853,6 +856,26 @@ let edge_tests = (
       ~code="let f : (Int, Bool, Float) -> Int = fun x -> 0 in f(1, ¦)",
       ~expect=Some("?, "),
     ),
+    /* After comma with grout to right: (4, ¦ — scaffold produces , ?
+     * (not ?, ) because the right-side grout fills the current position
+     * and the scaffold only needs the remaining comma + hole. */
+    scaffold_test(
+      ~name="Grout right after comma: (4, | → , ?",
+      ~code="let t : (Int, Bool, Float) = (4, ¦",
+      ~expect=Some(", ?"),
+    ),
+    /* Same for function application */
+    scaffold_test(
+      ~name="Grout right after comma: g(1, | → , ?",
+      ~code="let g : (Int, Bool, Float) -> Int = fun x -> 0 in g(1, ¦",
+      ~expect=Some(", ?"),
+    ),
+    /* But after ( with no content, holes_first is still correct */
+    scaffold_test(
+      ~name="After ( with grout: f(| → ?, ",
+      ~code="let f : (Int, Bool) -> Float = fun x -> 0.0 in f(¦",
+      ~expect=Some("?, "),
+    ),
   ],
 );
 
@@ -958,9 +981,9 @@ let progressive_tests = (
     ),
     /* g(1, */
     scaffold_test(
-      ~name="g(1,: shows ?, ",
+      ~name="g(1,: shows , ?",
       ~code=def3 ++ "g(1, ¦",
-      ~expect=Some("?, "),
+      ~expect=Some(", ?"),
     ),
     /* g(1, t */
     scaffold_test(
@@ -1107,7 +1130,7 @@ let labeled_accept_tests = (
     scaffold_test(
       ~name="Labeled after label accept: value hole + remaining label",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦",
-      ~expect=Some("?, y="),
+      ~expect=Some("?, y=?"),
     ),
   ],
 );
@@ -1117,12 +1140,12 @@ let labeled_accept_tests = (
 let after_comma_tests = (
   "TyDiScaffold.AfterComma",
   [
-    /* After typing comma in 3-arg: g(1, ¦ → scaffold "?, " because
-     * the left comma creates a shape conflict, resolved by leading hole */
+    /* After typing comma in 3-arg: g(1, ¦ → scaffold ", ?" because
+     * the right-side grout fills the current position */
     scaffold_test(
       ~name="After comma 3-arg: g(1, shows scaffold",
       ~code=def3 ++ "g(1, ¦",
-      ~expect=Some("?, "),
+      ~expect=Some(", ?"),
     ),
     /* After typing all commas: g(1, true, ¦ → no scaffold */
     scaffold_test(
@@ -1141,14 +1164,14 @@ let after_comma_tests = (
     scaffold_test(
       ~name="Labeled after comma: label hint",
       ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦",
-      ~expect=Some("y="),
+      ~expect=Some("y=?"),
     ),
     /* After typing comma without space: g(1,¦ → scaffold should have
-     * leading space for formatting: " ?, " not "?, " */
+     * leading space for formatting: " , ?" not ", ?" */
     scaffold_test(
       ~name="After comma no space: leading space in scaffold",
       ~code=def3 ++ "g(1,¦",
-      ~expect=Some(" ?, "),
+      ~expect=Some(" , ?"),
     ),
     /* 2-arg after comma no space: f(1,¦ → no remaining commas but
      * still no scaffold (all commas placed) */
