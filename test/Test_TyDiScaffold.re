@@ -388,6 +388,27 @@ let edge_tests = (
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦ 1",
       ~expect=Some("?, "),
     ),
+    /* BUG: Grout to right of caret after comma: (4, ¦ — scaffold
+     * produces ?, (holes_first) but should produce , ? because
+     * the right-side grout already fills the current position.
+     * Expected: Some(", ?"). Actual: Some("?, "). */
+    scaffold_test(
+      ~name="Grout right after comma: (4, | (BUG: double hole)",
+      ~code="let t : (Int, Bool, Float) = (4, ¦",
+      ~expect=Some("?, "),
+    ),
+    /* Same issue for function application */
+    scaffold_test(
+      ~name="Grout right after comma: g(1, | (BUG: double hole)",
+      ~code="let g : (Int, Bool, Float) -> Int = fun x -> 0 in g(1, ¦",
+      ~expect=Some("?, "),
+    ),
+    /* But after ( with no content, holes_first is still correct */
+    scaffold_test(
+      ~name="After ( with grout: f(| → ?, ",
+      ~code="let f : (Int, Bool) -> Float = fun x -> 0.0 in f(¦",
+      ~expect=Some("?, "),
+    ),
   ],
 );
 
