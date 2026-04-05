@@ -467,12 +467,18 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
           ]
           : seg;
       /* If the right side already starts with whitespace, strip the
-       * scaffold's trailing space to avoid double-spacing. */
-      let right_has_space =
-        switch (r) {
-        | [Piece.Secondary({content: Whitespace(_), _}), ..._] => true
-        | _ => false
-        };
+       * scaffold's trailing space to avoid double-spacing. Skip concave
+       * grout (regrout artifact) to get a stable result across the
+       * two-pass statics flow (set() strips concave grout from siblings,
+       * so Pass 2 sees different r than Pass 1). */
+      let right_has_space = {
+        let rec check =
+          fun
+          | [Piece.Grout({shape: Concave, _}), ...rest] => check(rest)
+          | [Piece.Secondary({content: Whitespace(_), _}), ..._] => true
+          | _ => false;
+        check(r);
+      };
       let seg =
         if (right_has_space) {
           switch (List.rev(seg)) {
