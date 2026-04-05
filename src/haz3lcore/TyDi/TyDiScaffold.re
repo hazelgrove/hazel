@@ -368,7 +368,6 @@ let left_boundary_empty = (scoped_l: list(Piece.t)): bool => {
     | [] => true
     | [Piece.Secondary(_), ...rest]
     | [Piece.Grout(_), ...rest] => check(rest)
-    | [Piece.Tile({label: [","], _}), ..._] => true
     | [Piece.Tile({label: ["(", ")"], shards: [0], _}), ..._] => true
     | _ => false;
   check(List.rev(scoped_l));
@@ -403,14 +402,16 @@ let right_has_convex = (r: list(Piece.t)): bool => {
 };
 
 /* Strip trailing Grout from a scaffold segment when the right sibling
- * already has convex content (including grout). Prevents double-hole
- * display where scaffold's trailing hole duplicates zipper's regrout. */
+ * has a convex tile (not just grout). Grout is a regrout placeholder,
+ * not real content, so it should not cause the scaffold's trailing
+ * hole to be stripped. */
 let strip_trailing_hole = (seg: Segment.t, r: list(Piece.t)): Segment.t => {
   let right_has_any_convex = {
     let rec check =
       fun
       | [] => false
-      | [Piece.Secondary(_), ...rest] => check(rest)
+      | [Piece.Secondary(_), ...rest]
+      | [Piece.Grout(_), ...rest] => check(rest)
       | [p, ..._] => Piece.is_convex(p);
     check(r);
   };
