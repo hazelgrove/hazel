@@ -50,19 +50,34 @@ module Update = {
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
-           ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
+           ~is_edit={
+             /* Clearing a buffer changes the zipper (removes scaffold
+              * content and stripped grout), so statics must be refreshed
+              * to avoid stale type info after dismissing a completion. */
+             let buffer_cleared =
+               switch (model.editor.state.zipper.selection.mode) {
+               | Buffer(_) =>
+                 Buffer.should_clear(
+                   ~settings=settings.core,
+                   ~a=action,
+                   model.editor.state.zipper,
+                 )
+               | _ => false
+               };
+             (Action.is_edit(action)
+              /* When probe_all is on, Refractor actions don't require
+               * re-evaluation since all probes are already computed */
+              && !(
+                   settings.core.probe_all
+                   && (
+                     switch (action) {
+                     | Probe(_) => true
+                     | _ => false
+                     }
+                   )
+                 ))
+             || buffer_cleared;
+           },
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
