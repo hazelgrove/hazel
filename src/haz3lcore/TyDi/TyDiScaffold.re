@@ -466,6 +466,23 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
             ...seg,
           ]
           : seg;
+      /* If the right side already starts with whitespace, strip the
+       * scaffold's trailing space to avoid double-spacing. */
+      let right_has_space =
+        switch (r) {
+        | [Piece.Secondary({content: Whitespace(_), _}), ..._] => true
+        | _ => false
+        };
+      let seg =
+        if (right_has_space) {
+          switch (List.rev(seg)) {
+          | [Piece.Secondary({content: Whitespace(_), _}), ...rest] =>
+            List.rev(rest)
+          | _ => seg
+          };
+        } else {
+          seg;
+        };
       Some(seg);
     };
   };

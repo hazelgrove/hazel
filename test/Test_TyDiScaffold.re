@@ -382,11 +382,12 @@ let edge_tests = (
       ~code="let g : (Bool, Int, String) -> Float = fun x -> 0.0 in g(1¦ 2",
       ~expect=Some(", ?, "),
     ),
-    /* holes_first with tile on right: f(| 1 → ?,  */
+    /* Left concave, right has space+tile: trailing space stripped
+     * since right side already provides whitespace. */
     scaffold_test(
-      ~name="Holes first + trailing: f(| 1 → ?, ",
+      ~name="Left concave + right space: f(| 1 → ?,",
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦ 1",
-      ~expect=Some("?, "),
+      ~expect=Some("?,"),
     ),
     /* After comma: left comma creates concave-concave conflict with
      * scaffold's comma, so a leading hole resolves it. */
@@ -427,6 +428,20 @@ let edge_tests = (
       ~name="After comma no space 3-tuple: (4,| → ' ?, '",
       ~code="let t : (Int, Bool, Float) = (4,¦",
       ~expect=Some(" ?, "),
+    ),
+    /* After comma with right-side space+value: trailing space stripped
+     * because right already has whitespace. (true,| 1 → ' ?,' */
+    scaffold_test(
+      ~name="After comma, right space: (true,| 1 → ' ?,'",
+      ~code="let t : (Int, Bool, Float) = (true,¦ 1",
+      ~expect=Some(" ?,"),
+    ),
+    /* After value with right-side value: space kept (concave grout
+     * between caret and space means right doesn't start with whitespace) */
+    scaffold_test(
+      ~name="After value, right content: f(1| 2 → ', '",
+      ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(1¦ 2",
+      ~expect=Some(", "),
     ),
     /* After comma in ancestor context (both parens placed) */
     scaffold_test(
@@ -814,7 +829,8 @@ let other = 5 in
 other|},
       ~expect=Some(", ?"),
     ),
-    /* Empty call between definitions */
+    /* Empty call between definitions — trailing space stripped because
+     * right side starts with newline (whitespace) */
     scaffold_test(
       ~name="Mid-program: empty call between lets",
       ~code=
@@ -822,7 +838,7 @@ other|},
 let result = f(¦
 let other = 5 in
 other|},
-      ~expect=Some("?, "),
+      ~expect=Some("?,"),
     ),
     /* 3-arg call in the middle of a program */
     scaffold_test(
