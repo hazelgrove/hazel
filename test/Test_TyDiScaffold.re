@@ -95,11 +95,11 @@ let shard_tests = (
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(¦",
       ~expect=Some("?, ?, "),
     ),
-    /* g(1, , ?) — grout fills current pos, scaffold adds remaining */
+    /* g(1, ?, ) — left comma creates shape conflict, leading hole resolves it */
     scaffold_test(
       ~name="3-arg: one comma already present",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦",
-      ~expect=Some(", ?"),
+      ~expect=Some("?, "),
     ),
     /* Explicit parens: (?, ?) */
     scaffold_test(
@@ -388,24 +388,51 @@ let edge_tests = (
       ~code="let f : (Bool, Int) -> Float = fun x -> 0.0 in f(¦ 1",
       ~expect=Some("?, "),
     ),
-    /* After comma with grout to right: (4, ¦ — scaffold produces , ?
-     * (not ?, ) because the right-side grout fills the current position
-     * and the scaffold only needs the remaining comma + hole. */
+    /* After comma: left comma creates concave-concave conflict with
+     * scaffold's comma, so a leading hole resolves it. */
     scaffold_test(
-      ~name="Grout right after comma: (4, | → , ?",
+      ~name="After comma: (4, | → ?, ",
       ~code="let t : (Int, Bool, Float) = (4, ¦",
-      ~expect=Some(", ?"),
+      ~expect=Some("?, "),
     ),
     /* Same for function application */
     scaffold_test(
-      ~name="Grout right after comma: g(1, | → , ?",
+      ~name="After comma: g(1, | → ?, ",
       ~code="let g : (Int, Bool, Float) -> Int = fun x -> 0 in g(1, ¦",
-      ~expect=Some(", ?"),
+      ~expect=Some("?, "),
     ),
-    /* But after ( with no content, holes_first is still correct */
+    /* But after ( with no content, left is concave so leading hole */
     scaffold_test(
       ~name="After ( with grout: f(| → ?, ",
       ~code="let f : (Int, Bool) -> Float = fun x -> 0.0 in f(¦",
+      ~expect=Some("?, "),
+    ),
+    /* ---- Comprehensive position-within-tuple tests ---- */
+    /* After comma in 4-tuple: 2 deficit commas, left concave */
+    scaffold_test(
+      ~name="After comma 4-tuple: h(1, | → ?, ?, ",
+      ~code=
+        "let h : (Int, Bool, String, Float) -> Int = fun x -> 0 in h(1, ¦",
+      ~expect=Some("?, ?, "),
+    ),
+    /* After second comma in 4-tuple: 1 deficit comma */
+    scaffold_test(
+      ~name="After 2nd comma 4-tuple: h(1, 2, | → ?, ",
+      ~code=
+        "let h : (Int, Bool, String, Float) -> Int = fun x -> 0 in h(1, 2, ¦",
+      ~expect=Some("?, "),
+    ),
+    /* After comma no space in 3-tuple: leading space added */
+    scaffold_test(
+      ~name="After comma no space 3-tuple: (4,| → ' ?, '",
+      ~code="let t : (Int, Bool, Float) = (4,¦",
+      ~expect=Some(" ?, "),
+    ),
+    /* After comma in ancestor context (both parens placed) */
+    scaffold_test(
+      ~name="After comma ancestor: f(1, |) → ?, ",
+      ~code=
+        "let f : (Int, Bool, Float) -> Int = fun x -> 0 in f(1, ¦)",
       ~expect=Some("?, "),
     ),
   ],
@@ -501,9 +528,9 @@ let progressive_tests = (
     ),
     /* g(1, */
     scaffold_test(
-      ~name="g(1,: shows , ?",
+      ~name="g(1,: shows ?, ",
       ~code=def3 ++ "g(1, ¦",
-      ~expect=Some(", ?"),
+      ~expect=Some("?, "),
     ),
     /* g(1, t */
     scaffold_test(
@@ -619,12 +646,12 @@ let multi_tab_tests = (
 let after_comma_tests = (
   "TyDiScaffold.AfterComma",
   [
-    /* After typing comma in 3-arg: g(1, ¦ → scaffold ", ?" because
-     * the right-side grout fills the current position */
+    /* After typing comma in 3-arg: g(1, ¦ → scaffold "?, " because
+     * the left comma creates a shape conflict, resolved by leading hole */
     scaffold_test(
       ~name="After comma 3-arg: g(1, shows scaffold",
       ~code=def3 ++ "g(1, ¦",
-      ~expect=Some(", ?"),
+      ~expect=Some("?, "),
     ),
     /* After typing all commas: g(1, true, ¦ → no scaffold */
     scaffold_test(
@@ -639,11 +666,11 @@ let after_comma_tests = (
       ~expect=None,
     ),
     /* After typing comma without space: g(1,¦ → scaffold should have
-     * leading space for formatting: " , ?" not ", ?" */
+     * leading space for formatting: " ?, " not "?, " */
     scaffold_test(
       ~name="After comma no space: leading space in scaffold",
       ~code=def3 ++ "g(1,¦",
-      ~expect=Some(" , ?"),
+      ~expect=Some(" ?, "),
     ),
     /* 2-arg after comma no space: f(1,¦ → no remaining commas but
      * still no scaffold (all commas placed) */
@@ -979,6 +1006,19 @@ let segment_wellformedness_tests = (
       ~name="Nested: h(f(1|))",
       ~code=
         "let f : (Int, String) -> Int = fun x -> 0 in let h : Int -> Int = fun y -> y in h(f(1¦))",
+    ),
+    /* After-comma cases: scaffold starts with hole (left concave) */
+    segment_ok_test(
+      ~name="After comma shard: g(1, |",
+      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦",
+    ),
+    segment_ok_test(
+      ~name="After comma no space: g(1,|",
+      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1,¦",
+    ),
+    segment_ok_test(
+      ~name="After comma ancestor: g(1, |)",
+      ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦)",
     ),
   ],
 );

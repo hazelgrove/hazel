@@ -67,19 +67,22 @@ let insertable = (content: Segment.t): Token.t =>
 
 /* ---- Segment construction ---- */
 
-/* Build the scaffold buffer segment for remaining tuple elements.
- * Uses actual Grout pieces for holes instead of text placeholders,
- * with Comment secondaries for commas.
+/* Build the scaffold buffer segment from comma deficit + edge shapes.
  *
- * holes_first: controls whether holes precede or follow commas.
- *   true:  [?, ", "]^n  -- e.g. f(|? or f(|1 (left boundary is empty)
- *   false: [", ", ?]^n  -- e.g. f(1|  or f(1|) (left has content)
+ * The scaffold's core is `deficit` commas. Holes are added at edges
+ * to resolve shape conflicts:
+ *   left_hole:  true when left neighbor is concave (comma, paren, empty)
+ *   right_hole: true when right has no convex content (grout or tile)
  *
- * trailing_hole: when false and holes_first=false, the final hole is
- *   omitted because a convex tile to the right already fills that
- *   position.  e.g. f(1|~ 1 => ", " instead of ", ?" */
+ * Pattern: [left_hole?] comma space [hole comma space]^(deficit-1) [right_hole?]
+ *
+ * Examples:
+ *   deficit=1, left=T, right=F: ?, ,    (after comma or paren)
+ *   deficit=1, left=F, right=T: , ?     (after value, nothing right)
+ *   deficit=1, left=F, right=F: ,       (after value, content right)
+ *   deficit=2, left=T, right=F: ?, ?, , (after paren, 3+ elements) */
 let mk_segment =
-    (~holes_first: bool, ~trailing_hole: bool, remaining: int): Segment.t => {
+    (~left_hole: bool, ~right_hole: bool, deficit: int): Segment.t => {
   let mk_space = (): Piece.t =>
     Secondary({
       id: Id.mk(),
@@ -91,22 +94,16 @@ let mk_segment =
       shape: Convex,
     });
   let mk_comma = (): Piece.t => Piece.mk_tile(Form.get(CommaExp), []);
-  if (holes_first) {
+  let left = left_hole ? [mk_hole()] : [];
+  let middle =
     List.concat(
-      List.init(remaining, _ => [mk_hole(), mk_comma(), mk_space()]),
+      List.init(deficit, i => {
+        let inter = i > 0 ? [mk_hole()] : [];
+        inter @ [mk_comma(), mk_space()];
+      }),
     );
-  } else {
-    List.concat(
-      List.init(
-        remaining,
-        i => {
-          let is_last = i == remaining - 1;
-          let hole = is_last && !trailing_hole ? [] : [mk_hole()];
-          [mk_comma(), mk_space()] @ hole;
-        },
-      ),
-    );
-  };
+  let right = right_hole ? [mk_hole()] : [];
+  left @ middle @ right;
 };
 
 let segment_to_string = TyDiComplete.buffer_to_string;
@@ -359,20 +356,6 @@ let completion_would_suppress =
 
 /* ---- Display computation ---- */
 
-/* Is the left boundary structurally empty? True when the nearest
- * tile (skipping grout and secondary) is a delimiter or absent.
- * Controls whether holes come before commas in the scaffold. */
-let left_boundary_empty = (scoped_l: list(Piece.t)): bool => {
-  let rec check =
-    fun
-    | [] => true
-    | [Piece.Secondary(_), ...rest]
-    | [Piece.Grout(_), ...rest] => check(rest)
-    | [Piece.Tile({label: ["(", ")"], shards: [0], _}), ..._] => true
-    | _ => false;
-  check(List.rev(scoped_l));
-};
-
 /* Is the immediate left context a comma without trailing space?
  * Used to add a leading space to the scaffold for formatting:
  * f(1,¦ should show " ?, " not "?, ".
@@ -389,42 +372,39 @@ let left_needs_space = (l: list(Piece.t)): bool =>
   | _ => false
   };
 
-/* Does the right side have a convex tile (not grout) that fills the
- * last element position? If so, no trailing hole is needed. */
+/* Is the left neighbor concave-facing? Walk nearest-first, skip
+ * Secondary and Grout (regrout artifacts), check the right nib of
+ * the first Tile. If nothing found, the paren boundary is concave.
+ * When true, the scaffold needs a leading hole to avoid a
+ * concave-concave shape conflict with its first comma. */
+let left_is_concave = (scoped_l: list(Piece.t)): bool => {
+  let rec check =
+    fun
+    | [] => true
+    | [Piece.Secondary(_), ...rest]
+    | [Piece.Grout(_), ...rest] => check(rest)
+    | [p, ..._] =>
+      switch (Piece.shapes(p)) {
+      | Some((_, Concave(_))) => true
+      | _ => false
+      };
+  check(List.rev(scoped_l));
+};
+
+/* Does the right side have convex content (tile or convex grout)?
+ * Skips Secondary and concave grout (operator placeholders from
+ * regrout). A convex piece means the last tuple position is filled
+ * and the scaffold doesn't need a trailing hole. Non-convex pieces
+ * (like `let` in multiline shard context) are code beyond the
+ * tuple scope and don't fill a tuple position. */
 let right_has_convex = (r: list(Piece.t)): bool => {
   let rec check =
     fun
     | [] => false
     | [Piece.Secondary(_), ...rest]
-    | [Piece.Grout(_), ...rest] => check(rest)
+    | [Piece.Grout({shape: Concave, _}), ...rest] => check(rest)
     | [p, ..._] => Piece.is_convex(p);
   check(r);
-};
-
-/* Strip trailing Grout from a scaffold segment when the right sibling
- * has a convex tile (not just grout). Grout is a regrout placeholder,
- * not real content, so it should not cause the scaffold's trailing
- * hole to be stripped. */
-let strip_trailing_hole = (seg: Segment.t, r: list(Piece.t)): Segment.t => {
-  let right_has_any_convex = {
-    let rec check =
-      fun
-      | [] => false
-      | [Piece.Secondary(_), ...rest]
-      | [Piece.Grout(_), ...rest] => check(rest)
-      | [p, ..._] => Piece.is_convex(p);
-    check(r);
-  };
-  if (right_has_any_convex) {
-    /* Remove trailing Grout from the segment */
-    let rev = List.rev(seg);
-    switch (rev) {
-    | [Piece.Grout(_), ...rest] => List.rev(rest)
-    | _ => seg
-    };
-  } else {
-    seg;
-  };
 };
 
 /* Compute the scaffold buffer segment without modifying the zipper.
@@ -434,7 +414,7 @@ let strip_trailing_hole = (seg: Segment.t, r: list(Piece.t)): Segment.t => {
  * Then: look up expected Prod type, check suppression, compute arity. */
 let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
   let r = snd(z.relatives.siblings);
-  let result = {
+  {
     /* Preconditions */
     let* () = z.caret == Outer ? Some() : None;
     let* () = inside_parens(z) ? Some() : None;
@@ -468,9 +448,12 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
 
       let* () = remaining > 0 ? Some() : None;
 
-      let holes_first = left_boundary_empty(scoped_l);
-      let trailing_hole = !right_has_convex(snd(z.relatives.siblings));
-      let seg = mk_segment(~holes_first, ~trailing_hole, remaining);
+      let left_hole = left_is_concave(scoped_l);
+      /* Trailing hole only when scaffold starts with comma (left_hole=false).
+       * When left_hole=true, the scaffold ends with comma+space and the
+       * right side provides the last element (via grout or regrout). */
+      let right_hole = !left_hole && !right_has_convex(r);
+      let seg = mk_segment(~left_hole, ~right_hole, remaining);
       /* If caret immediately follows a comma without a trailing space,
        * prepend a space so the scaffold reads "f(1, ?" not "f(1,?". */
       let seg =
@@ -485,9 +468,7 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
           : seg;
       Some(seg);
     };
-  }; /* end result */
-  /* Strip trailing hole if right sibling already has convex content */
-  Option.map(seg => strip_trailing_hole(seg, r), result);
+  };
 };
 
 /* ---- Grout stripping ---- */
