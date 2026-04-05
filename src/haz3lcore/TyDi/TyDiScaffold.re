@@ -46,12 +46,10 @@ let is_scaffold = (z: Zipper.t): bool =>
   };
 
 /* Extract insertable text from a scaffold buffer segment.
- * Keeps commas, label names, label = operators, and whitespace —
- * all are meaningful for producing well-formatted code.
- * Skips only Grout (holes) and non-label/non-comma Tiles.
+ * Keeps commas and whitespace — all are meaningful for producing
+ * well-formatted code. Skips Grout (holes) and other Tiles.
  * e.g. [,, " ", ?]  => ", "
- *      [" ", ?, ,, " "] => " , "
- *      [,, " ", x, =, ?] => ", x="  */
+ *      [" ", ?, ,, " "] => " , " */
 let insertable = (content: Segment.t): Token.t =>
   String.concat(
     "",
@@ -61,34 +59,17 @@ let insertable = (content: Segment.t): Token.t =>
         | Secondary({content: Comment(s), _}) => Some(s)
         | Secondary({content: Whitespace(s), _}) => Some(s)
         | Tile({label: [","], _}) => Some(",")
-        | Tile({label: ["="], _}) => Some("=")
-        | Tile({
-            label: [tok],
-            mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-            _,
-          }) =>
-          /* Operand tile: label name token */
-          Some(tok)
         | _ => None
         },
       content,
     ),
   );
 
-/* ---- Type and label extraction ---- */
-
-/* Extract label from a Prod element type, if present.
- * e.g. TupLabel(Label("x"), Int) => Some("x"), Int => None */
-let label_of_prod_elem = (ty: Typ.t): option(string) => {
-  let+ (name, _) = Typ.match_tup_label(ty);
-  name;
-};
-
 /* ---- Segment construction ---- */
 
 /* Build the scaffold buffer segment for remaining tuple elements.
  * Uses actual Grout pieces for holes instead of text placeholders,
- * with Comment secondaries for commas and label prefixes.
+ * with Comment secondaries for commas.
  *
  * holes_first: controls whether holes precede or follow commas.
  *   true:  [?, ", "]^n  -- e.g. f(|? or f(|1 (left boundary is empty)
@@ -96,17 +77,9 @@ let label_of_prod_elem = (ty: Typ.t): option(string) => {
  *
  * trailing_hole: when false and holes_first=false, the final hole is
  *   omitted because a convex tile to the right already fills that
- *   position.  e.g. f(1|~ 1 => ", " instead of ", ?"
- *
- * Labels appear before their hole: [", ", "y=", ?] */
+ *   position.  e.g. f(1|~ 1 => ", " instead of ", ?" */
 let mk_segment =
-    (
-      ~holes_first: bool,
-      ~trailing_hole: bool,
-      ~labels: list(option(string)),
-      remaining: int,
-    )
-    : Segment.t => {
+    (~holes_first: bool, ~trailing_hole: bool, remaining: int): Segment.t => {
   let mk_space = (): Piece.t =>
     Secondary({
       id: Id.mk(),
@@ -118,25 +91,9 @@ let mk_segment =
       shape: Convex,
     });
   let mk_comma = (): Piece.t => Piece.mk_tile(Form.get(CommaExp), []);
-  let mk_label_prefix = (i: int): list(Piece.t) =>
-    switch (List.nth_opt(labels, i)) {
-    | Some(Some(name)) => [
-        Tile({
-          id: Id.mk(),
-          label: [Token.quote_label_when_necessary(name)],
-          mold: Mold.mk_op(Sort.Exp, []),
-          shards: [0],
-          children: [],
-        }),
-        Piece.mk_tile(Form.get(TupleLabeledExp), []),
-      ]
-    | _ => []
-    };
   if (holes_first) {
     List.concat(
-      List.init(remaining, i =>
-        mk_label_prefix(i) @ [mk_hole(), mk_comma(), mk_space()]
-      ),
+      List.init(remaining, _ => [mk_hole(), mk_comma(), mk_space()]),
     );
   } else {
     List.concat(
@@ -144,9 +101,7 @@ let mk_segment =
         remaining,
         i => {
           let is_last = i == remaining - 1;
-          let hole =
-            is_last && !trailing_hole
-              ? [] : mk_label_prefix(i) @ [mk_hole()];
+          let hole = is_last && !trailing_hole ? [] : [mk_hole()];
           [mk_comma(), mk_space()] @ hole;
         },
       ),
@@ -160,32 +115,6 @@ let segment_to_string = TyDiComplete.buffer_to_string;
 
 let count_commas_in = (pieces: list(Piece.t)): int =>
   List.length(List.filter(is_comma, pieces));
-
-/* ---- Label scanning ---- */
-
-/* Extract label names that are already assigned in a piece list.
- * Looks for operand tiles immediately followed by a = tile
- * (TupleLabeledExp pattern: label=value). Returns the set of
- * label name strings found. */
-let used_labels_in = (pieces: list(Piece.t)): list(string) => {
-  let rec scan =
-    fun
-    | [
-        Piece.Tile({
-          label: [tok],
-          mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-          _,
-        }),
-        Piece.Tile({label: ["="], _}),
-        ...rest,
-      ] => [
-        tok,
-        ...scan(rest),
-      ]
-    | [_, ...rest] => scan(rest)
-    | [] => [];
-  scan(pieces);
-};
 
 /* ---- Paren context detection ---- */
 
@@ -201,14 +130,6 @@ let inner_left_siblings = (z: Zipper.t): list(Piece.t) => {
     | [p, ...rest] => take_until_paren([p, ...acc], rest)
     };
   take_until_paren([], l_nearest);
-};
-
-/* Collect all used labels from both left and right siblings
- * within the current paren context. */
-let all_used_labels = (z: Zipper.t): list(string) => {
-  let scoped_l = inner_left_siblings(z);
-  let r = snd(z.relatives.siblings);
-  used_labels_in(scoped_l) @ used_labels_in(r);
 };
 
 /* Check if we're inside parentheses. Three cases:
@@ -449,10 +370,6 @@ let left_boundary_empty = (scoped_l: list(Piece.t)): bool => {
     | [Piece.Grout(_), ...rest] => check(rest)
     | [Piece.Tile({label: [","], _}), ..._] => true
     | [Piece.Tile({label: ["(", ")"], shards: [0], _}), ..._] => true
-    /* After label= (TupleLabeledExp), the = is concave-right and
-     * needs an operand. Treat as empty boundary so scaffold starts
-     * with a hole, not a comma. */
-    | [Piece.Tile({label: ["="], _}), ..._] => true
     | _ => false;
   check(List.rev(scoped_l));
 };
@@ -548,323 +465,24 @@ let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
         + count_commas_in(snd(z.relatives.siblings));
       let remaining = arity - 1 - existing_commas;
 
-      /* Scan siblings for labels already assigned in the tuple.
-       * These are excluded from scaffold suggestions. */
-      let used = all_used_labels(z);
-      let is_used = (name: string): bool =>
-        List.mem(Token.quote_label_when_necessary(name), used)
-        || List.mem(name, used);
-
-      /* For labeled tuples, scaffold can trigger even when remaining=0
-       * (all commas placed) if the current position has an unfilled label.
-       * Check: does the current element (at index existing_commas) have
-       * a label that hasn't been used yet? */
-      let current_element_idx = existing_commas;
-      let current_label = {
-        /* Find the first unused label starting from the current position */
-        let rec find_unused = (i: int): option(string) =>
-          if (i >= arity) {
-            None;
-          } else {
-            switch (label_of_prod_elem(List.nth(tys, i))) {
-            | Some(name) when !is_used(name) => Some(name)
-            | _ => find_unused(i + 1)
-            };
-          };
-        find_unused(0);
-      };
-      let current_has_label = current_label != None;
-
-      /* Check if the token to the left is a prefix of the current label.
-       * If so, the scaffold should show the label suffix + = + hole
-       * instead of the full label. e.g., f(f| → oo=?, bar=? */
-      let label_suffix =
-        switch (current_label, TyDiComplete.token_to_left(z)) {
-        | (Some(name), Some(tok))
-            when
-              String.length(tok) > 0
-              && String.length(tok) < String.length(name)
-              && String.starts_with(
-                   ~prefix=tok,
-                   Token.quote_label_when_necessary(name),
-                 ) =>
-          let quoted = Token.quote_label_when_necessary(name);
-          Some(
-            String.sub(
-              quoted,
-              String.length(tok),
-              String.length(quoted) - String.length(tok),
-            ),
-          );
-        | (Some(name), Some(tok))
-            when tok == Token.quote_label_when_necessary(name) =>
-          /* Exact label match: user typed the full label, suggest = */
-          Some("")
-        | _ => None
-        };
-
-      let after_equals = {
-        let rec check =
-          fun
-          | [Piece.Secondary(_), ...rest]
-          | [Piece.Grout(_), ...rest] => check(rest)
-          | [Piece.Tile({label: ["="], _}), ..._] => true
-          | _ => false;
-        check(List.rev(scoped_l));
-      };
-
-      let* () =
-        remaining > 0
-        || current_has_label
-        || label_suffix != None
-        || after_equals
-          ? Some() : None;
+      let* () = remaining > 0 ? Some() : None;
 
       let holes_first = left_boundary_empty(scoped_l);
       let trailing_hole = !right_has_convex(snd(z.relatives.siblings));
-      /* When user is typing a label prefix, produce the suffix as a
-       * text completion combined with the rest of the scaffold. */
-      switch (label_suffix) {
-      | Some(suffix) =>
-        /* Build: suffix_text + = + hole + remaining scaffold.
-         * The suffix is a Comment (text completion), = is a TupleLabeledExp
-         * tile, hole is a Grout. If remaining > 0, append commas + labels. */
-        let label_completion =
-          if (suffix == "") {
-            [
-              /* Full label typed (e.g., "foo|") — just = + hole */
-              Piece.mk_tile(Form.get(TupleLabeledExp), []),
-              Piece.Grout({
-                id: Id.mk(),
-                shape: Convex,
-              }),
-            ];
-          } else {
-            [
-              /* Partial label (e.g., "f|" → "oo") — suffix text + = + hole */
-              Secondary({
-                id: Id.mk(),
-                content: Comment(suffix),
-              }),
-              Piece.mk_tile(Form.get(TupleLabeledExp), []),
-              Piece.Grout({
-                id: Id.mk(),
-                shape: Convex,
-              }),
-            ];
-          };
-        /* Append remaining scaffold entries: all unused labels
-         * except the one currently being completed. */
-        let rest_labels =
-          tys
-          |> List.map(label_of_prod_elem)
-          |> List.filter_map(
-               fun
-               | Some(name) when is_used(name) => None
-               | Some(name) when current_label == Some(name) => None
-               | label => Some(label),
-             );
-        if (remaining > 0) {
-          let rest =
-            mk_segment(
-              ~holes_first=false,
-              ~trailing_hole,
-              ~labels=rest_labels,
-              remaining,
-            );
-          Some(label_completion @ rest);
-        } else {
-          Some(label_completion);
-        };
-      | None =>
-        /* When remaining=0 but current position has a label, produce
-         * just the label hint (no commas needed). Check suppression first. */
-        if (remaining == 0) {
-          /* For remaining=0, suppress against the current element's type,
-           * not the full Prod (which can't be satisfied by a single value
-           * when all commas are already placed). */
-          let current_ty = List.nth(tys, current_element_idx);
-          /* Unwrap TupLabel to get the inner type for suppression check.
-           * e.g., TupLabel(Label("bar"), Bool) → Bool */
-          let current_ty_inner =
-            switch (Typ.match_tup_label(current_ty)) {
-            | Some((_, inner)) => inner
-            | None => current_ty
-            };
-          if (should_suppress(l, current_ty_inner, info_map)) {
-            None;
-          } else if (after_equals) {
-            /* After = with all commas placed: just a value hole.
-             * But suppress if the value already fills the position. */
-            let has_value =
-              switch (l) {
-              | [p, ..._] when Piece.is_convex(p) =>
-                switch (Id.Map.find_opt(Piece.id(p), info_map)) {
-                | Some(InfoExp({self, _})) =>
-                  switch (Self.typ_of_exp(self)) {
-                  | Some(ty) =>
-                    switch (Typ.term_of(ty)) {
-                    | Unknown(_) => false
-                    | _ => true
-                    }
-                  | None => false
-                  }
-                | _ => false
-                }
-              | _ => false
-              };
-            has_value
-              ? None
-              : Some([
-                  Piece.Grout({
-                    id: Id.mk(),
-                    shape: Convex,
-                  }),
-                ]);
-          } else {
-            let current_label =
-              label_of_prod_elem(List.nth(tys, current_element_idx));
-            /* Check if token to left conflicts with the label. If the
-             * user typed something that isn't a prefix of the label
-             * (e.g., "bb" for label "bar"), suppress the hint. */
-            /* Check if there's an identifier token to the left that
-             * conflicts with the label. Skip commas and operators —
-             * only check convex operand tokens (potential label names). */
-            let token_conflicts =
-              switch (TyDiComplete.token_to_left(z), current_label) {
-              | (Some(tok), Some(name)) when tok != "," && tok != "=" =>
-                let quoted = Token.quote_label_when_necessary(name);
-                !String.starts_with(~prefix=tok, quoted);
-              | _ => false
-              };
-            if (token_conflicts) {
-              None;
-            } else {
-              switch (current_label) {
-              | Some(name) =>
-                /* Label hint: label + = + hole.
-                 * Add leading space if caret follows bare comma. */
-                let hint = [
-                  Piece.Tile({
-                    id: Id.mk(),
-                    label: [Token.quote_label_when_necessary(name)],
-                    mold: Mold.mk_op(Sort.Exp, []),
-                    shards: [0],
-                    children: [],
-                  }),
-                  Piece.mk_tile(Form.get(TupleLabeledExp), []),
-                  Piece.Grout({
-                    id: Id.mk(),
-                    shape: Convex,
-                  }),
-                ];
-                let hint =
-                  left_needs_space(l)
-                    ? [
-                      Piece.Secondary({
-                        id: Id.mk(),
-                        content: Whitespace(" "),
-                      }),
-                      ...hint,
-                    ]
-                    : hint;
-                Some(hint);
-              | None => None
-              };
-            }; /* end !token_conflicts */
-          };
-        } else {
-          let label_start =
-            holes_first && !after_equals
-              ? existing_commas : existing_commas + 1;
-          let remaining_tys =
-            tys
-            |> List.filteri((i, _) => i >= label_start)
-            |> (lst => List.filteri((i, _) => i < remaining, lst));
-          let labels =
-            remaining_tys
-            |> List.map(label_of_prod_elem)
-            |> List.map(
-                 fun
-                 | Some(name) when is_used(name) => None
-                 | label => label,
-               );
-          let seg =
-            if (after_equals) {
-              /* After = (user typed label prefix): [hole, comma, space]
-               * for current value, then [comma, space, label, =, hole]
-               * for each remaining element. */
-              let mk_space = (): Piece.t =>
-                Secondary({
-                  id: Id.mk(),
-                  content: Whitespace(" "),
-                });
-              let mk_hole = (): Piece.t =>
-                Piece.Grout({
-                  id: Id.mk(),
-                  shape: Convex,
-                });
-              let mk_comma = (): Piece.t =>
-                Piece.mk_tile(Form.get(CommaExp), []);
-              let mk_label = (i: int): list(Piece.t) =>
-                switch (List.nth_opt(labels, i)) {
-                | Some(Some(name)) => [
-                    Tile({
-                      id: Id.mk(),
-                      label: [Token.quote_label_when_necessary(name)],
-                      mold: Mold.mk_op(Sort.Exp, []),
-                      shards: [0],
-                      children: [],
-                    }),
-                    Piece.mk_tile(Form.get(TupleLabeledExp), []),
-                  ]
-                | _ => []
-                };
-              /* Value hole for current element, then comma-separated
-               * labeled entries for remaining elements */
-              let n_remaining_labels = List.length(labels);
-              List.concat(
-                List.init(n_remaining_labels + 1, i =>
-                  if (i == 0) {
-                    [
-                      /* First: bare hole for current value + comma */
-                      mk_hole(),
-                      mk_comma(),
-                      mk_space(),
-                    ];
-                  } else {
-                    /* Subsequent: label + hole, preceded by comma (except
-                     * first which already has comma from previous entry) */
-                    let label_idx = i - 1;
-                    let is_last = i == n_remaining_labels;
-                    let entry = mk_label(label_idx) @ [mk_hole()];
-                    if (is_last) {
-                      /* Last entry: no trailing comma */
-                      entry;
-                    } else {
-                      entry @ [mk_comma(), mk_space()];
-                    };
-                  }
-                ),
-              );
-            } else {
-              mk_segment(~holes_first, ~trailing_hole, ~labels, remaining);
-            };
-          /* If caret immediately follows a comma without a trailing space,
-           * prepend a space so the scaffold reads "f(1, ?" not "f(1,?". */
-          let seg =
-            left_needs_space(l)
-              ? [
-                Piece.Secondary({
-                  id: Id.mk(),
-                  content: Whitespace(" "),
-                }),
-                ...seg,
-              ]
-              : seg;
-          Some(seg);
-        } /* end remaining > 0 */
-      }; /* end switch label_suffix None */
+      let seg = mk_segment(~holes_first, ~trailing_hole, remaining);
+      /* If caret immediately follows a comma without a trailing space,
+       * prepend a space so the scaffold reads "f(1, ?" not "f(1,?". */
+      let seg =
+        left_needs_space(l)
+          ? [
+            Piece.Secondary({
+              id: Id.mk(),
+              content: Whitespace(" "),
+            }),
+            ...seg,
+          ]
+          : seg;
+      Some(seg);
     };
   }; /* end result */
   /* Strip trailing hole if right sibling already has convex content */
@@ -946,7 +564,7 @@ let set = (~info_map: Statics.Map.t, ~content=?, z: Zipper.t): Zipper.t => {
 };
 
 /* Split buffer content into leading completion text (Comment pieces)
- * and the structural scaffold remainder (commas, labels, grout). */
+ * and the structural scaffold remainder (commas, grout). */
 let split_leading_comments = (content: Segment.t): (string, Segment.t) => {
   let rec go = (acc_text, pieces) =>
     switch (pieces) {

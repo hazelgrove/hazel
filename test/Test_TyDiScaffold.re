@@ -113,12 +113,6 @@ let shard_tests = (
       ~code="type Toop = (Int, Bool) in let x : Toop = (¦",
       ~expect=Some("?, "),
     ),
-    /* Type alias with labels */
-    scaffold_test(
-      ~name="Type alias: labeled tuple alias",
-      ~code="type Toop = (zoo=Bool, yoop=(Int, String)) in let x : Toop = (¦",
-      ~expect=Some("zoo=?, "),
-    ),
     /* Type alias: after first arg */
     scaffold_test(
       ~name="Type alias: after first arg",
@@ -332,380 +326,6 @@ let nested_tests = (
   ],
 );
 
-/* ---- Labeled 2-element: comprehensive progressive typing ----
- *
- * Type: (foo=Int, bar=Bool)
- * Tests every step of typing a labeled tuple from scratch. */
-
-let def_labeled2 = "let f : (foo=Int, bar=Bool) -> Int = fun x -> 0 in ";
-
-let labeled_tests = (
-  "TyDiScaffold.Labeled",
-  [
-    /* Step 1: f(| — empty, shows first label + scaffold */
-    scaffold_test(
-      ~name="L2: f(| empty",
-      ~code=def_labeled2 ++ "f(¦",
-      ~expect=Some("foo=?, "),
-    ),
-    /* Step 1a: f(f| — typed f, label suffix oo + = + hole + rest */
-    scaffold_test(
-      ~name="L2: f(f| label suffix + scaffold",
-      ~code=def_labeled2 ++ "f(f¦",
-      ~expect=Some("oo=?, bar=?"),
-    ),
-    /* Step 1b: f(fo| — typed fo, label suffix o */
-    scaffold_test(
-      ~name="L2: f(fo| label suffix",
-      ~code=def_labeled2 ++ "f(fo¦",
-      ~expect=Some("o=?, bar=?"),
-    ),
-    /* Step 1c: f(foo| — typed foo, just = needed */
-    scaffold_test(
-      ~name="L2: f(foo| suggest =",
-      ~code=def_labeled2 ++ "f(foo¦",
-      ~expect=Some("=?, bar=?"),
-    ),
-    /* Step 2: f(| → Tab → f(foo=|? — accept inserts label prefix */
-    accept_test(
-      ~name="L2: Tab on f( inserts foo=",
-      ~code=def_labeled2 ++ "f(¦",
-      ~goal=def_labeled2 ++ "f(foo=¦?",
-    ),
-    /* Step 2b: explicit tuple: (| with labeled type */
-    scaffold_test(
-      ~name="L2 explicit: (| with labeled type",
-      ~code="let t : (foo=Int, bar=Bool) = (¦",
-      ~expect=Some("foo=?, "),
-    ),
-    /* Step 2c: explicit tuple: (f| label suffix + scaffold */
-    scaffold_test(
-      ~name="L2 explicit: (f| label suffix",
-      ~code="let t : (foo=Int, bar=Bool) = (f¦",
-      ~expect=Some("oo=?, bar=?"),
-    ),
-    /* Step 2d: explicit tuple Tab: (| → Tab → (foo=|? (one hole, not two) */
-    accept_test(
-      ~name="L2 explicit: Tab on ( inserts foo=",
-      ~code="let t : (foo=Int, bar=Bool) = (¦",
-      ~goal="let t : (foo=Int, bar=Bool) = (foo=¦?",
-    ),
-    /* Step 3: f(foo=| — scaffold shows value hole + remaining label */
-    scaffold_test(
-      ~name="L2: f(foo=| shows ?, bar=?",
-      ~code=def_labeled2 ++ "f(foo=¦",
-      ~expect=Some("?, bar="),
-    ),
-    /* Step 4: f(foo=1| — after typing value, scaffold for remaining */
-    scaffold_test(
-      ~name="L2: f(foo=1|) after value",
-      ~code=def_labeled2 ++ "f(foo=1¦)",
-      ~expect=Some(", bar=?"),
-    ),
-    /* Step 5: f(foo=1|) → Tab → f(foo=1, |?) — comma inserted */
-    accept_test(
-      ~name="L2: Tab after foo=1 inserts comma",
-      ~code=def_labeled2 ++ "f(foo=1¦)",
-      ~goal=def_labeled2 ++ "f(foo=1, ¦?)",
-    ),
-    /* Step 6: f(foo=1, |) — after typing comma, label hint for bar */
-    scaffold_test(
-      ~name="L2: f(foo=1, |) after comma",
-      ~code=def_labeled2 ++ "f(foo=1, ¦)",
-      ~expect=Some("bar=?"),
-    ),
-    /* Step 6b: f(foo=1,|) — no space after comma */
-    scaffold_test(
-      ~name="L2: f(foo=1,|) no space",
-      ~code=def_labeled2 ++ "f(foo=1,¦)",
-      ~expect=Some(" bar=?"),
-    ),
-    /* Step 7: f(foo=1, bar=|) — after typing label, value hole */
-    scaffold_test(
-      ~name="L2: f(foo=1, bar=|) value hole",
-      ~code=def_labeled2 ++ "f(foo=1, bar=¦)",
-      ~expect=Some("?"),
-    ),
-    /* Step 6c: f(foo=1,|) — no space after comma, label hint with space.
-     * Trailing hole present because right sibling is grout (same position). */
-    scaffold_test(
-      ~name="L2: f(foo=1,|) label hint with space",
-      ~code=def_labeled2 ++ "f(foo=1,¦)",
-      ~expect=Some(" bar=?"),
-    ),
-    /* Step 6d: shard case — f(foo=1,| without closing paren */
-    scaffold_test(
-      ~name="L2: f(foo=1,| shard label hint",
-      ~code=def_labeled2 ++ "f(foo=1,¦",
-      ~expect=Some(" bar="),
-    ),
-    /* Step 7b: f(foo=1, bb|) — non-matching prefix, no scaffold.
-     * "bb" is not a prefix of "bar", so label completion shouldn't trigger. */
-    scaffold_test(
-      ~name="L2: f(foo=1, bb|) non-matching prefix",
-      ~code=def_labeled2 ++ "f(foo=1, bb¦)",
-      ~expect=None,
-    ),
-    /* Step 8: f(foo=1, bar=true|) — all done, no scaffold */
-    scaffold_test(
-      ~name="L2: f(foo=1, bar=true|) complete",
-      ~code=def_labeled2 ++ "f(foo=1, bar=true¦)",
-      ~expect=None,
-    ),
-    /* Without labels: f(1|) — should show label for second element */
-    scaffold_test(
-      ~name="L2: f(1|) unlabeled first arg",
-      ~code=def_labeled2 ++ "f(1¦)",
-      ~expect=Some(", bar=?"),
-    ),
-    /* Mixed labeled/unlabeled type */
-    scaffold_test(
-      ~name="Mixed labeled/unlabeled",
-      ~code="let f : (Int, y=String) -> Bool = fun a -> true in f(1¦)",
-      ~expect=Some(", y=?"),
-    ),
-    /* Tab acceptance doesn't crash after label prefix */
-    test_case("L2: Tab after foo= doesn't crash", `Quick, () =>
-      ignore(scaffold_accept(def_labeled2 ++ "f(foo=¦"))
-    ),
-    /* Segment wellformedness after foo= with scaffold
-     * (checks for shape conflicts between scaffold and real holes) */
-    test_case(
-      "L2: segment ok after foo=",
-      `Quick,
-      () => {
-        let code = def_labeled2 ++ "f(foo=¦";
-        let result = assist_suggest(code);
-        /* Just verify it doesn't crash */
-        ignore(result);
-      },
-    ),
-  ],
-);
-
-/* ---- Labeled 3-element: progressive typing + acceptance ---- */
-
-let def_labeled3 = "let z : (boo=Int, trall=Bool, druk=Float) -> Int = fun x -> 0 in ";
-
-let labeled3_tests = (
-  "TyDiScaffold.Labeled3",
-  [
-    /* Empty paren: shows all labels (holes_first) */
-    scaffold_test(
-      ~name="Labeled3: z(| shows all labels",
-      ~code=def_labeled3 ++ "z(¦",
-      ~expect=Some("boo=?, trall=?, "),
-    ),
-    /* After first arg: remaining labels */
-    scaffold_test(
-      ~name="Labeled3: z(1| shows remaining labels",
-      ~code=def_labeled3 ++ "z(1¦)",
-      ~expect=Some(", trall=?, druk=?"),
-    ),
-    /* After typing boo= (label prefix): bare hole for value,
-     * then labeled entries for remaining elements */
-    scaffold_test(
-      ~name="Labeled3: z(boo=| shows remaining",
-      ~code=def_labeled3 ++ "z(boo=¦",
-      ~expect=Some("?, trall=?, druk="),
-    ),
-    /* After boo=1, shows remaining two labels */
-    scaffold_test(
-      ~name="Labeled3: z(boo=1| shows remaining",
-      ~code=def_labeled3 ++ "z(boo=1¦)",
-      ~expect=Some(", trall=?, druk=?"),
-    ),
-    /* After first comma: boo=1, | shows next label */
-    scaffold_test(
-      ~name="Labeled3: z(boo=1, | shows next label",
-      ~code=def_labeled3 ++ "z(boo=1, ¦)",
-      ~expect=Some("trall=?, "),
-    ),
-    /* Tab acceptance: z(| → Tab → z(boo=|? */
-    accept_test(
-      ~name="Labeled3: Tab inserts first label",
-      ~code=def_labeled3 ++ "z(¦",
-      ~goal=def_labeled3 ++ "z(boo=¦?",
-    ),
-    /* Explicit tuple: (| with labeled type */
-    scaffold_test(
-      ~name="Labeled3 explicit: (| with 3-elem labeled type",
-      ~code="let t : (boo=Int, trall=Bool, druk=Float) = (¦",
-      ~expect=Some("boo=?, trall=?, "),
-    ),
-    /* Tab acceptance for explicit tuple */
-    accept_test(
-      ~name="Labeled3 explicit: Tab inserts first label",
-      ~code="let t : (boo=Int, trall=Bool, druk=Float) = (¦",
-      ~goal="let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦?",
-    ),
-    /* Tab acceptance doesn't crash for labeled3 */
-    test_case("Labeled3: Tab accept doesn't crash for z(|", `Quick, () =>
-      ignore(scaffold_accept(def_labeled3 ++ "z(¦"))
-    ),
-    /* Tab acceptance for explicit labeled tuple */
-    test_case("Labeled3 explicit: Tab accept doesn't crash", `Quick, () =>
-      ignore(
-        scaffold_accept("let t : (boo=Int, trall=Bool, druk=Float) = (¦"),
-      )
-    ),
-    /* After typing boo= in explicit tuple: display.
-     * Bare hole for boo's value, then labeled entries for remaining. */
-    scaffold_test(
-      ~name="Labeled3 explicit: display after boo=",
-      ~code="let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦",
-      ~expect=Some("?, trall=?, druk="),
-    ),
-    /* After typing boo= in explicit tuple, Tab accept */
-    test_case("Labeled3 explicit: Tab after boo= doesn't crash", `Quick, () =>
-      ignore(
-        scaffold_accept(
-          "let t : (boo=Int, trall=Bool, druk=Float) = (boo=¦",
-        ),
-      )
-    ),
-  ],
-);
-
-/* ---- Label-aware scaffold: existing labels affect suggestions ----
- *
- * When labels are already present in the tuple (left or right siblings),
- * the scaffold should exclude them and suggest the first remaining label
- * in positional (type declaration) order.
- *
- * Type: (foo=Int, bar=Bool, baz=Float) */
-
-let def_fbb = "let z : (foo=Int, bar=Bool, baz=Float) -> Int = fun x -> 0 in ";
-let def_fbb_tuple = "let t : (foo=Int, bar=Bool, baz=Float) = ";
-
-let label_aware_tests = (
-  "TyDiScaffold.LabelAware",
-  [
-    /* -- Before existing labels -- */
-    /* Caret before all three filled labels: no scaffold needed */
-    scaffold_test(
-      ~name="Before all: no scaffold when complete",
-      ~code=def_fbb_tuple ++ "(¦foo=1, bar=true, baz=0.0)",
-      ~expect=None,
-    ),
-    /* Caret before existing, foo missing: suggest foo= */
-    scaffold_test(
-      ~name="Before existing, foo missing: suggest foo=",
-      ~code=def_fbb_tuple ++ "(¦bar=true, baz=0.0)",
-      ~expect=Some("foo=?, "),
-    ),
-    /* Caret before existing, bar missing: suggest bar= */
-    scaffold_test(
-      ~name="Before existing, bar missing: suggest bar=",
-      ~code=def_fbb_tuple ++ "(¦foo=1, baz=0.0)",
-      ~expect=Some("bar=?, "),
-    ),
-    /* Caret before existing, foo+bar missing: suggest both */
-    scaffold_test(
-      ~name="Before existing, foo+bar missing: suggest foo= bar=",
-      ~code=def_fbb_tuple ++ "(¦baz=0.0)",
-      ~expect=Some("foo=?, bar=?, "),
-    ),
-    /* -- Between existing labels -- */
-    /* Between foo and baz, bar missing: suggest bar= */
-    scaffold_test(
-      ~name="Between foo and baz: suggest bar=",
-      ~code=def_fbb_tuple ++ "(foo=1, ¦baz=0.0)",
-      ~expect=Some("bar=?, "),
-    ),
-    /* Between bar and baz (out of order), foo missing: suggest foo= */
-    scaffold_test(
-      ~name="Between bar and baz, foo missing: suggest foo=",
-      ~code=def_fbb_tuple ++ "(bar=true, ¦baz=0.0)",
-      ~expect=Some("foo=?, "),
-    ),
-    /* Between foo and bar, baz still missing at end */
-    scaffold_test(
-      ~name="Between foo and bar: suggest baz=",
-      ~code=def_fbb_tuple ++ "(foo=1, ¦bar=true)",
-      ~expect=Some("baz=?, "),
-    ),
-    /* -- At end, out-of-order -- */
-    /* Only bar entered, at end: foo and baz missing.
-     * remaining=1 (1 comma present, need 2), show first unused + scaffold */
-    scaffold_test(
-      ~name="End after bar only: suggest foo= + baz=",
-      ~code=def_fbb_tuple ++ "(bar=true, ¦)",
-      ~expect=Some("foo=?, baz=?, "),
-    ),
-    /* Only baz entered, at end: foo and bar missing */
-    scaffold_test(
-      ~name="End after baz only: suggest foo= + bar=",
-      ~code=def_fbb_tuple ++ "(baz=0.0, ¦)",
-      ~expect=Some("foo=?, bar=?, "),
-    ),
-    /* foo and baz entered, bar missing, at end.
-     * remaining=0 (2 commas), label hint only */
-    scaffold_test(
-      ~name="End after foo+baz: suggest bar=",
-      ~code=def_fbb_tuple ++ "(foo=1, baz=0.0, ¦)",
-      ~expect=Some("bar="),
-    ),
-    /* bar and baz entered, foo missing, at end.
-     * remaining=0 (2 commas), label hint only */
-    scaffold_test(
-      ~name="End after bar+baz: suggest foo=",
-      ~code=def_fbb_tuple ++ "(bar=true, baz=0.0, ¦)",
-      ~expect=Some("foo="),
-    ),
-    /* -- Partial typing with label awareness -- */
-    /* Typing f before bar+baz: should match foo */
-    scaffold_test(
-      ~name="Partial f before bar+baz: suggest oo=",
-      ~code=def_fbb_tuple ++ "(f¦, bar=true, baz=0.0)",
-      ~expect=Some("oo=?, "),
-    ),
-    /* Typing b when foo+baz present, bar missing: suggest ar= */
-    scaffold_test(
-      ~name="Partial b, bar missing: suggest ar=",
-      ~code=def_fbb_tuple ++ "(foo=1, b¦, baz=0.0)",
-      ~expect=Some("ar=?, "),
-    ),
-    /* Typing b when only foo present, bar+baz missing: suggest ar= (first positionally) */
-    scaffold_test(
-      ~name="Partial b, bar+baz missing: suggest ar=",
-      ~code=def_fbb_tuple ++ "(foo=1, b¦)",
-      ~expect=Some("ar=?"),
-    ),
-    /* Typing b as first element (no other labels present): matches bar
-     * even though foo is the default first label. User explicitly chose
-     * to start with bar. Show ar= + remaining unused (foo, baz). */
-    scaffold_test(
-      ~name="Partial b first: suggest ar= (bar, not foo)",
-      ~code=def_fbb_tuple ++ "(b¦)",
-      ~expect=Some("ar=?, foo=?, "),
-    ),
-    /* Typing ba as first element */
-    scaffold_test(
-      ~name="Partial ba first: suggest r=",
-      ~code=def_fbb_tuple ++ "(ba¦)",
-      ~expect=Some("r=?, foo=?, "),
-    ),
-    /* Typing x (no match): no label scaffold, just structural */
-    scaffold_test(
-      ~name="Partial x first: no label match",
-      ~code=def_fbb_tuple ++ "(x¦)",
-      ~expect=Some("?, ?, "),
-    ),
-    /* -- All labels present (any order) -- */
-    scaffold_test(
-      ~name="All present in order: no scaffold",
-      ~code=def_fbb_tuple ++ "(foo=1, bar=true, baz=0.0¦)",
-      ~expect=None,
-    ),
-    scaffold_test(
-      ~name="All present out of order: no scaffold",
-      ~code=def_fbb_tuple ++ "(bar=true, foo=1, baz=0.0¦)",
-      ~expect=None,
-    ),
-  ],
-);
-
 /* ---- Scaffold generation: edge cases ---- */
 
 let edge_tests = (
@@ -817,18 +437,6 @@ let acceptance_tests = (
       ~name="Explicit parens: Tab inserts comma+space",
       ~code="let t : (Int, Bool) = (1¦) in t",
       ~goal="let t : (Int, Bool) = (1, ¦?) in t",
-    ),
-    /* Labeled grout-right: f(▎ → Tab → f(x=▎ — emits label prefix */
-    accept_test(
-      ~name="Labeled grout-right: Tab inserts label",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
-      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
-    ),
-    /* Labeled after value: f(1▎ → Tab → f(1, y=▎ — comma + label */
-    accept_test(
-      ~name="Labeled after value: Tab inserts comma+label",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
-      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1, ¦?)",
     ),
   ],
 );
@@ -983,47 +591,6 @@ let multi_tab_tests = (
       ~n_tabs=1,
       ~goal=def2 ++ "f(1, ¦?",
     ),
-    /* Labeled 2-arg: Tab from f(¦ → f(x=¦?
-     * Inserts label prefix "x=" */
-    multi_accept_test(
-      ~name="Labeled: one Tab from f(",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
-      ~n_tabs=1,
-      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
-    ),
-  ],
-);
-
-/* ---- Labeled acceptance: progressive Tab ---- */
-
-let labeled_accept_tests = (
-  "TyDiScaffold.LabeledAcceptance",
-  [
-    /* f( with labeled → Tab inserts x= (label prefix) */
-    accept_test(
-      ~name="Labeled: Tab on f( inserts label",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(¦",
-      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦?",
-    ),
-    /* After user types value: f(x=1▎) → scaffold ", y=?" → Tab inserts , */
-    accept_test(
-      ~name="Labeled: Tab after value inserts comma",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1¦)",
-      ~goal="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦?)",
-    ),
-    /* 3-labeled: f( → Tab → f(a= */
-    accept_test(
-      ~name="Labeled 3-elem: Tab on f( inserts first label",
-      ~code="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(¦",
-      ~goal="let f : (a=Int, b=String, c=Bool) -> Int = fun x -> 0 in f(a=¦?",
-    ),
-    /* After accepting label: f(x=¦ should show bare hole for x's value,
-     * then labeled entry for y. No label duplication (x= not repeated). */
-    scaffold_test(
-      ~name="Labeled after label accept: value hole + remaining label",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=¦",
-      ~expect=Some("?, y="),
-    ),
   ],
 );
 
@@ -1050,13 +617,6 @@ let after_comma_tests = (
       ~name="After comma 2-arg: no scaffold",
       ~code=def2 ++ "f(1, ¦",
       ~expect=None,
-    ),
-    /* Labeled: after typing comma, label hint for next position.
-     * f(x=1, ¦ → label hint "y=?" (all commas placed, but label needed) */
-    scaffold_test(
-      ~name="Labeled after comma: label hint",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(x=1, ¦",
-      ~expect=Some("y="),
     ),
     /* After typing comma without space: g(1,¦ → scaffold should have
      * leading space for formatting: " ?, " not "?, " */
@@ -1143,13 +703,6 @@ let incomplete_tests = (
       ~name="let-no-in: 3-arg",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in let x = g(1¦",
       ~expect=Some(", ?, ?"),
-    ),
-    /* Labeled in incomplete let */
-    scaffold_test(
-      ~name="let-no-in: labeled",
-      ~code=
-        "let f : (x=Int, y=String) -> Bool = fun a -> true in let r = f(1¦",
-      ~expect=Some(", y=?"),
     ),
     /* Tab acceptance in incomplete form.
      * Note: printer doesn't show Dump-completed `in` — it only renders
@@ -1385,11 +938,6 @@ let segment_wellformedness_tests = (
     segment_ok_test(
       ~name="Incomplete fun: fun x -> f(1|",
       ~code="let f : (Int, String) -> Int = fun x -> 0 in fun x -> f(1¦",
-    ),
-    /* Labeled tuples */
-    segment_ok_test(
-      ~name="Labeled: f(1| y=?)",
-      ~code="let f : (x=Int, y=String) -> Bool = fun a -> true in f(1¦)",
     ),
     /* Holes-first patterns (grout-right): left edge is convex (hole),
      * right edge is concave (comma). Need to strip right-side grout. */
@@ -1632,13 +1180,9 @@ let tests = [
   ancestor_tests,
   midexpr_tests,
   nested_tests,
-  labeled_tests,
-  labeled3_tests,
-  label_aware_tests,
   edge_tests,
   acceptance_tests,
   multi_tab_tests,
-  labeled_accept_tests,
   after_comma_tests,
   progressive_tests,
   pattern_tests,
