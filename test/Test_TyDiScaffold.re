@@ -672,6 +672,26 @@ let label_aware_tests = (
       ~code=def_fbb_tuple ++ "(foo=1, b¦)",
       ~expect=Some("ar=?"),
     ),
+    /* Typing b as first element (no other labels present): matches bar
+     * even though foo is the default first label. User explicitly chose
+     * to start with bar. Show ar= + remaining unused (foo, baz). */
+    scaffold_test(
+      ~name="Partial b first: suggest ar= (bar, not foo)",
+      ~code=def_fbb_tuple ++ "(b¦)",
+      ~expect=Some("ar=?, foo=?, "),
+    ),
+    /* Typing ba as first element */
+    scaffold_test(
+      ~name="Partial ba first: suggest r=",
+      ~code=def_fbb_tuple ++ "(ba¦)",
+      ~expect=Some("r=?, foo=?, "),
+    ),
+    /* Typing x (no match): no label scaffold, just structural */
+    scaffold_test(
+      ~name="Partial x first: no label match",
+      ~code=def_fbb_tuple ++ "(x¦)",
+      ~expect=Some("?, ?, "),
+    ),
     /* -- All labels present (any order) -- */
     scaffold_test(
       ~name="All present in order: no scaffold",
