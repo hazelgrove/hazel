@@ -157,6 +157,21 @@ let rec elaborate_pattern =
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
+    | Add(default_mode, p1, p2) =>
+      let mode =
+        switch (
+          Typ.is_ana_atom(ana) |> Option.bind(_, Operators.cls_to_mode)
+        ) {
+        | Some(mode) => mode
+        | None =>
+          switch (ctx.use_mode) {
+          | Some(mode) => mode
+          | None => default_mode
+          }
+        };
+      let (p1', _) = elaborate_pattern(m, p1);
+      let (p2', _) = elaborate_pattern(m, p2);
+      Add(mode, p1', p2') |> rewrap;
     | Constructor(c, _) =>
       let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {

@@ -7,6 +7,11 @@ let let_base_ex = {
   term: mk_example("let x = 1 in \nx"),
   message: "The variable x is bound to 1, so the expression evaluates to 1",
 };
+let let_add_ex = {
+  sub_id: Let(Add),
+  term: mk_example("let x + 1 = 5 in x"),
+  message: "The variable x is bound to 5 - 1, so the expression evaluates to 4.",
+};
 let let_wild_ex = {
   sub_id: Let(Wild),
   term: mk_example("let _ = 1 in \n2"),
@@ -417,6 +422,32 @@ let let_cons_exp: form = {
     examples: [let_cons_hd_ex, let_cons_snd_ex],
   };
 };
+let _pat_1 = pat("p1");
+let _pat_2 = pat("p2");
+let _exp_def = exp("e_def");
+let let_add_exp_coloring_ids =
+    (~pat1_id: Id.t, ~pat2_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat_1), pat1_id),
+  (Piece.id(_pat_2), pat2_id),
+  (Piece.id(_exp_def), def_id),
+];
+let let_add_exp: form = {
+  let explanation = "The [*definition*](%s) is matched by adding the [*left*](%s) and [*right*](%s) pattern sides. One side of the addition must be a constant.";
+  let form = [
+    mk_let([[space(), _pat_1, space(), plus(), space(), _pat_2, space()]]),
+    linebreak(),
+    _exp_def,
+  ];
+  {
+    id: LetExp(Add),
+    syntactic_form: form,
+    expandable_id:
+      Some((Piece.id(_pat_1), [pat("p1"), plus(), pat("p2")])),
+    explanation,
+    examples: [let_add_ex],
+  };
+};
+
 let _pat = pat("x");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
@@ -651,6 +682,11 @@ let lets_listnil: group = {
 let lets_cons: group = {
   id: LetExp(ListCons),
   forms: [let_cons_exp, let_base_exp],
+};
+
+let lets_add: group = {
+  id: LetExp(Add),
+  forms: [let_add_exp, let_base_exp],
 };
 
 let lets_var: group = {

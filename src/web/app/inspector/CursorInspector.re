@@ -226,6 +226,9 @@ let common_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
       ]
+    | UnconstrainedPatternAdd(_) => [
+        text("Additions in patterns must have a constant on one side."),
+      ]
     }
   )
   @ (

@@ -69,7 +69,8 @@ let common_error: Info.error_common => string =
       "Expecting type %s but got inconsistent type %s",
       Print.typ(ana),
       Print.typ(syn),
-    );
+    )
+  | UnconstrainedPatternAdd(_) => "Cannot determine numeric type for addition pattern";
 
 let exp_error: Info.error_exp => string =
   fun

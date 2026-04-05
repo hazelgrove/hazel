@@ -169,6 +169,7 @@ type compound_form =
   | TypPlus
   | ProdProjection
   | ProdExtension
+  | PatPlus
   // UNARY PREFIX OPERATORS
   | Not
   | TypSumSingle
@@ -277,6 +278,7 @@ let get: compound_form => t =
   | TypPlus => mk_infix("+", Typ, P.type_plus)
   | ProdProjection => mk_infix(".", Typ, P.dot)
   | ProdExtension => mk_infix("...", Typ, P.ap)
+  | PatPlus => mk_infix("+", Pat, P.plus)
   // UNARY PREFIX OPERATORS
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)

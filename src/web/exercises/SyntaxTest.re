@@ -27,6 +27,7 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | ExplicitNonlabel => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | TupLabel(_, up) => find_var_upat(name, up)
+  | Add(_, up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
@@ -75,6 +76,7 @@ let rec find_in_let =
       ListLit(_) |
       Constructor(_) |
       Cons(_, _) |
+      Add(_, _, _) |
       Ap(_, _) |
       ExplicitNonlabel,
       _,
@@ -177,7 +179,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Label(_)
   | ExplicitNonlabel
   | Constructor(_) => false
-  | Cons(up1, up2) =>
+  | Cons(up1, up2)
+  | Add(_, up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | ListLit(l)
   | Tuple(l) =>

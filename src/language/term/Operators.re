@@ -1,6 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type mode =
   | Nat
   | Int
@@ -8,6 +8,65 @@ type mode =
   | Float;
 
 let default_mode = Int;
+
+/* GADT version of mode for type-safe numeric operations */
+type mode_gadt('a) =
+  | MGInt: mode_gadt(Bigint.t)
+  | MGNat: mode_gadt(Bigint.t)
+  | MGSInt: mode_gadt(int)
+  | MGFloat: mode_gadt(float);
+
+type mode_gadt_wrapper =
+  | MG(mode_gadt('a)): mode_gadt_wrapper;
+
+let (let.mode) = (type b, m: mode, f: mode_gadt_wrapper => b): b =>
+  switch (m) {
+  | Int => f(MG(MGInt))
+  | Nat => f(MG(MGNat))
+  | SInt => f(MG(MGSInt))
+  | Float => f(MG(MGFloat))
+  };
+
+let mode_gadt_to_atom_kind: type a. mode_gadt(a) => Atom.kind(a) =
+  fun
+  | MGInt => Int
+  | MGNat => Nat
+  | MGSInt => SInt
+  | MGFloat => Float;
+
+let mode_to_cls: mode => Atom.cls =
+  fun
+  | Int => Int
+  | Nat => Nat
+  | SInt => SInt
+  | Float => Float;
+
+let cls_to_mode: Atom.cls => option(mode) =
+  fun
+  | Int => Some(Int)
+  | Nat => Some(Nat)
+  | SInt => Some(SInt)
+  | Float => Some(Float)
+  | Bool
+  | String => None;
+
+let num_add: type a. (mode_gadt(a), a, a) => a =
+  (mode, a, b) =>
+    switch (mode) {
+    | MGInt => Bigint.(+)(a, b)
+    | MGNat => Bigint.(+)(a, b)
+    | MGSInt => a + b
+    | MGFloat => a +. b
+    };
+
+let num_sub: type a. (mode_gadt(a), a, a) => a =
+  (mode, a, b) =>
+    switch (mode) {
+    | MGInt => Bigint.(-)(a, b)
+    | MGNat => Bigint.(-)(a, b)
+    | MGSInt => a - b
+    | MGFloat => a -. b
+    };
 
 /* ========== DEFINITIONS ========== */
 

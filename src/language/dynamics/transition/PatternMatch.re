@@ -70,6 +70,21 @@ let match_pattern =
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
     recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
+  | Add(mode, p1, p2) =>
+    open Operators;
+    let.mode MG(mg) = mode;
+    let ak = mode_gadt_to_atom_kind(mg);
+    switch (Pat.is_const_num(mg, p1), Pat.is_const_num(mg, p2)) {
+    | (Some(n1), Some(n2)) =>
+      recur(Atom(Atom.repack(ak, num_add(mg, n1, n2))) |> Pat.fresh, d)
+    | (Some(n), None) =>
+      let* v = Unboxing.unbox(Atom(ak), d);
+      recur(p2, Atom(Atom.repack(ak, num_sub(mg, v, n))) |> DHExp.fresh);
+    | (None, Some(n)) =>
+      let* v = Unboxing.unbox(Atom(ak), d);
+      recur(p1, Atom(Atom.repack(ak, num_sub(mg, v, n))) |> DHExp.fresh);
+    | (None, None) => IndetMatch
+    };
   };
 
 /* Record a sample closure if this pattern is targeted and matched */

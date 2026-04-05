@@ -581,6 +581,12 @@ let equality =
       let* alphas2 = pat'(p2, p4);
       Some(Alphas.combine(alphas1, alphas2));
     | (Cons(_, _), _) => None
+    | (Add(m1, p1, p2), Add(m2, p3, p4)) when m1 == m2 =>
+      open OptUtil.Syntax;
+      let* alphas1 = pat'(p1, p3);
+      let* alphas2 = pat'(p2, p4);
+      Some(Alphas.combine(alphas1, alphas2));
+    | (Add(_, _, _), _) => None
     | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
       open OptUtil.Syntax;
       let* alphas1 = pat'(label1, label2);

@@ -73,7 +73,9 @@ type error_common =
       duplicate_labels: list(LabeledTuple.label),
       invalid_labels: list(LabeledTuple.label),
       typ: Typ.t,
-    });
+    })
+  /* Pattern add with two degrees of freedom (e.g. x + y instead of x + 1) */
+  | UnconstrainedPatternAdd(Operators.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_exp =
@@ -545,6 +547,10 @@ let rec status_common =
     }
   | (CompareFun(ty), _) => InHole(Inconsistent(CompareFun(ty)))
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
+  | (IsPatternAdd({left_const: false, right_const: false, mode}), _) =>
+    InHole(UnconstrainedPatternAdd(mode))
+  | (IsPatternAdd({mode, _}), _) =>
+    NotInHole(Syn(Atom(Operators.mode_to_cls(mode)) |> Typ.temp))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (ExplicitNonlabel, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
@@ -627,7 +633,8 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
             NoType(_) |
             DuplicateLabel(_) |
             DuplicateVar(_) |
-            TupleLabelError(_),
+            TupleLabelError(_) |
+            UnconstrainedPatternAdd(_),
           ) as err,
         ) =>
         Some(err)
@@ -668,6 +675,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(TupleExtensionRequiresTuples)
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
+          Common(UnconstrainedPatternAdd(_)) |
           BadPartialAp(_) |
           InvalidUseMode(_) |
           UnboundLivelit(_) |
@@ -928,6 +936,8 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
     | Inconsistent(Expectation({ana, _})) => ana
     | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
     | Inconsistent(CompareFun(_)) => typ_or_ana(Atom(Bool) |> Typ.temp)
+    | UnconstrainedPatternAdd(mode) =>
+      Atom(Operators.mode_to_cls(mode)) |> Typ.temp
     };
   };
 

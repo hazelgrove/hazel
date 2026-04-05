@@ -128,6 +128,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Parens => parens(empty_hole())
       | Ap => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
+      | Add => add(Operators.Int, empty_hole(), empty_hole())
       | Wild => wild()
       | ExplicitNonlabel => explicit_non_label()
       | Projector =>
