@@ -323,6 +323,30 @@ let nested_tests = (
       ~goal=
         "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (4, ¦?",
     ),
+    /* ---- After-comma inside nested tuples (shape fitting) ---- */
+    /* Right-nested 3-element inner: after comma, left concave → leading hole */
+    scaffold_test(
+      ~name="Nested after comma: f(true, (4, | in 3-elem inner",
+      ~code=
+        "let f : (Bool, (Int, String, Float)) -> Int = fun x -> 0 in f(true, (4, ¦",
+      ~expect=Some("?, "),
+    ),
+    /* Right-nested 3-elem inner: after value with right-side content.
+     * deficit=2 (need 2 commas, have 0), left convex, right has content. */
+    scaffold_test(
+      ~name="Nested after value + right content: f(true, (4| 5)",
+      ~code=
+        "let f : (Bool, (Int, String, Float)) -> Int = fun x -> 0 in f(true, (4¦ 5))",
+      ~expect=Some(", ?, "),
+    ),
+    /* Right-nested: inner paren with content to right — left concave,
+     * right has 4 (not whitespace, so trailing space kept). */
+    scaffold_test(
+      ~name="Nested before content: f(true, (|4)",
+      ~code=
+        "let f : (Bool, (Int, String)) -> Float = fun x -> 0.0 in f(true, (¦4))",
+      ~expect=Some("?, "),
+    ),
   ],
 );
 
@@ -1035,6 +1059,17 @@ let segment_wellformedness_tests = (
     segment_ok_test(
       ~name="After comma ancestor: g(1, |)",
       ~code="let g : (Int, String, Bool) -> Int = fun x -> 0 in g(1, ¦)",
+    ),
+    /* Nested after-comma: scaffold with leading hole inside inner parens */
+    segment_ok_test(
+      ~name="Nested after comma: f((1, |",
+      ~code=
+        "let f : ((Int, Bool, Float), String) -> Int = fun x -> 0 in f((1, ¦",
+    ),
+    segment_ok_test(
+      ~name="Nested after comma + right: f((1, | 2))",
+      ~code=
+        "let f : ((Int, Bool, Float), String) -> Int = fun x -> 0 in f((1, ¦ 2))",
     ),
   ],
 );
