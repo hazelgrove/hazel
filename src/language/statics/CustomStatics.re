@@ -111,16 +111,39 @@ let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
 let labels_to_info_map =
     (
       module S: ExpressionStatics,
-      expected_labels: option(list(string)),
+      ~expected_labels: option(list(string))=?,
       labs: list(Exp.t),
       m: Map.t,
     )
     : (list(option(string)), Map.t) => {
   List.fold_left(
     ((labels: list(option(string)), m: Map.t), label) => {
-      let (label, _, _, m) =
-        S.label_to_info_map(expected_labels, syn, label, m);
-      (labels @ [label], m);
+      let (lab_name, lab_info, _, m) = S.label_to_info_map(syn, label, m);
+      /* If expected_labels provided and this label isn't in the set,
+         patch as InvalidLabel and suppress the label name */
+      let (lab_name, m) =
+        switch (label.term, expected_labels, lab_name) {
+        | (Label(name), Some(expected), _) when !List.mem(name, expected) =>
+          let self: Self.exp = Common(InvalidLabel(name, expected));
+          let new_info =
+            Info.derived_exp(
+              ~uexp=lab_info.term,
+              ~ctx=lab_info.ctx,
+              ~ana=lab_info.ana,
+              ~ancestors=lab_info.ancestors,
+              ~self,
+              ~co_ctx=lab_info.co_ctx,
+              ~label_inference=lab_info.label_inference,
+              ~inferred_label=lab_info.inferred_label,
+              ~dot_labels=lab_info.dot_labels,
+              ~label_sort=lab_info.label_sort,
+            );
+          let m =
+            add_info(IdTagged.ids(lab_info.term), InfoExp(new_info), m);
+          (None, m);
+        | _ => (lab_name, m)
+        };
+      (labels @ [lab_name], m);
     },
     ([], m),
     labs,
@@ -159,7 +182,7 @@ let handle_tuple_operation =
 
       let expected_labels = Option.map(extract_labels, labeled_tup_info);
       let (labels, m) =
-        labels_to_info_map((module S), expected_labels, labs, m);
+        labels_to_info_map((module S), ~expected_labels?, labs, m);
 
       let args_typ =
         Typ.to_product([tup_info.ty] @ List.map(__ => unknown, labs));
@@ -206,8 +229,7 @@ let handle_tuple_operation =
 let project_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -243,8 +265,7 @@ let project_labels_statics =
 let select_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -282,8 +303,7 @@ let select_labels_statics =
 let omit_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -329,8 +349,7 @@ let omit_labels_statics =
 let group_by_label_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -344,8 +363,32 @@ let group_by_label_statics =
         analyze_table_argument((module S), ~ctx, m, table);
 
       let expected_labels = Option.map(extract_labels, row_info);
-      let (label, _, _, m) =
-        label_to_info_map(expected_labels, syn, pivot_label, m);
+      let (label, _, _, m) = label_to_info_map(syn, pivot_label, m);
+      /* Patch InvalidLabel if not in expected set */
+      let m =
+        switch (pivot_label.term, expected_labels) {
+        | (Label(name), Some(expected)) when !List.mem(name, expected) =>
+          switch (Id.Map.find_opt(Exp.rep_id(pivot_label), m)) {
+          | Some(Info.InfoExp(lab_info)) =>
+            let self: Self.exp = Common(InvalidLabel(name, expected));
+            let new_info =
+              Info.derived_exp(
+                ~uexp=lab_info.term,
+                ~ctx=lab_info.ctx,
+                ~ana=lab_info.ana,
+                ~ancestors=lab_info.ancestors,
+                ~self,
+                ~co_ctx=lab_info.co_ctx,
+                ~label_inference=lab_info.label_inference,
+                ~inferred_label=lab_info.inferred_label,
+                ~dot_labels=lab_info.dot_labels,
+                ~label_sort=lab_info.label_sort,
+              );
+            add_info(IdTagged.ids(lab_info.term), InfoExp(new_info), m);
+          | _ => m
+          }
+        | _ => m
+        };
 
       let m =
         add_info(
@@ -388,7 +431,6 @@ let group_by_label_statics =
         | Some(ty) when !Typ.is_consistent(ctx, ty, Typ.temp(Atom(String))) =>
           uexp_to_info_map(
             ~ctx,
-            ~label_sort=true,
             ~override_self=BuiltinError(PivotLabelIsNotString(ty)),
             pivot_label,
             m,
@@ -418,8 +460,7 @@ let group_by_label_statics =
 let to_lvs_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+
       ~fn_info: Info.exp,
       ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
@@ -487,8 +528,7 @@ let to_lvs_statics =
 let omit_all_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+
       ~fn_info: Info.exp,
       ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
@@ -536,26 +576,17 @@ let validate_label_arguments =
     (
       module S: ExpressionStatics,
       ~ctx as _: Ctx.t,
-      expected_labels: option(list(string)),
+      ~expected_labels: option(list(string))=?,
       args: list(Exp.t),
       m: Map.t,
     )
     : (list(option(string)), Map.t) => {
-  List.fold_left(
-    ((labels: list(option(string)), m: Map.t), arg) => {
-      let (label, _, _, m) =
-        S.label_to_info_map(expected_labels, syn, arg, m);
-      (labels @ [label], m);
-    },
-    ([], m),
-    args,
-  );
+  labels_to_info_map((module S), ~expected_labels?, args, m);
 };
 
 let custom_statics_deferred_ap =
     (
-      ~inferred_label as _,
-      ~label_sort as _,
+
       ~ctx: Ctx.t,
       ~ancestors as _,
       ~fn_info: Info.exp,
@@ -569,8 +600,7 @@ let custom_statics_deferred_ap =
     | (ProjectLabels | SelectLabels | OmitLabels, [tup, ...labels])
         when List.length(labels) > 0 =>
       let (tup_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
-      let (_, m) =
-        validate_label_arguments((module S), ~ctx, None, labels, m);
+      let (_, m) = validate_label_arguments((module S), ~ctx, labels, m);
 
       add'(
         ~self=Common(Just(Arrow(unknown, unknown) |> Typ.temp)),
@@ -581,7 +611,7 @@ let custom_statics_deferred_ap =
     | (GroupByLabel, [table, pivot_label]) =>
       let (table_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
       let (_, m) =
-        validate_label_arguments((module S), ~ctx, None, [pivot_label], m);
+        validate_label_arguments((module S), ~ctx, [pivot_label], m);
 
       add'(
         ~self=Common(Just(unknown)),

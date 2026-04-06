@@ -49,8 +49,6 @@ let subtree_of =
                   ~is_in_filter=false,
                   ~ancestors=def_info.ancestors,
 
-                  ~expected_labels=None,
-                  ~label_sort=false,
                   def,
                   pat_map,
                 );
@@ -67,9 +65,6 @@ let subtree_of =
                   ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
-
-                  ~expected_labels=None,
-                  ~label_sort=false,
                   body,
                   def_map,
                 );
@@ -114,9 +109,6 @@ let subtree_of =
                   ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
-
-                  ~expected_labels=None,
-                  ~label_sort=false,
                   body,
                   tpat_map,
                 );
@@ -145,8 +137,6 @@ let subtree_of =
                   ~is_in_filter=false,
                   ~ancestors=def_info.ancestors,
 
-                  ~expected_labels=None,
-                  ~label_sort=false,
                   def,
                   mp_map,
                 );
@@ -163,9 +153,6 @@ let subtree_of =
                   ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
-
-                  ~expected_labels=None,
-                  ~label_sort=false,
                   body,
                   def_map,
                 );
