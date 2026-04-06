@@ -138,6 +138,14 @@ let map_m = (f, xs, m: Map.t) =>
     xs,
   );
 
+let map_m2 = (f, xs, ys, m: Map.t) =>
+  List.fold_left2(
+    ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
+    ([], m),
+    xs,
+    ys,
+  );
+
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
@@ -322,15 +330,13 @@ module type ExpressionStatics = {
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);
-  let add':
+  let add:
     (
       ~elab: Exp.t=?,
-      ~label_inference: Info.label_inference(Info.exp)=?,
+      ~label_inference: option(Info.label_inference(Info.exp))=?,
       ~self: Self.exp,
       ~co_ctx: CoCtx.t,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);
-  let label_to_info_map:
-    (Typ.t, Exp.t, Map.t) => (option(string), Info.exp, Exp.t, Map.t);
 };

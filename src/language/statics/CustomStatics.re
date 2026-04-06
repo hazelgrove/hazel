@@ -108,9 +108,24 @@ let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
   );
 };
 
+/* Analyze an expression in label position and mark label-sort metadata. */
+let analyze_label_to_info_map =
+    (module S: ExpressionStatics, ~ctx, labmode: Typ.t, label: Exp.t, m: Map.t) => {
+  let (lab_name, override_self): (option(string), option(Self.exp)) =
+    switch (label.term) {
+    | Label(lab) => (Some(lab), None)
+    | EmptyHole => (None, None)
+    | _ => (None, Some(Common(BadLabel(Exp(label)))))
+    };
+  let (i, i_elab, m) = S.uexp_to_info_map(~ctx, ~ana=labmode, ~override_self?, label, m);
+  let m = patch_label_info(m, i);
+  (lab_name, {...i, label_sort: true}, i_elab, m);
+};
+
 let labels_to_info_map =
     (
       module S: ExpressionStatics,
+      ~ctx: Ctx.t,
       ~expected_labels: option(list(string))=?,
       labs: list(Exp.t),
       m: Map.t,
@@ -118,7 +133,8 @@ let labels_to_info_map =
     : (list(option(string)), Map.t) => {
   List.fold_left(
     ((labels: list(option(string)), m: Map.t), label) => {
-      let (lab_name, lab_info, _, m) = S.label_to_info_map(syn, label, m);
+      let (lab_name, lab_info, _, m) =
+        analyze_label_to_info_map((module S), ~ctx, syn, label, m);
       /* If expected_labels provided and this label isn't in the set,
          patch as InvalidLabel and suppress the label name */
       let (lab_name, m) =
@@ -155,7 +171,7 @@ let invalid_args_fallback =
     (module S: ExpressionStatics, ~ctx, ~fn_info: Info.exp, ~error, m, arg) => {
   S.(
     let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
-    add'(
+    add(
       ~self=error,
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
       m,
@@ -182,7 +198,7 @@ let handle_tuple_operation =
 
       let expected_labels = Option.map(extract_labels, labeled_tup_info);
       let (labels, m) =
-        labels_to_info_map((module S), ~expected_labels?, labs, m);
+        labels_to_info_map((module S), ~ctx, ~expected_labels?, labs, m);
 
       let args_typ =
         Typ.to_product([tup_info.ty] @ List.map(__ => unknown, labs));
@@ -208,7 +224,7 @@ let handle_tuple_operation =
         );
 
       let result_type = compute_result_type(labeled_tup_info, labels);
-      add'(
+      add(
         ~self=Common(Just(result_type)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
@@ -363,7 +379,8 @@ let group_by_label_statics =
         analyze_table_argument((module S), ~ctx, m, table);
 
       let expected_labels = Option.map(extract_labels, row_info);
-      let (label, _, _, m) = label_to_info_map(syn, pivot_label, m);
+      let (label, _, _, m) =
+        analyze_label_to_info_map((module S), ~ctx, syn, pivot_label, m);
       /* Patch InvalidLabel if not in expected set */
       let m =
         switch (pivot_label.term, expected_labels) {
@@ -439,7 +456,7 @@ let group_by_label_statics =
         | _ => m
         };
 
-      add'(
+      add(
         ~self=Common(Just(unknown)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
@@ -486,7 +503,7 @@ let to_lvs_statics =
         )
         |> Option.value(~default=unknown);
 
-      add'(
+      add(
         ~self=
           Common(
             Just(
@@ -504,20 +521,20 @@ let to_lvs_statics =
         m,
       );
     | _ =>
-      add'(
+      add(
         ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       )
     };
   | Unknown(_) =>
-    add'(
+    add(
       ~self=Common(Just(ty_out)),
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
     )
   | _ =>
-    add'(
+    add(
       ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
@@ -551,19 +568,19 @@ let omit_all_labels_statics =
           entries,
         );
 
-      add'(
+      add(
         ~self=Common(Just(Typ.to_product(entries))),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       );
     | Unknown(_) =>
-      add'(
+      add(
         ~self=Common(Just(ty_out)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       )
     | _ =>
-      add'(
+      add(
         ~self=BuiltinError(ArgumentMustBeTuple),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -575,14 +592,23 @@ let omit_all_labels_statics =
 let validate_label_arguments =
     (
       module S: ExpressionStatics,
-      ~ctx as _: Ctx.t,
+      ~ctx: Ctx.t,
       ~expected_labels: option(list(string))=?,
       args: list(Exp.t),
       m: Map.t,
     )
     : (list(option(string)), Map.t) => {
-  labels_to_info_map((module S), ~expected_labels?, args, m);
+  labels_to_info_map((module S), ~ctx, ~expected_labels?, args, m);
 };
+
+let analyze_args_syn = (module S: ExpressionStatics, ~ctx: Ctx.t, args, m: Map.t) =>
+  map_m(
+    (arg, m) =>
+      S.uexp_to_info_map(~ctx, ~ana=syn, arg, m)
+      |> (((info, _, m)) => (info, m)),
+    args,
+    m,
+  );
 
 let custom_statics_deferred_ap =
     (
@@ -602,7 +628,7 @@ let custom_statics_deferred_ap =
       let (tup_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
       let (_, m) = validate_label_arguments((module S), ~ctx, labels, m);
 
-      add'(
+      add(
         ~self=Common(Just(Arrow(unknown, unknown) |> Typ.temp)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
@@ -613,7 +639,7 @@ let custom_statics_deferred_ap =
       let (_, m) =
         validate_label_arguments((module S), ~ctx, [pivot_label], m);
 
-      add'(
+      add(
         ~self=Common(Just(unknown)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
@@ -622,7 +648,7 @@ let custom_statics_deferred_ap =
     | (ToLvs | OmitAllLabels, [arg]) =>
       let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
-      add'(
+      add(
         ~self=Common(Just(unknown)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
         m,
@@ -631,16 +657,7 @@ let custom_statics_deferred_ap =
     // Arity error cases
     | (ProjectLabels | SelectLabels | OmitLabels, [])
     | (ProjectLabels | SelectLabels | OmitLabels, [_]) =>
-      let (args_info, m) =
-        List.fold_left(
-          ((acc_info, acc_m), arg) => {
-            let (info, _, new_m) =
-              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
-            (acc_info @ [info], new_m);
-          },
-          ([], m),
-          args,
-        );
+      let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
           (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
@@ -648,7 +665,7 @@ let custom_statics_deferred_ap =
           args_info,
         );
 
-      add'(
+      add(
         ~self=BuiltinError(AtLeast2Arguments),
         ~co_ctx=combined_co_ctx,
         m,
@@ -657,16 +674,7 @@ let custom_statics_deferred_ap =
     | (GroupByLabel, [])
     | (GroupByLabel, [_])
     | (GroupByLabel, [_, _, ..._]) =>
-      let (args_info, m) =
-        List.fold_left(
-          ((acc_info, acc_m), arg) => {
-            let (info, _, new_m) =
-              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
-            (acc_info @ [info], new_m);
-          },
-          ([], m),
-          args,
-        );
+      let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
           (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
@@ -674,7 +682,7 @@ let custom_statics_deferred_ap =
           args_info,
         );
 
-      add'(
+      add(
         ~self=BuiltinError(Exactly2Arguments),
         ~co_ctx=combined_co_ctx,
         m,
@@ -682,16 +690,7 @@ let custom_statics_deferred_ap =
 
     // Fallback for other cases (including to_lvs/omit_all_labels with wrong arity)
     | _ =>
-      let (args_info, m) =
-        List.fold_left(
-          ((acc_info, acc_m), arg) => {
-            let (info, _, new_m) =
-              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
-            (acc_info @ [info], new_m);
-          },
-          ([], m),
-          args,
-        );
+      let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
           (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
@@ -704,7 +703,7 @@ let custom_statics_deferred_ap =
         |> List.map(_ => unknown)
         |> Typ.to_product;
 
-      add'(
+      add(
         ~self=Common(Just(Arrow(ty_in', unknown) |> Typ.temp)),
         ~co_ctx=combined_co_ctx,
         m,
