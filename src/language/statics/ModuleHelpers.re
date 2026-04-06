@@ -87,3 +87,63 @@ let rec restore_module_body_id = (~id, exp: Exp.t): Exp.t => {
   | _ => exp
   };
 };
+
+/* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
+let reclassify_expanded_module_items = (items: list(Mod.t), m: StaticsBase.Map.t) =>
+  List.fold_left(
+    (m, item: Mod.t) => {
+      let ids = IdTagged.ids(item);
+      let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
+      switch (Id.Map.find_opt(IdTagged.rep_id(item), m)) {
+      | Some(Info.InfoExp(info)) =>
+        StaticsBase.add_info(
+          ids,
+          Info.InfoExp({
+            ...info,
+            cls: mod_cls,
+          }),
+          m,
+        )
+      | _ => m
+      };
+    },
+    m,
+    items,
+  );
+
+/* Construct module export product type from non-shadowed module bindings. */
+let module_actual_type = (items: list(Mod.t), m: StaticsBase.Map.t): Typ.t => {
+  let non_shadowed = ExpandModule.compute_non_shadowed_bindings(items);
+  let fields =
+    non_shadowed
+    |> List.map(((name, pat)) => {
+         let ty =
+           switch (Id.Map.find_opt(Pat.rep_id(pat), m)) {
+           | Some(Info.InfoPat({ty, ctx: pat_ctx, _})) => Typ.normalize(pat_ctx, ty)
+           | _ => Typ.temp(Unknown(Internal))
+           };
+         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
+       });
+  Prod(fields) |> Typ.temp;
+};
+
+/* Post-process expanded module elaboration to hide expansion-only wrappers. */
+let module_elab = (~module_exp_id: Id.t, expanded_elab: Exp.t): Exp.t =>
+  expanded_elab
+  |> strip_module_sig_pats
+  |> restore_module_body_id(~id=module_exp_id);
+
+/* Rebuild ModuleExp elaboration with direct def elaboration preserved. */
+let moduleexp_elab = (~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
+  let (expanded_term, expanded_rewrap) = Exp.unwrap(expanded_elab);
+  switch (expanded_term) {
+  | Let(p_elab, _, body_elab) =>
+    Let(
+      strip_module_sig_pats_in_pat(p_elab),
+      def_elab_direct,
+      body_elab,
+    )
+    |> expanded_rewrap
+  | _ => strip_module_sig_pats(expanded_elab)
+  };
+};

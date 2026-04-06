@@ -323,6 +323,138 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
+/* Add an ascription wrapper if the types differ after normalization. */
+let fresh_ascription =
+    (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
+  IdTagged.FreshGrammar.Exp.(
+    switch (t') {
+    | Some({term: Unknown(Internal), _}) => d
+    | Some(ty)
+        when !Typ.fast_equal(Typ.normalize(ctx, ty), Typ.normalize(ctx, t)) =>
+      asc(d, ty)
+    | _ => d
+    }
+  );
+};
+
+/* Re-derive an exp info entry with a new self type.
+   Preserves all other fields from the original info. */
+let replace_exp_self =
+    (m: Map.t, original_info: Info.exp, self: Self.exp): (Info.exp, Map.t) => {
+  let new_info =
+    Info.derived_exp(
+      ~uexp=original_info.term,
+      ~ctx=original_info.ctx,
+      ~ana=original_info.ana,
+      ~ancestors=original_info.ancestors,
+      ~self,
+      ~co_ctx=original_info.co_ctx,
+      ~label_inference=original_info.label_inference,
+      ~inferred_label=original_info.inferred_label,
+      ~dot_labels=original_info.dot_labels,
+      ~label_sort=original_info.label_sort,
+    );
+  (new_info, add_info(IdTagged.ids(original_info.term), InfoExp(new_info), m));
+};
+
+/* Patch an expression info entry to set label_sort=true and fix self.
+   For Label nodes, overrides UnexpectedLabelSort with Just(Label(name)). */
+let patch_label_info = (m: Map.t, info: Info.exp): Map.t => {
+  let self: Self.exp =
+    switch (info.term.term) {
+    | Label(name) => Common(Just(Label(name) |> Typ.temp))
+    | _ => info.self
+    };
+  let patched =
+    Info.derived_exp(
+      ~uexp=info.term,
+      ~ctx=info.ctx,
+      ~ana=info.ana,
+      ~ancestors=info.ancestors,
+      ~self,
+      ~co_ctx=info.co_ctx,
+      ~label_inference=info.label_inference,
+      ~inferred_label=info.inferred_label,
+      ~label_sort=true,
+      ~dot_labels=info.dot_labels,
+    );
+  add_info(IdTagged.ids(info.term), InfoExp(patched), m);
+};
+
+/* Fold patterns with expected modes using the provided analyzer callback. */
+let fold_patterns_with_modes =
+    (
+      ~analyze:
+        (
+          ~ctx: Ctx.t,
+          ~ana: Typ.t,
+          ~duplicate_bindings: list(string),
+          Pat.t,
+          Map.t
+        ) =>
+        (Info.pat, Pat.t, Map.t),
+      ~ctx: Ctx.t,
+      ~duplicate_bindings=[],
+      ps: list(Pat.t),
+      modes,
+      m,
+    ) =>
+  List.fold_left2(
+    ((ctx, tys, cons, m, infos, elabs), p, ana) =>
+      analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
+      |> (
+        ((info, elab, m)) => (
+          info.ctx,
+          tys @ [info.ty],
+          cons @ [info.constraint_],
+          m,
+          infos @ [info],
+          elabs @ [elab],
+        )
+      ),
+    (ctx, [], [], m, [], []),
+    ps,
+    modes,
+  );
+
+/* Build a list-pattern coverage constraint from element constraints. */
+let list_constraint = (cons: list(Coverage.Constraint.t)): Coverage.Constraint.t =>
+  List.fold_right(
+    (hd, tl) => Coverage.Constraint.cons(hd, tl),
+    cons,
+    Coverage.Constraint.nil,
+  );
+
+/* Add redundant-row annotations to already analyzed pattern infos. */
+let add_pattern_redundancy =
+    (ps: list(TermBase.pat_t), redundant_rows: list(int), m: Map.t): Map.t =>
+  List.fold_left(
+    (m, row) => {
+      let p = List.nth(ps, row);
+      switch (Id.Map.find(IdTagged.rep_id(p), m)) {
+      | Info.InfoPat(info) =>
+        let info =
+          Info.derived_pat(
+            ~upat=info.term,
+            ~ctx=info.ctx,
+            ~co_ctx=info.co_ctx,
+            ~prev_synswitch=info.prev_synswitch,
+            ~ana=info.ana,
+            ~ancestors=info.ancestors,
+            ~self=Self.Redundant(info.self),
+            ~label_inference=info.label_inference,
+            ~inferred_label=info.inferred_label,
+            ~label_sort=info.label_sort,
+            ~constraint_=info.constraint_,
+          );
+        add_info(IdTagged.ids(p), InfoPat(info), m)
+      | _ => failwith("Invalid sort for pattern.")
+      };
+    },
+    m,
+    redundant_rows,
+  );
+
 module type ExpressionStatics = {
   let uexp_to_info_map:
     (
@@ -330,11 +462,7 @@ module type ExpressionStatics = {
       ~ana: Typ.t=?,
       ~is_in_filter: bool=?,
       ~ancestors: Info.ancestors=?,
-      ~expected_labels: list(string)=?,
-      ~inferred_label: string=?,
       ~override_self: Self.exp=?,
-      ~label_sort: bool=?,
-      ~dot_labels: list(string)=?,
       Exp.t,
       Map.t
     ) =>
@@ -349,6 +477,5 @@ module type ExpressionStatics = {
     ) =>
     (Info.exp, Exp.t, Map.t);
   let label_to_info_map:
-    (option(list(string)), Typ.t, Exp.t, Map.t) =>
-    (option(string), Info.exp, Exp.t, Map.t);
+    (Typ.t, Exp.t, Map.t) => (option(string), Info.exp, Exp.t, Map.t);
 };
