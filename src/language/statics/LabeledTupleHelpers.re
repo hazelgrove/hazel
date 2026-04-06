@@ -100,43 +100,6 @@ let rec is_aligned_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): bool =>
 let align_exp_if_needed = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
   is_aligned_exp(ctx, expected_ty, exp) ? exp : align_exp(ctx, expected_ty, exp);
 
-/* Lift an expression into a singleton labeled tuple and preserve original status. */
-let autolabel_singleton_exp =
-    (
-      ~analyze_original,
-      ~analyze_elaborated,
-      ~store_info,
-      uexp: Exp.t,
-      ~inner_ty,
-      ~ana,
-      ~label,
-      m,
-    ) => {
-  let (term, rewrap) = Exp.unwrap(uexp);
-  let original_expression = Exp.fresh(term);
-  let (original_info: Info.exp, _, m) =
-    analyze_original(~ana=inner_ty, original_expression, m);
-  let elaborated_exp =
-    rewrap(
-      Tuple([
-        TupLabel(Label(label) |> Exp.fresh, original_expression) |> Exp.fresh,
-      ]),
-    );
-  let (info: Info.exp, _, m) = analyze_elaborated(~ana, elaborated_exp, m);
-  let info = {
-    ...info,
-    status: original_info.status,
-    label_inference:
-      Some(
-        SingletonLabelInference({
-          label: label,
-          pre_labeled_info: original_info,
-        }),
-      ),
-  };
-  (info, elaborated_exp, store_info(elaborated_exp, info, m));
-};
-
 /* Lift a pattern into a singleton labeled tuple and preserve original status. */
 let autolabel_singleton_pat =
     (
