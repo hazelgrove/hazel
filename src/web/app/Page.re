@@ -25,7 +25,8 @@ module Model = {
     let globals = Globals.Model.init(~font_metrics?, ());
     let settings = globals.settings;
     let instructor_mode = globals.settings.instructor_mode;
-    let editors = Editors.Store.reset(~settings, ~instructor_mode);
+    let editors =
+      Editors.Store.reset(~settings=settings.core, ~instructor_mode);
     {
       globals,
       editors,
@@ -254,9 +255,10 @@ module Update = {
     | Undo
     | Redo
     | RethrowException
-    | ClearException =>
+    | ClearException
+    | RestoreLastKnownGood =>
       failwith(
-        "Undo/Redo/Log import/RethrowException/ClearException are handled in higher-level modules",
+        "Undo/Redo/Log import/RethrowException/ClearException/RestoreLastKnownGood are handled in higher-level modules",
       )
     };
   };
@@ -321,7 +323,7 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
-    | Start => model |> return // Triggers recalculation at the start
+    | Start => model |> return
     | Save =>
       print_endline("Saving...");
       Store.save(model);

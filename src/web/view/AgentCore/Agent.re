@@ -337,12 +337,16 @@ module Message = {
                       (
                         "old",
                         `String(
-                          Printer.of_segment(~holes="?", diff.old_segment),
+                          CompositionView.Public.print_segment(
+                            diff.old_segment,
+                          ),
                         ),
                       ),
                       (
                         "new",
-                        `String(Printer.of_segment(~holes="?", new_segment)),
+                        `String(
+                          CompositionView.Public.print_segment(new_segment),
+                        ),
                       ),
                     ])
                   | None => `Null
@@ -354,7 +358,9 @@ module Message = {
                 "before",
                 switch (tool_result.before_segment) {
                 | Some(before_segment) =>
-                  `String(Printer.of_segment(~holes="?", before_segment))
+                  `String(
+                    CompositionView.Public.print_segment(before_segment),
+                  )
                 | None => `Null
                 },
               ),
@@ -362,7 +368,9 @@ module Message = {
                 "after",
                 switch (tool_result.after_segment) {
                 | Some(after_segment) =>
-                  `String(Printer.of_segment(~holes="?", after_segment))
+                  `String(
+                    CompositionView.Public.print_segment(after_segment),
+                  )
                 | None => `Null
                 },
               ),
