@@ -219,13 +219,36 @@ export default function hazelTool(handle, element) {
 </body></html>`
 	element.appendChild(iframe)
 
-	// Inject the automerge repo into the iframe once it loads so that
-	// Automerge projectors can access documents.  Same-origin srcdoc
-	// iframes share the structured-clone boundary but direct object
-	// references work because srcdoc is same-origin with the parent.
+	// Inject the automerge repo and helpers into the iframe once it loads.
+	// We must provide a parent-realm writeToDoc helper because JSON.parse
+	// inside the iframe creates iframe-realm objects which automerge's
+	// proxy rejects with "Cannot assign unknown object" (cross-realm
+	// constructor identity check fails).
 	iframe.addEventListener("load", () => {
 		if (iframe.contentWindow) {
-			iframe.contentWindow.repo = element.repo ?? window.repo
+			const repo = element.repo ?? window.repo
+			iframe.contentWindow.repo = repo
+
+			// Write helper that runs entirely in the parent realm
+			iframe.contentWindow.patchworkWriteToDoc = (url, jsonString) => {
+				if (!repo) return
+				repo.find(url).then(handle => {
+					const parsed = JSON.parse(jsonString)
+					handle.change(doc => {
+						if (typeof parsed !== "object" || parsed === null) return
+						// Delete keys in doc not in parsed
+						for (const key of Object.keys(doc)) {
+							if (!parsed.hasOwnProperty(key)) {
+								delete doc[key]
+							}
+						}
+						// Copy all keys from parsed into doc
+						for (const key of Object.keys(parsed)) {
+							doc[key] = parsed[key]
+						}
+					})
+				})
+			}
 		}
 	})
 

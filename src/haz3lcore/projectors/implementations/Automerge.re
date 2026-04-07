@@ -109,82 +109,96 @@ let find_repo = (): option(Js.t(repo)) => {
   };
 };
 
-/* Write JSON data to an automerge document. Uses the repo to find the
-   doc handle, parses the JSON, and syncs all top-level keys. */
-let write_to_doc = (url: string, json_string: string): unit =>
-  switch (find_repo()) {
-  | None => ()
-  | Some(repo) =>
-    let promise: Js.t(promise) = repo##find(Js.string(url));
-    ignore(
-      promise##then_(
-        Js.wrap_callback((handle: Js.t(handle)) => {
-          let parsed =
-            Js.Unsafe.meth_call(
-              Js.Unsafe.global##._JSON,
-              "parse",
-              [|Js.Unsafe.inject(Js.string(json_string))|],
-            );
-          Js.Unsafe.meth_call(
-            handle,
-            "change",
-            [|
-              Js.Unsafe.inject(
-                Js.wrap_callback((doc: Js.Unsafe.any) =>
-                  if (Js.typeof(parsed) == Js.string("object")
-                      && !Js.equals(parsed, Js.Unsafe.inject(Js.null))) {
-                    /* Delete keys in doc not in parsed */
-                    let doc_keys =
-                      Js.to_array(
-                        Js.Unsafe.meth_call(
-                          Js.Unsafe.global##._Object,
-                          "keys",
-                          [|Js.Unsafe.inject(doc)|],
-                        ),
-                      );
-                    Array.iter(
-                      key => {
-                        let k = Js.to_string(key);
-                        if (!
-                              Js.to_bool(
-                                Js.Unsafe.meth_call(
-                                  parsed,
-                                  "hasOwnProperty",
-                                  [|Js.Unsafe.inject(key)|],
-                                ),
-                              )) {
-                          Js.Unsafe.delete(doc, Js.string(k));
-                        };
-                      },
-                      doc_keys,
-                    );
-                    /* Copy all keys from parsed into doc */
-                    let parsed_keys =
-                      Js.to_array(
-                        Js.Unsafe.meth_call(
-                          Js.Unsafe.global##._Object,
-                          "keys",
-                          [|Js.Unsafe.inject(parsed)|],
-                        ),
-                      );
-                    Array.iter(
-                      key => {
-                        let k = Js.to_string(key);
-                        Js.Unsafe.set(
-                          doc,
-                          Js.string(k),
-                          Js.Unsafe.get(parsed, key),
-                        );
-                      },
-                      parsed_keys,
-                    );
-                  }
-                ),
-              ),
-            |],
-          )
-          |> ignore;
-        }),
-      ),
+/* Write JSON data to an automerge document.
+   When running in an iframe (patchworkWriteToDoc injected by hazel-tool.js),
+   delegates to the parent-realm helper to avoid cross-realm object issues.
+   Falls back to direct repo write for standalone mode. */
+let write_to_doc = (url: string, json_string: string): unit => {
+  /* Prefer the parent-realm helper (avoids cross-realm proxy errors) */
+  let helper = Js.Unsafe.get(Js.Unsafe.global, "patchworkWriteToDoc");
+  if (Js.Optdef.test(helper) && Js.typeof(helper) == Js.string("function")) {
+    Js.Unsafe.fun_call(
+      helper,
+      [|
+        Js.Unsafe.inject(Js.string(url)),
+        Js.Unsafe.inject(Js.string(json_string)),
+      |],
     );
+  } else {
+    /* Standalone fallback: write directly via repo */
+    switch (find_repo()) {
+    | None => ()
+    | Some(repo) =>
+      let promise: Js.t(promise) = repo##find(Js.string(url));
+      ignore(
+        promise##then_(
+          Js.wrap_callback((handle: Js.t(handle)) => {
+            let parsed =
+              Js.Unsafe.meth_call(
+                Js.Unsafe.global##._JSON,
+                "parse",
+                [|Js.Unsafe.inject(Js.string(json_string))|],
+              );
+            Js.Unsafe.meth_call(
+              handle,
+              "change",
+              [|
+                Js.Unsafe.inject(
+                  Js.wrap_callback((doc: Js.Unsafe.any) =>
+                    if (Js.typeof(parsed) == Js.string("object")
+                        && !Js.equals(parsed, Js.Unsafe.inject(Js.null))) {
+                      let doc_keys =
+                        Js.to_array(
+                          Js.Unsafe.meth_call(
+                            Js.Unsafe.global##._Object,
+                            "keys",
+                            [|Js.Unsafe.inject(doc)|],
+                          ),
+                        );
+                      Array.iter(
+                        key => {
+                          let k = Js.to_string(key);
+                          if (!
+                                Js.to_bool(
+                                  Js.Unsafe.meth_call(
+                                    parsed,
+                                    "hasOwnProperty",
+                                    [|Js.Unsafe.inject(key)|],
+                                  ),
+                                )) {
+                            Js.Unsafe.delete(doc, Js.string(k));
+                          };
+                        },
+                        doc_keys,
+                      );
+                      let parsed_keys =
+                        Js.to_array(
+                          Js.Unsafe.meth_call(
+                            Js.Unsafe.global##._Object,
+                            "keys",
+                            [|Js.Unsafe.inject(parsed)|],
+                          ),
+                        );
+                      Array.iter(
+                        key => {
+                          let k = Js.to_string(key);
+                          Js.Unsafe.set(
+                            doc,
+                            Js.string(k),
+                            Js.Unsafe.get(parsed, key),
+                          );
+                        },
+                        parsed_keys,
+                      );
+                    }
+                  ),
+                ),
+              |],
+            )
+            |> ignore;
+          }),
+        ),
+      );
+    };
   };
+};
