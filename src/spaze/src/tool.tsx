@@ -168,49 +168,50 @@ function findSiblingBinding(
   }
 }
 
+/** Returns true if the event was successfully dispatched (not skipped). */
 function dispatchArrowEvent(
   editor: Editor,
   binding: any,
   eventName: 'patchwork:connect-arrow' | 'patchwork:disconnect-arrow',
   removedRecords?: any[],
-): void {
-  if (binding.typeName !== 'binding' || binding.type !== 'arrow') return;
+): boolean {
+  if (binding.typeName !== 'binding' || binding.type !== 'arrow') return false;
 
   console.log(LOG, 'dispatchArrowEvent', eventName, 'binding:', binding.id, 'toId:', binding.toId, 'terminal:', binding.props?.terminal);
 
   const thisShape = editor.getShape(binding.toId);
   if (!thisShape || thisShape.type !== PATCHWORK_DOC_SHAPE_TYPE) {
     console.log(LOG, '  bail: thisShape not patchwork-doc', thisShape?.type);
-    return;
+    return false;
   }
 
   const otherBinding = findSiblingBinding(editor, binding, removedRecords);
   if (!otherBinding) {
     console.log(LOG, '  bail: no sibling binding found');
-    return;
+    return false;
   }
 
   const otherShape = editor.getShape(otherBinding.toId);
   if (!otherShape || otherShape.type !== PATCHWORK_DOC_SHAPE_TYPE) {
     console.log(LOG, '  bail: otherShape not patchwork-doc', otherShape?.type);
-    return;
+    return false;
   }
 
   const thisDocUrl = (thisShape as any).props?.docUrl;
   const otherDocUrl = (otherShape as any).props?.docUrl;
   if (!otherDocUrl) {
     console.log(LOG, '  bail: no otherDocUrl');
-    return;
+    return false;
   }
 
   // Skip self-loops: by shape ID or by doc URL
   if (binding.toId === otherBinding.toId) {
     console.log(LOG, '  SKIP self-loop (same shape ID)', binding.toId);
-    return;
+    return false;
   }
   if (thisDocUrl && thisDocUrl === otherDocUrl) {
     console.log(LOG, '  SKIP self-loop (same doc URL)', thisDocUrl);
-    return;
+    return false;
   }
 
   const direction = binding.props.terminal === 'end' ? 'in' : 'out';
@@ -220,7 +221,7 @@ function dispatchArrowEvent(
     `[data-shape-id="${binding.toId}"]`,
   );
   const viewEl = shapeWrapper?.querySelector('patchwork-view');
-  if (!viewEl) return;
+  if (!viewEl) return false;
 
   viewEl.dispatchEvent(
     new CustomEvent(eventName, {
@@ -230,6 +231,7 @@ function dispatchArrowEvent(
     }),
   );
   console.log(LOG, eventName, binding.toId, { url: otherDocUrl, direction });
+  return true;
 }
 
 async function filterTldrawDocs(repo: any, docLinks: DocLink[]): Promise<DocLink[]> {
@@ -1415,13 +1417,29 @@ async function initializeSync(
   const unsubBindings = editor.store.listen(
     ({ changes }) => {
       for (const record of Object.values(changes.added)) {
-        dispatchArrowEvent(editor, record, 'patchwork:connect-arrow');
+        if (dispatchArrowEvent(editor, record, 'patchwork:connect-arrow')) {
+          // This binding connected successfully (not a self-loop).
+          // Re-fire connect for the sibling in case it was previously
+          // skipped as a self-loop when the arrow was first created.
+          const sibling = findSiblingBinding(editor, record);
+          if (sibling) {
+            dispatchArrowEvent(editor, sibling, 'patchwork:connect-arrow');
+          }
+        }
       }
       for (const [before, after] of Object.values(changes.updated)) {
         if (before.typeName === 'binding' && before.type === 'arrow' &&
             (before as any).toId !== (after as any).toId) {
           dispatchArrowEvent(editor, before, 'patchwork:disconnect-arrow');
           dispatchArrowEvent(editor, after, 'patchwork:connect-arrow');
+          // When a binding is repointed, the sibling (other end of the
+          // arrow) may have been skipped earlier as a self-loop.  Now
+          // that the arrow connects two different shapes, re-fire
+          // connect for the sibling so it gets the URL too.
+          const sibling = findSiblingBinding(editor, after);
+          if (sibling) {
+            dispatchArrowEvent(editor, sibling, 'patchwork:connect-arrow');
+          }
         }
       }
       const removed = Object.values(changes.removed);
