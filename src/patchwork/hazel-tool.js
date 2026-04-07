@@ -197,49 +197,56 @@ function doesStateEqualDoc(doc, state) {
 export default function hazelTool(handle, element) {
 	console.log("[spazel] initialized")
 
-	const container = document.createElement("div")
-	container.id = "container"
-	element.appendChild(container)
+	// ---- Iframe-based isolation ----
+	// Each Hazel instance runs in its own iframe so that the js_of_ocaml
+	// runtime (globalThis.jsoo_runtime / caml_global_data) is fully isolated.
+	// PatchworkComm.re already supports iframe mode (postMessage).
 
-	const style = document.createElement("link")
-	style.rel = "stylesheet"
-	style.href = resolve("dist/style.css")
-	element.appendChild(style)
+	const iframe = document.createElement("iframe")
+	iframe.style.cssText = "width:100%;height:100%;border:none;display:block"
+	iframe.srcdoc = `<!doctype html>
+<html><head>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="${resolve("dist/style.css")}"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Icons&display=swap"/>
+<style>
+#page { position:absolute;top:0;left:0;width:100%;height:100% }
+</style>
+<script type="module" src="${resolve("dist/bundled.js")}"></script>
+</head><body spellcheck="false">
+<div id="container"></div>
+<script src="${resolve("dist/hazel.js")}"></script>
+</body></html>`
+	element.appendChild(iframe)
 
-	const fonts = document.createElement("link")
-	fonts.rel = "stylesheet"
-	fonts.href =
-		"https://fonts.googleapis.com/css?family=Material+Icons&display=swap"
-	element.appendChild(fonts)
-
-	const overrides = document.createElement("style")
-	overrides.textContent = `
-		#page {
-			position: absolute;
-			top: 0;
-			left: 0;
-			width: 100%;
-			height: 100%;
+	// Inject the automerge repo into the iframe once it loads so that
+	// Automerge projectors can access documents.  Same-origin srcdoc
+	// iframes share the structured-clone boundary but direct object
+	// references work because srcdoc is same-origin with the parent.
+	iframe.addEventListener("load", () => {
+		if (iframe.contentWindow) {
+			iframe.contentWindow.repo = element.repo ?? window.repo
 		}
-	`
-	element.appendChild(overrides)
+	})
 
 	// Track state for delta computation
 	let prevDoc = null
 	let isUpdatingFromHazel = false
 
-	// Send a message to Hazel by dispatching a CustomEvent on the element.
-	// Hazel's PatchworkComm.re listens for "patchwork-to-hazel" events.
+	// Send a message to Hazel via postMessage (iframe mode).
+	// PatchworkComm.re listens for "message" events on window.
 	function sendToHazel(message) {
-		element.dispatchEvent(
-			new CustomEvent("patchwork-to-hazel", {detail: message}),
-		)
+		if (iframe.contentWindow) {
+			iframe.contentWindow.postMessage(message, "*")
+		}
 	}
 
-	// Listen for messages from Hazel dispatched as "hazel-to-patchwork" events.
-	element.addEventListener("hazel-to-patchwork", event => {
-		onHazelMessage(event.detail)
-	})
+	// Listen for messages from Hazel (postMessage from iframe).
+	function onMessage(event) {
+		if (event.source !== iframe.contentWindow) return
+		onHazelMessage(event.data)
+	}
+	window.addEventListener("message", onMessage)
 
 	function onHazelMessage(msg) {
 		switch (msg.t) {
@@ -429,29 +436,13 @@ export default function hazelTool(handle, element) {
 		sendToHazel({t: "disconnect", url, direction})
 	})
 
-	// Load Hazel scripts
-	const bundled = document.createElement("script")
-	bundled.type = "module"
-	bundled.src = resolve("dist/bundled.js")
-	element.appendChild(bundled)
-
-	const hazel = document.createElement("script")
-	hazel.src = resolve("dist/hazel.js")
-	bundled.addEventListener("load", () => {
-		element.appendChild(hazel)
-	})
-
 	// Cleanup
 	return () => {
+		window.removeEventListener("message", onMessage)
 		handle.off("change", onDocChange)
 		try {
 			handle.off("ephemeral-message", onEphemeral)
 		} catch (e) {}
-		style.remove()
-		fonts.remove()
-		overrides.remove()
-		bundled.remove()
-		hazel.remove()
-		container.remove()
+		iframe.remove()
 	}
 }
