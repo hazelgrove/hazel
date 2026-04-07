@@ -122,7 +122,13 @@ module M: Projector = {
       View.mk(
         ~error=true,
         Node.div(
-          ~attrs=[Attr.classes(["table-inner"])],
+          ~attrs=[
+            Attr.classes(["table-inner"]),
+            Attr.title(
+              "Table projector error: elaborated syntax is not a labeled list of tuples. "
+              ++ "Check that the type provides consistent labels for all rows.",
+            ),
+          ],
           [view_seg(sort, seg)],
         ),
       );

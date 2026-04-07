@@ -82,3 +82,26 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
       ...old,
       selection_ids: Selection.selection_ids(z.selection),
     };
+
+/* Recompute just the shape_map and measured layout. Called after
+ * statics are recomputed so projector placeholders reflect the
+ * latest elaborated expression. */
+let refresh_shapes =
+    (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+  let shape_map =
+    ProjectorInfo.ShapeMapSemantics.mk(
+      old.projectors,
+      z.refractors,
+      info_map,
+      dyn_map,
+      ~elaborated,
+    );
+  let refractor_shape_map = Id.Map.empty;
+  let measured =
+    Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+  {
+    ...old,
+    shape_map,
+    measured,
+  };
+};

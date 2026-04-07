@@ -123,6 +123,22 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
+    /* After statics are recomputed, refresh projector shapes so
+     * placeholders reflect the latest elaborated expression */
+    let editor =
+      is_edited
+        ? {
+          ...editor,
+          syntax:
+            CachedSyntax.refresh_shapes(
+              editor.state.zipper,
+              statics.info_map,
+              dynamics,
+              ~elaborated=Some(statics.elaborated),
+              editor.syntax,
+            ),
+        }
+        : editor;
     {
       editor,
       statics,
