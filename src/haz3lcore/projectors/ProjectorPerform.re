@@ -29,25 +29,10 @@ let seg_root_id = (seg: Base.segment): option(Id.t) =>
   | _ => None
   };
 
-let exp_to_seg = (exp: Language.Exp.t): Base.segment =>
-  ExpToSegment.any_to_segment(
-    ~settings={
-      ...
-        ExpToSegment.Settings.of_core(
-          ~inline=true,
-          Language.CoreSettings.off,
-        ),
-      show_unknown_as_hole: false,
-      fold_fn_bodies: `NoFold,
-    },
-    Exp(exp),
-  );
-
 /* Initialize a projector on a segment. For projectors with
- * elaborate_syntax=true, first tries the elaborated version of the
- * syntax (which has auto-labels etc.), falling back to the original
- * if elaboration doesn't apply. When elaborated syntax is used,
- * the original is preserved in original_syntax for restoration. */
+ * elaborate_syntax=true, if the raw syntax doesn't pass init,
+ * validates against the elaborated form but stores the original
+ * syntax. The elaborated expression is used at view time instead. */
 let init =
     (
       kind: ProjectorCore.Kind.t,
@@ -58,50 +43,36 @@ let init =
   let (module P) = ProjectorInit.to_module(kind);
   let orig_piece = Segment.parenthesize(seg);
 
-  /* Try elaborated syntax first if the projector requests it */
-  let elaborated_result =
+  /* Try raw syntax first */
+  let raw_result =
+    switch (MakeTerm.for_projection(seg)) {
+    | None => None
+    | Some(any) => ProjectorInit.init(kind, orig_piece, any)
+    };
+
+  switch (raw_result) {
+  | Some(_) => raw_result
+  | None =>
+    /* For elaborate_syntax projectors, validate against elaborated form */
     if (P.elaborate_syntax) {
       switch (MakeTerm.for_projection(seg)) {
       | Some(Exp(exp)) =>
         let term_id = Language.Exp.rep_id(exp);
         switch (Language.Exp.find_by_id(term_id, elaborated)) {
         | Some(elab_exp) =>
-          let elab_seg = exp_to_seg(elab_exp);
-          let elab_piece = Segment.parenthesize(elab_seg);
-          switch (MakeTerm.for_projection(elab_seg)) {
-          | Some(any) =>
-            switch (P.init(any)) {
-            | Some(model_str) =>
-              /* P is Cooked, so init already returns serialized model */
-              Some(
-                Base.Projector(
-                  ProjectorCore.mk(
-                    ~original_syntax=Some(orig_piece),
-                    kind,
-                    elab_piece,
-                    model_str,
-                  ),
-                ),
-              )
-            | None => None
-            }
+          switch (P.init(Exp(elab_exp))) {
+          | Some(model_str) =>
+            Some(
+              Base.Projector(ProjectorCore.mk(kind, orig_piece, model_str)),
+            )
           | None => None
-          };
+          }
         | None => None
         };
       | _ => None
       };
     } else {
       None;
-    };
-
-  /* Fall back to normal init on original syntax */
-  switch (elaborated_result) {
-  | Some(_) as result => result
-  | None =>
-    switch (MakeTerm.for_projection(seg)) {
-    | None => None
-    | Some(any) => ProjectorInit.init(kind, orig_piece, any)
     }
   };
 };
@@ -187,9 +158,8 @@ let go =
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
-      /* Remove projector: restore original syntax if elaborated */
-      let restore_syntax =
-        Option.value(~default=pr.syntax, pr.original_syntax);
+      /* Remove projector: restore original syntax */
+      let restore_syntax = pr.syntax;
       let underlying_seg = Piece.unparenthesize(restore_syntax);
       let z =
         switch (seg_root_id(underlying_seg)) {
@@ -223,9 +193,7 @@ let go =
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] =>
-      /* Restore original syntax if elaborated */
-      let restore_syntax =
-        Option.value(~default=pr.syntax, pr.original_syntax);
+      let restore_syntax = pr.syntax;
       let underlying_seg = Piece.unparenthesize(restore_syntax);
       let z =
         switch (seg_root_id(underlying_seg)) {

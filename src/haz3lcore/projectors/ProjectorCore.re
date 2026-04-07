@@ -22,16 +22,13 @@ type t('syntax) = {
   id: Id.t,
   kind: Kind.t,
   syntax: 'syntax,
-  [@sexp.option]
-  original_syntax: option('syntax),
   model: string,
 };
 
-let mk = (~id=Id.mk(), ~original_syntax=None, kind, syntax, model) => {
+let mk = (~id=Id.mk(), kind, syntax, model) => {
   id,
   kind,
   syntax,
-  original_syntax,
   model,
 };
 

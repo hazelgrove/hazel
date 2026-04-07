@@ -17,9 +17,13 @@ let table_of =
 
 let get =
     (info: info): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
-  switch (info.syntax |> info.utility.seg_to_term) {
-  | Some(s) => table_of(s)
-  | None => None
+  switch (info.elaborated) {
+  | Some(elab_exp) => table_of(Exp(elab_exp))
+  | None =>
+    switch (info.syntax |> info.utility.seg_to_term) {
+    | Some(s) => table_of(s)
+    | None => None
+    }
   };
 
 let table =

@@ -204,19 +204,19 @@ module type Projector = {
    *
    * When this flag is true:
    *
-   * 1. At init time (`ProjectorPerform.init`), the system looks
-   *    up the elaborated sub-expression (via `Exp.find_by_id` on
-   *    `CachedStatics.elaborated`), converts it back to syntax,
-   *    and passes it to the projector's `init` for validation.
-   *    If the elaborated form is accepted, it replaces the
-   *    projector's `syntax` and the user's original syntax is
-   *    saved in `ProjectorCore.t.original_syntax`.
+   * 1. At init time (`ProjectorPerform.init`), the elaborated
+   *    sub-expression is validated via `init` but the original
+   *    syntax is stored unchanged. The projector's syntax is
+   *    never replaced with the elaborated form.
    *
    * 2. At render time, `info.elaborated` is populated with the
-   *    elaborated sub-expression so the projector can use it.
+   *    elaborated sub-expression (looked up by the inner
+   *    expression's ID). The projector uses this for rendering.
+   *    If the elaborated form becomes incompatible (e.g. the
+   *    surrounding type changes), the projector shows an error.
    *
-   * 3. When the projector is removed, the original (pre-elaboration)
-   *    syntax is restored from `original_syntax`.
+   * 3. When the projector is removed, `pr.syntax` (the original
+   *    user syntax) is restored directly.
    *
    * 4. The context menu also checks the elaborated form when
    *    deciding applicability, so the menu item appears even

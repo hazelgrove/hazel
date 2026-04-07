@@ -72,7 +72,14 @@ let mk_info =
   elaborated: {
     let (module P) = ProjectorInit.to_module(p.kind);
     if (P.elaborate_syntax) {
-      Option.bind(elaborated, Exp.find_by_id(p.id));
+      let seg = Piece.unparenthesize(p.syntax);
+      let inner_id =
+        try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+        | _ => None
+        };
+      Option.bind(inner_id, id =>
+        Option.bind(elaborated, Exp.find_by_id(id))
+      );
     } else {
       None;
     };
