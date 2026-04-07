@@ -88,6 +88,7 @@ module M: Projector = {
     };
 
   let placeholder = (_, _) => ProjectorCore.Shape.default;
+  let diagnose = (_, _): option(ProjectorBase.diagnostic) => None;
 
   let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>
     View.{

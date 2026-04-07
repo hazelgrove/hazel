@@ -337,6 +337,10 @@
   background-color: var(--warning-hole-stroke);
 }
 
+.legend-swatch.projector-error {
+  background-color: var(--R1);
+}
+
 .problem-nav-buttons {
   display: flex;
   gap: 2px;

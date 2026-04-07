@@ -8,13 +8,15 @@ type problem_category =
   | Syntax
   | Hole
   | Static
-  | Warning;
+  | Warning
+  | Projector;
 
 /* ---------- Problem data types ---------- */
 
 type problem_source =
   | Structural(string)
-  | FromInfo(Info.t);
+  | FromInfo(Info.t)
+  | FromProjector(ProjectorKind.t, ProjectorBase.diagnostic);
 
 type problem = {
   id: Id.t,
@@ -31,6 +33,8 @@ type problem_context = {
   concave_holes: list(Grout.t),
   static_error_ids: list((Id.t, Info.t)),
   warning_ids: list((Id.t, Info.t)),
+  projector_diagnostics:
+    list((Id.t, ProjectorKind.t, ProjectorBase.diagnostic)),
   segment: Segment.t,
   measured: Measured.t,
   row_to_line: int => option(int),
@@ -105,6 +109,17 @@ let make_problem_context =
   let all_holes = Segment.holes(syntax.segment);
   let (hole_ids, concave_holes) =
     List.partition((g: Grout.t) => g.shape == Convex, all_holes);
+  /* Collect projector diagnostics with their kinds */
+  let projector_diagnostics =
+    Id.Map.fold(
+      (id, diag: ProjectorBase.diagnostic, acc) =>
+        switch (Id.Map.find_opt(id, syntax.projectors)) {
+        | Some(p) => [(id, p.kind, diag), ...acc]
+        | None => acc
+        },
+      syntax.projector_diagnostics,
+      [],
+    );
   {
     info_map,
     syntax_error_ids,
@@ -112,6 +127,7 @@ let make_problem_context =
     concave_holes,
     static_error_ids,
     warning_ids,
+    projector_diagnostics,
     segment: syntax.segment,
     measured,
     row_to_line,
@@ -198,6 +214,16 @@ let collect_category =
            source: FromInfo(ci),
          }
        )
+  | Projector =>
+    ctx.projector_diagnostics
+    |> List.to_seq
+    |> Seq.map(((id, kind, diag)) =>
+         {
+           id,
+           category: Projector,
+           source: FromProjector(kind, diag),
+         }
+       )
   };
 
 /* ---------- Counts summary ---------- */
@@ -211,6 +237,6 @@ let counts_of_context =
 /* ---------- Convenience: all problems ---------- */
 
 let collect_all_problems = (ctx: problem_context): list(problem) => {
-  [Syntax, Hole, Static, Warning]
+  [Syntax, Hole, Static, Warning, Projector]
   |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
 };

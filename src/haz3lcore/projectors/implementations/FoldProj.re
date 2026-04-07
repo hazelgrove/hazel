@@ -42,6 +42,7 @@ module M: Projector = {
     ...m,
     expanded: !m.expanded,
   };
+  let diagnose = (_, _): option(ProjectorBase.diagnostic) => None;
 
   let hover_view = (view_seg: View.seg, m, info: info) => {
     let seg = Segment.unparenthesize(info.syntax);

@@ -98,6 +98,9 @@ type info = {
   utility,
 };
 
+/* A projector-reported diagnostic, e.g. "can't render as table" */
+type diagnostic = {message: string};
+
 module View = {
   /* A projector has an inline view, which replaces the underlying
    * syntax. Optionally, it may have an overlay view, which is shown
@@ -236,6 +239,8 @@ module type Projector = {
   let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
+  /* Report a diagnostic if the projector can't render properly */
+  let diagnose: (model, info) => option(diagnostic);
 };
 
 /* A cooked projector is the same as the base module
@@ -272,4 +277,5 @@ module Cook = (C: Projector) : Cooked => {
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
+  let diagnose = (m, i) => C.diagnose(m |> deserialize_m, i);
 };

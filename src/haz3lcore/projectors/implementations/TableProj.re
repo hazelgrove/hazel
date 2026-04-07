@@ -113,6 +113,16 @@ module M: Projector = {
       };
     };
   let update = (model, _, _) => model;
+  let diagnose = (_, info) =>
+    switch (get(info)) {
+    | Some(_) => None
+    | None =>
+      Some(
+        ProjectorBase.{
+          message: "Elaborated syntax is not a list of labeled tuples with consistent headers.",
+        },
+      )
+    };
 
   let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
     switch (get(info)) {
@@ -125,8 +135,7 @@ module M: Projector = {
           ~attrs=[
             Attr.classes(["table-inner"]),
             Attr.title(
-              "Table projector error: elaborated syntax is not a labeled list of tuples. "
-              ++ "Check that the type provides consistent labels for all rows.",
+              "Table projector: elaborated syntax is not a list of labeled tuples with consistent headers.",
             ),
           ],
           [view_seg(sort, seg)],

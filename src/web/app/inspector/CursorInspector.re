@@ -824,6 +824,18 @@ let inspector_view = (~globals: Globals.t, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
+let projector_diagnostic_inspector =
+    (
+      ~globals: Globals.t,
+      ci: Language.Info.t,
+      _kind: Language.ProjectorKind.t,
+      diag: Haz3lcore.ProjectorBase.diagnostic,
+    ) =>
+  div(
+    ~attrs=[Attr.id("cursor-inspector"), clss([errc])],
+    [term_view(~globals, ci), div_err([text(diag.message)])],
+  );
+
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
@@ -833,9 +845,26 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);
+  /* Look up projector diagnostic for the indicated piece */
+  let projector_diag =
+    switch (cursor.indicated_piece, cursor.editor) {
+    | (Some(Projector({id, kind, _})), Some(editor)) =>
+      switch (Id.Map.find_opt(id, editor.syntax.projector_diagnostics)) {
+      | Some(diag) => Some((kind, diag))
+      | None => None
+      }
+    | _ => None
+    };
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) => bar_view([inspector_view(~globals, ci)])
+  | Some(ci) =>
+    /* Show projector diagnostic instead of normal status,
+     * unless there's a statics error (which takes priority) */
+    switch (projector_diag) {
+    | Some((kind, diag)) when !Info.is_error(ci) =>
+      bar_view([projector_diagnostic_inspector(~globals, ci, kind, diag)])
+    | _ => bar_view([inspector_view(~globals, ci)])
+    }
   };
 };

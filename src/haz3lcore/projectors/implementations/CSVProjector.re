@@ -156,6 +156,7 @@ module M: Projector = {
       )
     );
   };
+  let diagnose = (_, _): option(ProjectorBase.diagnostic) => None;
 
   let view = ({model, info, local, parent, _}: View.args(model, action)) =>
     View.mk(
