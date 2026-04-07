@@ -355,6 +355,18 @@ let split_views =
     )
     : (Node.t, option(Node.t)) => {
   let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+  let views =
+    mk_view(
+      inject,
+      font_metrics,
+      ~core_settings,
+      projector_data,
+      projector_list,
+    );
+  let status = {
+    ...status,
+    error: status.error || views.error,
+  };
   let wrapper =
     view_wrapper(
       ~inject,
@@ -364,14 +376,6 @@ let split_views =
       ~status,
       ~idx,
       ~kind=p.kind,
-    );
-  let views =
-    mk_view(
-      inject,
-      font_metrics,
-      ~core_settings,
-      projector_data,
-      projector_list,
     );
   let line_view = {
     let offside_view =

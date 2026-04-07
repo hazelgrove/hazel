@@ -109,6 +109,9 @@ module View = {
     inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
+    /* If true, the projector div gets the "error" class,
+     * triggering the dashed red SVG border from proj-base.css */
+    error: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -149,10 +152,11 @@ module View = {
     core_settings: Language.CoreSettings.t,
   };
 
-  let mk = (~overlay=None, ~offside=None, inline) => {
+  let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
     inline,
     overlay,
     offside,
+    error,
   };
 };
 

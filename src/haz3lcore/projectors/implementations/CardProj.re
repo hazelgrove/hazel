@@ -505,5 +505,6 @@ module M: Projector = {
       },
     offside: None,
     overlay: None,
+    error: false,
   };
 };

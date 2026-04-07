@@ -76,10 +76,19 @@ module M: Projector = {
   let placeholder = (_, info) =>
     switch (get(info)) {
     | None =>
+      let s = info.utility.seg_to_string(info.syntax);
+      let lines = String.split_on_char('\n', s);
+      let n_lines = List.length(lines);
+      let max_width =
+        List.fold_left(
+          (acc, line) => max(acc, String.length(line)),
+          0,
+          lines,
+        );
       ProjectorCore.Shape.{
-        vertical: Inline,
-        horizontal: 3,
-      }
+        vertical: n_lines <= 1 ? Inline : Block(n_lines - 1),
+        horizontal: max_width,
+      };
     | Some((header, rows)) =>
       let max_header_length =
         header |> List.map(String.length) |> List.fold_left((+), 0);
@@ -108,17 +117,15 @@ module M: Projector = {
   let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
     switch (get(info)) {
     | None =>
+      let seg = Segment.unparenthesize(info.syntax);
+      let sort = Segment.sort_of(Segment.skel(seg), seg);
       View.mk(
+        ~error=true,
         Node.div(
           ~attrs=[Attr.classes(["table-inner"])],
-          [
-            Node.div(
-              ~attrs=[Attr.classes(["table", "error"])],
-              [Node.text("\xe2\x9a\xa0")],
-            ),
-          ],
+          [view_seg(sort, seg)],
         ),
-      )
+      );
     | Some(data) =>
       View.mk(
         Node.div(

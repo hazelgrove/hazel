@@ -1523,6 +1523,7 @@ module M: Projector = {
             ),
           ),
         ),
+      error: false,
     };
   };
 };
