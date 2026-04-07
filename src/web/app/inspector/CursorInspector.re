@@ -828,7 +828,6 @@ let projector_diagnostic_inspector =
     (
       ~globals: Globals.t,
       ci: Language.Info.t,
-      _kind: Language.ProjectorKind.t,
       diag: Haz3lcore.ProjectorBase.diagnostic,
     ) =>
   div(
@@ -862,8 +861,8 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     /* Show projector diagnostic instead of normal status,
      * unless there's a statics error (which takes priority) */
     switch (projector_diag) {
-    | Some((kind, diag)) when !Info.is_error(ci) =>
-      bar_view([projector_diagnostic_inspector(~globals, ci, kind, diag)])
+    | Some((_, diag)) when !Info.is_error(ci) =>
+      bar_view([projector_diagnostic_inspector(~globals, ci, diag)])
     | _ => bar_view([inspector_view(~globals, ci)])
     }
   };

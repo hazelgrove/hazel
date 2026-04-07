@@ -123,8 +123,14 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
-    /* After statics are recomputed, refresh projector shapes so
-     * placeholders reflect the latest elaborated expression */
+    /* Refresh projector shapes with the new statics. This is a second
+     * shape computation in the same edit cycle: Editor.Update.calculate
+     * already computed shapes above, but it used the OLD statics because
+     * CachedStatics.init (which produces the new elaborated expression)
+     * must run after Editor.Update (which updates the zipper/autocomplete
+     * buffer that CachedStatics.init reads from). So the first computation
+     * has stale elaborated data, and we recompute here with the fresh
+     * statics to get correct projector placeholder sizes. */
     let editor =
       is_edited
         ? {
