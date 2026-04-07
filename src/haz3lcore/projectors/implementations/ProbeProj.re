@@ -504,8 +504,11 @@ let value_view =
             ctx.dynamics,
             sample,
           )
-        @ (Option.is_some(ap_id) ? ["ap"] : [])
-        @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
+        @ (Option.is_some(ap_id) ? ["ap"] : []),
+        /* Temporarily disabled: indet styling makes it harder to tell
+         * which execution a sample belongs to, since it overrides the
+         * color that would otherwise indicate that.
+         * @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []), */
       ),
       Attr.on_double_click(_ => local(ToggleWindowMode)),
       Attr.on_pointerdown(evt =>
