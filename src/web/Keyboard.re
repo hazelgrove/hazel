@@ -48,7 +48,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
-    | (Down, "Tab") => now(Move(Goal(Hole(Left))))
+    | (Down, "Tab") => now(Move(Goal(NextProblem(Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByToken))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByToken))))
     | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up))))

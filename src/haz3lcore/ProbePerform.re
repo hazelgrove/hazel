@@ -978,6 +978,12 @@ let caret_nearest_ephemeral =
   };
 };
 
+/* When the sample focus has a pinned call stack, suppress autonomous
+ * realignment so the pin holds. Used by both align_to_indicated_probe
+ * and the stale-cursor fallback in resolve_pending_probe_cursor. */
+let has_pin = (z: Zipper.t): bool =>
+  z.refractors.sample_focus.pinned_stack != None;
+
 /* Ensure the sample focus is aligned with current dynamics.
  *
  * Handles two cases uniformly:
@@ -990,7 +996,11 @@ let caret_nearest_ephemeral =
  *    a target list from all probes.
  *
  * In both cases, the caret-nearest probe is prioritized to avoid capturing
- * from a probe in a different case branch or distant expression. */
+ * from a probe in a different case branch or distant expression.
+ *
+ * When a pin is active, skip the stale-cursor fallback (case 2) so that
+ * the pinned context is preserved. Explicit pending cursors (case 1)
+ * still resolve, since those represent intentional navigation. */
 let resolve_pending_probe_cursor =
     (
       ~dynamics: Dynamics.Map.t,
@@ -1004,7 +1014,7 @@ let resolve_pending_probe_cursor =
     switch (z.refractors.pending_probe_cursor) {
     | Some(ids) => (Some(ids), true)
     | None =>
-      if (cursor_is_aligned(~dynamics, z)) {
+      if (cursor_is_aligned(~dynamics, z) || has_pin(z)) {
         (None, false);
       } else {
         /* Cursor is stale — treat all probes as candidates */
@@ -1099,7 +1109,7 @@ let resolve_pending_probe_cursor =
  * We try a direct match first, then fall back to spatial proximity. */
 let align_to_indicated_probe =
     (~is_edited: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
-  if (!is_edited || z.refractors.pending_probe_cursor != None) {
+  if (!is_edited || z.refractors.pending_probe_cursor != None || has_pin(z)) {
     z;
   } else {
     /* Strategy 1: Direct match — indicated piece is an ephemeral probe */
