@@ -397,25 +397,28 @@ select {
   height: auto;
   max-height: 12em;
   overflow-y: auto;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  padding-top: 0.3em;
+  padding-bottom: 0.3em;
 }
 
-/* Tree view container */
+/* Tree view container — single CSS grid for cross-line column alignment.
+ * All tree entries are placed into one grid by grid-area.
+ * justify-content: start packs columns left (no stretching). */
 #sample-focus-bar .tree-view {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  align-items: center;
+  justify-content: start;
+  column-gap: 0;
+  row-gap: 0;
+  flex: 1;
   min-width: 0;
   overflow: hidden;
-  flex: 1;
+  line-height: 1.6;
 }
 
-#sample-focus-bar .tree-line {
-  display: flex;
-  align-items: center;
-  gap: 0;
+#sample-focus-bar .tree-name-cell {
   white-space: nowrap;
-  line-height: 1.6;
 }
 
 #sample-focus-bar .tree-entry {
@@ -446,6 +449,8 @@ select {
   font-family: monospace;
   font-size: 0.85em;
   user-select: none;
+  text-align: center;
+  padding: 0 0.1em;
 }
 
 #sample-focus-bar .tree-separator {

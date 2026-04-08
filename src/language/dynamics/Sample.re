@@ -841,6 +841,9 @@ module CallTree = {
   type line_entry = {
     depth: int,
     frame: stack_frame,
+    /* Full path from root to this entry (outermost-first). Used by the
+     * tree view to switch the sightline when clicking an entry. */
+    path: call_stack,
     is_last_child: bool,
     has_siblings: bool,
   };
@@ -850,13 +853,21 @@ module CallTree = {
     let current_line = ref([]);
 
     let rec walk =
-            (~depth: int, ~is_last: bool, ~has_siblings: bool, node: node) => {
+            (
+              ~depth: int,
+              ~ancestors: call_stack,
+              ~is_last: bool,
+              ~has_siblings: bool,
+              node: node,
+            ) => {
+      let path = ancestors @ [node.frame];
       current_line :=
         current_line^
         @ [
           {
             depth,
             frame: node.frame,
+            path,
             is_last_child: is_last,
             has_siblings,
           },
@@ -865,11 +876,18 @@ module CallTree = {
       | [] => ()
       | [single] =>
         /* Single child: continue on same line */
-        walk(~depth=depth + 1, ~is_last=true, ~has_siblings=false, single)
+        walk(
+          ~depth=depth + 1,
+          ~ancestors=path,
+          ~is_last=true,
+          ~has_siblings=false,
+          single,
+        )
       | [first, ...rest] =>
         /* Multiple children: first stays on this line, rest get new lines */
         walk(
           ~depth=depth + 1,
+          ~ancestors=path,
           ~is_last=false,
           ~has_siblings=true,
           first,
@@ -882,6 +900,7 @@ module CallTree = {
             current_line := [];
             walk(
               ~depth=depth + 1,
+              ~ancestors=path,
               ~is_last=i == n_rest - 1,
               ~has_siblings=true,
               child,
@@ -901,6 +920,7 @@ module CallTree = {
         };
         walk(
           ~depth=0,
+          ~ancestors=[],
           ~is_last=i == n_roots - 1,
           ~has_siblings=n_roots > 1,
           node,

@@ -379,18 +379,40 @@ let key_handler =
     ) => {
   open Effect;
   let key = Key.mk(KeyDown, evt);
+  /* Jump to the call site at a given index in call_stack_rev (outermost-first).
+   * Falls back to nearest user-visible call site if the frame is internal. */
+  let jump_to_index = (i: int): Ui_effect.t(unit) =>
+    if (i >= 0 && i < List.length(call_stack_rev)) {
+      /* call_stack_rev is outermost-first; get_call_site_target expects
+       * the same ordering as call_stack (also outermost-first here) */
+      let target =
+        get_call_site_target(~info_map, ~call_stack=call_stack_rev, ~index=i);
+      switch (target) {
+      | Some(target_id) => jump_to(~globals, target_id, evt)
+      | None => Effect.Ignore
+      };
+    } else {
+      Effect.Ignore;
+    };
   switch (key.key) {
   | D("ArrowLeft") =>
     /* Move to shallower level (toward top-level) */
     let new_index = max(-1, index - 1);
-    Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
+    Many([
+      set_focus_index(~globals, new_index, evt),
+      jump_to_index(new_index),
+      Stop_propagation,
+    ]);
   | D("ArrowRight") =>
     /* Move to deeper level (toward innermost call) */
     let new_index = min(max_index, index + 1);
-    Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
+    Many([
+      set_focus_index(~globals, new_index, evt),
+      jump_to_index(new_index),
+      Stop_propagation,
+    ]);
   | D("ArrowUp") | D("ArrowDown") =>
-    /* Navigate between sibling branches at the focused depth.
-     * index is already in outermost-first coordinates (same as call_stack_rev). */
+    /* Navigate between sibling branches at the focused depth. */
     let n = List.length(call_stack_rev);
     let view_index = index;
     if (view_index < 0 || view_index >= n) {
@@ -418,13 +440,28 @@ let key_handler =
         if (Sample.equal_stack_frame(next_frame, current_frame)) {
           Stop_propagation;
         } else {
-          switch_sibling(
-            ~globals,
-            ~call_stack_rev,
-            ~view_index,
-            next_frame,
-            evt,
-          );
+          /* switch_sibling does Capture; also jump to the new frame's call site */
+          let sibling_effect =
+            switch_sibling(
+              ~globals,
+              ~call_stack_rev,
+              ~view_index,
+              next_frame,
+              evt,
+            );
+          let jump_target =
+            is_in_user_code(~info_map, next_frame.id)
+              ? Some(next_frame.id)
+              : find_nearest_user_app(
+                  ~info_map,
+                  ~call_stack=call_stack_rev,
+                  ~from_index=view_index - 1,
+                );
+          switch (jump_target) {
+          | Some(target_id) =>
+            Many([sibling_effect, jump_to(~globals, target_id, evt)])
+          | None => sibling_effect
+          };
         };
       | None => Stop_propagation
       };
@@ -439,6 +476,18 @@ let key_handler =
         Many([jump_to(~globals, target_id, evt), Stop_propagation])
       | None => Stop_propagation
       };
+    } else {
+      Stop_propagation;
+    };
+  | D("a" | "A") =>
+    /* Toggle anti-pin at current focus depth */
+    let n = List.length(call_stack_rev);
+    if (index >= 0 && index < n) {
+      let original_depth = n - 1 - index;
+      Many([
+        toggle_anti_pin(~globals, original_depth, evt),
+        Stop_propagation,
+      ]);
     } else {
       Stop_propagation;
     };
@@ -466,17 +515,30 @@ let tree_entry =
     @ (on_sightline ? ["on-sightline"] : [])
     @ (is_focused ? ["focused"] : []);
 
+  /* Build a Capture to switch the sightline to this entry's branch.
+   * The path is outermost-first; Capture wants innermost-first. */
   let on_click = evt => {
+    let new_stack = List.rev(entry.path);
+    let capture_data: Sample.Capture.t = {
+      call_stack: new_stack,
+      time: 0.0,
+      seq: 0,
+      step_start: 0,
+      step_end: 0,
+    };
+    let capture_effect =
+      globals.inject_global(
+        ActiveEditor(
+          Project(SampleFocus(Capture(capture_data, None))),
+        ),
+      );
     let call_site_target =
       is_in_user_code(~info_map, frame.id)
         ? Some(frame.id) : None;
     switch (call_site_target) {
     | Some(target_id) =>
-      Effect.Many([
-        set_focus_index(~globals, entry.depth, evt),
-        jump_to(~globals, target_id, evt),
-      ])
-    | None => set_focus_index(~globals, entry.depth, evt)
+      Effect.Many([capture_effect, jump_to(~globals, target_id, evt)])
+    | None => capture_effect
     };
   };
 
@@ -490,7 +552,23 @@ let tree_entry =
   );
 };
 
-/* Render the tree view of the call tree */
+/* Compute the maximum depth across all flattened lines */
+let max_depth = (lines: list(list(Sample.CallTree.line_entry))): int =>
+  List.fold_left(
+    (acc, line) =>
+      List.fold_left(
+        (acc, entry: Sample.CallTree.line_entry) => max(acc, entry.depth),
+        acc,
+        line,
+      ),
+    0,
+    lines,
+  );
+
+/* Render the tree view of the call tree.
+ * Uses a single CSS grid for the entire tree so that columns align
+ * across all lines. Each depth maps to a pair of grid columns
+ * (branch-char + entry name). Each line is a grid row. */
 let tree_view =
     (
       ~globals: Globals.t,
@@ -502,56 +580,89 @@ let tree_view =
     : Node.t => {
   let tree = Sample.CallTree.of_probe_map(probe_map);
   let lines = Sample.CallTree.flatten(tree);
-  let render_line = (line: list(Sample.CallTree.line_entry)): Node.t => {
-    let entries =
-      List.mapi(
-        (i, entry: Sample.CallTree.line_entry) => {
-          let connector =
-            if (i == 0 && entry.depth == 0) {
-              /* Root entry: no connector */
-              [];
-            } else if (i == 0 && entry.depth > 0) {
-              /* Continuation line: show tree branch character */
-              let indent =
-                List.init(entry.depth, _ =>
-                  span(
-                    ~attrs=[Attr.classes(["tree-indent"])],
-                    [text({js| |js})],
-                  )
-                );
-              let branch_char =
-                entry.is_last_child ? {js|└|js} : {js|├|js};
-              indent
-              @ [
-                span(
-                  ~attrs=[Attr.classes(["tree-branch"])],
-                  [text(branch_char)],
-                ),
-              ];
-            } else {
-              /* Inline continuation: separator */
-              [
-                span(
-                  ~attrs=[Attr.classes(["tree-separator"])],
-                  [text({js|─|js})],
-                ),
-              ];
-            };
-          connector
-          @ [
-            tree_entry(~globals, ~info_map, ~sightline_rev, ~index, entry),
-          ];
-        },
-        line,
-      );
-    div(
-      ~attrs=[Attr.classes(["tree-line"])],
-      List.concat(entries),
+  let n_cols = max_depth(lines) + 1;
+  /* Each depth gets 2 grid columns: one for branch char, one for name.
+   * Total grid columns = n_cols * 2. */
+  let grid_template =
+    String.concat(
+      " ",
+      List.init(n_cols, _ => "auto auto"),
     );
-  };
+  /* Emit all cells for all lines into a single flat list.
+   * Each cell is placed by grid-row and grid-column. */
+  let all_cells =
+    List.mapi(
+      (row_idx, line: list(Sample.CallTree.line_entry)) =>
+        List.mapi(
+          (i, entry: Sample.CallTree.line_entry) => {
+            let row = row_idx + 1;
+            /* Branch character cell */
+            let branch_col = entry.depth * 2 + 1;
+            let branch_char =
+              if (i == 0 && entry.depth == 0) {
+                "";
+              } else if (i == 0 && entry.depth > 0) {
+                entry.is_last_child ? {js|└|js} : {js|├|js};
+              } else {
+                {js|─|js};
+              };
+            let pos = (r, c) =>
+              Css_gen.create(
+                ~field="grid-area",
+                ~value=
+                  string_of_int(r)
+                  ++ " / "
+                  ++ string_of_int(c)
+                  ++ " / "
+                  ++ string_of_int(r + 1)
+                  ++ " / "
+                  ++ string_of_int(c + 1),
+              );
+            let branch_cell =
+              span(
+                ~attrs=[
+                  Attr.classes(["tree-branch"]),
+                  Attr.style(pos(row, branch_col)),
+                ],
+                [text(branch_char)],
+              );
+            /* Entry name cell */
+            let name_col = entry.depth * 2 + 2;
+            let entry_cell =
+              span(
+                ~attrs=[
+                  Attr.classes(["tree-name-cell"]),
+                  Attr.style(pos(row, name_col)),
+                ],
+                [
+                  tree_entry(
+                    ~globals,
+                    ~info_map,
+                    ~sightline_rev,
+                    ~index,
+                    entry,
+                  ),
+                ],
+              );
+            [branch_cell, entry_cell];
+          },
+          line,
+        )
+        |> List.concat,
+      lines,
+    )
+    |> List.concat;
   div(
-    ~attrs=[Attr.classes(["tree-view"])],
-    List.map(render_line, lines),
+    ~attrs=[
+      Attr.classes(["tree-view"]),
+      Attr.style(
+        Css_gen.create(
+          ~field="grid-template-columns",
+          ~value=grid_template,
+        ),
+      ),
+    ],
+    all_cells,
   );
 };
 
@@ -646,21 +757,13 @@ let view =
       let original_depth = n - 1 - i;
 
       let on_entry_click = evt =>
-        if (Key.alt_held(evt) && has_pin) {
-          /* Alt+click toggles anti-pin at this depth */
+        switch (call_site_target) {
+        | Some(target_id) =>
           Effect.Many([
-            Effect.Stop_propagation,
-            toggle_anti_pin(~globals, original_depth, evt),
-          ]);
-        } else {
-          switch (call_site_target) {
-          | Some(target_id) =>
-            Effect.Many([
-              set_focus_index(~globals, i, evt),
-              jump_to(~globals, target_id, evt),
-            ])
-          | None => set_focus_index(~globals, i, evt)
-          };
+            set_focus_index(~globals, i, evt),
+            jump_to(~globals, target_id, evt),
+          ])
+        | None => set_focus_index(~globals, i, evt)
         };
 
       let is_pinned = Some(app_id) == pinned_head_id;
@@ -708,14 +811,14 @@ let view =
 
       let entry_tooltip =
         if (is_anti_pinned) {
-          "Alt+click to remove inner bound";
+          "Anti-pinned (press A on focus bar to remove)";
         } else if (has_pin) {
           if (is_in_user_code(~info_map, app_id)) {
-            "Jump to call site (Alt+click: set inner bound)";
+            "Jump to call site (A key: set inner bound)";
           } else {
             switch (call_site_target) {
-            | Some(_) => {js|Internal call — jump to enclosing (Alt+click: set inner bound)|js}
-            | None => "Internal call (Alt+click: set inner bound)"
+            | Some(_) => {js|Internal call — jump to enclosing (A key: set inner bound)|js}
+            | None => "Internal call (A key: set inner bound)"
             };
           };
         } else if (is_in_user_code(~info_map, app_id)) {

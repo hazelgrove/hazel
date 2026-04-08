@@ -1192,6 +1192,18 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       Many([focus_call(ctx), Stop_propagation, Prevent_default])
     | _ => Many([Stop_propagation, Prevent_default])
     }
+  | D("a") =>
+    /* Toggle anti-pin at the current sightline focus depth */
+    let focus = ctx.dynamics.sample_focus;
+    if (focus.pinned_stack != None && focus.index >= 0) {
+      Many([
+        parent(SampleFocus(ToggleAntiPin(focus.index))),
+        Stop_propagation,
+        Prevent_default,
+      ]);
+    } else {
+      Many([Stop_propagation, Prevent_default]);
+    };
   | D("Enter") =>
     /* Step into the indicated sample */
     switch (indicated_sample(ctx), ap_id) {

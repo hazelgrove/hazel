@@ -1869,12 +1869,14 @@ let call_tree_tests = [
       let entry_on: Sample.CallTree.line_entry = {
         depth: 0,
         frame: frame(id_a),
+        path: [frame(id_a)],
         is_last_child: true,
         has_siblings: false,
       };
       let entry_off: Sample.CallTree.line_entry = {
         depth: 0,
         frame: frame(id_c),
+        path: [frame(id_c)],
         is_last_child: true,
         has_siblings: false,
       };
