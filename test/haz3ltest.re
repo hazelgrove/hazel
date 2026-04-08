@@ -39,7 +39,11 @@ let (suite, _) =
     @ Test_Indentation.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionVisualization.tests
-    @ [Test_Coverage.tests, Test_Unboxing.tests]
+    @ [
+      Test_Coverage.tests,
+      Test_Unboxing.tests,
+      Test_ProblemCollection.tests,
+    ]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     //@ Test_DocSlideMigration.tests

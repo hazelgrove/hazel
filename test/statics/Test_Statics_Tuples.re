@@ -615,7 +615,10 @@ let tests = (
                   ),
                 ),
               tuple([int(1), int(2)]),
-              multi_hole([Exp(int(1))]),
+              multi_hole(
+                ~ann=Some(Exp(Common(NoType(MultiHole)))),
+                [Exp(int(1))],
+              ),
             )
           )
         ),

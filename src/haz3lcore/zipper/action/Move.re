@@ -150,9 +150,59 @@ let to_linebreak = (d: Direction.t, z: t): option(t) => {
   skip_spaces(Direction.toggle(d), z);
 };
 
+let to_next_problem =
+    (~measured: Measured.t, ~problem_ids: Seq.t(Id.t), d: Direction.t, z: t)
+    : option(t) => {
+  let cursor_pos = Zipper.Caret.point(measured, z);
+  /* Sort problem IDs by measured position */
+  let sorted =
+    problem_ids
+    |> Seq.filter_map(id =>
+         switch (Measured.find_by_id(id, measured)) {
+         | Some({origin, _}) => Some((id, origin))
+         | None => None
+         }
+       )
+    |> List.of_seq
+    |> List.sort(((_, p1), (_, p2)) => Point.compare(p1, p2));
+  switch (sorted) {
+  | [] => None
+  | _ =>
+    let target =
+      switch (d) {
+      | Right =>
+        switch (
+          List.find_opt(
+            ((_, pos)) => Point.compare(pos, cursor_pos) > 0,
+            sorted,
+          )
+        ) {
+        | Some((id, _)) => Some(id)
+        | None => Some(fst(List.hd(sorted))) /* wrap to first */
+        }
+      | Left =>
+        let rev = List.rev(sorted);
+        switch (
+          List.find_opt(
+            ((_, pos)) => Point.compare(pos, cursor_pos) < 0,
+            rev,
+          )
+        ) {
+        | Some((id, _)) => Some(id)
+        | None => Some(fst(List.hd(rev))) /* wrap to last */
+        };
+      };
+    switch (target) {
+    | Some(id) => jump_to_id_indicated(z, id)
+    | None => None
+    };
+  };
+};
+
 let move_dispatch =
     (
       ~statics: Language.Statics.Map.t,
+      ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       d: Action.move,
@@ -167,6 +217,7 @@ let move_dispatch =
   | Vertical(d) => vertical(~measured, ~col_target, d, z)
   | Point(goal) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
+  | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
   | Goal(BindingSiteOfIndicatedVar) =>
     let* ci = Indicated.ci_of(z, statics);
@@ -191,6 +242,7 @@ let pre_unselect = (a: Action.move, z: t): t => {
 let go =
     (
       ~statics: Language.Statics.Map.t,
+      ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       a: Action.move,
@@ -198,7 +250,7 @@ let go =
     )
     : option(t) =>
   if (Selection.is_empty(z.selection)) {
-    move_dispatch(~statics, ~col_target, ~measured, a, z);
+    move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z);
   } else {
     let z = pre_unselect(a, z);
     switch (a) {
@@ -206,7 +258,9 @@ let go =
     | Local(Left, ByChar)
     | Local(Right, ByChar) => Some(z)
     | _ =>
-      switch (move_dispatch(~statics, ~col_target, ~measured, a, z)) {
+      switch (
+        move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z)
+      ) {
       | Some(z) => Some(z)
       /* Always empty selection on move action,
        * even if we don't actually move */
