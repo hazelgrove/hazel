@@ -774,6 +774,157 @@ module Selection = {
   };
 };
 
+/* Call-stack trie for tree view display.
+ *
+ * Each node represents a frame in the call tree. Children are the
+ * distinct next frames across all samples. The trie is built from
+ * all samples' call stacks (union across all probes).
+ *
+ * Used by the SampleFocusBar tree view toggle to show all branches. */
+module CallTree = {
+  type node = {
+    frame: stack_frame,
+    children: list(node),
+  };
+
+  /* A forest (list of root nodes) representing the top-level call tree */
+  type t = list(node);
+
+  /* Insert an outermost-first path into the trie */
+  let rec insert_path = (path: call_stack, forest: t): t =>
+    switch (path) {
+    | [] => forest
+    | [frame, ...rest] =>
+      let found = ref(false);
+      let forest' =
+        List.map(
+          (node: node) =>
+            if (equal_stack_frame(node.frame, frame)) {
+              found := true;
+              {...node, children: insert_path(rest, node.children)};
+            } else {
+              node;
+            },
+          forest,
+        );
+      if (found^) {
+        forest';
+      } else {
+        forest @ [{frame, children: insert_path(rest, [])}];
+      };
+    };
+
+  /* Build a call tree from all samples in a probe_map */
+  let of_probe_map = (probe_map: Id.Map.t(list(sample))): t => {
+    Id.Map.fold(
+      (_, samples, forest) =>
+        List.fold_left(
+          (acc, s: sample) => {
+            let path = List.rev(s.call_stack);
+            insert_path(path, acc);
+          },
+          forest,
+          samples,
+        ),
+      probe_map,
+      [],
+    );
+  };
+
+  /* Flatten a tree into lines for display. Each line is a list of
+   * (depth, frame) pairs. Uses the "first child inline" rule:
+   * - Single-child nodes continue on the same line
+   * - Multi-child: first child stays on same line, rest start new lines
+   *
+   * Returns list of lines, where each line is a list of (depth, node) pairs
+   * representing the entries on that line. */
+  type line_entry = {
+    depth: int,
+    frame: stack_frame,
+    is_last_child: bool,
+    has_siblings: bool,
+  };
+
+  let flatten = (forest: t): list(list(line_entry)) => {
+    let lines = ref([]);
+    let current_line = ref([]);
+
+    let rec walk =
+            (~depth: int, ~is_last: bool, ~has_siblings: bool, node: node) => {
+      current_line :=
+        current_line^
+        @ [
+          {
+            depth,
+            frame: node.frame,
+            is_last_child: is_last,
+            has_siblings,
+          },
+        ];
+      switch (node.children) {
+      | [] => ()
+      | [single] =>
+        /* Single child: continue on same line */
+        walk(~depth=depth + 1, ~is_last=true, ~has_siblings=false, single)
+      | [first, ...rest] =>
+        /* Multiple children: first stays on this line, rest get new lines */
+        walk(
+          ~depth=depth + 1,
+          ~is_last=false,
+          ~has_siblings=true,
+          first,
+        );
+        let n_rest = List.length(rest);
+        List.iteri(
+          (i, child) => {
+            /* Flush current line and start new */
+            lines := lines^ @ [current_line^];
+            current_line := [];
+            walk(
+              ~depth=depth + 1,
+              ~is_last=i == n_rest - 1,
+              ~has_siblings=true,
+              child,
+            );
+          },
+          rest,
+        );
+      };
+    };
+
+    let n_roots = List.length(forest);
+    List.iteri(
+      (i, node) => {
+        if (i > 0) {
+          lines := lines^ @ [current_line^];
+          current_line := [];
+        };
+        walk(
+          ~depth=0,
+          ~is_last=i == n_roots - 1,
+          ~has_siblings=n_roots > 1,
+          node,
+        );
+      },
+      forest,
+    );
+    /* Don't forget the last line */
+    if (current_line^ != []) {
+      lines := lines^ @ [current_line^];
+    };
+    lines^;
+  };
+
+  /* Check if a path through the tree matches the sightline up to a given depth.
+   * Used to highlight the current sightline in the tree view. */
+  let is_on_sightline =
+      (~sightline_rev: call_stack, entry: line_entry): bool => {
+    let depth = entry.depth;
+    depth < List.length(sightline_rev)
+    && equal_stack_frame(List.nth(sightline_rev, depth), entry.frame);
+  };
+};
+
 /* Lightweight capture data for passing through actions.
    In a submodule to avoid type inference issues with Sample.t
    which has overlapping field names. */

@@ -1751,6 +1751,149 @@ let sibling_tests = [
   ),
 ];
 
+/* --- Test: CallTree (trie building and flattening for tree view) --- */
+
+let call_tree_tests = [
+  test_case(
+    "CallTree: empty probe_map produces empty tree",
+    `Quick,
+    () => {
+      let tree = Sample.CallTree.of_probe_map(Id.Map.empty);
+      check(int, "empty tree", 0, List.length(tree));
+    },
+  ),
+  test_case(
+    "CallTree: single sample produces single-node tree",
+    `Quick,
+    () => {
+      let probe_map =
+        Id.Map.singleton(Id.invalid, [mk_sample([frame(id_a)])]);
+      let tree = Sample.CallTree.of_probe_map(probe_map);
+      check(int, "one root node", 1, List.length(tree));
+      let root = List.hd(tree);
+      check(
+        bool,
+        "root frame matches",
+        true,
+        Sample.equal_stack_frame(root.frame, frame(id_a)),
+      );
+      check(int, "no children", 0, List.length(root.children));
+    },
+  ),
+  test_case(
+    "CallTree: shared prefix merges into one path",
+    `Quick,
+    () => {
+      /* Two samples: [B, A] and [C, A] (innermost-first)
+       * Outermost-first: [A, B] and [A, C]
+       * Tree: A -> {B, C} */
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([frame(id_b), frame(id_a)]),
+            mk_sample([frame(id_c), frame(id_a)]),
+          ],
+        );
+      let tree = Sample.CallTree.of_probe_map(probe_map);
+      check(int, "one root (A)", 1, List.length(tree));
+      let root = List.hd(tree);
+      check(int, "two children (B and C)", 2, List.length(root.children));
+    },
+  ),
+  test_case(
+    "CallTree: flatten single path produces one line",
+    `Quick,
+    () => {
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [mk_sample([frame(id_b), frame(id_a)])],
+        );
+      let tree = Sample.CallTree.of_probe_map(probe_map);
+      let lines = Sample.CallTree.flatten(tree);
+      check(int, "one line", 1, List.length(lines));
+      let line = List.hd(lines);
+      check(int, "two entries on the line", 2, List.length(line));
+    },
+  ),
+  test_case(
+    "CallTree: flatten branching produces multiple lines",
+    `Quick,
+    () => {
+      /* Tree: A -> {B, C}
+       * Line 1: A ── B (first child inline)
+       * Line 2: C (second child on new line) */
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([frame(id_b), frame(id_a)]),
+            mk_sample([frame(id_c), frame(id_a)]),
+          ],
+        );
+      let tree = Sample.CallTree.of_probe_map(probe_map);
+      let lines = Sample.CallTree.flatten(tree);
+      check(int, "two lines (first child inline, second on new line)", 2, List.length(lines));
+      /* Line 1 should have A and B */
+      let line1 = List.nth(lines, 0);
+      check(int, "line 1: 2 entries (A, B)", 2, List.length(line1));
+      /* Line 2 should have just C */
+      let line2 = List.nth(lines, 1);
+      check(int, "line 2: 1 entry (C)", 1, List.length(line2));
+    },
+  ),
+  test_case(
+    "CallTree: linear chain collapses to one line",
+    `Quick,
+    () => {
+      /* Deep linear path: A -> B -> C (no branching)
+       * Should be one line with 3 entries */
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [mk_sample([frame(id_c), frame(id_b), frame(id_a)])],
+        );
+      let tree = Sample.CallTree.of_probe_map(probe_map);
+      let lines = Sample.CallTree.flatten(tree);
+      check(int, "one line (linear chain)", 1, List.length(lines));
+      let line = List.hd(lines);
+      check(int, "three entries", 3, List.length(line));
+    },
+  ),
+  test_case(
+    "CallTree: is_on_sightline identifies matching entries",
+    `Quick,
+    () => {
+      let sightline_rev = [frame(id_a), frame(id_b)];
+      let entry_on: Sample.CallTree.line_entry = {
+        depth: 0,
+        frame: frame(id_a),
+        is_last_child: true,
+        has_siblings: false,
+      };
+      let entry_off: Sample.CallTree.line_entry = {
+        depth: 0,
+        frame: frame(id_c),
+        is_last_child: true,
+        has_siblings: false,
+      };
+      check(
+        bool,
+        "matching frame at depth 0 is on sightline",
+        true,
+        Sample.CallTree.is_on_sightline(~sightline_rev, entry_on),
+      );
+      check(
+        bool,
+        "non-matching frame at depth 0 is off sightline",
+        false,
+        Sample.CallTree.is_on_sightline(~sightline_rev, entry_off),
+      );
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -1768,5 +1911,6 @@ let tests = (
     perspective_extension_tests,
     anti_pin_tests,
     sibling_tests,
+    call_tree_tests,
   ]),
 );

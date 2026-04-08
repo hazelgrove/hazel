@@ -372,6 +372,96 @@ select {
   background-color: var(--Y1);
 }
 
+/* Tree view toggle button */
+#sample-focus-bar .tree-toggle {
+  cursor: pointer;
+  color: var(--BR3);
+  font-size: 0.85em;
+  padding: 0 0.4em;
+  border-radius: 3px;
+  transition: background-color 0.1s;
+  flex-shrink: 0;
+}
+
+#sample-focus-bar .tree-toggle:hover {
+  background-color: white;
+}
+
+#sample-focus-bar .tree-toggle.active {
+  color: var(--G0);
+  background-color: var(--G5);
+}
+
+/* Tree mode: expand height to fit multiple lines */
+#sample-focus-bar.tree-mode {
+  height: auto;
+  max-height: 12em;
+  overflow-y: auto;
+  flex-wrap: wrap;
+}
+
+/* Tree view container */
+#sample-focus-bar .tree-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+}
+
+#sample-focus-bar .tree-line {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+#sample-focus-bar .tree-entry {
+  cursor: pointer;
+  padding: 0 0.3em;
+  border-radius: 1em;
+  color: var(--BR3);
+  transition: background-color 0.1s;
+}
+
+#sample-focus-bar .tree-entry:hover {
+  background-color: white;
+}
+
+#sample-focus-bar .tree-entry.on-sightline {
+  color: var(--G0);
+}
+
+#sample-focus-bar .tree-entry.focused {
+  color: var(--G0);
+  background-color: var(--G5);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+#sample-focus-bar .tree-branch {
+  color: var(--BR2);
+  font-family: monospace;
+  font-size: 0.85em;
+  user-select: none;
+}
+
+#sample-focus-bar .tree-separator {
+  color: var(--BR2);
+  font-family: monospace;
+  font-size: 0.85em;
+  padding: 0 0.1em;
+  user-select: none;
+}
+
+#sample-focus-bar .tree-indent {
+  display: inline-block;
+  width: 1.2em;
+  user-select: none;
+}
+
 #bottom-bar {
   z-index: var(--bottom-bar-z);
   grid-row: 4 / span 1;

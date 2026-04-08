@@ -83,6 +83,14 @@ let has_probes = (refractors: Zipper.Refractor.t): bool =>
   !List.is_empty(refractors.manuals)
   || !Id.Map.is_empty(refractors.multis.ids);
 
+/* Tree view mode toggle: single-path (default) or tree */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type view_mode =
+  | SinglePath
+  | TreeView;
+
+let view_mode_ref: ref(view_mode) = ref(SinglePath);
+
 /* Walk up the call stack from a given index to find the nearest frame
  * whose app_id is in user code. Used as a fallback for separator clicks
  * when the separator's own app_id comes from built-in internal code. */
@@ -438,6 +446,115 @@ let key_handler =
   };
 };
 
+/* Render a single tree-view entry */
+let tree_entry =
+    (
+      ~globals: Globals.t,
+      ~info_map: Statics.Map.t,
+      ~sightline_rev: Sample.call_stack,
+      ~index: int,
+      entry: Sample.CallTree.line_entry,
+    )
+    : Node.t => {
+  let frame = entry.frame;
+  let display_text = resolve_display_name(~info_map, frame);
+  let on_sightline =
+    Sample.CallTree.is_on_sightline(~sightline_rev, entry);
+  let is_focused = on_sightline && entry.depth == index;
+  let classes =
+    ["tree-entry"]
+    @ (on_sightline ? ["on-sightline"] : [])
+    @ (is_focused ? ["focused"] : []);
+
+  let on_click = evt => {
+    let call_site_target =
+      is_in_user_code(~info_map, frame.id)
+        ? Some(frame.id) : None;
+    switch (call_site_target) {
+    | Some(target_id) =>
+      Effect.Many([
+        set_focus_index(~globals, entry.depth, evt),
+        jump_to(~globals, target_id, evt),
+      ])
+    | None => set_focus_index(~globals, entry.depth, evt)
+    };
+  };
+
+  span(
+    ~attrs=[
+      Attr.classes(classes),
+      Attr.title(display_text),
+      Attr.on_pointerdown(on_click),
+    ],
+    [text(display_text)],
+  );
+};
+
+/* Render the tree view of the call tree */
+let tree_view =
+    (
+      ~globals: Globals.t,
+      ~info_map: Statics.Map.t,
+      ~probe_map: Language.Dynamics.Map.t,
+      ~sightline_rev: Sample.call_stack,
+      ~index: int,
+    )
+    : Node.t => {
+  let tree = Sample.CallTree.of_probe_map(probe_map);
+  let lines = Sample.CallTree.flatten(tree);
+  let render_line = (line: list(Sample.CallTree.line_entry)): Node.t => {
+    let entries =
+      List.mapi(
+        (i, entry: Sample.CallTree.line_entry) => {
+          let connector =
+            if (i == 0 && entry.depth == 0) {
+              /* Root entry: no connector */
+              [];
+            } else if (i == 0 && entry.depth > 0) {
+              /* Continuation line: show tree branch character */
+              let indent =
+                List.init(entry.depth, _ =>
+                  span(
+                    ~attrs=[Attr.classes(["tree-indent"])],
+                    [text({js| |js})],
+                  )
+                );
+              let branch_char =
+                entry.is_last_child ? {js|└|js} : {js|├|js};
+              indent
+              @ [
+                span(
+                  ~attrs=[Attr.classes(["tree-branch"])],
+                  [text(branch_char)],
+                ),
+              ];
+            } else {
+              /* Inline continuation: separator */
+              [
+                span(
+                  ~attrs=[Attr.classes(["tree-separator"])],
+                  [text({js|─|js})],
+                ),
+              ];
+            };
+          connector
+          @ [
+            tree_entry(~globals, ~info_map, ~sightline_rev, ~index, entry),
+          ];
+        },
+        line,
+      );
+    div(
+      ~attrs=[Attr.classes(["tree-line"])],
+      List.concat(entries),
+    );
+  };
+  div(
+    ~attrs=[Attr.classes(["tree-view"])],
+    List.map(render_line, lines),
+  );
+};
+
 /* Main view function */
 let view =
     (
@@ -730,9 +847,50 @@ let view =
         [text("Clear all")],
       );
 
+    /* Tree view toggle button */
+    let is_tree_mode = view_mode_ref^ == TreeView;
+    let toggle_icon = is_tree_mode ? {js|≡|js} : {js|⊞|js};
+    let toggle_tooltip =
+      is_tree_mode ? "Switch to single path" : "Switch to tree view";
+    let tree_toggle =
+      span(
+        ~attrs=[
+          Attr.classes(
+            ["tree-toggle"] @ (is_tree_mode ? ["active"] : []),
+          ),
+          Attr.title(toggle_tooltip),
+          Attr.on_pointerdown(_ => {
+            view_mode_ref :=
+              (is_tree_mode ? SinglePath : TreeView);
+            /* Force re-render by dispatching a no-op focus set */
+            globals.inject_global(
+              ActiveEditor(Project(SampleFocus(SetIndex(index)))),
+            );
+          }),
+        ],
+        [text(toggle_icon)],
+      );
+
+    /* Render content based on view mode */
+    let content =
+      if (is_tree_mode) {
+        tree_view(
+          ~globals,
+          ~info_map,
+          ~probe_map,
+          ~sightline_rev=call_stack,
+          ~index,
+        );
+      } else {
+        div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon);
+      };
+
     div(
       ~attrs=[
         Attr.id("sample-focus-bar"),
+        Attr.classes(
+          [] @ (is_tree_mode ? ["tree-mode"] : []),
+        ),
         Attr.tabindex(0),
         Attr.on_keydown(
           key_handler(
@@ -754,7 +912,8 @@ let view =
           ],
           [text("probe focus")],
         ),
-        div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
+        tree_toggle,
+        content,
         clear_all_button,
       ],
     );
