@@ -48,6 +48,7 @@
    ppx_sexp_conv
    ppx_deriving.show
    ppx_yojson_conv
+   ppx_enumerate
    bonsai.ppx_bonsai)))
 
 (executable

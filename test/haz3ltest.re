@@ -39,7 +39,11 @@ let (suite, _) =
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
-    @ [Test_Coverage.tests, Test_Unboxing.tests]
+    @ [
+      Test_Coverage.tests,
+      Test_Unboxing.tests,
+      Test_ProblemCollection.tests,
+    ]
     @ Test_Introduce.tests
     // Disabled on probes-study: too many doc slides makes this too slow
     //@ Test_ReparseDocSlides.tests
