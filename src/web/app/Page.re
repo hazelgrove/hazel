@@ -775,6 +775,7 @@ module View = {
         ~globals,
         ~refractors=current_editor.editor.state.zipper.refractors,
         ~info_map=current_editor.statics.info_map,
+        ~probe_map=current_editor.dynamics,
         ~indicated_id,
       );
 

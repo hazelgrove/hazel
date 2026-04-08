@@ -1647,6 +1647,110 @@ let anti_pin_tests = [
   ),
 ];
 
+/* --- Test: find_siblings (sibling branch discovery for Up/Down nav) --- */
+
+let sibling_tests = [
+  test_case(
+    "find_siblings: finds distinct frames at depth",
+    `Quick,
+    () => {
+      /* Three calls to f at top level: f(1), f(2), f(3)
+       * Samples: [named(A, f)], [named(B, f)], [named(C, f)]
+       * Sightline at [A] (outermost-first), view_index=0
+       * Should find siblings A, B, C */
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([named_frame(id_a, "f")]),
+            mk_sample([named_frame(id_b, "f")]),
+            mk_sample([named_frame(id_c, "f")]),
+          ],
+        );
+      let call_stack_rev = [named_frame(id_a, "f")];
+      let siblings =
+        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=0, probe_map);
+      check(int, "should find 3 siblings", 3, List.length(siblings));
+    },
+  ),
+  test_case(
+    "find_siblings: respects prefix match",
+    `Quick,
+    () => {
+      /* Two calls inside f: f->g and f->h
+       * Sightline: [f, g] (outermost-first), view_index=1
+       * Siblings at depth 1 with prefix [f]: g and h */
+      let f = named_frame(id_a, "f");
+      let g = named_frame(id_b, "g");
+      let h = named_frame(id_c, "h");
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([g, f]), /* innermost-first: g is inner, f is outer */
+            mk_sample([h, f]),
+          ],
+        );
+      /* outermost-first: [f, g], view_index=1 (looking at g/h position) */
+      let call_stack_rev = [f, g];
+      let siblings =
+        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=1, probe_map);
+      check(int, "should find 2 siblings (g and h)", 2, List.length(siblings));
+    },
+  ),
+  test_case(
+    "find_siblings: no siblings when alone",
+    `Quick,
+    () => {
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [mk_sample([named_frame(id_a, "f")])],
+        );
+      let call_stack_rev = [named_frame(id_a, "f")];
+      let siblings =
+        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=0, probe_map);
+      check(int, "should find 1 sibling (self only)", 1, List.length(siblings));
+    },
+  ),
+  test_case(
+    "find_siblings: excludes different prefix",
+    `Quick,
+    () => {
+      /* f->g and h->g: at depth 1, prefix is different (f vs h) */
+      let f = named_frame(id_a, "f");
+      let h = named_frame(id_c, "h");
+      let g1 = named_frame(id_b, "g");
+      let g2 = named_frame(id_d, "g");
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([g1, f]), /* f->g1 */
+            mk_sample([g2, h]), /* h->g2 */
+          ],
+        );
+      let call_stack_rev = [f, g1];
+      let siblings =
+        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=1, probe_map);
+      /* Only g1 matches prefix [f]; g2 has prefix [h] */
+      check(int, "should find 1 sibling (prefix mismatch filters g2)", 1, List.length(siblings));
+    },
+  ),
+  test_case(
+    "find_siblings: empty at invalid index",
+    `Quick,
+    () => {
+      let probe_map =
+        Id.Map.singleton(Id.invalid, [mk_sample([frame(id_a)])]);
+      let call_stack_rev = [frame(id_a)];
+      let siblings =
+        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=(-1), probe_map);
+      check(int, "should find 0 at invalid index", 0, List.length(siblings));
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -1663,5 +1767,6 @@ let tests = (
     call_click_alignment_tests,
     perspective_extension_tests,
     anti_pin_tests,
+    sibling_tests,
   ]),
 );

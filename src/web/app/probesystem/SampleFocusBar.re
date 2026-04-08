@@ -312,6 +312,51 @@ let compute_dynamic_cap =
   find(n);
 };
 
+/* Navigate to a sibling branch at the focused depth.
+ * Replaces the frame at view_index in the (outermost-first) call stack
+ * with the new sibling frame and dispatches a Capture to update the sightline. */
+let switch_sibling =
+    (
+      ~globals: Globals.t,
+      ~call_stack_rev: Sample.call_stack,
+      ~view_index: int,
+      new_frame: Sample.stack_frame,
+      evt,
+    ) => {
+  let n = List.length(call_stack_rev);
+  if (view_index < 0 || view_index >= n) {
+    Effect.Ignore;
+  } else {
+    /* Build new outermost-first stack with the frame at view_index replaced */
+    let new_stack_rev =
+      List.mapi(
+        (i, f) => i == view_index ? new_frame : f,
+        call_stack_rev,
+      );
+    /* Truncate the stack at the switch point: keep prefix + new frame,
+     * drop everything deeper since the subtree may differ */
+    let truncated_rev =
+      Util.ListUtil.slice(0, view_index + 1, new_stack_rev);
+    /* Convert back to innermost-first for the Capture data */
+    let new_stack = List.rev(truncated_rev);
+    let capture_data: Sample.Capture.t = {
+      call_stack: new_stack,
+      time: 0.0,
+      seq: 0,
+      step_start: 0,
+      step_end: 0,
+    };
+    Effect.Many([
+      globals.inject_global(
+        ActiveEditor(
+          Project(SampleFocus(Capture(capture_data, None))),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+};
+
 /* Keyboard handler for navigation */
 let key_handler =
     (
@@ -319,6 +364,8 @@ let key_handler =
       ~index: int,
       ~max_index: int,
       ~call_stack: Sample.call_stack,
+      ~call_stack_rev: Sample.call_stack,
+      ~probe_map: Language.Dynamics.Map.t,
       ~info_map: Statics.Map.t,
       evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.keyboardEvent),
     ) => {
@@ -333,6 +380,47 @@ let key_handler =
     /* Move to deeper level (toward innermost call) */
     let new_index = min(max_index, index + 1);
     Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
+  | D("ArrowUp") | D("ArrowDown") =>
+    /* Navigate between sibling branches at the focused depth.
+     * index is already in outermost-first coordinates (same as call_stack_rev). */
+    let n = List.length(call_stack_rev);
+    let view_index = index;
+    if (view_index < 0 || view_index >= n) {
+      Stop_propagation;
+    } else {
+      let siblings =
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index,
+          probe_map,
+        );
+      let current_frame = List.nth(call_stack_rev, view_index);
+      let current_pos =
+        List.find_index(
+          f => Sample.equal_stack_frame(f, current_frame),
+          siblings,
+        );
+      let direction = key.key == D("ArrowUp") ? (-1) : 1;
+      switch (current_pos) {
+      | Some(pos) =>
+        let next_pos =
+          (pos + direction + List.length(siblings))
+          mod List.length(siblings);
+        let next_frame = List.nth(siblings, next_pos);
+        if (Sample.equal_stack_frame(next_frame, current_frame)) {
+          Stop_propagation;
+        } else {
+          switch_sibling(
+            ~globals,
+            ~call_stack_rev,
+            ~view_index,
+            next_frame,
+            evt,
+          );
+        };
+      | None => Stop_propagation
+      };
+    };
   | D("Enter") =>
     /* Jump to call site of current entry, then refocus main editor. */
     JsUtil.focus_clipboard_shim();
@@ -356,6 +444,7 @@ let view =
       ~globals: Globals.t,
       ~refractors: Zipper.Refractor.t,
       ~info_map: Statics.Map.t,
+      ~probe_map: Language.Dynamics.Map.t,
       ~indicated_id as _: option(Id.t),
     )
     : Node.t =>
@@ -646,7 +735,15 @@ let view =
         Attr.id("sample-focus-bar"),
         Attr.tabindex(0),
         Attr.on_keydown(
-          key_handler(~globals, ~index, ~max_index, ~call_stack, ~info_map),
+          key_handler(
+            ~globals,
+            ~index,
+            ~max_index,
+            ~call_stack,
+            ~call_stack_rev=call_stack,
+            ~probe_map,
+            ~info_map,
+          ),
         ),
       ],
       [

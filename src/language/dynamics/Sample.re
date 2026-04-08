@@ -679,6 +679,67 @@ module Selection = {
     group_by_call(samples),
   );
 
+  /* Find sibling branches at a given depth in the call tree.
+   *
+   * Given the current sightline (outermost-first call_stack and a view_index
+   * into it), find all distinct frames at that position across all samples
+   * in the probe_map, filtering to those that share the same prefix.
+   *
+   * Returns a deduplicated list of stack_frames that are valid alternatives
+   * at view_index. The current frame is included in the result.
+   *
+   * Parameters:
+   * - call_stack_rev: the sightline call_stack in outermost-first order
+   * - view_index: position in the outermost-first list to find siblings
+   * - probe_map: all samples across all probes */
+  let find_siblings =
+      (
+        ~call_stack_rev: call_stack,
+        ~view_index: int,
+        probe_map: Id.Map.t(list(t)),
+      )
+      : list(stack_frame) => {
+    let n = List.length(call_stack_rev);
+    if (view_index < 0 || view_index >= n) {
+      [];
+    } else {
+      /* The prefix is everything before view_index in outermost-first order */
+      let prefix = ListUtil.slice(0, view_index, call_stack_rev);
+      let prefix_ids = ids_of_stack(prefix);
+      /* Collect all distinct frames at view_index from all samples */
+      let all_frames = ref([]);
+      Id.Map.iter(
+        (_, samples) =>
+          List.iter(
+            (sample: t) => {
+              /* Convert sample's call_stack to outermost-first */
+              let sample_rev = List.rev(sample.call_stack);
+              let sample_len = List.length(sample_rev);
+              if (sample_len > view_index) {
+                /* Check prefix match */
+                let sample_prefix =
+                  ListUtil.slice(0, view_index, sample_rev);
+                let sample_prefix_ids = ids_of_stack(sample_prefix);
+                if (sample_prefix_ids == prefix_ids) {
+                  let frame_at_depth = List.nth(sample_rev, view_index);
+                  /* Deduplicate by ID */
+                  if (!List.exists(
+                        f => equal_stack_frame(f, frame_at_depth),
+                        all_frames^,
+                      )) {
+                    all_frames := [frame_at_depth, ...all_frames^];
+                  };
+                };
+              };
+            },
+            samples,
+          ),
+        probe_map,
+      );
+      List.rev(all_frames^);
+    };
+  };
+
   /* Select samples to display based on cursor position and window mode.
    * Pure function - offset is passed in and new offset returned. */
   let select =
