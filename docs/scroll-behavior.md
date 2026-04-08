@@ -60,8 +60,8 @@ from mouse position — do not scroll.** Everything else does:
   - Jump to tile (`Move(Goal(TileId(id)))`) — clicking an error in the
     sidebar, a probe link, or an exercise test result. Jumps to a specific
     syntax node by ID.
-  - Next/previous hole (`Move(Goal(Hole(Right/Left)))`) — Tab key or
-    keyboard shortcuts. Jumps to the nearest hole in the given direction.
+  - Next/previous problem (`Move(Goal(NextProblem(Right/Left)))`) — Tab key
+    or keyboard shortcuts. Jumps to the nearest problem in the given direction.
 
   Jump commands are the most important case for scroll-to-caret because
   the destination is often completely off-screen. (Note: Cmd+click first
