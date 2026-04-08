@@ -188,6 +188,7 @@ let select_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
         ~pinned=dynamics.sample_focus.pinned_stack,
+        ~anti_pin=dynamics.sample_focus.anti_pin,
         dynamics.samples,
       )
     };
@@ -930,6 +931,7 @@ let mv_least_distant_sample = (ctx: probe_ctx, _evt): Effect.t(unit) => {
     Sample.Selection.filter_by_pin(
       ~ap_id,
       ~pinned=dynamics.sample_focus.pinned_stack,
+      ~anti_pin=dynamics.sample_focus.anti_pin,
       dynamics.samples,
     );
   switch (
@@ -1003,6 +1005,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     Sample.Selection.filter_by_pin(
       ~ap_id,
       ~pinned=dynamics.sample_focus.pinned_stack,
+      ~anti_pin=dynamics.sample_focus.anti_pin,
       dynamics.samples,
     );
   let cursor_idx =
@@ -1049,6 +1052,7 @@ let num_samples_view = (~ap_id: option(Id.t), dynamics: Dynamics.Info.t) => {
     Sample.Selection.filter_by_pin(
       ~ap_id,
       ~pinned=dynamics.sample_focus.pinned_stack,
+      ~anti_pin=dynamics.sample_focus.anti_pin,
       dynamics.samples,
     )
     |> List.length;
@@ -1255,6 +1259,7 @@ let offside_view =
       Sample.Selection.filter_by_pin(
         ~ap_id,
         ~pinned=dynamics.sample_focus.pinned_stack,
+        ~anti_pin=dynamics.sample_focus.anti_pin,
         dynamics.samples,
       );
     let num_total = List.length(filtered_samples);

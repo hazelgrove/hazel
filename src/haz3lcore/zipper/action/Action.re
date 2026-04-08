@@ -47,6 +47,7 @@ type select =
 type sample_focus =
   | Capture(Language.Sample.Capture.t, option(Id.t))
   | TogglePin(Language.Sample.call_stack)
+  | ToggleAntiPin(int) /* Toggle anti-pin (inner bound) at a depth index */
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
   | Reset;
 

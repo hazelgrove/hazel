@@ -127,10 +127,23 @@ let set_index = (z: Zipper.t, i: int): Zipper.t =>
     },
   );
 
+let toggle_anti_pin = (z: Zipper.t, depth: int): Zipper.t =>
+  update(z, sample_focus =>
+    {
+      ...sample_focus,
+      anti_pin:
+        switch (sample_focus.anti_pin) {
+        | Some(existing) when existing == depth => None
+        | _ => Some(depth)
+        },
+    }
+  );
+
 let go = (z: Zipper.t, a: Action.sample_focus): Zipper.t =>
   switch (a) {
   | Capture(sample, id) => capture(z, sample, id)
   | TogglePin(call_stack) => toggle_pin_call(z, call_stack)
+  | ToggleAntiPin(depth) => toggle_anti_pin(z, depth)
   | SetIndex(i) => set_index(z, i)
   | Reset => reset(z)
   };

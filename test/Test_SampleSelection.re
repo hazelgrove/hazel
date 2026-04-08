@@ -62,6 +62,7 @@ let mk_sample =
 let mk_cursor =
     (
       ~pinned=None,
+      ~anti_pin=None,
       ~indicated_call=None,
       ~seq=0,
       ~step_range=None,
@@ -71,6 +72,7 @@ let mk_cursor =
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,
+  anti_pin,
   indicated_call,
   time: None,
   seq,
@@ -589,6 +591,7 @@ let empty_status_tests = [
 let mk_cursor_at_index =
     (
       ~pinned=None,
+      ~anti_pin=None,
       ~indicated_call=None,
       ~seq=0,
       ~step_range=None,
@@ -599,6 +602,7 @@ let mk_cursor_at_index =
   call_stack: stack,
   index,
   pinned_stack: pinned,
+  anti_pin,
   indicated_call,
   time: None,
   seq,
@@ -907,6 +911,7 @@ let three_level_tests = [
         call_stack: [n0, m1, f_frame],
         index: 2,
         pinned_stack: None,
+        anti_pin: None,
         indicated_call: None,
         time: None,
         seq: 0,
@@ -1534,6 +1539,114 @@ let perspective_extension_tests = [
   ),
 ];
 
+/* --- Test: anti-pin (inner bound) filtering --- */
+
+let anti_pin_tests = [
+  test_case(
+    "anti-pin: no anti_pin passes everything",
+    `Quick,
+    () => {
+      let samples = [
+        mk_sample([]),
+        mk_sample([frame(id_a)]),
+        mk_sample([frame(id_b), frame(id_a)]),
+      ];
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=None,
+          ~anti_pin=None,
+          samples,
+        );
+      check(int, "all samples pass", 3, List.length(filtered));
+    },
+  ),
+  test_case(
+    "anti-pin: depth 0 allows only depth-1 samples",
+    `Quick,
+    () => {
+      /* anti_pin=0 means max call_stack length = 1 */
+      let s_top = mk_sample([]);
+      let s_depth1 = mk_sample([frame(id_a)]);
+      let s_depth2 = mk_sample([frame(id_b), frame(id_a)]);
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=None,
+          ~anti_pin=Some(0),
+          [s_top, s_depth1, s_depth2],
+        );
+      check(int, "should keep top + depth1", 2, List.length(filtered));
+    },
+  ),
+  test_case(
+    "anti-pin: depth 1 allows depth-1 and depth-2 samples",
+    `Quick,
+    () => {
+      let s_top = mk_sample([]);
+      let s_depth1 = mk_sample([frame(id_a)]);
+      let s_depth2 = mk_sample([frame(id_b), frame(id_a)]);
+      let s_depth3 = mk_sample([frame(id_c), frame(id_b), frame(id_a)]);
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=None,
+          ~anti_pin=Some(1),
+          [s_top, s_depth1, s_depth2, s_depth3],
+        );
+      check(int, "should keep top + depth1 + depth2", 3, List.length(filtered));
+    },
+  ),
+  test_case(
+    "anti-pin: combined with pin (both bounds active)",
+    `Quick,
+    () => {
+      /* Pin at [A] keeps samples at/below A.
+       * Anti-pin at depth 1 removes samples deeper than depth 2.
+       * So: only keep samples with stack matching A suffix and length <= 2. */
+      let pinned = Some([frame(id_a)]);
+      let s_match = mk_sample([frame(id_a)]);
+      let s_deeper = mk_sample([frame(id_b), frame(id_a)]);
+      let s_too_deep = mk_sample([frame(id_c), frame(id_b), frame(id_a)]);
+      let s_no_match = mk_sample([frame(id_d)]);
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned,
+          ~anti_pin=Some(1),
+          [s_match, s_deeper, s_too_deep, s_no_match],
+        );
+      check(
+        int,
+        "should keep match + deeper but not too_deep or no_match",
+        2,
+        List.length(filtered),
+      );
+    },
+  ),
+  test_case(
+    "anti-pin: select with anti_pin filters correctly",
+    `Quick,
+    () => {
+      /* End-to-end: Selection.select with anti_pin should limit depth */
+      let cursor = mk_cursor(~anti_pin=Some(0), [frame(id_a)]);
+      let s_depth1 = mk_sample(~seq=0, [frame(id_a)]);
+      let s_depth2 = mk_sample(~seq=1, [frame(id_b), frame(id_a)]);
+      let (selected, _) =
+        Sample.Selection.select(
+          ~mode=Many,
+          ~offset=0,
+          ~ap_id=None,
+          ~pinned=None,
+          ~anti_pin=Some(0),
+          ~cursor,
+          [s_depth1, s_depth2],
+        );
+      check(int, "should show only depth-1 sample", 1, List.length(selected));
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -1549,5 +1662,6 @@ let tests = (
     recursive_tests,
     call_click_alignment_tests,
     perspective_extension_tests,
+    anti_pin_tests,
   ]),
 );

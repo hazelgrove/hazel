@@ -304,6 +304,32 @@ select {
   filter: brightness(1.2);
 }
 
+/* Anti-pin (inner bound) icon and styling */
+#sample-focus-bar .anti-pin-icon {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 1em;
+  border: 2px solid var(--B1);
+  background: transparent;
+  cursor: pointer;
+  margin-right: 0.3em;
+  vertical-align: middle;
+  position: absolute;
+  bottom: -0.1em;
+  right: -0.75em;
+  scale: 0.75;
+}
+
+#sample-focus-bar .anti-pin-icon:hover {
+  background: var(--B1);
+}
+
+#sample-focus-bar .breadcrumb-entry.anti-pinned {
+  outline: 1.5px dashed var(--B1);
+  border-radius: 3px;
+}
+
 #sample-focus-bar .breadcrumb-body {
   cursor: pointer;
   padding: 0 0.4em;

@@ -306,7 +306,10 @@ module Focus = {
   /* Focus.t fields:
    * - call_stack: Full call context; may be deeper than effective cursor
    * - index: Effective depth in call_stack (-1 = top-level, 0+ = inside calls)
-   * - pinned_stack: If set, filters samples to those under this call context
+   * - pinned_stack: If set, filters samples to those under this call context (outer bound)
+   * - anti_pin: If set, an index into call_stack representing the depth ceiling (inner bound).
+   *     Samples whose call stack is deeper than anti_pin + 1 are filtered out.
+   *     Invariant: when both pin and anti_pin are set, anti_pin <= pin's effective depth.
    * - indicated_call: Syntax ID of function call under syntax cursor (for step-into)
    * - time: Timestamp of focused sample (for time-based correlation)
    * - seq: Sequence number of focused sample (for ordering-based correlation)
@@ -317,6 +320,7 @@ module Focus = {
     call_stack,
     index: int,
     pinned_stack: option(call_stack),
+    anti_pin: option(int),
     indicated_call: option(Id.t),
     time: option(float),
     seq: int,
@@ -328,6 +332,7 @@ module Focus = {
     call_stack: [],
     index: (-1),
     pinned_stack: None,
+    anti_pin: None,
     indicated_call: None,
     time: None,
     seq: 0,
@@ -501,38 +506,59 @@ module Selection = {
       Some(NotAligned);
     };
 
-  /* Filter samples by pinned call stack.
-   * Print-origin samples are excluded — they are only for the Printarium. */
+  /* Filter samples by pinned call stack (outer bound) and anti-pin (inner bound).
+   * Print-origin samples are excluded — they are only for the Printarium.
+   *
+   * Pin (outer bound): only show samples within this calling context.
+   * Anti-pin (inner bound): don't show samples deeper than this depth.
+   *
+   * The anti_pin is an index into the sightline's call_stack. Samples whose
+   * call_stack length exceeds anti_pin + 1 are filtered out. */
   let filter_by_pin =
-      (~ap_id: option(Id.t), ~pinned: option(call_stack), samples: list(t))
+      (
+        ~ap_id: option(Id.t),
+        ~pinned: option(call_stack),
+        ~anti_pin: option(int)=None,
+        samples: list(t),
+      )
       : list(t) => {
     let samples = List.filter((s: t) => s.origin != Print, samples);
-    switch (pinned) {
-    | Some(pinned_stack) =>
-      /* Extract just the Id.t from head of pinned_stack for comparison */
-      let pinned_head_id =
-        Option.map((f: stack_frame) => f.id, ListUtil.hd_opt(pinned_stack));
-      /* Compare by ID only - pinned_stack may have None for function names
-       * but actual samples have real names from evaluation */
-      let pinned_ids = ids_of_stack(pinned_stack);
+    let samples =
+      switch (pinned) {
+      | Some(pinned_stack) =>
+        /* Extract just the Id.t from head of pinned_stack for comparison */
+        let pinned_head_id =
+          Option.map((f: stack_frame) => f.id, ListUtil.hd_opt(pinned_stack));
+        /* Compare by ID only - pinned_stack may have None for function names
+         * but actual samples have real names from evaluation */
+        let pinned_ids = ids_of_stack(pinned_stack);
+        List.filter(
+          (sample: t) => {
+            let sample_ids = ids_of_stack(sample.call_stack);
+            pinned_head_id == ap_id
+            /* Sample is at or below pin (current behavior) */
+            || ListUtil.is_suffix_of(pinned_ids, sample_ids)
+            /* Probe is on an application in the pinned call chain,
+             * and sample is above pin on same ancestral path (breadcrumbs) */
+            || ListUtil.is_suffix_of(sample_ids, pinned_ids)
+            && (
+              switch (ap_id) {
+              | Some(id) => List.mem(id, pinned_ids)
+              | None => false
+              }
+            );
+          },
+          samples,
+        );
+      | None => samples
+      };
+    /* Anti-pin (inner bound): filter out samples deeper than the depth ceiling */
+    switch (anti_pin) {
+    | Some(depth) =>
       List.filter(
-        (sample: t) => {
-          let sample_ids = ids_of_stack(sample.call_stack);
-          pinned_head_id == ap_id
-          /* Sample is at or below pin (current behavior) */
-          || ListUtil.is_suffix_of(pinned_ids, sample_ids)
-          /* Probe is on an application in the pinned call chain,
-           * and sample is above pin on same ancestral path (breadcrumbs) */
-          || ListUtil.is_suffix_of(sample_ids, pinned_ids)
-          && (
-            switch (ap_id) {
-            | Some(id) => List.mem(id, pinned_ids)
-            | None => false
-            }
-          );
-        },
+        (sample: t) => List.length(sample.call_stack) <= depth + 1,
         samples,
-      );
+      )
     | None => samples
     };
   };
@@ -661,11 +687,12 @@ module Selection = {
         ~offset: int,
         ~ap_id: option(Id.t),
         ~pinned: option(call_stack),
+        ~anti_pin: option(int)=None,
         ~cursor: Focus.t,
         samples: list(t),
       )
       : (list(t), int) => {
-    let filtered = filter_by_pin(~ap_id, ~pinned, samples);
+    let filtered = filter_by_pin(~ap_id, ~pinned, ~anti_pin, samples);
     let first_idx = most_aligned_index(~ap_id, cursor, filtered);
     if (first_idx == None && mode == Single) {
       ([], offset);

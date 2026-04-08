@@ -72,6 +72,12 @@ let unpin = (~globals: Globals.t, pinned_stack: Sample.call_stack, _) =>
     ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack)))),
   );
 
+/* Toggle anti-pin (inner bound) at a depth index */
+let toggle_anti_pin = (~globals: Globals.t, depth: int, _) =>
+  globals.inject_global(
+    ActiveEditor(Project(SampleFocus(ToggleAntiPin(depth)))),
+  );
+
 /* Check if any probes exist */
 let has_probes = (refractors: Zipper.Refractor.t): bool =>
   !List.is_empty(refractors.manuals)
@@ -392,6 +398,14 @@ let view =
       );
     let budget = available_chars - bar_overhead_chars;
 
+    /* Anti-pin state: convert from original (innermost-first) index
+     * to reversed (outermost-first) view index */
+    let anti_pin = sample_focus.anti_pin;
+    let n = List.length(call_stack);
+    let anti_pin_view_index =
+      Option.map(depth => n - 1 - depth, anti_pin);
+    let has_pin = pinned_stack != None;
+
     /* Build a single breadcrumb entry (separator + entry node) for stack index i */
     let build_single_entry = (i: int): list(Node.t) => {
       let frame: Sample.stack_frame = List.nth(call_stack, i);
@@ -413,21 +427,34 @@ let view =
           ? Some(app_id)
           : find_nearest_user_app(~info_map, ~call_stack, ~from_index=i - 1);
 
+      let is_anti_pinned = anti_pin_view_index == Some(i);
       let entry_classes =
         ["breadcrumb-entry"]
         @ (is_focused ? ["focused"] : [])
         @ (is_ghost ? ["ghost"] : [])
         @ (is_unknown ? ["unknown"] : [])
+        @ (is_anti_pinned ? ["anti-pinned"] : [])
         @ (position_class != "" ? [position_class] : []);
 
+      /* Convert view index i to original stack depth for anti-pin */
+      let original_depth = n - 1 - i;
+
       let on_entry_click = evt =>
-        switch (call_site_target) {
-        | Some(target_id) =>
+        if (Key.alt_held(evt) && has_pin) {
+          /* Alt+click toggles anti-pin at this depth */
           Effect.Many([
-            set_focus_index(~globals, i, evt),
-            jump_to(~globals, target_id, evt),
-          ])
-        | None => set_focus_index(~globals, i, evt)
+            Effect.Stop_propagation,
+            toggle_anti_pin(~globals, original_depth, evt),
+          ]);
+        } else {
+          switch (call_site_target) {
+          | Some(target_id) =>
+            Effect.Many([
+              set_focus_index(~globals, i, evt),
+              jump_to(~globals, target_id, evt),
+            ])
+          | None => set_focus_index(~globals, i, evt)
+          };
         };
 
       let is_pinned = Some(app_id) == pinned_head_id;
@@ -451,8 +478,41 @@ let view =
         | _ => []
         };
 
+      /* Anti-pin icon: shown when this entry is the anti-pin point */
+      let anti_pin_icon =
+        if (is_anti_pinned) {
+          [
+            span(
+              ~attrs=[
+                Attr.class_("anti-pin-icon"),
+                Attr.title("Click to remove inner bound"),
+                Attr.on_pointerdown(evt =>
+                  Effect.Many([
+                    Effect.Stop_propagation,
+                    toggle_anti_pin(~globals, original_depth, evt),
+                  ])
+                ),
+              ],
+              [],
+            ),
+          ];
+        } else {
+          [];
+        };
+
       let entry_tooltip =
-        if (is_in_user_code(~info_map, app_id)) {
+        if (is_anti_pinned) {
+          "Alt+click to remove inner bound";
+        } else if (has_pin) {
+          if (is_in_user_code(~info_map, app_id)) {
+            "Jump to call site (Alt+click: set inner bound)";
+          } else {
+            switch (call_site_target) {
+            | Some(_) => {js|Internal call — jump to enclosing (Alt+click: set inner bound)|js}
+            | None => "Internal call (Alt+click: set inner bound)"
+            };
+          };
+        } else if (is_in_user_code(~info_map, app_id)) {
           "Jump to call site";
         } else {
           switch (call_site_target) {
@@ -468,7 +528,7 @@ let view =
             Attr.title(entry_tooltip),
             Attr.on_pointerdown(on_entry_click),
           ],
-          pin_icon @ [text(display_text)],
+          pin_icon @ anti_pin_icon @ [text(display_text)],
         );
 
       let sep_ghost = i > index + 1;
