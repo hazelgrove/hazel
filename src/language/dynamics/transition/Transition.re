@@ -184,7 +184,13 @@ module Transition = (EV: EV_MODE) => {
   open IdTagged.FreshGrammar.Exp;
 
   /* Helper function to wrap a closure around an expression. Required for functions, but also for
-     things like if-then-else expressions where the scrutinee is indet, and for hole closures */
+     things like if-then-else expressions where the scrutinee is indet, and for hole closures.
+
+     is_value: true because the Closure-wrapped expression is already fully evaluated
+     (all requirements were resolved by req_final). Re-evaluating it would redundantly
+     traverse sub-expressions, which (a) is wasteful and (b) causes spurious probe samples
+     when indeterminate return values from recursive calls are re-traversed at wrong call
+     stack depths. See Test_Evaluator_Probes "Recursive indet" tests. */
   let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
     switch (in_closure, r) {
     | (_, Step(_)) => r
@@ -193,7 +199,7 @@ module Transition = (EV: EV_MODE) => {
         expr: closure(env, expr),
         side_effects: [],
         kind: WrapClosure,
-        is_value: false,
+        is_value: true,
       })
     | (Some(f), Constructor | Indet | Value) =>
       f();
