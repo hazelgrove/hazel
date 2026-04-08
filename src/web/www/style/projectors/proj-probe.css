@@ -356,7 +356,7 @@
 .live-offside .sample-groups {
   display: flex;
   flex-direction: row;
-  gap: 6px;
+  gap: 5px;
 }
 
 .live-offside .sample-group {
@@ -405,17 +405,13 @@
     top 0.1s ease-in-out;
 }
 
-.live-offside .sample:has(.value.indet) {
-  /* background-color: var(--R0) !important;
-  --below-shadow: var(--R2);
-  --bottom-border-clr: var(--R2);
-  --inner-shadow: #f59393 !important; */
+/* Indet styling only applies to focus-aligned samples; for off-context
+ * samples (blue/pink), the call-context color is more informative than
+ * the indet indicator, so we let it show through. */
+.live-offside .sample:has(.value.indet.focus) {
   background-color: var(--T2) !important;
   --depth-shadow: oklch(0.46 0 0);
   --bottom-border-clr: oklch(0.4 0 0);
-}
-.live-offside .sample:has(.value.indet.focus) {
-  background-color: hsl(43, 80%, 83%) !important;
 }
 /* .live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
@@ -600,13 +596,9 @@
 
 /* TOKENS */
 
-.live-offside .value.indet .code-text .token {
+/* .live-offside .value.indet.focus .code-text .token {
   color: var(--BR2) !important;
-}
-
-.live-offside .value.indet.focus .code-text .token {
-  color: var(--BR2) !important;
-}
+} */
 
 .live-offside .value .token.explicit-hole {
   color: white;
@@ -625,10 +617,17 @@
   color: var(--exp-indicated);
 }
 
-.live-offside.Many .value.unrelated .code-text .token,
-.live-offside.Many .value.tangent-before .code-text .token,
+.live-offside.Many .value.unrelated .code-text .token {
+  color: #437543;
+  opacity: 0.7;
+}
+.live-offside.Many .value.tangent-before .code-text .token {
+  color: var(--sample-above-text);
+  opacity: 0.7;
+}
 .live-offside.Many .value.tangent-after .code-text .token {
-  color: white;
+  color: var(--sample-below-text);
+  opacity: 0.7;
 }
 /* .live-offside.Single .value.unrelated .code-text .token {
   color: rgb(102, 102, 102);
