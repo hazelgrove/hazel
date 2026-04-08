@@ -63,6 +63,11 @@ module Model = {
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
+      problems: {
+        collapsed: [],
+        flat: false,
+        expanded: [],
+      },
     },
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
@@ -85,7 +90,18 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
 
-  let persist = x => x;
+  /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
+     and go stale across sessions. */
+  let persist = settings => {
+    ...settings,
+    sidebar: {
+      ...settings.sidebar,
+      problems: {
+        ...settings.sidebar.problems,
+        expanded: [],
+      },
+    },
+  };
   let unpersist = fix_instructor_mode;
 };
 
@@ -287,11 +303,44 @@ module Update = {
       | Sidebar(SwitchPanel(windowToSwitchTo)) => {
           ...settings,
           sidebar: {
+            ...settings.sidebar,
             show:
               !settings.sidebar.show
                 ? true
                 : settings.sidebar.panel == windowToSwitchTo ? false : true,
             panel: windowToSwitchTo,
+          },
+        }
+      | Sidebar(Problems(ToggleCollapsed(cat))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_collapsed(
+                cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleFlat)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems: {
+              ...settings.sidebar.problems,
+              flat: !settings.sidebar.problems.flat,
+            },
+          },
+        }
+      | Sidebar(Problems(ToggleExpanded(id))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_expanded(
+                id,
+                settings.sidebar.problems,
+              ),
           },
         }
       | ExplainThis(ToggleShowFeedback) => {

@@ -956,6 +956,79 @@ g(f(x))|},
     {|^^probe(case 1 end)|},
     [(0, ["case 1 end"])],
   ),
+  /* wrap_closure re-evaluation bug: when a recursive function returns an
+   * indeterminate value (e.g. if with hole condition), and the caller's
+   * let-destructuring fails (IndetMatch), wrap_closure_when_done wraps in
+   * Closure and re-evaluates. The re-evaluation traverses into the return
+   * value from the deeper call, re-evaluating probed sub-expressions at
+   * the wrong call stack. This produces spurious samples.
+   *
+   * Minimal case: partition_at([5, 10], 7)
+   * - partition_at([10], 7): let succeeds, evaluates `10 < ?` → 1 sample
+   * - partition_at([5, 10], 7): let fails (IndetMatch), `5 < ?` never
+   *   evaluated → should be 0 samples at this level
+   * Total expected: 1 sample for `hd < ?`. Bug produces 2. */
+  probe_count_test(
+    "Recursive indet: no spurious samples from wrap_closure (depth 2)",
+    {|let f : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = f(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in f([5, 10], 7)|},
+    [(6, 1)],
+  ),
+  /* Same bug at depth 4: partition_at called with [3, 9, 5, 10].
+   * Only the deepest non-empty call ([10]) reaches the if condition.
+   * Expected: 1 sample. Bug produces 4 (one per recursion level). */
+  probe_count_test(
+    "Recursive indet: no spurious samples from wrap_closure (depth 4)",
+    {|let f : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = f(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in f([3, 9, 5, 10], 7)|},
+    [(6, 1)],
+  ),
+  /* Full quicksort example: two test chains, each with one deepest call
+   * that reaches the if condition. Expected: 2 samples total. */
+  probe_count_test(
+    "Quicksort recursive indet: correct sample count",
+    {|let partition_at : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = partition_at(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in
+let quicksort : [Int] -> [Int] =
+  fun xs ->
+    case xs
+    | [] => []
+    | hd::tl =>
+      let (s, b) = partition_at(tl, hd) in
+      ?
+    end
+in
+let _ = quicksort([7, 3, 9, 5, 10])
+in quicksort([5, 0, 9, 3, 1])|},
+    [(6, 2)],
+  ),
 ];
 
 let module_tests = [
