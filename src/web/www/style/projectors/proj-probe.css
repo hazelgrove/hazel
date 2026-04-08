@@ -405,17 +405,13 @@
     top 0.1s ease-in-out;
 }
 
-.live-offside .sample:has(.value.indet) {
-  /* background-color: var(--R0) !important;
-  --below-shadow: var(--R2);
-  --bottom-border-clr: var(--R2);
-  --inner-shadow: #f59393 !important; */
+/* Indet styling only applies to focus-aligned samples; for off-context
+ * samples (blue/pink), the call-context color is more informative than
+ * the indet indicator, so we let it show through. */
+.live-offside .sample:has(.value.indet.focus) {
   background-color: var(--T2) !important;
   --depth-shadow: oklch(0.46 0 0);
   --bottom-border-clr: oklch(0.4 0 0);
-}
-.live-offside .sample:has(.value.indet.focus) {
-  background-color: hsl(43, 80%, 83%) !important;
 }
 /* .live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
@@ -599,10 +595,6 @@
 }
 
 /* TOKENS */
-
-.live-offside .value.indet .code-text .token {
-  color: var(--BR2) !important;
-}
 
 .live-offside .value.indet.focus .code-text .token {
   color: var(--BR2) !important;
