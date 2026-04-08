@@ -64,18 +64,18 @@ module Update = {
                  )
                | _ => false
                };
-             (Action.is_edit(action)
-              /* When probe_all is on, Refractor actions don't require
-               * re-evaluation since all probes are already computed */
-              && !(
-                   settings.core.probe_all
-                   && (
-                     switch (action) {
-                     | Probe(_) => true
-                     | _ => false
-                     }
-                   )
-                 ))
+             Action.is_edit(action)
+             /* When probe_all is on, Refractor actions don't require
+              * re-evaluation since all probes are already computed */
+             && !(
+                  settings.core.probe_all
+                  && (
+                    switch (action) {
+                    | Probe(_) => true
+                    | _ => false
+                    }
+                  )
+                )
              || buffer_cleared;
            },
            ~recalculate=true,

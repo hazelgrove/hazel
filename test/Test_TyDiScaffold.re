@@ -470,8 +470,7 @@ let edge_tests = (
     /* After comma in ancestor context (both parens placed) */
     scaffold_test(
       ~name="After comma ancestor: f(1, |) → ?, ",
-      ~code=
-        "let f : (Int, Bool, Float) -> Int = fun x -> 0 in f(1, ¦)",
+      ~code="let f : (Int, Bool, Float) -> Int = fun x -> 0 in f(1, ¦)",
       ~expect=Some("?, "),
     ),
   ],

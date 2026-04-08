@@ -97,10 +97,13 @@ let mk_segment =
   let left = left_hole ? [mk_hole()] : [];
   let middle =
     List.concat(
-      List.init(deficit, i => {
-        let inter = i > 0 ? [mk_hole()] : [];
-        inter @ [mk_comma(), mk_space()];
-      }),
+      List.init(
+        deficit,
+        i => {
+          let inter = i > 0 ? [mk_hole()] : [];
+          inter @ [mk_comma(), mk_space()];
+        },
+      ),
     );
   let right = right_hole ? [mk_hole()] : [];
   left @ middle @ right;
@@ -414,83 +417,81 @@ let right_has_convex = (r: list(Piece.t)): bool => {
  * Then: look up expected Prod type, check suppression, compute arity. */
 let display = (~info_map: Statics.Map.t, z: Zipper.t): option(Segment.t) => {
   let r = snd(z.relatives.siblings);
-  {
-    /* Preconditions */
-    let* () = z.caret == Outer ? Some() : None;
-    let* () = inside_parens(z) ? Some() : None;
-    let* () =
-      switch (z.selection.mode) {
-      | Buffer(Parsed | Unparsed) => None
-      | Normal when !Selection.is_empty(z.selection) => None
-      | _ => Some()
-      };
 
-    /* Get the expected Prod type */
-    let* expected_ty = expected_type(z, info_map);
-    let expected_ty = unwrap_parens(expected_ty);
-    let* tys =
-      switch (Typ.term_of(expected_ty)) {
-      | Prod(tys) when List.length(tys) >= 2 => Some(tys)
-      | _ => None
-      };
-
-    /* Scope to innermost paren and check suppression */
-    let scoped_l = inner_left_siblings(z);
-    let l = List.rev(scoped_l);
-    if (should_suppress(l, expected_ty, info_map)) {
-      None;
-    } else {
-      let arity = List.length(tys);
-      let existing_commas =
-        count_commas_in(scoped_l)
-        + count_commas_in(snd(z.relatives.siblings));
-      let remaining = arity - 1 - existing_commas;
-
-      let* () = remaining > 0 ? Some() : None;
-
-      let left_hole = left_is_concave(scoped_l);
-      /* Trailing hole only when scaffold starts with comma (left_hole=false).
-       * When left_hole=true, the scaffold ends with comma+space and the
-       * right side provides the last element (via grout or regrout). */
-      let right_hole = !left_hole && !right_has_convex(r);
-      let seg = mk_segment(~left_hole, ~right_hole, remaining);
-      /* If caret immediately follows a comma without a trailing space,
-       * prepend a space so the scaffold reads "f(1, ?" not "f(1,?". */
-      let seg =
-        left_needs_space(l)
-          ? [
-            Piece.Secondary({
-              id: Id.mk(),
-              content: Whitespace(" "),
-            }),
-            ...seg,
-          ]
-          : seg;
-      /* If the right side already starts with whitespace, strip the
-       * scaffold's trailing space to avoid double-spacing. Skip concave
-       * grout (regrout artifact) to get a stable result across the
-       * two-pass statics flow (set() strips concave grout from siblings,
-       * so Pass 2 sees different r than Pass 1). */
-      let right_has_space = {
-        let rec check =
-          fun
-          | [Piece.Grout({shape: Concave, _}), ...rest] => check(rest)
-          | [Piece.Secondary({content: Whitespace(_), _}), ..._] => true
-          | _ => false;
-        check(r);
-      };
-      let seg =
-        if (right_has_space) {
-          switch (List.rev(seg)) {
-          | [Piece.Secondary({content: Whitespace(_), _}), ...rest] =>
-            List.rev(rest)
-          | _ => seg
-          };
-        } else {
-          seg;
-        };
-      Some(seg);
+  /* Preconditions */
+  let* () = z.caret == Outer ? Some() : None;
+  let* () = inside_parens(z) ? Some() : None;
+  let* () =
+    switch (z.selection.mode) {
+    | Buffer(Parsed | Unparsed) => None
+    | Normal when !Selection.is_empty(z.selection) => None
+    | _ => Some()
     };
+
+  /* Get the expected Prod type */
+  let* expected_ty = expected_type(z, info_map);
+  let expected_ty = unwrap_parens(expected_ty);
+  let* tys =
+    switch (Typ.term_of(expected_ty)) {
+    | Prod(tys) when List.length(tys) >= 2 => Some(tys)
+    | _ => None
+    };
+
+  /* Scope to innermost paren and check suppression */
+  let scoped_l = inner_left_siblings(z);
+  let l = List.rev(scoped_l);
+  if (should_suppress(l, expected_ty, info_map)) {
+    None;
+  } else {
+    let arity = List.length(tys);
+    let existing_commas =
+      count_commas_in(scoped_l) + count_commas_in(snd(z.relatives.siblings));
+    let remaining = arity - 1 - existing_commas;
+
+    let* () = remaining > 0 ? Some() : None;
+
+    let left_hole = left_is_concave(scoped_l);
+    /* Trailing hole only when scaffold starts with comma (left_hole=false).
+     * When left_hole=true, the scaffold ends with comma+space and the
+     * right side provides the last element (via grout or regrout). */
+    let right_hole = !left_hole && !right_has_convex(r);
+    let seg = mk_segment(~left_hole, ~right_hole, remaining);
+    /* If caret immediately follows a comma without a trailing space,
+     * prepend a space so the scaffold reads "f(1, ?" not "f(1,?". */
+    let seg =
+      left_needs_space(l)
+        ? [
+          Piece.Secondary({
+            id: Id.mk(),
+            content: Whitespace(" "),
+          }),
+          ...seg,
+        ]
+        : seg;
+    /* If the right side already starts with whitespace, strip the
+     * scaffold's trailing space to avoid double-spacing. Skip concave
+     * grout (regrout artifact) to get a stable result across the
+     * two-pass statics flow (set() strips concave grout from siblings,
+     * so Pass 2 sees different r than Pass 1). */
+    let right_has_space = {
+      let rec check =
+        fun
+        | [Piece.Grout({shape: Concave, _}), ...rest] => check(rest)
+        | [Piece.Secondary({content: Whitespace(_), _}), ..._] => true
+        | _ => false;
+      check(r);
+    };
+    let seg =
+      if (right_has_space) {
+        switch (List.rev(seg)) {
+        | [Piece.Secondary({content: Whitespace(_), _}), ...rest] =>
+          List.rev(rest)
+        | _ => seg
+        };
+      } else {
+        seg;
+      };
+    Some(seg);
   };
 };
 
