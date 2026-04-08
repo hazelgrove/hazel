@@ -121,7 +121,8 @@ module Update = {
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
-          : Zipper.can_put_down(z) ? Put_down : Move(Goal(Hole(Right)));
+          : Zipper.can_put_down(z)
+              ? Put_down : Move(Goal(NextProblem(Right)));
       perform(action, model);
     };
   };
