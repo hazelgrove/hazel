@@ -356,7 +356,7 @@
 .live-offside .sample-groups {
   display: flex;
   flex-direction: row;
-  gap: 3px;
+  gap: 5px;
 }
 
 .live-offside .sample-group {
