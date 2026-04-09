@@ -5,8 +5,8 @@ let allowed_kinds_line =
   ++ "Do not use probe or statics here — use place_probe / place_statics instead.";
 
 let catalog_crossref =
-  "See the system prompt **Projectors and the agent view** for what each projector expects (literals, lists, etc.). "
-  ++ "Empty lists may map to card or csv differently.";
+  "See the system prompt **Projectors and the agent view** for what each projector expects. "
+  ++ "**csv** applies only when the definition is the empty list `[]`. **card** applies to playing-card syntax `(Suit, Rank)` or lists of those—not arbitrary lists or record-like blocks.";
 
 let place_syntax_projector_description =
   {|

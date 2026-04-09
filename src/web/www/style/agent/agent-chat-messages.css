@@ -388,7 +388,6 @@
   color: var(--BR4);
   text-align: center;
   line-height: 1.25;
-  white-space: nowrap;
 }
 
 .context-meter-track {

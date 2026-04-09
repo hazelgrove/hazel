@@ -17,11 +17,11 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
   switch (k) {
   | Csv =>
     Some(
-      "- **csv** — Spreadsheet-style editor for list / table-like literals.",
+      "- **csv** — CSV **file import** UI. Attaches only when the definition is the **empty list** `[]`; after placement, import fills it with row/tuple syntax. Non-empty lists (e.g. `[1, 2, 3]`) **cannot** take this projector.",
     )
   | Card =>
     Some(
-      "- **card** — Structured editor for labeled / record-like literals.",
+      "- **card** — **Playing-card** editor: a tuple `(Suit, Rank)` such as `(Hearts, Ace)` or a list of those tuples. **Not** for records, modules, or `{ let …; … }` blocks.",
     )
   | Checkbox => Some("- **checkbox** — Toggle UI for boolean literals.")
   | Slider => Some("- **slider** — Numeric literal editor (integer).")
@@ -88,7 +88,7 @@ let blurb_for_composition_prompt: list(string) = {
     "`kind` must be a menu projector name (`fold`, `slider`, `sliderf`, `check`, `text`, `card`, `csv`, `livelit`) — not `probe` or `statics` (those use the probe/statics tools).",
     "",
     "**CRITICAL — livelits are not automatic:** Ordinary Hazel code (`let speed = 50`, `let is_active = true`, list literals, records) renders as **plain text** until you call **`place_syntax_projector`**.",
-    "If the user asks how livelits work, or wants sliders/checkboxes/CSV editors/text boxes, you **must** call `place_syntax_projector` with the right `kind` on each binding path (e.g. `slider` on `\"speed\"`, `check` on `\"is_active\"`, `text` on `\"message\"`, `csv` on `\"colors\"`, nested paths like `\"config/volume\"`).",
+    "If the user asks how livelits work, or wants sliders/checkboxes/CSV editors/text boxes, you **must** call `place_syntax_projector` with the right `kind` on each binding path (e.g. `slider` on `\"speed\"`, `check` on `\"is_active\"`, `text` on `\"message\"`, `csv` only when the RHS is `[]`, `card` only on playing-card tuples/lists—see livelit lines above; nested paths like `\"config/volume\"`).",
     "**Never** describe interactive widgets as present based only on `initialize` or other edit tools — that is false unless the matching `place_syntax_projector` calls succeeded.",
     "",
   ]

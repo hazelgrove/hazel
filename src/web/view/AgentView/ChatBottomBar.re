@@ -252,7 +252,7 @@ let view =
     AgentGlobals.context_meter_limit_for_active(
       globals.settings.agent_globals,
     );
-  let (meter_label, fill_pct_opt, hover_title_pct) = {
+  let (meter_base_label, meter_pct_line_opt, fill_pct_opt, hover_title_pct) = {
     let n_str =
       switch (last_prompt_tokens_opt) {
       | Some(n) => string_of_int(n)
@@ -260,19 +260,27 @@ let view =
       };
     let m_str =
       switch (context_limit_opt) {
-      | Some(m) => string_of_int(m)
+      | Some(m) =>
+        switch (m) {
+        | 100_000 => "100k"
+        | _ => string_of_int(m)
+        }
       | None => "—"
       };
-    let label = n_str ++ " / " ++ m_str ++ " tokens used";
-    let (pct, title_pct) =
-      switch (last_prompt_tokens_opt, context_limit_opt) {
-      | (Some(n), Some(m)) when m > 0 =>
-        let frac = float_of_int(n) /. float_of_int(m);
-        let bar_pct = min(100, int_of_float(ceil(frac *. 100.0)));
-        (Some(bar_pct), Some(Printf.sprintf("%.2f%%", frac *. 100.0)));
-      | _ => (None, None)
-      };
-    (label, pct, title_pct);
+    let base_label = n_str ++ " / " ++ m_str ++ " context used";
+    switch (last_prompt_tokens_opt, context_limit_opt) {
+    | (Some(n), Some(m)) when m > 0 =>
+      let frac = float_of_int(n) /. float_of_int(m);
+      let bar_pct = min(100, int_of_float(ceil(frac *. 100.0)));
+      let pct_line = "(" ++ Printf.sprintf("%.1f%%", frac *. 100.0) ++ ")";
+      (
+        base_label,
+        Some(pct_line),
+        Some(bar_pct),
+        Some(Printf.sprintf("%.2f%%", frac *. 100.0)),
+      );
+    | _ => (base_label, None, None, None)
+    };
   };
 
   // Input area at bottom with buttons above
@@ -335,7 +343,13 @@ let view =
             [
               div(
                 ~attrs=[clss(["token-context-meter-label"])],
-                [text(meter_label)],
+                [text(meter_base_label)]
+                @ (
+                  switch (meter_pct_line_opt) {
+                  | Some(line) => [br(), text(line)]
+                  | None => []
+                  }
+                ),
               ),
               div(
                 ~attrs=[clss(["context-meter-track"])],
