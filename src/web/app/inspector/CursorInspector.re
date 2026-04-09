@@ -918,7 +918,7 @@ let pat_view =
     };
 
   let marks = info.marks;
-  (marks != [])
+  marks != []
     ? pat_marks_err_view(~globals, ~show_type_colon, cls, marks, info)
     : {
       let ok =

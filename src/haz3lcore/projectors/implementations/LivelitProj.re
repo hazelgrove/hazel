@@ -13,10 +13,8 @@ module M: Projector = {
     switch (info.statics) {
     | Some(
         InfoExp({
-          user_term: {
-            term: Ap(_dir, {term: LivelitName(llname), _}, model),
-            _,
-          },
+          user_term:
+            {term: Ap(_dir, {term: LivelitName(llname), _}, model), _},
           _,
         }),
       ) =>

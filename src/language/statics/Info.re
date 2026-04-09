@@ -32,6 +32,7 @@ type label_inference('a) =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
   user_term: Exp.t, /* The term under consideration */
+  elab_term: Exp.t,
   ancestors, /* Ascending list of containing term ids */
   ctx: Ctx.t, /* Typing context for the term */
   ana: Typ.t, /* Parental type expectations  */
@@ -54,7 +55,6 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
-  prev_synswitch: option(Typ.t), // If a pattern is first synthesized, then analysed, the initial syn is stored here.
   ana: Typ.t,
   syn_ty: Typ.t,
   marks: list(Mark.t),
@@ -224,7 +224,7 @@ let marks_of: t => list(Mark.t) =
   | InfoMPat(_)
   | Secondary(_) => [];
 
-  /* Determines whether any term is in an error hole. */
+/* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   marks_of(ci) != [];
 };
@@ -269,7 +269,6 @@ let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
-
 
 /* Determines whether an error is a syntax error (bad token or parse failure)
    as opposed to a static type error. */
@@ -316,9 +315,12 @@ let is_label = (info: t): bool =>
 /* Extract the projector kind from an info, if it represents a projector term */
 let projector_kind_of = (info: t): option(ProjectorKind.t) =>
   switch (info) {
-  | InfoExp({user_term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
-  | InfoPat({user_term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
-  | InfoTyp({user_term: {term: Projector({kind, _}, _), _}, _}) => Some(kind)
+  | InfoExp({user_term: {term: Projector({kind, _}, _), _}, _}) =>
+    Some(kind)
+  | InfoPat({user_term: {term: Projector({kind, _}, _), _}, _}) =>
+    Some(kind)
+  | InfoTyp({user_term: {term: Projector({kind, _}, _), _}, _}) =>
+    Some(kind)
   | _ => None
   };
 
@@ -350,8 +352,8 @@ let typ_is_constructor_expected = t =>
   switch (t) {
   | {
       expects:
-        TypExpectation.ConstructorExpected(_)
-        | TypExpectation.VariantExpected(_),
+        TypExpectation.ConstructorExpected(_) |
+        TypExpectation.VariantExpected(_),
       _,
     } =>
     true
@@ -374,4 +376,3 @@ let rec pre_labeled_info = (info: t): t =>
     pre_labeled_info(InfoPat(pli))
   | _ => info
   };
-

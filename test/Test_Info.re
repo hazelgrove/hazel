@@ -2,6 +2,41 @@ open Alcotest;
 open Language;
 open TypExpectation;
 
+module Statics = {
+  include Statics;
+
+  let show_typ_status =
+      ((marks, ok): (list(Mark.t), option(Message.ok_typ))): string =>
+    "{"
+    ++ [%derive.show: list(Mark.t)](marks)
+    ++ ", "
+    ++ [%derive.show: option(Message.ok_typ)](ok)
+    ++ "}";
+
+  let equal_typ_status =
+      (
+        (m1, o1): (list(Mark.t), option(Message.ok_typ)),
+        (m2, o2): (list(Mark.t), option(Message.ok_typ)),
+      )
+      : bool =>
+    m1 == m2 && o1 == o2;
+
+  let derive_typ_status = (ctx: Ctx.t, expects: TypExpectation.t, ty: Typ.t) => {
+    let (_, m) =
+      utyp_to_info_map(~ctx, ~expects, ~ancestors=[], ty, Map.empty);
+    switch (Map.lookup(Typ.rep_id(ty), m)) {
+    | Some(InfoTyp(info)) =>
+      let ok =
+        switch (info.message) {
+        | Some(Message.TypOk(ok)) => Some(ok)
+        | _ => None
+        };
+      (info.marks, ok);
+    | _ => ([], None)
+    };
+  };
+};
+
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
 let typ_status_testable =
@@ -39,7 +74,8 @@ let derive_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Unknown(Hole(EmptyHole)) |> Typ.temp;
-        let status = Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
+        let status =
+          Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
         check(
           typ_status_testable,
           "Empty label",
@@ -92,9 +128,9 @@ let derive_typ_tests = (
         check(
           typ_status_testable,
           "Alias is a type",
-          ([], Some(
-                Message.TypeAlias("A", Typ.weak_head_normalize(ctx, ty)),
-              ),
+          (
+            [],
+            Some(Message.TypeAlias("A", Typ.weak_head_normalize(ctx, ty))),
           ),
           status,
         );
@@ -145,7 +181,8 @@ let derive_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Var("A") |> Typ.temp; /* not an alias in this ctx */
-        let status = Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
+        let status =
+          Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
         check(
           typ_status_testable,
           "WantLabel",
@@ -167,13 +204,21 @@ let derive_typ_tests = (
           typ_status_testable,
           "Variant unique",
           ([], Some(Message.Variant("Some", sum_ty))),
-          Statics.derive_typ_status(ctx, ConstructorExpected(Unique, sum_ty), ty),
+          Statics.derive_typ_status(
+            ctx,
+            ConstructorExpected(Unique, sum_ty),
+            ty,
+          ),
         );
         check(
           typ_status_testable,
           "Variant unique",
           ([], Some(Message.Variant("Some", sum_ty))),
-          Statics.derive_typ_status(ctx, VariantExpected(Unique, sum_ty), ty),
+          Statics.derive_typ_status(
+            ctx,
+            VariantExpected(Unique, sum_ty),
+            ty,
+          ),
         );
       },
     ),
@@ -188,13 +233,21 @@ let derive_typ_tests = (
           typ_status_testable,
           "Duplicate constructor",
           ([Mark.TypDuplicateConstructor("Some")], None),
-          Statics.derive_typ_status(ctx, ConstructorExpected(Duplicate, sum_ty), ty),
+          Statics.derive_typ_status(
+            ctx,
+            ConstructorExpected(Duplicate, sum_ty),
+            ty,
+          ),
         );
         check(
           typ_status_testable,
           "Duplicate constructor variant",
           ([Mark.TypDuplicateConstructor("Some")], None),
-          Statics.derive_typ_status(ctx, VariantExpected(Duplicate, sum_ty), ty),
+          Statics.derive_typ_status(
+            ctx,
+            VariantExpected(Duplicate, sum_ty),
+            ty,
+          ),
         );
       },
     ),
@@ -220,7 +273,8 @@ let derive_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Label("a") |> Typ.temp;
-        let status = Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
+        let status =
+          Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
         check(
           typ_status_testable,
           "Label ok",
@@ -237,7 +291,11 @@ let derive_typ_tests = (
         let ty = Label("a") |> Typ.temp;
         let dupes = ["a", "b"];
         let status =
-          Statics.derive_typ_status(ctx, LabelExpected(Duplicate, dupes), ty);
+          Statics.derive_typ_status(
+            ctx,
+            LabelExpected(Duplicate, dupes),
+            ty,
+          );
         check(
           typ_status_testable,
           "Duplicate label",
@@ -253,7 +311,11 @@ let derive_typ_tests = (
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Label("a") |> Typ.temp;
         let status =
-          Statics.derive_typ_status(ctx, LabelExpected(Duplicate, ["x"]), ty);
+          Statics.derive_typ_status(
+            ctx,
+            LabelExpected(Duplicate, ["x"]),
+            ty,
+          );
         check(
           typ_status_testable,
           "WantLabel when not expected duplicate",
@@ -290,7 +352,11 @@ let derive_typ_tests = (
         let ty = Label("p") |> Typ.temp;
         let labels = ["x", "y"];
         let status =
-          Statics.derive_typ_status(ctx, LabelProjectionExpected(Some(labels)), ty);
+          Statics.derive_typ_status(
+            ctx,
+            LabelProjectionExpected(Some(labels)),
+            ty,
+          );
         check(
           typ_status_testable,
           "Invalid projection label",
@@ -307,7 +373,11 @@ let derive_typ_tests = (
         let ty = Label("a") |> Typ.temp;
         let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
         let status =
-          Statics.derive_typ_status(ctx, ConstructorExpected(Unique, sum_ty), ty);
+          Statics.derive_typ_status(
+            ctx,
+            ConstructorExpected(Unique, sum_ty),
+            ty,
+          );
         check(
           typ_status_testable,
           "Label where constructor expected",
@@ -324,7 +394,11 @@ let derive_typ_tests = (
         let ty = Label("a") |> Typ.temp;
         let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
         let status =
-          Statics.derive_typ_status(ctx, VariantExpected(Unique, sum_ty), ty);
+          Statics.derive_typ_status(
+            ctx,
+            VariantExpected(Unique, sum_ty),
+            ty,
+          );
         check(
           typ_status_testable,
           "Label where variant expected",
@@ -355,7 +429,8 @@ let derive_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Atom(Int) |> Typ.temp;
-        let status = Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
+        let status =
+          Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
         check(
           typ_status_testable,
           "WantLabel for non-label",
@@ -371,7 +446,11 @@ let derive_typ_tests = (
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Atom(Int) |> Typ.temp;
         let status =
-          Statics.derive_typ_status(ctx, LabelProjectionExpected(Some(["a"])), ty);
+          Statics.derive_typ_status(
+            ctx,
+            LabelProjectionExpected(Some(["a"])),
+            ty,
+          );
         check(
           typ_status_testable,
           "WantLabel for non-label (projection)",
@@ -388,7 +467,11 @@ let derive_typ_tests = (
         let ty = Atom(Int) |> Typ.temp;
         let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
         let status =
-          Statics.derive_typ_status(ctx, ConstructorExpected(Unique, sum_ty), ty);
+          Statics.derive_typ_status(
+            ctx,
+            ConstructorExpected(Unique, sum_ty),
+            ty,
+          );
         check(
           typ_status_testable,
           "Constructor expected elsewhere",

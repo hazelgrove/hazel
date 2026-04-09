@@ -105,10 +105,12 @@ module ProductProjection = {
                   ~ann=
                     FTemp.Typ.(
                       Some(
-                        Marks([ExpectationMismatch({
-                                ana: prod_projection(var("T"), label("a")),
-                                syn: string(),
-                              })]),
+                        Marks([
+                          ExpectationMismatch({
+                            ana: prod_projection(var("T"), label("a")),
+                            syn: string(),
+                          }),
+                        ]),
                       )
                     ),
                   "",
@@ -137,7 +139,10 @@ module ProductProjection = {
                 Typ.(
                   prod_projection(
                     var("T"),
-                    label(~ann=Some(Marks([Mark.InvalidLabel("b", ["a"])])), "b"),
+                    label(
+                      ~ann=Some(Marks([Mark.InvalidLabel("b", ["a"])])),
+                      "b",
+                    ),
                   )
                 ),
               ),
@@ -189,10 +194,12 @@ module ExplicitlyUnlabeledTuples = {
                     ~ann=
                       Some(
                         FTemp.Typ.(
-                          Marks([ExpectationMismatch({
-                                  ana: string(),
-                                  syn: int(),
-                                })])
+                          Marks([
+                            ExpectationMismatch({
+                              ana: string(),
+                              syn: int(),
+                            }),
+                          ])
                         ),
                       ),
                     1,
@@ -251,16 +258,18 @@ let tests = (
                   ~ann=
                     Some(
                       FTemp.Typ.(
-                        Marks([ExpectationMismatch({
-                                ana:
-                                  parens(
-                                    prod([
-                                      tup_label(label("a"), int()),
-                                      tup_label(label("b"), int()),
-                                    ]),
-                                  ),
-                                syn: prod([int(), int()]),
-                              })])
+                        Marks([
+                          ExpectationMismatch({
+                            ana:
+                              parens(
+                                prod([
+                                  tup_label(label("a"), int()),
+                                  tup_label(label("b"), int()),
+                                ]),
+                              ),
+                            syn: prod([int(), int()]),
+                          }),
+                        ])
                       ),
                     ),
                   "x",
@@ -302,10 +311,12 @@ let tests = (
                 ~ann=
                   Some(
                     FTemp.Typ.(
-                      Marks([ExpectationMismatch({
-                              ana: string(),
-                              syn: int(),
-                            })])
+                      Marks([
+                        ExpectationMismatch({
+                          ana: string(),
+                          syn: int(),
+                        }),
+                      ])
                     ),
                   ),
                 1,
@@ -418,7 +429,27 @@ let tests = (
               parens(
                 ~ann=
                   Some(
-                    Marks([TupleLabelError({
+                    Marks([
+                      TupleLabelError({
+                        malformed_labels: [],
+                        duplicate_labels: [],
+                        invalid_labels: ["z"],
+                        typ:
+                          FTemp.Typ.(
+                            prod([
+                              tup_label(label("a"), int()),
+                              tup_label(label("b"), float()),
+                              string(),
+                            ])
+                          ),
+                      }),
+                    ]),
+                  ),
+                tuple(
+                  ~ann=
+                    Some(
+                      Marks([
+                        TupleLabelError({
                           malformed_labels: [],
                           duplicate_labels: [],
                           invalid_labels: ["z"],
@@ -430,24 +461,8 @@ let tests = (
                                 string(),
                               ])
                             ),
-                        })]),
-                  ),
-                tuple(
-                  ~ann=
-                    Some(
-                      Marks([TupleLabelError({
-                            malformed_labels: [],
-                            duplicate_labels: [],
-                            invalid_labels: ["z"],
-                            typ:
-                              FTemp.Typ.(
-                                prod([
-                                  tup_label(label("a"), int()),
-                                  tup_label(label("b"), float()),
-                                  string(),
-                                ])
-                              ),
-                          })]),
+                        }),
+                      ]),
                     ),
                   [
                     int(1),
@@ -456,19 +471,18 @@ let tests = (
                       ~ann=
                         Some(
                           FTemp.Typ.(
-                            Marks([TupleLabelError({
-                                  malformed_labels: [],
-                                  duplicate_labels: [],
-                                  invalid_labels: ["z"],
-                                  typ: tup_label(label("z"), string()),
-                                })])
+                            Marks([
+                              TupleLabelError({
+                                malformed_labels: [],
+                                duplicate_labels: [],
+                                invalid_labels: ["z"],
+                                typ: tup_label(label("z"), string()),
+                              }),
+                            ])
                           ),
                         ),
                       label(
-                        ~ann=
-                          Some(
-                            Marks([InvalidLabel("z", ["a", "b"])]),
-                          ),
+                        ~ann=Some(Marks([InvalidLabel("z", ["a", "b"])])),
                         "z",
                       ),
                       string("hello"),
@@ -496,27 +510,31 @@ let tests = (
       () => {
         let duplicate_a_tuple_exp_ann: option(issue) =
           Some(
-            Marks([TupleLabelError({
-                  malformed_labels: [],
-                  duplicate_labels: ["a", "a"],
-                  invalid_labels: [],
-                  typ:
-                    FTemp.Typ.(
-                      prod([tup_label(label("a"), unknown(Internal))])
-                    ),
-                })]),
+            Marks([
+              TupleLabelError({
+                malformed_labels: [],
+                duplicate_labels: ["a", "a"],
+                invalid_labels: [],
+                typ:
+                  FTemp.Typ.(
+                    prod([tup_label(label("a"), unknown(Internal))])
+                  ),
+              }),
+            ]),
           );
         let label_error: option(issue) =
           Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
         let tup_label_error = (typ): option(issue) =>
           Some(
             FTemp.Typ.(
-              Marks([TupleLabelError({
-                    malformed_labels: [],
-                    duplicate_labels: ["a"],
-                    invalid_labels: [],
-                    typ: tup_label(label("a"), typ),
-                  })])
+              Marks([
+                TupleLabelError({
+                  malformed_labels: [],
+                  duplicate_labels: ["a"],
+                  invalid_labels: [],
+                  typ: tup_label(label("a"), typ),
+                }),
+              ])
             ),
           );
         annotated_tree_test(
@@ -556,15 +574,12 @@ let tests = (
             dot(
               ~ann=
                 Some(
-                  Marks([BadLabel(
-                          Exp(FTemp.Exp.(multi_hole([Exp(int(1))]))),
-                        )]),
+                  Marks([
+                    BadLabel(Exp(FTemp.Exp.(multi_hole([Exp(int(1))])))),
+                  ]),
                 ),
               tuple([int(1), int(2)]),
-              multi_hole(
-                ~ann=Some(Marks([IsMulti])),
-                [Exp(int(1))],
-              ),
+              multi_hole(~ann=Some(Marks([IsMulti])), [Exp(int(1))]),
             )
           )
         ),
@@ -580,7 +595,27 @@ let tests = (
               ~ann=
                 Some(
                   FTemp.(
-                    Marks([TupleLabelError({
+                    Marks([
+                      TupleLabelError({
+                        malformed_labels: [
+                          Exp.(Exp(multi_hole([Exp(label("1"))]))),
+                        ],
+                        duplicate_labels: [],
+                        invalid_labels: [],
+                        typ:
+                          Typ.(
+                            prod([tup_label(unknown(Internal), string())])
+                          ),
+                      }),
+                    ])
+                  ),
+                ),
+              tuple(
+                ~ann=
+                  Some(
+                    FTemp.(
+                      Marks([
+                        TupleLabelError({
                           malformed_labels: [
                             Exp.(Exp(multi_hole([Exp(label("1"))]))),
                           ],
@@ -590,26 +625,8 @@ let tests = (
                             Typ.(
                               prod([tup_label(unknown(Internal), string())])
                             ),
-                        })])
-                  ),
-                ),
-              tuple(
-                ~ann=
-                  Some(
-                    FTemp.(
-                      Marks([TupleLabelError({
-                            malformed_labels: [
-                              Exp.(Exp(multi_hole([Exp(label("1"))]))),
-                            ],
-                            duplicate_labels: [],
-                            invalid_labels: [],
-                            typ:
-                              Typ.(
-                                prod([
-                                  tup_label(unknown(Internal), string()),
-                                ])
-                              ),
-                          })])
+                        }),
+                      ])
                     ),
                   ),
                 [
@@ -617,17 +634,17 @@ let tests = (
                     ~ann=
                       Some(
                         FTemp.(
-                          Marks([TupleLabelError({
-                                malformed_labels: [
-                                  Exp.(Exp(multi_hole([Exp(label("1"))]))),
-                                ],
-                                duplicate_labels: [],
-                                invalid_labels: [],
-                                typ:
-                                  Typ.(
-                                    tup_label(unknown(Internal), string())
-                                  ),
-                              })])
+                          Marks([
+                            TupleLabelError({
+                              malformed_labels: [
+                                Exp.(Exp(multi_hole([Exp(label("1"))]))),
+                              ],
+                              duplicate_labels: [],
+                              invalid_labels: [],
+                              typ:
+                                Typ.(tup_label(unknown(Internal), string())),
+                            }),
+                          ])
                         ),
                       ),
                     multi_hole(
@@ -637,9 +654,7 @@ let tests = (
                             IsMulti,
                             BadLabel(
                               Exp(
-                                FTemp.Exp.(
-                                  multi_hole([Exp(label("1"))]),
-                                ),
+                                FTemp.Exp.(multi_hole([Exp(label("1"))])),
                               ),
                             ),
                           ]),
@@ -647,10 +662,7 @@ let tests = (
                       [
                         Exp(
                           label(
-                            ~ann=
-                              Some(
-                                Marks([UnexpectedLabelSort("1")]),
-                              ), // Has UnexpectedLabelSort because the label is wrapped in a multi-hole
+                            ~ann=Some(Marks([UnexpectedLabelSort("1")])), // Has UnexpectedLabelSort because the label is wrapped in a multi-hole
                             "1",
                           ),
                         ),
@@ -678,7 +690,30 @@ let tests = (
               ~ann=
                 Some(
                   FTemp.(
-                    Marks([TupleLabelError({
+                    Marks([
+                      TupleLabelError({
+                        malformed_labels: [
+                          Exp.(Exp(multi_hole([Exp(int(1))]))),
+                        ],
+                        duplicate_labels: [],
+                        invalid_labels: [],
+                        typ:
+                          Typ.(
+                            prod([
+                              tup_label(unknown(Internal), string()),
+                              tup_label(label("a"), int()),
+                            ])
+                          ),
+                      }),
+                    ])
+                  ),
+                ),
+              tuple(
+                ~ann=
+                  Some(
+                    FTemp.(
+                      Marks([
+                        TupleLabelError({
                           malformed_labels: [
                             Exp.(Exp(multi_hole([Exp(int(1))]))),
                           ],
@@ -691,27 +726,8 @@ let tests = (
                                 tup_label(label("a"), int()),
                               ])
                             ),
-                        })])
-                  ),
-                ),
-              tuple(
-                ~ann=
-                  Some(
-                    FTemp.(
-                      Marks([TupleLabelError({
-                            malformed_labels: [
-                              Exp.(Exp(multi_hole([Exp(int(1))]))),
-                            ],
-                            duplicate_labels: [],
-                            invalid_labels: [],
-                            typ:
-                              Typ.(
-                                prod([
-                                  tup_label(unknown(Internal), string()),
-                                  tup_label(label("a"), int()),
-                                ])
-                              ),
-                          })])
+                        }),
+                      ])
                     ),
                   ),
                 [
@@ -719,17 +735,17 @@ let tests = (
                     ~ann=
                       Some(
                         FTemp.(
-                          Marks([TupleLabelError({
-                                malformed_labels: [
-                                  Exp.(Exp(multi_hole([Exp(int(1))]))),
-                                ],
-                                duplicate_labels: [],
-                                invalid_labels: [],
-                                typ:
-                                  Typ.(
-                                    tup_label(unknown(Internal), string())
-                                  ),
-                              })])
+                          Marks([
+                            TupleLabelError({
+                              malformed_labels: [
+                                Exp.(Exp(multi_hole([Exp(int(1))]))),
+                              ],
+                              duplicate_labels: [],
+                              invalid_labels: [],
+                              typ:
+                                Typ.(tup_label(unknown(Internal), string())),
+                            }),
+                          ])
                         ),
                       ),
                     multi_hole(
@@ -738,11 +754,7 @@ let tests = (
                           Marks([
                             IsMulti,
                             BadLabel(
-                              Exp(
-                                FTemp.Exp.(
-                                  multi_hole([Exp(int(1))]),
-                                ),
-                              ),
+                              Exp(FTemp.Exp.(multi_hole([Exp(int(1))]))),
                             ),
                           ]),
                         ),
@@ -776,7 +788,23 @@ let tests = (
               parens(
                 ~ann=
                   Some(
-                    Marks([TupleLabelError({
+                    Marks([
+                      TupleLabelError({
+                        malformed_labels: [],
+                        duplicate_labels: [],
+                        invalid_labels: ["c"],
+                        typ:
+                          FTemp.Typ.(
+                            prod([int(), tup_label(label("a"), string())])
+                          ),
+                      }),
+                    ]),
+                  ),
+                tuple(
+                  ~ann=
+                    Some(
+                      Marks([
+                        TupleLabelError({
                           malformed_labels: [],
                           duplicate_labels: [],
                           invalid_labels: ["c"],
@@ -784,42 +812,26 @@ let tests = (
                             FTemp.Typ.(
                               prod([int(), tup_label(label("a"), string())])
                             ),
-                        })]),
-                  ),
-                tuple(
-                  ~ann=
-                    Some(
-                      Marks([TupleLabelError({
-                            malformed_labels: [],
-                            duplicate_labels: [],
-                            invalid_labels: ["c"],
-                            typ:
-                              FTemp.Typ.(
-                                prod([
-                                  int(),
-                                  tup_label(label("a"), string()),
-                                ])
-                              ),
-                          })]),
+                        }),
+                      ]),
                     ),
                   [
                     {
                       tup_label(
                         ~ann=
                           Some(
-                            Marks([TupleLabelError({
-                                  malformed_labels: [],
-                                  duplicate_labels: [],
-                                  invalid_labels: ["c"],
-                                  typ:
-                                    FTemp.Typ.(tup_label(label("c"), int())),
-                                })]),
+                            Marks([
+                              TupleLabelError({
+                                malformed_labels: [],
+                                duplicate_labels: [],
+                                invalid_labels: ["c"],
+                                typ:
+                                  FTemp.Typ.(tup_label(label("c"), int())),
+                              }),
+                            ]),
                           ),
                         label(
-                          ~ann=
-                            Some(
-                              Marks([InvalidLabel("c", ["a"])]),
-                            ),
+                          ~ann=Some(Marks([InvalidLabel("c", ["a"])])),
                           "c",
                         ),
                         int(1),
@@ -845,30 +857,34 @@ let tests = (
               parens(
                 ~ann=
                   Some(
-                    Marks([ExpectationMismatch({
-                              ana: FTemp.Typ.int(),
-                              syn:
-                                FTemp.Typ.(
-                                  prod([
-                                    tup_label(label("a"), int()),
-                                    tup_label(label("b"), int()),
-                                  ])
-                                ),
-                            })]),
+                    Marks([
+                      ExpectationMismatch({
+                        ana: FTemp.Typ.int(),
+                        syn:
+                          FTemp.Typ.(
+                            prod([
+                              tup_label(label("a"), int()),
+                              tup_label(label("b"), int()),
+                            ])
+                          ),
+                      }),
+                    ]),
                   ),
                 tuple(
                   ~ann=
                     Some(
-                      Marks([ExpectationMismatch({
-                                ana: FTemp.Typ.int(),
-                                syn:
-                                  FTemp.Typ.(
-                                    prod([
-                                      tup_label(label("a"), int()),
-                                      tup_label(label("b"), int()),
-                                    ])
-                                  ),
-                              })]),
+                      Marks([
+                        ExpectationMismatch({
+                          ana: FTemp.Typ.int(),
+                          syn:
+                            FTemp.Typ.(
+                              prod([
+                                tup_label(label("a"), int()),
+                                tup_label(label("b"), int()),
+                              ])
+                            ),
+                        }),
+                      ]),
                     ),
                   [
                     tup_label(label("a"), int(1)),
@@ -902,12 +918,7 @@ let tests = (
         {|'a'|},
         unknown(Internal),
         FIError.(
-          Exp.(
-            label(
-              ~ann=Some(Marks([UnexpectedLabelSort("a")])),
-              "a",
-            )
-          )
+          Exp.(label(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a"))
         ),
       )
     }),
@@ -930,12 +941,14 @@ let tests = (
         let tup_label_error: option(issue) =
           Some(
             Typ.(
-              Marks([TupleLabelError({
-                    malformed_labels: [],
-                    duplicate_labels: ["a"],
-                    invalid_labels: [],
-                    typ: tup_label(label("a"), int()),
-                  })])
+              Marks([
+                TupleLabelError({
+                  malformed_labels: [],
+                  duplicate_labels: ["a"],
+                  invalid_labels: [],
+                  typ: tup_label(label("a"), int()),
+                }),
+              ])
             ),
           );
         annotated_tree_test(
@@ -948,15 +961,17 @@ let tests = (
                   ~ann=
                     Some(
                       FTemp.Typ.(
-                        Marks([TupleLabelError({
-                              malformed_labels: [],
-                              duplicate_labels: ["a", "a"],
-                              invalid_labels: [],
-                              typ:
-                                prod([
-                                  tup_label(label("a"), unknown(Internal)),
-                                ]),
-                            })])
+                        Marks([
+                          TupleLabelError({
+                            malformed_labels: [],
+                            duplicate_labels: ["a", "a"],
+                            invalid_labels: [],
+                            typ:
+                              prod([
+                                tup_label(label("a"), unknown(Internal)),
+                              ]),
+                          }),
+                        ])
                       ),
                     ),
                   [
@@ -985,24 +1000,28 @@ let tests = (
       () => {
         let duplicate_a_tuple_pat_ann: option(issue) =
           Some(
-            Marks([TupleLabelError({
-                  malformed_labels: [],
-                  duplicate_labels: ["a", "a"],
-                  invalid_labels: [],
-                  typ:
-                    FTemp.Typ.(
-                      prod([tup_label(label("a"), unknown(Internal))])
-                    ),
-                })]),
+            Marks([
+              TupleLabelError({
+                malformed_labels: [],
+                duplicate_labels: ["a", "a"],
+                invalid_labels: [],
+                typ:
+                  FTemp.Typ.(
+                    prod([tup_label(label("a"), unknown(Internal))])
+                  ),
+              }),
+            ]),
           );
         let single_duplicate_a_pat_ann: option(issue) =
           Some(
-            Marks([TupleLabelError({
-                  malformed_labels: [],
-                  duplicate_labels: ["a"],
-                  invalid_labels: [],
-                  typ: FTemp.Typ.(tup_label(label("a"), unknown(Internal))),
-                })]),
+            Marks([
+              TupleLabelError({
+                malformed_labels: [],
+                duplicate_labels: ["a"],
+                invalid_labels: [],
+                typ: FTemp.Typ.(tup_label(label("a"), unknown(Internal))),
+              }),
+            ]),
           );
         let duplicate_a_label_pat_ann: option(issue) =
           Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
@@ -1056,14 +1075,24 @@ let tests = (
                 prod([
                   tup_label(
                     label(
-                      ~ann=Some(Marks([Mark.DuplicateLabel("a", FTemp.Typ.label("a"))])),
+                      ~ann=
+                        Some(
+                          Marks([
+                            Mark.DuplicateLabel("a", FTemp.Typ.label("a")),
+                          ]),
+                        ),
                       "a",
                     ),
                     int(),
                   ),
                   tup_label(
                     label(
-                      ~ann=Some(Marks([Mark.DuplicateLabel("a", FTemp.Typ.label("a"))])),
+                      ~ann=
+                        Some(
+                          Marks([
+                            Mark.DuplicateLabel("a", FTemp.Typ.label("a")),
+                          ]),
+                        ),
                       "a",
                     ),
                     string(),
@@ -1091,14 +1120,24 @@ let tests = (
                 prod([
                   tup_label(
                     label(
-                      ~ann=Some(Marks([Mark.DuplicateLabel("a", FTemp.Typ.label("a"))])),
+                      ~ann=
+                        Some(
+                          Marks([
+                            Mark.DuplicateLabel("a", FTemp.Typ.label("a")),
+                          ]),
+                        ),
                       "a",
                     ),
                     int(),
                   ),
                   tup_label(
                     label(
-                      ~ann=Some(Marks([Mark.DuplicateLabel("a", FTemp.Typ.label("a"))])),
+                      ~ann=
+                        Some(
+                          Marks([
+                            Mark.DuplicateLabel("a", FTemp.Typ.label("a")),
+                          ]),
+                        ),
                       "a",
                     ),
                     string(),

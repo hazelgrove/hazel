@@ -101,6 +101,32 @@ let align_exp_if_needed = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
   is_aligned_exp(ctx, expected_ty, exp)
     ? exp : align_exp(ctx, expected_ty, exp);
 
+let derive_label_inference_info = (original_labels, new_labels) => {
+  let introduced_labels =
+    List.filter(
+      l => !List.mem(l, List.filter_map(Fun.id, original_labels)),
+      List.filter_map(Fun.id, new_labels),
+    );
+  let reordered =
+    !
+      List.equal(
+        (a, b) => {
+          switch (a, b) {
+          | (Some(a), Some(b)) => a == b
+          | (Some(a), None) => List.mem(a, introduced_labels)
+          | (None, Some(_)) => false
+          | (None, None) => true
+          }
+        },
+        new_labels,
+        original_labels,
+      );
+  Info.MultiLabelInference({
+    reordered,
+    introduced_labels,
+  });
+};
+
 /* Lift a pattern into a singleton labeled tuple and preserve original status. */
 let autolabel_singleton_pat =
     (

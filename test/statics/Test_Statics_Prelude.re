@@ -3,7 +3,7 @@ open Language;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
-[@deriving (show({with_path: false}))]
+[@deriving show({with_path: false})]
 type issue =
   | Marks(list(Mark.t));
 
@@ -162,10 +162,7 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
 
 let annotated_exp: testable(Grammar.exp_t(option(issue))) =
   testable(
-    Fmt.using(
-      [%derive.show: Grammar.exp_t(option(issue))],
-      Fmt.string,
-    ),
+    Fmt.using([%derive.show: Grammar.exp_t(option(issue))], Fmt.string),
     Grammar.equal_exp_t(Option.equal(equal_issue)),
   );
 
@@ -216,7 +213,8 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors = List.map(ms => Marks(ms), List.map(snd, Statics.Map.errors(s)));
+      let errors =
+        List.map(ms => Marks(ms), List.map(snd, Statics.Map.errors(s)));
 
       Alcotest.check(
         neg(list(testable_issue)),
@@ -235,7 +233,8 @@ let fully_consistent_typecheck =
     () => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
-      let errors = List.map(ms => Marks(ms), List.map(snd, Statics.Map.errors(s)));
+      let errors =
+        List.map(ms => Marks(ms), List.map(snd, Statics.Map.errors(s)));
       let actual_type =
         type_of(~static_map=s, exp)
         |> Option.map(

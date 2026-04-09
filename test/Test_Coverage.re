@@ -19,8 +19,7 @@ let equal_issue_for_coverage =
   | (Marks(xs), Marks(ys)) => List.equal(equal_mark_for_coverage, xs, ys)
   };
 
-let equal_errors_map_coverage =
-  Id.Map.equal(equal_issue_for_coverage);
+let equal_errors_map_coverage = Id.Map.equal(equal_issue_for_coverage);
 
 let issue_map_of_marks_map =
     (m: Id.Map.t(list(Mark.t))): Id.Map.t(Test_Statics_Prelude.issue) =>
@@ -32,7 +31,9 @@ let testable_error_map =
       m =>
         Id.Map.bindings(m)
         |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
-        |> List.map(((id, iss)) => Id.show(id) ++ " => " ++ show_issue(iss))
+        |> List.map(((id, iss)) =>
+             Id.show(id) ++ " => " ++ show_issue(iss)
+           )
         |> String.concat("\n"),
       Fmt.string,
     ),
@@ -64,7 +65,8 @@ let has_errors =
         MenhirParser.Conversion.Exp.get_indicated_ids(indicated_exp);
 
       let s = statics(e);
-      let errors_map = Statics.Map.collect_errors(s) |> issue_map_of_marks_map;
+      let errors_map =
+        Statics.Map.collect_errors(s) |> issue_map_of_marks_map;
       let actual_errors =
         switch (actual_errors_filter) {
         | Some(f) => f(errors_map)
@@ -723,11 +725,7 @@ case x
   | {{{false}}} => 1
   | {{{_}}} => 3
 end|},
-    [
-      Marks([Redundant]),
-      Marks([Redundant]),
-      Marks([Redundant]),
-    ],
+    [Marks([Redundant]), Marks([Redundant]), Marks([Redundant])],
   );
 
 let unit_exhaustive =
@@ -1146,7 +1144,9 @@ let labeled_tuple_additional_error = {
                               invalid_labels: ["a"],
                               typ:
                                 FTemp.Typ.prod([
-                                  FTemp.Typ.list(FTemp.Typ.unknown(Internal)),
+                                  FTemp.Typ.list(
+                                    FTemp.Typ.unknown(Internal),
+                                  ),
                                   FTemp.Typ.unknown(Internal),
                                 ]),
                             }),

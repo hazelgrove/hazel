@@ -424,7 +424,9 @@ end
           );
 
         let error =
-          Statics.Map.errors(statics(exp)) |> List.assoc(id2) |> (ms => Marks(ms));
+          Statics.Map.errors(statics(exp))
+          |> List.assoc(id2)
+          |> (ms => Marks(ms));
         Alcotest.(
           check(
             testable_issue,

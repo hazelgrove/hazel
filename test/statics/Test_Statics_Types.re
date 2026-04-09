@@ -36,7 +36,8 @@ let tests = (
         let exp = parse_exp("type x = Int(Float) in let y : x =  1");
         let s = statics(exp);
 
-        let errors = Statics.Map.errors(s) |> List.map(((_, ms)) => Marks(ms));
+        let errors =
+          Statics.Map.errors(s) |> List.map(((_, ms)) => Marks(ms));
 
         check(
           list(testable_issue),

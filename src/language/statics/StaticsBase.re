@@ -5,7 +5,7 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
-  [@deriving (show({with_path: false}))]
+  [@deriving show({with_path: false})]
   type errors = Id.Map.t(list(Mark.t));
 
   let equal_errors: (errors, errors) => bool =
@@ -15,9 +15,7 @@ module Map = {
     Id.Map.bindings(m)
     |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
     |> List.map(((id, marks)) =>
-         Id.show(id)
-         ++ " => "
-         ++ [%derive.show: list(Mark.t)](marks)
+         Id.show(id) ++ " => " ++ [%derive.show: list(Mark.t)](marks)
        )
     |> String.concat("\n");
 
@@ -135,7 +133,8 @@ module Map = {
     let rec contains_id = (target: Id.t, ids: list(Id.t)): bool =>
       switch (ids) {
       | [] => false
-      | [head, ...tail] => Id.equal(head, target) || contains_id(target, tail)
+      | [head, ...tail] =>
+        Id.equal(head, target) || contains_id(target, tail)
       };
 
     let rec gather =
@@ -162,6 +161,60 @@ module Map = {
     };
   };
 };
+
+let set_marks_exp = (m: Map.t, e: Exp.t, marks: list(Mark.t)): Map.t =>
+  switch (Map.lookup(Exp.rep_id(e), m)) {
+  | Some(Info.InfoExp(info)) =>
+    Map.add_info(
+      IdTagged.ids(info.user_term),
+      InfoExp({...info, marks}),
+      m,
+    )
+  | _ => m
+  };
+
+let append_mark_exp = (m: Map.t, e: Exp.t, extra: list(Mark.t)): Map.t =>
+  switch (Map.lookup(Exp.rep_id(e), m)) {
+  | Some(Info.InfoExp(info)) =>
+    Map.add_info(
+      IdTagged.ids(info.user_term),
+      InfoExp({
+        ...info,
+        marks: info.marks @ extra,
+      }),
+      m,
+    )
+  | _ => m
+  };
+
+let set_label_sort_exp = (m: Map.t, e: Exp.t, label_sort: bool): Map.t =>
+  switch (Map.lookup(Exp.rep_id(e), m)) {
+  | Some(Info.InfoExp(info)) =>
+    Map.add_info(
+      IdTagged.ids(info.user_term),
+      InfoExp({
+        ...info,
+        label_sort,
+      }),
+      m,
+    )
+  | _ => m
+  };
+
+let set_dot_labels_exp =
+    (m: Map.t, e: Exp.t, dot_labels: list(string)): Map.t =>
+  switch (Map.lookup(Exp.rep_id(e), m)) {
+  | Some(Info.InfoExp(info)) =>
+    Map.add_info(
+      IdTagged.ids(info.user_term),
+      InfoExp({
+        ...info,
+        dot_labels,
+      }),
+      m,
+    )
+  | _ => m
+  };
 
 let map_m = (f, xs, m: Map.t) =>
   List.fold_left(
@@ -194,6 +247,21 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, syn_ty: Typ.t): Typ.t =>
     }
   };
 
+let patch_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
+  switch (Map.lookup(Exp.rep_id(e), m)) {
+  | Some(Info.InfoExp(info)) =>
+    Map.add_info(
+      IdTagged.ids(info.user_term),
+      InfoExp({
+        ...info,
+        syn_ty: new_syn_ty,
+        ty: fixed_typ(info.ctx, info.ana, new_syn_ty),
+      }),
+      m,
+    )
+  | _ => m
+  };
+
 /* Strip TupLabel(ExplicitNonlabel, _) wrappers on expectation. */
 let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
   switch (ty_ana.term) {
@@ -202,7 +270,14 @@ let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
   | _ => ty_ana
   };
 
-let syn_ana_ok_common = (ctx: Ctx.t, ty_ana: Typ.t, syn_ty: Typ.t): Message.ok_common => {
+let should_emit_nomeet_mark = (ctx: Ctx.t, ana: Typ.t, syn_ty: Typ.t): bool =>
+  switch (Typ.meet(ctx, ana_skip_explicit_nonlabel(ana), syn_ty)) {
+  | Some(_) => false
+  | None => true
+  };
+
+let syn_ana_ok_common =
+    (ctx: Ctx.t, ty_ana: Typ.t, syn_ty: Typ.t): Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
   | Unknown(SynSwitch) => Message.Syn(syn_ty)
@@ -247,13 +322,15 @@ let prepend_pat_mark =
       mark: Mark.t,
       ~warnings: list(Warning.list_item)=info.warnings,
       (),
-    ): Info.pat => {
+    )
+    : Info.pat => {
   let marks = [mark, ...info.marks];
   let warning_acc =
     warnings
     @ (
       switch (info.user_term.term) {
-      | Var(name) => Warning.to_list(Warning.var_is_unused(info.co_ctx, name))
+      | Var(name) =>
+        Warning.to_list(Warning.var_is_unused(info.co_ctx, name))
       | _ => []
       }
     );
@@ -333,12 +410,20 @@ module type ExpressionStatics = {
     (Info.exp, Exp.t, Map.t);
   let add:
     (
-      ~elab: Exp.t=?,
-      ~label_inference: option(Info.label_inference(Info.exp))=?,
+      ~user_term: Exp.t=?,
+      ~elab_term: Exp.t,
       ~syn_ty: Typ.t,
       ~marks: list(Mark.t)=?,
       ~warnings: list(Warning.list_item)=?,
+      ~ctx: Ctx.t=?,
+      ~ana: Typ.t=?,
+      ~ancestors: Info.ancestors=?,
       ~co_ctx: CoCtx.t,
+      ~message: Message.t=?,
+      ~label_inference: option(Info.label_inference(Info.exp))=?, // TODO[Matt]: combine with message
+      ~inferred_label: option(string)=?,
+      ~label_sort: bool=?,
+      ~dot_labels: list(string)=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

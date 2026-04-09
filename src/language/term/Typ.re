@@ -237,6 +237,14 @@ type source = {
   ty: t,
 };
 
+let add_source =
+  List.map2((id, ty) =>
+    {
+      id,
+      ty,
+    }
+  );
+
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
 
