@@ -60,6 +60,25 @@ Examples:
 ./run_tests test 'Evaluator.*' -q        # All Evaluator tests, quiet
 ```
 
+Coding-agent–related groups (deterministic; no live LLM):
+
+```bash
+./run_tests test 'AgentControlFlow' -q   # Stop, flight ignore, send queue flush
+./run_tests test 'AgentMultiTool' -q     # Multi-tool assistant replies, skip-on-failure
+./run_tests test 'Agent UX' -q           # Chat utils, compaction slice, workbench, OpenRouter JSON
+./run_tests test 'GeneralTreeRefs' -q    # get_refs_to_after_pattern_edit sanity
+```
+
+### Manual QA (coding agent UI — not exercised in Node tests)
+
+Run through these in the browser after substantive agent UI changes:
+
+- **Stop**: While a main or compaction request is in flight, Stop clears busy state; a late HTTP reply must not append assistant text or a compaction summary (cancel line should remain the visible outcome for that turn).
+- **Send queue**: While busy, Enter queues the draft; after idle or Stop, the queue drains in order; cancel messaging stays ordered above flushed queued sends when both apply.
+- **Context meter**: With no compaction on the branch, the bar reflects the last assistant message’s reported `prompt_tokens`; after compaction, expect an em dash until the next assistant reply supplies usage again.
+- **Copy LLM context**: From the Agent Context panel, copy uses the clipboard shim and shows the copy toast (depends on browser APIs).
+- **Compaction display**: Compaction summary content renders as Markdown in the chat transcript where applicable.
+
 ### Test Coverage
 
 ```bash

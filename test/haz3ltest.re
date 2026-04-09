@@ -29,6 +29,7 @@ let (suite, _) =
     ]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
+    @ Test_AgentControlFlow.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests

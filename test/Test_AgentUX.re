@@ -1,5 +1,6 @@
 /** Unit tests for coding-agent UX: slash commands, compaction dialogue slicing,
-    CompactionPrompt assembly, OpenRouter chat response parsing, and context-meter math.
+    CompactionPrompt assembly, OpenRouter chat response parsing, context-meter math,
+    workbench completion semantics.
     (Structural tool-call editing tests: [[Test_AgentTools]]; multi-tool LLM replies: [[Test_AgentMultiTool]].) */
 open Alcotest;
 open Util;
@@ -210,6 +211,208 @@ let dialogue_slice_tests = [
         "after compact",
         List.nth(slice, 1).content,
       );
+    },
+  ),
+];
+
+/* -------------------------------------------------------------------------- */
+/* Chat.Utils.context_meter_prompt_tokens & messages_for_openrouter */
+
+let tok = (n: int): OpenRouter.Reply.Model.usage =>
+  OpenRouter.Reply.Model.{
+    prompt_tokens: n,
+    completion_tokens: 0,
+    total_tokens: n,
+  };
+
+let chat_context_meter_tests = [
+  test_case(
+    "context_meter_prompt_tokens: last agent usage when no compaction",
+    `Quick,
+    () => {
+      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_user_message("u"),
+          chat,
+        );
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_agent_message("a", Some(tok(42))),
+          chat,
+        );
+      check(
+        bool,
+        "Some(42)",
+        true,
+        Agent.Chat.Utils.context_meter_prompt_tokens(chat) == Some(42),
+      );
+    },
+  ),
+  test_case(
+    "context_meter_prompt_tokens: None when last agent is before latest compaction",
+    `Quick,
+    () => {
+      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_agent_message("old", Some(tok(10))),
+          chat,
+        );
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_compaction_summary(~method="m", "sum"),
+          chat,
+        );
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_user_message("after"),
+          chat,
+        );
+      check(
+        bool,
+        "no meter until post-compaction agent reply",
+        true,
+        Agent.Chat.Utils.context_meter_prompt_tokens(chat) == None,
+      );
+    },
+  ),
+  test_case(
+    "context_meter_prompt_tokens: Some after agent follows compaction summary",
+    `Quick,
+    () => {
+      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_compaction_summary(~method="m", "sum"),
+          chat,
+        );
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_agent_message("fresh", Some(tok(99))),
+          chat,
+        );
+      check(
+        bool,
+        "Some(99)",
+        true,
+        Agent.Chat.Utils.context_meter_prompt_tokens(chat) == Some(99),
+      );
+    },
+  ),
+];
+
+/* -------------------------------------------------------------------------- */
+/* Agent workbench — MarkActiveTaskComplete folds incomplete subtasks */
+
+let agent_workbench_tests = [
+  test_case(
+    "MarkActiveTaskComplete auto-completes remaining subtasks",
+    `Quick,
+    () => {
+      let apply_wb = (model, action) =>
+        switch (AgentWorkbench.Update.update(~model, ~action)) {
+        | AgentWorkbench.Update.Action.Success(m) => m
+        | AgentWorkbench.Update.Action.Failure(msg) => fail(msg)
+        };
+      let model0 = AgentWorkbench.Utils.MainUtils.init();
+      let s1 =
+        AgentWorkbench.Utils.SubtaskUtils.mk(~title="s1", ~description="a");
+      let s2 =
+        AgentWorkbench.Utils.SubtaskUtils.mk(~title="s2", ~description="b");
+      let task =
+        AgentWorkbench.Utils.TaskUtils.mk(
+          ~title="Parent",
+          ~description="p",
+          ~subtasks=[s1, s2],
+        );
+      let ba_create =
+        AgentWorkbench.Update.Action.BackendAction(
+          AgentWorkbench.Update.Action.BackendAction.CreateNewTask(task),
+        );
+      let model1 = apply_wb(model0, ba_create);
+      let ba_done =
+        AgentWorkbench.Update.Action.BackendAction(
+          AgentWorkbench.Update.Action.BackendAction.MarkActiveTaskComplete(
+            "finished",
+          ),
+        );
+      let model2 = apply_wb(model1, ba_done);
+      let t =
+        AgentWorkbench.Utils.TaskUtils.find_task(model2, "Parent")
+        |> OptUtil.get_or_fail("task Parent");
+      let subs = AgentWorkbench.Utils.TaskUtils.ordered_subtasks_of(t);
+      check(
+        bool,
+        "both subtasks completed",
+        true,
+        List.for_all(AgentWorkbench.Utils.SubtaskUtils.is_completed, subs),
+      );
+      check(
+        bool,
+        "parent task completed",
+        true,
+        Option.is_some(t.completion_info),
+      );
+    },
+  ),
+];
+
+let chat_messages_for_openrouter_tests = [
+  test_case(
+    "messages_for_openrouter: keeps prompt+dev then suffix from latest compaction",
+    `Quick,
+    () => {
+      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_compaction_summary(~method="meth", "body"),
+          chat,
+        );
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_user_message("post"),
+          chat,
+        );
+      let ms = Agent.Chat.Utils.messages_for_openrouter(chat);
+      check(int, "prompt+dev+suffix", 4, List.length(ms));
+      switch (List.nth(ms, 0).role) {
+      | Agent.Message.Model.System(Agent.Message.Model.Prompt) => ()
+      | _ => fail("expected Prompt first")
+      };
+      switch (List.nth(ms, 1).role) {
+      | Agent.Message.Model.System(Agent.Message.Model.DeveloperNotes) => ()
+      | _ => fail("expected DeveloperNotes second")
+      };
+      let has_compact =
+        List.exists(
+          (m: Agent.Message.Model.t) =>
+            switch (m.role) {
+            | Agent.Message.Model.System(
+                Agent.Message.Model.CompactionSummary(_),
+              ) =>
+              true
+            | _ => false
+            },
+          ms,
+        );
+      check_bool("includes compaction summary", true, has_compact);
+      check_string("post user last", "post", List.nth(ms, 3).content);
+    },
+  ),
+  test_case(
+    "messages_for_openrouter: no compaction returns full linear transcript",
+    `Quick,
+    () => {
+      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Agent.Chat.Utils.append(
+          Agent.Message.Utils.mk_user_message("only"),
+          chat,
+        );
+      let ms = Agent.Chat.Utils.messages_for_openrouter(chat);
+      check(int, "three messages", 3, List.length(ms));
+      check_string("user tail", "only", List.nth(ms, 2).content);
     },
   ),
 ];
@@ -487,6 +690,9 @@ let tests = (
   slash_command_tests
   @ slash_menu_tests
   @ dialogue_slice_tests
+  @ chat_context_meter_tests
+  @ chat_messages_for_openrouter_tests
+  @ agent_workbench_tests
   @ compaction_prompt_tests
   @ openrouter_tests
   @ context_meter_tests

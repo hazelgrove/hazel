@@ -3102,6 +3102,43 @@ let agent_tools_with_projectors_tests = (
 );
 
 /* ============================================================
+   GENERAL TREE — get_refs_to_after_pattern_edit vs get_refs_to
+   ============================================================ */
+
+let general_tree_refs_tests = (
+  "AgentTools.GeneralTreeRefs",
+  [
+    test_case(
+      "get_refs_to_after_pattern_edit matches get_refs_to when pre/post let info agree",
+      `Quick,
+      () => {
+        let code = "let k = 1 in k + k";
+        let z = mk_zipper(code);
+        let info_map = mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None => Alcotest.fail("expected node map")
+        | Some(nm) =>
+          let node = HighLevelNodeMap.path_to_node(nm, "k");
+          let co_plain = GeneralTreeUtils.get_refs_to(node.info, info_map);
+          let co_hybrid =
+            GeneralTreeUtils.get_refs_to_after_pattern_edit(
+              ~pre_edit_let_info=node.info,
+              ~post_edit_let_info=node.info,
+              info_map,
+            );
+          check(
+            string,
+            "co_ctx same as plain get_refs_to",
+            CoCtx.show(co_plain),
+            CoCtx.show(co_hybrid),
+          );
+        };
+      },
+    ),
+  ],
+);
+
+/* ============================================================
    AGGREGATE ALL TESTS
    ============================================================ */
 
@@ -3122,6 +3159,7 @@ let tests = [
   composition_utils_tests,
   statics_refractor_tests,
   agent_tools_with_projectors_tests,
+  general_tree_refs_tests,
   sequential_operations_tests,
   type_alias_tests,
   complex_program_tests,
