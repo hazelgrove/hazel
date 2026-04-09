@@ -5,12 +5,38 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type errors = Id.Map.t(Info.error);
+  [@deriving (show({with_path: false}))]
+  type errors = Id.Map.t(list(Mark.t));
+
+  let equal_errors: (errors, errors) => bool =
+    Id.Map.equal((a: list(Mark.t), b: list(Mark.t)) => a == b);
+
+  let show_errors = (m: errors): string =>
+    Id.Map.bindings(m)
+    |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
+    |> List.map(((id, marks)) =>
+         Id.show(id)
+         ++ " => "
+         ++ [%derive.show: list(Mark.t)](marks)
+       )
+    |> String.concat("\n");
 
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
   let filter = Id.Map.filter;
+  let add_info = (ids: list(Id.t), info: Info.t, m: t): t =>
+    ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
+
+  let add_missing_info = (ids: list(Id.t), info: Info.t, m: t): t =>
+    ids
+    |> List.fold_left(
+         (m, id) =>
+           switch (Id.Map.find_opt(id, m)) {
+           | Some(_) => m
+           | None => Id.Map.add(id, info, m)
+           },
+         m,
+       );
 
   let error_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
@@ -33,18 +59,24 @@ module Map = {
       [],
     );
 
-  let errors = (map: t): list((Id.t, Info.error)) =>
+  let errors = (map: t): list((Id.t, list(Mark.t))) =>
     Id.Map.fold(
       (id, info: Info.t, acc) =>
-        Option.to_list(Info.error_of(info) |> Option.map(x => (id, x)))
-        @ acc,
+        switch (Info.marks_of(info)) {
+        | [] => acc
+        | ms => [(id, ms), ...acc]
+        },
       map,
       [],
     );
 
   let collect_errors = (map: t): errors =>
     Id.Map.filter_map(
-      (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
+      (_: Uuidm.t, info: Info.t) =>
+        switch (Info.marks_of(info)) {
+        | [] => None
+        | ms => Some(ms)
+        },
       map,
     );
 
@@ -60,7 +92,7 @@ module Map = {
 
   let bound_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
-    | Some(InfoPat({term, _})) => Pat.bindings(term)
+    | Some(InfoPat({user_term, _})) => Pat.bindings(user_term)
     | _ => []
     };
 
@@ -88,7 +120,7 @@ module Map = {
       | [ancestor_id, ...rest] =>
         let* ci = lookup(ancestor_id, statics);
         switch (ci) {
-        | InfoExp({term: {term: Let(pat, def, _), _}, _}) =>
+        | InfoExp({user_term: {term: Let(pat, def, _), _}, _}) =>
           let binds = Pat.bindings(pat);
           List.exists((b: Binding.t) => b.id == binding_id, binds)
             ? Some(IdTagged.rep_id(def)) : climb(rest);
@@ -99,180 +131,35 @@ module Map = {
     climb(Info.ancestors_of(ci_binder));
   };
 
-  /* Find all use sites of a binding. Reads the binding pattern's co_ctx,
-   * which statics populates with the body scope's co-context. */
-  let uses_of_binding = (_m: t, binding_id: Id.t): list(Id.t) => {
-    switch (lookup(binding_id, _m)) {
-    | Some(InfoPat({term: {term: Var(name), _}, co_ctx, _})) =>
-      switch (Util.VarMap.lookup(co_ctx, name)) {
-      | Some(entries) => List.map((e: CoCtx.entry) => e.id, entries)
-      | None => []
-      }
-    | _ => []
-    };
-  };
+  let let_definition_path = (~statics: t, ~id: Id.t): list(Pat.t) => {
+    let rec contains_id = (target: Id.t, ids: list(Id.t)): bool =>
+      switch (ids) {
+      | [] => false
+      | [head, ...tail] => Id.equal(head, target) || contains_id(target, tail)
+      };
 
-  /* Find all use sites of a constructor binding. Climbs ancestors to
-   * the enclosing TyAlias InfoExp and reads the constructor name from
-   * its co_ctx, which contains constructor uses from the body scope. */
-  let uses_of_ctr_binding =
-      (m: t, binding_id: Id.t, name: string): list(Id.t) => {
-    switch (lookup(binding_id, m)) {
-    | Some(info) =>
-      let rec find_tyalias = (ancs: list(Id.t)): list(Id.t) =>
-        switch (ancs) {
-        | [] => []
-        | [anc_id, ...rest] =>
-          switch (lookup(anc_id, m)) {
-          | Some(InfoExp({term: {term: TyAlias(_, _, _), _}, co_ctx, _})) =>
-            switch (Util.VarMap.lookup(co_ctx, name)) {
-            | Some(entries) => List.map((e: CoCtx.entry) => e.id, entries)
-            | None => []
-            }
-          | _ => find_tyalias(rest)
-          }
-        };
-      find_tyalias(Info.ancestors_of(info));
-    | _ => []
-    };
-  };
-
-  /* Find all use sites of a type variable binding. Reads the binding
-   * tpat's tvar_co_ctx, which is populated by populate_tvar_co_ctxs. */
-  let uses_of_tvar_binding = (m: t, binding_id: Id.t): list(Id.t) => {
-    switch (lookup(binding_id, m)) {
-    | Some(InfoTPat({term: {term: Var(name), _}, tvar_co_ctx, _})) =>
-      switch (Util.VarMap.lookup(tvar_co_ctx, name)) {
-      | Some(ids) => ids
-      | None => []
-      }
-    | _ => []
-    };
-  };
-
-  /* Post-processing pass: populate each InfoTPat's tvar_co_ctx with
-   * the IDs of type variable references that resolve to that binding.
-   * Single O(n) scan of the info_map + O(n) map update. */
-  let populate_tvar_co_ctxs = (m: t): t => {
-    /* Step 1: Scan all InfoTyp Var entries, group use-site IDs by binding ID */
-    let uses_by_binding: Id.Map.t(list(Id.t)) =
-      Id.Map.fold(
-        (id, info: Info.t, acc) =>
-          switch (info) {
-          | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-            switch (Ctx.lookup_tvar_id(ctx, name)) {
-            | Some(bid) when bid != Id.invalid =>
-              let existing =
-                switch (Id.Map.find_opt(bid, acc)) {
-                | Some(ids) => ids
-                | None => []
-                };
-              Id.Map.add(bid, [id, ...existing], acc);
-            | _ => acc
-            }
+    let rec gather =
+            (remaining: list(Id.t), seen: list(Id.t), acc: list(Pat.t))
+            : list(Pat.t) =>
+      switch (remaining) {
+      | [] => acc
+      | [current_id, ...rest] =>
+        let acc' =
+          switch (lookup(current_id, statics)) {
+          | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
+            contains_id(IdTagged.rep_id(def), seen) ? [pat, ...acc] : acc
           | _ => acc
-          },
-        m,
-        Id.Map.empty,
-      );
-    /* Step 2: Update each InfoTPat with its tvar_co_ctx */
-    Id.Map.map(
-      (info: Info.t) =>
-        switch (info) {
-        | InfoTPat({term: {term: Var(name), _}, _} as tpat_info) =>
-          let tpat_id = TPat.rep_id(tpat_info.term);
-          let uses =
-            switch (Id.Map.find_opt(tpat_id, uses_by_binding)) {
-            | Some(ids) => ids
-            | None => []
-            };
-          Info.InfoTPat({
-            ...tpat_info,
-            tvar_co_ctx: [(name, uses)],
-          });
-        | other => other
-        },
-      m,
-    );
-  };
+          };
+        gather(rest, [current_id, ...seen], acc');
+      };
 
-  /* Given any Info.t, compute the set of related IDs to highlight:
-   * - For a variable reference (Var expr): its binding site + sibling uses
-   * - For a variable binding (Var pat): all use sites
-   * - For a constructor reference: its binding site
-   * - For a type variable reference/binding: binding site + all uses */
-  let var_highlight_ids = (m: t, info: Info.t): list(Id.t) => {
-    switch (info) {
-    | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
-      switch (Ctx.lookup_var(ctx, name)) {
-      | Some(entry) when entry.id != Id.invalid =>
-        let binding_id = entry.id;
-        let sibling_uses = uses_of_binding(m, binding_id);
-        [binding_id, ...sibling_uses];
-      | _ => []
-      }
-    | InfoPat({term: {term: Var(_), _}, _}) =>
-      uses_of_binding(m, Info.id_of(info))
-    | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
-    | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
-      switch (Ctx.lookup_ctr(ctx, name)) {
-      | Some(entry) when entry.id != Id.invalid =>
-        let sibling_uses = uses_of_ctr_binding(m, entry.id, name);
-        [entry.id, ...sibling_uses];
-      | _ =>
-        switch (Ctx.lookup_var(ctx, name)) {
-        | Some(entry) when entry.id != Id.invalid => [entry.id]
-        | _ => []
-        }
-      }
-    | InfoTyp({
-        term: {term: Var(name), _},
-        expects: ConstructorExpected(_, _),
-        _,
-      }) =>
-      uses_of_ctr_binding(m, Info.id_of(info), name)
-    | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-      switch (Ctx.lookup_tvar_id(ctx, name)) {
-      | Some(id) when id != Id.invalid =>
-        let sibling_uses = uses_of_tvar_binding(m, id);
-        [id, ...sibling_uses];
-      | _ => []
-      }
-    | InfoTPat({term: {term: Var(_), _}, _}) =>
-      uses_of_tvar_binding(m, Info.id_of(info))
+    switch (lookup(id, statics)) {
+    | Some(info) =>
+      let ancestors: list(Id.t) = Info.ancestors_of(info);
+      let collected: list(Pat.t) = gather(ancestors, [id], []);
+      List.rev(collected);
     | _ => []
     };
-  };
-};
-
-let let_definition_path = (~statics: Map.t, ~id: Id.t): list(Pat.t) => {
-  let rec contains_id = (target: Id.t, ids: list(Id.t)): bool =>
-    switch (ids) {
-    | [] => false
-    | [head, ...tail] => Id.equal(head, target) || contains_id(target, tail)
-    };
-
-  let rec gather =
-          (remaining: list(Id.t), seen: list(Id.t), acc: list(Pat.t))
-          : list(Pat.t) =>
-    switch (remaining) {
-    | [] => acc
-    | [current_id, ...rest] =>
-      let acc' =
-        switch (Map.lookup(current_id, statics)) {
-        | Some(InfoExp({term: {term: Let(pat, def, _), _}, _})) =>
-          contains_id(IdTagged.rep_id(def), seen) ? [pat, ...acc] : acc
-        | _ => acc
-        };
-      gather(rest, [current_id, ...seen], acc');
-    };
-
-  switch (Map.lookup(id, statics)) {
-  | Some(info) =>
-    let ancestors: list(Id.t) = Info.ancestors_of(info);
-    let collected: list(Pat.t) = gather(ancestors, [id], []);
-    List.rev(collected);
-  | _ => []
   };
 };
 
@@ -291,49 +178,101 @@ let map_m2 = (f, xs, ys, m: Map.t) =>
     ys,
   );
 
-let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
-  ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
-
-let add_missing_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
-  ids
-  |> List.fold_left(
-       (m, id) =>
-         switch (Id.Map.find_opt(id, m)) {
-         | Some(_) => m
-         | None => Id.Map.add(id, info, m)
-         },
-       m,
-     );
-
-let rec is_arrow_like = (t: Typ.t) => {
-  switch (t |> Typ.term_of) {
-  | Unknown(_) => true
-  | Arrow(_) => true
-  | Poly(_, t) => is_arrow_like(t)
-  | _ => false
-  };
-};
-
-let is_recursive = (ctx, p, def, syn: Typ.t) => {
-  switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
-  | (Some(num_vars), Some(num_fns))
-      when num_vars != 0 && num_vars == num_fns =>
-    let norm = Typ.normalize(ctx, syn);
-    switch (norm |> Typ.term_of) {
-    | Prod(syns) when List.length(syns) == num_vars =>
-      syns |> List.for_all(is_arrow_like)
-    | _ when is_arrow_like(norm) => num_vars == 1
-    | _ => false
-    };
-  | _ => false
-  };
-};
-
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
+/* Type after hole fixing: best type consistent with analysis expectation and
+   statics synthetic type (Typ.meet). On meet failure, prefer syn under
+   synthesis and ana under analysis. */
+let fixed_typ = (ctx: Ctx.t, ana: Typ.t, syn_ty: Typ.t): Typ.t =>
+  switch (Typ.meet(ctx, ana, syn_ty)) {
+  | Some(ty) => ty
+  | None =>
+    if (Typ.is_syn_plus(ana)) {
+      syn_ty;
+    } else {
+      ana;
+    }
+  };
+
+/* Strip TupLabel(ExplicitNonlabel, _) wrappers on expectation. */
+let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
+  switch (ty_ana.term) {
+  | TupLabel({term: ExplicitNonlabel, _}, ana_inner) =>
+    ana_skip_explicit_nonlabel(ana_inner)
+  | _ => ty_ana
+  };
+
+let syn_ana_ok_common = (ctx: Ctx.t, ty_ana: Typ.t, syn_ty: Typ.t): Message.ok_common => {
+  let ana = ana_skip_explicit_nonlabel(ty_ana);
+  switch (ana.term) {
+  | Unknown(SynSwitch) => Message.Syn(syn_ty)
+  | _ =>
+    switch (Typ.meet(ctx, ana, syn_ty)) {
+    | None => Message.Syn(syn_ty)
+    | Some(meet) =>
+      Message.Ana(
+        Message.Consistent({
+          ana,
+          syn: syn_ty,
+          meet,
+        }),
+      )
+    }
+  };
+};
+
+let expectation_mismatch_mark =
+    (ctx: Ctx.t, ana: Typ.t, syn_ty: Typ.t): option(Mark.t) => {
+  let ana' = ana_skip_explicit_nonlabel(ana);
+  switch (ana'.term) {
+  | Unknown(SynSwitch) => None
+  | _ =>
+    switch (Typ.meet(ctx, ana', syn_ty)) {
+    | Some(_) => None
+    | None =>
+      Some(
+        Mark.ExpectationMismatch({
+          ana: ana',
+          syn: syn_ty,
+        }),
+      )
+    }
+  };
+};
+
+/* Lightweight pat update: prepend a mark and update dependent fields. */
+let prepend_pat_mark =
+    (
+      info: Info.pat,
+      mark: Mark.t,
+      ~warnings: list(Warning.list_item)=info.warnings,
+      (),
+    ): Info.pat => {
+  let marks = [mark, ...info.marks];
+  let warning_acc =
+    warnings
+    @ (
+      switch (info.user_term.term) {
+      | Var(name) => Warning.to_list(Warning.var_is_unused(info.co_ctx, name))
+      | _ => []
+      }
+    );
+  let constraint_ =
+    switch (info.constraint_) {
+    | Coverage.Constraint.Hole(_) => info.constraint_
+    | _ => Coverage.Constraint.Hole(Some(info.constraint_))
+    };
+  {
+    ...info,
+    marks,
+    message: Message.Pat(Message.Default),
+    warnings: warning_acc,
+    constraint_,
+  };
+};
+
 /* Add an ascription wrapper if the types differ after normalization. */
-let fresh_ascription =
-    (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
+let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
     | Some({term: Unknown(Internal), _}) => d
@@ -345,62 +284,18 @@ let fresh_ascription =
   );
 };
 
-/* Re-derive an exp info entry with a new self type.
-   Preserves all other fields from the original info. */
-let replace_exp_self =
-    (m: Map.t, original_info: Info.exp, self: Self.exp): (Info.exp, Map.t) => {
-  let new_info =
-    Info.derived_exp(
-      ~uexp=original_info.term,
-      ~ctx=original_info.ctx,
-      ~ana=original_info.ana,
-      ~ancestors=original_info.ancestors,
-      ~self,
-      ~co_ctx=original_info.co_ctx,
-      ~label_inference=original_info.label_inference,
-      ~inferred_label=original_info.inferred_label,
-      ~dot_labels=original_info.dot_labels,
-      ~label_sort=original_info.label_sort,
-    );
-  (new_info, add_info(IdTagged.ids(original_info.term), InfoExp(new_info), m));
-};
-
-/* Patch an expression info entry to set label_sort=true and fix self.
-   For Label nodes, overrides UnexpectedLabelSort with Just(Label(name)). */
-let patch_label_info = (m: Map.t, info: Info.exp): Map.t => {
-  let self: Self.exp =
-    switch (info.term.term) {
-    | Label(name) => Common(Just(Label(name) |> Typ.temp))
-    | _ => info.self
-    };
-  let patched =
-    Info.derived_exp(
-      ~uexp=info.term,
-      ~ctx=info.ctx,
-      ~ana=info.ana,
-      ~ancestors=info.ancestors,
-      ~self,
-      ~co_ctx=info.co_ctx,
-      ~label_inference=info.label_inference,
-      ~inferred_label=info.inferred_label,
-      ~label_sort=true,
-      ~dot_labels=info.dot_labels,
-    );
-  add_info(IdTagged.ids(info.term), InfoExp(patched), m);
-};
-
 /* Fold patterns with expected modes using the provided analyzer callback. */
 let fold_patterns_with_modes =
     (
       ~analyze:
-        (
-          ~ctx: Ctx.t,
-          ~ana: Typ.t,
-          ~duplicate_bindings: list(string),
-          Pat.t,
-          Map.t
-        ) =>
-        (Info.pat, Pat.t, Map.t),
+         (
+           ~ctx: Ctx.t,
+           ~ana: Typ.t,
+           ~duplicate_bindings: list(string),
+           Pat.t,
+           Map.t
+         ) =>
+         (Info.pat, Pat.t, Map.t),
       ~ctx: Ctx.t,
       ~duplicate_bindings=[],
       ps: list(Pat.t),
@@ -425,44 +320,6 @@ let fold_patterns_with_modes =
     modes,
   );
 
-/* Build a list-pattern coverage constraint from element constraints. */
-let list_constraint = (cons: list(Coverage.Constraint.t)): Coverage.Constraint.t =>
-  List.fold_right(
-    (hd, tl) => Coverage.Constraint.cons(hd, tl),
-    cons,
-    Coverage.Constraint.nil,
-  );
-
-/* Add redundant-row annotations to already analyzed pattern infos. */
-let add_pattern_redundancy =
-    (ps: list(TermBase.pat_t), redundant_rows: list(int), m: Map.t): Map.t =>
-  List.fold_left(
-    (m, row) => {
-      let p = List.nth(ps, row);
-      switch (Id.Map.find(IdTagged.rep_id(p), m)) {
-      | Info.InfoPat(info) =>
-        let info =
-          Info.derived_pat(
-            ~upat=info.term,
-            ~ctx=info.ctx,
-            ~co_ctx=info.co_ctx,
-            ~prev_synswitch=info.prev_synswitch,
-            ~ana=info.ana,
-            ~ancestors=info.ancestors,
-            ~self=Self.Redundant(info.self),
-            ~label_inference=info.label_inference,
-            ~inferred_label=info.inferred_label,
-            ~label_sort=info.label_sort,
-            ~constraint_=info.constraint_,
-          );
-        add_info(IdTagged.ids(p), InfoPat(info), m)
-      | _ => failwith("Invalid sort for pattern.")
-      };
-    },
-    m,
-    redundant_rows,
-  );
-
 module type ExpressionStatics = {
   let uexp_to_info_map:
     (
@@ -470,7 +327,6 @@ module type ExpressionStatics = {
       ~ana: Typ.t=?,
       ~is_in_filter: bool=?,
       ~ancestors: Info.ancestors=?,
-      ~override_self: Self.exp=?,
       Exp.t,
       Map.t
     ) =>
@@ -479,7 +335,9 @@ module type ExpressionStatics = {
     (
       ~elab: Exp.t=?,
       ~label_inference: option(Info.label_inference(Info.exp))=?,
-      ~self: Self.exp,
+      ~syn_ty: Typ.t,
+      ~marks: list(Mark.t)=?,
+      ~warnings: list(Warning.list_item)=?,
       ~co_ctx: CoCtx.t,
       Map.t
     ) =>

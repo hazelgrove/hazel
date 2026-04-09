@@ -23,7 +23,7 @@ module Local = {
        calling get_inner_term_id(curr_node_info, Body) will return the id of the body "100 + 200".
        */
       switch (node.info) {
-      | InfoExp({term, _}) =>
+      | InfoExp({user_term: term, _}) =>
         switch (Exp.term_of(term)) {
         | Let(pat, def, body) =>
           switch (inner_term) {

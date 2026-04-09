@@ -9,26 +9,20 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let get_model = (info: info) => {
-    let extract_ap = (term: Language.Exp.t) =>
-      switch (term.term) {
-      | Ap(_dir, {term: LivelitName(llname), _}, model) =>
-        Some((llname, model))
-      | _ => None
-      };
+  let get_model = (info: info) =>
     switch (info.statics) {
-    | Some(InfoExp({term, _})) =>
-      switch (extract_ap(term)) {
-      | Some(_) as result => result
-      | None =>
-        switch (term.term) {
-        | Projector(_, inner) => extract_ap(inner)
-        | _ => None
-        }
-      }
+    | Some(
+        InfoExp({
+          user_term: {
+            term: Ap(_dir, {term: LivelitName(llname), _}, model),
+            _,
+          },
+          _,
+        }),
+      ) =>
+      Some((llname, model))
     | _ => None
     };
-  };
 
   let init = (any: Language.Any.t) =>
     switch (any) {

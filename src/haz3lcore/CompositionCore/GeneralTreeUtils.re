@@ -14,7 +14,7 @@ let subtree_of =
     : Statics.Map.t => {
   let map =
     switch (info) {
-    | InfoExp({term, _}) =>
+    | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
       | Let(pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
@@ -48,7 +48,6 @@ let subtree_of =
                   ~ana=def_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=def_info.ancestors,
-
                   def,
                   pat_map,
                 );
@@ -136,7 +135,6 @@ let subtree_of =
                   ~ana=def_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=def_info.ancestors,
-
                   def,
                   mp_map,
                 );
@@ -183,10 +181,10 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   let exp_to_info = (term: Exp.t): Info.t => exp_to_info(term, info_map);
 
   switch (curr) {
-  | InfoExp(term) =>
-    let entire_coctx = term.co_ctx;
+  | InfoExp(info) =>
+    let entire_coctx = info.co_ctx;
     let body_coctx =
-      switch (Exp.term_of(term.term)) {
+      switch (Exp.term_of(info.user_term)) {
       | Let(_, _, body)
       | TyAlias(_, _, body)
       | ModuleExp(_, _, body) =>
@@ -242,7 +240,7 @@ let get_var_names_from_pat = (curr: Info.t): list(string) => {
   };
   let pat =
     switch (curr) {
-    | InfoPat({term, _}) => term
+    | InfoPat({user_term: term, _}) => term
     | _ => raise(Failure("Pat is not a pattern"))
     };
   go(pat, []);

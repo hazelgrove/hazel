@@ -266,7 +266,10 @@ let def_body_indicated =
     statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
   let* ci_parent = Language.Statics.Map.lookup(parent_id, info_map);
   switch (ci_parent) {
-  | InfoExp({term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _}) =>
+  | InfoExp({
+      user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
+      _,
+    }) =>
     let body_id = Language.IdTagged.rep_id(body);
     id == body_id ? Some(body_id) : None;
   | _ => None

@@ -1,10 +1,42 @@
 open Alcotest;
 open Language;
+open Mark;
+open Test_Statics_Prelude;
+
+/* InexhaustiveMatch carries syn_ty for the match head; statics may use a type
+   alias (e.g. Var("Tree")) vs Unknown. Coverage tests care about the example
+   pattern and nested marks, not the exact syntactic type form. */
+let rec equal_mark_for_coverage = (m1: Mark.t, m2: Mark.t): bool =>
+  switch (m1, m2) {
+  | (InexhaustiveMatch(_, ms1, p1), InexhaustiveMatch(_, ms2, p2)) =>
+    List.equal(equal_mark_for_coverage, ms1, ms2) && Any.fast_equal(p1, p2)
+  | _ => m1 == m2
+  };
+
+let equal_issue_for_coverage =
+    (a: Test_Statics_Prelude.issue, b: Test_Statics_Prelude.issue): bool =>
+  switch (a, b) {
+  | (Marks(xs), Marks(ys)) => List.equal(equal_mark_for_coverage, xs, ys)
+  };
+
+let equal_errors_map_coverage =
+  Id.Map.equal(equal_issue_for_coverage);
+
+let issue_map_of_marks_map =
+    (m: Id.Map.t(list(Mark.t))): Id.Map.t(Test_Statics_Prelude.issue) =>
+  Id.Map.map(ms => Marks(ms), m);
 
 let testable_error_map =
   testable(
-    Fmt.using(Statics.Map.show_errors, Fmt.string),
-    Statics.Map.equal_errors,
+    Fmt.using(
+      m =>
+        Id.Map.bindings(m)
+        |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
+        |> List.map(((id, iss)) => Id.show(id) ++ " => " ++ show_issue(iss))
+        |> String.concat("\n"),
+      Fmt.string,
+    ),
+    equal_errors_map_coverage,
   );
 
 let statics = term =>
@@ -21,7 +53,7 @@ let has_errors =
       ~actual_errors_filter=?,
       name: string,
       exp: string,
-      errors: list(Info.error),
+      errors: list(Test_Statics_Prelude.issue),
     ) => {
   test_case(
     name,
@@ -32,7 +64,7 @@ let has_errors =
         MenhirParser.Conversion.Exp.get_indicated_ids(indicated_exp);
 
       let s = statics(e);
-      let errors_map = Statics.Map.collect_errors(s);
+      let errors_map = Statics.Map.collect_errors(s) |> issue_map_of_marks_map;
       let actual_errors =
         switch (actual_errors_filter) {
         | Some(f) => f(errors_map)
@@ -49,18 +81,6 @@ let has_errors =
     },
   );
 };
-
-let has_non_common_errors =
-  has_errors(
-    ~actual_errors_filter=
-      Statics.Map.filter((_, err) =>
-        switch (err) {
-        | Info.Pat(Info.Common(_)) => false
-        | Info.Exp(Info.Common(_)) => false
-        | _ => true
-        }
-      ),
-  );
 
 let no_errors = (name: string, exp: string) => has_errors(name, exp, []);
 
@@ -131,17 +151,18 @@ let f = fun (x : Tree) ->
   end}}}
 in ?|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               ap(constructor("Leaf", None), wild())
             ),
           ),
         ),
-      ),
-      Info.Pat(Redundant(None)),
+      ]),
+      Marks([Redundant]),
     ],
   );
 
@@ -170,14 +191,15 @@ let odd_length : [Int] -> Bool =
     end}}} in ?
 |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(cons(wild(), list_lit([]))),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -220,7 +242,7 @@ let odd_length : [Int] -> Bool =
       | x::tl => odd_length(tl)
       | {{{x::?}}} => true
     end in ?|},
-    [Info.Pat(Redundant(None))],
+    [Marks([Redundant])],
   );
 
 let loooong_list =
@@ -248,12 +270,13 @@ let list_inexhaustive_nil =
     end}}}
 |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(list_lit([]))),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -268,14 +291,15 @@ let list_inexhaustive_cons =
       end}}}
 |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(cons(wild(), cons(wild(), wild()))),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -292,9 +316,10 @@ let list_inexhaustive_cons_long =
       end}}}
 |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               cons(
@@ -307,7 +332,7 @@ let list_inexhaustive_cons_long =
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -321,16 +346,17 @@ let list_inexhaustive_tuple_with_elt =
   end}}}
   |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               tuple([cons(wild(), cons(wild(), wild())), wild()])
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -345,16 +371,17 @@ let list_inexhaustive_triple =
     end}}}
       |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               tuple([cons(wild(), wild()), cons(wild(), wild()), wild()])
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -369,16 +396,17 @@ let list_inexhaustive_triple_elt_first =
     end}}}
     |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               tuple([big_int(Bigint.of_int(1)), wild(), wild()])
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -393,9 +421,10 @@ let list_inexhaustive_middle_quad =
     end}}}
     |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               tuple([
@@ -407,7 +436,7 @@ let list_inexhaustive_middle_quad =
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -433,14 +462,15 @@ let x : Int = ? in
   | 2 => 2
 end}}}|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(big_int(Bigint.of_int(0))),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -454,16 +484,17 @@ let x : (Int, Int) = ? in
   | (0, _) => 2
 end}}}|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               tuple([big_int(Bigint.of_int(1)), wild()])
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -478,7 +509,7 @@ case x
   | {{{1}}} => 1
   | _ => 3
 end|},
-    [Info.Pat(Redundant(None))],
+    [Marks([Redundant])],
   );
 
 let floats_exhaustive =
@@ -503,12 +534,13 @@ let x : Float = ? in
   | 2.0 => 2
 end}}}|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(float(0.0))),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -522,14 +554,15 @@ let x : (Float, Float) = ? in
   | (0, _) => 2
 end}}}|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(tuple([float(1.0), wild()])),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -544,7 +577,7 @@ case x
   | {{{1.0}}} => 1
   | _ => 3
 end|},
-    [Info.Pat(Redundant(None))],
+    [Marks([Redundant])],
   );
 
 let strings_exhaustive =
@@ -569,12 +602,13 @@ let x : String = ? in
   | "" => 2
 end}}}|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(string("*"))),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -588,12 +622,13 @@ let x : String = ? in
   | "a" => 2
 end}}}|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(string(""))),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -608,14 +643,15 @@ let x : (String, String) = ? in
   | ("", _)  => 3
 end}}}|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(tuple([string("*"), wild()])),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -631,7 +667,7 @@ case x
   | {{{"ABC"}}} => 1
   | _ => 3
 end|},
-    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+    [Marks([Redundant]), Marks([Redundant])],
   );
 
 let bools_exhaustive =
@@ -658,18 +694,20 @@ let z = {{{case x
 end}}} in ?
 |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(bool(true))),
         ),
-      ),
-      Info.Exp(
+      ]),
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(bool(false))),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -686,9 +724,9 @@ case x
   | {{{_}}} => 3
 end|},
     [
-      Info.Pat(Redundant(None)),
-      Info.Pat(Redundant(None)),
-      Info.Pat(Redundant(None)),
+      Marks([Redundant]),
+      Marks([Redundant]),
+      Marks([Redundant]),
     ],
   );
 
@@ -714,7 +752,7 @@ case x
 | {{{_}}} => 2
 end
     |},
-    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+    [Marks([Redundant]), Marks([Redundant])],
   );
 
 let rank_compare =
@@ -743,7 +781,7 @@ let rank_compare: (Rank, Rank) -> Int =
       | {{{_}}} => 1
 end in ?
 |},
-    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+    [Marks([Redundant]), Marks([Redundant])],
   );
 
 let rank_compare_inexhaustive =
@@ -770,16 +808,17 @@ let rank_compare: (Rank, Rank) -> Int =
 end}}} in ?
 |},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               tuple([wild(), constructor("Jack", None)])
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -796,12 +835,13 @@ let x : Rank = ? in
 {{{let Ace = x in
 ?}}}|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("Jack", None))),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -818,12 +858,13 @@ let x : Rank = ? in
 let f = {{{fun Ace -> ?}}} in
 ?|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("Jack", None))),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -843,16 +884,17 @@ let f = fun (x : Tree) ->
   end}}}
 in ?|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               ap(constructor("Node", None), cons(wild(), list_lit([])))
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -913,7 +955,7 @@ let f = fun (x : ?) ->
     | {{{_}}} => Empty
   end
 in ?|},
-    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+    [Marks([Redundant]), Marks([Redundant])],
   );
 
 let unknown_scrutinee_tuples_of_many_lengths =
@@ -927,7 +969,7 @@ let unknown_scrutinee_tuples_of_many_lengths =
     | {{{(x, y, z)}}} => 3
     | {{{(a, b)}}} => 4
     end|},
-    [Info.Pat(Redundant(None)), Info.Pat(Redundant(None))],
+    [Marks([Redundant]), Marks([Redundant])],
   );
 
 let partially_unknown_scrutinee_inexhaustive =
@@ -942,16 +984,17 @@ let f = fun (x : Tree) ->
   end}}}
 in ?|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               ap(constructor("Node", None), wild())
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -968,17 +1011,18 @@ let f = fun (x : Tree) ->
   end}}}
 in ?|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               ap(constructor("Node", None), wild())
             ),
           ),
         ),
-      ),
-      Info.Pat(Redundant(None)),
+      ]),
+      Marks([Redundant]),
     ],
   );
 
@@ -1020,9 +1064,10 @@ let f = fun (tpl : Tuple) ->
   end}}}
 in ?|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               tuple([
@@ -1033,7 +1078,7 @@ in ?|},
             ),
           ),
         ),
-      ),
+      ]),
     ],
   );
 
@@ -1054,9 +1099,10 @@ let f = fun (tpl : Tuple) ->
   end}}}
 in ?|},
     [
-      Info.Exp(
+      Marks([
         InexhaustiveMatch(
-          None,
+          FTemp.Typ.unknown(Internal),
+          [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
               tuple([
@@ -1067,11 +1113,11 @@ in ?|},
             ),
           ),
         ),
-      ),
-      Info.Pat(Redundant(None)),
-      Info.Pat(Redundant(None)),
-      Info.Pat(Redundant(None)),
-      Info.Pat(Redundant(None)),
+      ]),
+      Marks([Redundant]),
+      Marks([Redundant]),
+      Marks([Redundant]),
+      Marks([Redundant]),
     ],
   );
 
@@ -1092,54 +1138,40 @@ let labeled_tuple_additional_error = {
                     tuple(
                       ~ann=
                         Some(
-                          Pat(
-                            Redundant(
-                              Some(
-                                Common(
-                                  TupleLabelError({
-                                    malformed_labels: [],
-                                    duplicate_labels: [],
-                                    invalid_labels: ["a"],
-                                    typ:
-                                      FTemp.Typ.(
-                                        prod([
-                                          list(unknown(Internal)),
-                                          unknown(Internal),
-                                        ])
-                                      ),
-                                  }),
-                                ),
-                              ),
-                            ),
-                          ),
+                          Marks([
+                            Redundant,
+                            TupleLabelError({
+                              malformed_labels: [],
+                              duplicate_labels: [],
+                              invalid_labels: ["a"],
+                              typ:
+                                FTemp.Typ.prod([
+                                  FTemp.Typ.list(FTemp.Typ.unknown(Internal)),
+                                  FTemp.Typ.unknown(Internal),
+                                ]),
+                            }),
+                          ]),
                         ),
                       [
                         list_lit([]),
                         tup_label(
                           ~ann=
                             Some(
-                              Pat(
-                                Common(
-                                  TupleLabelError({
-                                    malformed_labels: [],
-                                    duplicate_labels: [],
-                                    invalid_labels: ["a"],
-                                    typ:
-                                      FTemp.Typ.(
-                                        tup_label(
-                                          label("a"),
-                                          unknown(Internal),
-                                        )
-                                      ),
-                                  }),
-                                ),
-                              ),
+                              Marks([
+                                TupleLabelError({
+                                  malformed_labels: [],
+                                  duplicate_labels: [],
+                                  invalid_labels: ["a"],
+                                  typ:
+                                    FTemp.Typ.tup_label(
+                                      FTemp.Typ.label("a"),
+                                      FTemp.Typ.unknown(Internal),
+                                    ),
+                                }),
+                              ]),
                             ),
                           label(
-                            ~ann=
-                              Some(
-                                Pat(Common(NoType(InvalidLabel("a", [])))),
-                              ),
+                            ~ann=Some(Marks([InvalidLabel("a", [])])),
                             "a",
                           ),
                           empty_hole(),
@@ -1166,7 +1198,7 @@ case f
 | g => g
 | {{{h}}} => h
 end|},
-    [Info.Pat(Redundant(None))],
+    [Marks([Redundant])],
   );
 
 let type_function_scrutinee =
@@ -1177,7 +1209,7 @@ case f
 | g => g
 | {{{h}}} => h
 end|},
-    [Info.Pat(Redundant(None))],
+    [Marks([Redundant])],
   );
 
 // tests a weird edge case where the label has no argument

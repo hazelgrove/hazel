@@ -199,7 +199,10 @@ module PlainTests = {
     Exp.(
       match(
         bin_op(Poly(Equals), int(4), int(3)),
-        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
+        [
+          (Pat.bool(true), asc(int(24), Typ.unknown(SynSwitch))),
+          (Pat.bool(false), asc(bool(false), Typ.unknown(SynSwitch))),
+        ],
       )
     );
 

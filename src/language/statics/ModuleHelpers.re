@@ -89,14 +89,15 @@ let rec restore_module_body_id = (~id, exp: Exp.t): Exp.t => {
 };
 
 /* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
-let reclassify_expanded_module_items = (items: list(Mod.t), m: StaticsBase.Map.t) =>
+let reclassify_expanded_module_items =
+    (items: list(Mod.t), m: StaticsBase.Map.t) =>
   List.fold_left(
     (m, item: Mod.t) => {
       let ids = IdTagged.ids(item);
       let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
       switch (Id.Map.find_opt(IdTagged.rep_id(item), m)) {
       | Some(Info.InfoExp(info)) =>
-        StaticsBase.add_info(
+        StaticsBase.Map.add_info(
           ids,
           Info.InfoExp({
             ...info,
@@ -119,7 +120,8 @@ let module_actual_type = (items: list(Mod.t), m: StaticsBase.Map.t): Typ.t => {
     |> List.map(((name, pat)) => {
          let ty =
            switch (Id.Map.find_opt(Pat.rep_id(pat), m)) {
-           | Some(Info.InfoPat({ty, ctx: pat_ctx, _})) => Typ.normalize(pat_ctx, ty)
+           | Some(Info.InfoPat({ty, ctx: pat_ctx, _})) =>
+             Typ.normalize(pat_ctx, ty)
            | _ => Typ.temp(Unknown(Internal))
            };
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
@@ -138,11 +140,7 @@ let moduleexp_elab = (~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
   let (expanded_term, expanded_rewrap) = Exp.unwrap(expanded_elab);
   switch (expanded_term) {
   | Let(p_elab, _, body_elab) =>
-    Let(
-      strip_module_sig_pats_in_pat(p_elab),
-      def_elab_direct,
-      body_elab,
-    )
+    Let(strip_module_sig_pats_in_pat(p_elab), def_elab_direct, body_elab)
     |> expanded_rewrap
   | _ => strip_module_sig_pats(expanded_elab)
   };

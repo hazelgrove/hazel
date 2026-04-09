@@ -98,7 +98,8 @@ let rec is_aligned_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): bool =>
 
 /* Align only when the expression is not already in the expected shape. */
 let align_exp_if_needed = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
-  is_aligned_exp(ctx, expected_ty, exp) ? exp : align_exp(ctx, expected_ty, exp);
+  is_aligned_exp(ctx, expected_ty, exp)
+    ? exp : align_exp(ctx, expected_ty, exp);
 
 /* Lift a pattern into a singleton labeled tuple and preserve original status. */
 let autolabel_singleton_pat =
@@ -125,11 +126,11 @@ let autolabel_singleton_pat =
   let (info: Info.pat, _, m) = analyze_elaborated(~ana, elaborated_pat, m);
   let info = {
     ...info,
-    status: original_info.status,
+    message: original_info.message,
     label_inference:
       Some(
         SingletonLabelInference({
-          label: label,
+          label,
           pre_labeled_info: original_info,
         }),
       ),

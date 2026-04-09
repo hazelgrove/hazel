@@ -1,29 +1,33 @@
 open Alcotest;
 open Language;
+open TypExpectation;
 
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
-let status_typ_tests = (
-  "Info.status_typ",
+let typ_status_testable =
+  testable(
+    Fmt.using(Statics.show_typ_status, Fmt.string),
+    Statics.equal_typ_status,
+  );
+
+let derive_typ_tests = (
+  "Statics.derive_typ_status",
   [
     test_case(
       "Typ meet on polymorphic types",
       `Quick,
       () => {
         let status =
-          Info.status_typ(
+          Statics.derive_typ_status(
             Builtins.ctx_init(Some(Int)),
             TypeExpected,
             Unknown(Hole(Invalid("x"))) |> Typ.temp,
           );
 
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Bad token",
-          Info.InHole(Info.BadToken("x")),
+          ([Mark.BadToken("x")], None),
           status,
         );
       },
@@ -35,14 +39,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Unknown(Hole(EmptyHole)) |> Typ.temp;
-        let status = Info.status_typ(ctx, LabelExpected(Unique, []), ty);
+        let status = Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Empty label",
-          Info.NotInHole(Info.EmptyLabel),
+          ([], Some(Message.EmptyLabel)),
           status,
         );
       },
@@ -53,14 +54,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Unknown(Hole(EmptyHole)) |> Typ.temp;
-        let status = Info.status_typ(ctx, TypeExpected, ty);
+        let status = Statics.derive_typ_status(ctx, TypeExpected, ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Type of EmptyHole",
-          Info.NotInHole(Info.Type(ty)),
+          ([], Some(Message.Type(ty))),
           status,
         );
       },
@@ -72,14 +70,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Unknown(Hole(MultiHole([]))) |> Typ.temp;
-        let status = Info.status_typ(ctx, TypeExpected, ty);
+        let status = Statics.derive_typ_status(ctx, TypeExpected, ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Parse failure",
-          Info.InHole(Info.ParseFailure),
+          ([Mark.TypParseFailure], None),
           status,
         );
       },
@@ -93,15 +88,13 @@ let status_typ_tests = (
         let ctx =
           Ctx.extend_alias(ctx0, "A", Id.invalid, Atom(Int) |> Typ.temp);
         let ty = Var("A") |> Typ.temp;
-        let status = Info.status_typ(ctx, TypeExpected, ty);
+        let status = Statics.derive_typ_status(ctx, TypeExpected, ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Alias is a type",
-          Info.NotInHole(
-            Info.TypeAlias("A", Typ.weak_head_normalize(ctx, ty)),
+          ([], Some(
+                Message.TypeAlias("A", Typ.weak_head_normalize(ctx, ty)),
+              ),
           ),
           status,
         );
@@ -113,14 +106,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Var("X") |> Typ.temp;
-        let status = Info.status_typ(ctx, TypeExpected, ty);
+        let status = Statics.derive_typ_status(ctx, TypeExpected, ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Free type variable",
-          Info.InHole(Info.FreeTypeVariable("X")),
+          ([Mark.TypFreeTypeVariable("X")], None),
           status,
         );
       },
@@ -140,14 +130,11 @@ let status_typ_tests = (
             },
           );
         let ty = Var("T") |> Typ.temp;
-        let status = Info.status_typ(ctx, TypeExpected, ty);
+        let status = Statics.derive_typ_status(ctx, TypeExpected, ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Abstract type variable",
-          Info.NotInHole(Info.Type(Var("T") |> Typ.temp)),
+          ([], Some(Message.Type(Var("T") |> Typ.temp))),
           status,
         );
       },
@@ -158,14 +145,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Var("A") |> Typ.temp; /* not an alias in this ctx */
-        let status = Info.status_typ(ctx, LabelExpected(Unique, []), ty);
+        let status = Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "WantLabel",
-          Info.InHole(Info.WantLabel),
+          ([Mark.TypWantLabel], None),
           status,
         );
       },
@@ -180,22 +164,16 @@ let status_typ_tests = (
         let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
         let ty = Var("Some") |> Typ.temp;
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Variant unique",
-          Info.NotInHole(Info.Variant("Some", sum_ty)),
-          Info.status_typ(ctx, ConstructorExpected(Unique, sum_ty), ty),
+          ([], Some(Message.Variant("Some", sum_ty))),
+          Statics.derive_typ_status(ctx, ConstructorExpected(Unique, sum_ty), ty),
         );
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Variant unique",
-          Info.NotInHole(Info.Variant("Some", sum_ty)),
-          Info.status_typ(ctx, VariantExpected(Unique, sum_ty), ty),
+          ([], Some(Message.Variant("Some", sum_ty))),
+          Statics.derive_typ_status(ctx, VariantExpected(Unique, sum_ty), ty),
         );
       },
     ),
@@ -207,22 +185,16 @@ let status_typ_tests = (
         let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
         let ty = Var("Some") |> Typ.temp;
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Duplicate constructor",
-          Info.InHole(Info.DuplicateConstructor("Some")),
-          Info.status_typ(ctx, ConstructorExpected(Duplicate, sum_ty), ty),
+          ([Mark.TypDuplicateConstructor("Some")], None),
+          Statics.derive_typ_status(ctx, ConstructorExpected(Duplicate, sum_ty), ty),
         );
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Duplicate constructor variant",
-          Info.InHole(Info.DuplicateConstructor("Some")),
-          Info.status_typ(ctx, VariantExpected(Duplicate, sum_ty), ty),
+          ([Mark.TypDuplicateConstructor("Some")], None),
+          Statics.derive_typ_status(ctx, VariantExpected(Duplicate, sum_ty), ty),
         );
       },
     ),
@@ -233,14 +205,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Label("a") |> Typ.temp;
-        let status = Info.status_typ(ctx, TypeExpected, ty);
+        let status = Statics.derive_typ_status(ctx, TypeExpected, ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Label as type",
-          Info.NotInHole(Info.Type(ty)),
+          ([], Some(Message.Type(ty))),
           status,
         );
       },
@@ -251,14 +220,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Label("a") |> Typ.temp;
-        let status = Info.status_typ(ctx, LabelExpected(Unique, []), ty);
+        let status = Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Label ok",
-          Info.NotInHole(Info.Type(ty)),
+          ([], Some(Message.Type(ty))),
           status,
         );
       },
@@ -271,14 +237,11 @@ let status_typ_tests = (
         let ty = Label("a") |> Typ.temp;
         let dupes = ["a", "b"];
         let status =
-          Info.status_typ(ctx, LabelExpected(Duplicate, dupes), ty);
+          Statics.derive_typ_status(ctx, LabelExpected(Duplicate, dupes), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Duplicate label",
-          Info.InHole(Info.Duplicate("a", ty)),
+          ([Mark.DuplicateLabel("a", ty)], None),
           status,
         );
       },
@@ -290,14 +253,11 @@ let status_typ_tests = (
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Label("a") |> Typ.temp;
         let status =
-          Info.status_typ(ctx, LabelExpected(Duplicate, ["x"]), ty);
+          Statics.derive_typ_status(ctx, LabelExpected(Duplicate, ["x"]), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "WantLabel when not expected duplicate",
-          Info.InHole(Info.WantLabel),
+          ([Mark.TypWantLabel], None),
           status,
         );
       },
@@ -309,18 +269,15 @@ let status_typ_tests = (
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Label("p") |> Typ.temp;
         let status =
-          Info.status_typ(
+          Statics.derive_typ_status(
             ctx,
             LabelProjectionExpected(Some(["p", "q"])),
             ty,
           );
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Projection ok",
-          Info.NotInHole(Info.Type(ty)),
+          ([], Some(Message.Type(ty))),
           status,
         );
       },
@@ -333,14 +290,11 @@ let status_typ_tests = (
         let ty = Label("p") |> Typ.temp;
         let labels = ["x", "y"];
         let status =
-          Info.status_typ(ctx, LabelProjectionExpected(Some(labels)), ty);
+          Statics.derive_typ_status(ctx, LabelProjectionExpected(Some(labels)), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Invalid projection label",
-          Info.InHole(Info.InvalidLabel("p", labels)),
+          ([Mark.InvalidLabel("p", labels)], None),
           status,
         );
       },
@@ -353,14 +307,11 @@ let status_typ_tests = (
         let ty = Label("a") |> Typ.temp;
         let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
         let status =
-          Info.status_typ(ctx, ConstructorExpected(Unique, sum_ty), ty);
+          Statics.derive_typ_status(ctx, ConstructorExpected(Unique, sum_ty), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Label where constructor expected",
-          Info.InHole(Info.WantConstructorFoundType(ty)),
+          ([Mark.TypWantConstructorFoundType(ty)], None),
           status,
         );
       },
@@ -373,14 +324,11 @@ let status_typ_tests = (
         let ty = Label("a") |> Typ.temp;
         let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
         let status =
-          Info.status_typ(ctx, VariantExpected(Unique, sum_ty), ty);
+          Statics.derive_typ_status(ctx, VariantExpected(Unique, sum_ty), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Label where variant expected",
-          Info.InHole(Info.WantConstructorFoundType(ty)),
+          ([Mark.TypWantConstructorFoundType(ty)], None),
           status,
         );
       },
@@ -392,14 +340,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Atom(Int) |> Typ.temp;
-        let status = Info.status_typ(ctx, TypeExpected, ty);
+        let status = Statics.derive_typ_status(ctx, TypeExpected, ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Atom type ok",
-          Info.NotInHole(Info.Type(ty)),
+          ([], Some(Message.Type(ty))),
           status,
         );
       },
@@ -410,14 +355,11 @@ let status_typ_tests = (
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Atom(Int) |> Typ.temp;
-        let status = Info.status_typ(ctx, LabelExpected(Unique, []), ty);
+        let status = Statics.derive_typ_status(ctx, LabelExpected(Unique, []), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "WantLabel for non-label",
-          Info.InHole(Info.WantLabel),
+          ([Mark.TypWantLabel], None),
           status,
         );
       },
@@ -429,14 +371,11 @@ let status_typ_tests = (
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Atom(Int) |> Typ.temp;
         let status =
-          Info.status_typ(ctx, LabelProjectionExpected(Some(["a"])), ty);
+          Statics.derive_typ_status(ctx, LabelProjectionExpected(Some(["a"])), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "WantLabel for non-label (projection)",
-          Info.InHole(Info.WantLabel),
+          ([Mark.TypWantLabel], None),
           status,
         );
       },
@@ -449,14 +388,11 @@ let status_typ_tests = (
         let ty = Atom(Int) |> Typ.temp;
         let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
         let status =
-          Info.status_typ(ctx, ConstructorExpected(Unique, sum_ty), ty);
+          Statics.derive_typ_status(ctx, ConstructorExpected(Unique, sum_ty), ty);
         check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
+          typ_status_testable,
           "Constructor expected elsewhere",
-          Info.InHole(Info.WantConstructorFoundType(ty)),
+          ([Mark.TypWantConstructorFoundType(ty)], None),
           status,
         );
       },
@@ -464,4 +400,4 @@ let status_typ_tests = (
   ],
 );
 
-let tests = [status_typ_tests];
+let tests = [derive_typ_tests];
