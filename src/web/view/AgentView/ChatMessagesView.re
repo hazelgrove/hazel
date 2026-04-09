@@ -455,12 +455,49 @@ module ViewComponents = {
 
     let render_category =
         (category: string, items: list((string, string, bool, bool))) => {
+      let all_enabled = List.for_all(((_, _, en, _)) => en, items);
+      let toggle_category = _ =>
+        Effect.Many([
+          agent_inject(
+            Agent.Agent.Update.Action.SetToolsInCategoryEnabled(
+              category,
+              !all_enabled,
+            ),
+          ),
+          Effect.Stop_propagation,
+        ]);
       div(
         ~attrs=[clss(["tools-view-category"])],
         [
           div(
-            ~attrs=[clss(["tools-view-category-title"])],
-            [text(category)],
+            ~attrs=[clss(["tools-view-category-title-row"])],
+            [
+              div(
+                ~attrs=[clss(["tools-view-category-title-label"])],
+                [text(category)],
+              ),
+              div(
+                ~attrs=[
+                  clss(
+                    [
+                      "tools-view-item-toggle",
+                      "tools-view-category-master-toggle",
+                    ]
+                    @ (all_enabled ? [] : ["tools-view-category-master-off"]),
+                  ),
+                  Attr.on_click(toggle_category),
+                  Attr.title(
+                    all_enabled
+                      ? "Disable all tools in this category for this chat"
+                      : "Enable all tools in this category for this chat",
+                  ),
+                ],
+                [
+                  all_enabled
+                    ? Icons.circle_with_check : Icons.circle_with_no_check,
+                ],
+              ),
+            ],
           ),
           div(
             ~attrs=[clss(["tools-view-category-items"])],

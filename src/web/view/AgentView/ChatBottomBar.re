@@ -453,9 +453,9 @@ let view =
               Attr.id("chat-message-input"),
               Attr.placeholder(
                 is_compacting
-                  ? "Compacting… Press Enter to queue a message (Shift+Enter newline)."
+                  ? "Compacting… Type a message to add to queue..."
                   : is_awaiting_assistant
-                      ? "Press Enter to queue your next message (Shift+Enter newline). Stop is click-only."
+                      ? "Type a message to add to queue..."
                       : "Type your message...",
               ),
               Attr.property("autocomplete", Js.Unsafe.inject("off")),

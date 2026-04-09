@@ -2095,6 +2095,7 @@ module Agent = {
         | LoadSegmentIntoEditor(Segment.t)
         | SetActiveTimelineNode(option(int))
         | SetToolEnabled(string, bool)
+        | SetToolsInCategoryEnabled(string, bool)
         | ToggleToolsViewExpanded(string)
         | RequestForcedCompaction(Id.t)
         | StopAgenticLoop
@@ -3876,6 +3877,40 @@ module Agent = {
             List.mem(name, model.prompting.disabled_tool_names)
               ? model.prompting.disabled_tool_names
               : [name, ...model.prompting.disabled_tool_names];
+          };
+        (
+          {
+            ...model,
+            prompting: {
+              ...model.prompting,
+              disabled_tool_names,
+            },
+          },
+          editor |> Updated.return,
+        );
+      | SetToolsInCategoryEnabled(category, enabled) =>
+        let names_in_cat =
+          CompositionUtils.Public.tools
+          |> List.filter_map((tool: API.Json.t) =>
+               switch (ToolUtils.get_name(tool)) {
+               | Some(name) when ToolUtils.category_of_tool(name) == category =>
+                 Some(name)
+               | _ => None
+               }
+             );
+        let disabled_tool_names =
+          if (enabled) {
+            List.filter(
+              (n: string) => !List.mem(n, names_in_cat),
+              model.prompting.disabled_tool_names,
+            );
+          } else {
+            List.fold_left(
+              (acc: list(string), n: string) =>
+                List.mem(n, acc) ? acc : [n, ...acc],
+              model.prompting.disabled_tool_names,
+              names_in_cat,
+            );
           };
         (
           {

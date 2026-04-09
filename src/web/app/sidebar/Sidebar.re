@@ -60,7 +60,7 @@ let assistant_tab = (~globals: Globals.t): Node.t =>
     ~panel=HelpfulAssistant,
     ~cls=["assistant-button"],
     ~icon=Icons.hazelnut_agent,
-    ~tooltip="Switch to Helpful Assistant",
+    ~tooltip="Open Hazel Coding Agent",
     ~globals,
   );
 

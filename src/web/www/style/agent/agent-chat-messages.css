@@ -2185,14 +2185,34 @@
   margin-bottom: 1.1em;
 }
 
-.tools-view-category-title {
+.tools-view-category-title-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.4em 0.45em 0.55em;
+  margin-bottom: 0.2em;
+}
+
+.tools-view-category-title-label {
   font-size: 0.72em;
   font-weight: 600;
   color: var(--BR3);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 0.4em 0.45em 0.55em;
-  margin-bottom: 0.2em;
+  flex: 1;
+  min-width: 0;
+}
+
+.tools-view-category-master-toggle svg {
+  fill: var(--PAT);
+  opacity: 1;
+}
+
+.tools-view-category-master-toggle.tools-view-category-master-off svg {
+  fill: var(--BR2);
+  opacity: 0.55;
 }
 
 .tools-view-category-items {
