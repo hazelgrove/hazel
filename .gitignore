@@ -67,3 +67,6 @@ node_modules
 
 # Project plans (local only)
 plans/
+
+# Cursor IDE (local)
+.cursor/
