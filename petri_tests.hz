@@ -1,0 +1,75 @@
+let tiny_net =
+  Assoc([
+    ("petriNetDefinition", Assoc([
+      ("nodes", List([
+        Assoc([
+          ("id", String("p0")),
+          ("type", String("place")),
+          ("data", Assoc([
+            ("label", String("p0")),
+            ("type", String("place")),
+            ("tokenCounts", Assoc([("default", Int(1))]))
+          ]))
+        ]),
+        Assoc([
+          ("id", String("t0")),
+          ("type", String("transition")),
+          ("data", Assoc([
+            ("label", String("t0")),
+            ("type", String("transition"))
+          ]))
+        ])
+      ])),
+      ("arcs", List([
+        Assoc([
+          ("id", String("arc__p0__t0")),
+          ("type", String("default")),
+          ("source", String("p0")),
+          ("target", String("t0")),
+          ("data", Assoc([("tokenWeights", Assoc([("default", Int(1))]))]))
+        ]),
+        Assoc([
+          ("id", String("arc__t0__p0")),
+          ("type", String("default")),
+          ("source", String("t0")),
+          ("target", String("p0")),
+          ("data", Assoc([("tokenWeights", Assoc([("default", Int(1))]))]))
+        ])
+      ]))
+    ]))
+  ])
+in
+
+let p = mk_place("p") in
+let t = mk_transition("t") in
+let a = mk_arc("p")("t")(3) in
+let (seq_nodes, seq_arcs, seq_pin, seq_pout) = build_sequence_place_module("m")(1) in
+let (par_nodes, par_arcs, par_pin, par_pout) = build_parallel_place_module("pmod")(3) in
+let net_with_resource = add_nonshared_resource(tiny_net)("r1")(1)("t0")("t0") in
+let resource_nodes = jq([jq_field("petriNetDefinition"), jq_field("nodes"), jq_iterate, jq_select(jq_pipe(jq_field("id"), jq_startswith("r1")))])(net_with_resource) in
+
+hint "mk_place creates place JSON"
+  test jq1([jq_field("type")])(p) == String("place") end;
+
+hint "mk_transition creates transition JSON"
+  test jq1([jq_field("type")])(t) == String("transition") end;
+
+hint "mk_arc stores default weight"
+  test jq1([jq_field("data"), jq_field("tokenWeights"), jq_field("default")])(a) == Int(3) end;
+
+hint "sequence module exposes expected pin and pout names"
+  test seq_pin == "m_pin" && seq_pout == "m_pout" end;
+
+hint "sequence module has expected small size for n=1"
+  test length(seq_nodes) == 5 && length(seq_arcs) == 2 end;
+
+hint "parallel module pin and pout naming"
+  test par_pin == "pmod_pin" && par_pout == "pmod_pout" end;
+
+hint "parallel module creates split and join structure"
+  test length(par_nodes) == 7 && length(par_arcs) == 8 end;
+
+hint "nonshared resource adds resource place node"
+  test length(resource_nodes) == 1 end;
+
+true

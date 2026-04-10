@@ -10,15 +10,20 @@ let read_input = path => {
   );
 };
 
-let parse_program = (s: string) =>
+/* Parse user program text without injecting extra stdlib terms. */
+let parse_program_raw = (s: string) =>
   switch (Haz3lcore.Parser.to_term(s)) {
   | Some(e) => e
   | None => failwith("Failed to parse expression: " ++ s)
   };
 
+/* Parse user program text and prepend Petri stdlib definitions semantically. */
+let parse_program_with_petri_stdlib = (s: string) =>
+  parse_program_raw(s) |> Haz3lcore.PetriStdlib.with_prelude_term;
+
 let run_hazel = path => {
   let program = read_input(path);
-  let parsed = parse_program(program);
+  let parsed = parse_program_with_petri_stdlib(program);
   let evaluated = Run.evaluate(parsed);
 
   print_endline(Print.print(evaluated));
@@ -26,7 +31,7 @@ let run_hazel = path => {
 
 let format_hazel = path => {
   let program = read_input(path);
-  let parsed = parse_program(program);
+  let parsed = parse_program_raw(program);
   print_endline(Print.print(parsed));
 };
 
@@ -37,7 +42,7 @@ let analyze_hazel =
         | `Ok(unit)
       ] => {
   let program = read_input(path);
-  let parsed = parse_program(program);
+  let parsed = parse_program_with_petri_stdlib(program);
   open Language;
   let static_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), parsed);
@@ -72,7 +77,9 @@ let probe_hazel = (many: bool, path: string): unit => {
     let refractors = zipper.refractors.manuals;
 
     /* Get term for evaluation */
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+    let term =
+      Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term
+      |> Haz3lcore.PetriStdlib.with_prelude_term;
 
     /* Evaluate and collect probe samples */
     let (_, probe_map) = Run.evaluate_with_probes(term);
