@@ -112,7 +112,7 @@ module Map = {
   /* Outputs valid OCaml code for empty maps only.
    * Non-empty maps will fail - this is intentional. Currently only empty maps
    * are serialized via show (see Refractors.for_serialization which resets
-   * autos to empty before serialization). If you need to persist non-empty
+   * multis to empty before serialization). If you need to persist non-empty
    * Id.Map values, implement proper nested Id.Map.add output here. */
   let pp = (_pp_v, fmt, map) =>
     if (is_empty(map)) {

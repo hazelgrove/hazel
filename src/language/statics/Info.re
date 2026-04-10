@@ -319,6 +319,7 @@ type tpat = {
   cls: Cls.t,
   status: status_tpat,
   warning: Warning.t,
+  tvar_co_ctx: VarMap.t_(list(Id.t)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1104,7 +1105,8 @@ let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
 };
 
 /* Add derivable attributes for type patterns */
-let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
+let derived_tpat =
+    (~utpat: TPat.t, ~ctx, ~ancestors, ~tvar_co_ctx=VarMap.empty, ()): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
   let warning: Warning.t = None;
@@ -1115,6 +1117,7 @@ let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
     warning,
     ctx,
     term: utpat,
+    tvar_co_ctx,
   };
 };
 

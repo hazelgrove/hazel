@@ -1,6 +1,6 @@
 open Util.OptUtil.Syntax;
-/* AUTOMATIC PROBE PLACEMENT FOR REPL MODE
- * This module determines which term on each line should receive an automatic probe.
+/* MULTI PROBE PLACEMENT
+ * This module determines which term on each line should receive a multi probe.
  *
  * The core strategy is to analyze each line's candidate terms (ordered by priority:
  * find the most rightwards last position of a term ending on that line, then find the
@@ -62,6 +62,12 @@ open Util.OptUtil.Syntax;
   *     1    // probe on '1'  (default)
   *   )      // no probe (avoid redundant values from parens)
   *
+  * RULE: TupLabel probes are redundant (label is visible in source):
+  *   let r = (
+  *     brush = "a",     // probe on '"a"', NOT on 'brush = "a"'
+  *     palette = [...]  // probe on '[...]', NOT on 'palette = [...]'
+  *   ) in
+  *
   * CONTAINER SPECIAL CASES:
   *
   * RULE: Multi-line containers prefer elements over the whole container:
@@ -116,7 +122,7 @@ open Util.OptUtil.Syntax;
   *     get_pair(1) in     // probe on 'get_pair(1)' (default)
   *   let x = 1 + a in    // probe on 'x', NOT on 'a' (already seen via pattern probe)
   *
- * Behavior is aligned with the scenarios documented in `test/Test_AutoProbe.re`.
+ * Behavior is aligned with the scenarios documented in `test/Test_MultiProbe.re`.
  * The implementation follows a simple pipeline:
  *   1. Derive ordered candidate IDs per source row from `TermData`.
  *   2. Compute lightweight row metadata (e.g. whether only holes appear).
@@ -166,6 +172,13 @@ let term_is_tuple = (term: Language.Any.t): bool =>
   switch (term) {
   | Exp({term: Tuple(_), _})
   | Pat({term: Tuple(_), _}) => true
+  | _ => false
+  };
+
+let term_is_tuplabel = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: TupLabel(_, _), _})
+  | Pat({term: TupLabel(_, _), _}) => true
   | _ => false
   };
 
@@ -355,6 +368,16 @@ let is_incomplete_tile = (candidate_id: Id.t, data: TermData.t): bool =>
   | None => false
   };
 
+/* Check if a candidate is a Rule tile (| pat => body).
+ * Rule tiles never have values — they're structural, not evaluable.
+ * When incomplete (just |), they appear as MultiHoles in the term map,
+ * so the term-level candidate_allowed_by_rule won't catch them. */
+let is_rule_tile = (candidate_id: Id.t, data: TermData.t): bool =>
+  switch (TermData.root_tile(candidate_id, data)) {
+  | Some({label: ["|", "=>"], _}) => true
+  | _ => false
+  };
+
 /* Keywords that introduce a "body" determining the form's value.
  * When an incomplete tile is missing a shard with one of these,
  * the form's value is hole-like (body not yet typed). */
@@ -383,12 +406,26 @@ let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
   | _ => false
   };
 
+/* Check if a candidate is an InfixDelimiterPrefix tile -- a partial
+ * keyword like `th` (prefix of `then`). These are transient artifacts
+ * of typing and should never be probed or count as alternatives. */
+let is_delimiter_prefix = (candidate_id: Id.t, data: TermData.t): bool =>
+  switch (TermData.root_tile(candidate_id, data)) {
+  | Some({label: [t], mold, _}) =>
+    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | _ => false
+  };
+
 /* Check if an id represents a "meaningful" alternative (not a hole,
- * or an incomplete tile that isn't a binding form). */
+ * not a delimiter prefix, or an incomplete tile that isn't a binding form). */
 let is_meaningful_alternative =
     (id: Id.t, terms: TermMap.t, data: TermData.t): bool =>
-  /* Incomplete non-binding tiles are meaningful alternatives */
-  if (is_incomplete_tile(id, data) && !is_incomplete_binding_form(id, data)) {
+  if (is_delimiter_prefix(id, data)) {
+    false;
+  } else if (is_rule_tile(id, data)) {
+    false;
+  } else if (is_incomplete_tile(id, data)
+             && !is_incomplete_binding_form(id, data)) {
     true;
   } else {
     switch (get_term(id, terms)) {
@@ -423,7 +460,10 @@ let candidate_allowed_by_holes =
    * but deprioritize incomplete binding forms (like `let` missing `in`)
    * similar to how we handle lets with hole bodies. */
   if (is_incomplete_tile(candidate_id, env.data)) {
-    if (is_incomplete_binding_form(candidate_id, env.data)) {
+    if (is_rule_tile(candidate_id, env.data)) {
+      false;
+           /* Rule tiles (| => ) never have values, even when incomplete */
+    } else if (is_incomplete_binding_form(candidate_id, env.data)) {
       !
         row_has_non_hole_alternative(
           candidate_id,
@@ -442,15 +482,20 @@ let candidate_allowed_by_holes =
     };
   };
 
+/* Soft reject: allow function-typed terms only if no better alternative */
 let candidate_allowed_by_function_types =
-    (candidate_id: Id.t, env: selection_env): bool =>
-  !has_function_type(candidate_id, env.info_map);
+    (candidate_id: Id.t, row: row_context, env: selection_env): bool =>
+  if (has_function_type(candidate_id, env.info_map)) {
+    !row_has_non_hole_alternative(candidate_id, row.ids, env.terms, env.data);
+  } else {
+    true;
+  };
 
 let candidate_allowed_by_container =
     (candidate_id: Id.t, env: selection_env): bool =>
   switch (get_term(candidate_id, env.terms)) {
   | Some(term) =>
-    if (term_is_parens(term)) {
+    if (term_is_parens(term) || term_is_tuplabel(term)) {
       false;
     } else if (term_is_tuple(term) || term_is_list_literal(term)) {
       !term_spans_multiple_rows(candidate_id, env.data, env.measured);
@@ -497,18 +542,37 @@ let candidate_allowed_by_variables =
   | _ => true
   };
 
-/* Filter out terms that should never have probes. */
+/* Filter out terms that should never have probes. When the info_map
+ * is empty (e.g. during the initial post-reload calculate, before
+ * statics have been computed), short-circuit to true so the candidate
+ * set isn't wiped. The downstream calculate pass will re-run this
+ * filter once statics are available. */
 let candidate_allowed_by_term_sort =
     (candidate_id: Id.t, env: selection_env): bool =>
-  Language.Info.is_typable_term(
-    Language.Statics.Map.lookup(candidate_id, env.info_map),
-  );
+  Id.Map.is_empty(env.info_map)
+  || Language.Info.is_typable_term(
+       Language.Statics.Map.lookup(candidate_id, env.info_map),
+     );
+
+/* Never probe InfixDelimiterPrefix tiles (partial keywords like `th`
+ * for `then`). These are transient typing artifacts. */
+let candidate_allowed_by_delimiter_prefix =
+    (candidate_id: Id.t, env: selection_env): bool =>
+  !is_delimiter_prefix(candidate_id, env.data);
 
 let candidate_allowed_by_mod_declaration =
     (candidate_id: Id.t, env: selection_env): bool =>
   switch (get_term(candidate_id, env.terms)) {
   | Some(term) => !term_is_mod_declaration(term)
   | None => true
+  };
+
+/* Rule tiles (case arms: | pat => body) never have values and
+ * should never be probed. Their children (pat, body) are valid. */
+let candidate_allowed_by_rule = (candidate_id: Id.t, env: selection_env): bool =>
+  switch (get_term(candidate_id, env.terms)) {
+  | Some(Rul(_)) => false
+  | _ => true
   };
 
 let candidate_is_allowed =
@@ -520,9 +584,11 @@ let candidate_is_allowed =
     )
     : bool =>
   candidate_allowed_by_term_sort(candidate_id, env)
+  && candidate_allowed_by_delimiter_prefix(candidate_id, env)
   && candidate_allowed_by_mod_declaration(candidate_id, env)
+  && candidate_allowed_by_rule(candidate_id, env)
   && candidate_allowed_by_holes(candidate_id, row, env)
-  && candidate_allowed_by_function_types(candidate_id, env)
+  && candidate_allowed_by_function_types(candidate_id, row, env)
   && candidate_allowed_by_container(candidate_id, env)
   && candidate_allowed_by_let_hole(candidate_id, row, env);
 //&& candidate_allowed_by_variables(candidate_id, env, state);
@@ -558,6 +624,18 @@ let rec extract_candidate_with_end =
     };
   };
 
+/* When the first candidate on a row is an if expression, promote its
+ * else branch (which ends at the same position) to be tried first,
+ * and drop the if from the candidates entirely. The branch is always
+ * more specific than the enclosing if -- and critically, this prevents
+ * hole avoidance from rejecting a hole else branch in favor of the
+ * whole if expression. For branching forms, even a hole branch is
+ * worth probing: the sample count shows branch frequency.
+ *
+ * NOTE: case expressions with `end` on the same line as the last
+ * branch have an analogous issue -- a hole branch would be rejected
+ * in favor of the whole case. A similar adjust_candidates_for_case
+ * could handle this if it comes up in practice. */
 let adjust_candidates_for_if =
     (row: row_context, env: selection_env): list(Id.t) =>
   switch (row.ids) {
@@ -576,12 +654,39 @@ let adjust_candidates_for_if =
         let (maybe_else, remaining) =
           extract_candidate_with_end(rest, env, target_row, target_col, []);
         switch (maybe_else) {
-        | Some(else_id) => [else_id, first_id, ...remaining]
+        | Some(else_id) => [else_id, ...remaining]
         | None => row.ids
         };
       | None => row.ids
       };
     };
+  };
+
+/* When the first candidate is an incomplete binding form (missing a
+ * body-introducing keyword like `else`, `in`, or `end`), promote its
+ * trailing sibling and drop the incomplete form. Same rationale as
+ * adjust_candidates_for_if: the trailing expression/hole is more
+ * specific, and for incomplete branching forms (e.g. `if cond then ?`
+ * missing `else`), the hole's sample count shows branch frequency. */
+let adjust_candidates_for_incomplete_binding =
+    (ids: list(Id.t), env: selection_env): list(Id.t) =>
+  switch (ids) {
+  | [] => []
+  | [first_id, ...rest] =>
+    if (!is_incomplete_binding_form(first_id, env.data)) {
+      ids;
+    } else {
+      switch (term_end_position(first_id, env)) {
+      | Some((target_row, target_col)) =>
+        let (maybe_trailing, remaining) =
+          extract_candidate_with_end(rest, env, target_row, target_col, []);
+        switch (maybe_trailing) {
+        | Some(trailing_id) => [trailing_id, ...remaining]
+        | None => ids
+        };
+      | None => ids
+      };
+    }
   };
 
 let rec collect_pattern_binding_ids =
@@ -626,7 +731,16 @@ let select_in_row =
     (row: row_context, env: selection_env, state: selection_state)
     : (option(Id.t), selection_state) => {
   let adjusted_ids = adjust_candidates_for_if(row, env);
-  choose_candidate(adjusted_ids, row, env, state);
+  let adjusted_ids =
+    adjust_candidates_for_incomplete_binding(adjusted_ids, env);
+  /* Recompute hole_only after adjustments -- dropping forms from the
+   * candidates may leave only holes, allowing them through. */
+  let adjusted_row = {
+    ...row,
+    ids: adjusted_ids,
+    hole_only: row_is_hole_only(adjusted_ids, env.terms),
+  };
+  choose_candidate(adjusted_ids, adjusted_row, env, state);
 };
 
 let rec select_rows =
@@ -650,7 +764,7 @@ let normalize_to_rep_id = (id: Id.t, terms: TermMap.t): Id.t =>
   | None => id
   };
 
-let ids_to_autoprobe =
+let ids_to_multiprobe =
     (
       id: Id.t,
       data: TermData.t,
