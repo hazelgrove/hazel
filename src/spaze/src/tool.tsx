@@ -127,6 +127,211 @@ function defaultPosition(index: number) {
   return { x: col * (DEFAULT_W + GAP), y: row * (DEFAULT_H + GAP) };
 }
 
+type SpazePort = {
+  projectorId: string;
+  y: number;
+};
+
+type SpazePorts = {
+  inputs: SpazePort[];
+  outputs: SpazePort[];
+};
+
+type PortDirection = 'in' | 'out';
+
+type SpazeEndpoint = {
+  ownerShapeId: TLShapeId;
+  docUrl: string;
+  projectorId?: string;
+  portDirection?: PortDirection;
+};
+
+const PORT_HANDLE_SIZE = 10;
+const PORT_HANDLE_META_KEY = 'spazePortHandle';
+
+function normalizeSpazePorts(raw: any): SpazePorts {
+  const normalizeList = (value: any): SpazePort[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => {
+        const projectorId = typeof item?.projectorId === 'string' ? item.projectorId : '';
+        const y = typeof item?.y === 'number' ? item.y : NaN;
+        if (!projectorId || !Number.isFinite(y)) return null;
+        return { projectorId, y: Math.min(1, Math.max(0, y)) };
+      })
+      .filter((item): item is SpazePort => item !== null);
+  };
+  return {
+    inputs: normalizeList(raw?.inputs),
+    outputs: normalizeList(raw?.outputs),
+  };
+}
+
+function bindingAnchorY(binding: any): number {
+  const y = binding?.props?.normalizedAnchor?.y;
+  if (typeof y === 'number' && Number.isFinite(y)) {
+    return Math.min(1, Math.max(0, y));
+  }
+  return 0.5;
+}
+
+function nearestPort(ports: SpazePort[], y: number): SpazePort | undefined {
+  if (!ports.length) return undefined;
+  return ports.reduce((best, candidate) => {
+    const bestDist = Math.abs(best.y - y);
+    const candidateDist = Math.abs(candidate.y - y);
+    return candidateDist < bestDist ? candidate : best;
+  });
+}
+
+function sanitizeIdPart(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function makePortHandleShapeId(
+  ownerShapeId: TLShapeId,
+  direction: PortDirection,
+  projectorId: string,
+): TLShapeId {
+  return createShapeId(
+    `port_${sanitizeIdPart(ownerShapeId)}_${direction}_${sanitizeIdPart(projectorId)}`,
+  );
+}
+
+function isPortHandleShape(shape: any): boolean {
+  return !!(
+    shape &&
+    shape.type === 'geo' &&
+    shape.meta?.[PORT_HANDLE_META_KEY] === true &&
+    typeof shape.meta?.ownerShapeId === 'string' &&
+    (shape.meta?.direction === 'in' || shape.meta?.direction === 'out')
+  );
+}
+
+function portHandlePosition(ownerShape: any, direction: PortDirection, y: number) {
+  const cx = direction === 'in'
+    ? ownerShape.x
+    : ownerShape.x + (ownerShape.props?.w ?? 0);
+  const cy = ownerShape.y + (ownerShape.props?.h ?? 0) * y;
+  return {
+    x: cx - PORT_HANDLE_SIZE / 2,
+    y: cy - PORT_HANDLE_SIZE / 2,
+  };
+}
+
+function removePortHandlesForOwner(editor: Editor, ownerShapeId: TLShapeId) {
+  const ids = editor
+    .getCurrentPageShapes()
+    .filter((shape: any) => isPortHandleShape(shape) && shape.meta.ownerShapeId === ownerShapeId)
+    .map((shape: any) => shape.id);
+  if (ids.length > 0) {
+    editor.deleteShapes(ids);
+  }
+}
+
+function reconcilePortHandlesForOwner(editor: Editor, ownerShape: any, ports: SpazePorts) {
+  const desired = [
+    ...ports.inputs.map((port) => ({ ...port, direction: 'in' as const })),
+    ...ports.outputs.map((port) => ({ ...port, direction: 'out' as const })),
+  ];
+  const desiredById = new Map<TLShapeId, typeof desired[number]>();
+  for (const d of desired) {
+    desiredById.set(makePortHandleShapeId(ownerShape.id, d.direction, d.projectorId), d);
+  }
+
+  const existing = editor
+    .getCurrentPageShapes()
+    .filter((shape: any) => isPortHandleShape(shape) && shape.meta.ownerShapeId === ownerShape.id);
+
+  const existingIds = new Set(existing.map((shape: any) => shape.id as TLShapeId));
+  const toDelete = existing
+    .filter((shape: any) => !desiredById.has(shape.id))
+    .map((shape: any) => shape.id);
+  if (toDelete.length > 0) {
+    editor.deleteShapes(toDelete);
+  }
+
+  for (const [shapeId, d] of desiredById) {
+    const { x, y } = portHandlePosition(ownerShape, d.direction, d.y);
+    if (existingIds.has(shapeId)) {
+      editor.updateShape({
+        id: shapeId,
+        type: 'geo',
+        x,
+        y,
+        parentId: ownerShape.parentId,
+        props: {
+          w: PORT_HANDLE_SIZE,
+          h: PORT_HANDLE_SIZE,
+          geo: 'ellipse',
+          fill: 'solid',
+          dash: 'draw',
+          color: d.direction === 'in' ? 'blue' : 'green',
+        },
+        isLocked: true,
+        meta: {
+          [PORT_HANDLE_META_KEY]: true,
+          ownerShapeId: ownerShape.id,
+          projectorId: d.projectorId,
+          direction: d.direction,
+          yNorm: d.y,
+        },
+      } as any);
+    } else {
+      editor.createShape({
+        id: shapeId,
+        type: 'geo',
+        x,
+        y,
+        parentId: ownerShape.parentId,
+        props: {
+          w: PORT_HANDLE_SIZE,
+          h: PORT_HANDLE_SIZE,
+          geo: 'ellipse',
+          fill: 'solid',
+          dash: 'draw',
+          color: d.direction === 'in' ? 'blue' : 'green',
+        },
+        isLocked: true,
+        meta: {
+          [PORT_HANDLE_META_KEY]: true,
+          ownerShapeId: ownerShape.id,
+          projectorId: d.projectorId,
+          direction: d.direction,
+          yNorm: d.y,
+        },
+      } as any);
+    }
+  }
+}
+
+function resolveEndpoint(editor: Editor, shapeId: TLShapeId): SpazeEndpoint | undefined {
+  const shape: any = editor.getShape(shapeId);
+  if (!shape) return undefined;
+
+  if (shape.type === PATCHWORK_DOC_SHAPE_TYPE) {
+    const docUrl = shape.props?.docUrl;
+    if (!docUrl) return undefined;
+    return {
+      ownerShapeId: shape.id,
+      docUrl,
+    };
+  }
+
+  if (isPortHandleShape(shape)) {
+    const ownerShape: any = editor.getShape(shape.meta.ownerShapeId);
+    if (!ownerShape || ownerShape.type !== PATCHWORK_DOC_SHAPE_TYPE) return undefined;
+    const docUrl = ownerShape.props?.docUrl;
+    if (!docUrl) return undefined;
+    return {
+      ownerShapeId: ownerShape.id,
+      docUrl,
+      projectorId: shape.meta.projectorId,
+      portDirection: shape.meta.direction,
+    };
+  }
+}
+
 // ---- Arrow binding helpers --------------------------------------------------
 
 /**
@@ -179,9 +384,9 @@ function dispatchArrowEvent(
 
   console.log(LOG, 'dispatchArrowEvent', eventName, 'binding:', binding.id, 'toId:', binding.toId, 'terminal:', binding.props?.terminal);
 
-  const thisShape = editor.getShape(binding.toId);
-  if (!thisShape || thisShape.type !== PATCHWORK_DOC_SHAPE_TYPE) {
-    console.log(LOG, '  bail: thisShape not patchwork-doc', thisShape?.type);
+  const thisEndpoint = resolveEndpoint(editor, binding.toId);
+  if (!thisEndpoint) {
+    console.log(LOG, '  bail: this endpoint not patchwork-doc/port-handle', binding.toId);
     return false;
   }
 
@@ -191,18 +396,14 @@ function dispatchArrowEvent(
     return false;
   }
 
-  const otherShape = editor.getShape(otherBinding.toId);
-  if (!otherShape || otherShape.type !== PATCHWORK_DOC_SHAPE_TYPE) {
-    console.log(LOG, '  bail: otherShape not patchwork-doc', otherShape?.type);
+  const otherEndpoint = resolveEndpoint(editor, otherBinding.toId);
+  if (!otherEndpoint) {
+    console.log(LOG, '  bail: other endpoint not patchwork-doc/port-handle', otherBinding.toId);
     return false;
   }
 
-  const thisDocUrl = (thisShape as any).props?.docUrl;
-  const otherDocUrl = (otherShape as any).props?.docUrl;
-  if (!otherDocUrl) {
-    console.log(LOG, '  bail: no otherDocUrl');
-    return false;
-  }
+  const thisDocUrl = thisEndpoint.docUrl;
+  const otherDocUrl = otherEndpoint.docUrl;
 
   // Skip self-loops: by shape ID or by doc URL
   if (binding.toId === otherBinding.toId) {
@@ -215,22 +416,42 @@ function dispatchArrowEvent(
   }
 
   const direction = binding.props.terminal === 'end' ? 'in' : 'out';
+  if (thisEndpoint.portDirection && thisEndpoint.portDirection !== direction) {
+    console.log(LOG, '  bail: arrow direction does not match port direction');
+    return false;
+  }
 
   const container = editor.getContainer();
   const shapeWrapper = container.querySelector(
-    `[data-shape-id="${binding.toId}"]`,
+    `[data-shape-id="${thisEndpoint.ownerShapeId}"]`,
   );
   const viewEl = shapeWrapper?.querySelector('patchwork-view');
   if (!viewEl) return false;
+  const ports = normalizeSpazePorts((viewEl as any).__spazePorts);
+  const anchorY = bindingAnchorY(binding);
+  const targetPort = thisEndpoint.projectorId
+    ? { projectorId: thisEndpoint.projectorId, y: anchorY }
+    : direction === 'in'
+      ? nearestPort(ports.inputs, anchorY)
+      : nearestPort(ports.outputs, anchorY);
 
   viewEl.dispatchEvent(
     new CustomEvent(eventName, {
-      detail: { url: otherDocUrl, direction },
+      detail: {
+        url: otherDocUrl,
+        direction,
+        projectorId: targetPort?.projectorId,
+      },
       bubbles: true,
       composed: true,
     }),
   );
-  console.log(LOG, eventName, binding.toId, { url: otherDocUrl, direction });
+  console.log(LOG, eventName, thisEndpoint.ownerShapeId, {
+    url: otherDocUrl,
+    direction,
+    projectorId: targetPort?.projectorId ?? null,
+    anchorY,
+  });
   return true;
 }
 
@@ -880,7 +1101,33 @@ async function initializeSync(
 
   // Resolve (or create/migrate) the dedicated tldraw document.
   const tldrawHandle = await resolveTldrawHandle(handle, repo);
-  const tldrawDoc = tldrawHandle.doc();
+  let tldrawDoc = tldrawHandle.doc();
+
+  // Migrate legacy persisted handle-shape experiments to current format.
+  // Port circles are now visual decorations on patchwork-doc shapes, not TL shapes.
+  if (tldrawDoc?.store) {
+    const legacyHandleIds = Object.entries(tldrawDoc.store)
+      .filter(([, value]: any) => value?.typeName === 'shape' && value?.type === 'projector-handle')
+      .map(([id]) => id);
+
+    if (legacyHandleIds.length > 0) {
+      const legacyHandleIdSet = new Set(legacyHandleIds);
+      tldrawHandle.change((d: any) => {
+        if (!d.store) return;
+        for (const shapeId of legacyHandleIds) {
+          delete d.store[shapeId];
+        }
+        for (const [recordId, record] of Object.entries(d.store)) {
+          const r: any = record;
+          if (r?.typeName === 'binding' && legacyHandleIdSet.has(r?.toId)) {
+            delete d.store[recordId];
+          }
+        }
+      });
+      tldrawDoc = tldrawHandle.doc();
+      console.log(LOG, 'migrated legacy projector-handle records', legacyHandleIds.length);
+    }
+  }
 
   const storedCount = tldrawDoc?.store
     ? Object.keys(tldrawDoc.store).length
@@ -1390,6 +1637,66 @@ async function initializeSync(
   });
 
   // ------------------------------------------------------------------
+  // 3b-5. Spazel edge ports as persisted geo ellipse shapes
+  // ------------------------------------------------------------------
+  const portsByOwner = new Map<TLShapeId, SpazePorts>();
+
+  const reconcileOwnerHandles = (ownerShapeId: TLShapeId) => {
+    const ownerShape: any = editor.getShape(ownerShapeId);
+    if (!ownerShape || ownerShape.type !== PATCHWORK_DOC_SHAPE_TYPE) {
+      portsByOwner.delete(ownerShapeId);
+      removePortHandlesForOwner(editor, ownerShapeId);
+      return;
+    }
+    const ports = portsByOwner.get(ownerShapeId) ?? { inputs: [], outputs: [] };
+    reconcilePortHandlesForOwner(editor, ownerShape, ports);
+  };
+
+  const handlePortsChanged = (event: Event) => {
+    const custom = event as CustomEvent;
+    const path = typeof custom.composedPath === 'function' ? custom.composedPath() : [];
+    const wrapper = path.find(
+      (node: any) => node && typeof node.getAttribute === 'function' && node.getAttribute('data-shape-id'),
+    ) as HTMLElement | undefined;
+    const shapeId = wrapper?.getAttribute('data-shape-id') as TLShapeId | null;
+    if (!shapeId) return;
+    portsByOwner.set(shapeId, normalizeSpazePorts(custom.detail));
+    reconcileOwnerHandles(shapeId);
+  };
+  container.addEventListener('patchwork:ports-changed', handlePortsChanged);
+  cleanupFnsRef.current.push(() => {
+    container.removeEventListener('patchwork:ports-changed', handlePortsChanged);
+  });
+
+  const unsubPortHandleLayout = editor.store.listen(
+    ({ changes }) => {
+      for (const record of Object.values(changes.added)) {
+        if ((record as any).type === PATCHWORK_DOC_SHAPE_TYPE) {
+          const id = (record as any).id as TLShapeId;
+          if (portsByOwner.has(id)) reconcileOwnerHandles(id);
+        }
+      }
+      for (const [, after] of Object.values(changes.updated)) {
+        if ((after as any).type === PATCHWORK_DOC_SHAPE_TYPE) {
+          const id = (after as any).id as TLShapeId;
+          if (portsByOwner.has(id)) reconcileOwnerHandles(id);
+        }
+      }
+      for (const record of Object.values(changes.removed)) {
+        if ((record as any).type === PATCHWORK_DOC_SHAPE_TYPE) {
+          const id = (record as any).id as TLShapeId;
+          portsByOwner.delete(id);
+          removePortHandlesForOwner(editor, id);
+        }
+      }
+    },
+    { source: 'all', scope: 'document' },
+  );
+  cleanupFnsRef.current.push(() => {
+    unsubPortHandleLayout();
+  });
+
+  // ------------------------------------------------------------------
   // 3c. Ensure patchwork-doc shapes exist for every folder item
   //     These are created as *user* changes so the store listener
   //     (step 1) persists them to automerge automatically.
@@ -1466,7 +1773,14 @@ async function initializeSync(
         (shape as any).props?.docUrl !== detail.url
       ) continue;
 
-      const bindings = editor.getBindingsToShape(shape.id, 'arrow');
+      const targetIds: TLShapeId[] = [shape.id];
+      const handleIds = editor
+        .getCurrentPageShapes()
+        .filter((candidate: any) => isPortHandleShape(candidate) && candidate.meta.ownerShapeId === shape.id)
+        .map((candidate: any) => candidate.id as TLShapeId);
+      targetIds.push(...handleIds);
+
+      const bindings = targetIds.flatMap((targetId) => editor.getBindingsToShape(targetId, 'arrow'));
       for (const binding of bindings) {
         dispatchArrowEvent(editor, binding, 'patchwork:connect-arrow');
       }

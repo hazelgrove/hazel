@@ -123,8 +123,31 @@ export interface RemoteCaretRemove {
   userId: string;
 }
 
+/** Arrow-connect event from spatial canvas — populates a projector URL. */
+export interface Connect {
+  t: "connect";
+  url: string;
+  direction: "in" | "out";
+  projectorId?: string;
+}
+
+/** Arrow-disconnect event from spatial canvas — clears a projector URL. */
+export interface Disconnect {
+  t: "disconnect";
+  url: string;
+  direction: "in" | "out";
+  projectorId?: string;
+}
+
 /** Messages sent from Hazel iframe to parent (Patchwork) */
 export type HazelToParent = Init | Ping | Pong | EditorState | CaretUpdate;
 
 /** Messages sent from parent (Patchwork) to Hazel iframe */
-export type ParentToHazel = Ping | Pong | EditorState | RemoteCaret | RemoteCaretRemove;
+export type ParentToHazel =
+  | Ping
+  | Pong
+  | EditorState
+  | RemoteCaret
+  | RemoteCaretRemove
+  | Connect
+  | Disconnect;

@@ -339,7 +339,7 @@ module JsConvert = {
 
     EditorState.t_to_js(
       EditorState.create(
-        ~t=`L_s8_state,
+        ~t=`L_s12_state,
         ~state,
         ~before=?before_js,
         ~deleted=deleted_strs,
@@ -630,14 +630,14 @@ let handle_message = (schedule_action: Action.t => unit, dataJs: Ojs.t): unit =>
   switch (msg) {
   | Some(msg) =>
     switch (msg) {
-    | `U_s3_ping(_ping) =>
+    | `U_s7_ping(_ping) =>
       let pongJs: Ojs.t =
         Pong.t_to_js(
-          Pong.create(~t=`L_s4_pong, ~message="pong from iframe", ()),
+          Pong.create(~t=`L_s8_pong, ~message="pong from iframe", ()),
         );
       send_to_parent(pongJs);
-    | `U_s4_pong(_pong) => ()
-    | `U_s5_remote_caret(rc) =>
+    | `U_s8_pong(_pong) => ()
+    | `U_s9_remote_caret(rc) =>
       let user_id = RemoteCaret.get_userId(rc);
       let user_name = RemoteCaret.get_userName(rc);
       let color = RemoteCaret.get_color(rc);
@@ -646,14 +646,14 @@ let handle_message = (schedule_action: Action.t => unit, dataJs: Ojs.t): unit =>
       let caret_offset = RemoteCaret.get_caretOffset(rc);
       let shape =
         switch (RemoteCaret.get_shape(rc)) {
-        | Some(`L_s2_left) => Some(Direction.Left)
-        | Some(`L_s7_right) => Some(Direction.Right)
+        | Some(`L_s5_left) => Some(Direction.Left)
+        | Some(`L_s11_right) => Some(Direction.Right)
         | None => None
         };
       let side =
         switch (RemoteCaret.get_side(rc)) {
-        | Some(`L_s2_left) => Some(Direction.Left)
-        | Some(`L_s7_right) => Some(Direction.Right)
+        | Some(`L_s5_left) => Some(Direction.Left)
+        | Some(`L_s11_right) => Some(Direction.Right)
         | None => None
         };
       // Firebug.console##log(
@@ -695,7 +695,7 @@ let handle_message = (schedule_action: Action.t => unit, dataJs: Ojs.t): unit =>
         // )
         ()
       };
-    | `U_s6_remote_caret_remove(rcr) =>
+    | `U_s10_remote_caret_remove(rcr) =>
       let user_id = RemoteCaretRemove.get_userId(rcr);
       // Firebug.console##log(
       //   Js.string(
@@ -704,23 +704,33 @@ let handle_message = (schedule_action: Action.t => unit, dataJs: Ojs.t): unit =>
       // );
       remote_carets := Maps.StringMap.remove(user_id, remote_carets^);
       schedule_action(UpdateRemoteCarets);
-    | `U_s9_connect(conn) =>
+    | `U_s1_connect(conn) =>
       let url = Connect.get_url(conn);
+      let projector_id =
+        switch (Connect.get_projectorId(conn)) {
+        | Some(id_str) => Id.of_string(id_str)
+        | None => None
+        };
       let kind: ProjectorCore.Kind.t =
         switch (Connect.get_direction(conn)) {
-        | `L_s10_in => Automerge
-        | `L_s11_out => AutomergeWriteBack
+        | `L_s3_in => Automerge
+        | `L_s6_out => AutomergeWriteBack
         };
-      schedule_action(Project(ConnectUrl(kind, url)));
-    | `U_s12_disconnect(disc) =>
+      schedule_action(Project(ConnectUrl(kind, url, projector_id)));
+    | `U_s2_disconnect(disc) =>
       let url = Disconnect.get_url(disc);
+      let projector_id =
+        switch (Disconnect.get_projectorId(disc)) {
+        | Some(id_str) => Id.of_string(id_str)
+        | None => None
+        };
       let kind: ProjectorCore.Kind.t =
         switch (Disconnect.get_direction(disc)) {
-        | `L_s10_in => Automerge
-        | `L_s11_out => AutomergeWriteBack
+        | `L_s3_in => Automerge
+        | `L_s6_out => AutomergeWriteBack
         };
-      schedule_action(Project(DisconnectUrl(kind, url)));
-    | `U_s8_state(state) =>
+      schedule_action(Project(DisconnectUrl(kind, url, projector_id)));
+    | `U_s12_state(state) =>
       let receive_log = PerfLog.start("receive_state_total");
 
       let js_state = EditorState.get_state(state);
@@ -976,7 +986,7 @@ let init_iframe = schedule_action => {
     Init.t_to_js(
       Init.create(
         ~message="Hello I am hazel running in patchwork!",
-        ~t=`L_s1_init,
+        ~t=`L_s4_init,
         (),
       ),
     );
@@ -1014,14 +1024,14 @@ let send_caret =
   // );
   let shape_js =
     switch (shape) {
-    | Some(Left) => Some(`L_s2_left)
-    | Some(Right) => Some(`L_s7_right)
+    | Some(Left) => Some(`L_s5_left)
+    | Some(Right) => Some(`L_s11_right)
     | None => None
     };
   let side_js =
     switch (side) {
-    | Some(Left) => Some(`L_s2_left)
-    | Some(Right) => Some(`L_s7_right)
+    | Some(Left) => Some(`L_s5_left)
+    | Some(Right) => Some(`L_s11_right)
     | None => None
     };
   let caret_message =

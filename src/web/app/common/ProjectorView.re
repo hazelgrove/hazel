@@ -166,6 +166,7 @@ let view_wrapper =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
+      ~projector_id: Id.t,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
       views: list(Node.t),
@@ -188,6 +189,7 @@ let view_wrapper =
           ])
         }
       ),
+      Attr.create("data-projector-id", Id.to_string(projector_id)),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
     views,
@@ -356,6 +358,7 @@ let split_views =
       ~font_metrics,
       ~measurement,
       ~status,
+      ~projector_id=p.id,
       ~idx,
       ~kind=p.kind,
     );

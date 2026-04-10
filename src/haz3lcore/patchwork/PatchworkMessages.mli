@@ -40,12 +40,12 @@ module RemoteCaretRemove : sig
 
   val get_t :
     'tags this ->
-    ([ `L_s6_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum])
+    ([ `L_s10_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum])
   [@@js.get "t"]
 
   val set_t :
     'tags this ->
-    ([ `L_s6_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum]) ->
+    ([ `L_s10_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum]) ->
     unit
   [@@js.set "t"]
 
@@ -53,7 +53,7 @@ module RemoteCaretRemove : sig
   val set_userId : 'tags this -> string -> unit [@@js.set "userId"]
 
   val create :
-    t:([ `L_s6_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum]) ->
+    t:([ `L_s10_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum]) ->
     userId:string ->
     unit ->
     t
@@ -89,12 +89,12 @@ module RemoteCaret : sig
   val t_0_of_js : Ojs.t -> t_0
 
   val get_t :
-    'tags this -> ([ `L_s5_remote_caret [@js "remote-caret"] ][@js.enum])
+    'tags this -> ([ `L_s9_remote_caret [@js "remote-caret"] ][@js.enum])
   [@@js.get "t"]
 
   val set_t :
     'tags this ->
-    ([ `L_s5_remote_caret [@js "remote-caret"] ][@js.enum]) ->
+    ([ `L_s9_remote_caret [@js "remote-caret"] ][@js.enum]) ->
     unit
   [@@js.set "t"]
 
@@ -113,42 +113,42 @@ module RemoteCaret : sig
 
   val get_shape :
     'tags this ->
-    ([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) option
+    ([ `L_s11_right [@js "right"] | `L_s5_left [@js "left"] ][@js.enum]) option
   [@@js.get "shape"]
 
   val set_shape :
     'tags this ->
     ([ `Null
-     | `U1 of ([ `L_s2_left [@js "left"] ][@js.enum])
-     | `U2 of ([ `L_s7_right [@js "right"] ][@js.enum]) ]
+     | `U1 of ([ `L_s5_left [@js "left"] ][@js.enum])
+     | `U2 of ([ `L_s11_right [@js "right"] ][@js.enum]) ]
     [@js.union]) ->
     unit
   [@@js.set "shape"]
 
   val get_side :
     'tags this ->
-    ([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) option
+    ([ `L_s11_right [@js "right"] | `L_s5_left [@js "left"] ][@js.enum]) option
   [@@js.get "side"]
 
   val set_side :
     'tags this ->
     ([ `Null
-     | `U1 of ([ `L_s2_left [@js "left"] ][@js.enum])
-     | `U2 of ([ `L_s7_right [@js "right"] ][@js.enum]) ]
+     | `U1 of ([ `L_s5_left [@js "left"] ][@js.enum])
+     | `U2 of ([ `L_s11_right [@js "right"] ][@js.enum]) ]
     [@js.union]) ->
     unit
   [@@js.set "side"]
 
   val create :
-    t:([ `L_s5_remote_caret [@js "remote-caret"] ][@js.enum]) ->
+    t:([ `L_s9_remote_caret [@js "remote-caret"] ][@js.enum]) ->
     userId:string ->
     ?userName:string ->
     color:string ->
     pieceId:string ->
     ?shardIdx:int ->
     caretOffset:int ->
-    ?shape:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
-    ?side:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
+    ?shape:([ `L_s11_right [@js "right"] | `L_s5_left [@js "left"] ][@js.enum]) ->
+    ?side:([ `L_s11_right [@js "right"] | `L_s5_left [@js "left"] ][@js.enum]) ->
     unit ->
     t
   [@@js.builder]
@@ -179,17 +179,17 @@ module Pong : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s4_pong [@js "pong"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s8_pong [@js "pong"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s4_pong [@js "pong"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s8_pong [@js "pong"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s4_pong [@js "pong"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s8_pong [@js "pong"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
@@ -218,17 +218,17 @@ module Ping : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s3_ping [@js "ping"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s7_ping [@js "ping"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s3_ping [@js "ping"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s7_ping [@js "ping"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s3_ping [@js "ping"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s7_ping [@js "ping"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
@@ -280,10 +280,10 @@ module EditorState : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s8_state [@js "state"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s12_state [@js "state"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s8_state [@js "state"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s12_state [@js "state"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_state : 'tags this -> HazelDoc.t_0 [@@js.get "state"]
@@ -294,68 +294,10 @@ module EditorState : sig
   val set_deleted : 'tags this -> string list -> unit [@@js.set "deleted"]
 
   val create :
-    t:([ `L_s8_state [@js "state"] ][@js.enum]) ->
+    t:([ `L_s12_state [@js "state"] ][@js.enum]) ->
     state:HazelDoc.t_0 ->
     ?before:HazelDoc.t_0 ->
     ?deleted:string list ->
-    unit ->
-    t
-  [@@js.builder]
-
-  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
-end
-
-(** Arrow-connect event from spatial canvas — populates a projector URL.
-    direction: "in" → Automerge projector, "out" → AutomergeWriteBack projector
-*)
-module Connect : sig
-  type t = [ `Connect ] intf
-  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
-
-  type t_0 = t
-
-  [@@@js.stop]
-
-  type tags = [ `Connect ]
-  type tags_0 = tags
-
-  [@@@js.start]
-
-  [@@@js.implem
-  type tags = [ `Connect ]
-  type tags_0 = tags]
-
-  type 'tags this = 'tags intf constraint 'tags = [> `Connect ]
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-
-  val get_t : 'tags this -> ([ `L_s9_connect [@js "connect"] ][@js.enum])
-  [@@js.get "t"]
-
-  val set_t :
-    'tags this -> ([ `L_s9_connect [@js "connect"] ][@js.enum]) -> unit
-  [@@js.set "t"]
-
-  val get_url : 'tags this -> string [@@js.get "url"]
-  val set_url : 'tags this -> string -> unit [@@js.set "url"]
-
-  val get_direction :
-    'tags this -> ([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum])
-  [@@js.get "direction"]
-
-  val set_direction :
-    'tags this ->
-    ([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum]) ->
-    unit
-  [@@js.set "direction"]
-
-  val create :
-    t:([ `L_s9_connect [@js "connect"] ][@js.enum]) ->
-    url:string ->
-    direction:([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum]) ->
     unit ->
     t
   [@@js.builder]
@@ -388,30 +330,98 @@ module Disconnect : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s12_disconnect [@js "disconnect"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s2_disconnect [@js "disconnect"] ][@js.enum])
   [@@js.get "t"]
 
   val set_t :
-    'tags this -> ([ `L_s12_disconnect [@js "disconnect"] ][@js.enum]) -> unit
+    'tags this -> ([ `L_s2_disconnect [@js "disconnect"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_url : 'tags this -> string [@@js.get "url"]
   val set_url : 'tags this -> string -> unit [@@js.set "url"]
 
   val get_direction :
-    'tags this -> ([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum])
+    'tags this -> ([ `L_s3_in [@js "in"] | `L_s6_out [@js "out"] ][@js.enum])
   [@@js.get "direction"]
 
   val set_direction :
     'tags this ->
-    ([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum]) ->
+    ([ `U1 of ([ `L_s3_in [@js "in"] ][@js.enum])
+     | `U2 of ([ `L_s6_out [@js "out"] ][@js.enum]) ]
+    [@js.union]) ->
     unit
   [@@js.set "direction"]
 
+  val get_projectorId : 'tags this -> string option [@@js.get "projectorId"]
+  val set_projectorId : 'tags this -> string -> unit [@@js.set "projectorId"]
+
   val create :
-    t:([ `L_s12_disconnect [@js "disconnect"] ][@js.enum]) ->
+    t:([ `L_s2_disconnect [@js "disconnect"] ][@js.enum]) ->
     url:string ->
-    direction:([ `L_s10_in [@js "in"] | `L_s11_out [@js "out"] ][@js.enum]) ->
+    direction:([ `L_s3_in [@js "in"] | `L_s6_out [@js "out"] ][@js.enum]) ->
+    ?projectorId:string ->
+    unit ->
+    t
+  [@@js.builder]
+
+  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
+end
+
+(** Arrow-connect event from spatial canvas — populates a projector URL. *)
+module Connect : sig
+  type t = [ `Connect ] intf
+  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
+
+  type t_0 = t
+
+  [@@@js.stop]
+
+  type tags = [ `Connect ]
+  type tags_0 = tags
+
+  [@@@js.start]
+
+  [@@@js.implem
+  type tags = [ `Connect ]
+  type tags_0 = tags]
+
+  type 'tags this = 'tags intf constraint 'tags = [> `Connect ]
+
+  val t_to_js : t -> Ojs.t
+  val t_of_js : Ojs.t -> t
+  val t_0_to_js : t_0 -> Ojs.t
+  val t_0_of_js : Ojs.t -> t_0
+
+  val get_t : 'tags this -> ([ `L_s1_connect [@js "connect"] ][@js.enum])
+  [@@js.get "t"]
+
+  val set_t :
+    'tags this -> ([ `L_s1_connect [@js "connect"] ][@js.enum]) -> unit
+  [@@js.set "t"]
+
+  val get_url : 'tags this -> string [@@js.get "url"]
+  val set_url : 'tags this -> string -> unit [@@js.set "url"]
+
+  val get_direction :
+    'tags this -> ([ `L_s3_in [@js "in"] | `L_s6_out [@js "out"] ][@js.enum])
+  [@@js.get "direction"]
+
+  val set_direction :
+    'tags this ->
+    ([ `U1 of ([ `L_s3_in [@js "in"] ][@js.enum])
+     | `U2 of ([ `L_s6_out [@js "out"] ][@js.enum]) ]
+    [@js.union]) ->
+    unit
+  [@@js.set "direction"]
+
+  val get_projectorId : 'tags this -> string option [@@js.get "projectorId"]
+  val set_projectorId : 'tags this -> string -> unit [@@js.set "projectorId"]
+
+  val create :
+    t:([ `L_s1_connect [@js "connect"] ][@js.enum]) ->
+    url:string ->
+    direction:([ `L_s3_in [@js "in"] | `L_s6_out [@js "out"] ][@js.enum]) ->
+    ?projectorId:string ->
     unit ->
     t
   [@@js.builder]
@@ -422,14 +432,14 @@ end
 (** Messages sent from parent (Patchwork) to Hazel iframe *)
 module ParentToHazel : sig
   type t =
-    ([ `U_s3_ping of Ping.t [@js "ping"]
-     | `U_s4_pong of Pong.t [@js "pong"]
-     | `U_s5_remote_caret of RemoteCaret.t [@js "remote-caret"]
-     | `U_s6_remote_caret_remove of RemoteCaretRemove.t
+    ([ `U_s1_connect of Connect.t [@js "connect"]
+     | `U_s2_disconnect of Disconnect.t [@js "disconnect"]
+     | `U_s7_ping of Ping.t [@js "ping"]
+     | `U_s8_pong of Pong.t [@js "pong"]
+     | `U_s9_remote_caret of RemoteCaret.t [@js "remote-caret"]
+     | `U_s10_remote_caret_remove of RemoteCaretRemove.t
        [@js "remote-caret-remove"]
-     | `U_s8_state of EditorState.t [@js "state"]
-     | `U_s9_connect of Connect.t [@js "connect"]
-     | `U_s12_disconnect of Disconnect.t [@js "disconnect"] ]
+     | `U_s12_state of EditorState.t [@js "state"] ]
     [@js.union on_field "t"])
 
   type t_0 = t
@@ -463,17 +473,17 @@ module Init : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s4_init [@js "init"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s4_init [@js "init"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s1_init [@js "init"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s4_init [@js "init"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
@@ -536,28 +546,28 @@ module CaretUpdate : sig
 
   val get_shape :
     'tags this ->
-    ([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) option
+    ([ `L_s11_right [@js "right"] | `L_s5_left [@js "left"] ][@js.enum]) option
   [@@js.get "shape"]
 
   val set_shape :
     'tags this ->
     ([ `Null
-     | `U1 of ([ `L_s2_left [@js "left"] ][@js.enum])
-     | `U2 of ([ `L_s7_right [@js "right"] ][@js.enum]) ]
+     | `U1 of ([ `L_s5_left [@js "left"] ][@js.enum])
+     | `U2 of ([ `L_s11_right [@js "right"] ][@js.enum]) ]
     [@js.union]) ->
     unit
   [@@js.set "shape"]
 
   val get_side :
     'tags this ->
-    ([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) option
+    ([ `L_s11_right [@js "right"] | `L_s5_left [@js "left"] ][@js.enum]) option
   [@@js.get "side"]
 
   val set_side :
     'tags this ->
     ([ `Null
-     | `U1 of ([ `L_s2_left [@js "left"] ][@js.enum])
-     | `U2 of ([ `L_s7_right [@js "right"] ][@js.enum]) ]
+     | `U1 of ([ `L_s5_left [@js "left"] ][@js.enum])
+     | `U2 of ([ `L_s11_right [@js "right"] ][@js.enum]) ]
     [@js.union]) ->
     unit
   [@@js.set "side"]
@@ -567,8 +577,8 @@ module CaretUpdate : sig
     pieceId:string ->
     ?shardIdx:int ->
     caretOffset:int ->
-    ?shape:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
-    ?side:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
+    ?shape:([ `L_s11_right [@js "right"] | `L_s5_left [@js "left"] ][@js.enum]) ->
+    ?side:([ `L_s11_right [@js "right"] | `L_s5_left [@js "left"] ][@js.enum]) ->
     unit ->
     t
   [@@js.builder]
@@ -580,10 +590,10 @@ end
 module HazelToParent : sig
   type t =
     ([ `U_s0_caret of CaretUpdate.t [@js "caret"]
-     | `U_s1_init of Init.t [@js "init"]
-     | `U_s3_ping of Ping.t [@js "ping"]
-     | `U_s4_pong of Pong.t [@js "pong"]
-     | `U_s8_state of EditorState.t [@js "state"] ]
+     | `U_s4_init of Init.t [@js "init"]
+     | `U_s7_ping of Ping.t [@js "ping"]
+     | `U_s8_pong of Pong.t [@js "pong"]
+     | `U_s12_state of EditorState.t [@js "state"] ]
     [@js.union on_field "t"])
 
   type t_0 = t
@@ -651,14 +661,6 @@ module Export : sig
   [@@@js.start]
   [@@@js.implem module RemoteCaretRemove = RemoteCaretRemove]
 
-  (* export type HazelToParent *)
-  [@@@js.stop]
-
-  module HazelToParent = HazelToParent
-
-  [@@@js.start]
-  [@@@js.implem module HazelToParent = HazelToParent]
-
   (* export interface Connect *)
   [@@@js.stop]
 
@@ -674,6 +676,14 @@ module Export : sig
 
   [@@@js.start]
   [@@@js.implem module Disconnect = Disconnect]
+
+  (* export type HazelToParent *)
+  [@@@js.stop]
+
+  module HazelToParent = HazelToParent
+
+  [@@@js.start]
+  [@@@js.implem module HazelToParent = HazelToParent]
 
   (* export type ParentToHazel *)
   [@@@js.stop]

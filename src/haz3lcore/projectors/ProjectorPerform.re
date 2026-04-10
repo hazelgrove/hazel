@@ -304,7 +304,7 @@ let go =
     | None => Error(Cant_project)
     }
   | SampleCursor(a) => Ok(SampleCursorPerform.go(z, a))
-  | ConnectUrl(target_kind, url) =>
+  | ConnectUrl(target_kind, url, projector_id_opt) =>
     /* Find first projector of matching kind with an empty URL,
        falling back to first match if all have URLs */
     Js_of_ocaml.Firebug.console##log(
@@ -330,21 +330,34 @@ let go =
         ++ " matching projectors",
       ),
     );
-    switch (matches) {
-    | [] => Error(Cant_project)
-    | _ =>
-      let target =
-        switch (
-          List.find_opt(
-            ((_, pr: Base.projector)) =>
-              sexp_url_field(pr.model) == Some(""),
-            matches,
+    let target =
+      switch (projector_id_opt) {
+      | Some(target_id) =>
+        switch (Id.Map.find_opt(target_id, projectors)) {
+        | Some(pr) when pr.kind == target_kind => Some((target_id, pr))
+        | _ => None
+        }
+      | None =>
+        switch (matches) {
+        | [] => None
+        | _ =>
+          Some(
+            switch (
+              List.find_opt(
+                ((_, pr: Base.projector)) =>
+                  sexp_url_field(pr.model) == Some(""),
+                matches,
+              )
+            ) {
+            | Some(t) => t
+            | None => List.hd(matches)
+            },
           )
-        ) {
-        | Some(t) => t
-        | None => List.hd(matches)
-        };
-      let (id, _) = target;
+        }
+      };
+    switch (target) {
+    | None => Error(Cant_project)
+    | Some((id, _)) =>
       let new_model = model_with_url(target_kind, url);
       Ok(
         update(
@@ -358,7 +371,7 @@ let go =
         ),
       );
     };
-  | DisconnectUrl(target_kind, url) =>
+  | DisconnectUrl(target_kind, url, projector_id_opt) =>
     /* Find the projector of matching kind whose URL matches exactly */
     Js_of_ocaml.Firebug.console##log(
       Js_of_ocaml.Js.string(
@@ -369,14 +382,23 @@ let go =
       ),
     );
     let target =
-      projector_list
-      |> List.find_opt(id =>
-           switch (Id.Map.find_opt(id, projectors)) {
-           | Some(pr: Base.projector) when pr.kind == target_kind =>
-             sexp_url_field(pr.model) == Some(url)
-           | _ => false
-           }
-         );
+      switch (projector_id_opt) {
+      | Some(target_id) =>
+        switch (Id.Map.find_opt(target_id, projectors)) {
+        | Some(pr: Base.projector) when pr.kind == target_kind =>
+          Some(target_id)
+        | _ => None
+        }
+      | None =>
+        projector_list
+        |> List.find_opt(id =>
+             switch (Id.Map.find_opt(id, projectors)) {
+             | Some(pr: Base.projector) when pr.kind == target_kind =>
+               sexp_url_field(pr.model) == Some(url)
+             | _ => false
+             }
+           )
+      };
     switch (target) {
     | None =>
       Js_of_ocaml.Firebug.console##log(

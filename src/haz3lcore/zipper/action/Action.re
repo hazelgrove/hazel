@@ -66,8 +66,8 @@ type project =
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
-  | ConnectUrl(ProjectorCore.Kind.t, string) /* Populate projector URL from arrow event */
-  | DisconnectUrl(ProjectorCore.Kind.t, string); /* Clear projector URL on arrow disconnect */
+  | ConnectUrl(ProjectorCore.Kind.t, string, option(Id.t)) /* Populate projector URL from arrow event */
+  | DisconnectUrl(ProjectorCore.Kind.t, string, option(Id.t)); /* Clear projector URL on arrow disconnect */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =

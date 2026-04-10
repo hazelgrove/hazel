@@ -196,6 +196,8 @@ function doesStateEqualDoc(doc, state) {
 
 export default function hazelTool(handle, element) {
 	console.log("[spazel] initialized")
+	const PORTS_EVENT = "patchwork:ports-changed"
+	const EMPTY_PORTS = {inputs: [], outputs: []}
 
 	// ---- Iframe-based isolation ----
 	// Each Hazel instance runs in its own iframe so that the js_of_ocaml
@@ -251,6 +253,113 @@ export default function hazelTool(handle, element) {
 			}
 		}
 	})
+
+	let lastPortsSignature = ""
+	let clearPortObservers = () => {}
+
+	function getPatchworkViewHost() {
+		if (element && element.tagName === "PATCHWORK-VIEW") {
+			return element
+		}
+		const root = element.getRootNode?.()
+		if (root && root.host && root.host.tagName === "PATCHWORK-VIEW") {
+			return root.host
+		}
+		return element.closest?.("patchwork-view") ?? null
+	}
+
+	function publishPorts(ports) {
+		const host = getPatchworkViewHost()
+		const target = host ?? element
+		target.__spazePorts = ports
+		element.__spazePorts = ports
+		const nextSignature = JSON.stringify(ports)
+		if (nextSignature === lastPortsSignature) return
+		lastPortsSignature = nextSignature
+		target.dispatchEvent(
+			new CustomEvent(PORTS_EVENT, {
+				detail: ports,
+				bubbles: true,
+				composed: true,
+			})
+		)
+	}
+
+	function collectPortsFromIframe() {
+		const doc = iframe.contentDocument
+		if (!doc) return EMPTY_PORTS
+		const viewportHeight =
+			iframe.clientHeight ||
+			iframe.getBoundingClientRect().height ||
+			doc.documentElement?.clientHeight ||
+			1
+		const collect = selector => {
+			const byLine = new Map()
+			for (const node of doc.querySelectorAll(selector)) {
+				const projectorId = node.getAttribute("data-projector-id")
+				if (!projectorId) continue
+				const rect = node.getBoundingClientRect()
+				const centerPx = Math.round(rect.top + rect.height / 2)
+				if (!Number.isFinite(centerPx) || byLine.has(centerPx)) continue
+				const y = Math.max(0, Math.min(1, centerPx / viewportHeight))
+				byLine.set(centerPx, {projectorId, y})
+			}
+			return [...byLine.entries()]
+				.sort((a, b) => a[0] - b[0])
+				.map(([, port]) => port)
+		}
+		return {
+			inputs: collect(".projector.Automerge[data-projector-id]"),
+			outputs: collect(".projector.AutomergeWriteBack[data-projector-id]"),
+		}
+	}
+
+	function setupPortObservers() {
+		clearPortObservers()
+		const doc = iframe.contentDocument
+		const win = iframe.contentWindow
+		if (!doc || !win) {
+			publishPorts(EMPTY_PORTS)
+			return
+		}
+
+		let rafId = null
+		const schedule = () => {
+			if (rafId !== null) return
+			rafId = win.requestAnimationFrame(() => {
+				rafId = null
+				publishPorts(collectPortsFromIframe())
+			})
+		}
+
+		const mutationObserver = new MutationObserver(schedule)
+		const root = doc.body ?? doc.documentElement
+		if (root) {
+			mutationObserver.observe(root, {
+				subtree: true,
+				childList: true,
+				attributes: true,
+				attributeFilter: ["class", "style", "data-projector-id"],
+			})
+		}
+
+		const resizeObserver = new ResizeObserver(schedule)
+		if (doc.documentElement) resizeObserver.observe(doc.documentElement)
+		if (doc.body) resizeObserver.observe(doc.body)
+		win.addEventListener("resize", schedule)
+
+		schedule()
+		clearPortObservers = () => {
+			if (rafId !== null) {
+				win.cancelAnimationFrame(rafId)
+			}
+			mutationObserver.disconnect()
+			resizeObserver.disconnect()
+			win.removeEventListener("resize", schedule)
+		}
+	}
+
+	iframe.addEventListener("load", setupPortObservers)
 
 	// Track state for delta computation
 	let prevDoc = null
@@ -449,18 +558,20 @@ export default function hazelTool(handle, element) {
 
 	// Listen for arrow connect/disconnect events from the spatial canvas
 	element.addEventListener("patchwork:connect-arrow", event => {
-		const {url, direction} = event.detail
-		console.log("[spazel] connect-arrow", direction, url)
-		sendToHazel({t: "connect", url, direction})
+		const {url, direction, projectorId} = event.detail
+		console.log("[spazel] connect-arrow", direction, url, projectorId ?? null)
+		sendToHazel({t: "connect", url, direction, projectorId})
 	})
 	element.addEventListener("patchwork:disconnect-arrow", event => {
-		const {url, direction} = event.detail
-		console.log("[spazel] disconnect-arrow", direction, url)
-		sendToHazel({t: "disconnect", url, direction})
+		const {url, direction, projectorId} = event.detail
+		console.log("[spazel] disconnect-arrow", direction, url, projectorId ?? null)
+		sendToHazel({t: "disconnect", url, direction, projectorId})
 	})
 
 	// Cleanup
 	return () => {
+		clearPortObservers()
+		publishPorts(EMPTY_PORTS)
 		window.removeEventListener("message", onMessage)
 		handle.off("change", onDocChange)
 		try {
