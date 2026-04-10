@@ -47,6 +47,34 @@ let (seq_nodes, seq_arcs, seq_pin, seq_pout) = build_sequence_place_module("m")(
 let (par_nodes, par_arcs, par_pin, par_pout) = build_parallel_place_module("pmod")(3) in
 let net_with_resource = add_nonshared_resource(tiny_net)("r1")(1)("t0")("t0") in
 let resource_nodes = jq([jq_field("petriNetDefinition"), jq_field("nodes"), jq_iterate, jq_select(jq_pipe(jq_field("id"), jq_startswith("r1")))])(net_with_resource) in
+let refined_seq = refine_place_sequence(tiny_net)("p0")("seq")(1) in
+let refined_par = refine_place_parallel(tiny_net)("p0")("par")(2) in
+let refined_choice = refine_place_choice(tiny_net)("p0")("ch")(2) in
+let refined_dfc = refine_place_decision_free_choice(tiny_net)("p0")("df")(2) in
+let shared_parallel_net =
+  add_shared_parallel_resource(
+    refined_seq
+  )("rsp")(1)([("t0", "t0"), ("seq_t1", "seq_t1")])
+in
+let shared_sequential_net =
+  add_shared_sequential_resource(
+    refined_seq
+  )("rss")(1)([ [("t0", "t0")], [("seq_t1", "seq_t1")] ])
+in
+let refined_nodes = get_nodes(refined_seq) in
+let refined_arcs = get_arcs(refined_seq) in
+let has_node = fun id ->
+  length(filter(refined_nodes, fun n -> get_id(n) == id)) == 1
+in
+let has_arc = fun src -> fun tgt ->
+  length(filter(refined_arcs, fun a -> arc_source(a) == src && arc_target(a) == tgt)) == 1
+in
+let has_node_in = fun net -> fun id ->
+  length(filter(get_nodes(net), fun n -> get_id(n) == id)) == 1
+in
+let has_arc_in = fun net -> fun src -> fun tgt ->
+  length(filter(get_arcs(net), fun a -> arc_source(a) == src && arc_target(a) == tgt)) == 1
+in
 
 hint "mk_place creates place JSON"
   test jq1([jq_field("type")])(p) == String("place") end;
@@ -67,9 +95,157 @@ hint "parallel module pin and pout naming"
   test par_pin == "pmod_pin" && par_pout == "pmod_pout" end;
 
 hint "parallel module creates split and join structure"
-  test length(par_nodes) == 7 && length(par_arcs) == 8 end;
+  test length(par_nodes) == 8 && length(par_arcs) == 10 end;
 
 hint "nonshared resource adds resource place node"
   test length(resource_nodes) == 1 end;
+
+hint "refine_place_sequence removes original refined place"
+  test length(filter(refined_nodes, fun n -> get_id(n) == "p0")) == 0 end;
+
+hint "refine_place_sequence keeps t0 and inserts seq module nodes"
+  test
+    has_node("t0")
+    && has_node("seq_pin")
+    && has_node("seq_pout")
+    && has_node("seq_t1")
+    && length(refined_nodes) == 6
+  end;
+
+hint "refine_place_sequence rewires loop topology exactly"
+  test
+    has_arc("t0")("seq_pin")
+    && has_arc("seq_pout")("t0")
+    && has_arc("seq_pin")("seq_t1")
+    && has_arc("seq_t1")("seq_pout")
+    && length(refined_arcs) == 4
+  end;
+
+hint "refine_place_parallel rewires tiny loop with split/join"
+  test
+    has_node_in(refined_par)("t0")
+    && has_node_in(refined_par)("par_pin")
+    && has_node_in(refined_par)("par_pout")
+    && has_node_in(refined_par)("par_split")
+    && has_node_in(refined_par)("par_join")
+    && has_node_in(refined_par)("par_b1")
+    && has_node_in(refined_par)("par_b2")
+    && has_node_in(refined_par)("par_b3")
+    && has_arc_in(refined_par)("t0")("par_pin")
+    && has_arc_in(refined_par)("par_pout")("t0")
+    && has_arc_in(refined_par)("par_pin")("par_split")
+    && has_arc_in(refined_par)("par_split")("par_b1")
+    && has_arc_in(refined_par)("par_b1")("par_join")
+    && has_arc_in(refined_par)("par_split")("par_b2")
+    && has_arc_in(refined_par)("par_b2")("par_join")
+    && has_arc_in(refined_par)("par_split")("par_b3")
+    && has_arc_in(refined_par)("par_b3")("par_join")
+    && has_arc_in(refined_par)("par_join")("par_pout")
+    && length(get_nodes(refined_par)) == 8
+    && length(get_arcs(refined_par)) == 10
+  end;
+
+hint "refine_place_choice rewires tiny loop with explicit branch choices"
+  test
+    has_node_in(refined_choice)("t0")
+    && has_node_in(refined_choice)("ch_pin")
+    && has_node_in(refined_choice)("ch_pout")
+    && has_node_in(refined_choice)("ch_b1")
+    && has_node_in(refined_choice)("ch_b2")
+    && has_node_in(refined_choice)("ch_b3")
+    && has_node_in(refined_choice)("ch_choose1")
+    && has_node_in(refined_choice)("ch_choose2")
+    && has_node_in(refined_choice)("ch_choose3")
+    && has_node_in(refined_choice)("ch_done1")
+    && has_node_in(refined_choice)("ch_done2")
+    && has_node_in(refined_choice)("ch_done3")
+    && has_arc_in(refined_choice)("t0")("ch_pin")
+    && has_arc_in(refined_choice)("ch_pout")("t0")
+    && has_arc_in(refined_choice)("ch_pin")("ch_choose1")
+    && has_arc_in(refined_choice)("ch_choose1")("ch_b1")
+    && has_arc_in(refined_choice)("ch_b1")("ch_done1")
+    && has_arc_in(refined_choice)("ch_done1")("ch_pout")
+    && has_arc_in(refined_choice)("ch_pin")("ch_choose2")
+    && has_arc_in(refined_choice)("ch_choose2")("ch_b2")
+    && has_arc_in(refined_choice)("ch_b2")("ch_done2")
+    && has_arc_in(refined_choice)("ch_done2")("ch_pout")
+    && has_arc_in(refined_choice)("ch_pin")("ch_choose3")
+    && has_arc_in(refined_choice)("ch_choose3")("ch_b3")
+    && has_arc_in(refined_choice)("ch_b3")("ch_done3")
+    && has_arc_in(refined_choice)("ch_done3")("ch_pout")
+    && length(get_nodes(refined_choice)) == 12
+    && length(get_arcs(refined_choice)) == 14
+  end;
+
+hint "refine_place_decision_free_choice adds round-robin control topology"
+  test
+    has_node_in(refined_dfc)("t0")
+    && has_node_in(refined_dfc)("df_pin")
+    && has_node_in(refined_dfc)("df_pout")
+    && has_node_in(refined_dfc)("df_ctrl1")
+    && has_node_in(refined_dfc)("df_ctrl2")
+    && has_node_in(refined_dfc)("df_ctrl3")
+    && has_node_in(refined_dfc)("df_b3")
+    && has_node_in(refined_dfc)("df_choose1")
+    && has_node_in(refined_dfc)("df_choose2")
+    && has_node_in(refined_dfc)("df_choose3")
+    && has_node_in(refined_dfc)("df_done1")
+    && has_node_in(refined_dfc)("df_done2")
+    && has_node_in(refined_dfc)("df_done3")
+    && has_arc_in(refined_dfc)("t0")("df_pin")
+    && has_arc_in(refined_dfc)("df_pout")("t0")
+    && has_arc_in(refined_dfc)("df_ctrl1")("df_choose1")
+    && has_arc_in(refined_dfc)("df_choose1")("df_b1")
+    && has_arc_in(refined_dfc)("df_b1")("df_done1")
+    && has_arc_in(refined_dfc)("df_done1")("df_ctrl2")
+    && has_arc_in(refined_dfc)("df_ctrl2")("df_choose2")
+    && has_arc_in(refined_dfc)("df_choose2")("df_b2")
+    && has_arc_in(refined_dfc)("df_b2")("df_done2")
+    && has_arc_in(refined_dfc)("df_done2")("df_ctrl1")
+    && has_arc_in(refined_dfc)("df_ctrl3")("df_choose3")
+    && has_arc_in(refined_dfc)("df_choose3")("df_b3")
+    && has_arc_in(refined_dfc)("df_b3")("df_done3")
+    && has_arc_in(refined_dfc)("df_done3")("df_ctrl4")
+    && length(get_nodes(refined_dfc)) == 15
+    && length(get_arcs(refined_dfc)) == 20
+  end;
+
+hint "nonshared resource adds exact lock-release arcs around t0"
+  test
+    has_node_in(net_with_resource)("r1")
+    && has_arc_in(net_with_resource)("r1")("t0")
+    && has_arc_in(net_with_resource)("t0")("r1")
+    && length(get_nodes(net_with_resource)) == 3
+    && length(get_arcs(net_with_resource)) == 4
+  end;
+
+hint "shared parallel resource adds one place with independent lock pairs"
+  test
+    has_node_in(shared_parallel_net)("rsp")
+    && has_arc_in(shared_parallel_net)("rsp")("t0")
+    && has_arc_in(shared_parallel_net)("t0")("rsp")
+    && has_arc_in(shared_parallel_net)("rsp")("seq_t1")
+    && has_arc_in(shared_parallel_net)("seq_t1")("rsp")
+    && length(get_nodes(shared_parallel_net)) == 7
+    && length(get_arcs(shared_parallel_net)) == 8
+  end;
+
+hint "shared sequential resource adds stage places and ordered handoff arcs"
+  test
+    has_node_in(shared_sequential_net)("rss")
+    && has_node_in(shared_sequential_net)("rss_stage_1")
+    && has_node_in(shared_sequential_net)("rss_stage_2")
+    && has_node_in(shared_sequential_net)("rss_stage_3")
+    && has_arc_in(shared_sequential_net)("rss")("t0")
+    && has_arc_in(shared_sequential_net)("t0")("rss")
+    && has_arc_in(shared_sequential_net)("rss")("seq_t1")
+    && has_arc_in(shared_sequential_net)("seq_t1")("rss")
+    && has_arc_in(shared_sequential_net)("rss_stage_1")("t0")
+    && has_arc_in(shared_sequential_net)("t0")("rss_stage_2")
+    && has_arc_in(shared_sequential_net)("rss_stage_2")("seq_t1")
+    && has_arc_in(shared_sequential_net)("seq_t1")("rss_stage_1")
+    && length(get_nodes(shared_sequential_net)) == 10
+    && length(get_arcs(shared_sequential_net)) == 12
+  end;
 
 true
