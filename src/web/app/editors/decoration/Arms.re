@@ -448,9 +448,9 @@ module Indicated = {
   let indicated_piece =
       (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
       : list(Node.t) =>
-    switch (Indicated.piece(z)) {
+    switch (Indicated.for_decoration(z)) {
     | _ when z.selection.content != [] => []
-    | Some((p, _, _)) => of_piece(~font_metrics, ~syntax, p)
+    | Some({piece: p, _}) => of_piece(~font_metrics, ~syntax, p)
     | _ => []
     };
 
@@ -561,7 +561,7 @@ module Refractors = {
          )
     )
     @ (
-      z.refractors.autos.ephemerals
+      z.refractors.multis.ephemerals
       |> Id.Map.to_list
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(

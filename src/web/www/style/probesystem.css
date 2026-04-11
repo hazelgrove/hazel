@@ -1,4 +1,4 @@
-#probesys {
+#probe-sidebar {
   display: flex;
   flex: 1;
   padding: 1em;
@@ -8,58 +8,68 @@
   overflow-x: hidden; /* Prevent outer scroll */
 }
 
-#probesys .title {
-  /* text-transform: uppercase;
-  font-weight: bold; */
-}
-
-#probesys .main-title {
+#probe-sidebar .main-title {
   text-transform: uppercase;
   font-size: 1em;
   font-weight: bold;
-  color: var(--ui-header-text);
   align-self: flex-start;
   display: flex;
-  gap: 1em;
+  gap: 0.6em;
 }
 
-#probesys .header {
+#probe-sidebar .main-title .mode-label.active {
+  color: var(--ui-header-text);
+}
+
+#probe-sidebar .main-title .mode-label.inactive {
+  color: var(--BR1);
+  cursor: pointer;
+}
+
+#probe-sidebar .main-title .mode-label.inactive:hover {
+  color: var(--BR2);
+}
+
+#probe-sidebar .main-title .mode-separator {
+  color: var(--BR1);
+}
+
+#probe-sidebar .header {
   display: flex;
   width: 100%;
-  justify-content: space-between;
   align-items: center;
   font-weight: bold;
 }
 
-#probesys .quick-select-deco svg {
+#probe-sidebar .quick-select-deco svg {
   fill: oklch(0.93 0.06 90.1);
 }
 
-#probesys .ephemerals {
+#probe-sidebar .ephemerals {
   position: relative;
   left: 1em;
 }
 
-/* #probesys .probe-entry .live-offside .code .code-text .token {
+/* #probe-sidebar .probe-entry .live-offside .code .code-text .token {
   color: var(--G2) !important;
 } */
 
-#probesys .probe-view .live-env {
+#probe-sidebar .probe-view .live-env {
   display: none;
 }
 
-#probesys .probe-view .live-offside > *:not(.sample-groups) {
+#probe-sidebar .probe-view .live-offside > *:not(.sample-groups) {
   display: none;
 }
 
-#probesys .probe-entry {
+#probe-sidebar .probe-entry {
   cursor: pointer;
   position: relative;
   display: flex;
   gap: 1em;
 }
 
-#probesys .legend {
+#probe-sidebar .legend {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: auto auto auto;
@@ -67,7 +77,7 @@
   justify-items: stretch; /* or center if you prefer tighter layout */
 }
 
-#probesys .panel {
+#probe-sidebar .panel {
   padding: 0.5em;
   outline: 1px solid var(--BR1);
   border-radius: 0.3em;
@@ -75,15 +85,20 @@
   overflow: clip;
 }
 
-#probesys .sketch {
+#probe-sidebar .panel.legend {
+  overflow: visible;
+  position: relative;
+}
+
+#probe-sidebar .sketch {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-#probesys .sketch .sketch-toggle-image {
-  width: 140px;
-  height: 140px;
+#probe-sidebar .sketch .sketch-toggle-image {
+  width: 160px;
+  height: 160px;
   transition: all 0.2s ease-in-out;
   background-image: url("../img/probe-lenses.webp");
   background-size: contain;
@@ -92,16 +107,18 @@
   display: inline-block;
 }
 
-#probesys .sketch[open] .sketch-toggle-image {
+#probe-sidebar .sketch[open] .sketch-toggle-image {
   width: 25px;
   height: 25px;
   position: absolute;
-  top: 167px;
+  /* top: 167px; */
   left: 15px;
 }
 
 .sketch summary {
-  cursor: pointer;
+  /* Disabled for now */
+  pointer-events: none;
+  /* cursor: pointer; */
   list-style: none;
   display: inline-flex;
   align-items: center;
@@ -112,48 +129,181 @@
   display: none;
 }
 
-#probesys .legend .title {
-  grid-column: 1 / -1; /* span full width of the grid */
-  justify-self: start; /* left align */
+#probe-sidebar .quick-ref {
+  font-size: 0.85em;
+  line-height: 1.5;
 }
 
-#probesys .panel.call-cursor .title {
+#probe-sidebar .quick-ref .title {
+  margin-bottom: 0.4em;
+}
+
+#probe-sidebar .quick-ref .qr-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#probe-sidebar .quick-ref .qr-table td {
+  padding: 0.15em 0.3em;
+  vertical-align: top;
+}
+
+#probe-sidebar .quick-ref .qr-action {
+  font-weight: bold;
+  white-space: nowrap;
+  color: var(--BR3);
+  width: 1%;
+  padding-right: 0.8em;
+}
+
+#probe-sidebar .quick-ref .qr-how {
+  color: var(--BR2);
+  display: flex;
+  gap: 0.5em;
+  align-items: baseline;
+}
+
+#probe-sidebar .quick-ref .qr-when-focused,
+#probe-sidebar .quick-ref .qr-when-unfocused,
+#probe-sidebar .quick-ref .qr-cmd-e,
+#probe-sidebar .quick-ref .qr-focus-probe {
+  display: inline-flex;
+  gap: 0.4em;
+}
+
+#probe-sidebar .quick-ref .qr-how-text {
+  flex: 1;
+}
+
+#probe-sidebar .quick-ref .qr-divider {
+  padding: 0.3em 0;
+  border-bottom: 1px solid var(--BR1);
+}
+
+/* Dim keyboard badges based on probe focus state */
+body:has(.live-offside:focus) #probe-sidebar .qr-when-unfocused,
+body:not(:has(.live-offside:focus)) #probe-sidebar .qr-when-focused {
+  opacity: 0.45;
+}
+
+/* ⌘E: dim when code focused and indicated term can't be probed */
+body:not(:has(.live-offside:focus))
+  #probe-sidebar
+  .quick-ref:not(.can-probe)
+  .qr-cmd-e {
+  opacity: 0.45;
+}
+/* ⌘E: dim when probe focused and no manual probe to remove */
+body:has(.live-offside:focus)
+  #probe-sidebar
+  .quick-ref:not(.has-manual)
+  .qr-cmd-e {
+  opacity: 0.45;
+}
+
+/* Focus probe Tab: dim when probe already focused */
+body:has(.live-offside:focus) #probe-sidebar .qr-focus-probe {
+  opacity: 0.45;
+}
+/* Focus probe Tab: dim when code focused but no probe on indicated term */
+body:not(:has(.live-offside:focus))
+  #probe-sidebar
+  .quick-ref:not(.has-probe)
+  .qr-focus-probe {
+  opacity: 0.45;
+}
+
+#probe-sidebar .quick-ref .qr-icons {
+  margin-top: 0.4em;
+  padding-top: 0.4em;
+  border-top: 0.5px solid var(--BR1);
+  color: var(--BR2);
+  font-size: 0.9em;
+  display: flex;
+  justify-content: center;
+  gap: 1.3em;
+}
+
+#probe-sidebar .legend .title {
+  grid-column: 1 / -1; /* span full width of the grid */
+  justify-self: start; /* left align */
+  font-size: 0.85em;
+}
+
+#probe-sidebar .panel.call-cursor .title {
   padding-bottom: 0.5em;
 }
 
-#probesys .panel.call-cursor .stack {
+#probe-sidebar .panel.call-cursor .stack {
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 
-#probesys .legend .projector {
+#probe-sidebar .legend .projector {
   position: relative;
   pointer-events: none;
   justify-content: center;
   text-align: center;
 }
 
-/* #probesys .code {
+#probe-sidebar .legend .legend-tooltip {
+  display: none;
+  position: absolute;
+  top: 59%;
+  left: 0.4em;
+  right: 0.4em;
+  padding: 0.5em 0.75em;
+  background-color: var(--BR1);
+  color: var(--BR4);
+  border-radius: 0.5em;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: normal;
+  z-index: 10;
+  min-height: 3.5em;
+  align-items: center;
+  justify-content: center;
+}
+
+#probe-sidebar .legend .legend-item:hover .legend-tooltip {
+  display: flex;
+}
+
+#probe-sidebar .legend-not-aligned {
+  outline: 1.5px dotted var(--BR1);
+  border-radius: 0.2em;
+  height: 1.3em;
+  width: 6em;
+  display: flex;
+  justify-content: center;
+}
+#probe-sidebar .legend-item:has(.legend-not-aligned) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* #probe-sidebar .code {
   outline: 1px solid var(--T1);
 } */
 
-#probesys .code .code-text:after {
+#probe-sidebar .code .code-text:after {
   /* Might have to disable this for multiline display to work */
   display: none;
 }
 
-#probesys .is-index .probe-entry > .code {
+#probe-sidebar .is-index .probe-entry > .code {
   outline: 1px solid var(--BR1);
   /* z-index: 1; */
 }
 
-#probesys .indicated-call .probe-entry > .code {
+#probe-sidebar .indicated-call .probe-entry > .code {
   outline: 1px solid var(--R1);
   /* z-index: 2; */
 }
 
-#probesys .indicated-call.not-in-stack {
+#probe-sidebar .indicated-call.not-in-stack {
   padding-bottom: 0.25em;
 }
 
@@ -164,63 +314,296 @@
   border-left: 1px solid var(--BR2);
 }
 
-#probesys .after-index .probe-entry .code {
+#probe-sidebar .after-index .probe-entry .code {
   opacity: 0.5;
 }
 
-#probesys .panel.probes {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  outline: none;
-  border-left: 1px solid var(--BR2);
-}
-
-#probesys .panel.probes .auto {
-  border-left: 1px solid var(--BR2);
-  padding: 0.5em;
-  border-radius: 0.3em;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-#probesys .panel.probes .top-level-body {
-  margin-left: 0.5em;
-  gap: 1px;
-  display: flex;
-  flex-direction: column;
-}
-
-#probesys .panel.probes .top-level-title {
-  position: relative;
-}
-
-#probesys .panel.panel.window-toggle .named-menu-item {
+#probe-sidebar .panel.panel.window-toggle .named-menu-item {
   display: flex;
   gap: 0.5em;
 }
 
-#probesys .code:hover {
+#probe-sidebar .code:hover {
   filter: brightness(1.04);
 }
 
-#probesys .settings {
+#probe-sidebar .settings {
   display: flex;
   flex-direction: column;
   gap: 0.5em;
 }
 
-#probesys .settings .named-menu-item {
+#probe-sidebar .settings .named-menu-item {
   display: flex;
   gap: 0.5em;
 }
 
-#probesys .panel.prints .body {
-  white-space: pre;
+#probe-sidebar .legend .legend-divider {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--BR1);
 }
 
-#probesys .panel.window-toggle {
+#probe-sidebar .legend .segmented-control {
+  display: flex;
+  grid-column: 1 / -1;
+  border: 1px solid var(--BR1);
+  border-radius: 4px;
+  overflow: visible;
+  pointer-events: auto;
+  position: relative;
+}
+
+#probe-sidebar .legend .segmented-control .segment {
+  flex: 1;
+  text-align: center;
+  padding: 0.2em 0.4em;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-family: var(--ui-font);
+  background-color: transparent;
+  border-right: 1px solid var(--BR1);
+  user-select: none;
+  position: relative;
+}
+
+#probe-sidebar .legend .segmented-control .segment:last-child {
+  border-right: none;
+}
+
+#probe-sidebar .legend .segmented-control .segment.active {
+  background-color: var(--Y1);
+  color: var(--BR4);
+  font-weight: 500;
+}
+
+#probe-sidebar .legend .segmented-control .segment:hover:not(.active) {
+  background-color: var(--Y0);
+}
+
+/* #probe-sidebar .legend .segmented-control .segment:hover:not(.active) {
+  background-color: var(--BR0);
+} */
+
+#probe-sidebar .legend .segmented-control .segment .legend-tooltip {
+  display: none;
+  position: absolute;
+  top: 125%;
+  left: 0;
+  right: 0;
+  padding: 0.5em 0.75em;
+  background-color: var(--BR1);
+  color: var(--BR4);
+  border-radius: 0.5em;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: normal;
+  z-index: 10;
+  text-align: left;
+}
+
+#probe-sidebar .legend .segmented-control .segment:hover .legend-tooltip {
+  display: block;
+}
+
+/* Toggle controls panel (auto probe + samples) */
+#probe-sidebar .panel.toggle-controls {
+  overflow: visible;
+  display: flex;
+  gap: 0.75rem;
+}
+
+#probe-sidebar .toggle-controls .toggle-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  position: relative;
+}
+
+#probe-sidebar .toggle-controls .toggle-label {
+  font-size: 0.85em;
+  color: var(--BR2);
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+#probe-sidebar .toggle-controls .toggle-label .kbd-badge,
+#probe-sidebar .toggle-controls .toggle-label .click-kbd-pill {
+  margin-left: auto;
+}
+
+#probe-sidebar .toggle-controls .toggle-group:hover > .legend-tooltip {
+  display: block;
+}
+
+#probe-sidebar .toggle-controls .segmented-control {
+  display: flex;
+  border: 1px solid var(--BR1);
+  border-radius: 4px;
+  overflow: visible;
+  pointer-events: auto;
+  position: relative;
+}
+
+#probe-sidebar .toggle-controls .segmented-control .segment {
+  flex: 1;
+  text-align: center;
+  padding: 0.2em 0.4em;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-family: var(--ui-font);
+  background-color: transparent;
+  border-right: 1px solid var(--BR1);
+  user-select: none;
+  position: relative;
+}
+
+#probe-sidebar .toggle-controls .segmented-control .segment:last-child {
+  border-right: none;
+}
+
+#probe-sidebar .toggle-controls .segmented-control .segment.active {
+  background-color: var(--Y1);
+  color: var(--BR4);
+  font-weight: 500;
+}
+
+#probe-sidebar .toggle-controls .segmented-control .segment:hover:not(.active) {
+  background-color: var(--Y0);
+}
+
+#probe-sidebar .toggle-controls .legend-tooltip {
+  display: none;
+  position: absolute;
+  top: 110%;
+  left: 0;
+  right: 0;
+  padding: 0.5em 0.75em;
+  background-color: var(--BR1);
+  color: var(--BR4);
+  border-radius: 0.5em;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: normal;
+  z-index: 10;
+  text-align: left;
+}
+
+/* Keyboard shortcut badge */
+#probe-sidebar .kbd-badge {
+  display: inline-block;
+  font-size: 0.7em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--BR1);
+  color: var(--BR3);
+  font-family: inherit;
+  vertical-align: middle;
+  line-height: 1.4;
+  height: 1rem;
+  display: flex;
+  align-items: center;
+}
+
+/* Click-then-key pill: pointer icon (outline) joined to kbd badge (filled) */
+#probe-sidebar .click-kbd-pill {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  font-size: 0.78em;
+  line-height: 1.4;
+}
+
+#probe-sidebar .click-kbd-pill .click-part {
+  padding: 1px 3px;
+  outline: 1px solid var(--BR1);
+  border-radius: 3px 0 0 3px;
+  color: var(--BR2);
+  font-size: 0.85em;
+}
+
+#probe-sidebar .click-kbd-pill .kbd-part {
+  padding: 1px 4px;
+  background: var(--BR1);
+  color: var(--BR3);
+  border-radius: 0 3px 3px 0;
+}
+
+#probe-sidebar .panel.prints .body {
+  user-select: text;
+  cursor: text;
+}
+
+#probe-sidebar .panel.prints .print-entry {
+  display: flex;
+  align-items: baseline;
+  padding: 0.2em 0.4em;
+  border-bottom: 0.5px solid var(--BR1);
+  gap: 0.5em;
+}
+
+#probe-sidebar .panel.prints .print-entry:last-child {
+  border-bottom: none;
+}
+
+#probe-sidebar .panel.prints .print-seq {
+  color: var(--BR1);
+  font-size: 0.85em;
+  min-width: 2em;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+#probe-sidebar .panel.prints .print-value {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-width: 0;
+}
+
+#probe-sidebar .panel.prints .print-line {
+  color: var(--BR1);
+  font-size: 0.85em;
+  flex-shrink: 0;
+  align-self: flex-start;
+  text-align: right;
+}
+
+#probe-sidebar .eval-controls {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0.25em 0;
+}
+
+#probe-sidebar .eval-controls .named-menu-item {
+  display: flex;
+  gap: 0.5em;
+  color: var(--BR3);
+}
+
+#probe-sidebar .run-button {
+  padding: 0.3em 0.7em;
+  font-size: 0.8em;
+  color: var(--BR4);
+  cursor: pointer;
+  border-radius: 3px;
+  background-color: var(--Y1);
+  border: 0.75px solid var(--BR2);
+  margin-left: 0.5em;
+  font-weight: bold;
+}
+
+#probe-sidebar .run-button:hover {
+  background-color: var(--Y2);
+}
+
+#probe-sidebar .run-button:active {
+  background-color: var(--Y3);
+}
+
+#probe-sidebar .panel.window-toggle {
   display: flex;
   flex-direction: row;
   align-items: center;

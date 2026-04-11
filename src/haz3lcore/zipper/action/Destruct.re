@@ -81,10 +81,37 @@ let delete = (d: Direction.t, z: t): option(t) => {
   destroy_selection(z);
 };
 
+/* Unwrap a string/comment/label: delete the token and re-insert
+ * its content character-by-character, as if the user had typed it.
+ * This is the inverse of selection wrapping for quote delimiters. */
+let unwrap_quote = (d: Direction.t, t: Token.t, z: t): option(t) => {
+  let content = String.sub(t, 1, String.length(t) - 2);
+  let+ z = delete(d, z);
+  if (String.length(content) == 0) {
+    z;
+  } else {
+    let result =
+      Token.to_list(content)
+      |> List.fold_left(
+           (z_opt, c) =>
+             switch (z_opt) {
+             | None => None
+             | Some(z) => Insert.go(c, z)
+             },
+           Some(z),
+         );
+    switch (result) {
+    | Some(z) => z
+    | None => z
+    };
+  };
+};
+
 let outer = (d: Direction.t, z: t): option(t) =>
   switch (Zipper.neighbor_token(d, z)) {
   | Some(t) when Token.length(t) > 1 && !Token.is_string_or_comment(t) =>
     Insert.replace_shard(d, Token.rm_edge(d, t), z)
+  | Some(t) when Token.is_string_or_comment(t) => unwrap_quote(d, t, z)
   | _ => delete(d, z)
   };
 
@@ -94,7 +121,7 @@ let rm_nth_right = (idx, t, z) =>
 let inner_left = (idx: int, z: t): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
   | Some(t) when Token.is_string_or_comment(t) && idx == 0 =>
-    z |> Caret.set(Outer) |> delete(Right)
+    unwrap_quote(Right, t, z |> Caret.set(Outer))
   | Some(t) =>
     let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
     let+ z_init = rm_nth_right(idx, t, z);
@@ -108,7 +135,7 @@ let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
 let inner_right = (idx: int, z: t): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
   | Some(t) when Token.is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
-    z |> Caret.set(Outer) |> delete(Right)
+    unwrap_quote(Right, t, z |> Caret.set(Outer))
   | Some(t) =>
     let* z = rm_nth_right(idx + 1, t, z);
     is_last_inner_pos(t, idx)
@@ -171,10 +198,15 @@ let delete_token = (d: Direction.t, z: t): option(t) => {
   delete(d, z);
 };
 
-/* Standard destruct with post-processing */
+/* Standard destruct with post-processing.
+ * Applies the dev-side cleanup of double-merge + rescan_reassemble
+ * so grout cleanup around the caret gets a second merge opportunity
+ * after remold_regrout. */
 let destruct_with_cleanup = (d: Direction.t, z: t): option(t) => {
   let+ z = destruct(d, z);
-  z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+  let z =
+    z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+  Zipper.rescan_reassemble(d, z);
 };
 
 /* Delete from cursor to start of line (Cmd+Backspace on Mac).
@@ -190,16 +222,17 @@ let delete_to_line_start = (z: t): option(t) => {
   } else {
     let z = capture(z);
     let z = destroy_selection(z);
-    Some(
+    let z =
       z
       |> Insert.merge_or_noop
       |> remold_regrout(Left)
-      |> Insert.merge_or_noop,
-    );
+      |> Insert.merge_or_noop;
+    Some(Zipper.rescan_reassemble(Left, z));
   };
 };
 
-let go_local = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) =>
+let go_local = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) => {
+  Grout.suppressed_space := None;
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
   | None =>
@@ -210,7 +243,12 @@ let go_local = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) =>
       | (Left, Some(n)) when n > 0 =>
         let to_delete = min(2, n);
         let+ z = delete_spaces(to_delete, z);
-        z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+        let z =
+          z
+          |> Insert.merge_or_noop
+          |> remold_regrout(d)
+          |> Insert.merge_or_noop;
+        Zipper.rescan_reassemble(d, z);
       | _ => destruct_with_cleanup(d, z)
       }
     | Action.ByToken =>
@@ -218,14 +256,25 @@ let go_local = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) =>
       if (d == Left && left_neighbor_is_whitespace(z)) {
         /* Hungry delete: delete all whitespace including one linebreak */
         let+ z = hungry_delete(z, false);
-        z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+        let z =
+          z
+          |> Insert.merge_or_noop
+          |> remold_regrout(d)
+          |> Insert.merge_or_noop;
+        Zipper.rescan_reassemble(d, z);
       } else {
         /* Delete by token */
         let+ z = delete_token(d, z);
-        z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+        let z =
+          z
+          |> Insert.merge_or_noop
+          |> remold_regrout(d)
+          |> Insert.merge_or_noop;
+        Zipper.rescan_reassemble(d, z);
       }
     }
   };
+};
 
 let go = (destruct: Action.destruct, z: t): option(t) =>
   switch (destruct) {

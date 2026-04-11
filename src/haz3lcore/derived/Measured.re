@@ -475,18 +475,21 @@ let of_segment_inner =
   go(~top_level=true, initial_acc, seg).map;
 };
 
-/* Memoized for perf. We use an inner function with positional args
-   because Core.Memo.general doesn't preserve labeled argument types.
-   The wrapper provides the nice labeled argument interface. */
 let of_segment_memo = Core.Memo.general(of_segment_inner);
 
 let of_segment =
     (
+      ~indent_level as _: Id.Map.t(int)=Id.Map.empty,
+      ~is_single_line as _: bool=false,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_shape_map: Id.Map.t(int),
     )
     : t =>
+  /* Note: ~indent_level and ~is_single_line are accepted for API
+   * compatibility with dev callers (ProjectorView, etc.) but are
+   * ignored here — canonical-completion manages indentation via
+   * real whitespace in the segment, not via an indent_level map. */
   of_segment_memo(seg, shape_map, refractor_shape_map);
 
 /* Width in characters of row at measurement.origin */
