@@ -49,7 +49,8 @@ let should_send_state = (a: Action.t): bool =>
   | Move(_) => false
   | Project(
       SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_) |
-      SampleCursor(_),
+      EscapeToLineEnd(_) |
+      SampleFocus(_),
     )
   | Probe(_)
   | Project(SetSyntax(_))
@@ -62,6 +63,7 @@ let should_send_state = (a: Action.t): bool =>
   | Buffer(Set(_))
   | Cut
   | Structural(_)
+  | ToggleLineComment
   | Dump => true
   };
 
@@ -110,9 +112,9 @@ let get_caret_position =
     : option(
         (Id.t, option(int), int, option(Direction.t), option(Direction.t)),
       ) =>
-  switch (Indicated.piece'(~no_ws=false, ~ign=_ => false, z)) {
+  switch (Indicated.indicated(~no_ws=false, ~ign=_ => false, z)) {
   | None => None
-  | Some((piece, direction, relation)) =>
+  | Some({piece, side: direction, relation}) =>
     let piece_id = Piece.id(piece);
     let shard_index =
       switch (relation) {

@@ -53,7 +53,8 @@ module Update = {
         Structural(_) |
         Probe(_) |
         Dump |
-        Introduce,
+        Introduce |
+        ToggleLineComment,
       )
     | DebugConsole(_)
     | ContextMenu(_)

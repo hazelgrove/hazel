@@ -46,13 +46,13 @@ let view =
     : Node.t => {
   open Haz3lcore;
   let side =
-    switch (Indicated.piece(z)) {
+    switch (Indicated.for_decoration(z)) {
     | _
         when
           !Selection.is_empty(z.selection)
           && !Selection.is_buffer(z.selection) =>
       z.selection.focus
-    | Some((_, side, _)) => Direction.toggle(side)
+    | Some({side, _}) => Direction.toggle(side)
     | _ => Right
     };
   main(

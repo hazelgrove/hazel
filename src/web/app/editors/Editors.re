@@ -223,6 +223,7 @@ module Update = {
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
+      ScratchMode.reset_persist_state();
       let (default_current, default_names) = Store.scratch_defaults();
       Model.Scratch(
         ScratchMode.Persist.load_all(
@@ -235,6 +236,7 @@ module Update = {
       )
       |> return;
     | (SwitchMode(Documentation), _) =>
+      ScratchMode.reset_persist_state();
       let (default_current, default_names) = Store.doc_defaults();
       Model.Documentation(
         ScratchMode.Persist.load_all(
@@ -273,13 +275,15 @@ module Update = {
     };
   };
 
-  let calculate = (~settings, ~is_edited, ~schedule_action, model) => {
+  let calculate =
+      (~settings, ~autoprobe_mode, ~is_edited, ~schedule_action, model) => {
     switch (model) {
     | Model.Scratch(m) =>
       Model.Scratch(
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),
@@ -289,6 +293,7 @@ module Update = {
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),

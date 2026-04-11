@@ -117,7 +117,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | HintedTest(_) => HintedTest
   | Filter(_) => Filter
   | Closure(_) => Closure
-  | Parens(_) => Parens
+  | Parens(e) => cls_of_term(e.term)
   // We're bypassing projectors from cls because they're breaking cursor inspector messages.
   // Future work could be to specialize projectors in the cursor inspector.
   | Projector(_, e) => cls_of_term(e.term)
@@ -447,5 +447,17 @@ let rec get_fn_name = (e: t) => {
   | _ => None
   };
 };
+
+/* Get the definition-site ID of a function expression.
+ * Used to enable jump-to-definition from the closure cursor bar
+ * even when the app_id comes from built-in internal code. */
+let rec get_fn_def_id = (e: t) =>
+  switch (e.term) {
+  | Fun(_)
+  | TypFun(_) => Some(rep_id(e))
+  | FixF(_, e, _)
+  | Parens(e) => get_fn_def_id(e)
+  | _ => None
+  };
 
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
