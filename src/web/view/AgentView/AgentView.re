@@ -23,7 +23,14 @@ let view =
         editors_inject(
           Editors.Update.Scratch(ScratchMode.Update.AgentAction(action)),
         );
-      ChatView.view(~globals, ~agent_model, ~agent_inject, ~signal);
+      ChatView.view(
+        ~globals,
+        ~agent_model,
+        ~agent_inject,
+        ~signal,
+        ~code_with_statics=scratchpad.editor.editor,
+        ~eval_result=scratchpad.editor.result,
+      );
     | Tutorial(_)
     | Exercises(_) =>
       div(
