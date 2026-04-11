@@ -47,6 +47,10 @@ module Config = {
     ) =
     ref(`Below);
 
+  /* Delay in ms before showing a dropdown on hover.
+   * Set to 0.0 to show immediately. */
+  let show_delay: ref(float) = ref(300.0);
+
   /* Debug overlay color (CSS color string) */
   let debug_color: ref(string) = ref("rgba(255, 0, 0, 0.25)");
 
@@ -419,24 +423,46 @@ module Handlers = {
     mutable is_over_trigger: bool,
     mutable is_over_menu: bool,
     mutable check_timeout: option(Dom_html.timeout_id),
+    mutable show_timeout: option(Dom_html.timeout_id),
     on_show: unit => unit,
     on_hide: unit => unit,
+    show_delay: float,
+    skip_delay: unit => bool,
   };
 
-  let make_instance = (~on_show: unit => unit, ~on_hide: unit => unit) => {
+  let make_instance =
+      (
+        ~on_show: unit => unit,
+        ~on_hide: unit => unit,
+        ~show_delay: float=0.0,
+        ~skip_delay: unit => bool=() => false,
+        (),
+      ) => {
     is_over_trigger: false,
     is_over_menu: false,
     check_timeout: None,
+    show_timeout: None,
     on_show,
     on_hide,
+    show_delay,
+    skip_delay,
   };
 
-  /* Clear any pending timeout */
+  /* Clear any pending hide timeout */
   let clear_timeout = (state: instance_state) =>
     switch (state.check_timeout) {
     | Some(id) =>
       Dom_html.window##clearTimeout(id);
       state.check_timeout = None;
+    | None => ()
+    };
+
+  /* Clear any pending show timeout */
+  let clear_show_timeout = (state: instance_state) =>
+    switch (state.show_timeout) {
+    | Some(id) =>
+      Dom_html.window##clearTimeout(id);
+      state.show_timeout = None;
     | None => ()
     };
 
@@ -515,44 +541,70 @@ module Handlers = {
         state: instance_state,
         ~menu_elem_id: string,
         ~direction: direction=Config.default_direction^,
+        ~on_activate: option(unit => unit)=None,
         (),
       )
-      : list(Attr.t) => [
-    Attr.on_mouseenter(_ => {
-      state.is_over_trigger = true;
-      clear_timeout(state);
+      : list(Attr.t) => {
+    let do_show = () => {
       state.on_show();
-      Effect.Ignore;
-    }),
-    Attr.on_mouseleave(evt => {
-      state.is_over_trigger = false;
-      let exit_point = point_of_mouse_event(evt);
-
-      /* Try to get menu element and activate safe triangle */
-      switch (
-        Dom_html.document##getElementById(Js.string(menu_elem_id))
-        |> Js.Opt.to_option
-      ) {
-      | Some(menu_elem) =>
-        schedule_hide_check(state, ~menu_elem, ~direction, exit_point)
-      | None =>
-        /* Menu not found, just hide after small delay */
-        state.check_timeout =
-          Some(
-            Dom_html.window##setTimeout(
-              Js.wrap_callback(() =>
-                if (!state.is_over_trigger) {
-                  state.on_hide();
-                }
-              ),
-              100.0,
-            ),
-          )
+      switch (on_activate) {
+      | Some(f) => f()
+      | None => ()
       };
+    };
+    [
+      Attr.on_mouseenter(_ => {
+        state.is_over_trigger = true;
+        clear_timeout(state);
+        clear_show_timeout(state);
+        if (state.show_delay <= 0.0 || state.skip_delay()) {
+          do_show();
+        } else {
+          state.show_timeout =
+            Some(
+              Dom_html.window##setTimeout(
+                Js.wrap_callback(() =>
+                  if (state.is_over_trigger) {
+                    do_show();
+                  }
+                ),
+                state.show_delay,
+              ),
+            );
+        };
+        Effect.Ignore;
+      }),
+      Attr.on_mouseleave(evt => {
+        state.is_over_trigger = false;
+        clear_show_timeout(state);
+        let exit_point = point_of_mouse_event(evt);
 
-      Effect.Ignore;
-    }),
-  ];
+        /* Try to get menu element and activate safe triangle */
+        switch (
+          Dom_html.document##getElementById(Js.string(menu_elem_id))
+          |> Js.Opt.to_option
+        ) {
+        | Some(menu_elem) =>
+          schedule_hide_check(state, ~menu_elem, ~direction, exit_point)
+        | None =>
+          /* Menu not found, just hide after small delay */
+          state.check_timeout =
+            Some(
+              Dom_html.window##setTimeout(
+                Js.wrap_callback(() =>
+                  if (!state.is_over_trigger) {
+                    state.on_hide();
+                  }
+                ),
+                100.0,
+              ),
+            )
+        };
+
+        Effect.Ignore;
+      }),
+    ];
+  };
 
   /* Create menu element attributes */
   let menu_attrs =
@@ -637,14 +689,24 @@ module CSSDropdown = {
                 active_id := None;
               };
             },
+          ~show_delay=Config.show_delay^,
+          ~skip_delay=() => active_id^ != None,
+          (),
         );
       Hashtbl.add(instances, menu_id, inst);
       inst;
     };
 
   /* Attributes for the trigger element (e.g., the hoverable item) */
-  let trigger_attrs = (menu_id: string): list(Attr.t) =>
-    Handlers.trigger_attrs(get_instance(menu_id), ~menu_elem_id=menu_id, ());
+  let trigger_attrs =
+      (~on_activate: option(unit => unit)=None, menu_id: string)
+      : list(Attr.t) =>
+    Handlers.trigger_attrs(
+      get_instance(menu_id),
+      ~menu_elem_id=menu_id,
+      ~on_activate,
+      (),
+    );
 
   /* Attributes for the menu element (the dropdown that appears) */
   let menu_attrs = (menu_id: string): list(Attr.t) =>

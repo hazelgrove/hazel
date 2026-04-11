@@ -183,26 +183,32 @@ let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
     container##.scrollTop := int_of_float(target);
   };
 
+/* Scroll vertically so that el_rect is visible within the container,
+ * with a 10% margin. Only adjusts scrollTop, never scrollLeft. */
+let scroll_vertically_into_view =
+    (container: Js.t(Dom_html.element), el: Js.t(Dom_html.element)) => {
+  let el_rect = el##getBoundingClientRect;
+  let container_rect = container##getBoundingClientRect;
+  let margin_ratio = 0.10;
+  let margin_px =
+    Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
+  let top_gap = el_rect##.top -. (container_rect##.top +. margin_px);
+  if (top_gap < 0.) {
+    adjust_scroll(container, top_gap);
+  } else {
+    let bottom_gap =
+      el_rect##.bottom -. (container_rect##.bottom -. margin_px);
+    if (bottom_gap > 0.) {
+      adjust_scroll(container, bottom_gap);
+    };
+  };
+};
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
     switch (find_scroll_container(caret_elem)) {
-    | Some(container) =>
-      let caret_rect = caret_elem##getBoundingClientRect;
-      let container_rect = container##getBoundingClientRect;
-      let margin_ratio = 0.10;
-      let margin_px =
-        Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
-      let top_gap = caret_rect##.top -. (container_rect##.top +. margin_px);
-      if (top_gap < 0.) {
-        adjust_scroll(container, top_gap);
-      } else {
-        let bottom_gap =
-          caret_rect##.bottom -. (container_rect##.bottom -. margin_px);
-        if (bottom_gap > 0.) {
-          adjust_scroll(container, bottom_gap);
-        };
-      };
+    | Some(container) => scroll_vertically_into_view(container, caret_elem)
     | None =>
       caret_elem##scrollIntoView(
         Js.Unsafe.obj([|
@@ -277,6 +283,57 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
+/* Scroll compensation for sample focus bar:
+ * When the bar's height changes (appearing/disappearing), adjust #main's
+ * scrollTop so visible code doesn't shift. Only compensates when scrolled
+ * down (at scroll 0, the shift is unavoidable).
+ *
+ * Uses float arithmetic throughout: scrollTop is sub-pixel (especially with
+ * trackpad scrolling), and OCaml int ops compile to JS `| 0` which truncates
+ * the fractional part, causing visible drift on each toggle. */
+let focus_bar_observer_installed = ref(false);
+let get_height = el =>
+  Js.Unsafe.get(
+    Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+    "height",
+  );
+let setup_focus_bar_scroll_compensation = () =>
+  if (! focus_bar_observer_installed^) {
+    let bar =
+      try(Some(get_elem_by_id("sample-focus-bar"))) {
+      | _ => None
+      };
+    let main =
+      try(Some(get_elem_by_id("main"))) {
+      | _ => None
+      };
+    switch (bar, main) {
+    | (Some(bar_el), Some(main_el)) =>
+      focus_bar_observer_installed := true;
+      let bar = Js.Unsafe.coerce(bar_el);
+      let main = Js.Unsafe.coerce(main_el);
+      let last_height: ref(float) = ref(get_height(bar));
+      let callback =
+        Js.wrap_callback(_entries => {
+          let new_height: float = get_height(bar);
+          let delta = new_height -. last_height^;
+          last_height := new_height;
+          let scroll_top: float =
+            Js.Unsafe.get(main, Js.string("scrollTop"));
+          if (delta != 0.0 && scroll_top > 0.0) {
+            Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
+          };
+        });
+      let observer =
+        Js.Unsafe.new_obj(
+          Js.Unsafe.global##._ResizeObserver,
+          [|Js.Unsafe.inject(callback)|],
+        );
+      Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(bar)|]);
+    | _ => ()
+    };
+  };
+
 let set_select_value = (select_id, value) => {
   Js_of_ocaml.Js.Unsafe.set(
     get_elem_by_id(select_id),
@@ -290,6 +347,53 @@ let prompt = (message: string, default: string): option(string) => {
     Dom_html.window##prompt(Js.string(message), Js.string(default)),
   )
   |> Option.map(Js.to_string);
+};
+
+/* Measure actual font metrics from the #font-specimen element.
+ * Falls back to 10.0 if the element isn't available. */
+let font_metrics_from_specimen = (): (float, float) =>
+  switch (get_elem_by_id_opt("font-specimen")) {
+  | Some(specimen) =>
+    let rect = specimen##getBoundingClientRect;
+    let col_width = max(1.0, rect##.right -. rect##.left);
+    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    (col_width, row_height);
+  | None => (10.0, 10.0)
+  };
+
+/* Listen for devicePixelRatio changes (triggered by browser zoom).
+ * Uses matchMedia to detect when the current DPR no longer matches,
+ * then re-registers for the next change. */
+let on_dpr_change = (callback: unit => unit): unit => {
+  let rec listen = () => {
+    let dpr: float =
+      Js.Unsafe.get(Dom_html.window, "devicePixelRatio")
+      |> Js.float_of_number
+      |> Js.to_float;
+    let query = Printf.sprintf("(resolution: %fdppx)", dpr);
+    let mql =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "matchMedia",
+        [|Js.Unsafe.inject(Js.string(query))|],
+      );
+    let handler =
+      Js.wrap_callback((_: Js.t({..})) => {
+        callback();
+        listen();
+      });
+    ignore(
+      Js.Unsafe.meth_call(
+        mql,
+        "addEventListener",
+        [|
+          Js.Unsafe.inject(Js.string("change")),
+          Js.Unsafe.inject(handler),
+        |],
+      ),
+    );
+  };
+  listen();
 };
 
 module QueryParams = {
@@ -404,6 +508,110 @@ let post_to_iframe =
     | None => prerr_endline("post_to_iframe: contentWindow not available")
     }
   | None => prerr_endline("post_to_iframe: iframe not found")
+  };
+};
+
+/* Navigate between probe elements in document order.
+   Finds all .live-offside[tabindex] elements, sorts by visual position,
+   and focuses the next/previous one relative to current_id.
+   When ~skip_unaligned is true, skips probes whose data-cursor-aligned
+   attribute is not "true" (i.e. probes with no samples related to
+   the current cursor).
+   Returns the target probe's Id.t (from data-probe-id attribute)
+   and gives it DOM focus. */
+let navigate_probes =
+    (
+      ~skip_unaligned: bool=false,
+      current_id: string,
+      direction: [
+        | `Up
+        | `Down
+      ],
+    )
+    : option(Id.t) => {
+  let elements =
+    Dom_html.document##querySelectorAll(
+      Js.string(".live-offside[tabindex]"),
+    );
+  let len = elements##.length;
+  /* Collect elements with their bounding rects */
+  let items = ref([]);
+  for (i in 0 to len - 1) {
+    switch (elements##item(i) |> Js.Opt.to_option) {
+    | Some(el) =>
+      let el = Js.Unsafe.coerce(el);
+      let rect = el##getBoundingClientRect;
+      items := [(el, rect##.top, rect##.left), ...items^];
+    | None => ()
+    };
+  };
+  /* Sort by top, then left */
+  let sorted =
+    List.sort(
+      ((_, t1, l1), (_, t2, l2)) => {
+        let c = compare(t1, t2);
+        if (c != 0) {
+          c;
+        } else {
+          compare(l1, l2);
+        };
+      },
+      items^,
+    );
+  /* Find current index */
+  let current_idx = ref(-1);
+  List.iteri(
+    (i, (el, _, _)) => {
+      let id: string = Js.to_string(el##.id);
+      if (id == current_id) {
+        current_idx := i;
+      };
+    },
+    sorted,
+  );
+  /* Find target, optionally skipping unaligned probes */
+  let offset =
+    switch (direction) {
+    | `Down => 1
+    | `Up => (-1)
+    };
+  let n = List.length(sorted);
+  let rec find_target = idx =>
+    if (idx < 0 || idx >= n) {
+      None;
+    } else {
+      let (el, _, _) = List.nth(sorted, idx);
+      let dominated =
+        skip_unaligned
+        && {
+          let attr =
+            el##getAttribute(Js.string("data-cursor-aligned"))
+            |> Js.Opt.to_option;
+          switch (attr) {
+          | Some(s) => Js.to_string(s) != "true"
+          | None => true
+          };
+        };
+      dominated ? find_target(idx + offset) : Some(el);
+    };
+  switch (find_target(current_idx^ + offset)) {
+  | Some(el) =>
+    el##focus(
+      Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+    );
+    switch (find_scroll_container(Js.Unsafe.coerce(el))) {
+    | Some(container) =>
+      scroll_vertically_into_view(container, Js.Unsafe.coerce(el))
+    | None => ()
+    };
+    /* Extract the full probe Id from data-probe-id attribute */
+    let probe_id_str =
+      el##getAttribute(Js.string("data-probe-id")) |> Js.Opt.to_option;
+    switch (probe_id_str) {
+    | Some(s) => Id.of_string(Js.to_string(s))
+    | None => None
+    };
+  | None => None
   };
 };
 

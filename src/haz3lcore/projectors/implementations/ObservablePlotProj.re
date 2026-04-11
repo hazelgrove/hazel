@@ -324,18 +324,7 @@ let decode_graph_data = (value: DHExp.t): decoded_graph => {
 
 let select_sample = (info: info): option(Sample.t) =>
   switch (info.dynamics) {
-  | Some(x) =>
-    switch (
-      Language.Sample.Selection.first_related_index(
-        ~trimmed=false,
-        ~ap_id=None,
-        x.sample_cursor,
-        x.samples,
-      )
-    ) {
-    | Some(idx) => Some(List.nth(x.samples, idx))
-    | None => None
-    }
+  | Some(x) => Language.Dynamics.Info.most_aligned_sample(None, x)
   | _ => None
   };
 

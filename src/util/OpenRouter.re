@@ -259,6 +259,53 @@ module Utils = {
     );
   };
 
+  /** Decode [content] the way several providers return it: plain string, null,
+      array of parts (with [text], nested [content], or bare strings in the list),
+      or a single object with [text]/[content]. */
+  let rec message_content_string = (content: Json.t): option(string) => {
+    switch (content) {
+    | `Null => Some("")
+    | `String(s) => Some(s)
+    | `List(parts) =>
+      let texts =
+        List.filter_map(
+          (part: Json.t) =>
+            switch (part) {
+            | `String(s) => Some(s)
+            | _ =>
+              switch (Json.dot("text", part)) {
+              | Some(t) =>
+                switch (Json.str(t)) {
+                | Some(s) => Some(s)
+                | None => message_content_string(t)
+                }
+              | None =>
+                switch (Json.dot("content", part)) {
+                | Some(c) => message_content_string(c)
+                | None => None
+                }
+              }
+            },
+          parts,
+        );
+      Some(String.concat("", texts));
+    | `Assoc(_) as assoc =>
+      switch (Json.dot("text", assoc)) {
+      | Some(t) =>
+        switch (Json.str(t)) {
+        | Some(s) => Some(s)
+        | None => message_content_string(t)
+        }
+      | None =>
+        switch (Json.dot("content", assoc)) {
+        | Some(c) => message_content_string(c)
+        | None => None
+        }
+      }
+    | _ => None
+    };
+  };
+
   let first_message_content = (choices: Json.t): option(string) => {
     let* choices = Json.list(choices);
     let* hd = ListUtil.hd_opt(choices);
@@ -267,8 +314,28 @@ module Utils = {
       | Some(message) => Some(message)
       | None => Json.dot("delta", hd)
       };
-    let* content = Json.dot("content", delta);
-    Json.str(content);
+    let from_content =
+      switch (Json.dot("content", delta)) {
+      | None => None
+      | Some(c) => message_content_string(c)
+      };
+    let from_reasoning = Option.bind(Json.dot("reasoning", delta), Json.str);
+    let from_reasoning_content =
+      Option.bind(Json.dot("reasoning_content", delta), Json.str);
+    let from_thinking = Option.bind(Json.dot("thinking", delta), Json.str);
+    switch (
+      List.find_map(
+        (o: option(string)) =>
+          switch (o) {
+          | Some(s) when String.trim(s) != "" => Some(s)
+          | _ => None
+          },
+        [from_content, from_reasoning_content, from_reasoning, from_thinking],
+      )
+    ) {
+    | Some(s) => Some(s)
+    | None => from_content
+    };
   };
 
   let parse_tool_args = (args: Json.t): Json.t => {
@@ -387,6 +454,8 @@ module AvailableLLMs = {
       id: string,
       name: string,
       pricing,
+      [@yojson.default None]
+      context_length: option(int),
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -449,6 +518,12 @@ module AvailableLLMs = {
                     let pricing_opt = List.assoc_opt("pricing", model_fields);
                     let params_opt =
                       List.assoc_opt("supported_parameters", model_fields);
+                    let context_length =
+                      switch (List.assoc_opt("context_length", model_fields)) {
+                      | Some(`Int(n)) => Some(n)
+                      | Some(`Float(f)) => Some(int_of_float(f))
+                      | _ => None
+                      };
 
                     if (!has_required_parameters(params_opt)) {
                       None;
@@ -472,6 +547,7 @@ module AvailableLLMs = {
                                 prompt: p,
                                 completion: c,
                               },
+                              context_length,
                             }: Model.llm_info,
                           )
                         | _ => None
