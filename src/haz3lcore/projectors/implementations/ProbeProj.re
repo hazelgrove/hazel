@@ -1678,13 +1678,103 @@ let prepare_offside =
         dynamics.samples,
       );
     let num_total = List.length(filtered_samples);
+    /* Arrow Up/Down probe-navigation reachability. When pinned, this
+     * restricts motion to probes that won't silently realign the dynamic
+     * cursor. Written to the DOM as `data-cursor-aligned`, read back by
+     * `JsUtil.navigate_probes` when walking visually-adjacent probes.
+     *
+     * Short-form logic (pinned case):
+     *
+     *   A probe is reachable iff it has a (pin-filter-visible) sample
+     *   whose call_stack either:
+     *     (a) equals the cursor's effective_stack — same invocation, no
+     *         state change on arrow, OR
+     *     (b) is stack-related (one is a suffix of the other) AND the
+     *         target's enclosing fn_def_id differs from the cursor's —
+     *         walking up the call chain or back down across a function
+     *         body boundary. Bidirectional so walking up has an inverse.
+     *
+     *   fn_def_id is the dynamic "which function body am I in" test, read
+     *   from the innermost frame of effective_stack for the cursor and
+     *   from any sample's innermost frame for the target (all samples of
+     *   a probe share an enclosing fn).
+     *
+     * Principles upheld:
+     *   1. Reachable ⊆ Visible (filtered_samples is already pinned).
+     *   2. No silent realignment: moves never change which sample other
+     *      probes display (rule (a) is strict equality; rule (b) crosses
+     *      a fn boundary, which is a legitimate semantic step-out/in).
+     *   3. Cycle / no traps: bidirectional rule (b) means walking up
+     *      always has a walk-back-down inverse in the reachable set.
+     *   4. Pin-gated: unpinned retains legacy `most_aligned_index`.
+     *
+     * Recursion compromise: because rule (b) requires a different fn
+     * body, same-fn-body ancestor ap probes (i.e., recursive self-call
+     * sites from inside a recursive function) are not arrow-reachable.
+     * To switch recursion levels, navigate up to the function parameter
+     * and use the focus bar's left/right (call-stack axis). Rationale:
+     * within a recursive function, lexical and dynamic geometry diverge,
+     * and blocking cross-invocation same-fn moves is the minimal fix
+     * that keeps (2) — no realignment — intact.
+     *
+     * Orientation note: step_end order over reachable samples coincides
+     * with visual (top/left) order in Hazel's top-down source, because a
+     * computation always finishes before its enclosing computation does.
+     * That's why `JsUtil.navigate_probes` can sort visually and get the
+     * same answer a pure-dynamic step_end formulation would give. */
     let is_cursor_aligned =
-      Sample.Selection.most_aligned_index(
-        ~ap_id,
-        dynamics.sample_focus,
-        filtered_samples,
-      )
-      != None;
+      switch (dynamics.sample_focus.pinned_stack) {
+      | None =>
+        /* Unpinned: legacy alignment (looser, has fallback tiers). */
+        Sample.Selection.most_aligned_index(
+          ~ap_id,
+          dynamics.sample_focus,
+          filtered_samples,
+        )
+        != None
+      | Some(_) =>
+        let effective: Sample.call_stack =
+          Sample.Focus.effective_stack(dynamics.sample_focus);
+        let fn_of_innermost = (stack: Sample.call_stack) : option(Id.t) =>
+          switch (stack) {
+          | [] => None
+          | [frame, ..._] =>
+            let f: Sample.stack_frame = frame;
+            f.fn_def_id;
+          };
+        let cursor_fn: option(Id.t) = fn_of_innermost(effective);
+        /* All samples of a given probe share an enclosing fn body, so
+         * reading fn_def_id from any one of them gives the target's fn. */
+        let target_fn: option(Id.t) =
+          switch (filtered_samples) {
+          | [] => None
+          | [sample, ..._] =>
+            let s: Sample.t = sample;
+            fn_of_innermost(s.call_stack);
+          };
+        List.exists(
+          (sample: Sample.t) =>
+            if (Sample.equal_call_stack(sample.call_stack, effective)) {
+              /* rule (a): same invocation */
+              true;
+            } else if (target_fn != cursor_fn) {
+              /* rule (b): different fn body + stack-related */
+              Util.ListUtil.is_suffix_of(
+                ~eq=Sample.equal_stack_frame,
+                sample.call_stack,
+                effective,
+              )
+              || Util.ListUtil.is_suffix_of(
+                   ~eq=Sample.equal_stack_frame,
+                   effective,
+                   sample.call_stack,
+                 );
+            } else {
+              false;
+            },
+          filtered_samples,
+        );
+      };
     let samples =
       select_samples(
         ~settings,
