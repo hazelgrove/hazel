@@ -542,12 +542,17 @@ let candidate_allowed_by_variables =
   | _ => true
   };
 
-/* Filter out terms that should never have probes. */
+/* Filter out terms that should never have probes. When the info_map
+ * is empty (e.g. during the initial post-reload calculate, before
+ * statics have been computed), short-circuit to true so the candidate
+ * set isn't wiped. The downstream calculate pass will re-run this
+ * filter once statics are available. */
 let candidate_allowed_by_term_sort =
     (candidate_id: Id.t, env: selection_env): bool =>
-  Language.Info.is_typable_term(
-    Language.Statics.Map.lookup(candidate_id, env.info_map),
-  );
+  Id.Map.is_empty(env.info_map)
+  || Language.Info.is_typable_term(
+       Language.Statics.Map.lookup(candidate_id, env.info_map),
+     );
 
 /* Never probe InfixDelimiterPrefix tiles (partial keywords like `th`
  * for `then`). These are transient typing artifacts. */

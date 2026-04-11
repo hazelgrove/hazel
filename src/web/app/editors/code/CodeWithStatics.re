@@ -165,17 +165,20 @@ module Update = {
         editor,
       );
 
-    /* In autoprobe_mode, probes can change without an edit (cursor movement).
-     * When ephemerals change, we must recalculate statics to update targets
-     * so the evaluator collects samples for the new probes. */
+    /* Ephemerals can change without an explicit edit in several cases:
+     * (1) cursor movement in autoprobe mode (cursor crosses into a new
+     *     top-level definition), and
+     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
+     *     from persisted multis.ids once the info_map becomes available.
+     * In both cases we must recalculate statics so probe targets match
+     * the new ephemerals and the evaluator collects samples for them. */
     let probes_changed =
-      autoprobe_mode
-      && !
-           Id.Map.equal(
-             Refractors.equal_entry,
-             old_ephemerals,
-             editor.state.zipper.refractors.multis.ephemerals,
-           );
+      !
+        Id.Map.equal(
+          Refractors.equal_entry,
+          old_ephemerals,
+          editor.state.zipper.refractors.multis.ephemerals,
+        );
 
     let statics =
       statics_mode == StaticsForce

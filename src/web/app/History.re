@@ -1,6 +1,6 @@
 open Util;
 
-let capped_undo_stack_size = 100;
+let capped_undo_stack_size = 250;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]

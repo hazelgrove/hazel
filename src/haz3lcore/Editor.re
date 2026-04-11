@@ -167,11 +167,15 @@ module Update = {
         {syntax, state}: Model.t,
       )
       : Model.t => {
-    /* 1. Recalculate the autocomplete buffer if necessary */
+    /* 1. Recalculate the autocomplete buffer if necessary.
+     * Uses ci_for_completion (which prefers the left-neighbor tile,
+     * falling back to ci_of) so that the automatic post-edit buffer
+     * recompute is consistent with Perform.go's explicit
+     * Buffer(Set(TyDi)) path. */
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
         Buffer.set_tydi_buffer(
-          Indicated.ci_of(state.zipper, new_statics.info_map),
+          Indicated.ci_for_completion(state.zipper, new_statics.info_map),
           state.zipper,
         );
       } else {
