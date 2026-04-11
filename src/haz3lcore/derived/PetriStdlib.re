@@ -3,8 +3,7 @@ open Language;
 let placeholder_var = "__PETRI_STDLIB_BODY__";
 
 /* Embedded Petri-refinement prelude so app + CLI share the same stdlib extensions. */
-let source: string =
-  {|
+let source: string = {|
 # Return net.petriNetDefinition (or Null if missing). #
 let get_petri_def = fun net ->
   jq1([jq_field("petriNetDefinition")])(net)
@@ -383,6 +382,6 @@ let with_prelude_term = (user_term: Exp.t): Exp.t =>
   | Some(prelude_term) =>
     let env =
       Environment.extend(Environment.empty, (placeholder_var, user_term));
-    Substitution.in_exp(env, prelude_term)
+    Substitution.in_exp(env, prelude_term);
   | None => user_term
   };
