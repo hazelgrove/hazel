@@ -399,7 +399,6 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
   };
 };
-let stitch_term = Core.Memo.general(stitch_term);
 
 let prelude_key = "prelude";
 let test_validation_key = "test_validation";
