@@ -10,8 +10,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Path to the JS target relative to the script
 JS_TARGET="$SCRIPT_DIR/_build/default/src/CLI/cli.bc.js"
 
+# Use project-local opam switch when available so dune resolves CLI deps.
+if command -v opam >/dev/null 2>&1 && [ -d "$SCRIPT_DIR/_opam" ]; then
+  OPAM_RUN=(opam exec --switch="$SCRIPT_DIR" --)
+else
+  OPAM_RUN=()
+fi
+
 # Run Dune in the script's directory
-(cd "$SCRIPT_DIR" && dune build ./src/CLI/cli.bc.js)
+(cd "$SCRIPT_DIR" && "${OPAM_RUN[@]}" dune build ./src/CLI/cli.bc.js)
 
 # Execute the compiled JavaScript with node
 node "$JS_TARGET" "$@"

@@ -1,0 +1,394 @@
+# Return net.petriNetDefinition (or Null if missing). #
+let get_petri_def = fun net ->
+  jq1([jq_field("petriNetDefinition")])(net)
+in
+
+# Return a copy of net with petriNetDefinition replaced by pnd. #
+let set_petri_def = fun net -> fun pnd ->
+  jq1([jq_update("petriNetDefinition", fun _ -> [pnd])])(net)
+in
+
+# Return a flat list of node objects from net.petriNetDefinition.nodes. #
+let get_nodes = fun net ->
+  jq([jq_field("petriNetDefinition"), jq_field("nodes"), jq_iterate])(net)
+in
+
+# Return a flat list of arc objects from net.petriNetDefinition.arcs. #
+let get_arcs = fun net ->
+  jq([jq_field("petriNetDefinition"), jq_field("arcs"), jq_iterate])(net)
+in
+
+# Return a copy of net with nodes replaced by the provided list. #
+let set_nodes = fun net -> fun nodes ->
+  let pnd = get_petri_def(net) in
+  let pnd2 = jq1([jq_set("nodes", List(nodes))])(pnd) in
+  set_petri_def(net)(pnd2)
+in
+
+# Return a copy of net with arcs replaced by the provided list. #
+let set_arcs = fun net -> fun arcs ->
+  let pnd = get_petri_def(net) in
+  let pnd2 = jq1([jq_set("arcs", List(arcs))])(pnd) in
+  set_petri_def(net)(pnd2)
+in
+
+# Extract node.id as String, defaulting to empty string on malformed nodes. #
+let get_id = fun node ->
+  case jq1([jq_field("id")])(node)
+  | String(x) => x
+  | _ => ""
+  end
+in
+
+# Extract arc.source, defaulting to empty string on malformed arcs. #
+let arc_source = fun arc ->
+  case jq1([jq_field("source")])(arc)
+  | String(x) => x
+  | _ => ""
+  end
+in
+
+# Extract arc.target, defaulting to empty string on malformed arcs. #
+let arc_target = fun arc ->
+  case jq1([jq_field("target")])(arc)
+  | String(x) => x
+  | _ => ""
+  end
+in
+
+# Return a copy of arc with source rewritten. #
+let arc_set_source = fun arc -> fun src ->
+  jq1([jq_set("source", String(src))])(arc)
+in
+
+# Return a copy of arc with target rewritten. #
+let arc_set_target = fun arc -> fun tgt ->
+  jq1([jq_set("target", String(tgt))])(arc)
+in
+
+# Construct a place node with explicit initial default token count. #
+let mk_place_tokens = fun id -> fun tokens ->
+  Assoc([
+    ("id", String(id)),
+    ("type", String("place")),
+    ("data", Assoc([
+      ("label", String(id)),
+      ("type", String("place")),
+      ("tokenCounts", Assoc([
+        ("default", Int(tokens))
+      ]))
+    ]))
+  ])
+in
+
+# Construct a place node with default token count 0. #
+let mk_place = fun id ->
+  mk_place_tokens(id)(0)
+in
+
+# Construct a transition node. #
+let mk_transition = fun id ->
+  Assoc([
+    ("id", String(id)),
+    ("type", String("transition")),
+    ("data", Assoc([
+      ("label", String(id)),
+      ("type", String("transition"))
+    ]))
+  ])
+in
+
+# Construct an arc with default token weight. #
+let mk_arc = fun src -> fun tgt -> fun weight ->
+  Assoc([
+    ("id", String("arc__" ++ src ++ "__" ++ tgt)),
+    ("type", String("default")),
+    ("source", String(src)),
+    ("target", String(tgt)),
+    ("data", Assoc([
+      ("tokenWeights", Assoc([
+        ("default", Int(weight))
+      ]))
+    ]))
+  ])
+in
+
+# Build recursive arc chain for sequence-place module. #
+# Diagram: (pin) -> [t1] -> (p1) -> [t2] -> ... -> [tn] -> (pout) #
+let seq_place_arcs : String -> String -> Int -> Int -> [JSON] =
+fun current_place -> fun prefix -> fun i -> fun n ->
+  if i > n
+  then []
+  else
+    let tid = prefix ++ "_t" ++ string_of_int(i) in
+    if i == n
+    then [mk_arc(current_place)(tid)(1), mk_arc(tid)(prefix ++ "_pout")(1)]
+    else
+      let nextp = prefix ++ "_p" ++ string_of_int(i) in
+      [mk_arc(current_place)(tid)(1), mk_arc(tid)(nextp)(1)] @ seq_place_arcs(nextp)(prefix)(i + 1)(n)
+in
+
+# Build a sequence place-module (paper Definition 8). #
+# Diagram: (pin) -> [t1] -> (p1) -> [t2] -> ... -> [tn] -> (pout) #
+let build_sequence_place_module = fun prefix -> fun n ->
+  let n1 = if n < 1 then 1 else n in
+  let pin = prefix ++ "_pin" in
+  let pout = prefix ++ "_pout" in
+  let mids = map(range(1, n1), fun i -> mk_place(prefix ++ "_p" ++ string_of_int(i))) in
+  let trans = map(range(1, n1 + 1), fun i -> mk_transition(prefix ++ "_t" ++ string_of_int(i))) in
+  let nodes = [mk_place(pin)] @ mids @ [mk_place(pout)] @ trans in
+  let arcs = seq_place_arcs(pin)(prefix)(1)(n1) in
+  (nodes, arcs, pin, pout)
+in
+
+# Build a parallel place-module (paper Definition 9). #
+# Diagram: (pin) -> [split] -> {(b1),(b2),...,(bn)} -> [join] -> (pout) #
+let build_parallel_place_module = fun prefix -> fun n ->
+  let n1 = if n < 2 then 2 else n in
+  let pin = prefix ++ "_pin" in
+  let pout = prefix ++ "_pout" in
+  let split_t = prefix ++ "_split" in
+  let join_t = prefix ++ "_join" in
+  let branch_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_b" ++ string_of_int(i)) in
+  let branch_places = map(branch_ids, fun bid -> mk_place(bid)) in
+  let branch_arcs =
+    flat_map(
+      branch_ids,
+      fun bid -> [mk_arc(split_t)(bid)(1), mk_arc(bid)(join_t)(1)]
+    )
+  in
+  let nodes = [mk_place(pin), mk_place(pout), mk_transition(split_t), mk_transition(join_t)] @ branch_places in
+  let arcs = [mk_arc(pin)(split_t)(1)] @ branch_arcs @ [mk_arc(join_t)(pout)(1)] in
+  (nodes, arcs, pin, pout)
+in
+
+# Build a choice place-module for place refinement. #
+# This uses the trimmed form of paper Definition 10: the outer bracketing #
+# transitions are omitted, leaving a directly pluggable place block. #
+# Diagram: (pin) -> [choose1] -> (b1) -> [done1] -> (pout) #
+#                -> [choose2] -> (b2) -> [done2] ->        #
+#                -> [choose3] -> (b3) -> [done3] ->        #
+let build_choice_place_module = fun prefix -> fun n ->
+  let n1 = if n < 2 then 2 else n in
+  let pin = prefix ++ "_pin" in
+  let pout = prefix ++ "_pout" in
+  let branch_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_b" ++ string_of_int(i)) in
+  let choose_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_choose" ++ string_of_int(i)) in
+  let done_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_done" ++ string_of_int(i)) in
+  let nodes =
+    [mk_place(pin), mk_place(pout)]
+    @ map(branch_ids, fun bid -> mk_place(bid))
+    @ map(choose_ids, fun tid -> mk_transition(tid))
+    @ map(done_ids, fun tid -> mk_transition(tid))
+  in
+  let arcs_choose =
+    flat_map(
+      range(1, n1 + 1),
+      fun i ->
+        let b = prefix ++ "_b" ++ string_of_int(i) in
+        let c = prefix ++ "_choose" ++ string_of_int(i) in
+        [mk_arc(pin)(c)(1), mk_arc(c)(b)(1)]
+    )
+  in
+  let arcs_done =
+    flat_map(
+      range(1, n1 + 1),
+      fun i ->
+        let b = prefix ++ "_b" ++ string_of_int(i) in
+        let d = prefix ++ "_done" ++ string_of_int(i) in
+        [mk_arc(b)(d)(1), mk_arc(d)(pout)(1)]
+    )
+  in
+  (nodes, arcs_choose @ arcs_done, pin, pout)
+in
+
+# Build a decision-free choice place-module for place refinement. #
+# This uses the trimmed form of paper Definition 11: the outer bracketing #
+# transitions are omitted, while round-robin control places enforce order. #
+let build_decision_free_choice_place_module = fun prefix -> fun n ->
+  let n1 = if n < 2 then 2 else n in
+  let pin = prefix ++ "_pin" in
+  let pout = prefix ++ "_pout" in
+  let branch_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_b" ++ string_of_int(i)) in
+  let choose_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_choose" ++ string_of_int(i)) in
+  let done_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_done" ++ string_of_int(i)) in
+  let control_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_ctrl" ++ string_of_int(i)) in
+  let control_places =
+    mapi(
+      control_ids,
+      fun (i, cid) ->
+        if i == 0 then mk_place_tokens(cid)(1) else mk_place(cid)
+    )
+  in
+  let nodes =
+    [mk_place(pin), mk_place(pout)]
+    @ map(branch_ids, fun bid -> mk_place(bid))
+    @ control_places
+    @ map(choose_ids, fun tid -> mk_transition(tid))
+    @ map(done_ids, fun tid -> mk_transition(tid))
+  in
+  let arcs =
+    concat(
+      mapi(
+        range(1, n1 + 1),
+        fun (idx, i) ->
+          let b = prefix ++ "_b" ++ string_of_int(i) in
+          let c = prefix ++ "_choose" ++ string_of_int(i) in
+          let d = prefix ++ "_done" ++ string_of_int(i) in
+          let ctrl = prefix ++ "_ctrl" ++ string_of_int(i) in
+          let next_i = if i == n1 then 1 else i + 1 in
+          let next_ctrl = prefix ++ "_ctrl" ++ string_of_int(next_i) in
+          [
+            mk_arc(pin)(c)(1),
+            mk_arc(ctrl)(c)(1),
+            mk_arc(c)(b)(1),
+            mk_arc(b)(d)(1),
+            mk_arc(d)(pout)(1),
+            mk_arc(d)(next_ctrl)(1)
+          ]
+      )
+    )
+  in
+  (nodes, arcs, pin, pout)
+in
+
+# Replace a place by a place-module and rewire incident arcs. #
+# Incoming arcs to old_place are retargeted to pin; outgoing arcs are re-sourced from pout. #
+let refine_place_with_module = fun net -> fun old_place -> fun module_def ->
+  let (module_nodes, module_arcs, pin, pout) = module_def in
+  let nodes = get_nodes(net) in
+  let arcs = get_arcs(net) in
+  let kept_nodes = filter(nodes, fun node -> get_id(node) != old_place) in
+  let rewired_arcs =
+    map(
+      arcs,
+      fun arc ->
+        let src = arc_source(arc) in
+        let tgt = arc_target(arc) in
+        if tgt == old_place
+        then arc_set_target(arc)(pin)
+        else if src == old_place
+        then arc_set_source(arc)(pout)
+        else arc
+    )
+  in
+  let net1 = set_nodes(net)(kept_nodes @ module_nodes) in
+  set_arcs(net1)(rewired_arcs @ module_arcs)
+in
+
+# Public helper: replace place with sequence module. #
+let refine_place_sequence = fun net -> fun place_id -> fun prefix -> fun n ->
+  refine_place_with_module(net)(place_id)(build_sequence_place_module(prefix)(n))
+in
+
+# Public helper: replace place with parallel module. #
+let refine_place_parallel = fun net -> fun place_id -> fun prefix -> fun n ->
+  refine_place_with_module(net)(place_id)(build_parallel_place_module(prefix)(n))
+in
+
+# Public helper: replace place with choice module. #
+let refine_place_choice = fun net -> fun place_id -> fun prefix -> fun n ->
+  refine_place_with_module(net)(place_id)(build_choice_place_module(prefix)(n))
+in
+
+# Public helper: replace place with decision-free choice module. #
+let refine_place_decision_free_choice = fun net -> fun place_id -> fun prefix -> fun n ->
+  refine_place_with_module(net)(place_id)(build_decision_free_choice_place_module(prefix)(n))
+in
+
+# Core bottom-up operator: add one resource place and lock/release arcs for (ta,tb) pairs. #
+# Each pair adds: resource -> ta and tb -> resource #
+let add_resource_place_with_pairs = fun net -> fun resource_place_id -> fun initial_tokens -> fun pairs ->
+  let nodes = get_nodes(net) in
+  let arcs = get_arcs(net) in
+  let resource_node = mk_place_tokens(resource_place_id)(initial_tokens) in
+  let lock_arcs =
+    flat_map(
+      pairs,
+      fun (ta, tb) ->
+        [mk_arc(resource_place_id)(ta)(1), mk_arc(tb)(resource_place_id)(1)]
+    )
+  in
+  let net1 = set_nodes(net)(nodes @ [resource_node]) in
+  set_arcs(net1)(arcs @ lock_arcs)
+in
+
+# Bottom-up nonshared resource addition (1-PME style). #
+let add_nonshared_resource = fun net -> fun resource_place_id -> fun initial_tokens -> fun ta -> fun tb ->
+  add_resource_place_with_pairs(net)(resource_place_id)(initial_tokens)([(ta, tb)])
+in
+
+# Bottom-up shared parallel resource addition (k-PME style). #
+let add_shared_parallel_resource = fun net -> fun resource_place_id -> fun initial_tokens -> fun pairs ->
+  add_resource_place_with_pairs(net)(resource_place_id)(initial_tokens)(pairs)
+in
+
+# Bottom-up shared sequential resource addition (SME-style approximation). #
+# Adds base resource arcs for all groups, plus stage places enforcing group order. #
+# Diagram: (stage1) -> [group1] -> (stage2) -> [group2] -> ... -> (stage1) #
+let add_shared_sequential_resource = fun net -> fun resource_place_id -> fun initial_tokens -> fun groups ->
+  let net0 = add_resource_place_with_pairs(net)(resource_place_id)(initial_tokens)(concat(groups)) in
+  let l = length(groups) in
+  if l <= 1
+  then net0
+  else
+    let stage_ids = map(range(1, l + 1), fun i -> resource_place_id ++ "_stage_" ++ string_of_int(i)) in
+    let stage_nodes =
+      mapi(
+        stage_ids,
+        fun (i, sid) ->
+          if i == 0 then mk_place_tokens(sid)(1) else mk_place(sid)
+      )
+    in
+    let stage_arcs =
+      concat(
+        mapi(
+          groups,
+          fun (i, pairs) ->
+            let stage_in = resource_place_id ++ "_stage_" ++ string_of_int(i + 1) in
+            let stage_out =
+              if i + 1 == l
+              then resource_place_id ++ "_stage_1"
+              else resource_place_id ++ "_stage_" ++ string_of_int(i + 2)
+            in
+            flat_map(
+              pairs,
+              fun (ta, tb) ->
+                [mk_arc(stage_in)(ta)(1), mk_arc(tb)(stage_out)(1)]
+            )
+        )
+      )
+    in
+    let nodes = get_nodes(net0) in
+    let arcs = get_arcs(net0) in
+    let net1 = set_nodes(net0)(nodes @ stage_nodes) in
+    set_arcs(net1)(arcs @ stage_arcs)
+in
+
+# Minimal seed net used by demo pipeline. #
+let simple_net =
+  Assoc([
+    ("petriNetDefinition", Assoc([
+      ("nodes", List([
+        mk_place_tokens("p0")(1),
+        mk_transition("t0")
+      ])),
+      ("arcs", List([
+        mk_arc("p0")("t0")(1),
+        mk_arc("t0")("p0")(1)
+      ])),
+      ("tokenTypes", List([
+        Assoc([("id", String("default")), ("name", String("Default")), ("color", String("#3498db"))])
+      ]))
+    ]))
+  ])
+in
+
+# Demo pipeline: top-down refinement + bottom-up nonshared + shared-parallel resources. #
+let refined_demo =
+  let net1 = refine_place_sequence(simple_net)("p0")("seq_mod")(3) in
+  let net2 = add_nonshared_resource(net1)("r_machine")(1)("seq_mod_t1")("seq_mod_t3") in
+  add_shared_parallel_resource(net2)("r_robot")(1)([("seq_mod_t1", "seq_mod_t2"), ("seq_mod_t2", "seq_mod_t3")])
+in
+
+refined_demo

@@ -10,15 +10,20 @@ let read_input = path => {
   );
 };
 
-let parse_program = (s: string) =>
+/* Parse user program text without injecting extra stdlib terms. */
+let parse_program_raw = (s: string) =>
   switch (Haz3lcore.Parser.to_term(s)) {
   | Some(e) => e
   | None => failwith("Failed to parse expression: " ++ s)
   };
 
+/* Parse user program text and prepend Petri stdlib definitions semantically. */
+let parse_program_with_petri_stdlib = (s: string) =>
+  parse_program_raw(s) |> Haz3lcore.PetriStdlib.with_prelude_term;
+
 let run_hazel = path => {
   let program = read_input(path);
-  let parsed = parse_program(program);
+  let parsed = parse_program_with_petri_stdlib(program);
   let evaluated = Run.evaluate(parsed);
 
   print_endline(Print.print(evaluated));
@@ -26,7 +31,7 @@ let run_hazel = path => {
 
 let format_hazel = path => {
   let program = read_input(path);
-  let parsed = parse_program(program);
+  let parsed = parse_program_raw(program);
   print_endline(Print.print(parsed));
 };
 
@@ -37,7 +42,7 @@ let analyze_hazel =
         | `Ok(unit)
       ] => {
   let program = read_input(path);
-  let parsed = parse_program(program);
+  let parsed = parse_program_with_petri_stdlib(program);
   open Language;
   let static_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), parsed);
@@ -72,7 +77,9 @@ let probe_hazel = (many: bool, path: string): unit => {
     let refractors = zipper.refractors.manuals;
 
     /* Get term for evaluation */
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+    let term =
+      Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term
+      |> Haz3lcore.PetriStdlib.with_prelude_term;
 
     /* Evaluate and collect probe samples */
     let (_, probe_map) = Run.evaluate_with_probes(term);
@@ -88,6 +95,49 @@ let probe_hazel = (many: bool, path: string): unit => {
         segment,
       );
     print_endline(output);
+  };
+};
+
+/* Run tests in a Hazel program and report results */
+let test_hazel =
+    (verbose: bool, path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let program = read_input(path);
+  let parsed = parse_program_with_petri_stdlib(program);
+  open Language;
+  let (_, test_results) = Run.evaluate_with_tests(parsed);
+
+  print_endline(
+    "Test Results: " ++ TestResults.test_summary_str(test_results),
+  );
+  print_endline("");
+
+  List.iter(
+    ((id, reports)) => {
+      let status = TestMap.joint_status(reports);
+      let should_show = verbose || status != Pass;
+      if (should_show) {
+        let status_str = String.uppercase_ascii(TestStatus.to_string(status));
+        let hint =
+          switch (reports) {
+          | [{hint, _}, ..._] when hint != "No hint available." => hint
+          | _ => ""
+          };
+        let id_str = Util.Id.to_string(id);
+        let hint_suffix = hint == "" ? "" : " \"" ++ hint ++ "\"";
+        print_endline(status_str ++ " [" ++ id_str ++ "]" ++ hint_suffix);
+      };
+    },
+    test_results.test_map,
+  );
+
+  if (test_results.failing > 0) {
+    `Error((false, "Tests failed"));
+  } else {
+    `Ok();
   };
 };
 
@@ -133,11 +183,21 @@ let probe_cmd = {
   Cmd.v(info, Term.(const(probe_hazel) $ many_arg $ input_arg));
 };
 
+let test_cmd = {
+  let doc = "Run tests in a Hazel program and report results.";
+  let verbose_arg = {
+    let doc = "Show all tests, not just failures.";
+    Arg.(value & flag & info(["verbose", "v"], ~doc));
+  };
+  let info = Cmd.info("test", ~doc);
+  Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
-  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd]);
+  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd]);
 };
 
 let () = exit(Cmd.eval(default_cmd));

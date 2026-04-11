@@ -1,0 +1,281 @@
+let find_node_by_id : [JSON] -> String -> JSON =
+fun node_list -> fun wanted_id ->
+  case node_list
+  | [] => Null
+  | node::rest =>
+    case jq1([jq_field("id")])(node)
+    | String(node_id) =>
+      if node_id == wanted_id
+      then node
+      else find_node_by_id(rest)(wanted_id)
+    | _ => find_node_by_id(rest)(wanted_id)
+    end
+  end
+in
+
+let get_int_or : JSON -> Int -> Int =
+fun json -> fun fallback ->
+  case json
+  | Int(n) => n
+  | _ => fallback
+  end
+in
+
+let sum_arc_weight : [JSON] -> String -> String -> Int =
+fun arc_list -> fun source_id -> fun target_id ->
+  case arc_list
+  | [] => 0
+  | arc::rest =>
+    let arc_source =
+      case jq1([jq_field("source")])(arc)
+      | String(s) => s
+      | _ => ""
+      end
+    in
+    let arc_target =
+      case jq1([jq_field("target")])(arc)
+      | String(t) => t
+      | _ => ""
+      end
+    in
+    let arc_weight =
+      get_int_or(
+        jq1([jq_field("data"), jq_field("tokenWeights"), jq_field("default")])(arc)
+      )(1)
+    in
+    if arc_source == source_id && arc_target == target_id
+    then arc_weight + sum_arc_weight(rest)(source_id)(target_id)
+    else sum_arc_weight(rest)(source_id)(target_id)
+  end
+in
+
+let vector_ge : [Int] -> [Int] -> Bool =
+fun xs -> fun ys ->
+  case (xs, ys)
+  | ([], []) => true
+  | (x::xt, y::yt) => x >= y && vector_ge(xt)(yt)
+  | _ => false
+  end
+in
+
+let vector_add : [Int] -> [Int] -> [Int] =
+fun xs -> fun ys ->
+  case (xs, ys)
+  | ([], []) => []
+  | (x::xt, y::yt) => (x + y)::vector_add(xt)(yt)
+  | _ => []
+  end
+in
+
+let vector_sub : [Int] -> [Int] -> [Int] =
+fun xs -> fun ys ->
+  case (xs, ys)
+  | ([], []) => []
+  | (x::xt, y::yt) => (x - y)::vector_sub(xt)(yt)
+  | _ => []
+  end
+in
+
+let compare_ge_gt : [Int] -> [Int] -> (Bool, Bool) =
+fun left -> fun right ->
+  case (left, right)
+  | ([], []) => (true, false)
+  | (x::xt, y::yt) =>
+    let (tail_ge, tail_gt) = compare_ge_gt(xt)(yt) in
+    (x >= y && tail_ge, x > y || tail_gt)
+  | _ => (false, false)
+  end
+in
+
+let dominates_strict : [Int] -> [Int] -> Bool =
+fun maybe_larger -> fun maybe_smaller ->
+  let (all_ge, any_gt) = compare_ge_gt(maybe_larger)(maybe_smaller) in
+  all_ge && any_gt
+in
+
+let covers_any_ancestor : [Int] -> [[Int]] -> Bool =
+fun marking -> fun ancestors ->
+  case ancestors
+  | [] => false
+  | anc::rest =>
+    if dominates_strict(marking)(anc)
+    then true
+    else covers_any_ancestor(marking)(rest)
+  end
+in
+
+let has_marking : [[Int]] -> [Int] -> Bool =
+fun seen -> fun marking ->
+  case seen
+  | [] => false
+  | m::rest =>
+    if m == marking
+    then true
+    else has_marking(rest)(marking)
+  end
+in
+
+let fire : [Int] -> [Int] -> [Int] -> [Int] =
+fun marking -> fun pre -> fun post ->
+  vector_add(vector_sub(marking)(pre))(post)
+in
+
+let step_transitions : [(String, [Int], [Int])] -> [Int] -> [[Int]] -> [([Int], [[Int]])] -> [[Int]] -> (Bool, [([Int], [[Int]])], [[Int]]) =
+fun ts -> fun current -> fun ancestors -> fun frontier -> fun seen ->
+  case ts
+  | [] => (true, frontier, seen)
+  | (_tid, pre, post)::rest_ts =>
+    if vector_ge(current)(pre)
+    then
+      let next_marking = fire(current)(pre)(post) in
+      if covers_any_ancestor(next_marking)(current::ancestors)
+      then (false, frontier, seen)
+      else if has_marking(seen)(next_marking)
+      then step_transitions(rest_ts)(current)(ancestors)(frontier)(seen)
+      else step_transitions(rest_ts)(current)(ancestors)((next_marking, current::ancestors)::frontier)(next_marking::seen)
+    else step_transitions(rest_ts)(current)(ancestors)(frontier)(seen)
+  end
+in
+
+let bounded_search : [([Int], [[Int]])] -> [[Int]] -> [(String, [Int], [Int])] -> Bool =
+fun frontier -> fun seen -> fun ts ->
+  case frontier
+  | [] => true
+  | (current, ancestors)::rest_frontier =>
+    let (still_bounded, new_frontier, new_seen) =
+      step_transitions(ts)(current)(ancestors)(rest_frontier)(seen)
+    in
+    if still_bounded
+    then bounded_search(new_frontier)(new_seen)(ts)
+    else false
+  end
+in
+
+let is_petri_bounded : JSON -> Bool =
+fun petri_json ->
+  let nodes = jq([jq_field("petriNetDefinition"), jq_field("nodes"), jq_iterate])(petri_json) in
+  let arcs = jq([jq_field("petriNetDefinition"), jq_field("arcs"), jq_iterate])(petri_json) in
+  let place_ids =
+    flat_map(nodes, fun node ->
+      case jq1([jq_field("type")])(node)
+      | String("place") =>
+        case jq1([jq_field("id")])(node)
+        | String(pid) => [pid]
+        | _ => []
+        end
+      | _ => []
+      end
+    )
+  in
+  let transition_ids =
+    flat_map(nodes, fun node ->
+      case jq1([jq_field("type")])(node)
+      | String("transition") =>
+        case jq1([jq_field("id")])(node)
+        | String(tid) => [tid]
+        | _ => []
+        end
+      | _ => []
+      end
+    )
+  in
+  let initial_marking =
+    map(place_ids, fun pid ->
+      let place_node = find_node_by_id(nodes)(pid) in
+      get_int_or(
+        jq1([jq_field("data"), jq_field("tokenCounts"), jq_field("default")])(place_node)
+      )(0)
+    )
+  in
+  let transitions =
+    map(transition_ids, fun tid ->
+      (
+        tid,
+        map(place_ids, fun pid -> sum_arc_weight(arcs)(pid)(tid)),
+        map(place_ids, fun pid -> sum_arc_weight(arcs)(tid)(pid))
+      )
+    )
+  in
+  bounded_search([(initial_marking, [])])([initial_marking])(transitions)
+in
+
+let simple_petri =
+  Assoc([
+    ("petriNetDefinition", Assoc([
+      ("nodes", List([
+        Assoc([
+          ("id", String("place__c0ee4d28-723a-4023-bf76-3c81ae7f66c9")),
+          ("type", String("place")),
+          ("data", Assoc([
+            ("tokenCounts", Assoc([]))
+          ]))
+        ]),
+        Assoc([
+          ("id", String("transition__6c53c582-253f-4cbe-a175-2e746bdc8df9")),
+          ("type", String("transition")),
+          ("data", Assoc([]))
+        ])
+      ])),
+      ("arcs", List([
+        Assoc([
+          ("source", String("place__c0ee4d28-723a-4023-bf76-3c81ae7f66c9")),
+          ("target", String("transition__6c53c582-253f-4cbe-a175-2e746bdc8df9")),
+          ("data", Assoc([
+            ("tokenWeights", Assoc([
+              ("default", Int(1))
+            ]))
+          ]))
+        ]),
+        Assoc([
+          ("source", String("transition__6c53c582-253f-4cbe-a175-2e746bdc8df9")),
+          ("target", String("place__c0ee4d28-723a-4023-bf76-3c81ae7f66c9")),
+          ("data", Assoc([
+            ("tokenWeights", Assoc([
+              ("default", Int(1))
+            ]))
+          ]))
+        ])
+      ]))
+    ]))
+  ])
+in
+
+let definitely_unbounded =
+  Assoc([
+    ("petriNetDefinition", Assoc([
+      ("nodes", List([
+        Assoc([
+          ("id", String("p")),
+          ("type", String("place")),
+          ("data", Assoc([
+            ("tokenCounts", Assoc([]))
+          ]))
+        ]),
+        Assoc([
+          ("id", String("t")),
+          ("type", String("transition")),
+          ("data", Assoc([]))
+        ])
+      ])),
+      ("arcs", List([
+        Assoc([
+          ("source", String("t")),
+          ("target", String("p")),
+          ("data", Assoc([
+            ("tokenWeights", Assoc([
+              ("default", Int(1))
+            ]))
+          ]))
+        ])
+      ]))
+    ]))
+  ])
+in
+
+hint "simple-petri loop should be bounded"
+  test is_petri_bounded(simple_petri) == true end;
+
+hint "source transition should be unbounded"
+  test is_petri_bounded(definitely_unbounded) == false end;
+
+is_petri_bounded(simple_petri)

@@ -85,6 +85,7 @@ let init_from_term =
       term,
     )
     : t => {
+  let term = PetriStdlib.with_prelude_term(term);
   let ctx_init =
     Option.value(
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
