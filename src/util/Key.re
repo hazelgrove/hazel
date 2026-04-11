@@ -24,6 +24,7 @@ type held =
 [@deriving (show({with_path: false}), yojson)]
 type t = {
   key,
+  code: string,
   sys,
   shift: held,
   meta: held,
@@ -49,8 +50,12 @@ let key_of = (dir: dir, evt): key => {
 
 let to_held: bool => held = b => b ? Down : Up;
 
+let get_code = evt =>
+  Js.to_string(Js.Optdef.get(evt##.code, () => Js.string("")));
+
 let mk = (dir, evt): t => {
   key: key_of(dir, evt),
+  code: get_code(evt),
   sys: Os.is_mac^ ? Mac : PC,
   shift: to_held(shift_held(evt)),
   meta: to_held(meta_held(evt)),

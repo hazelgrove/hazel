@@ -1468,10 +1468,16 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             children: [],
           }),
         ],
-        if (Token.begins_with_potential_operator(Segment.first_string(e))) {
-          [Secondary(mk_space(Id.mk()))] @ e;
-        } else {
-          e;
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(e);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...e];
+          } else {
+            e;
+          };
+        | PreserveExact => e
         },
       ]),
     );
@@ -1959,10 +1965,16 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
             children: [],
           }),
         ],
-        if (Token.begins_with_potential_operator(Segment.first_string(p))) {
-          [Secondary(mk_space(Id.mk()))] @ p;
-        } else {
-          p;
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(p);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...p];
+          } else {
+            p;
+          };
+        | PreserveExact => p
         },
       ]),
     );
@@ -2183,10 +2195,16 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
             children: [],
           }),
         ],
-        if (Token.begins_with_potential_operator(Segment.first_string(t))) {
-          [Secondary(mk_space(Id.mk()))] @ t;
-        } else {
-          t;
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(t);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...t];
+          } else {
+            t;
+          };
+        | PreserveExact => t
         },
       ]),
     );
