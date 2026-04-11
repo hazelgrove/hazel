@@ -98,6 +98,49 @@ let probe_hazel = (many: bool, path: string): unit => {
   };
 };
 
+/* Run tests in a Hazel program and report results */
+let test_hazel =
+    (verbose: bool, path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let program = read_input(path);
+  let parsed = parse_program_with_petri_stdlib(program);
+  open Language;
+  let (_, test_results) = Run.evaluate_with_tests(parsed);
+
+  print_endline(
+    "Test Results: " ++ TestResults.test_summary_str(test_results),
+  );
+  print_endline("");
+
+  List.iter(
+    ((id, reports)) => {
+      let status = TestMap.joint_status(reports);
+      let should_show = verbose || status != Pass;
+      if (should_show) {
+        let status_str = String.uppercase_ascii(TestStatus.to_string(status));
+        let hint =
+          switch (reports) {
+          | [{hint, _}, ..._] when hint != "No hint available." => hint
+          | _ => ""
+          };
+        let id_str = Util.Id.to_string(id);
+        let hint_suffix = hint == "" ? "" : " \"" ++ hint ++ "\"";
+        print_endline(status_str ++ " [" ++ id_str ++ "]" ++ hint_suffix);
+      };
+    },
+    test_results.test_map,
+  );
+
+  if (test_results.failing > 0) {
+    `Error((false, "Tests failed"));
+  } else {
+    `Ok();
+  };
+};
+
 /* Common arg: path or "-" for stdin */
 let input_arg = {
   let doc = "Path to Hazel source file, or '-' to read from stdin.";
@@ -140,11 +183,21 @@ let probe_cmd = {
   Cmd.v(info, Term.(const(probe_hazel) $ many_arg $ input_arg));
 };
 
+let test_cmd = {
+  let doc = "Run tests in a Hazel program and report results.";
+  let verbose_arg = {
+    let doc = "Show all tests, not just failures.";
+    Arg.(value & flag & info(["verbose", "v"], ~doc));
+  };
+  let info = Cmd.info("test", ~doc);
+  Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
-  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd]);
+  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd]);
 };
 
 let () = exit(Cmd.eval(default_cmd));
