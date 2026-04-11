@@ -67,7 +67,20 @@ let local_missing_shards = (sibs: t): list(Tile.t) => {
 
 let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 
+/* Reassemble each side independently (standard behavior) */
 let reassemble = TupleUtil.map2(Segment.reassemble);
+
+/* Rescan: run label-based conversion across the combined siblings
+ * (so incomplete tiles on one side can match monotiles on the other),
+ * then split back. Pre-split multi-shard orphans into singletons
+ * first so each shard can be matched independently. */
+let rescan = ((pre, suf): t): t => {
+  let pre = Segment.presplit_orphans(pre);
+  let suf = Segment.presplit_orphans(suf);
+  let n = List.length(pre);
+  let combined = Segment.rescan(pre @ suf);
+  ListUtil.split_n(n, combined);
+};
 
 let regrout = ((pre, suf): t) => {
   let s = Nib.Shape.concave();

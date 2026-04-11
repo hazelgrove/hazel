@@ -11,6 +11,20 @@ let meta = (sys: Key.sys): string => {
   };
 };
 
+/* Alt+N: Option+N on Mac is a dead key, so we match on code */
+let is_new_slide = (k: Key.t): bool =>
+  k.alt == Down
+  && k.shift == Up
+  && k.meta == Up
+  && k.ctrl == Up
+  && k.code == "KeyN"
+  && (
+    switch (k.key) {
+    | D(_) => true
+    | U(_) => false
+    }
+  );
+
 let handle_key_event = (k: Key.t): option(Action.t) => {
   let now = (a: Action.t) => Some(a);
   switch (k) {
@@ -22,7 +36,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | _ => None
     }
-  | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
+  | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up, _} =>
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left, ByChar)))
     | (Up, "ArrowRight") => now(Move(Local(Right, ByChar)))
@@ -48,16 +62,15 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
       now(Insert(key))
     | _ => None
     }
-  | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up} =>
+  | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up, _} =>
     switch (key) {
     | "ArrowLeft" => now(Select(Resize(Line(Left))))
     | "ArrowRight" => now(Select(Resize(Line(Right))))
     | "ArrowUp" => now(Select(Resize(Start)))
     | "ArrowDown" => now(Select(Resize(End)))
-    | "e" => now(Probe(ToggleAuto))
     | _ => None
     }
-  | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
+  | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
     | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
     | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
@@ -65,10 +78,9 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Vertical(Down))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
-    | "e" => now(Probe(ToggleAuto))
     | _ => None
     }
-  | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
+  | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _} =>
     switch (key) {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
@@ -81,7 +93,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | _ => None
     }
 
-  | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+  | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
@@ -93,35 +105,35 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "End" => now(Move(End))
     | _ => None
     }
-  | {key: D(key), sys: Mac, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+  | {key: D(key), sys: Mac, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
     | "a" => now(Move(Line(Left)))
     | "e" => now(Move(Line(Right)))
     | _ => None
     }
-  | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     Some(Project(SetIndicated(Specific(Fold))))
-  | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     /* Curly ƒ is what holding option turns f into on Mac */
     Some(Project(SetIndicated(Specific(Fold))))
-  | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     Some(Probe(ToggleStatics))
-  | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     /* † is what holding option turns t into on Mac */
     Some(Probe(ToggleStatics))
-  | {key: D("p"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("p"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     Some(Probe(TogglePlayer))
-  | {key: D("π"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("π"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     /* π is what holding option turns p into on Mac */
     Some(Probe(TogglePlayer))
-  | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     Some(Project(SetIndicated(ChooseLivelit)))
-  | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     /* † is what holding option turns t into on Mac */
     Some(Project(SetIndicated(ChooseLivelit)))
-  | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     Some(Dump)
-  | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     switch (key) {
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
