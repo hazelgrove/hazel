@@ -417,7 +417,7 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 | `test/Test_Equality.re`                    | Module alpha-equivalence tests (ModLet, MPat, ModuleMod)                  |
 | `test/Test_Indentation.re`                 | Module body indentation and nesting tests                                 |
 | `test/Test_RefractorSerialization.re`      | Module syntax round-trip through parse/print                              |
-| `test/Test_AutoProbe.re`                   | Auto-probe in modules: probes definition exprs, not declarations          |
+| `test/Test_MultiProbe.re`                  | Multi-probe in modules: probes definition exprs, not declarations         |
 
 ### In-Editor Documentation
 

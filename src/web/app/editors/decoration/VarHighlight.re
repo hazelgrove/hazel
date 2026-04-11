@@ -14,10 +14,13 @@ let ids_from_info =
   |> List.filter(id => !Id.equal(id, current_id));
 };
 
-/* Compute which IDs to highlight based on the currently indicated piece */
+/* Compute which IDs to highlight based on the currently indicated piece.
+ * Suppressed while a user selection is active to avoid distracting flicker
+ * as the caret sweeps across binders/references. */
 let compute_caret_ids =
     (~info_map: Language.Statics.Map.t, z: Zipper.t): list(Id.t) => {
   switch (Indicated.ci_of(z, info_map)) {
+  | _ when !Selection.is_empty(z.selection) => []
   | Some(ci) => ids_from_info(~info_map, ci)
   | None => []
   };

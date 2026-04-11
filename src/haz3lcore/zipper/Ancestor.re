@@ -37,13 +37,18 @@ let zip = (child: Segment.t, {id, label, mold, shards, children}: t): Tile.t => 
 };
 
 let sort = (a: t): Sort.t => {
-  let (pre, suf) = a.shards;
-  switch (ListUtil.split_last_opt(pre), suf) {
-  | (Some((_, i)), [j, ..._]) =>
+  let (pre, _suf) = a.shards;
+  switch (ListUtil.split_last_opt(pre)) {
+  | Some((_, i)) =>
     let (_, l) = Mold.nibs(~index=i, a.mold);
-    let (r, _) = Mold.nibs(~index=j, a.mold);
-    l.sort == r.sort ? l.sort : Any;
-  | _ => raise(Empty_shard_affix)
+    /* Use the right nib of the last left shard: this is the
+     * sort of the child immediately after the caret's left
+     * boundary. Correct even when shards are missing between
+     * the left and right boundaries (e.g. partial let...in
+     * without =), where checking both nibs would disagree
+     * and previously fell back to Any. */
+    l.sort;
+  | None => raise(Empty_shard_affix)
   };
 };
 

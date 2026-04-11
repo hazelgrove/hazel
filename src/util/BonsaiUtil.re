@@ -81,8 +81,9 @@ module SizeObserver = {
             ResizeObserver.observe(
               ~node=node(),
               ~f=
-                (entries, _) => {
-                  let rect = Js.to_array(entries)[0]##.contentRect;
+                (_, _) => {
+                  let el = node();
+                  let rect = el##getBoundingClientRect;
                   Size.{
                     width: rect##.right -. rect##.left,
                     height: rect##.bottom -. rect##.top,
