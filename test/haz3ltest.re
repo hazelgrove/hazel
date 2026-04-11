@@ -52,7 +52,7 @@ let (suite, _) =
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
-    @ [Test_VarHighlight.tests],
+    @ [Test_VarHighlight.tests, Test_Evaluator_ProbeNav.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
