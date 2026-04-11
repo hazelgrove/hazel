@@ -13,10 +13,14 @@ module Model = {
     show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
+    /* Auto probe: automatically place a multi probe on the body of
+       whichever top-level definition the cursor is currently inside */
+    autoprobe_mode: bool,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
     show_action_explorer: bool,
+    cap_undo_stack: bool,
     show_row_lines: bool,
   };
 
@@ -29,6 +33,7 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
+      deep_reassociate: true,
       flip_animations: true,
       display_warnings: true,
       evaluation: {
@@ -65,10 +70,12 @@ module Model = {
         expanded: [],
       },
     },
+    autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
     show_action_explorer: false,
+    cap_undo_stack: false,
     show_row_lines: false,
   };
 
@@ -132,6 +139,7 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
+    | DeepReassociate
     | Assist
     | Elaborate
     | Benchmark
@@ -143,9 +151,11 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | AutoprobeMode
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | ToggleActionExplorer
+    | CapUndoStack
     | ShowRowLines;
 
   let can_undo = (action: t) => {
@@ -191,6 +201,13 @@ module Update = {
             dynamics: !settings.core.probe_all || settings.core.dynamics,
             statics: !settings.core.probe_all || settings.core.statics,
             probe_all: !settings.core.probe_all,
+          },
+        }
+      | DeepReassociate => {
+          ...settings,
+          core: {
+            ...settings.core,
+            deep_reassociate: !settings.core.deep_reassociate,
           },
         }
       | Assist => {
@@ -379,6 +396,10 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
+      | AutoprobeMode => {
+          ...settings,
+          autoprobe_mode: !settings.autoprobe_mode,
+        }
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
@@ -390,6 +411,10 @@ module Update = {
       | ToggleActionExplorer => {
           ...settings,
           show_action_explorer: !settings.show_action_explorer,
+        }
+      | CapUndoStack => {
+          ...settings,
+          cap_undo_stack: !settings.cap_undo_stack,
         }
       | ShowRowLines => {
           ...settings,

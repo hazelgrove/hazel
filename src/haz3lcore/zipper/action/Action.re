@@ -44,9 +44,10 @@ type select =
   | SetFocus(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type sample_cursor =
-  | Capture(Language.Sample.t, option(Id.t))
+type sample_focus =
+  | Capture(Language.Sample.Capture.t, option(Id.t))
   | TogglePin(Language.Sample.call_stack)
+  | SetIndex(int) /* Navigate to a specific depth in the call stack */
   | Reset;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -60,13 +61,14 @@ type chooser =
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type project =
-  | SampleCursor(sample_cursor)
+  | SampleFocus(sample_focus)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
-  | Escape(int, Direction.t); /* Pass control to parent editor */
+  | Escape(int, Direction.t) /* Pass control to parent editor */
+  | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type completion_source =
@@ -80,9 +82,7 @@ type buffer =
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type paste =
-  | String(string)
-  | Segment(Segment.t);
+type paste = string;
 
 module Structural = {
   /* A path identifies a let/type-alias binding by name, using `/` to
@@ -131,7 +131,9 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
-  | StepInto(Language.Sample.t, Id.t);
+  | StepInto(Language.Sample.call_stack, Id.t)
+  | Pin(Language.Sample.call_stack, Id.t)
+  | RemoveAll;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
@@ -150,6 +152,7 @@ type t =
   | Introduce
   | Probe(probe)
   | Dump
+  | ToggleLineComment
   | Structural(Structural.t);
 
 module Failure = {
@@ -189,7 +192,8 @@ let is_edit: t => bool =
   | Introduce
   | Buffer(Accept | Clear | Set(_))
   | Structural(_)
-  | Dump => true
+  | Dump
+  | ToggleLineComment => true
   | Copy
   | Move(_)
   | Select(_)
@@ -201,8 +205,9 @@ let is_edit: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
-    | SampleCursor(_)
-    | Escape(_) => false
+    | SampleFocus(_)
+    | Escape(_)
+    | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
 
@@ -222,7 +227,8 @@ let is_historic: t => bool =
   | Put_down
   | Introduce
   | Structural(_)
-  | Dump => true
+  | Dump
+  | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -230,8 +236,9 @@ let is_historic: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
-    | SampleCursor(_)
-    | Escape(_) => false
+    | SampleFocus(_)
+    | Escape(_)
+    | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
 
@@ -250,7 +257,8 @@ let prevent_in_read_only_editor = (a: t) =>
   | Put_down
   | Introduce
   | Structural(_)
-  | Dump => true
+  | Dump
+  | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true
@@ -258,8 +266,9 @@ let prevent_in_read_only_editor = (a: t) =>
     | SetIndicated(_)
     | RemoveIndicated
     | Focus(_)
-    | SampleCursor(_)
-    | Escape(_) => false
+    | SampleFocus(_)
+    | Escape(_)
+    | EscapeToLineEnd(_) => false
     }
   | Probe(_) => false
   };
@@ -288,7 +297,18 @@ let should_animate: t => bool =
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
-  | Project(_)
   | Structural(_)
   | Probe(_)
-  | Dump => true;
+  | Dump
+  | ToggleLineComment => true
+  | Project(p) =>
+    switch (p) {
+    | SetSyntax(_)
+    | SetModel(_)
+    | SetIndicated(_)
+    | RemoveIndicated
+    | Focus(_)
+    | SampleFocus(_)
+    | Escape(_) => true
+    | EscapeToLineEnd(_) => false
+    };

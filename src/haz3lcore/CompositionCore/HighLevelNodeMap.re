@@ -306,7 +306,7 @@ module MoveOffWhitespaceHelper = {
   let is_on_whitespace = (z: Zipper.t): bool => {
     // Use for_index which only ignores secondary pieces, not grout pieces
     switch (Indicated.for_index(z)) {
-    | Some((piece, _, _)) =>
+    | Some({piece, _}) =>
       Piece.is_secondary(piece)
       || Piece.is_grout(piece)
       || Piece.is_convex(piece)

@@ -182,6 +182,24 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Show action explorer for coding agent"),
       },
       {
+        name: "Probe All",
+        active: globals.settings.core.probe_all,
+        setting: ProbeAll,
+        tooltip: Some("Enable probes on all top-level definitions"),
+      },
+      {
+        name: "Deep Reassociate",
+        active: globals.settings.core.deep_reassociate,
+        setting: DeepReassociate,
+        tooltip: Some("Enable deep reassociation of syntax"),
+      },
+      {
+        name: "Cap Undo Stack",
+        active: globals.settings.cap_undo_stack,
+        setting: CapUndoStack,
+        tooltip: Some("Cap the undo history stack size"),
+      },
+      {
         name: "Ruled Lines",
         active: globals.settings.show_row_lines,
         setting: ShowRowLines,

@@ -24,6 +24,7 @@ let render_zipper = (z: Zipper.t): string =>
 let run_agent_action = (code: string, a: Action.Structural.t) => {
   let z = mk_zipper(code);
   Perform.go(
+    ~settings=CoreSettings.on,
     ~statics=CachedStatics.empty,
     ~syntax=CachedSyntax.init(z),
     Structural(a),
@@ -5882,6 +5883,7 @@ let sequential_operations_tests = (
         );
         let z2_result =
           Perform.go(
+            ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             Structural(Update(Definition, "b", "a + 1")),
@@ -5919,6 +5921,7 @@ let sequential_operations_tests = (
           };
         let z2_result =
           Perform.go(
+            ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             Structural(Update(Body, "b", "a * b")),
@@ -5952,6 +5955,7 @@ let sequential_operations_tests = (
           };
         let z2_result =
           Perform.go(
+            ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             Structural(Insert(Before, "c", "let d = a * 2 in")),
@@ -5992,6 +5996,7 @@ let sequential_operations_tests = (
         );
         let z2_result =
           Perform.go(
+            ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             Structural(Update(Definition, "x", "100")),
