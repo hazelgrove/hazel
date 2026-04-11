@@ -63,13 +63,28 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
           )
             ? sample_focus.call_stack : extended;
         | None =>
-          !
-            ListUtil.is_suffix_of(
-              ~eq=Sample.equal_stack_frame,
-              data.call_stack,
-              sample_focus.call_stack,
-            )
-            ? data.call_stack : sample_focus.call_stack
+          /* When data.call_stack is a suffix of the current sightline,
+             preserve below-focus frames from the old call_stack but
+             refresh the overlapping suffix with data's frames. Samples
+             always carry real fn_def_ids (from RecordStackFrame via
+             the closure), whereas the Some(ap_id) branch above can
+             seed synthetic frames with fn_def_id=None. This refresh
+             ensures consumers reading fn_def_id off sample_focus.call_stack
+             see accurate values the moment the user walks into a sample
+             that would overlap a previously-seeded synthetic frame. */
+          if (ListUtil.is_suffix_of(
+                ~eq=Sample.equal_stack_frame,
+                data.call_stack,
+                sample_focus.call_stack,
+              )) {
+            let prefix_len =
+              List.length(sample_focus.call_stack)
+              - List.length(data.call_stack);
+            ListUtil.take(prefix_len, sample_focus.call_stack)
+            @ data.call_stack;
+          } else {
+            data.call_stack;
+          }
         },
       index: List.length(data.call_stack) - 1,
       step_range: Some((data.step_start, data.step_end)),
