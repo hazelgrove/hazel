@@ -362,15 +362,25 @@ let view =
     let call_stack = sample_focus.call_stack |> List.rev;
     let index = sample_focus.index;
 
-    /* Check if there's a pinned stack and get the head app_id */
+    /* The pin icon marks the head (innermost call) of the pinned stack.
+     * It belongs at exactly one breadcrumb position — and only when the
+     * pinned stack is a suffix of the raw focus stack (both are in
+     * innermost-first order, so "pinned is a suffix" = "pinned path is
+     * a tail of the current focus path"). Comparing by id alone would
+     * produce duplicates in recursive functions. */
     let pinned_stack = sample_focus.pinned_stack;
-    let pinned_head_id =
-      Option.bind(pinned_stack, stack =>
-        Option.map(
-          (f: Sample.stack_frame) => f.id,
-          Util.ListUtil.hd_opt(stack),
-        )
-      );
+    let pinned_breadcrumb_index: option(int) =
+      switch (pinned_stack) {
+      | Some(ps)
+          when
+            ListUtil.is_suffix_of(
+              ~eq=Sample.equal_stack_frame,
+              ps,
+              sample_focus.call_stack,
+            ) =>
+        Some(List.length(ps) - 1)
+      | _ => None
+      };
 
     /* Top-level entry (always present when bar is shown)
      * Clicking resets cursor to top level (index -1) */
@@ -430,7 +440,7 @@ let view =
         | None => set_focus_index(~globals, i, evt)
         };
 
-      let is_pinned = Some(app_id) == pinned_head_id;
+      let is_pinned = Some(i) == pinned_breadcrumb_index;
       let pin_icon =
         switch (is_pinned, pinned_stack) {
         | (true, Some(ps)) => [
