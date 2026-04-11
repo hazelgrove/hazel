@@ -69,7 +69,12 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
   | InfoTyp({cls: Typ(Label), _})
   | InfoExp({cls: Exp(TupLabel), _})
   | InfoPat({cls: Pat(TupLabel), _})
-  | InfoTyp({cls: Typ(TupLabel), _}) => []
+  | InfoTyp({cls: Typ(TupLabel), _}) =>
+    /* Label/TupLabel positions normally suppress general suggestions, but
+     * we still want trailing delimiters from the backpack to show up —
+     * e.g. `=>` after `case x | p =`, which the parser transiently reads
+     * as a tuple label assignment `p=...`. */
+    suggest_backpack(z)
   | _ =>
     /* When the expected type is unknown (e.g., no type annotation),
      * prioritize keywords/forms over context variables. This prevents
@@ -151,14 +156,24 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     | Normal => None
     };
   let* tok_to_left = token_to_left(z);
-  /* Only show completions after typing enough characters */
-  let* _ = String.length(tok_to_left) >= min_prefix_len ? Some() : None;
   let suggestions = suggest(ci, z);
   let suggestions =
     suggestions
     |> List.filter(({content, _}: TyDiSuggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        );
+  /* Normally require min_prefix_len characters before showing completions.
+   * Exception: if the top filtered suggestion comes from the backpack
+   * (a trailing/middle delimiter whose leading is already down in the
+   * same segment — e.g. `=>` after `case ... | ... =`), one character is
+   * enough. It's relatively unambiguous one is coming. */
+  let top_is_from_backpack =
+    switch (suggestions) {
+    | [{strategy: Any(FromBackpack), _}, ..._] => true
+    | _ => false
+    };
+  let min_required = top_is_from_backpack ? 1 : min_prefix_len;
+  let* _ = String.length(tok_to_left) >= min_required ? Some() : None;
   /* If any suggestion is an exact match for the current token, suppress
    * all suggestions. This check must scan the full list, not just the
    * top suggestion, because exact-match variables and keyword suggestions
