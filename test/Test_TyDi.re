@@ -36,8 +36,8 @@ let dot_label_tests = (
     ),
     tydi_test(
       ~name="Labeled tuple: second label",
-      ~code="let m : (x=Int, yy=Int) = (x=1, yy=2) in m.y¦",
-      ~expect=Some("y"),
+      ~code="let m : (x=Int, year=Int) = (x=1, year=2) in m.ye¦",
+      ~expect=Some("ar"),
     ),
     tydi_test(
       ~name="Labeled tuple: no match",
@@ -72,8 +72,8 @@ let variable_tests = (
     ),
     tydi_test(
       ~name="Multiple candidates: picks first alphabetically",
-      ~code="let ab = 1 in let ac = 2 in a¦",
-      ~expect=Some("b"),
+      ~code="let abc = 1 in let abd = 2 in ab¦",
+      ~expect=Some("c"),
     ),
     /* When the top alphabetical match is exact, no suffix is returned,
      * even if longer matches exist. This is expected set_buffer behavior:
@@ -97,23 +97,23 @@ let constructor_tests = (
   [
     tydi_test(
       ~name="Bool constructor: false",
-      ~code="let x : Bool = f¦",
-      ~expect=Some("alse"),
+      ~code="let x : Bool = fa¦",
+      ~expect=Some("lse"),
     ),
     tydi_test(
       ~name="Sum type: None constructor",
-      ~code="let x : +None +Some(Int) = N¦",
-      ~expect=Some("one"),
+      ~code="let x : +None +Some(Int) = No¦",
+      ~expect=Some("ne"),
     ),
     tydi_test(
       ~name="Sum type: Some constructor application",
-      ~code="let x : +None +Some(Int) = S¦",
-      ~expect=Some("ome("),
+      ~code="let x : +None +Some(Int) = So¦",
+      ~expect=Some("me("),
     ),
     tydi_test(
       ~name="Constructor in pattern",
-      ~code="fun x : +None +Some(Int) -> case x | N¦",
-      ~expect=Some("one"),
+      ~code="fun x : +None +Some(Int) -> case x | No¦",
+      ~expect=Some("ne"),
     ),
   ],
 );
@@ -159,9 +159,9 @@ let operator_tests = (
       ~expect=None,
     ),
     tydi_test(
-      ~name="String concat operator",
-      ~code={|let x : String = "a" +¦|},
-      ~expect=Some("+"),
+      ~name="String concat exact match",
+      ~code={|let x : String = "a" ++¦|},
+      ~expect=None,
     ),
   ],
 );
@@ -171,13 +171,13 @@ let type_tests = (
   [
     tydi_test(
       ~name="Type variable completion: Int",
-      ~code="let x : I¦",
-      ~expect=Some("nt"),
+      ~code="let x : In¦",
+      ~expect=Some("t"),
     ),
     tydi_test(
       ~name="Type variable completion: Bool",
-      ~code="let x : B¦",
-      ~expect=Some("ool"),
+      ~code="let x : Bo¦",
+      ~expect=Some("ol"),
     ),
     tydi_test(
       ~name="Type variable completion: String",
@@ -309,23 +309,23 @@ let base_typ_suppression_tests = (
   [
     tydi_test(
       ~name="Nat not suggested as Exp operand",
-      ~code="let x : Int = N¦",
+      ~code="let x : Int = Na¦",
       ~expect=None,
     ),
     tydi_test(
       ~name="Nat not suggested as Pat operand over constructor",
-      ~code="fun x : +None +Some(Int) -> case x | N¦",
-      ~expect=Some("one"),
+      ~code="fun x : +None +Some(Int) -> case x | No¦",
+      ~expect=Some("ne"),
     ),
     tydi_test(
       ~name="SInt not suggested as Exp operand",
-      ~code="let x : Int = S¦",
+      ~code="let x : Int = SI¦",
       ~expect=None,
     ),
     tydi_test(
       ~name="Nat still suggested in Typ position",
-      ~code="let x : N¦",
-      ~expect=Some("at"),
+      ~code="let x : Na¦",
+      ~expect=Some("t"),
     ),
   ],
 );

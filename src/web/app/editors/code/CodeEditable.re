@@ -81,7 +81,8 @@ module Update = {
              | Reparse
              | Introduce
              | Probe(StepInto(_))
-             | Dump => true
+             | Dump
+             | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
              | Structural(_)
@@ -146,19 +147,111 @@ module Selection = {
     };
   };
 
+  /* Focus the indicated probe (if any) */
+  let focus_indicated_probe = (model: Model.t): option(Update.t) => {
+    let z = model.editor.state.zipper;
+    let refractors =
+      z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
+    switch (Indicated.index(z)) {
+    | Some(id) =>
+      switch (List.find_index(((rid, _)) => rid == id, refractors)) {
+      | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
+      | None => None
+      }
+    | None => None
+    };
+  };
+
+  /* Focus a probe on the current line (for end-of-line bounce) */
+  let focus_probe_on_row = (model: Model.t): option(Update.t) => {
+    let z = model.editor.state.zipper;
+    let measured = model.editor.syntax.measured;
+    let caret_row = Zipper.Caret.point(measured, z).row;
+    let refractors =
+      z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
+    let probe_on_row =
+      refractors
+      |> List.find_index(((id, _)) =>
+           switch (Measured.find_by_id(id, measured)) {
+           | Some(m) => m.last.row == caret_row
+           | None => false
+           }
+         );
+    switch (probe_on_row) {
+    | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
+    | None => None
+    };
+  };
+
   let handle_key_event =
-      (~selection as (), _: Model.t): (Key.t => option(Update.t)) =>
+      (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
-    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.TAB)
+    /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
+    | {
+        key: D("Enter"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {key: D("Enter"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
+      switch (focus_indicated_probe(model)) {
+      | Some(_) as result => result
+      | None => focus_probe_on_row(model)
+      }
+    /* Cmd+Right (Mac) / End (PC) at end of line: bounce into probe */
+    | {
+        key: D("ArrowRight"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+        when
+          Zipper.linebreak_on(
+            Right,
+            Zipper.generalized_neighbors(model.editor.state.zipper),
+          ) =>
+      switch (focus_probe_on_row(model)) {
+      | Some(_) as result => result
+      | None => Some(Update.Perform(Move(Line(Right))))
+      }
+    | {key: D("End"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+        when
+          Zipper.linebreak_on(
+            Right,
+            Zipper.generalized_neighbors(model.editor.state.zipper),
+          ) =>
+      switch (focus_probe_on_row(model)) {
+      | Some(_) as result => result
+      | None => Some(Update.Perform(Move(Line(Right))))
+      }
+    /* Cmd+/ (Mac) / Ctrl+/ (PC) toggles line comment */
+    | {key: D("/"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _}
+    | {key: D("/"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
+      Some(Update.Perform(ToggleLineComment))
     /* Cmd+. (Mac) / Ctrl+. (PC) opens context menu - VS Code Quick Fix convention */
-    | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _}
+    | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
       Some(Update.ContextMenu(ContextMenu.Model.Open))
     /* Shift+F10 opens context menu (VS Code convention) */
-    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.ContextMenu(ContextMenu.Model.Open))
-    | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
+    | {
+        key: D(key),
+        sys: Mac | PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
@@ -234,6 +327,7 @@ module View = {
       (
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
+        ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         z: Zipper.t,
       ) => [
@@ -264,6 +358,12 @@ module View = {
       ~syntax,
       globals.color_highlights,
     ),
+    VarHighlight.view(
+      ~measured=syntax.measured,
+      ~font_metrics=globals.font_metrics,
+      ~info_map,
+      z,
+    ),
   ];
 
   let view =
@@ -288,6 +388,7 @@ module View = {
         ? deco(
             ~expand_selection?,
             ~syntax=model.editor.syntax,
+            ~info_map=model.statics.info_map,
             ~globals,
             model.editor.state.zipper,
           )
@@ -326,6 +427,7 @@ module View = {
             }
           )
         : [];
+    // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
     let refractor_data =
       RefractorView.mk_data(
@@ -333,15 +435,17 @@ module View = {
           Id.Map.union(
             (_, _, b) => Some(b),
             zipper.refractors.manuals |> Id.Map.of_list,
-            zipper.refractors.autos.ephemerals,
+            zipper.refractors.multis.ephemerals,
           ),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.for_decoration(zipper),
         ~statics=model.statics.info_map,
         ~dynamics,
-        ~sample_cursor=zipper.refractors.sample_cursor,
+        ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
       );
+    // let t1 = JsUtil.precise_timestamp();
+    /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
     let refractors_model =
       RefractorView.all(
@@ -351,8 +455,9 @@ module View = {
         ~visible?,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.autos.ephemerals)),
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
+    // let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -364,11 +469,12 @@ module View = {
           ~indicated=Indicated.for_decoration(zipper),
           ~statics=model.statics.info_map,
           ~dynamics,
-          ~sample_cursor=zipper.refractors.sample_cursor,
+          ~sample_focus=zipper.refractors.sample_focus,
           ~editor_active=selected,
         ),
         model.editor.syntax.projector_list,
       );
+    ProjectorView.ViewCache.log_frame();
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
@@ -431,7 +537,7 @@ module View = {
       Effect.Ignore;
     };
 
-    let drag_select = (pointer: Pointer.Event.t) => {
+    let drag_select_or_hover = (pointer: Pointer.Event.t) => {
       let left_button_held = pointer.buttons land 1 != 0;
       if (!left_button_held && MouseState.is_button_down()) {
         /* Recover from stuck state: buttons bitmask says left is up
@@ -445,6 +551,7 @@ module View = {
         | {button: Left, _}
             when
               left_button_held
+              && MouseState.is_button_down()
               && !Point.equals(current_loc, MouseState.get_down_loc()) =>
           let container = container_target(pointer.current_target);
           let pixel_loc = pointer.loc;
@@ -490,7 +597,9 @@ module View = {
         Attr.on_pointerup(evt =>
           toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
-        Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
+        Attr.on_mousemove(evt =>
+          drag_select_or_hover(Pointer.Event.mk(evt))
+        ),
       ],
       display_line_numbers
         ? LineNumbers.View.view(

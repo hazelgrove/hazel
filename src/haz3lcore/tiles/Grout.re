@@ -60,6 +60,34 @@ let fits = (g: t, g': t) =>
   | (Concave, Convex) => true
   };
 
+/* Tracks a grout inserted in lieu of a user-typed space.
+ * When consumed, a space should be emitted in its place. */
+let suppressed_space: ref(option(Id.t)) = ref(None);
+
+let mark_space_owed = (id: Id.t): unit => suppressed_space := Some(id);
+
+/* Check if grout ID owes a space. Clears ref on match. */
+let redeem_space = (id: Id.t): option(Secondary.t) =>
+  switch (suppressed_space^) {
+  | Some(owed_id) when owed_id == id =>
+    suppressed_space := None;
+    Some(Secondary.mk_space(Id.mk()));
+  | _ => None
+  };
+
+/* Check a list of grout for any that owe a space. */
+let redeem_space_from = (gs: list(t)): option(Secondary.t) =>
+  switch (suppressed_space^) {
+  | None => None
+  | Some(owed_id) =>
+    if (List.exists((g: t) => g.id == owed_id, gs)) {
+      suppressed_space := None;
+      Some(Secondary.mk_space(Id.mk()));
+    } else {
+      None;
+    }
+  };
+
 let merge = (gs: list(t)): option(t) =>
   switch (gs) {
   | [] => None

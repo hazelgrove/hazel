@@ -29,6 +29,41 @@ let get_active_llm_id = (model: Model.t): option(string) => {
   };
 };
 
+/** Context window from OpenRouter model metadata, or from [available_llms] if active llm omits it. */
+let context_length_for_active = (model: Model.t): option(int) => {
+  let from_catalog = (id: string): option(int) =>
+    switch (
+      List.find_opt(
+        (m: OpenRouter.AvailableLLMs.Model.llm_info) => m.id == id,
+        model.available_llms,
+      )
+    ) {
+    | Some(m) => m.context_length
+    | None => None
+    };
+  switch (model.active_llm) {
+  | Some(llm) =>
+    switch (llm.context_length) {
+    | Some(_) as known => known
+    | None => from_catalog(llm.id)
+    }
+  | None => None
+  };
+};
+
+/** For the context meter: 80% of the provider's context window, then round **down** to a multiple of 1000 tokens (headroom for summarization). E.g. 131072 → 104000. */
+let effective_context_meter_limit = (raw_context_length: int): int => {
+  let scaled = float_of_int(raw_context_length) *. 0.8;
+  max(1000, int_of_float(Float.floor(scaled /. 1000.0)) * 1000);
+};
+
+/** Like [context_length_for_active], but capped for UI / budgeting (see [effective_context_meter_limit]). */
+let context_meter_limit_for_active = (model: Model.t): option(int) =>
+  Option.map(
+    effective_context_meter_limit,
+    context_length_for_active(model),
+  );
+
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =

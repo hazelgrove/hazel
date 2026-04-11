@@ -21,6 +21,30 @@ let view =
   let chat_system = agent_model.chat_system;
   let current_chat =
     Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
+  let is_compacting =
+    switch (agent_model.compaction_in_progress) {
+    | Some(id) when id == current_chat_id => true
+    | _ => false
+    };
+
+  let slash_menu = chat_system.ui.slash_menu;
+
+  let effect_run_slash_command = (name: string) =>
+    switch (name) {
+    | "compact" =>
+      Effect.Many([
+        agent_inject(
+          Agent.Agent.Update.Action.RequestForcedCompaction(current_chat_id),
+        ),
+        agent_inject(
+          Agent.Agent.Update.Action.ChatSystemAction(
+            Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
+          ),
+        ),
+        Effect.Stop_propagation,
+      ])
+    | _ => Effect.Stop_propagation
+    };
 
   // Auto-resize textarea helper
   let autosize_textarea = (id: string) => {
@@ -56,28 +80,32 @@ let view =
   };
 
   // Send message handler
-  let send_message = _ => {
-    let message_content = String.trim(current_text);
-    if (String.length(message_content) > 0) {
-      let user_message = Agent.Message.Utils.mk_user_message(message_content);
-      Effect.Many([
-        agent_inject(
-          Agent.Agent.Update.Action.SendMessage(
-            user_message,
-            current_chat_id,
-          ),
-        ),
-        agent_inject(
-          Agent.Agent.Update.Action.ChatSystemAction(
-            Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
-          ),
-        ),
-        Effect.Stop_propagation,
-      ]);
-    } else {
+  let send_message = _ =>
+    if (is_compacting) {
       Effect.Stop_propagation;
+    } else {
+      let message_content = String.trim(current_text);
+      if (String.length(message_content) > 0) {
+        let user_message =
+          Agent.Message.Utils.mk_user_message(message_content);
+        Effect.Many([
+          agent_inject(
+            Agent.Agent.Update.Action.SendMessage(
+              user_message,
+              current_chat_id,
+            ),
+          ),
+          agent_inject(
+            Agent.Agent.Update.Action.ChatSystemAction(
+              Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
+            ),
+          ),
+          Effect.Stop_propagation,
+        ]);
+      } else {
+        Effect.Stop_propagation;
+      };
     };
-  };
 
   // Handler functions for icon buttons
   let switch_to_prompt = _ => {
@@ -204,18 +232,44 @@ let view =
     Effect.Stop_propagation;
   };
 
-  // Calculate total tokens
   let messages = Agent.Chat.Utils.get(current_chat);
-  let total_tokens =
+  /** Last API round's prompt size (full messages array tokenized by provider). */
+  let last_prompt_tokens_opt: option(int) =
     List.fold_left(
       (acc, msg: Agent.Message.Model.t) =>
         switch (msg.role) {
-        | Agent(Some(usage)) => acc + usage.total_tokens
+        | Agent(Some(usage)) => Some(usage.prompt_tokens)
         | _ => acc
         },
-      0,
+      None,
       messages,
     );
+  let context_limit_opt =
+    AgentGlobals.context_meter_limit_for_active(
+      globals.settings.agent_globals,
+    );
+  let (meter_label, fill_pct_opt, hover_title_pct) = {
+    let n_str =
+      switch (last_prompt_tokens_opt) {
+      | Some(n) => string_of_int(n)
+      | None => "—"
+      };
+    let m_str =
+      switch (context_limit_opt) {
+      | Some(m) => string_of_int(m)
+      | None => "—"
+      };
+    let label = n_str ++ " / " ++ m_str ++ " context used";
+    let (pct, title_pct) =
+      switch (last_prompt_tokens_opt, context_limit_opt) {
+      | (Some(n), Some(m)) when m > 0 =>
+        let frac = float_of_int(n) /. float_of_int(m);
+        let bar_pct = min(100, int_of_float(ceil(frac *. 100.0)));
+        (Some(bar_pct), Some(Printf.sprintf("%.2f%%", frac *. 100.0)));
+      | _ => (None, None)
+      };
+    (label, pct, title_pct);
+  };
 
   // Input area at bottom with buttons above
   div(
@@ -266,10 +320,46 @@ let view =
               },
             ],
           ),
-          // Token usage display
           div(
-            ~attrs=[clss(["token-usage-display"])],
-            [text("tokens: " ++ string_of_int(total_tokens))],
+            ~attrs=[
+              clss(["token-context-meter"]),
+              ...switch (hover_title_pct) {
+                 | Some(t) => [Attr.title(t)]
+                 | None => []
+                 },
+            ],
+            [
+              div(
+                ~attrs=[clss(["token-context-meter-label"])],
+                [text(meter_label)],
+              ),
+              div(
+                ~attrs=[clss(["context-meter-track"])],
+                [
+                  div(
+                    ~attrs=[
+                      clss(["context-meter-fill"]),
+                      ...switch (fill_pct_opt) {
+                         | Some(pct) => [
+                             Attr.style(
+                               Css_gen.create(
+                                 ~field="width",
+                                 ~value=string_of_int(pct) ++ "%",
+                               ),
+                             ),
+                           ]
+                         | None => [
+                             Attr.style(
+                               Css_gen.create(~field="width", ~value="0%"),
+                             ),
+                           ]
+                         },
+                    ],
+                    [],
+                  ),
+                ],
+              ),
+            ],
           ),
           // Right side export and copy buttons
           div(
@@ -298,11 +388,50 @@ let view =
       div(
         ~attrs=[clss(["chat-message-input-container"])],
         [
+          switch (slash_menu) {
+          | None => div(~attrs=[], [])
+          | Some(sm) =>
+            let cmds = Agent.ChatSlashCommands.filtered(sm.filter);
+            div(
+              ~attrs=[clss(["chat-slash-menu"])],
+              List.mapi(
+                (i, (name, desc)) =>
+                  div(
+                    ~attrs=[
+                      clss(
+                        ["chat-slash-menu-item"]
+                        @ (sm.selected_index == i ? ["selected"] : []),
+                      ),
+                      Attr.on_mousedown(_ =>
+                        Effect.Many([
+                          effect_run_slash_command(name),
+                          Effect.Prevent_default,
+                        ])
+                      ),
+                    ],
+                    [
+                      span(
+                        ~attrs=[clss(["chat-slash-cmd"])],
+                        [text("/" ++ name)],
+                      ),
+                      span(
+                        ~attrs=[clss(["chat-slash-desc"])],
+                        [text(desc)],
+                      ),
+                    ],
+                  ),
+                cmds,
+              ),
+            );
+          },
           textarea(
             ~attrs=[
               clss(["chat-message-input"]),
               Attr.id("chat-message-input"),
-              Attr.placeholder("Type your message..."),
+              Attr.placeholder(
+                is_compacting
+                  ? "Compacting conversation…" : "Type your message...",
+              ),
               Attr.property("autocomplete", Js.Unsafe.inject("off")),
               Attr.on_focus(_ => {
                 Js.Opt.iter(
@@ -335,21 +464,110 @@ let view =
                 let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
                 let shift_pressed = Key.shift_held(event);
                 switch (key) {
+                | Some("ArrowDown") =>
+                  switch (slash_menu) {
+                  | Some(_) =>
+                    Effect.Many([
+                      agent_inject(
+                        Agent.Agent.Update.Action.ChatSystemAction(
+                          Agent.ChatSystem.Update.Action.SlashMenuAdjustSelection(
+                            1,
+                          ),
+                        ),
+                      ),
+                      Effect.Prevent_default,
+                      Effect.Stop_propagation,
+                    ])
+                  | None => Effect.Stop_propagation
+                  }
+                | Some("ArrowUp") =>
+                  switch (slash_menu) {
+                  | Some(_) =>
+                    Effect.Many([
+                      agent_inject(
+                        Agent.Agent.Update.Action.ChatSystemAction(
+                          Agent.ChatSystem.Update.Action.SlashMenuAdjustSelection(
+                            -1,
+                          ),
+                        ),
+                      ),
+                      Effect.Prevent_default,
+                      Effect.Stop_propagation,
+                    ])
+                  | None => Effect.Stop_propagation
+                  }
+                | Some("Escape") =>
+                  switch (slash_menu) {
+                  | Some(_) =>
+                    Effect.Many([
+                      agent_inject(
+                        Agent.Agent.Update.Action.ChatSystemAction(
+                          Agent.ChatSystem.Update.Action.SaveTextBoxContent(
+                            "",
+                          ),
+                        ),
+                      ),
+                      Effect.Prevent_default,
+                      Effect.Stop_propagation,
+                    ])
+                  | None => Effect.Stop_propagation
+                  }
                 | Some("Enter") when !shift_pressed =>
-                  Js.Opt.iter(
-                    Dom_html.document##getElementById(
-                      Js.string("chat-message-input"),
-                    ),
-                    el => {
-                      let textarea = Js.Unsafe.coerce(el);
-                      textarea##blur();
-                    },
-                  );
-                  Effect.Many([
-                    send_message(),
-                    Effect.Prevent_default,
-                    Effect.Stop_propagation,
-                  ]);
+                  if (is_compacting) {
+                    Effect.Stop_propagation;
+                  } else {
+                    switch (slash_menu) {
+                    | Some(sm) =>
+                      let cmds = Agent.ChatSlashCommands.filtered(sm.filter);
+                      switch (List.nth_opt(cmds, sm.selected_index)) {
+                      | Some((name, _)) =>
+                        Js.Opt.iter(
+                          Dom_html.document##getElementById(
+                            Js.string("chat-message-input"),
+                          ),
+                          el => {
+                            let textarea = Js.Unsafe.coerce(el);
+                            textarea##blur();
+                          },
+                        );
+                        Effect.Many([
+                          effect_run_slash_command(name),
+                          Effect.Prevent_default,
+                          Effect.Stop_propagation,
+                        ]);
+                      | None =>
+                        Js.Opt.iter(
+                          Dom_html.document##getElementById(
+                            Js.string("chat-message-input"),
+                          ),
+                          el => {
+                            let textarea = Js.Unsafe.coerce(el);
+                            textarea##blur();
+                          },
+                        );
+                        Effect.Many([
+                          send_message(),
+                          Effect.Prevent_default,
+                          Effect.Stop_propagation,
+                        ]);
+                      };
+                    | None =>
+                      Js.Opt.iter(
+                        Dom_html.document##getElementById(
+                          Js.string("chat-message-input"),
+                        ),
+                        el => {
+                          let textarea = Js.Unsafe.coerce(el);
+                          textarea##blur();
+                        },
+                      );
+                      Effect.Many([
+                        send_message(),
+                        Effect.Prevent_default,
+                        Effect.Stop_propagation,
+                      ]);
+                    };
+                  }
                 | Some("Enter") => Effect.Stop_propagation
                 | _ => Effect.Stop_propagation
                 };
@@ -366,7 +584,7 @@ let view =
             ],
             [text(current_text)],
           ),
-          if (String.length(String.trim(current_text)) > 0) {
+          if (String.length(String.trim(current_text)) > 0 && !is_compacting) {
             div(
               ~attrs=[
                 clss(["send-button", "icon", "chat-message-send-button"]),

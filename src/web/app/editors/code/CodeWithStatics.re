@@ -64,6 +64,7 @@ module Model = {
       Some(
         () =>
           Printer.of_segment(
+            ~indent=" ",
             ~refractors=model.editor.state.zipper.refractors.manuals,
             model.editor.state.zipper.selection.content,
           ),
@@ -87,6 +88,47 @@ module Model = {
     p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
 
+type statics_mode =
+  | StaticsNormal
+  | StaticsDefer
+  | StaticsForce;
+
+/* Debounce statics computation during rapid typing. Only one mode is
+   active at a time, so a single timer/flag is shared across all modes. */
+module StaticsDebounce = {
+  let debounce_ms = 225.0;
+  let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
+  let force_on_next: ref(bool) = ref(false);
+
+  /* Call from calculate to get the statics_mode for this cycle.
+     schedule_refresh should dispatch the mode's RefreshStatics action. */
+  let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
+    let force_now = force_on_next^;
+    force_on_next := false;
+    if (is_edited && debounce_ms > 0.0) {
+      switch (timer_id^) {
+      | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+      | None => ()
+      };
+      timer_id :=
+        Some(
+          Js_of_ocaml.Dom_html.window##setTimeout(
+            Js_of_ocaml.Js.wrap_callback(() => {
+              timer_id := None;
+              schedule_refresh();
+            }),
+            debounce_ms,
+          ),
+        );
+      StaticsDefer;
+    } else if (force_now) {
+      StaticsForce;
+    } else {
+      StaticsNormal;
+    };
+  };
+};
+
 module Update = {
   // There are no events for a read-only editor
   type t;
@@ -95,25 +137,49 @@ module Update = {
   let calculate =
       (
         ~settings,
+        ~autoprobe_mode=false,
         ~is_edited,
+        ~statics_mode=StaticsNormal,
         ~ctx=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, dynamics: _}: Model.t,
+        {editor, statics, context_menu, dynamics: _, _}: Model.t,
       )
       : Model.t => {
+    /* Capture ephemerals before editor calculation to detect auto probe changes */
+    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
+
     let editor =
       Editor.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
         statics,
         dynamics,
         editor,
       );
+
+    /* Ephemerals can change without an explicit edit in several cases:
+     * (1) cursor movement in autoprobe mode (cursor crosses into a new
+     *     top-level definition), and
+     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
+     *     from persisted multis.ids once the info_map becomes available.
+     * In both cases we must recalculate statics so probe targets match
+     * the new ephemerals and the evaluator collects samples for them. */
+    let probes_changed =
+      !
+        Id.Map.equal(
+          Refractors.equal_entry,
+          old_ephemerals,
+          editor.state.zipper.refractors.multis.ephemerals,
+        );
+
     let statics =
-      is_edited
+      statics_mode == StaticsForce
+      || (is_edited || probes_changed)
+      && statics_mode != StaticsDefer
         ? CachedStatics.init(
             ~settings,
             ~stitch,
