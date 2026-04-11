@@ -43,7 +43,11 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
           /* Perspective extension: prepend the app as a frame so the
              call_stack tracks the call we're looking at, not just the
              calls we're inside of. Index stays at the original depth,
-             so this frame appears "below" (ghosted) in the breadcrumbs. */
+             so this frame appears "below" (ghosted) in the breadcrumbs.
+             When the extended view is a suffix of the current sightline
+             (we're stepping up an existing chain), preserve the full
+             sightline so below-focus frames aren't lost — symmetric
+             with the None branch below. */
           let extended: Sample.call_stack = [
             {
               id: ap_id,
@@ -52,7 +56,12 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
             },
             ...data.call_stack,
           ];
-          extended;
+          ListUtil.is_suffix_of(
+            ~eq=Sample.equal_stack_frame,
+            extended,
+            sample_focus.call_stack,
+          )
+            ? sample_focus.call_stack : extended;
         | None =>
           !
             ListUtil.is_suffix_of(
