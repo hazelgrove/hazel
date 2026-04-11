@@ -104,7 +104,13 @@ let suggest_assist =
     | Normal when Selection.is_empty(z.selection) => Some()
     | Normal => None
     };
-  let ci = Indicated.ci_of(z, info_map);
+  /* Use ci_for_completion (prefer left-neighbor tile) rather than ci_of.
+   * ci_of inward-biases to the right piece, which on positions like
+   * `ff¦(1)` returns the Application CI whose ana can surface bound_aps
+   * suggestions (e.g. a spurious `ff(` completion even though ff is
+   * already applied). ci_for_completion matches Perform.go's explicit
+   * Buffer(Set(TyDi)) path. See dev commit 8a8c66f05. */
+  let ci = Indicated.ci_for_completion(z, info_map);
   let scaffold = TyDiScaffold.display(~info_map, z);
 
   switch (scaffold) {

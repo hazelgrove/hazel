@@ -218,6 +218,45 @@ let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
   );
 };
 
+/* ─────────────────────────────────────────────────────────────────────
+ * Dynamic focus: auto vs manual mode
+ *
+ * The "dynamic focus" is the selected sample whose call stack determines
+ * which samples light up across all probes. It changes via two kinds
+ * of paths:
+ *
+ *   USER-DRIVEN (always honored):
+ *     - click a sample                (ProbeProj)
+ *     - toggle pin                    (ProbeProj)
+ *     - step into                     (ProbeProj)
+ *     - breadcrumb bar (← →, click)   (SampleFocusBar)
+ *     - reset                         (SampleFocusBar)
+ *
+ *   AUTOMATIC (only honored in auto mode — gated on `auto_focus`):
+ *     - capture on new ephemeral probe    (add_ids_from_multi_term)
+ *     - spatial alignment after edit      (align_to_indicated_probe)
+ *     - stale-cursor fallback             (resolve_pending_probe_cursor;
+ *         after an edit invalidates the focus's call_stack frame IDs,
+ *         try to find a replacement sample at the "most aligned" position.
+ *         Internal recovery mechanism, invisible to the user when working.)
+ *
+ * Pinning a sample switches the focus into MANUAL mode: the user has
+ * said "I care about this execution context, don't move me." In manual
+ * mode, automatic realignment is suppressed; the focus only changes in
+ * response to explicit user actions.
+ *
+ * Note on auto-probe cursor following: when `update_autoprobe` moves
+ * auto-probe targets to track the cursor across top-level definitions,
+ * its set_pending_cursor flag is also gated on auto_focus. So pinning a
+ * sample in `f` and navigating to `g` will NOT jump focus to g's newly
+ * added probes — consistent with the "stay here" semantics of manual mode.
+ *
+ * If you add a new path that can change the dynamic focus automatically,
+ * gate it on `auto_focus(z)` and add it to the list above.
+ * ───────────────────────────────────────────────────────────────────── */
+let auto_focus = (z: Zipper.t): bool =>
+  z.refractors.sample_focus.pinned_stack == None;
+
 /* Check if id has either manual or ephemeral probe on it */
 let has_probe = (id: Id.t, z: Zipper.t): bool =>
   List.assoc_opt(id, z.refractors.manuals) != None
@@ -482,10 +521,12 @@ let add_ids_from_multi_term =
     );
   let z = Zipper.update_ephemerals(_ => new_ephemeral_map, z);
   /* If there are genuinely new ephemeral IDs, set pending_probe_cursor
-     so the sample focus aligns when evaluation results arrive. */
+     so the sample focus aligns when evaluation results arrive.
+     Gated on auto_focus: in manual focus mode, don't auto-capture. */
   let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
   switch (new_ids) {
   | [] => z
+  | _ when !auto_focus(z) => z
   | _ =>
     let sorted = sort_ids_lexically(~syntax, new_ids);
     set_pending_probe(sorted, z);
@@ -978,12 +1019,6 @@ let caret_nearest_ephemeral =
   };
 };
 
-/* When the sample focus has a pinned call stack, suppress autonomous
- * realignment so the pin holds. Used by both align_to_indicated_probe
- * and the stale-cursor fallback in resolve_pending_probe_cursor. */
-let has_pin = (z: Zipper.t): bool =>
-  z.refractors.sample_focus.pinned_stack != None;
-
 /* Ensure the sample focus is aligned with current dynamics.
  *
  * Handles two cases uniformly:
@@ -1014,7 +1049,7 @@ let resolve_pending_probe_cursor =
     switch (z.refractors.pending_probe_cursor) {
     | Some(ids) => (Some(ids), true)
     | None =>
-      if (cursor_is_aligned(~dynamics, z) || has_pin(z)) {
+      if (cursor_is_aligned(~dynamics, z) || !auto_focus(z)) {
         (None, false);
       } else {
         /* Cursor is stale — treat all probes as candidates */
@@ -1109,7 +1144,9 @@ let resolve_pending_probe_cursor =
  * We try a direct match first, then fall back to spatial proximity. */
 let align_to_indicated_probe =
     (~is_edited: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
-  if (!is_edited || z.refractors.pending_probe_cursor != None || has_pin(z)) {
+  if (!is_edited
+      || z.refractors.pending_probe_cursor != None
+      || !auto_focus(z)) {
     z;
   } else {
     /* Strategy 1: Direct match — indicated piece is an ephemeral probe */
@@ -1344,14 +1381,16 @@ let update_autoprobe =
 
     /* Add new multi probe if inside a definition.
        Use ~drill=false to stay on top-level def, not drill into nested lets.
-       Use autoprobe_updates_cursor to control whether cursor follows. */
+       Use autoprobe_updates_cursor to control whether cursor follows.
+       Gated on auto_focus: in manual focus mode, don't jump focus when
+       the cursor crosses into a new top-level definition. */
     let z =
       switch (current_def) {
       | Some(new_id) =>
         add_multi(
           new_id,
           ~drill=false,
-          ~set_pending_cursor=autoprobe_updates_cursor,
+          ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
           ~syntax,
           ~info_map,
           z,
