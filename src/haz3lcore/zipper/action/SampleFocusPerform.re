@@ -41,8 +41,18 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
         switch (id) {
         | Some(ap_id) =>
           /* Perspective extension: see CallStack.extend. Index stays at
-             the original depth, so this frame appears "below" (ghosted). */
-          CallStack.extend(ap_id, data.call_stack)
+             the original depth, so this frame appears "below" (ghosted).
+             When the extended view is a suffix of the current sightline
+             (we're stepping up an existing chain), preserve the full
+             sightline so below-focus frames aren't lost — symmetric
+             with the None branch below. */
+          let extended = CallStack.extend(ap_id, data.call_stack);
+          ListUtil.is_suffix_of(
+            ~eq=CallStack.equal_frame,
+            extended,
+            sample_focus.call_stack,
+          )
+            ? sample_focus.call_stack : extended;
         | None =>
           !
             ListUtil.is_suffix_of(
