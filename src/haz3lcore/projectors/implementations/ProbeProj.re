@@ -1733,47 +1733,10 @@ let prepare_offside =
         )
         != None
       | Some(_) =>
-        let effective: Sample.call_stack =
-          Sample.Focus.effective_stack(dynamics.sample_focus);
-        let fn_of_innermost = (stack: Sample.call_stack) : option(Id.t) =>
-          switch (stack) {
-          | [] => None
-          | [frame, ..._] =>
-            let f: Sample.stack_frame = frame;
-            f.fn_def_id;
-          };
-        let cursor_fn: option(Id.t) = fn_of_innermost(effective);
-        /* All samples of a given probe share an enclosing fn body, so
-         * reading fn_def_id from any one of them gives the target's fn. */
-        let target_fn: option(Id.t) =
-          switch (filtered_samples) {
-          | [] => None
-          | [sample, ..._] =>
-            let s: Sample.t = sample;
-            fn_of_innermost(s.call_stack);
-          };
-        List.exists(
-          (sample: Sample.t) =>
-            if (Sample.equal_call_stack(sample.call_stack, effective)) {
-              /* rule (a): same invocation */
-              true;
-            } else if (target_fn != cursor_fn) {
-              /* rule (b): different fn body + stack-related */
-              Util.ListUtil.is_suffix_of(
-                ~eq=Sample.equal_stack_frame,
-                sample.call_stack,
-                effective,
-              )
-              || Util.ListUtil.is_suffix_of(
-                   ~eq=Sample.equal_stack_frame,
-                   effective,
-                   sample.call_stack,
-                 );
-            } else {
-              false;
-            },
+        Sample.Selection.is_reachable_pinned(
+          ~cursor=dynamics.sample_focus,
           filtered_samples,
-        );
+        )
       };
     let samples =
       select_samples(
