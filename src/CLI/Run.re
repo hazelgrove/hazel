@@ -1,4 +1,5 @@
 open Language;
+open Util;
 
 let elaborate = (exp: Exp.t): Exp.t =>
   fst(
@@ -15,6 +16,21 @@ let evaluate = (exp: Exp.t): Exp.t =>
 let evaluate_with_probes = (exp: Exp.t): (Exp.t, Sample.Map.t) => {
   let (result, state) =
     Evaluator.evaluate(~env=Builtins.env_init, elaborate(exp));
+  (result, state.probes);
+};
+
+/* Evaluate with a probe_map to collect probe samples.
+ * The probe_map tells the evaluator which expressions to record. */
+let evaluate_with_probe_map =
+    (~sample_map: Id.Map.t(Sample.capture_spec), exp: Exp.t)
+    : (Exp.t, Sample.Map.t) => {
+  let elaborated = elaborate(exp);
+  let (result, state) =
+    Evaluator.evaluate(
+      ~targets=sample_map,
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   (result, state.probes);
 };
 

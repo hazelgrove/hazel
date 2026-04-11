@@ -697,6 +697,7 @@ module Update = {
               ...model.globals.settings.core,
               dynamics: false,
             },
+        ~autoprobe_mode=model.globals.settings.autoprobe_mode,
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
         model.editors,
@@ -729,7 +730,15 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
     switch (event) {
-    | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+    | {
+        key: D("F7"),
+        sys: Mac | PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Up,
+        alt: Up,
+        _,
+      } =>
       Some(Update.Benchmark(Start))
     | {
         key: D("Z" | "z"),
@@ -738,6 +747,7 @@ module Selection = {
         meta: Down,
         ctrl: Up,
         alt: Up,
+        _,
       }
     | {
         key: D("Z" | "z"),
@@ -746,11 +756,48 @@ module Selection = {
         meta: Up,
         ctrl: Down,
         alt: Up,
+        _,
       } =>
       Some(Update.Globals(Redo))
-    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {
+        key: D("Z" | "z"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {
+        key: D("Z" | "z"),
+        sys: PC,
+        shift: Up,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+        _,
+      } =>
       Some(Update.Globals(Undo))
+    /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
+    | {
+        key: D("P" | "p"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {
+        key: D("P" | "p"),
+        sys: PC,
+        shift: Up,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+        _,
+      } =>
+      Some(Update.Globals(Set(AutoprobeMode)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
@@ -808,7 +855,8 @@ module View = {
         !selection_has_refractors(editor.state.zipper.refractors, selection)
       | _ => true
       };
-    should_set ? ClipboardCache.set(cursor.selection, str) : ();
+    should_set
+      ? Haz3lcore.Parser.set_segment_cache(cursor.selection, str) : ();
     JsUtil.copy(str);
   };
 
@@ -912,6 +960,7 @@ module View = {
                 ~event=
                   Key.{
                     key: D("Delete"),
+                    code: "Delete",
                     sys: Os.is_mac^ ? Mac : PC,
                     shift: Up,
                     meta: Up,
@@ -936,9 +985,10 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
+            let text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
             let action =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> ClipboardCache.get;
+              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Dom.preventDefault(evt);
             switch (cursor.editor_action(action)) {
             | None => Effect.Ignore
@@ -994,6 +1044,16 @@ module View = {
       )
     );
   };
+
+  let autoprobe_indicator = (~globals: Globals.t, ~inject) => [
+    Widgets.toggle(
+      ~tooltip="Auto-probe mode active (Cmd/Ctrl+P to toggle)",
+      "🔬",
+      globals.settings.autoprobe_mode,
+      _ =>
+      inject(Update.Globals(Set(AutoprobeMode)))
+    ),
+  ];
 
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
@@ -1068,6 +1128,18 @@ module View = {
         model.editors,
       );
 
+    /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
+    let current_editor = Update.get_editor(model);
+    let indicated_id =
+      Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
+    let closure_cursor_bar =
+      SampleFocusBar.view(
+        ~globals,
+        ~refractors=current_editor.editor.state.zipper.refractors,
+        ~info_map=current_editor.statics.info_map,
+        ~indicated_id,
+      );
+
     /* Scroll handler for viewport culling. Only enabled for Scratch and
      * Documentation modes where there's a single editor filling the
      * scrollable area. Tutorial and Exercises have multiple editors. */
@@ -1104,6 +1176,7 @@ module View = {
 
     [
       top_bar(~globals, ~inject, ~editors),
+      closure_cursor_bar,
       div(
         ~attrs=[
           Attr.id("main"),
