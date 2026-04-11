@@ -280,17 +280,12 @@ select {
   background-color: var(--G5);
 }
 
-/* Pin icon - same style as sample pin but positioned for breadcrumb */
+/* Pin icon - shared appearance rule lives in proj-probe.css (grouped
+ * selector) so the three pin icons stay in sync. Only size/position here. */
 #sample-focus-bar .pin-icon {
   display: inline-block;
   width: 1em;
   height: 1em;
-  border-radius: 1em;
-  background: url(../img/noun-pinned-1560993.svg) var(--R1);
-  background-size: 70%;
-  background-position: center;
-  background-repeat: no-repeat;
-  /* filter: invert(1); */
   cursor: pointer;
   margin-right: 0.2em;
   vertical-align: middle;
