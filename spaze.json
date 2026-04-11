@@ -1,0 +1,25 @@
+{
+  "@patchwork": {
+    "suggestedImportUrl": "automerge:2bFZZwGF1hCN7336RuLLeMyqsH15",
+    "type": "folder"
+  },
+  "docs": [
+    {
+      "name": "Petrinaut",
+      "type": "petrinaut",
+      "url": "automerge:38C63HpCAA1U735wQBTKu9wPCK3Y"
+    },
+    {
+      "name": "Petrinaut",
+      "type": "petrinaut",
+      "url": "automerge:rPziTd8ppY4MKR9z1CZnjCNAE1h"
+    },
+    {
+      "name": "Hazel Program",
+      "type": "@hazelgrove/hazel",
+      "url": "automerge:3BFAkLGXJB54byFPkZ1gq5D32Mfc"
+    }
+  ],
+  "title": "New folder",
+  "tldraw": "automerge:2eBztJKbLhHSMynFj3UjFoJjvs4W"
+}
