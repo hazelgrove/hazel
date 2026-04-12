@@ -114,7 +114,8 @@ let test_hazel =
       let status = TestMap.joint_status(reports);
       let should_show = verbose || status != Pass;
       if (should_show) {
-        let status_str = String.uppercase_ascii(TestStatus.to_string(status));
+        let status_str =
+          String.uppercase_ascii(TestStatus.to_string(status));
         let hint =
           switch (reports) {
           | [{hint, _}, ..._] when hint != "No hint available." => hint

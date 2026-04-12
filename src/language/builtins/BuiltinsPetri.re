@@ -1,7 +1,6 @@
 module Fresh = IdTagged.FreshGrammar;
 open Fresh.Typ;
-open BuiltinsUtil;
-open BuiltinsADT;
+module JSON = BuiltinsADT.JSON;
 
 module E = Fresh.Exp;
 module P = Fresh.Pat;
@@ -9,8 +8,7 @@ module P = Fresh.Pat;
 let call = (name: string, a) => E.ap(Forward, E.var(name), a);
 let call2 = (name: string, a, b) => E.ap(Forward, call(name, a), b);
 let call3 = (name: string, a, b, c) => E.ap(Forward, call2(name, a, b), c);
-let call4 =
-    (name: string, a, b, c, d) =>
+let call4 = (name: string, a, b, c, d) =>
   E.ap(Forward, call3(name, a, b, c), d);
 
 let t2 = (a, b) => E.tuple([a, b]);
@@ -44,7 +42,7 @@ let jassoc = pairs => E.ap(Forward, JSON.json_assoc, E.list_lit(pairs));
 let pair = (k: string, v) => E.tuple([E.string(k), v]);
 let json_t = Typ.term_of(JSON.t);
 
-let builtins: list(hazel_fn) = [
+let builtins: list(BuiltinsUtil.hazel_fn) = [
   {
     name: "get_petri_def",
     str: {|fix get_petri_def -> fun net ->
@@ -53,7 +51,7 @@ let builtins: list(hazel_fn) = [
     ret: json_t,
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("get_petri_def"),
             fn(
@@ -82,7 +80,7 @@ let builtins: list(hazel_fn) = [
     ret: Arrow(JSON.t, JSON.t),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("set_petri_def"),
             fn(
@@ -122,7 +120,7 @@ let builtins: list(hazel_fn) = [
     ret: List(JSON.t),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("get_nodes"),
             fn(
@@ -153,7 +151,7 @@ let builtins: list(hazel_fn) = [
     ret: List(JSON.t),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("get_arcs"),
             fn(
@@ -186,7 +184,7 @@ let builtins: list(hazel_fn) = [
     ret: Arrow(list(JSON.t), JSON.t),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("set_nodes"),
             fn(
@@ -236,7 +234,7 @@ let builtins: list(hazel_fn) = [
     ret: Arrow(list(JSON.t), JSON.t),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("set_arcs"),
             fn(
@@ -287,7 +285,7 @@ let builtins: list(hazel_fn) = [
     ret: Atom(String),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("get_id"),
             fn(
@@ -323,7 +321,7 @@ let builtins: list(hazel_fn) = [
     ret: Atom(String),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("arc_source"),
             fn(
@@ -359,7 +357,7 @@ let builtins: list(hazel_fn) = [
     ret: Atom(String),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("arc_target"),
             fn(
@@ -392,7 +390,7 @@ let builtins: list(hazel_fn) = [
     ret: Arrow(string(), JSON.t),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("arc_set_source"),
             fn(
@@ -432,7 +430,7 @@ let builtins: list(hazel_fn) = [
     ret: Arrow(string(), JSON.t),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("arc_set_target"),
             fn(
@@ -480,7 +478,7 @@ let builtins: list(hazel_fn) = [
     ret: Arrow(int(), JSON.t),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("mk_place_tokens"),
             fn(
@@ -493,7 +491,10 @@ let builtins: list(hazel_fn) = [
                   pair(
                     "data",
                     jassoc([
-                      pair("label", E.ap(Forward, JSON.json_string, E.var("id"))),
+                      pair(
+                        "label",
+                        E.ap(Forward, JSON.json_string, E.var("id")),
+                      ),
                       pair("type", jstr("place")),
                       pair(
                         "tokenCounts",
@@ -527,7 +528,7 @@ let builtins: list(hazel_fn) = [
     ret: json_t,
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("mk_place"),
             fn(
@@ -557,7 +558,7 @@ let builtins: list(hazel_fn) = [
     ret: json_t,
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("mk_transition"),
             fn(
@@ -568,7 +569,10 @@ let builtins: list(hazel_fn) = [
                 pair(
                   "data",
                   jassoc([
-                    pair("label", E.ap(Forward, JSON.json_string, E.var("id"))),
+                    pair(
+                      "label",
+                      E.ap(Forward, JSON.json_string, E.var("id")),
+                    ),
                     pair("type", jstr("transition")),
                   ]),
                 ),
@@ -600,7 +604,7 @@ let builtins: list(hazel_fn) = [
     ret: Arrow(string(), arrow(int(), JSON.t)),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("mk_arc"),
             fn(
@@ -625,8 +629,14 @@ let builtins: list(hazel_fn) = [
                       ),
                     ),
                     pair("type", jstr("default")),
-                    pair("source", E.ap(Forward, JSON.json_string, E.var("src"))),
-                    pair("target", E.ap(Forward, JSON.json_string, E.var("tgt"))),
+                    pair(
+                      "source",
+                      E.ap(Forward, JSON.json_string, E.var("src")),
+                    ),
+                    pair(
+                      "target",
+                      E.ap(Forward, JSON.json_string, E.var("tgt")),
+                    ),
                     pair(
                       "data",
                       jassoc([
@@ -673,7 +683,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("seq_place_arcs"),
             fn(
@@ -775,7 +785,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("build_sequence_place_module"),
             fn(
@@ -811,7 +821,10 @@ let builtins: list(hazel_fn) = [
                         let_(
                           P.var("trans"),
                           map_(
-                            range_(E.int(1), int_add(E.var("n1"), E.int(1))),
+                            range_(
+                              E.int(1),
+                              int_add(E.var("n1"), E.int(1)),
+                            ),
                             fn(
                               P.var("i"),
                               call(
@@ -889,7 +902,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("build_parallel_place_module"),
             fn(
@@ -969,7 +982,10 @@ let builtins: list(hazel_fn) = [
                                     E.list_lit([
                                       call("mk_place", E.var("pin")),
                                       call("mk_place", E.var("pout")),
-                                      call("mk_transition", E.var("split_t")),
+                                      call(
+                                        "mk_transition",
+                                        E.var("split_t"),
+                                      ),
                                       call("mk_transition", E.var("join_t")),
                                     ]),
                                     E.var("branch_places"),
@@ -1050,7 +1066,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("build_choice_place_module"),
             fn(
@@ -1069,7 +1085,10 @@ let builtins: list(hazel_fn) = [
                       let_(
                         P.var("branch_ids"),
                         map_(
-                          range_(E.int(1), int_add(E.var("n1"), E.int(1))),
+                          range_(
+                            E.int(1),
+                            int_add(E.var("n1"), E.int(1)),
+                          ),
                           fn(
                             P.var("i"),
                             sconcat(
@@ -1083,11 +1102,17 @@ let builtins: list(hazel_fn) = [
                         let_(
                           P.var("choose_ids"),
                           map_(
-                            range_(E.int(1), int_add(E.var("n1"), E.int(1))),
+                            range_(
+                              E.int(1),
+                              int_add(E.var("n1"), E.int(1)),
+                            ),
                             fn(
                               P.var("i"),
                               sconcat(
-                                sconcat(E.var("prefix"), E.string("_choose")),
+                                sconcat(
+                                  E.var("prefix"),
+                                  E.string("_choose"),
+                                ),
                                 call("string_of_int", E.var("i")),
                               ),
                               None,
@@ -1097,11 +1122,17 @@ let builtins: list(hazel_fn) = [
                           let_(
                             P.var("done_ids"),
                             map_(
-                              range_(E.int(1), int_add(E.var("n1"), E.int(1))),
+                              range_(
+                                E.int(1),
+                                int_add(E.var("n1"), E.int(1)),
+                              ),
                               fn(
                                 P.var("i"),
                                 sconcat(
-                                  sconcat(E.var("prefix"), E.string("_done")),
+                                  sconcat(
+                                    E.var("prefix"),
+                                    E.string("_done"),
+                                  ),
                                   call("string_of_int", E.var("i")),
                                 ),
                                 None,
@@ -1159,7 +1190,10 @@ let builtins: list(hazel_fn) = [
                                     let_(
                                       P.var("b"),
                                       sconcat(
-                                        sconcat(E.var("prefix"), E.string("_b")),
+                                        sconcat(
+                                          E.var("prefix"),
+                                          E.string("_b"),
+                                        ),
                                         call("string_of_int", E.var("i")),
                                       ),
                                       let_(
@@ -1203,14 +1237,23 @@ let builtins: list(hazel_fn) = [
                                       let_(
                                         P.var("b"),
                                         sconcat(
-                                          sconcat(E.var("prefix"), E.string("_b")),
+                                          sconcat(
+                                            E.var("prefix"),
+                                            E.string("_b"),
+                                          ),
                                           call("string_of_int", E.var("i")),
                                         ),
                                         let_(
                                           P.var("d"),
                                           sconcat(
-                                            sconcat(E.var("prefix"), E.string("_done")),
-                                            call("string_of_int", E.var("i")),
+                                            sconcat(
+                                              E.var("prefix"),
+                                              E.string("_done"),
+                                            ),
+                                            call(
+                                              "string_of_int",
+                                              E.var("i"),
+                                            ),
                                           ),
                                           list2(
                                             call3(
@@ -1234,7 +1277,10 @@ let builtins: list(hazel_fn) = [
                                   ),
                                   t4(
                                     E.var("nodes"),
-                                    append(E.var("arcs_choose"), E.var("arcs_done")),
+                                    append(
+                                      E.var("arcs_choose"),
+                                      E.var("arcs_done"),
+                                    ),
                                     E.var("pin"),
                                     E.var("pout"),
                                   ),
@@ -1287,7 +1333,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("build_decision_free_choice_place_module"),
             fn(
@@ -1306,7 +1352,10 @@ let builtins: list(hazel_fn) = [
                       let_(
                         P.var("branch_ids"),
                         map_(
-                          range_(E.int(1), int_add(E.var("n1"), E.int(1))),
+                          range_(
+                            E.int(1),
+                            int_add(E.var("n1"), E.int(1)),
+                          ),
                           fn(
                             P.var("i"),
                             sconcat(
@@ -1320,11 +1369,17 @@ let builtins: list(hazel_fn) = [
                         let_(
                           P.var("choose_ids"),
                           map_(
-                            range_(E.int(1), int_add(E.var("n1"), E.int(1))),
+                            range_(
+                              E.int(1),
+                              int_add(E.var("n1"), E.int(1)),
+                            ),
                             fn(
                               P.var("i"),
                               sconcat(
-                                sconcat(E.var("prefix"), E.string("_choose")),
+                                sconcat(
+                                  E.var("prefix"),
+                                  E.string("_choose"),
+                                ),
                                 call("string_of_int", E.var("i")),
                               ),
                               None,
@@ -1334,11 +1389,17 @@ let builtins: list(hazel_fn) = [
                           let_(
                             P.var("done_ids"),
                             map_(
-                              range_(E.int(1), int_add(E.var("n1"), E.int(1))),
+                              range_(
+                                E.int(1),
+                                int_add(E.var("n1"), E.int(1)),
+                              ),
                               fn(
                                 P.var("i"),
                                 sconcat(
-                                  sconcat(E.var("prefix"), E.string("_done")),
+                                  sconcat(
+                                    E.var("prefix"),
+                                    E.string("_done"),
+                                  ),
                                   call("string_of_int", E.var("i")),
                                 ),
                                 None,
@@ -1348,11 +1409,17 @@ let builtins: list(hazel_fn) = [
                             let_(
                               P.var("control_ids"),
                               map_(
-                                range_(E.int(1), int_add(E.var("n1"), E.int(1))),
+                                range_(
+                                  E.int(1),
+                                  int_add(E.var("n1"), E.int(1)),
+                                ),
                                 fn(
                                   P.var("i"),
                                   sconcat(
-                                    sconcat(E.var("prefix"), E.string("_ctrl")),
+                                    sconcat(
+                                      E.var("prefix"),
+                                      E.string("_ctrl"),
+                                    ),
                                     call("string_of_int", E.var("i")),
                                   ),
                                   None,
@@ -1404,7 +1471,10 @@ let builtins: list(hazel_fn) = [
                                         E.var("choose_ids"),
                                         fn(
                                           P.var("tid"),
-                                          call("mk_transition", E.var("tid")),
+                                          call(
+                                            "mk_transition",
+                                            E.var("tid"),
+                                          ),
                                           None,
                                           None,
                                         ),
@@ -1429,12 +1499,21 @@ let builtins: list(hazel_fn) = [
                                           int_add(E.var("n1"), E.int(1)),
                                         ),
                                         fn(
-                                          P.tuple([P.var("_idx"), P.var("i")]),
+                                          P.tuple([
+                                            P.var("_idx"),
+                                            P.var("i"),
+                                          ]),
                                           let_(
                                             P.var("b"),
                                             sconcat(
-                                              sconcat(E.var("prefix"), E.string("_b")),
-                                              call("string_of_int", E.var("i")),
+                                              sconcat(
+                                                E.var("prefix"),
+                                                E.string("_b"),
+                                              ),
+                                              call(
+                                                "string_of_int",
+                                                E.var("i"),
+                                              ),
                                             ),
                                             let_(
                                               P.var("c"),
@@ -1443,7 +1522,10 @@ let builtins: list(hazel_fn) = [
                                                   E.var("prefix"),
                                                   E.string("_choose"),
                                                 ),
-                                                call("string_of_int", E.var("i")),
+                                                call(
+                                                  "string_of_int",
+                                                  E.var("i"),
+                                                ),
                                               ),
                                               let_(
                                                 P.var("d"),
@@ -1597,7 +1679,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("refine_place_with_module"),
             fn(
@@ -1655,7 +1737,10 @@ let builtins: list(hazel_fn) = [
                                         E.var("pin"),
                                       ),
                                       if_(
-                                        eq_(E.var("src"), E.var("old_place")),
+                                        eq_(
+                                          E.var("src"),
+                                          E.var("old_place"),
+                                        ),
                                         call2(
                                           "arc_set_source",
                                           E.var("arc"),
@@ -1717,7 +1802,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("refine_place_sequence"),
             fn(
@@ -1764,7 +1849,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("refine_place_parallel"),
             fn(
@@ -1811,7 +1896,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("refine_place_choice"),
             fn(
@@ -1858,7 +1943,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("refine_place_decision_free_choice"),
             fn(
@@ -1910,7 +1995,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("add_resource_place_with_pairs"),
             fn(
@@ -2004,7 +2089,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("add_nonshared_resource"),
             fn(
@@ -2053,7 +2138,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("add_shared_parallel_resource"),
             fn(
@@ -2126,7 +2211,7 @@ let builtins: list(hazel_fn) = [
     ret: Unknown(Internal),
     imp: {
       Fresh.(
-        E.(
+        Exp.(
           fix_f(
             P.var("add_shared_sequential_resource"),
             fn(
@@ -2228,14 +2313,20 @@ let builtins: list(hazel_fn) = [
                                               ),
                                               call(
                                                 "string_of_int",
-                                                int_add(E.var("i"), E.int(2)),
+                                                int_add(
+                                                  E.var("i"),
+                                                  E.int(2),
+                                                ),
                                               ),
                                             ),
                                           ),
                                           flat_map_(
                                             E.var("pairs"),
                                             fn(
-                                              P.tuple([P.var("ta"), P.var("tb")]),
+                                              P.tuple([
+                                                P.var("ta"),
+                                                P.var("tb"),
+                                              ]),
                                               list2(
                                                 call3(
                                                   "mk_arc",
