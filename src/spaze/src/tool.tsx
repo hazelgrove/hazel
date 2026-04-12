@@ -168,6 +168,43 @@ function normalizeSpazePorts(raw: any): SpazePorts {
   };
 }
 
+function remapPortYToShape(editor: Editor, ownerShapeId: TLShapeId, y: number): number {
+  const clamped = Math.min(1, Math.max(0, y));
+  const container = editor.getContainer();
+  const wrapper = container.querySelector(
+    `[data-shape-id="${ownerShapeId}"]`,
+  ) as HTMLElement | null;
+  if (!wrapper) return clamped;
+  const viewEl = wrapper.querySelector('patchwork-view') as HTMLElement | null;
+  if (!viewEl) return clamped;
+
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const viewRect = viewEl.getBoundingClientRect();
+  if (!Number.isFinite(wrapperRect.height) || !Number.isFinite(viewRect.height)) {
+    return clamped;
+  }
+  if (wrapperRect.height <= 0 || viewRect.height <= 0) {
+    return clamped;
+  }
+
+  const contentTop = viewRect.top - wrapperRect.top;
+  const contentY = contentTop + clamped * viewRect.height;
+  return Math.min(1, Math.max(0, contentY / wrapperRect.height));
+}
+
+function remapPortsToShape(editor: Editor, ownerShapeId: TLShapeId, ports: SpazePorts): SpazePorts {
+  const remapList = (items: SpazePort[]) =>
+    items.map((port) => ({
+      projectorId: port.projectorId,
+      y: remapPortYToShape(editor, ownerShapeId, port.y),
+    }));
+
+  return {
+    inputs: remapList(ports.inputs),
+    outputs: remapList(ports.outputs),
+  };
+}
+
 function bindingAnchorY(binding: any): number {
   const y = binding?.props?.normalizedAnchor?.y;
   if (typeof y === 'number' && Number.isFinite(y)) {
@@ -442,7 +479,8 @@ function dispatchArrowEvent(
   );
   const viewEl = shapeWrapper?.querySelector('patchwork-view');
   if (!viewEl) return false;
-  const ports = normalizeSpazePorts((viewEl as any).__spazePorts);
+  const rawPorts = normalizeSpazePorts((viewEl as any).__spazePorts);
+  const ports = remapPortsToShape(editor, thisEndpoint.ownerShapeId, rawPorts);
   const anchorY = bindingAnchorY(binding);
   const targetPort = thisEndpoint.projectorId
     ? { projectorId: thisEndpoint.projectorId, y: anchorY }
@@ -1664,7 +1702,8 @@ async function initializeSync(
       removePortHandlesForOwner(editor, ownerShapeId);
       return;
     }
-    const ports = portsByOwner.get(ownerShapeId) ?? { inputs: [], outputs: [] };
+    const sourcePorts = portsByOwner.get(ownerShapeId) ?? { inputs: [], outputs: [] };
+    const ports = remapPortsToShape(editor, ownerShapeId, sourcePorts);
     reconcilePortHandlesForOwner(editor, ownerShape, ports);
   };
 
