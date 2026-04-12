@@ -146,7 +146,8 @@ type SpazeEndpoint = {
   portDirection?: PortDirection;
 };
 
-const PORT_HANDLE_SIZE = 10;
+const PORT_HANDLE_SIZE = 16;
+const PORT_HANDLE_EDGE_OFFSET = 8;
 const PORT_HANDLE_META_KEY = 'spazePortHandle';
 
 function normalizeSpazePorts(raw: any): SpazePorts {
@@ -209,14 +210,69 @@ function isPortHandleShape(shape: any): boolean {
 }
 
 function portHandlePosition(ownerShape: any, direction: PortDirection, y: number) {
+  const leftEdge = ownerShape.x;
+  const rightEdge = ownerShape.x + (ownerShape.props?.w ?? 0);
   const cx = direction === 'in'
-    ? ownerShape.x
-    : ownerShape.x + (ownerShape.props?.w ?? 0);
+    ? leftEdge - PORT_HANDLE_EDGE_OFFSET - PORT_HANDLE_SIZE / 2
+    : rightEdge + PORT_HANDLE_EDGE_OFFSET + PORT_HANDLE_SIZE / 2;
   const cy = ownerShape.y + (ownerShape.props?.h ?? 0) * y;
   return {
     x: cx - PORT_HANDLE_SIZE / 2,
     y: cy - PORT_HANDLE_SIZE / 2,
   };
+}
+
+function makePortHandleShape(
+  ownerShape: any,
+  direction: PortDirection,
+  projectorId: string,
+  y: number,
+) {
+  const id = makePortHandleShapeId(ownerShape.id, direction, projectorId);
+  const { x, y: top } = portHandlePosition(ownerShape, direction, y);
+  return {
+    id,
+    type: 'geo' as const,
+    x,
+    y: top,
+    parentId: ownerShape.parentId,
+    props: {
+      w: PORT_HANDLE_SIZE,
+      h: PORT_HANDLE_SIZE,
+      geo: 'ellipse',
+      fill: 'solid',
+      dash: 'solid',
+      color: direction === 'in' ? 'blue' : 'green',
+    },
+    // Keep unlocked so arrows can bind directly to these circles.
+    isLocked: false,
+    meta: {
+      [PORT_HANDLE_META_KEY]: true,
+      ownerShapeId: ownerShape.id,
+      projectorId,
+      direction,
+      yNorm: y,
+    },
+  };
+}
+
+function shouldUpdatePortHandleShape(existing: any, expected: any): boolean {
+  return (
+    existing.x !== expected.x ||
+    existing.y !== expected.y ||
+    existing.parentId !== expected.parentId ||
+    existing.isLocked !== expected.isLocked ||
+    existing.props?.w !== expected.props.w ||
+    existing.props?.h !== expected.props.h ||
+    existing.props?.geo !== expected.props.geo ||
+    existing.props?.fill !== expected.props.fill ||
+    existing.props?.dash !== expected.props.dash ||
+    existing.props?.color !== expected.props.color ||
+    existing.meta?.ownerShapeId !== expected.meta.ownerShapeId ||
+    existing.meta?.projectorId !== expected.meta.projectorId ||
+    existing.meta?.direction !== expected.meta.direction ||
+    existing.meta?.yNorm !== expected.meta.yNorm
+  );
 }
 
 function removePortHandlesForOwner(editor: Editor, ownerShapeId: TLShapeId) {
@@ -243,7 +299,7 @@ function reconcilePortHandlesForOwner(editor: Editor, ownerShape: any, ports: Sp
     .getCurrentPageShapes()
     .filter((shape: any) => isPortHandleShape(shape) && shape.meta.ownerShapeId === ownerShape.id);
 
-  const existingIds = new Set(existing.map((shape: any) => shape.id as TLShapeId));
+  const existingById = new Map(existing.map((shape: any) => [shape.id as TLShapeId, shape]));
   const toDelete = existing
     .filter((shape: any) => !desiredById.has(shape.id))
     .map((shape: any) => shape.id);
@@ -252,55 +308,14 @@ function reconcilePortHandlesForOwner(editor: Editor, ownerShape: any, ports: Sp
   }
 
   for (const [shapeId, d] of desiredById) {
-    const { x, y } = portHandlePosition(ownerShape, d.direction, d.y);
-    if (existingIds.has(shapeId)) {
-      editor.updateShape({
-        id: shapeId,
-        type: 'geo',
-        x,
-        y,
-        parentId: ownerShape.parentId,
-        props: {
-          w: PORT_HANDLE_SIZE,
-          h: PORT_HANDLE_SIZE,
-          geo: 'ellipse',
-          fill: 'solid',
-          dash: 'draw',
-          color: d.direction === 'in' ? 'blue' : 'green',
-        },
-        isLocked: true,
-        meta: {
-          [PORT_HANDLE_META_KEY]: true,
-          ownerShapeId: ownerShape.id,
-          projectorId: d.projectorId,
-          direction: d.direction,
-          yNorm: d.y,
-        },
-      } as any);
+    const expectedShape = makePortHandleShape(ownerShape, d.direction, d.projectorId, d.y);
+    const existingShape = existingById.get(shapeId);
+    if (existingShape) {
+      if (shouldUpdatePortHandleShape(existingShape, expectedShape)) {
+        editor.updateShape(expectedShape as any);
+      }
     } else {
-      editor.createShape({
-        id: shapeId,
-        type: 'geo',
-        x,
-        y,
-        parentId: ownerShape.parentId,
-        props: {
-          w: PORT_HANDLE_SIZE,
-          h: PORT_HANDLE_SIZE,
-          geo: 'ellipse',
-          fill: 'solid',
-          dash: 'draw',
-          color: d.direction === 'in' ? 'blue' : 'green',
-        },
-        isLocked: true,
-        meta: {
-          [PORT_HANDLE_META_KEY]: true,
-          ownerShapeId: ownerShape.id,
-          projectorId: d.projectorId,
-          direction: d.direction,
-          yNorm: d.y,
-        },
-      } as any);
+      editor.createShape(expectedShape as any);
     }
   }
 }
@@ -1640,6 +1655,7 @@ async function initializeSync(
   // 3b-5. Spazel edge ports as persisted geo ellipse shapes
   // ------------------------------------------------------------------
   const portsByOwner = new Map<TLShapeId, SpazePorts>();
+  let isReconcilingPortHandles = false;
 
   const reconcileOwnerHandles = (ownerShapeId: TLShapeId) => {
     const ownerShape: any = editor.getShape(ownerShapeId);
@@ -1652,6 +1668,19 @@ async function initializeSync(
     reconcilePortHandlesForOwner(editor, ownerShape, ports);
   };
 
+  const reconcileOwners = (ownerIds: Iterable<TLShapeId>) => {
+    const uniqueIds = [...new Set(ownerIds)];
+    if (uniqueIds.length === 0) return;
+    isReconcilingPortHandles = true;
+    try {
+      for (const ownerId of uniqueIds) {
+        reconcileOwnerHandles(ownerId);
+      }
+    } finally {
+      isReconcilingPortHandles = false;
+    }
+  };
+
   const handlePortsChanged = (event: Event) => {
     const custom = event as CustomEvent;
     const path = typeof custom.composedPath === 'function' ? custom.composedPath() : [];
@@ -1661,7 +1690,7 @@ async function initializeSync(
     const shapeId = wrapper?.getAttribute('data-shape-id') as TLShapeId | null;
     if (!shapeId) return;
     portsByOwner.set(shapeId, normalizeSpazePorts(custom.detail));
-    reconcileOwnerHandles(shapeId);
+    reconcileOwners([shapeId]);
   };
   container.addEventListener('patchwork:ports-changed', handlePortsChanged);
   cleanupFnsRef.current.push(() => {
@@ -1670,16 +1699,28 @@ async function initializeSync(
 
   const unsubPortHandleLayout = editor.store.listen(
     ({ changes }) => {
+      if (isReconcilingPortHandles) return;
+
+      const ownersToReconcile = new Set<TLShapeId>();
+
       for (const record of Object.values(changes.added)) {
         if ((record as any).type === PATCHWORK_DOC_SHAPE_TYPE) {
           const id = (record as any).id as TLShapeId;
-          if (portsByOwner.has(id)) reconcileOwnerHandles(id);
+          if (portsByOwner.has(id)) ownersToReconcile.add(id);
+          continue;
+        }
+        if (isPortHandleShape(record)) {
+          ownersToReconcile.add((record as any).meta.ownerShapeId as TLShapeId);
         }
       }
       for (const [, after] of Object.values(changes.updated)) {
         if ((after as any).type === PATCHWORK_DOC_SHAPE_TYPE) {
           const id = (after as any).id as TLShapeId;
-          if (portsByOwner.has(id)) reconcileOwnerHandles(id);
+          if (portsByOwner.has(id)) ownersToReconcile.add(id);
+          continue;
+        }
+        if (isPortHandleShape(after)) {
+          ownersToReconcile.add((after as any).meta.ownerShapeId as TLShapeId);
         }
       }
       for (const record of Object.values(changes.removed)) {
@@ -1687,8 +1728,14 @@ async function initializeSync(
           const id = (record as any).id as TLShapeId;
           portsByOwner.delete(id);
           removePortHandlesForOwner(editor, id);
+          continue;
+        }
+        if (isPortHandleShape(record)) {
+          ownersToReconcile.add((record as any).meta.ownerShapeId as TLShapeId);
         }
       }
+
+      reconcileOwners(ownersToReconcile);
     },
     { source: 'all', scope: 'document' },
   );

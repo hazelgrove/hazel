@@ -12,6 +12,7 @@ let builtins =
   @ List.map(hazel_fn_builtin, BuiltinsList.builtins)
   @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
   @ List.map(hazel_fn_builtin, BuiltinsJq.builtins)
+  @ List.map(hazel_fn_builtin, BuiltinsPetri.builtins)
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
   @ List.map(fn_builtin, BuiltinsTupleOperations.builtins)
