@@ -30,10 +30,13 @@ let concat_ = xss => call("concat", xss);
 let sconcat = (a, b) => E.bin_op(String(Concat), a, b);
 let int_add = (a, b) => E.bin_op(Int(Plus), a, b);
 let int_sub = (a, b) => E.bin_op(Int(Minus), a, b);
+let int_mul = (a, b) => E.bin_op(Int(Times), a, b);
+let int_div = (a, b) => E.bin_op(Int(Divide), a, b);
 let eq_ = (a, b) => E.bin_op(Poly(Equals), a, b);
 let lt_ = (a, b) => E.bin_op(Int(LessThan), a, b);
 let gt_ = (a, b) => E.bin_op(Int(GreaterThan), a, b);
 let le_ = (a, b) => E.bin_op(Int(LessThanOrEqual), a, b);
+let ge_ = (a, b) => E.bin_op(Int(GreaterThanOrEqual), a, b);
 
 let jstr = s => E.ap(Forward, JSON.json_string, E.string(s));
 let jint = i => E.ap(Forward, JSON.json_int, E.int(i));
@@ -41,6 +44,8 @@ let jlist = xs => E.ap(Forward, JSON.json_list, E.list_lit(xs));
 let jassoc = pairs => E.ap(Forward, JSON.json_assoc, E.list_lit(pairs));
 let pair = (k: string, v) => E.tuple([E.string(k), v]);
 let json_t = Typ.term_of(JSON.t);
+let json_list_term = Typ.term_of(list(JSON.t));
+let string_list_term = Typ.term_of(list(string()));
 
 let builtins: list(BuiltinsUtil.hazel_fn) = [
   {
@@ -455,6 +460,1231 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
               ),
               None,
               Some("arc_set_target+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "str_startswith",
+    str: {|fix str_startswith -> fun s -> fun prefix ->
+  jq1([jq_startswith(prefix)])(String(s)) == Bool(true)|},
+    arg: Atom(String),
+    ret: Arrow(string(), bool()),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("str_startswith"),
+            fn(
+              P.var("s"),
+              fn(
+                P.var("prefix"),
+                eq_(
+                  call2(
+                    "jq1",
+                    list1(call("jq_startswith", E.var("prefix"))),
+                    E.ap(Forward, JSON.json_string, E.var("s")),
+                  ),
+                  E.ap(Forward, JSON.json_bool, E.bool(true)),
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("str_startswith+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "parse_suffix_int",
+    str: {|fix parse_suffix_int -> fun id -> fun marker ->
+  case string_split(marker, id)
+  | _::n::[] => int_of_string(n)
+  | _ => 0
+  end|},
+    arg: Atom(String),
+    ret: Arrow(string(), int()),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("parse_suffix_int"),
+            fn(
+              P.var("id"),
+              fn(
+                P.var("marker"),
+                match(
+                  call2("string_split", E.var("marker"), E.var("id")),
+                  [
+                    (
+                      P.cons(P.wild(), P.cons(P.var("n"), P.list_lit([]))),
+                      call("int_of_string", E.var("n")),
+                    ),
+                    (P.wild(), E.int(0)),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("parse_suffix_int+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "count_nodes_with_prefix",
+    str: {|fix count_nodes_with_prefix -> fun nodes -> fun prefix ->
+  length(filter(nodes, fun node -> str_startswith(get_id(node))(prefix)))|},
+    arg: json_list_term,
+    ret: Arrow(string(), int()),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("count_nodes_with_prefix"),
+            fn(
+              P.var("nodes"),
+              fn(
+                P.var("prefix"),
+                call(
+                  "length",
+                  filter_(
+                    E.var("nodes"),
+                    fn(
+                      P.var("node"),
+                      call2(
+                        "str_startswith",
+                        call("get_id", E.var("node")),
+                        E.var("prefix"),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ),
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("count_nodes_with_prefix+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "node_x",
+    str: {|fix node_x -> fun node ->
+  case jq1([jq_field("position"), jq_field("x")])(node)
+  | Int(x) => x
+  | _ => 0
+  end|},
+    arg: json_t,
+    ret: Atom(Int),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("node_x"),
+            fn(
+              P.var("node"),
+              match(
+                call2(
+                  "jq1",
+                  E.list_lit([
+                    call("jq_field", E.string("position")),
+                    call("jq_field", E.string("x")),
+                  ]),
+                  E.var("node"),
+                ),
+                [
+                  (P.ap(JSON.pat_json_int, P.var("x")), E.var("x")),
+                  (P.wild(), E.int(0)),
+                ],
+              ),
+              None,
+              Some("node_x+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "node_y",
+    str: {|fix node_y -> fun node ->
+  case jq1([jq_field("position"), jq_field("y")])(node)
+  | Int(y) => y
+  | _ => 0
+  end|},
+    arg: json_t,
+    ret: Atom(Int),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("node_y"),
+            fn(
+              P.var("node"),
+              match(
+                call2(
+                  "jq1",
+                  E.list_lit([
+                    call("jq_field", E.string("position")),
+                    call("jq_field", E.string("y")),
+                  ]),
+                  E.var("node"),
+                ),
+                [
+                  (P.ap(JSON.pat_json_int, P.var("y")), E.var("y")),
+                  (P.wild(), E.int(0)),
+                ],
+              ),
+              None,
+              Some("node_y+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "set_node_position",
+    str: {|fix set_node_position -> fun node -> fun x -> fun y ->
+  jq1([jq_set("position", Assoc([("x", Int(x)), ("y", Int(y))]))])(node)|},
+    arg: json_t,
+    ret: Arrow(int(), arrow(int(), JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("set_node_position"),
+            fn(
+              P.var("node"),
+              fn(
+                P.var("x"),
+                fn(
+                  P.var("y"),
+                  call2(
+                    "jq1",
+                    list1(
+                      call(
+                        "jq_set",
+                        t2(
+                          E.string("position"),
+                          jassoc([
+                            pair(
+                              "x",
+                              E.ap(Forward, JSON.json_int, E.var("x")),
+                            ),
+                            pair(
+                              "y",
+                              E.ap(Forward, JSON.json_int, E.var("y")),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    E.var("node"),
+                  ),
+                  None,
+                  None,
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("set_node_position+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "translate_node",
+    str: {|fix translate_node -> fun node -> fun dx -> fun dy ->
+  set_node_position(node)(node_x(node) + dx)(node_y(node) + dy)|},
+    arg: json_t,
+    ret: Arrow(int(), arrow(int(), JSON.t)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("translate_node"),
+            fn(
+              P.var("node"),
+              fn(
+                P.var("dx"),
+                fn(
+                  P.var("dy"),
+                  call3(
+                    "set_node_position",
+                    E.var("node"),
+                    int_add(call("node_x", E.var("node")), E.var("dx")),
+                    int_add(call("node_y", E.var("node")), E.var("dy")),
+                  ),
+                  None,
+                  None,
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("translate_node+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "lane_x",
+    str: {|fix lane_x -> fun i -> fun count ->
+  ((2 * i - count - 1) * 260) / 2|},
+    arg: Atom(Int),
+    ret: Arrow(int(), int()),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("lane_x"),
+            fn(
+              P.var("i"),
+              fn(
+                P.var("count"),
+                int_div(
+                  int_mul(
+                    int_sub(
+                      int_sub(
+                        int_mul(E.int(2), E.var("i")),
+                        E.var("count"),
+                      ),
+                      E.int(1),
+                    ),
+                    E.int(260),
+                  ),
+                  E.int(2),
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("lane_x+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "list_contains_string",
+    str: {|fix list_contains_string -> fun xs -> fun target ->
+  case xs
+  | [] => false
+  | x::xs' => if x == target then true else list_contains_string(xs')(target)
+  end|},
+    arg: string_list_term,
+    ret: Arrow(string(), bool()),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("list_contains_string"),
+            fn(
+              P.var("xs"),
+              fn(
+                P.var("target"),
+                match(
+                  E.var("xs"),
+                  [
+                    (P.list_lit([]), E.bool(false)),
+                    (
+                      P.cons(P.var("x"), P.var("xs")),
+                      if_(
+                        eq_(E.var("x"), E.var("target")),
+                        E.bool(true),
+                        call2(
+                          "list_contains_string",
+                          E.var("xs"),
+                          E.var("target"),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("list_contains_string+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "average_position_for_ids",
+    str: {|fix average_position_for_ids -> fun nodes -> fun ids ->
+  let selected = filter(nodes, fun node -> list_contains_string(ids)(get_id(node))) in
+  case selected
+  | [] => (0, 0)
+  | _ =>
+    let (sum_x, sum_y, count) =
+      fold_left(
+        selected,
+        fun ((sx, sy, c), node) -> (sx + node_x(node), sy + node_y(node), c + 1)
+      )((0, 0, 0))
+    in
+    (sum_x / count, sum_y / count)
+  end|},
+    arg: json_list_term,
+    ret: Arrow(list(string()), unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("average_position_for_ids"),
+            fn(
+              P.var("nodes"),
+              fn(
+                P.var("ids"),
+                let_(
+                  P.var("selected"),
+                  filter_(
+                    E.var("nodes"),
+                    fn(
+                      P.var("node"),
+                      call2(
+                        "list_contains_string",
+                        E.var("ids"),
+                        call("get_id", E.var("node")),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ),
+                  match(
+                    E.var("selected"),
+                    [
+                      (P.list_lit([]), t2(E.int(0), E.int(0))),
+                      (
+                        P.wild(),
+                        let_(
+                          P.tuple([
+                            P.var("sum_x"),
+                            P.var("sum_y"),
+                            P.var("count"),
+                          ]),
+                          call(
+                            "fold_left",
+                            t3(
+                              E.var("selected"),
+                              fn(
+                                P.tuple([
+                                  P.tuple([
+                                    P.var("sx"),
+                                    P.var("sy"),
+                                    P.var("c"),
+                                  ]),
+                                  P.var("node"),
+                                ]),
+                                t3(
+                                  int_add(
+                                    E.var("sx"),
+                                    call("node_x", E.var("node")),
+                                  ),
+                                  int_add(
+                                    E.var("sy"),
+                                    call("node_y", E.var("node")),
+                                  ),
+                                  int_add(E.var("c"), E.int(1)),
+                                ),
+                                None,
+                                None,
+                              ),
+                              t3(E.int(0), E.int(0), E.int(0)),
+                            ),
+                          ),
+                          t2(
+                            int_div(E.var("sum_x"), E.var("count")),
+                            int_div(E.var("sum_y"), E.var("count")),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("average_position_for_ids+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "shift_nodes_near",
+    str: {|fix shift_nodes_near -> fun nodes -> fun ax -> fun ay -> fun dx ->
+  map(
+    nodes,
+    fun node ->
+      let nx = node_x(node) in
+      let ny = node_y(node) in
+      if ax - 260 <= nx && nx <= ax + 260 && ay - 180 <= ny && ny <= ay + 6 * 180
+      then translate_node(node)(dx)(0)
+      else node
+  )|},
+    arg: json_list_term,
+    ret: Arrow(int(), arrow(int(), arrow(int(), list(JSON.t)))),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("shift_nodes_near"),
+            fn(
+              P.var("nodes"),
+              fn(
+                P.var("ax"),
+                fn(
+                  P.var("ay"),
+                  fn(
+                    P.var("dx"),
+                    map_(
+                      E.var("nodes"),
+                      fn(
+                        P.var("node"),
+                        let_(
+                          P.var("nx"),
+                          call("node_x", E.var("node")),
+                          let_(
+                            P.var("ny"),
+                            call("node_y", E.var("node")),
+                            if_(
+                              E.bin_op(
+                                Bool(And),
+                                E.bin_op(
+                                  Bool(And),
+                                  le_(
+                                    int_sub(E.var("ax"), E.int(260)),
+                                    E.var("nx"),
+                                  ),
+                                  le_(
+                                    E.var("nx"),
+                                    int_add(E.var("ax"), E.int(260)),
+                                  ),
+                                ),
+                                E.bin_op(
+                                  Bool(And),
+                                  le_(
+                                    int_sub(E.var("ay"), E.int(180)),
+                                    E.var("ny"),
+                                  ),
+                                  le_(
+                                    E.var("ny"),
+                                    int_add(
+                                      E.var("ay"),
+                                      int_mul(E.int(6), E.int(180)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              call3(
+                                "translate_node",
+                                E.var("node"),
+                                E.var("dx"),
+                                E.int(0),
+                              ),
+                              E.var("node"),
+                            ),
+                          ),
+                        ),
+                        None,
+                        None,
+                      ),
+                    ),
+                    None,
+                    None,
+                  ),
+                  None,
+                  None,
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("shift_nodes_near+"),
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    name: "layout_module_nodes",
+    str: {|fix layout_module_nodes -> fun module_nodes -> fun pin -> fun pout ->
+  let prefix =
+    case string_split("_pin", pin)
+    | p::_ => p
+    | [] => pin
+    end
+  in
+  let split_id = prefix ++ "_split" in
+  let join_id = prefix ++ "_join" in
+  let has_split = length(filter(module_nodes, fun node -> get_id(node) == split_id)) > 0 in
+  let has_choose = count_nodes_with_prefix(module_nodes)(prefix ++ "_choose") > 0 in
+  let has_ctrl = count_nodes_with_prefix(module_nodes)(prefix ++ "_ctrl") > 0 in
+  let branch_count = count_nodes_with_prefix(module_nodes)(prefix ++ "_b") in
+  let trans_count = count_nodes_with_prefix(module_nodes)(prefix ++ "_t") in
+  map(
+    module_nodes,
+    fun node ->
+      let id = get_id(node) in
+      if id == pin
+      then set_node_position(node)(0)(0)
+      else if has_split
+      then
+        if id == pout
+        then set_node_position(node)(0)(4 * 180)
+        else if id == split_id
+        then set_node_position(node)(0)(180)
+        else if id == join_id
+        then set_node_position(node)(0)(3 * 180)
+        else if str_startswith(id)(prefix ++ "_b")
+        then
+          let i = parse_suffix_int(id)("_b") in
+          set_node_position(node)(lane_x(i)(branch_count))(2 * 180)
+        else node
+      else if has_choose && has_ctrl
+      then
+        if id == pout
+        then set_node_position(node)(0)(5 * 180)
+        else if str_startswith(id)(prefix ++ "_ctrl")
+        then
+          let i = parse_suffix_int(id)("_ctrl") in
+          set_node_position(node)(lane_x(i)(branch_count))(180)
+        else if str_startswith(id)(prefix ++ "_choose")
+        then
+          let i = parse_suffix_int(id)("_choose") in
+          set_node_position(node)(lane_x(i)(branch_count))(2 * 180)
+        else if str_startswith(id)(prefix ++ "_b")
+        then
+          let i = parse_suffix_int(id)("_b") in
+          set_node_position(node)(lane_x(i)(branch_count))(3 * 180)
+        else if str_startswith(id)(prefix ++ "_done")
+        then
+          let i = parse_suffix_int(id)("_done") in
+          set_node_position(node)(lane_x(i)(branch_count))(4 * 180)
+        else node
+      else if has_choose
+      then
+        if id == pout
+        then set_node_position(node)(0)(4 * 180)
+        else if str_startswith(id)(prefix ++ "_choose")
+        then
+          let i = parse_suffix_int(id)("_choose") in
+          set_node_position(node)(lane_x(i)(branch_count))(180)
+        else if str_startswith(id)(prefix ++ "_b")
+        then
+          let i = parse_suffix_int(id)("_b") in
+          set_node_position(node)(lane_x(i)(branch_count))(2 * 180)
+        else if str_startswith(id)(prefix ++ "_done")
+        then
+          let i = parse_suffix_int(id)("_done") in
+          set_node_position(node)(lane_x(i)(branch_count))(3 * 180)
+        else node
+      else
+        if id == pout
+        then set_node_position(node)(0)(2 * trans_count * 180)
+        else if str_startswith(id)(prefix ++ "_t")
+        then
+          let i = parse_suffix_int(id)("_t") in
+          set_node_position(node)(0)((2 * i - 1) * 180)
+        else if str_startswith(id)(prefix ++ "_p")
+        then
+          let i = parse_suffix_int(id)("_p") in
+          set_node_position(node)(0)(2 * i * 180)
+        else node
+  )|},
+    arg: json_list_term,
+    ret: Arrow(string(), arrow(string(), list(JSON.t))),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            P.var("layout_module_nodes"),
+            fn(
+              P.var("module_nodes"),
+              fn(
+                P.var("pin"),
+                fn(
+                  P.var("pout"),
+                  let_(
+                    P.var("prefix"),
+                    match(
+                      call2("string_split", E.string("_pin"), E.var("pin")),
+                      [
+                        (P.cons(P.var("p"), P.wild()), E.var("p")),
+                        (P.list_lit([]), E.var("pin")),
+                      ],
+                    ),
+                    let_(
+                      P.var("split_id"),
+                      sconcat(E.var("prefix"), E.string("_split")),
+                      let_(
+                        P.var("join_id"),
+                        sconcat(E.var("prefix"), E.string("_join")),
+                        let_(
+                          P.var("has_split"),
+                          gt_(
+                            call(
+                              "length",
+                              filter_(
+                                E.var("module_nodes"),
+                                fn(
+                                  P.var("node"),
+                                  eq_(
+                                    call("get_id", E.var("node")),
+                                    E.var("split_id"),
+                                  ),
+                                  None,
+                                  None,
+                                ),
+                              ),
+                            ),
+                            E.int(0),
+                          ),
+                          let_(
+                            P.var("has_choose"),
+                            gt_(
+                              call2(
+                                "count_nodes_with_prefix",
+                                E.var("module_nodes"),
+                                sconcat(
+                                  E.var("prefix"),
+                                  E.string("_choose"),
+                                ),
+                              ),
+                              E.int(0),
+                            ),
+                            let_(
+                              P.var("has_ctrl"),
+                              gt_(
+                                call2(
+                                  "count_nodes_with_prefix",
+                                  E.var("module_nodes"),
+                                  sconcat(
+                                    E.var("prefix"),
+                                    E.string("_ctrl"),
+                                  ),
+                                ),
+                                E.int(0),
+                              ),
+                              let_(
+                                P.var("branch_count"),
+                                call2(
+                                  "count_nodes_with_prefix",
+                                  E.var("module_nodes"),
+                                  sconcat(E.var("prefix"), E.string("_b")),
+                                ),
+                                let_(
+                                  P.var("trans_count"),
+                                  call2(
+                                    "count_nodes_with_prefix",
+                                    E.var("module_nodes"),
+                                    sconcat(
+                                      E.var("prefix"),
+                                      E.string("_t"),
+                                    ),
+                                  ),
+                                  map_(
+                                    E.var("module_nodes"),
+                                    fn(
+                                      P.var("node"),
+                                      let_(
+                                        P.var("id"),
+                                        call("get_id", E.var("node")),
+                                        if_(
+                                          eq_(E.var("id"), E.var("pin")),
+                                          call3(
+                                            "set_node_position",
+                                            E.var("node"),
+                                            E.int(0),
+                                            E.int(0),
+                                          ),
+                                          if_(
+                                            E.var("has_split"),
+                                            if_(
+                                              eq_(
+                                                E.var("id"),
+                                                E.var("pout"),
+                                              ),
+                                              call3(
+                                                "set_node_position",
+                                                E.var("node"),
+                                                E.int(0),
+                                                int_mul(
+                                                  E.int(4),
+                                                  E.int(180),
+                                                ),
+                                              ),
+                                              if_(
+                                                eq_(
+                                                  E.var("id"),
+                                                  E.var("split_id"),
+                                                ),
+                                                call3(
+                                                  "set_node_position",
+                                                  E.var("node"),
+                                                  E.int(0),
+                                                  E.int(180),
+                                                ),
+                                                if_(
+                                                  eq_(
+                                                    E.var("id"),
+                                                    E.var("join_id"),
+                                                  ),
+                                                  call3(
+                                                    "set_node_position",
+                                                    E.var("node"),
+                                                    E.int(0),
+                                                    int_mul(
+                                                      E.int(3),
+                                                      E.int(180),
+                                                    ),
+                                                  ),
+                                                  if_(
+                                                    call2(
+                                                      "str_startswith",
+                                                      E.var("id"),
+                                                      sconcat(
+                                                        E.var("prefix"),
+                                                        E.string("_b"),
+                                                      ),
+                                                    ),
+                                                    let_(
+                                                      P.var("i"),
+                                                      call2(
+                                                        "parse_suffix_int",
+                                                        E.var("id"),
+                                                        E.string("_b"),
+                                                      ),
+                                                      call3(
+                                                        "set_node_position",
+                                                        E.var("node"),
+                                                        call2(
+                                                          "lane_x",
+                                                          E.var("i"),
+                                                          E.var(
+                                                            "branch_count",
+                                                          ),
+                                                        ),
+                                                        int_mul(
+                                                          E.int(2),
+                                                          E.int(180),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    E.var("node"),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            if_(
+                                              E.bin_op(
+                                                Bool(And),
+                                                E.var("has_choose"),
+                                                E.var("has_ctrl"),
+                                              ),
+                                              if_(
+                                                eq_(
+                                                  E.var("id"),
+                                                  E.var("pout"),
+                                                ),
+                                                call3(
+                                                  "set_node_position",
+                                                  E.var("node"),
+                                                  E.int(0),
+                                                  int_mul(
+                                                    E.int(5),
+                                                    E.int(180),
+                                                  ),
+                                                ),
+                                                if_(
+                                                  call2(
+                                                    "str_startswith",
+                                                    E.var("id"),
+                                                    sconcat(
+                                                      E.var("prefix"),
+                                                      E.string("_ctrl"),
+                                                    ),
+                                                  ),
+                                                  let_(
+                                                    P.var("i"),
+                                                    call2(
+                                                      "parse_suffix_int",
+                                                      E.var("id"),
+                                                      E.string("_ctrl"),
+                                                    ),
+                                                    call3(
+                                                      "set_node_position",
+                                                      E.var("node"),
+                                                      call2(
+                                                        "lane_x",
+                                                        E.var("i"),
+                                                        E.var("branch_count"),
+                                                      ),
+                                                      E.int(180),
+                                                    ),
+                                                  ),
+                                                  if_(
+                                                    call2(
+                                                      "str_startswith",
+                                                      E.var("id"),
+                                                      sconcat(
+                                                        E.var("prefix"),
+                                                        E.string("_choose"),
+                                                      ),
+                                                    ),
+                                                    let_(
+                                                      P.var("i"),
+                                                      call2(
+                                                        "parse_suffix_int",
+                                                        E.var("id"),
+                                                        E.string("_choose"),
+                                                      ),
+                                                      call3(
+                                                        "set_node_position",
+                                                        E.var("node"),
+                                                        call2(
+                                                          "lane_x",
+                                                          E.var("i"),
+                                                          E.var(
+                                                            "branch_count",
+                                                          ),
+                                                        ),
+                                                        int_mul(
+                                                          E.int(2),
+                                                          E.int(180),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if_(
+                                                      call2(
+                                                        "str_startswith",
+                                                        E.var("id"),
+                                                        sconcat(
+                                                          E.var("prefix"),
+                                                          E.string("_b"),
+                                                        ),
+                                                      ),
+                                                      let_(
+                                                        P.var("i"),
+                                                        call2(
+                                                          "parse_suffix_int",
+                                                          E.var("id"),
+                                                          E.string("_b"),
+                                                        ),
+                                                        call3(
+                                                          "set_node_position",
+                                                          E.var("node"),
+                                                          call2(
+                                                            "lane_x",
+                                                            E.var("i"),
+                                                            E.var(
+                                                              "branch_count",
+                                                            ),
+                                                          ),
+                                                          int_mul(
+                                                            E.int(3),
+                                                            E.int(180),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if_(
+                                                        call2(
+                                                          "str_startswith",
+                                                          E.var("id"),
+                                                          sconcat(
+                                                            E.var("prefix"),
+                                                            E.string("_done"),
+                                                          ),
+                                                        ),
+                                                        let_(
+                                                          P.var("i"),
+                                                          call2(
+                                                            "parse_suffix_int",
+                                                            E.var("id"),
+                                                            E.string("_done"),
+                                                          ),
+                                                          call3(
+                                                            "set_node_position",
+                                                            E.var("node"),
+                                                            call2(
+                                                              "lane_x",
+                                                              E.var("i"),
+                                                              E.var(
+                                                                "branch_count",
+                                                              ),
+                                                            ),
+                                                            int_mul(
+                                                              E.int(4),
+                                                              E.int(180),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        E.var("node"),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              if_(
+                                                E.var("has_choose"),
+                                                if_(
+                                                  eq_(
+                                                    E.var("id"),
+                                                    E.var("pout"),
+                                                  ),
+                                                  call3(
+                                                    "set_node_position",
+                                                    E.var("node"),
+                                                    E.int(0),
+                                                    int_mul(
+                                                      E.int(4),
+                                                      E.int(180),
+                                                    ),
+                                                  ),
+                                                  if_(
+                                                    call2(
+                                                      "str_startswith",
+                                                      E.var("id"),
+                                                      sconcat(
+                                                        E.var("prefix"),
+                                                        E.string("_choose"),
+                                                      ),
+                                                    ),
+                                                    let_(
+                                                      P.var("i"),
+                                                      call2(
+                                                        "parse_suffix_int",
+                                                        E.var("id"),
+                                                        E.string("_choose"),
+                                                      ),
+                                                      call3(
+                                                        "set_node_position",
+                                                        E.var("node"),
+                                                        call2(
+                                                          "lane_x",
+                                                          E.var("i"),
+                                                          E.var(
+                                                            "branch_count",
+                                                          ),
+                                                        ),
+                                                        E.int(180),
+                                                      ),
+                                                    ),
+                                                    if_(
+                                                      call2(
+                                                        "str_startswith",
+                                                        E.var("id"),
+                                                        sconcat(
+                                                          E.var("prefix"),
+                                                          E.string("_b"),
+                                                        ),
+                                                      ),
+                                                      let_(
+                                                        P.var("i"),
+                                                        call2(
+                                                          "parse_suffix_int",
+                                                          E.var("id"),
+                                                          E.string("_b"),
+                                                        ),
+                                                        call3(
+                                                          "set_node_position",
+                                                          E.var("node"),
+                                                          call2(
+                                                            "lane_x",
+                                                            E.var("i"),
+                                                            E.var(
+                                                              "branch_count",
+                                                            ),
+                                                          ),
+                                                          int_mul(
+                                                            E.int(2),
+                                                            E.int(180),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if_(
+                                                        call2(
+                                                          "str_startswith",
+                                                          E.var("id"),
+                                                          sconcat(
+                                                            E.var("prefix"),
+                                                            E.string("_done"),
+                                                          ),
+                                                        ),
+                                                        let_(
+                                                          P.var("i"),
+                                                          call2(
+                                                            "parse_suffix_int",
+                                                            E.var("id"),
+                                                            E.string("_done"),
+                                                          ),
+                                                          call3(
+                                                            "set_node_position",
+                                                            E.var("node"),
+                                                            call2(
+                                                              "lane_x",
+                                                              E.var("i"),
+                                                              E.var(
+                                                                "branch_count",
+                                                              ),
+                                                            ),
+                                                            int_mul(
+                                                              E.int(3),
+                                                              E.int(180),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        E.var("node"),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                if_(
+                                                  eq_(
+                                                    E.var("id"),
+                                                    E.var("pout"),
+                                                  ),
+                                                  call3(
+                                                    "set_node_position",
+                                                    E.var("node"),
+                                                    E.int(0),
+                                                    int_mul(
+                                                      int_mul(
+                                                        E.int(2),
+                                                        E.var("trans_count"),
+                                                      ),
+                                                      E.int(180),
+                                                    ),
+                                                  ),
+                                                  if_(
+                                                    call2(
+                                                      "str_startswith",
+                                                      E.var("id"),
+                                                      sconcat(
+                                                        E.var("prefix"),
+                                                        E.string("_t"),
+                                                      ),
+                                                    ),
+                                                    let_(
+                                                      P.var("i"),
+                                                      call2(
+                                                        "parse_suffix_int",
+                                                        E.var("id"),
+                                                        E.string("_t"),
+                                                      ),
+                                                      call3(
+                                                        "set_node_position",
+                                                        E.var("node"),
+                                                        E.int(0),
+                                                        int_mul(
+                                                          int_sub(
+                                                            int_mul(
+                                                              E.int(2),
+                                                              E.var("i"),
+                                                            ),
+                                                            E.int(1),
+                                                          ),
+                                                          E.int(180),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if_(
+                                                      call2(
+                                                        "str_startswith",
+                                                        E.var("id"),
+                                                        sconcat(
+                                                          E.var("prefix"),
+                                                          E.string("_p"),
+                                                        ),
+                                                      ),
+                                                      let_(
+                                                        P.var("i"),
+                                                        call2(
+                                                          "parse_suffix_int",
+                                                          E.var("id"),
+                                                          E.string("_p"),
+                                                        ),
+                                                        call3(
+                                                          "set_node_position",
+                                                          E.var("node"),
+                                                          E.int(0),
+                                                          int_mul(
+                                                            int_mul(
+                                                              E.int(2),
+                                                              E.var("i"),
+                                                            ),
+                                                            E.int(180),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      E.var("node"),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      None,
+                                      None,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  None,
+                  None,
+                ),
+                None,
+                None,
+              ),
+              None,
+              Some("layout_module_nodes+"),
             ),
             None,
           )
@@ -2055,26 +3285,29 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                           ),
                           let_(
                             P.var("lock_arcs"),
-                            flat_map_(
-                              E.var("pairs"),
-                              fn(
-                                P.tuple([P.var("ta"), P.var("tb")]),
-                                list2(
-                                  call3(
-                                    "mk_arc",
-                                    E.var("resource_place_id"),
-                                    E.var("ta"),
-                                    E.int(1),
+                            call(
+                              "flat_map",
+                              t2(
+                                E.var("pairs"),
+                                fn(
+                                  P.tuple([P.var("ta"), P.var("tb")]),
+                                  list2(
+                                    call3(
+                                      "mk_arc",
+                                      E.var("resource_place_id"),
+                                      E.var("ta"),
+                                      E.int(1),
+                                    ),
+                                    call3(
+                                      "mk_arc",
+                                      E.var("tb"),
+                                      E.var("resource_place_id"),
+                                      E.int(1),
+                                    ),
                                   ),
-                                  call3(
-                                    "mk_arc",
-                                    E.var("tb"),
-                                    E.var("resource_place_id"),
-                                    E.int(1),
-                                  ),
+                                  None,
+                                  None,
                                 ),
-                                None,
-                                None,
                               ),
                             ),
                             let_(

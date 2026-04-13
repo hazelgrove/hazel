@@ -66,6 +66,245 @@ let arc_set_target = fun arc -> fun tgt ->
   jq1([jq_set("target", String(tgt))])(arc)
 in
 
+# Layout constants used for generated refinement geometry. #
+let layout_dx = 260 in
+let layout_dy = 180 in
+let layout_padding = 40 in
+
+# String prefix predicate implemented via jq helpers. #
+let str_startswith = fun s -> fun prefix ->
+  jq1([jq_startswith(prefix)])(String(s)) == Bool(true)
+in
+
+# Parse the integer suffix after marker, e.g. parse_suffix_int("seq_t2")("_t") = 2. #
+let parse_suffix_int = fun id -> fun marker ->
+  case string_split(marker, id)
+  | _::n::[] => int_of_string(n)
+  | _ => 0
+  end
+in
+
+# Count nodes whose id starts with prefix. #
+let count_nodes_with_prefix = fun nodes -> fun prefix ->
+  length(filter(nodes, fun node -> str_startswith(get_id(node))(prefix)))
+in
+
+# Extract node position and geometry with safe defaults. #
+let node_x = fun node ->
+  case jq1([jq_field("position"), jq_field("x")])(node)
+  | Int(x) => x
+  | _ => 0
+  end
+in
+let node_y = fun node ->
+  case jq1([jq_field("position"), jq_field("y")])(node)
+  | Int(y) => y
+  | _ => 0
+  end
+in
+let node_width = fun node ->
+  case jq1([jq_field("width")])(node)
+  | Int(w) => w
+  | _ =>
+    if jq1([jq_field("type")])(node) == String("transition")
+    then 160
+    else 130
+  end
+in
+let node_height = fun node ->
+  case jq1([jq_field("height")])(node)
+  | Int(h) => h
+  | _ =>
+    if jq1([jq_field("type")])(node) == String("transition")
+    then 80
+    else 130
+  end
+in
+
+# Rewrite node position in-place. #
+let set_node_position = fun node -> fun x -> fun y ->
+  jq1([jq_set("position", Assoc([("x", Int(x)), ("y", Int(y))]))])(node)
+in
+let translate_node = fun node -> fun dx -> fun dy ->
+  set_node_position(node)(node_x(node) + dx)(node_y(node) + dy)
+in
+
+# Rectangles are represented as (x1, y1, x2, y2). #
+let node_bounds = fun node ->
+  let x = node_x(node) in
+  let y = node_y(node) in
+  (x, y, x + node_width(node), y + node_height(node))
+in
+let bounds_overlap = fun (ax1, ay1, ax2, ay2) -> fun (bx1, by1, bx2, by2) ->
+  ax1 <= bx2 && bx1 <= ax2 && ay1 <= by2 && by1 <= ay2
+in
+let expand_bounds = fun (x1, y1, x2, y2) -> fun pad ->
+  (x1 - pad, y1 - pad, x2 + pad, y2 + pad)
+in
+let bounds_of_nodes = fun nodes ->
+  case nodes
+  | [] => (0, 0, 0, 0)
+  | n::ns =>
+    let (x1, y1, x2, y2) = node_bounds(n) in
+    fold_left(
+      ns,
+      fun ((ax1, ay1, ax2, ay2), node) ->
+        let (bx1, by1, bx2, by2) = node_bounds(node) in
+        (
+          if bx1 < ax1 then bx1 else ax1,
+          if by1 < ay1 then by1 else ay1,
+          if bx2 > ax2 then bx2 else ax2,
+          if by2 > ay2 then by2 else ay2
+        )
+    )((x1, y1, x2, y2))
+  end
+in
+let merge_nodes_avoid_overlap = fun kept_nodes -> fun new_nodes ->
+  case new_nodes
+  | [] => kept_nodes
+  | _ =>
+    let module_bounds = expand_bounds(bounds_of_nodes(new_nodes))(layout_padding) in
+    let (mx1, _my1, mx2, _my2) = module_bounds in
+    let shift_dx = (mx2 - mx1) + layout_dx in
+    map(
+      kept_nodes,
+      fun node ->
+        if bounds_overlap(node_bounds(node))(module_bounds)
+        then translate_node(node)(shift_dx)(0)
+        else node
+    ) @ new_nodes
+  end
+in
+
+# Shift existing nodes that are near a placement anchor. #
+let shift_nodes_near = fun nodes -> fun ax -> fun ay -> fun dx ->
+  map(
+    nodes,
+    fun node ->
+      let nx = node_x(node) in
+      let ny = node_y(node) in
+      if ax - layout_dx <= nx
+         && nx <= ax + layout_dx
+         && ay - layout_dy <= ny
+         && ny <= ay + 6 * layout_dy
+      then translate_node(node)(dx)(0)
+      else node
+  )
+in
+
+# Helpers for lane assignment and membership checks. #
+let lane_x = fun i -> fun count ->
+  ((2 * i - count - 1) * layout_dx) / 2
+in
+let list_contains_string =
+  fix list_contains_string -> fun xs -> fun target ->
+    case xs
+    | [] => false
+    | x::xs' => if x == target then true else list_contains_string(xs')(target)
+    end
+in
+let average_position_for_ids = fun nodes -> fun ids ->
+  let selected = filter(nodes, fun node -> list_contains_string(ids)(get_id(node))) in
+  case selected
+  | [] => (0, 0)
+  | _ =>
+    let (sum_x, sum_y, count) =
+      fold_left(
+        selected,
+        fun ((sx, sy, c), node) -> (sx + node_x(node), sy + node_y(node), c + 1)
+      )((0, 0, 0))
+    in
+    (sum_x / count, sum_y / count)
+  end
+in
+
+# Assign deterministic module-local positions (before anchoring to target place). #
+let layout_module_nodes = fun module_nodes -> fun pin -> fun pout ->
+  let prefix =
+    case string_split("_pin", pin)
+    | p::_ => p
+    | [] => pin
+    end
+  in
+  let split_id = prefix ++ "_split" in
+  let join_id = prefix ++ "_join" in
+  let has_split = length(filter(module_nodes, fun node -> get_id(node) == split_id)) > 0 in
+  let has_choose = count_nodes_with_prefix(module_nodes)(prefix ++ "_choose") > 0 in
+  let has_ctrl = count_nodes_with_prefix(module_nodes)(prefix ++ "_ctrl") > 0 in
+  let branch_count = count_nodes_with_prefix(module_nodes)(prefix ++ "_b") in
+  let trans_count = count_nodes_with_prefix(module_nodes)(prefix ++ "_t") in
+  map(
+    module_nodes,
+    fun node ->
+      let id = get_id(node) in
+      if id == pin
+      then set_node_position(node)(0)(0)
+      else if has_split
+      then
+        if id == pout
+        then set_node_position(node)(0)(4 * layout_dy)
+        else if id == split_id
+        then set_node_position(node)(0)(layout_dy)
+        else if id == join_id
+        then set_node_position(node)(0)(3 * layout_dy)
+        else if str_startswith(id)(prefix ++ "_b")
+        then
+          let i = parse_suffix_int(id)("_b") in
+          set_node_position(node)(lane_x(i)(branch_count))(2 * layout_dy)
+        else node
+      else if has_choose && has_ctrl
+      then
+        if id == pout
+        then set_node_position(node)(0)(5 * layout_dy)
+        else if str_startswith(id)(prefix ++ "_ctrl")
+        then
+          let i = parse_suffix_int(id)("_ctrl") in
+          set_node_position(node)(lane_x(i)(branch_count))(layout_dy)
+        else if str_startswith(id)(prefix ++ "_choose")
+        then
+          let i = parse_suffix_int(id)("_choose") in
+          set_node_position(node)(lane_x(i)(branch_count))(2 * layout_dy)
+        else if str_startswith(id)(prefix ++ "_b")
+        then
+          let i = parse_suffix_int(id)("_b") in
+          set_node_position(node)(lane_x(i)(branch_count))(3 * layout_dy)
+        else if str_startswith(id)(prefix ++ "_done")
+        then
+          let i = parse_suffix_int(id)("_done") in
+          set_node_position(node)(lane_x(i)(branch_count))(4 * layout_dy)
+        else node
+      else if has_choose
+      then
+        if id == pout
+        then set_node_position(node)(0)(4 * layout_dy)
+        else if str_startswith(id)(prefix ++ "_choose")
+        then
+          let i = parse_suffix_int(id)("_choose") in
+          set_node_position(node)(lane_x(i)(branch_count))(layout_dy)
+        else if str_startswith(id)(prefix ++ "_b")
+        then
+          let i = parse_suffix_int(id)("_b") in
+          set_node_position(node)(lane_x(i)(branch_count))(2 * layout_dy)
+        else if str_startswith(id)(prefix ++ "_done")
+        then
+          let i = parse_suffix_int(id)("_done") in
+          set_node_position(node)(lane_x(i)(branch_count))(3 * layout_dy)
+        else node
+      else
+        if id == pout
+        then set_node_position(node)(0)(2 * trans_count * layout_dy)
+        else if str_startswith(id)(prefix ++ "_t")
+        then
+          let i = parse_suffix_int(id)("_t") in
+          set_node_position(node)(0)((2 * i - 1) * layout_dy)
+        else if str_startswith(id)(prefix ++ "_p")
+        then
+          let i = parse_suffix_int(id)("_p") in
+          set_node_position(node)(0)(2 * i * layout_dy)
+        else node
+  )
+in
+
 # Construct a place node with explicit initial default token count. #
 let mk_place_tokens = fun id -> fun tokens ->
   Assoc([
@@ -276,7 +515,19 @@ let refine_place_with_module = fun net -> fun old_place -> fun module_def ->
   let (module_nodes, module_arcs, pin, pout) = module_def in
   let nodes = get_nodes(net) in
   let arcs = get_arcs(net) in
+  let old_node =
+    case filter(nodes, fun node -> get_id(node) == old_place)
+    | node::_ => node
+    | [] => Null
+    end
+  in
+  let anchor_x = node_x(old_node) in
+  let anchor_y = node_y(old_node) in
+  let laid_out_module_nodes = layout_module_nodes(module_nodes)(pin)(pout) in
+  let anchored_module_nodes = map(laid_out_module_nodes, fun node -> translate_node(node)(anchor_x)(anchor_y)) in
   let kept_nodes = filter(nodes, fun node -> get_id(node) != old_place) in
+  let shifted_kept_nodes = shift_nodes_near(kept_nodes)(anchor_x)(anchor_y)(2 * layout_dx) in
+  let merged_nodes = shifted_kept_nodes @ anchored_module_nodes in
   let rewired_arcs =
     map(
       arcs,
@@ -290,7 +541,7 @@ let refine_place_with_module = fun net -> fun old_place -> fun module_def ->
         else arc
     )
   in
-  let net1 = set_nodes(net)(kept_nodes @ module_nodes) in
+  let net1 = set_nodes(net)(merged_nodes) in
   set_arcs(net1)(rewired_arcs @ module_arcs)
 in
 
@@ -319,7 +570,11 @@ in
 let add_resource_place_with_pairs = fun net -> fun resource_place_id -> fun initial_tokens -> fun pairs ->
   let nodes = get_nodes(net) in
   let arcs = get_arcs(net) in
-  let resource_node = mk_place_tokens(resource_place_id)(initial_tokens) in
+  let lock_ids = flat_map(pairs, fun (ta, tb) -> [ta, tb]) in
+  let (cx, cy) = average_position_for_ids(nodes)(lock_ids) in
+  let resource_node = set_node_position(mk_place_tokens(resource_place_id)(initial_tokens))(cx + layout_dx)(cy) in
+  let shifted_nodes = shift_nodes_near(nodes)(cx + layout_dx)(cy)(layout_dx) in
+  let merged_nodes = shifted_nodes @ [resource_node] in
   let lock_arcs =
     flat_map(
       pairs,
@@ -327,7 +582,7 @@ let add_resource_place_with_pairs = fun net -> fun resource_place_id -> fun init
         [mk_arc(resource_place_id)(ta)(1), mk_arc(tb)(resource_place_id)(1)]
     )
   in
-  let net1 = set_nodes(net)(nodes @ [resource_node]) in
+  let net1 = set_nodes(net)(merged_nodes) in
   set_arcs(net1)(arcs @ lock_arcs)
 in
 
@@ -378,8 +633,24 @@ let add_shared_sequential_resource = fun net -> fun resource_place_id -> fun ini
       )
     in
     let nodes = get_nodes(net0) in
+    let resource_node =
+      case filter(nodes, fun node -> get_id(node) == resource_place_id)
+      | node::_ => node
+      | [] => Null
+      end
+    in
+    let base_x = node_x(resource_node) + layout_dx in
+    let base_y = node_y(resource_node) in
     let arcs = get_arcs(net0) in
-    let net1 = set_nodes(net0)(nodes @ stage_nodes) in
+    let laid_out_stage_nodes =
+      mapi(
+        stage_nodes,
+        fun (i, node) -> set_node_position(node)(base_x)(base_y + (i + 1) * layout_dy)
+      )
+    in
+    let shifted_nodes = shift_nodes_near(nodes)(base_x)(base_y + layout_dy)(layout_dx) in
+    let merged_nodes = shifted_nodes @ laid_out_stage_nodes in
+    let net1 = set_nodes(net0)(merged_nodes) in
     set_arcs(net1)(arcs @ stage_arcs)
 in
 
