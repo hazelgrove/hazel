@@ -69,7 +69,6 @@ in
 # Layout constants used for generated refinement geometry. #
 let layout_dx = 260 in
 let layout_dy = 180 in
-let layout_padding = 40 in
 
 # String prefix predicate implemented via jq helpers. #
 let str_startswith = fun s -> fun prefix ->
@@ -102,78 +101,12 @@ let node_y = fun node ->
   | _ => 0
   end
 in
-let node_width = fun node ->
-  case jq1([jq_field("width")])(node)
-  | Int(w) => w
-  | _ =>
-    if jq1([jq_field("type")])(node) == String("transition")
-    then 160
-    else 130
-  end
-in
-let node_height = fun node ->
-  case jq1([jq_field("height")])(node)
-  | Int(h) => h
-  | _ =>
-    if jq1([jq_field("type")])(node) == String("transition")
-    then 80
-    else 130
-  end
-in
-
 # Rewrite node position in-place. #
 let set_node_position = fun node -> fun x -> fun y ->
   jq1([jq_set("position", Assoc([("x", Int(x)), ("y", Int(y))]))])(node)
 in
 let translate_node = fun node -> fun dx -> fun dy ->
   set_node_position(node)(node_x(node) + dx)(node_y(node) + dy)
-in
-
-# Rectangles are represented as (x1, y1, x2, y2). #
-let node_bounds = fun node ->
-  let x = node_x(node) in
-  let y = node_y(node) in
-  (x, y, x + node_width(node), y + node_height(node))
-in
-let bounds_overlap = fun (ax1, ay1, ax2, ay2) -> fun (bx1, by1, bx2, by2) ->
-  ax1 <= bx2 && bx1 <= ax2 && ay1 <= by2 && by1 <= ay2
-in
-let expand_bounds = fun (x1, y1, x2, y2) -> fun pad ->
-  (x1 - pad, y1 - pad, x2 + pad, y2 + pad)
-in
-let bounds_of_nodes = fun nodes ->
-  case nodes
-  | [] => (0, 0, 0, 0)
-  | n::ns =>
-    let (x1, y1, x2, y2) = node_bounds(n) in
-    fold_left(
-      ns,
-      fun ((ax1, ay1, ax2, ay2), node) ->
-        let (bx1, by1, bx2, by2) = node_bounds(node) in
-        (
-          if bx1 < ax1 then bx1 else ax1,
-          if by1 < ay1 then by1 else ay1,
-          if bx2 > ax2 then bx2 else ax2,
-          if by2 > ay2 then by2 else ay2
-        )
-    )((x1, y1, x2, y2))
-  end
-in
-let merge_nodes_avoid_overlap = fun kept_nodes -> fun new_nodes ->
-  case new_nodes
-  | [] => kept_nodes
-  | _ =>
-    let module_bounds = expand_bounds(bounds_of_nodes(new_nodes))(layout_padding) in
-    let (mx1, _my1, mx2, _my2) = module_bounds in
-    let shift_dx = (mx2 - mx1) + layout_dx in
-    map(
-      kept_nodes,
-      fun node ->
-        if bounds_overlap(node_bounds(node))(module_bounds)
-        then translate_node(node)(shift_dx)(0)
-        else node
-    ) @ new_nodes
-  end
 in
 
 # Shift existing nodes that are near a placement anchor. #
