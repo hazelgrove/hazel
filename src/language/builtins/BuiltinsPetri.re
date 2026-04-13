@@ -1887,9 +1887,11 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   let n1 = if n < 1 then 1 else n in
   let pin = prefix ++ "_pin" in
   let pout = prefix ++ "_pout" in
-  let mids = map(range(1, n1 - 1), fun i -> mk_place(prefix ++ "_p" ++ string_of_int(i))) in
-  let trans = map(range(1, n1), fun i -> mk_transition(prefix ++ "_t" ++ string_of_int(i))) in
-  let nodes = [mk_place(pin)] @ mids @ [mk_place(pout)] @ trans in
+  let pin_node = set_node_position(mk_place(pin))(0)(0) in
+  let pout_node = set_node_position(mk_place(pout))(2 * n1 * 260)(0) in
+  let mids = map(range(1, n1 - 1), fun i -> set_node_position(mk_place(prefix ++ "_p" ++ string_of_int(i)))(2 * i * 260)(0)) in
+  let trans = map(range(1, n1), fun i -> set_node_position(mk_transition(prefix ++ "_t" ++ string_of_int(i)))((2 * i - 1) * 260)(0)) in
+  let nodes = [pin_node] @ mids @ [pout_node] @ trans in
   let arcs = seq_place_arcs(pin)(prefix)(1)(n1) in
   (nodes, arcs, pin, pout)|},
     arg: Atom(String),
@@ -1913,68 +1915,114 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                       P.var("pout"),
                       sconcat(E.var("prefix"), E.string("_pout")),
                       let_(
-                        P.var("mids"),
-                        map_(
-                          range_(
-                            E.int(1),
-                            int_sub(E.var("n1"), E.int(1)),
-                          ),
-                          fn(
-                            P.var("i"),
-                            call(
-                              "mk_place",
-                              sconcat(
-                                sconcat(E.var("prefix"), E.string("_p")),
-                                call("string_of_int", E.var("i")),
-                              ),
-                            ),
-                            None,
-                            None,
-                          ),
+                        P.var("pin_node"),
+                        call3(
+                          "set_node_position",
+                          call("mk_place", E.var("pin")),
+                          E.int(0),
+                          E.int(0),
                         ),
                         let_(
-                          P.var("trans"),
-                          map_(
-                            range_(E.int(1), E.var("n1")),
-                            fn(
-                              P.var("i"),
-                              call(
-                                "mk_transition",
-                                sconcat(
-                                  sconcat(E.var("prefix"), E.string("_t")),
-                                  call("string_of_int", E.var("i")),
-                                ),
-                              ),
-                              None,
-                              None,
+                          P.var("pout_node"),
+                          call3(
+                            "set_node_position",
+                            call("mk_place", E.var("pout")),
+                            int_mul(
+                              int_mul(E.int(2), E.var("n1")),
+                              E.int(260),
                             ),
+                            E.int(0),
                           ),
                           let_(
-                            P.var("nodes"),
-                            append(
-                              append(
-                                append(
-                                  list1(call("mk_place", E.var("pin"))),
-                                  E.var("mids"),
-                                ),
-                                list1(call("mk_place", E.var("pout"))),
+                            P.var("mids"),
+                            map_(
+                              range_(
+                                E.int(1),
+                                int_sub(E.var("n1"), E.int(1)),
                               ),
-                              E.var("trans"),
+                              fn(
+                                P.var("i"),
+                                call3(
+                                  "set_node_position",
+                                  call(
+                                    "mk_place",
+                                    sconcat(
+                                      sconcat(
+                                        E.var("prefix"),
+                                        E.string("_p"),
+                                      ),
+                                      call("string_of_int", E.var("i")),
+                                    ),
+                                  ),
+                                  int_mul(
+                                    int_mul(E.int(2), E.var("i")),
+                                    E.int(260),
+                                  ),
+                                  E.int(0),
+                                ),
+                                None,
+                                None,
+                              ),
                             ),
                             let_(
-                              P.var("arcs"),
-                              call4(
-                                "seq_place_arcs",
-                                E.var("pin"),
-                                E.var("prefix"),
-                                E.int(1),
-                                E.var("n1"),
+                              P.var("trans"),
+                              map_(
+                                range_(E.int(1), E.var("n1")),
+                                fn(
+                                  P.var("i"),
+                                  call3(
+                                    "set_node_position",
+                                    call(
+                                      "mk_transition",
+                                      sconcat(
+                                        sconcat(
+                                          E.var("prefix"),
+                                          E.string("_t"),
+                                        ),
+                                        call("string_of_int", E.var("i")),
+                                      ),
+                                    ),
+                                    int_mul(
+                                      int_sub(
+                                        int_mul(E.int(2), E.var("i")),
+                                        E.int(1),
+                                      ),
+                                      E.int(260),
+                                    ),
+                                    E.int(0),
+                                  ),
+                                  None,
+                                  None,
+                                ),
                               ),
-                              t4(
-                                E.var("nodes"),
-                                E.var("arcs"),
-                                E.var("pin"),
-                                E.var("pout"),
+                              let_(
+                                P.var("nodes"),
+                                append(
+                                  append(
+                                    append(
+                                      list1(E.var("pin_node")),
+                                      E.var("mids"),
+                                    ),
+                                    list1(E.var("pout_node")),
+                                  ),
+                                  E.var("trans"),
+                                ),
+                                let_(
+                                  P.var("arcs"),
+                                  call4(
+                                    "seq_place_arcs",
+                                    E.var("pin"),
+                                    E.var("prefix"),
+                                    E.int(1),
+                                    E.var("n1"),
+                                  ),
+                                  t4(
+                                    E.var("nodes"),
+                                    E.var("arcs"),
+                                    E.var("pin"),
+                                    E.var("pout"),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -2965,7 +3013,26 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   {
     name: "refine_place_sequence",
     str: {|fix refine_place_sequence -> fun net -> fun place_id -> fun prefix -> fun n ->
-  refine_place_with_module(net)(place_id)(build_sequence_place_module(prefix)(n))|},
+  let (module_nodes, module_arcs, pin, pout) = build_sequence_place_module(prefix)(n) in
+  let nodes = get_nodes(net) in
+  let arcs = get_arcs(net) in
+  let kept_nodes = filter(nodes, fun node -> get_id(node) != place_id) in
+  let placed_module_nodes = map(module_nodes, fun node -> translate_node(node)(260)(0)) in
+  let rewired_arcs =
+    map(
+      arcs,
+      fun arc ->
+        let src = arc_source(arc) in
+        let tgt = arc_target(arc) in
+        if tgt == place_id
+        then arc_set_target(arc)(pin)
+        else if src == place_id
+        then arc_set_source(arc)(pout)
+        else arc
+    )
+  in
+  let net1 = set_nodes(net)(kept_nodes @ placed_module_nodes) in
+  set_arcs(net1)(rewired_arcs @ module_arcs)|},
     arg: json_t,
     ret: Unknown(Internal),
     imp: {
@@ -2981,14 +3048,119 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                   P.var("prefix"),
                   fn(
                     P.var("n"),
-                    call3(
-                      "refine_place_with_module",
-                      E.var("net"),
-                      E.var("place_id"),
+                    let_(
+                      P.tuple([
+                        P.var("module_nodes"),
+                        P.var("module_arcs"),
+                        P.var("pin"),
+                        P.var("pout"),
+                      ]),
                       call2(
                         "build_sequence_place_module",
                         E.var("prefix"),
                         E.var("n"),
+                      ),
+                      let_(
+                        P.var("nodes"),
+                        call("get_nodes", E.var("net")),
+                        let_(
+                          P.var("arcs"),
+                          call("get_arcs", E.var("net")),
+                          let_(
+                            P.var("kept_nodes"),
+                            filter_(
+                              E.var("nodes"),
+                              fn(
+                                P.var("node"),
+                                E.bin_op(
+                                  Poly(NotEquals),
+                                  call("get_id", E.var("node")),
+                                  E.var("place_id"),
+                                ),
+                                None,
+                                None,
+                              ),
+                            ),
+                            let_(
+                              P.var("placed_module_nodes"),
+                              map_(
+                                E.var("module_nodes"),
+                                fn(
+                                  P.var("node"),
+                                  call3(
+                                    "translate_node",
+                                    E.var("node"),
+                                    E.int(260),
+                                    E.int(0),
+                                  ),
+                                  None,
+                                  None,
+                                ),
+                              ),
+                              let_(
+                                P.var("rewired_arcs"),
+                                map_(
+                                  E.var("arcs"),
+                                  fn(
+                                    P.var("arc"),
+                                    let_(
+                                      P.var("src"),
+                                      call("arc_source", E.var("arc")),
+                                      let_(
+                                        P.var("tgt"),
+                                        call("arc_target", E.var("arc")),
+                                        if_(
+                                          eq_(
+                                            E.var("tgt"),
+                                            E.var("place_id"),
+                                          ),
+                                          call2(
+                                            "arc_set_target",
+                                            E.var("arc"),
+                                            E.var("pin"),
+                                          ),
+                                          if_(
+                                            eq_(
+                                              E.var("src"),
+                                              E.var("place_id"),
+                                            ),
+                                            call2(
+                                              "arc_set_source",
+                                              E.var("arc"),
+                                              E.var("pout"),
+                                            ),
+                                            E.var("arc"),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    None,
+                                    None,
+                                  ),
+                                ),
+                                let_(
+                                  P.var("net1"),
+                                  call2(
+                                    "set_nodes",
+                                    E.var("net"),
+                                    append(
+                                      E.var("kept_nodes"),
+                                      E.var("placed_module_nodes"),
+                                    ),
+                                  ),
+                                  call2(
+                                    "set_arcs",
+                                    E.var("net1"),
+                                    append(
+                                      E.var("rewired_arcs"),
+                                      E.var("module_arcs"),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     None,

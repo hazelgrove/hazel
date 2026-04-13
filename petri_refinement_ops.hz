@@ -224,17 +224,8 @@ let layout_module_nodes = fun module_nodes -> fun pin -> fun pout ->
           set_node_position(node)(lane_x(i)(branch_count))(3 * layout_dy)
         else node
       else
-        if id == pout
-        then set_node_position(node)(0)(2 * trans_count * layout_dy)
-        else if str_startswith(id)(prefix ++ "_t")
-        then
-          let i = parse_suffix_int(id)("_t") in
-          set_node_position(node)(0)((2 * i - 1) * layout_dy)
-        else if str_startswith(id)(prefix ++ "_p")
-        then
-          let i = parse_suffix_int(id)("_p") in
-          set_node_position(node)(0)(2 * i * layout_dy)
-        else node
+        # Sequence modules are laid out at generation time in flow order. #
+        node
   )
 in
 
@@ -324,9 +315,23 @@ let build_sequence_place_module = fun prefix -> fun n ->
   let n1 = if n < 1 then 1 else n in
   let pin = prefix ++ "_pin" in
   let pout = prefix ++ "_pout" in
-  let mids = map(range(1, n1 - 1), fun i -> mk_place(prefix ++ "_p" ++ string_of_int(i))) in
-  let trans = map(range(1, n1), fun i -> mk_transition(prefix ++ "_t" ++ string_of_int(i))) in
-  let nodes = [mk_place(pin)] @ mids @ [mk_place(pout)] @ trans in
+  let pin_node = set_node_position(mk_place(pin))(0)(0) in
+  let pout_node = set_node_position(mk_place(pout))(2 * n1 * layout_dx)(0) in
+  let mids =
+    map(
+      range(1, n1 - 1),
+      fun i ->
+        set_node_position(mk_place(prefix ++ "_p" ++ string_of_int(i)))(2 * i * layout_dx)(0)
+    )
+  in
+  let trans =
+    map(
+      range(1, n1),
+      fun i ->
+        set_node_position(mk_transition(prefix ++ "_t" ++ string_of_int(i)))((2 * i - 1) * layout_dx)(0)
+    )
+  in
+  let nodes = [pin_node] @ mids @ [pout_node] @ trans in
   let arcs = seq_place_arcs(pin)(prefix)(1)(n1) in
   (nodes, arcs, pin, pout)
 in
