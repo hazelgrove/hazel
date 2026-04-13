@@ -1,5 +1,5 @@
 /**
- * This file contains tests to validate the AutoProbe module's probe placement logic.
+ * This file contains tests to validate the MultiProbe module's probe placement logic.
  *
  * Tests are written in concrete syntax with trailing comments indicating expected probe results:
  *
@@ -111,15 +111,15 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       /* Build the syntax cache with statics */
       let syntax = CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
 
-      /* Call AutoProbe to get probe term IDs using the sophisticated version.
+      /* Call MultiProbe to get probe term IDs using the sophisticated version.
          Use target_subterm_ids to narrow the anchor (e.g. Let/Module → def),
-         matching the production pipeline in ProbePerform.add_auto. */
+         matching the production pipeline in ProbePerform.add_multi. */
       let target_ids = ProbePerform.target_subterm_ids(root_id, info_map);
       let probe_ids =
         List.concat_map(
           target_id =>
             switch (
-              AutoProbe.ids_to_autoprobe(
+              MultiProbe.ids_to_multiprobe(
                 target_id,
                 syntax.term_data,
                 syntax.terms,
@@ -128,7 +128,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
               )
             ) {
             | Some(ids) => List.filter_map(Fun.id, ids)
-            | None => fail("AutoProbe returned None")
+            | None => fail("MultiProbe returned None")
             },
           target_ids,
         )
@@ -285,6 +285,24 @@ list # no probe #|},
   ),
 ];
 
+/* TUPLABEL SPECIAL CASES - probe RHS value, not the label */
+let tuplabel_tests = [
+  test_probe_placement(
+    ~name="Multi-line record - probe values not tuplabels",
+    ~code=
+      {|let x = ( # x #
+  brush = "a", # "a" #
+  palette = 1 + 2 # 1 + 2 #
+) in
+x # no probe #|},
+  ),
+  test_probe_placement(
+    ~name="Single-line record - probe values not tuplabels",
+    ~code={|let x = (a = 1, b = 2) in # a = 1, b = 2 #
+x # no probe #|},
+  ),
+];
+
 /* LET EXPRESSION SPECIAL CASES - testing let body handling */
 let let_expression_tests = [
   test_probe_placement(
@@ -341,17 +359,27 @@ let if_expression_tests = [
   else val3 in          # val3 #
 1 + 1                   # no probe #|},
   ),
+  test_probe_placement(
+    ~name="Multi-line if with hole else - probe hole for branch frequency",
+    ~code=
+      {|let result =  # no probe #
+  if condition then   # condition #
+  branch1             # branch1 #
+  else ? in           # ? #
+1 + 1                 # no probe #|},
+  ),
 ];
 
-/* FUNCTION TYPE FILTERING - avoid probing function values */
+/* FUNCTION TYPE FILTERING - soft reject function values (probe if nothing better) */
 let function_type_tests = [
   test_probe_placement(
     ~name=
-      "Function literal - probe function body, but not var of function type",
-    ~code={|
-let adder =
+      "Function literal - probe body, fallback to function-typed var if no alternative",
+    ~code=
+      {|
+let adder =              # no probe #
   fun x -> x + 1 in      # x + 1 #
-adder|},
+adder                    # no probe #|},
   ),
 ];
 
@@ -379,9 +407,35 @@ end           # case x | 0 => a | _ => b end #|},
   ),
 ];
 
+/* INCOMPLETE BINDING FORM SPECIAL CASES - prefer trailing sibling over
+ * the incomplete form, same rationale as complete if adjustment */
+let incomplete_binding_tests = [
+  test_probe_placement(
+    ~name="Incomplete if (just if keyword) - probe hole not incomplete tile",
+    ~code={|if ? # ? #|},
+  ),
+  test_probe_placement(
+    ~name="Incomplete if-then (missing else) - probe hole not incomplete tile",
+    ~code={|if cond  # cond #
+then ?   # ? #|},
+  ),
+];
+
+/* DELIMITER PREFIX SPECIAL CASES - never probe partial keywords like
+ * `th` (prefix of `then`). These get InfixDelimiterPrefix molds when
+ * in infix position between two operands. */
+let delimiter_prefix_tests = [
+  test_probe_placement(
+    ~name=
+      "Delimiter prefix after if condition - probe hole not partial keyword",
+    ~code={|if cond  # cond #
+th ?     # ? #|},
+  ),
+];
+
 /* MODULE SPECIAL CASES - module body items.
  * Module declarations (ModLet, ModType, ModuleMod) are not expressions
- * and have no runtime value, so auto-probe skips them in favor of
+ * and have no runtime value, so multi-probe skips them in favor of
  * their definition subexpressions. */
 let module_tests = [
   test_probe_placement(
@@ -455,14 +509,17 @@ M.x # no probe #|},
 ];
 
 let tests = [
-  ("AutoProbe.Basic", basic_tests),
-  ("AutoProbe.DefaultSelection", nested_multiline_tests),
-  ("AutoProbe.HoleAvoidance", hole_avoidance_tests),
-  ("AutoProbe.Containers", container_tests),
-  ("AutoProbe.LetExpressions", let_expression_tests),
-  ("AutoProbe.IfExpressions", if_expression_tests),
-  ("AutoProbe.FunctionTypes", function_type_tests),
-  ("AutoProbe.CaseExpressions", case_expression_tests),
-  ("AutoProbe.Modules", module_tests),
-  ("AutoProbe.ModuleSig", module_sig_tests),
+  ("MultiProbe.Basic", basic_tests),
+  ("MultiProbe.DefaultSelection", nested_multiline_tests),
+  ("MultiProbe.HoleAvoidance", hole_avoidance_tests),
+  ("MultiProbe.Containers", container_tests),
+  ("MultiProbe.TupLabels", tuplabel_tests),
+  ("MultiProbe.LetExpressions", let_expression_tests),
+  ("MultiProbe.IfExpressions", if_expression_tests),
+  ("MultiProbe.FunctionTypes", function_type_tests),
+  ("MultiProbe.CaseExpressions", case_expression_tests),
+  ("MultiProbe.IncompleteBindingForms", incomplete_binding_tests),
+  ("MultiProbe.DelimiterPrefixes", delimiter_prefix_tests),
+  ("MultiProbe.Modules", module_tests),
+  ("MultiProbe.ModuleSig", module_sig_tests),
 ];

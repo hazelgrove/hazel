@@ -220,7 +220,8 @@ let tests = (
         List.iter(
           (cls: Exp.cls) =>
             switch (cls) {
-            | Projector => () // Excluding projectors from cls
+            | Projector // Excluding projectors from cls
+            | Parens => () // Parens and projectors are transparent (return inner cls)
             | _ =>
               check(
                 cls_testable,
