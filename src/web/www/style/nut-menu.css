@@ -15,6 +15,9 @@
 #top-bar .wrap:has(.nut-icon) {
   background-color: var(--primary-accent);
 }
+#top-bar .wrap:has(.nut-icon):hover {
+  outline: 0.6px solid var(--GB1);
+}
 #top-bar .wrap:has(#editor-mode) {
   height: 100%;
 }
@@ -241,7 +244,6 @@
   background-color: var(--T3);
   color: var(--BR2);
   border-right: 0.6px solid var(--BR2);
-  border-bottom: 0.6px solid var(--BR2);
   position: relative;
 }
 #top-bar #editor-mode #slide-navigation {

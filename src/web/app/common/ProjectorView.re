@@ -11,6 +11,99 @@ type visible_rows = Globals.VisibleRows.t;
 
 let offside_offset = 4; /* Num characters offset to the right of the end of the line */
 
+/* Cache projector view results to avoid expensive P.view() calls
+ * when statics/dynamics haven't changed (e.g. during debounced typing).
+ * Per-projector cache keyed on map identity + status + model. Handles
+ * multiple editors calling into the same cache without thrashing. */
+module ViewCache = {
+  type entry = {
+    statics_map: Language.Statics.Map.t,
+    dynamics_map: Language.Dynamics.Map.t,
+    sample_focus: Language.Sample.Focus.t,
+    elaborated: option(Language.Exp.t),
+    core_settings: Language.CoreSettings.t,
+    settings_version: int,
+    status: View.status,
+    model: string,
+    view: View.t,
+  };
+  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+
+  /* Physical equality on option(Exp.t): `None === None` works since `None` is
+   * a shared immediate, but `Some(x) === Some(x)` is always false (new box).
+   * We want to hit the cache when the underlying Exp.t ref is unchanged,
+   * which is the same stability guarantee as statics_map/dynamics_map. */
+  let elaborated_phys_eq =
+      (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
+    switch (a, b) {
+    | (None, None) => true
+    | (Some(x), Some(y)) => x === y
+    | _ => false
+    };
+
+  let lookup =
+      (
+        id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model,
+      )
+      : option(View.t) =>
+    switch (Hashtbl.find_opt(cache, id)) {
+    | Some(e)
+        when
+          e.statics_map === statics_map
+          && e.dynamics_map === dynamics_map
+          && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
+          && elaborated_phys_eq(e.elaborated, elaborated)
+          && e.core_settings == core_settings
+          && e.settings_version == ProbeProj.Settings.version^
+          && e.status == status
+          && e.model == model =>
+      Some(e.view)
+    | _ => None
+    };
+
+  let store =
+      (
+        id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model,
+        ~view,
+      ) =>
+    Hashtbl.replace(
+      cache,
+      id,
+      {
+        statics_map,
+        dynamics_map,
+        sample_focus,
+        elaborated,
+        core_settings,
+        settings_version: ProbeProj.Settings.version^,
+        status,
+        model,
+        view,
+      },
+    );
+
+  let hits = ref(0);
+  let misses = ref(0);
+  let log_frame = () => {
+    hits := 0;
+    misses := 0;
+  };
+};
+
 /* Filter projector data to only include items in visible row range.
  * For multi-line projectors (like large text areas), we check if ANY part
  * of the projector overlaps with the visible range, not just the origin. */
@@ -45,6 +138,14 @@ module Model = {
     measurement: Measured.measurement,
     offside_base: int,
     status,
+    /* Map refs for view cache identity comparison. `elaborated` is the whole-
+     * editor elaborated Exp.t that P.view() may consume via info.elaborated;
+     * it must participate in the cache key since info.elaborated is derived
+     * from it. Refractors pass None. */
+    statics_map: Language.Statics.Map.t,
+    dynamics_map: Language.Dynamics.Map.t,
+    sample_focus: Language.Sample.Focus.t,
+    elaborated: option(Language.Exp.t),
   };
 
   type t = list(projector_data);
@@ -52,7 +153,8 @@ module Model = {
   /* Is projector indicated and if so what side is the caret on? */
   let indication = (p: option(Indicated.piece), id) =>
     switch (p) {
-    | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+    | Some({piece: p, side: d, _}) when Piece.id(p) == id =>
+      Some(Direction.toggle(d))
     | _ => None
     };
 
@@ -93,7 +195,7 @@ module Model = {
         ~indicated: option(Indicated.piece),
         ~statics: Language.Statics.Map.t,
         ~dynamics: Language.Dynamics.Map.t,
-        ~sample_cursor: Language.Sample.Cursor.t,
+        ~sample_focus: Language.Sample.Focus.t,
         ~editor_active: bool,
         ~elaborated: option(Language.Exp.t),
       ) => {
@@ -105,7 +207,7 @@ module Model = {
         let info =
           ProjectorInfo.mk_info(
             p,
-            ~sample_cursor,
+            ~sample_focus,
             ~statics,
             ~dynamics,
             ~elaborated,
@@ -126,6 +228,10 @@ module Model = {
               ~info,
               ~id,
             ),
+          statics_map: statics,
+          dynamics_map: dynamics,
+          sample_focus,
+          elaborated,
         };
       },
       Id.Map.bindings(projectors),
@@ -205,9 +311,11 @@ let handle = (idx, kind, action: external_action): Action.t =>
   switch (action) {
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
+  | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
   | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
-  | SampleCursor(sc) => Project(SampleCursor(sc))
+  | SampleFocus(sc) => Project(SampleFocus(sc))
   | Probe(p) => Probe(p)
+  | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };
 
 let offside_wrapper =
@@ -317,33 +425,83 @@ let mk_view =
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
-      {p, info, status, _}: Model.projector_data,
+      {
+        p,
+        info,
+        status,
+        statics_map,
+        dynamics_map,
+        sample_focus,
+        elaborated,
+        _,
+      }: Model.projector_data,
       projector_list: list(Id.t),
     )
-    : View.t => {
-  let (module P) = ProjectorInit.to_module(p.kind);
-  let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
-  P.view({
-    model: p.model,
-    info,
-    local: a => {
-      let new_model = P.update(p.model, info, a);
-      inject(Project(SetModel(idx, p.kind, new_model)));
-    },
-    parent: a => inject(handle(idx, p.kind, a)),
-    view_seg: (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
-      flex_code(
-        ~font_metrics,
-        ~single_line?,
-        ~background?,
-        ~text_only?,
-        sort,
-        segment,
-      ),
-    status,
-    core_settings,
-  });
-};
+    : View.t =>
+  switch (
+    ViewCache.lookup(
+      p.id,
+      ~statics_map,
+      ~dynamics_map,
+      ~sample_focus,
+      ~elaborated,
+      ~core_settings,
+      ~status,
+      ~model=p.model,
+    )
+  ) {
+  | Some(view) =>
+    ViewCache.hits := ViewCache.hits^ + 1;
+    view;
+  | None =>
+    ViewCache.misses := ViewCache.misses^ + 1;
+    let (module P) = ProjectorInit.to_module(p.kind);
+    let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+    let view =
+      P.view({
+        model: p.model,
+        info,
+        local: a => {
+          let new_model = P.update(p.model, info, a);
+          inject(Project(SetModel(idx, p.kind, new_model)));
+        },
+        parent: a =>
+          switch (a) {
+          | FocusById(id) =>
+            let target_idx = List.find_index(x => x == id, projector_list);
+            switch (target_idx) {
+            | Some(target_idx) =>
+              inject(Project(Focus(target_idx, Probe, None)))
+            | None => Effect.Ignore
+            };
+          | a => inject(handle(idx, p.kind, a))
+          },
+        view_seg:
+          (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+          flex_code(
+            ~font_metrics,
+            ~single_line?,
+            ~background?,
+            ~text_only?,
+            sort,
+            segment,
+          ),
+        status,
+        core_settings,
+      });
+    ViewCache.store(
+      p.id,
+      ~statics_map,
+      ~dynamics_map,
+      ~sample_focus,
+      ~elaborated,
+      ~core_settings,
+      ~status,
+      ~model=p.model,
+      ~view,
+    );
+    view;
+  };
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
@@ -398,13 +556,6 @@ let split_views =
   (line_view, overlay_view);
 };
 
-/* Is the piece with id indicated? If so, where is it wrt the caret? */
-let indication = (z, id) =>
-  switch (Indicated.piece(z)) {
-  | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
-  | _ => None
-  };
-
 let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
 
@@ -457,9 +608,9 @@ let all =
 
 let move_dir = (key: Key.t): option(Direction.t) =>
   switch (key) {
-  | {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+  | {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
     Some(Left)
-  | {key: D("ArrowRight"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+  | {key: D("ArrowRight"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
     Some(Right)
   | _ => None
   };

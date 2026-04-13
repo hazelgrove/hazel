@@ -411,10 +411,10 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
       [
-        Mold.mk_bin(Precedence.max, Exp, []),
-        Mold.mk_bin(Precedence.max, Pat, []),
-        Mold.mk_bin(Precedence.max, Typ, []),
-        Mold.mk_bin(Precedence.max, TPat, []),
+        Mold.mk_bin(Precedence.concave_grout, Exp, []),
+        Mold.mk_bin(Precedence.concave_grout, Pat, []),
+        Mold.mk_bin(Precedence.concave_grout, Typ, []),
+        Mold.mk_bin(Precedence.concave_grout, TPat, []),
       ],
     )
   | ExplicitHole => (

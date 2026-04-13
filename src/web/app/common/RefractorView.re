@@ -33,7 +33,7 @@ let mk_data =
       ~indicated: option(Indicated.piece),
       ~statics: Language.Statics.Map.t,
       ~dynamics: Language.Dynamics.Map.t,
-      ~sample_cursor: Language.Sample.Cursor.t,
+      ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
     )
     : list(ProjectorView.Model.projector_data) => {
@@ -62,7 +62,7 @@ let mk_data =
       let info =
         ProjectorInfo.mk_info(
           p,
-          ~sample_cursor,
+          ~sample_focus,
           ~statics,
           ~dynamics,
           ~elaborated=None,
@@ -83,6 +83,10 @@ let mk_data =
             ~info,
             ~id,
           ),
+        statics_map: statics,
+        dynamics_map: dynamics,
+        sample_focus,
+        elaborated: None,
       };
     },
     Id.Map.bindings(refractors),

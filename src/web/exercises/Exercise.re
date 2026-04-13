@@ -801,7 +801,6 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
   };
 };
-let stitch_term = Core.Memo.general(stitch_term);
 
 let prelude_key = "prelude";
 let test_validation_key = "test_validation";
@@ -846,7 +845,7 @@ let pos_of_key = (key: string): pos =>
 let editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
   /* Reset non-persistable refractor state before serialization.
-   * See Refractors.for_serialization - keeps manuals, resets autos/sample_cursor. */
+   * See Refractors.for_serialization - keeps manuals, resets multis/sample_focus. */
   let zipper = Zipper.update_refractors(zipper, Refractors.for_serialization);
   let serialization = Zipper.show(zipper);
   Format.pp_print_string(fmt, serialization);

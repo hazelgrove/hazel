@@ -209,7 +209,6 @@ let menu_item_view =
 /* Keyboard shortcuts - platform-dependent */
 module Shortcuts = {
   let manual_probe = () => Os.is_mac^ ? "⌘E" : "Ctrl+E";
-  let auto_probe = () => Os.is_mac^ ? "⇧⌘E" : "Ctrl+Shift+E";
   let goto_definition = "F12";
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
@@ -218,10 +217,12 @@ module Shortcuts = {
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
 };
 
-/* Data-returning versions for keyboard navigation */
-let manual_probe_data =
+/* Unified probe entry: on definition forms (Let, Test), shows multi probe
+   options; on other terms, shows manual probe options. Both use Cmd+E. */
+let probe_data =
     (
       ~can_probe: bool,
+      ~is_def: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
@@ -230,38 +231,27 @@ let manual_probe_data =
   | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
       {
         name:
-          switch (probe_status) {
-          | Manual(_) => "Remove probe"
-          | Statics(_)
-          | Auto => "Switch to manual"
-          | Non => "Add probe"
+          if (is_def) {
+            switch (probe_status) {
+            | Multi => "Remove multi probe"
+            | Manual(_) => "Remove probe"
+            | Statics(_) => "Switch to multi probe"
+            | Ephemeral(_) => "Hide probe"
+            | Suppressed(_) => "Show probe"
+            | Non => "Add multi probe"
+            };
+          } else {
+            switch (probe_status) {
+            | Manual(_) => "Remove probe"
+            | Multi => "Remove probe"
+            | Statics(_) => "Switch to probe"
+            | Ephemeral(_) => "Hide probe"
+            | Suppressed(_) => "Show probe"
+            | Non => "Add probe"
+            };
           },
         shortcut: Some(Shortcuts.manual_probe()),
         action: Probe(ToggleManual),
-      },
-    ]
-  | _ => []
-  };
-
-let auto_probe_data =
-    (
-      ~can_probe: bool,
-      probe_status: ProbePerform.probe_status,
-      ci: option(Language.Info.t),
-    )
-    : list(menu_item_data) =>
-  switch (ci) {
-  | Some(InfoExp(_)) when can_probe => [
-      {
-        name:
-          switch (probe_status) {
-          | Manual(_)
-          | Statics(_) => "Switch to auto"
-          | Auto => "Remove auto probe"
-          | Non => "Add auto probe"
-          },
-        shortcut: Some(Shortcuts.auto_probe()),
-        action: Probe(ToggleAuto),
       },
     ]
   | _ => []
@@ -281,7 +271,9 @@ let type_annotation_data =
           switch (probe_status) {
           | Statics(_) => "Remove statics"
           | Manual(_)
-          | Auto => "Switch to statics"
+          | Multi => "Switch to statics"
+          | Ephemeral(_)
+          | Suppressed(_)
           | Non => "Add statics"
           },
         shortcut: Some(Shortcuts.type_annotation()),
@@ -365,7 +357,7 @@ module Projectors = {
     switch (z.selection.content) {
     | [] =>
       switch (Indicated.for_index(z)) {
-      | Some((Projector({syntax, _}), _, _)) =>
+      | Some({piece: Projector({syntax, _}), _}) =>
         MakeTerm.for_projection(Piece.unparenthesize(syntax))
       | _ =>
         let* info = Indicated.ci_of(z, info_map);
@@ -413,7 +405,7 @@ module Projectors = {
 
   /* Get the kind of projector on the indicated piece, if any */
   let indicated_kind = (z: Zipper.t): option(ProjectorCore.Kind.t) => {
-    let* (piece, _, _) = Indicated.for_index(z);
+    let* {piece, _} = Indicated.for_index(z);
     switch (piece) {
     | Projector({kind, _}) => Some(kind)
     | _ => None
@@ -504,8 +496,8 @@ let refractor_actions_data =
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
-  manual_probe_data(~can_probe, probe_status, ci)
-  @ auto_probe_data(~can_probe, probe_status, ci)
+  let is_def = ProbePerform.is_definition_form(id, info_map);
+  probe_data(~can_probe, ~is_def, probe_status, ci)
   @ type_annotation_data(~can_type=can_statics, probe_status, ci);
 };
 

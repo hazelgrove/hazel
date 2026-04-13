@@ -184,7 +184,13 @@ module Transition = (EV: EV_MODE) => {
   open IdTagged.FreshGrammar.Exp;
 
   /* Helper function to wrap a closure around an expression. Required for functions, but also for
-     things like if-then-else expressions where the scrutinee is indet, and for hole closures */
+     things like if-then-else expressions where the scrutinee is indet, and for hole closures.
+
+     is_value: true because the Closure-wrapped expression is already fully evaluated
+     (all requirements were resolved by req_final). Re-evaluating it would redundantly
+     traverse sub-expressions, which (a) is wasteful and (b) causes spurious probe samples
+     when indeterminate return values from recursive calls are re-traversed at wrong call
+     stack depths. See Test_Evaluator_Probes "Recursive indet" tests. */
   let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
     switch (in_closure, r) {
     | (_, Step(_)) => r
@@ -193,11 +199,34 @@ module Transition = (EV: EV_MODE) => {
         expr: closure(env, expr),
         side_effects: [],
         kind: WrapClosure,
-        is_value: false,
+        is_value: true,
       })
     | (Some(f), Constructor | Indet | Value) =>
       f();
       r;
+    };
+
+  /* Extract function name from a function expression (including closures).
+     Used to record the name in the call stack for better debugging. */
+  let get_fn_name_from_expr = (d: DHExp.t): option(string) =>
+    switch (d.term) {
+    | Closure(_, e) => Exp.get_fn_name(e)
+    | Fun(_, _, _, name) => name
+    | TypFun(_, _, name) => name
+    | BuiltinFun(name) => Some(name)
+    | _ => None
+    };
+
+  /* Extract the definition-site ID from a function expression (including closures).
+     Used to enable jump-to-definition from the closure cursor bar even when the
+     app_id comes from built-in internal code (not in user's info_map). */
+  let get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
+    switch (d.term) {
+    | Closure(_, e) => Exp.get_fn_def_id(e)
+    | Fun(_)
+    | TypFun(_) => Some(DHExp.rep_id(d))
+    | BuiltinFun(_) => None
+    | _ => None
     };
 
   /* Note[Matt]: For IDs, I'm currently using a fresh id
@@ -467,6 +496,9 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         })
       | _ =>
+        /* Extract function name and def ID before unboxing (unboxing discards them) */
+        let fn_name = get_fn_name_from_expr(d1');
+        let fn_def_id = get_fn_def_id_from_expr(d1');
         let-unbox unboxed_fun = (Fun, d1');
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
@@ -480,7 +512,7 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: subst_env(env'', d3),
               side_effects: [
-                RecordStackFrame,
+                RecordStackFrame(fn_name, Some(d2'), fn_def_id),
                 RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
@@ -500,7 +532,7 @@ module Transition = (EV: EV_MODE) => {
                   d3,
                 ),
               side_effects: [
-                RecordStackFrame,
+                RecordStackFrame(fn_name, Some(d2'), fn_def_id),
                 RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
@@ -513,7 +545,10 @@ module Transition = (EV: EV_MODE) => {
             /* Println for probes study */
             Step({
               expr: tuple([]),
-              side_effects: [RecordPrint(d2')],
+              side_effects: [
+                RecordStackFrame(Some(ident), Some(d2'), None),
+                RecordPrint(d2'),
+              ],
               kind: BuiltinAp(ident),
               is_value: true,
             });
@@ -532,7 +567,9 @@ module Transition = (EV: EV_MODE) => {
             | Some(expr) =>
               Step({
                 expr,
-                side_effects: [],
+                side_effects: [
+                  RecordStackFrame(Some(ident), Some(d2'), None),
+                ],
                 kind: BuiltinAp(ident),
                 is_value: false,
               })
@@ -744,7 +781,11 @@ module Transition = (EV: EV_MODE) => {
                 expr: exp,
                 side_effects: [],
                 kind: Dot,
-                is_value: false,
+                /* d1 is req_final so all tuple elements are already values.
+                   Must be true to avoid re-entering evaluate on the projected
+                   value, which would trigger duplicate probe samples when the
+                   value carries a probe target ID. */
+                is_value: true,
               })
             | _ => Indet
             };
@@ -757,7 +798,7 @@ module Transition = (EV: EV_MODE) => {
                   expr: d,
                   side_effects: [],
                   kind: Dot,
-                  is_value: false,
+                  is_value: true,
                 })
               : Indet
           | ListLit(ds) =>
@@ -932,12 +973,19 @@ module Transition = (EV: EV_MODE) => {
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
         switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-        | Some(d) =>
+        | Some(_) =>
+          /* Use transition_multiple to fully resolve all Asc layers in one
+           * step, and is_value: true to prevent re-evaluation. This is critical
+           * because d' was already fully evaluated by req_final above — probes
+           * inside d' have already fired. Without this, the distributed Asc
+           * wrappers would cause sub-expressions to be re-evaluated, hitting
+           * probe targets a second time with a different (shorter) call_stack,
+           * producing duplicate samples that bypass dedup. */
           Step({
-            expr: d,
+            expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
             side_effects: [],
             kind: Ascription,
-            is_value: false,
+            is_value: true,
           })
         | None => Constructor
         };

@@ -3,6 +3,21 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
+/* Dirty tracking for autosave: only re-persist slides that changed since
+   last save. Eliminates expensive Zipper.zip + Base.equal_segment checks. */
+let dirty_slides: ref(Sets.StringSet.t) = ref(Sets.StringSet.empty);
+let persist_cache:
+  ref(Maps.StringMap.t(option(CellEditor.Model.persistent))) =
+  ref(Maps.StringMap.empty);
+
+let mark_dirty = (name: string): unit =>
+  dirty_slides := Sets.StringSet.add(name, dirty_slides^);
+
+let reset_persist_state = (): unit => {
+  dirty_slides := Sets.StringSet.empty;
+  persist_cache := Maps.StringMap.empty;
+};
+
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -73,15 +88,48 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(Scratchpad.persistent));
 
-  let persist = (model: t): persistent => (
-    model.current,
-    List.map(Scratchpad.persist, model.scratchpads),
-  );
+  let persist = (model: t): persistent => {
+    let persisted_slides =
+      List.map(
+        (s: Scratchpad.t) => {
+          let is_dirty = Sets.StringSet.mem(s.name, dirty_slides^);
+          let has_cache = Maps.StringMap.mem(s.name, persist_cache^);
+          let editor =
+            if (is_dirty || !has_cache) {
+              let persisted = Some(CellEditor.Model.persist(s.editor));
+              persist_cache :=
+                Maps.StringMap.add(s.name, persisted, persist_cache^);
+              persisted;
+            } else {
+              Maps.StringMap.find(s.name, persist_cache^);
+            };
+          Scratchpad.{
+            name: s.name,
+            editor,
+            agent: Agent.Agent.Persistent.persist(s.agent),
+          };
+        },
+        model.scratchpads,
+      );
+    dirty_slides := Sets.StringSet.empty;
+    (model.current, persisted_slides);
+  };
 
   let unpersist = (~settings, (current, scratchpads): persistent): t => {
-    current,
-    scratchpads:
-      List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
+    /* Seed persist cache with loaded values so unchanged slides
+       (stored as None) aren't needlessly re-persisted on first save */
+    reset_persist_state();
+    List.iter(
+      (sp: Scratchpad.persistent) =>
+        persist_cache :=
+          Maps.StringMap.add(sp.name, sp.editor, persist_cache^),
+      scratchpads,
+    );
+    {
+      current,
+      scratchpads:
+        List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
+    };
   };
 
   let scratchpad_names = (model: t): list(string) =>
@@ -331,6 +379,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | CellAction(CellEditor.Update.t)
+    | RefreshStatics
     | AgentAction(Agent.Agent.Update.Action.t)
     | SwitchSlide(int)
     | ResetCurrent
@@ -345,6 +394,7 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | CellAction(action) => CellEditor.Update.can_undo(action)
+    | RefreshStatics => false
     | AgentAction(_) => true
     | SwitchSlide(_) => false
     | ResetCurrent => true
@@ -495,6 +545,7 @@ module Update = {
       };
     | CellAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
+      mark_dirty(scratchpad.name);
       let* new_ed = CellEditor.Update.update(~settings, a, scratchpad.editor);
       let new_sp =
         ListUtil.put_nth(
@@ -510,6 +561,9 @@ module Update = {
         scratchpads: new_sp,
       };
       new_model;
+    | RefreshStatics =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
       let* current = i |> Updated.return;
       {
@@ -534,6 +588,10 @@ module Update = {
       switch (new_name) {
       | None => model |> return_quiet
       | Some(new_name) =>
+        let old_name = current.name;
+        persist_cache := Maps.StringMap.remove(old_name, persist_cache^);
+        dirty_slides := Sets.StringSet.remove(old_name, dirty_slides^);
+        mark_dirty(new_name);
         let new_sp =
           ListUtil.put_nth(
             model.current,
@@ -554,6 +612,9 @@ module Update = {
           "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
+        let deleted_name = List.nth(model.scratchpads, model.current).name;
+        persist_cache := Maps.StringMap.remove(deleted_name, persist_cache^);
+        dirty_slides := Sets.StringSet.remove(deleted_name, dirty_slides^);
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
@@ -578,6 +639,8 @@ module Update = {
 
     | ResetCurrent =>
       let scratchpad = List.nth(model.scratchpads, model.current);
+      mark_dirty(scratchpad.name);
+      persist_cache := Maps.StringMap.remove(scratchpad.name, persist_cache^);
       let source =
         switch (is_documentation) {
         | false =>
@@ -613,6 +676,9 @@ module Update = {
       | None => model |> return_quiet
       | Some(data) =>
         let scratchpad = List.nth(model.scratchpads, model.current);
+        mark_dirty(scratchpad.name);
+        persist_cache :=
+          Maps.StringMap.remove(scratchpad.name, persist_cache^);
         let new_data =
           data
           |> Sexplib.Sexp.of_string
@@ -644,7 +710,19 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~schedule_action,
+        ~is_edited,
+        model: Model.t,
+      )
+      : Model.t => {
+    let statics_mode =
+      CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
+
     let scratchpad = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
@@ -656,7 +734,9 @@ module Update = {
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
+        ~statics_mode,
         ~queue_worker,
         ~stitch=x => x,
         scratchpad.editor,
@@ -731,18 +811,22 @@ module Selection = {
 
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
-    switch (selection) {
-    | Cell(selection) =>
-      switch (event) {
-      | _ =>
-        CellEditor.Selection.handle_key_event(
-          ~selection,
-          ~event,
-          List.nth(model.scratchpads, model.current).editor,
-        )
-        |> Option.map(x => Update.CellAction(x))
-      }
-    | TextBox => None
+    if (Keyboard.is_new_slide(event)) {
+      Some(AddSlide);
+    } else {
+      switch (selection) {
+      | Cell(selection) =>
+        switch (event) {
+        | _ =>
+          CellEditor.Selection.handle_key_event(
+            ~selection,
+            ~event,
+            List.nth(model.scratchpads, model.current).editor,
+          )
+          |> Option.map(x => Update.CellAction(x))
+        }
+      | TextBox => None
+      };
     };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>

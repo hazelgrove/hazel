@@ -241,7 +241,7 @@ let go =
       let manual_model =
         List.assoc_opt(id, z.refractors.manuals)
         |> Option.map((pr: Refractors.entry) => pr.model);
-      let is_ephemeral = Id.Map.mem(id, z.refractors.autos.ephemerals);
+      let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
       /* Select the term range and replace with new syntax.
        * Don't unselect/remold here — the normal update cycle handles that. */
       let do_replace = () => {
@@ -317,13 +317,26 @@ let go =
     let id = idx_to_id(kind, idx);
     switch (d) {
     | None =>
-      /* Focus by mouse click */
+      /* Focus by pointer click or probe-to-probe navigation */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.pointer) {
       | Some(focus) => focus(id)
       | None => ()
       };
-      Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
+      let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
+      /* Set pending_probe_cursor so the sample focus adapts to the
+         newly focused probe. For pointer clicks on a specific sample,
+         the subsequent Capture action will override with more specific
+         data; for probe-to-probe navigation, most_aligned_sample picks
+         the best match. */
+      let z =
+        Zipper.update_refractors(z, r =>
+          {
+            ...r,
+            pending_probe_cursor: Some([id]),
+          }
+        );
+      Ok(z);
     | Some(Right) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
@@ -346,6 +359,11 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SampleCursor(a) => Ok(SampleCursorPerform.go(z, a))
+  | EscapeToLineEnd(idx, kind) =>
+    switch (Move.jump_to_side_of_id(Right, z, idx_to_id(kind, idx))) {
+    | Some(z) => Ok(Option.value(~default=z, Move.to_linebreak(Right, z)))
+    | None => Error(Cant_project)
+    }
+  | SampleFocus(a) => Ok(SampleFocusPerform.go(z, a))
   };
 };
