@@ -112,6 +112,7 @@ module Update = {
         dynamics,
         editor,
       );
+    let old_statics = statics;
     let statics =
       is_edited
         ? CachedStatics.init(
@@ -130,9 +131,13 @@ module Update = {
      * must run after Editor.Update (which updates the zipper/autocomplete
      * buffer that CachedStatics.init reads from). So the first computation
      * has stale elaborated data, and we recompute here with the fresh
-     * statics to get correct projector placeholder sizes. */
+     * statics to get correct projector placeholder sizes.
+     *
+     * Gated on statics identity so we skip this work whenever statics
+     * was reused (e.g. !is_edited, or — post-probes-III merge —
+     * when statics is throttled on fast keystrokes). */
     let editor =
-      is_edited
+      statics !== old_statics
         ? {
           ...editor,
           syntax:

@@ -147,10 +147,13 @@ let backing_deco =
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
 let projector_clss =
-    ({kind, sort, indication, selected, error, warning}: Model.status) =>
+    (
+      ~view_error: bool=false,
+      {kind, sort, indication, selected, error, warning}: Model.status,
+    ) =>
   ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
   @ (selected ? ["selected"] : [])
-  @ (error ? ["error"] : [])
+  @ (error || view_error ? ["error"] : [])
   @ (warning ? ["warning"] : [])
   @ (
     switch (indication) {
@@ -169,13 +172,14 @@ let view_wrapper =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
+      ~view_error: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
       views: list(Node.t),
     ) =>
   div(
     ~attrs=[
-      Attr.classes(projector_clss(status)),
+      Attr.classes(projector_clss(~view_error, status)),
       /* Stopping propagation here stops the base editor's
        * drag-select interaction from being triggered.
        * However, we let right-clicks bubble through so the
@@ -363,10 +367,11 @@ let split_views =
       projector_data,
       projector_list,
     );
-  let status = {
-    ...status,
-    error: status.error || views.error,
-  };
+  /* status comes from statics (sort/error/warning/indication); view_error
+   * is a projector's per-render decision (e.g. TableProj can't render the
+   * current elaborated shape). Keep them separate: status is what the
+   * ViewCache keys on once the Probes III cache lands upstream, so we
+   * don't want to mutate it here. */
   let wrapper =
     view_wrapper(
       ~inject,
@@ -374,6 +379,7 @@ let split_views =
       ~font_metrics,
       ~measurement,
       ~status,
+      ~view_error=views.error,
       ~idx,
       ~kind=p.kind,
     );
