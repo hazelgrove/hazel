@@ -18,11 +18,13 @@ type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
 type external_action =
-  | SampleCursor(Action.sample_cursor)
+  | SampleFocus(Action.sample_focus)
   | Probe(Action.probe) /* Probe actions like StepInto */
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(Base.segment); /* Set underlying syntax */
+  | EscapeToLineEnd(ProjectorCore.Kind.t) /* Pass focus to parent editor, move to end of line */
+  | SetSyntax(Base.segment) /* Set underlying syntax */
+  | FocusById(Util.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
