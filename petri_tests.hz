@@ -175,7 +175,7 @@ hint "refine_place_sequence rewires loop topology exactly"
 hint "refined module nodes include geometry fields required by editor"
   test
     let seq_pin = lookup_node(refined_seq)("seq_pin") in
-    jq1([jq_field("position"), jq_field("x")])(seq_pin) == Int(0)
+    jq1([jq_field("position"), jq_field("x")])(seq_pin) == Int(260)
     && jq1([jq_field("position"), jq_field("y")])(seq_pin) == Int(0)
     && jq1([jq_field("height")])(seq_pin) == Int(130)
     && jq1([jq_field("width")])(seq_pin) == Int(130)
