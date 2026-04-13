@@ -45,7 +45,6 @@ let jassoc = pairs => E.ap(Forward, JSON.json_assoc, E.list_lit(pairs));
 let pair = (k: string, v) => E.tuple([E.string(k), v]);
 let json_t = Typ.term_of(JSON.t);
 let json_list_term = Typ.term_of(list(JSON.t));
-let string_list_term = Typ.term_of(list(string()));
 
 let builtins: list(BuiltinsUtil.hazel_fn) = [
   {
@@ -788,158 +787,6 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
               ),
               None,
               Some("lane_x+"),
-            ),
-            None,
-          )
-        )
-      );
-    },
-  },
-  {
-    name: "list_contains_string",
-    str: {|fix list_contains_string -> fun xs -> fun target ->
-  case xs
-  | [] => false
-  | x::xs' => if x == target then true else list_contains_string(xs')(target)
-  end|},
-    arg: string_list_term,
-    ret: Arrow(string(), bool()),
-    imp: {
-      Fresh.(
-        Exp.(
-          fix_f(
-            P.var("list_contains_string"),
-            fn(
-              P.var("xs"),
-              fn(
-                P.var("target"),
-                match(
-                  E.var("xs"),
-                  [
-                    (P.list_lit([]), E.bool(false)),
-                    (
-                      P.cons(P.var("x"), P.var("xs")),
-                      if_(
-                        eq_(E.var("x"), E.var("target")),
-                        E.bool(true),
-                        call2(
-                          "list_contains_string",
-                          E.var("xs"),
-                          E.var("target"),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                None,
-                None,
-              ),
-              None,
-              Some("list_contains_string+"),
-            ),
-            None,
-          )
-        )
-      );
-    },
-  },
-  {
-    name: "average_position_for_ids",
-    str: {|fix average_position_for_ids -> fun nodes -> fun ids ->
-  let selected = filter(nodes, fun node -> list_contains_string(ids)(get_id(node))) in
-  case selected
-  | [] => (0, 0)
-  | _ =>
-    let (sum_x, sum_y, count) =
-      fold_left(
-        selected,
-        fun ((sx, sy, c), node) -> (sx + node_x(node), sy + node_y(node), c + 1)
-      )((0, 0, 0))
-    in
-    (sum_x / count, sum_y / count)
-  end|},
-    arg: json_list_term,
-    ret: Arrow(list(string()), unknown(Internal)),
-    imp: {
-      Fresh.(
-        Exp.(
-          fix_f(
-            P.var("average_position_for_ids"),
-            fn(
-              P.var("nodes"),
-              fn(
-                P.var("ids"),
-                let_(
-                  P.var("selected"),
-                  filter_(
-                    E.var("nodes"),
-                    fn(
-                      P.var("node"),
-                      call2(
-                        "list_contains_string",
-                        E.var("ids"),
-                        call("get_id", E.var("node")),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ),
-                  match(
-                    E.var("selected"),
-                    [
-                      (P.list_lit([]), t2(E.int(0), E.int(0))),
-                      (
-                        P.wild(),
-                        let_(
-                          P.tuple([
-                            P.var("sum_x"),
-                            P.var("sum_y"),
-                            P.var("count"),
-                          ]),
-                          call(
-                            "fold_left",
-                            t3(
-                              E.var("selected"),
-                              fn(
-                                P.tuple([
-                                  P.tuple([
-                                    P.var("sx"),
-                                    P.var("sy"),
-                                    P.var("c"),
-                                  ]),
-                                  P.var("node"),
-                                ]),
-                                t3(
-                                  int_add(
-                                    E.var("sx"),
-                                    call("node_x", E.var("node")),
-                                  ),
-                                  int_add(
-                                    E.var("sy"),
-                                    call("node_y", E.var("node")),
-                                  ),
-                                  int_add(E.var("c"), E.int(1)),
-                                ),
-                                None,
-                                None,
-                              ),
-                              t3(E.int(0), E.int(0), E.int(0)),
-                            ),
-                          ),
-                          t2(
-                            int_div(E.var("sum_x"), E.var("count")),
-                            int_div(E.var("sum_y"), E.var("count")),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                None,
-                None,
-              ),
-              None,
-              Some("average_position_for_ids+"),
             ),
             None,
           )
@@ -2924,6 +2771,18 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   let nodes = get_nodes(net) in
   let arcs = get_arcs(net) in
   let kept_nodes = filter(nodes, fun node -> get_id(node) != old_place) in
+  let placed_module_nodes =
+    mapi(
+      module_nodes,
+      fun (i, node) ->
+        let id = get_id(node) in
+        if id == pin
+        then set_node_position(node)(260)(0)
+        else if id == pout
+        then set_node_position(node)(260)(2 * 180)
+        else set_node_position(node)(260)((i + 1) * 180)
+    )
+  in
   let rewired_arcs =
     map(
       arcs,
@@ -2937,7 +2796,7 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
         else arc
     )
   in
-  let net1 = set_nodes(net)(kept_nodes @ module_nodes) in
+  let net1 = set_nodes(net)(kept_nodes @ placed_module_nodes) in
   set_arcs(net1)(rewired_arcs @ module_arcs)|},
     arg: json_t,
     ret: Unknown(Internal),
@@ -2982,35 +2841,38 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                             ),
                           ),
                           let_(
-                            P.var("rewired_arcs"),
-                            map_(
-                              E.var("arcs"),
+                            P.var("placed_module_nodes"),
+                            mapi_(
+                              E.var("module_nodes"),
                               fn(
-                                P.var("arc"),
+                                P.tuple([P.var("i"), P.var("node")]),
                                 let_(
-                                  P.var("src"),
-                                  call("arc_source", E.var("arc")),
-                                  let_(
-                                    P.var("tgt"),
-                                    call("arc_target", E.var("arc")),
+                                  P.var("id"),
+                                  call("get_id", E.var("node")),
+                                  if_(
+                                    eq_(E.var("id"), E.var("pin")),
+                                    call3(
+                                      "set_node_position",
+                                      E.var("node"),
+                                      E.int(260),
+                                      E.int(0),
+                                    ),
                                     if_(
-                                      eq_(E.var("tgt"), E.var("old_place")),
-                                      call2(
-                                        "arc_set_target",
-                                        E.var("arc"),
-                                        E.var("pin"),
+                                      eq_(E.var("id"), E.var("pout")),
+                                      call3(
+                                        "set_node_position",
+                                        E.var("node"),
+                                        E.int(260),
+                                        int_mul(E.int(2), E.int(180)),
                                       ),
-                                      if_(
-                                        eq_(
-                                          E.var("src"),
-                                          E.var("old_place"),
+                                      call3(
+                                        "set_node_position",
+                                        E.var("node"),
+                                        E.int(260),
+                                        int_mul(
+                                          int_add(E.var("i"), E.int(1)),
+                                          E.int(180),
                                         ),
-                                        call2(
-                                          "arc_set_source",
-                                          E.var("arc"),
-                                          E.var("pout"),
-                                        ),
-                                        E.var("arc"),
                                       ),
                                     ),
                                   ),
@@ -3020,21 +2882,63 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                               ),
                             ),
                             let_(
-                              P.var("net1"),
-                              call2(
-                                "set_nodes",
-                                E.var("net"),
-                                append(
-                                  E.var("kept_nodes"),
-                                  E.var("module_nodes"),
+                              P.var("rewired_arcs"),
+                              map_(
+                                E.var("arcs"),
+                                fn(
+                                  P.var("arc"),
+                                  let_(
+                                    P.var("src"),
+                                    call("arc_source", E.var("arc")),
+                                    let_(
+                                      P.var("tgt"),
+                                      call("arc_target", E.var("arc")),
+                                      if_(
+                                        eq_(
+                                          E.var("tgt"),
+                                          E.var("old_place"),
+                                        ),
+                                        call2(
+                                          "arc_set_target",
+                                          E.var("arc"),
+                                          E.var("pin"),
+                                        ),
+                                        if_(
+                                          eq_(
+                                            E.var("src"),
+                                            E.var("old_place"),
+                                          ),
+                                          call2(
+                                            "arc_set_source",
+                                            E.var("arc"),
+                                            E.var("pout"),
+                                          ),
+                                          E.var("arc"),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  None,
+                                  None,
                                 ),
                               ),
-                              call2(
-                                "set_arcs",
-                                E.var("net1"),
-                                append(
-                                  E.var("rewired_arcs"),
-                                  E.var("module_arcs"),
+                              let_(
+                                P.var("net1"),
+                                call2(
+                                  "set_nodes",
+                                  E.var("net"),
+                                  append(
+                                    E.var("kept_nodes"),
+                                    E.var("placed_module_nodes"),
+                                  ),
+                                ),
+                                call2(
+                                  "set_arcs",
+                                  E.var("net1"),
+                                  append(
+                                    E.var("rewired_arcs"),
+                                    E.var("module_arcs"),
+                                  ),
                                 ),
                               ),
                             ),
@@ -3251,7 +3155,21 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
     str: {|fix add_resource_place_with_pairs -> fun net -> fun resource_place_id -> fun initial_tokens -> fun pairs ->
   let nodes = get_nodes(net) in
   let arcs = get_arcs(net) in
-  let resource_node = mk_place_tokens(resource_place_id)(initial_tokens) in
+  let anchor_id =
+    case pairs
+    | (ta, _tb)::_ => ta
+    | [] => ""
+    end
+  in
+  let anchor_node =
+    case filter(nodes, fun node -> get_id(node) == anchor_id)
+    | node::_ => node
+    | [] => Null
+    end
+  in
+  let resource_x = node_x(anchor_node) + 260 in
+  let resource_y = node_y(anchor_node) in
+  let resource_node = set_node_position(mk_place_tokens(resource_place_id)(initial_tokens))(resource_x)(resource_y) in
   let lock_arcs = flat_map(pairs, fun (ta, tb) -> [mk_arc(resource_place_id)(ta)(1), mk_arc(tb)(resource_place_id)(1)]) in
   let net1 = set_nodes(net)(nodes @ [resource_node]) in
   set_arcs(net1)(arcs @ lock_arcs)|},
@@ -3277,53 +3195,115 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                         P.var("arcs"),
                         call("get_arcs", E.var("net")),
                         let_(
-                          P.var("resource_node"),
-                          call2(
-                            "mk_place_tokens",
-                            E.var("resource_place_id"),
-                            E.var("initial_tokens"),
+                          P.var("anchor_id"),
+                          match(
+                            E.var("pairs"),
+                            [
+                              (
+                                P.cons(
+                                  P.tuple([P.var("ta"), P.wild()]),
+                                  P.wild(),
+                                ),
+                                E.var("ta"),
+                              ),
+                              (P.list_lit([]), E.string("")),
+                            ],
                           ),
                           let_(
-                            P.var("lock_arcs"),
-                            call(
-                              "flat_map",
-                              t2(
-                                E.var("pairs"),
+                            P.var("anchor_node"),
+                            match(
+                              filter_(
+                                E.var("nodes"),
                                 fn(
-                                  P.tuple([P.var("ta"), P.var("tb")]),
-                                  list2(
-                                    call3(
-                                      "mk_arc",
-                                      E.var("resource_place_id"),
-                                      E.var("ta"),
-                                      E.int(1),
-                                    ),
-                                    call3(
-                                      "mk_arc",
-                                      E.var("tb"),
-                                      E.var("resource_place_id"),
-                                      E.int(1),
-                                    ),
+                                  P.var("node"),
+                                  eq_(
+                                    call("get_id", E.var("node")),
+                                    E.var("anchor_id"),
                                   ),
                                   None,
                                   None,
                                 ),
                               ),
+                              [
+                                (
+                                  P.cons(P.var("node"), P.wild()),
+                                  E.var("node"),
+                                ),
+                                (P.list_lit([]), JSON.json_null),
+                              ],
                             ),
                             let_(
-                              P.var("net1"),
-                              call2(
-                                "set_nodes",
-                                E.var("net"),
-                                append(
-                                  E.var("nodes"),
-                                  list1(E.var("resource_node")),
-                                ),
+                              P.var("resource_x"),
+                              int_add(
+                                call("node_x", E.var("anchor_node")),
+                                E.int(260),
                               ),
-                              call2(
-                                "set_arcs",
-                                E.var("net1"),
-                                append(E.var("arcs"), E.var("lock_arcs")),
+                              let_(
+                                P.var("resource_y"),
+                                call("node_y", E.var("anchor_node")),
+                                let_(
+                                  P.var("resource_node"),
+                                  call3(
+                                    "set_node_position",
+                                    call2(
+                                      "mk_place_tokens",
+                                      E.var("resource_place_id"),
+                                      E.var("initial_tokens"),
+                                    ),
+                                    E.var("resource_x"),
+                                    E.var("resource_y"),
+                                  ),
+                                  let_(
+                                    P.var("lock_arcs"),
+                                    call(
+                                      "flat_map",
+                                      t2(
+                                        E.var("pairs"),
+                                        fn(
+                                          P.tuple([
+                                            P.var("ta"),
+                                            P.var("tb"),
+                                          ]),
+                                          list2(
+                                            call3(
+                                              "mk_arc",
+                                              E.var("resource_place_id"),
+                                              E.var("ta"),
+                                              E.int(1),
+                                            ),
+                                            call3(
+                                              "mk_arc",
+                                              E.var("tb"),
+                                              E.var("resource_place_id"),
+                                              E.int(1),
+                                            ),
+                                          ),
+                                          None,
+                                          None,
+                                        ),
+                                      ),
+                                    ),
+                                    let_(
+                                      P.var("net1"),
+                                      call2(
+                                        "set_nodes",
+                                        E.var("net"),
+                                        append(
+                                          E.var("nodes"),
+                                          list1(E.var("resource_node")),
+                                        ),
+                                      ),
+                                      call2(
+                                        "set_arcs",
+                                        E.var("net1"),
+                                        append(
+                                          E.var("arcs"),
+                                          E.var("lock_arcs"),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -3471,8 +3451,22 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
       )
     in
     let nodes = get_nodes(net0) in
+    let resource_node =
+      case filter(nodes, fun node -> get_id(node) == resource_place_id)
+      | node::_ => node
+      | [] => Null
+      end
+    in
+    let base_x = node_x(resource_node) + 260 in
+    let base_y = node_y(resource_node) in
+    let laid_out_stage_nodes =
+      mapi(
+        stage_nodes,
+        fun (i, node) -> set_node_position(node)(base_x)(base_y + (i + 1) * 180)
+      )
+    in
     let arcs = get_arcs(net0) in
-    let net1 = set_nodes(net0)(nodes @ stage_nodes) in
+    let net1 = set_nodes(net0)(nodes @ laid_out_stage_nodes) in
     set_arcs(net1)(arcs @ stage_arcs)|},
     arg: json_t,
     ret: Unknown(Internal),
@@ -3623,24 +3617,96 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                                   P.var("nodes"),
                                   call("get_nodes", E.var("net0")),
                                   let_(
-                                    P.var("arcs"),
-                                    call("get_arcs", E.var("net0")),
-                                    let_(
-                                      P.var("net1"),
-                                      call2(
-                                        "set_nodes",
-                                        E.var("net0"),
-                                        append(
-                                          E.var("nodes"),
-                                          E.var("stage_nodes"),
+                                    P.var("resource_node"),
+                                    match(
+                                      filter_(
+                                        E.var("nodes"),
+                                        fn(
+                                          P.var("node"),
+                                          eq_(
+                                            call("get_id", E.var("node")),
+                                            E.var("resource_place_id"),
+                                          ),
+                                          None,
+                                          None,
                                         ),
                                       ),
-                                      call2(
-                                        "set_arcs",
-                                        E.var("net1"),
-                                        append(
-                                          E.var("arcs"),
-                                          E.var("stage_arcs"),
+                                      [
+                                        (
+                                          P.cons(P.var("node"), P.wild()),
+                                          E.var("node"),
+                                        ),
+                                        (P.list_lit([]), JSON.json_null),
+                                      ],
+                                    ),
+                                    let_(
+                                      P.var("base_x"),
+                                      int_add(
+                                        call(
+                                          "node_x",
+                                          E.var("resource_node"),
+                                        ),
+                                        E.int(260),
+                                      ),
+                                      let_(
+                                        P.var("base_y"),
+                                        call(
+                                          "node_y",
+                                          E.var("resource_node"),
+                                        ),
+                                        let_(
+                                          P.var("laid_out_stage_nodes"),
+                                          mapi_(
+                                            E.var("stage_nodes"),
+                                            fn(
+                                              P.tuple([
+                                                P.var("i"),
+                                                P.var("node"),
+                                              ]),
+                                              call3(
+                                                "set_node_position",
+                                                E.var("node"),
+                                                E.var("base_x"),
+                                                int_add(
+                                                  E.var("base_y"),
+                                                  int_mul(
+                                                    int_add(
+                                                      E.var("i"),
+                                                      E.int(1),
+                                                    ),
+                                                    E.int(180),
+                                                  ),
+                                                ),
+                                              ),
+                                              None,
+                                              None,
+                                            ),
+                                          ),
+                                          let_(
+                                            P.var("arcs"),
+                                            call("get_arcs", E.var("net0")),
+                                            let_(
+                                              P.var("net1"),
+                                              call2(
+                                                "set_nodes",
+                                                E.var("net0"),
+                                                append(
+                                                  E.var("nodes"),
+                                                  E.var(
+                                                    "laid_out_stage_nodes",
+                                                  ),
+                                                ),
+                                              ),
+                                              call2(
+                                                "set_arcs",
+                                                E.var("net1"),
+                                                append(
+                                                  E.var("arcs"),
+                                                  E.var("stage_arcs"),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),

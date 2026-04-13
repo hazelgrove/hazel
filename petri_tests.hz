@@ -51,10 +51,6 @@ let refined_seq = refine_place_sequence(tiny_net)("p0")("seq")(1) in
 let refined_par = refine_place_parallel(tiny_net)("p0")("par")(2) in
 let refined_choice = refine_place_choice(tiny_net)("p0")("ch")(2) in
 let refined_dfc = refine_place_decision_free_choice(tiny_net)("p0")("df")(2) in
-let (layout_seq_nodes_raw, _layout_seq_arcs, layout_seq_pin, layout_seq_pout) = build_sequence_place_module("layout_seq")(2) in
-let layout_seq_nodes = layout_module_nodes(layout_seq_nodes_raw)(layout_seq_pin)(layout_seq_pout) in
-let (layout_par_nodes_raw, _layout_par_arcs, layout_par_pin, layout_par_pout) = build_parallel_place_module("layout_par")(2) in
-let layout_par_nodes = layout_module_nodes(layout_par_nodes_raw)(layout_par_pin)(layout_par_pout) in
 let shared_parallel_net =
   add_shared_parallel_resource(
     refined_seq
@@ -179,7 +175,7 @@ hint "refine_place_sequence rewires loop topology exactly"
 hint "refined module nodes include geometry fields required by editor"
   test
     let seq_pin = lookup_node(refined_seq)("seq_pin") in
-    jq1([jq_field("position"), jq_field("x")])(seq_pin) == Int(0)
+    jq1([jq_field("position"), jq_field("x")])(seq_pin) == Int(260)
     && jq1([jq_field("position"), jq_field("y")])(seq_pin) == Int(0)
     && jq1([jq_field("height")])(seq_pin) == Int(130)
     && jq1([jq_field("width")])(seq_pin) == Int(130)
