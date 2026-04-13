@@ -134,7 +134,7 @@ hint "sequence module exposes expected pin and pout names"
   test seq_pin == "m_pin" && seq_pout == "m_pout" end;
 
 hint "sequence module has expected small size for n=1"
-  test length(seq_nodes) == 5 && length(seq_arcs) == 2 end;
+  test length(seq_nodes) == 3 && length(seq_arcs) == 2 end;
 
 hint "parallel module pin and pout naming"
   test par_pin == "pmod_pin" && par_pout == "pmod_pout" end;
@@ -154,7 +154,7 @@ hint "refine_place_sequence keeps t0 and inserts seq module nodes"
     && has_node("seq_pin")
     && has_node("seq_pout")
     && has_node("seq_t1")
-    && length(refined_nodes) == 6
+    && length(refined_nodes) == 4
   end;
 
 hint "refine_place_sequence rewires loop topology exactly"
@@ -168,11 +168,11 @@ hint "refine_place_sequence rewires loop topology exactly"
 
 hint "refined module nodes include geometry fields required by editor"
   test
-    let seq_p1 = lookup_node(refined_seq)("seq_p1") in
-    jq1([jq_field("position"), jq_field("x")])(seq_p1) == Int(0)
-    && jq1([jq_field("position"), jq_field("y")])(seq_p1) == Int(0)
-    && jq1([jq_field("height")])(seq_p1) == Int(130)
-    && jq1([jq_field("width")])(seq_p1) == Int(130)
+    let seq_pin = lookup_node(refined_seq)("seq_pin") in
+    jq1([jq_field("position"), jq_field("x")])(seq_pin) == Int(0)
+    && jq1([jq_field("position"), jq_field("y")])(seq_pin) == Int(0)
+    && jq1([jq_field("height")])(seq_pin) == Int(130)
+    && jq1([jq_field("width")])(seq_pin) == Int(130)
   end;
 
 hint "refined arcs include handle + interaction metadata"
@@ -288,7 +288,7 @@ hint "shared parallel resource adds one place with independent lock pairs"
     && has_arc_in(shared_parallel_net)("t0")("rsp")
     && has_arc_in(shared_parallel_net)("rsp")("seq_t1")
     && has_arc_in(shared_parallel_net)("seq_t1")("rsp")
-    && length(get_nodes(shared_parallel_net)) == 7
+    && length(get_nodes(shared_parallel_net)) == 5
     && length(get_arcs(shared_parallel_net)) == 8
   end;
 
@@ -306,7 +306,7 @@ hint "shared sequential resource adds stage places and ordered handoff arcs"
     && has_arc_in(shared_sequential_net)("t0")("rss_stage_2")
     && has_arc_in(shared_sequential_net)("rss_stage_2")("seq_t1")
     && has_arc_in(shared_sequential_net)("seq_t1")("rss_stage_1")
-    && length(get_nodes(shared_sequential_net)) == 10
+    && length(get_nodes(shared_sequential_net)) == 8
     && length(get_arcs(shared_sequential_net)) == 12
   end;
 

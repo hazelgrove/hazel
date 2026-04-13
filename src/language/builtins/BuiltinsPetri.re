@@ -810,8 +810,8 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   let n1 = if n < 1 then 1 else n in
   let pin = prefix ++ "_pin" in
   let pout = prefix ++ "_pout" in
-  let mids = map(range(1, n1), fun i -> mk_place(prefix ++ "_p" ++ string_of_int(i))) in
-  let trans = map(range(1, n1 + 1), fun i -> mk_transition(prefix ++ "_t" ++ string_of_int(i))) in
+  let mids = map(range(1, n1 - 1), fun i -> mk_place(prefix ++ "_p" ++ string_of_int(i))) in
+  let trans = map(range(1, n1), fun i -> mk_transition(prefix ++ "_t" ++ string_of_int(i))) in
   let nodes = [mk_place(pin)] @ mids @ [mk_place(pout)] @ trans in
   let arcs = seq_place_arcs(pin)(prefix)(1)(n1) in
   (nodes, arcs, pin, pout)|},
@@ -838,7 +838,10 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                       let_(
                         P.var("mids"),
                         map_(
-                          range_(E.int(1), E.var("n1")),
+                          range_(
+                            E.int(1),
+                            int_sub(E.var("n1"), E.int(1)),
+                          ),
                           fn(
                             P.var("i"),
                             call(
@@ -855,10 +858,7 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                         let_(
                           P.var("trans"),
                           map_(
-                            range_(
-                              E.int(1),
-                              int_add(E.var("n1"), E.int(1)),
-                            ),
+                            range_(E.int(1), E.var("n1")),
                             fn(
                               P.var("i"),
                               call(
