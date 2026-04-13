@@ -2052,11 +2052,28 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   let split_t = prefix ++ "_split" in
   let join_t = prefix ++ "_join" in
   let branch_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_b" ++ string_of_int(i)) in
+  let branch_count = length(branch_ids) in
   let branch_places = map(branch_ids, fun bid -> mk_place(bid)) in
   let branch_arcs = flat_map(branch_ids, fun bid -> [mk_arc(split_t)(bid)(1), mk_arc(bid)(join_t)(1)]) in
   let nodes = [mk_place(pin), mk_place(pout), mk_transition(split_t), mk_transition(join_t)] @ branch_places in
+  let positioned_nodes =
+    mapi(
+      nodes,
+      fun (i, node) ->
+        if i == 0
+        then set_node_position(node)(0)(0)
+        else if i == 1
+        then set_node_position(node)(4 * 260)(0)
+        else if i == 2
+        then set_node_position(node)(260)(0)
+        else if i == 3
+        then set_node_position(node)(3 * 260)(0)
+        else
+          let lane = i - 3 in
+          set_node_position(node)(2 * 260)(((2 * lane - branch_count - 1) * 180) / 2)
+    ) in
   let arcs = [mk_arc(pin)(split_t)(1)] @ branch_arcs @ [mk_arc(join_t)(pout)(1)] in
-  (nodes, arcs, pin, pout)|},
+  (positioned_nodes, arcs, pin, pout)|},
     arg: Atom(String),
     ret: Unknown(Internal),
     imp: {
@@ -2100,6 +2117,9 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                                 None,
                               ),
                             ),
+                            let_(
+                            P.var("branch_count"),
+                            call("length", E.var("branch_ids")),
                             let_(
                               P.var("branch_places"),
                               map_(
@@ -2150,37 +2170,121 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                                     E.var("branch_places"),
                                   ),
                                   let_(
-                                    P.var("arcs"),
-                                    append(
-                                      append(
-                                        list1(
-                                          call3(
-                                            "mk_arc",
-                                            E.var("pin"),
-                                            E.var("split_t"),
-                                            E.int(1),
+                                      P.var("positioned_nodes"),
+                                      mapi_(
+                                        E.var("nodes"),
+                                        fn(
+                                          P.tuple([P.var("i"), P.var("node")]),
+                                          if_(
+                                            eq_(E.var("i"), E.int(0)),
+                                            call3(
+                                              "set_node_position",
+                                              E.var("node"),
+                                              E.int(0),
+                                              E.int(0),
+                                            ),
+                                            if_(
+                                              eq_(E.var("i"), E.int(1)),
+                                              call3(
+                                                "set_node_position",
+                                                E.var("node"),
+                                                int_mul(E.int(4), E.int(260)),
+                                                E.int(0),
+                                              ),
+                                              if_(
+                                                eq_(E.var("i"), E.int(2)),
+                                                call3(
+                                                  "set_node_position",
+                                                  E.var("node"),
+                                                  E.int(260),
+                                                  E.int(0),
+                                                ),
+                                                if_(
+                                                  eq_(E.var("i"), E.int(3)),
+                                                  call3(
+                                                    "set_node_position",
+                                                    E.var("node"),
+                                                    int_mul(
+                                                      E.int(3),
+                                                      E.int(260),
+                                                    ),
+                                                    E.int(0),
+                                                  ),
+                                                  let_(
+                                                    P.var("lane"),
+                                                    int_sub(
+                                                      E.var("i"),
+                                                      E.int(3),
+                                                    ),
+                                                    call3(
+                                                      "set_node_position",
+                                                      E.var("node"),
+                                                      int_mul(
+                                                        E.int(2),
+                                                        E.int(260),
+                                                      ),
+                                                      int_div(
+                                                        int_mul(
+                                                          int_sub(
+                                                            int_sub(
+                                                              int_mul(
+                                                                E.int(2),
+                                                                E.var("lane"),
+                                                              ),
+                                                              E.var(
+                                                                "branch_count",
+                                                              ),
+                                                            ),
+                                                            E.int(1),
+                                                          ),
+                                                          E.int(180),
+                                                        ),
+                                                        E.int(2),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          None,
+                                          None,
+                                        ),
+                                      ),
+                                      let_(
+                                        P.var("arcs"),
+                                        append(
+                                          append(
+                                            list1(
+                                              call3(
+                                                "mk_arc",
+                                                E.var("pin"),
+                                                E.var("split_t"),
+                                                E.int(1),
+                                              ),
+                                            ),
+                                            E.var("branch_arcs"),
+                                          ),
+                                          list1(
+                                            call3(
+                                              "mk_arc",
+                                              E.var("join_t"),
+                                              E.var("pout"),
+                                              E.int(1),
+                                            ),
                                           ),
                                         ),
-                                        E.var("branch_arcs"),
-                                      ),
-                                      list1(
-                                        call3(
-                                          "mk_arc",
-                                          E.var("join_t"),
+                                        t4(
+                                          E.var("positioned_nodes"),
+                                          E.var("arcs"),
+                                          E.var("pin"),
                                           E.var("pout"),
-                                          E.int(1),
                                         ),
                                       ),
-                                    ),
-                                    t4(
-                                      E.var("nodes"),
-                                      E.var("arcs"),
-                                      E.var("pin"),
-                                      E.var("pout"),
-                                    ),
                                   ),
                                 ),
                               ),
+                            ),
                             ),
                           ),
                         ),
@@ -2207,9 +2311,30 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   let pin = prefix ++ "_pin" in
   let pout = prefix ++ "_pout" in
   let branch_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_b" ++ string_of_int(i)) in
+  let branch_count = length(branch_ids) in
   let choose_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_choose" ++ string_of_int(i)) in
   let done_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_done" ++ string_of_int(i)) in
   let nodes = [mk_place(pin), mk_place(pout)] @ map(branch_ids, fun bid -> mk_place(bid)) @ map(choose_ids, fun tid -> mk_transition(tid)) @ map(done_ids, fun tid -> mk_transition(tid)) in
+  let positioned_nodes =
+    mapi(
+      nodes,
+      fun (i, node) ->
+        if i == 0
+        then set_node_position(node)(0)(0)
+        else if i == 1
+        then set_node_position(node)(4 * 260)(0)
+        else if i <= 1 + branch_count
+        then
+          let lane = i - 1 in
+          set_node_position(node)(2 * 260)(((2 * lane - branch_count - 1) * 180) / 2)
+        else if i <= 1 + 2 * branch_count
+        then
+          let lane = i - (1 + branch_count) in
+          set_node_position(node)(260)(((2 * lane - branch_count - 1) * 180) / 2)
+        else
+          let lane = i - (1 + 2 * branch_count) in
+          set_node_position(node)(3 * 260)(((2 * lane - branch_count - 1) * 180) / 2)
+    ) in
   let arcs_choose = flat_map(range(1, n1 + 1), fun i ->
       let b = prefix ++ "_b" ++ string_of_int(i) in
       let c = prefix ++ "_choose" ++ string_of_int(i) in
@@ -2220,7 +2345,7 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
       let d = prefix ++ "_done" ++ string_of_int(i) in
       [mk_arc(b)(d)(1), mk_arc(d)(pout)(1)]
     ) in
-  (nodes, arcs_choose @ arcs_done, pin, pout)|},
+  (positioned_nodes, arcs_choose @ arcs_done, pin, pout)|},
     arg: Atom(String),
     ret: Unknown(Internal),
     imp: {
@@ -2258,6 +2383,9 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                             None,
                           ),
                         ),
+                        let_(
+                        P.var("branch_count"),
+                        call("length", E.var("branch_ids")),
                         let_(
                           P.var("choose_ids"),
                           map_(
@@ -2338,6 +2466,149 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                                 ),
                               ),
                               let_(
+                                P.var("positioned_nodes"),
+                                mapi_(
+                                  E.var("nodes"),
+                                  fn(
+                                    P.tuple([P.var("i"), P.var("node")]),
+                                    if_(
+                                      eq_(E.var("i"), E.int(0)),
+                                      call3(
+                                        "set_node_position",
+                                        E.var("node"),
+                                        E.int(0),
+                                        E.int(0),
+                                      ),
+                                      if_(
+                                        eq_(E.var("i"), E.int(1)),
+                                        call3(
+                                          "set_node_position",
+                                          E.var("node"),
+                                          int_mul(E.int(4), E.int(260)),
+                                          E.int(0),
+                                        ),
+                                        if_(
+                                          le_(
+                                            E.var("i"),
+                                            int_add(
+                                              E.int(1),
+                                              E.var("branch_count"),
+                                            ),
+                                          ),
+                                          let_(
+                                            P.var("lane"),
+                                            int_sub(E.var("i"), E.int(1)),
+                                            call3(
+                                              "set_node_position",
+                                              E.var("node"),
+                                              int_mul(E.int(2), E.int(260)),
+                                              int_div(
+                                                int_mul(
+                                                  int_sub(
+                                                    int_sub(
+                                                      int_mul(
+                                                        E.int(2),
+                                                        E.var("lane"),
+                                                      ),
+                                                      E.var("branch_count"),
+                                                    ),
+                                                    E.int(1),
+                                                  ),
+                                                  E.int(180),
+                                                ),
+                                                E.int(2),
+                                              ),
+                                            ),
+                                          ),
+                                          if_(
+                                            le_(
+                                              E.var("i"),
+                                              int_add(
+                                                E.int(1),
+                                                int_mul(
+                                                  E.int(2),
+                                                  E.var("branch_count"),
+                                                ),
+                                              ),
+                                            ),
+                                            let_(
+                                              P.var("lane"),
+                                              int_sub(
+                                                E.var("i"),
+                                                int_add(
+                                                  E.int(1),
+                                                  E.var("branch_count"),
+                                                ),
+                                              ),
+                                              call3(
+                                                "set_node_position",
+                                                E.var("node"),
+                                                E.int(260),
+                                                int_div(
+                                                  int_mul(
+                                                    int_sub(
+                                                      int_sub(
+                                                        int_mul(
+                                                          E.int(2),
+                                                          E.var("lane"),
+                                                        ),
+                                                        E.var(
+                                                          "branch_count",
+                                                        ),
+                                                      ),
+                                                      E.int(1),
+                                                    ),
+                                                    E.int(180),
+                                                  ),
+                                                  E.int(2),
+                                                ),
+                                              ),
+                                            ),
+                                            let_(
+                                              P.var("lane"),
+                                              int_sub(
+                                                E.var("i"),
+                                                int_add(
+                                                  E.int(1),
+                                                  int_mul(
+                                                    E.int(2),
+                                                    E.var("branch_count"),
+                                                  ),
+                                                ),
+                                              ),
+                                              call3(
+                                                "set_node_position",
+                                                E.var("node"),
+                                                int_mul(E.int(3), E.int(260)),
+                                                int_div(
+                                                  int_mul(
+                                                    int_sub(
+                                                      int_sub(
+                                                        int_mul(
+                                                          E.int(2),
+                                                          E.var("lane"),
+                                                        ),
+                                                        E.var(
+                                                          "branch_count",
+                                                        ),
+                                                      ),
+                                                      E.int(1),
+                                                    ),
+                                                    E.int(180),
+                                                  ),
+                                                  E.int(2),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    None,
+                                    None,
+                                  ),
+                                ),
+                                let_(
                                 P.var("arcs_choose"),
                                 flat_map_(
                                   range_(
@@ -2435,7 +2706,7 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                                     ),
                                   ),
                                   t4(
-                                    E.var("nodes"),
+                                    E.var("positioned_nodes"),
                                     append(
                                       E.var("arcs_choose"),
                                       E.var("arcs_done"),
@@ -2447,6 +2718,8 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                               ),
                             ),
                           ),
+                        ),
+                        ),
                         ),
                       ),
                     ),
@@ -2471,11 +2744,36 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   let pin = prefix ++ "_pin" in
   let pout = prefix ++ "_pout" in
   let branch_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_b" ++ string_of_int(i)) in
+  let branch_count = length(branch_ids) in
   let choose_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_choose" ++ string_of_int(i)) in
   let done_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_done" ++ string_of_int(i)) in
   let control_ids = map(range(1, n1 + 1), fun i -> prefix ++ "_ctrl" ++ string_of_int(i)) in
   let control_places = mapi(control_ids, fun (i, cid) -> if i == 0 then mk_place_tokens(cid)(1) else mk_place(cid)) in
   let nodes = [mk_place(pin), mk_place(pout)] @ map(branch_ids, fun bid -> mk_place(bid)) @ control_places @ map(choose_ids, fun tid -> mk_transition(tid)) @ map(done_ids, fun tid -> mk_transition(tid)) in
+  let positioned_nodes =
+    mapi(
+      nodes,
+      fun (i, node) ->
+        if i == 0
+        then set_node_position(node)(0)(-360)
+        else if i == 1
+        then set_node_position(node)(4 * 260)(180)
+        else if i <= 1 + branch_count
+        then
+          let lane = i - 1 in
+          set_node_position(node)(2 * 260)(((2 * lane - branch_count - 1) * 180) / 2)
+        else if i <= 1 + 2 * branch_count
+        then
+          let lane = i - (1 + branch_count) in
+          set_node_position(node)(0)(((2 * lane - branch_count - 1) * 180) / 2)
+        else if i <= 1 + 3 * branch_count
+        then
+          let lane = i - (1 + 2 * branch_count) in
+          set_node_position(node)(260)(((2 * lane - branch_count - 1) * 180) / 2)
+        else
+          let lane = i - (1 + 3 * branch_count) in
+          set_node_position(node)(3 * 260)(((2 * lane - branch_count - 1) * 180) / 2)
+    ) in
   let arcs = concat(
     mapi(range(1, n1 + 1), fun (_idx, i) ->
       let b = prefix ++ "_b" ++ string_of_int(i) in
@@ -2487,7 +2785,7 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
       [mk_arc(pin)(c)(1), mk_arc(ctrl)(c)(1), mk_arc(c)(b)(1), mk_arc(b)(d)(1), mk_arc(d)(pout)(1), mk_arc(d)(next_ctrl)(1)]
     )
   ) in
-  (nodes, arcs, pin, pout)|},
+  (positioned_nodes, arcs, pin, pout)|},
     arg: Atom(String),
     ret: Unknown(Internal),
     imp: {
@@ -2526,6 +2824,9 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                           ),
                         ),
                         let_(
+                          P.var("branch_count"),
+                          call("length", E.var("branch_ids")),
+                          let_(
                           P.var("choose_ids"),
                           map_(
                             range_(
@@ -2650,19 +2951,222 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                                     ),
                                   ),
                                   let_(
-                                    P.var("arcs"),
-                                    concat_(
-                                      mapi_(
-                                        range_(
-                                          E.int(1),
-                                          int_add(E.var("n1"), E.int(1)),
+                                    P.var("positioned_nodes"),
+                                    mapi_(
+                                      E.var("nodes"),
+                                      fn(
+                                        P.tuple([P.var("i"), P.var("node")]),
+                                        if_(
+                                          eq_(E.var("i"), E.int(0)),
+                                          call3(
+                                            "set_node_position",
+                                            E.var("node"),
+                                            E.int(0),
+                                            E.int(-360),
+                                          ),
+                                          if_(
+                                            eq_(E.var("i"), E.int(1)),
+                                            call3(
+                                              "set_node_position",
+                                              E.var("node"),
+                                              int_mul(E.int(4), E.int(260)),
+                                              E.int(180),
+                                            ),
+                                            if_(
+                                              le_(
+                                                E.var("i"),
+                                                int_add(
+                                                  E.int(1),
+                                                  E.var("branch_count"),
+                                                ),
+                                              ),
+                                              let_(
+                                                P.var("lane"),
+                                                int_sub(
+                                                  E.var("i"),
+                                                  E.int(1),
+                                                ),
+                                                call3(
+                                                  "set_node_position",
+                                                  E.var("node"),
+                                                  int_mul(E.int(2), E.int(260)),
+                                                  int_div(
+                                                    int_mul(
+                                                      int_sub(
+                                                        int_sub(
+                                                          int_mul(
+                                                            E.int(2),
+                                                            E.var("lane"),
+                                                          ),
+                                                          E.var(
+                                                            "branch_count",
+                                                          ),
+                                                        ),
+                                                        E.int(1),
+                                                      ),
+                                                      E.int(180),
+                                                    ),
+                                                    E.int(2),
+                                                  ),
+                                                ),
+                                              ),
+                                              if_(
+                                                le_(
+                                                  E.var("i"),
+                                                  int_add(
+                                                    E.int(1),
+                                                    int_mul(
+                                                      E.int(2),
+                                                      E.var("branch_count"),
+                                                    ),
+                                                  ),
+                                                ),
+                                                let_(
+                                                  P.var("lane"),
+                                                  int_sub(
+                                                    E.var("i"),
+                                                    int_add(
+                                                      E.int(1),
+                                                      E.var("branch_count"),
+                                                    ),
+                                                  ),
+                                                  call3(
+                                                    "set_node_position",
+                                                    E.var("node"),
+                                                    E.int(0),
+                                                    int_div(
+                                                      int_mul(
+                                                        int_sub(
+                                                          int_sub(
+                                                            int_mul(
+                                                              E.int(2),
+                                                              E.var("lane"),
+                                                            ),
+                                                            E.var(
+                                                              "branch_count",
+                                                            ),
+                                                          ),
+                                                          E.int(1),
+                                                        ),
+                                                        E.int(180),
+                                                      ),
+                                                      E.int(2),
+                                                    ),
+                                                  ),
+                                                ),
+                                                if_(
+                                                  le_(
+                                                    E.var("i"),
+                                                    int_add(
+                                                      E.int(1),
+                                                      int_mul(
+                                                        E.int(3),
+                                                        E.var("branch_count"),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  let_(
+                                                    P.var("lane"),
+                                                    int_sub(
+                                                      E.var("i"),
+                                                      int_add(
+                                                        E.int(1),
+                                                        int_mul(
+                                                          E.int(2),
+                                                          E.var(
+                                                            "branch_count",
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    call3(
+                                                      "set_node_position",
+                                                      E.var("node"),
+                                                      E.int(260),
+                                                      int_div(
+                                                        int_mul(
+                                                          int_sub(
+                                                            int_sub(
+                                                              int_mul(
+                                                                E.int(2),
+                                                                E.var("lane"),
+                                                              ),
+                                                              E.var(
+                                                                "branch_count",
+                                                              ),
+                                                            ),
+                                                            E.int(1),
+                                                          ),
+                                                          E.int(180),
+                                                        ),
+                                                        E.int(2),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  let_(
+                                                    P.var("lane"),
+                                                    int_sub(
+                                                      E.var("i"),
+                                                      int_add(
+                                                        E.int(1),
+                                                        int_mul(
+                                                          E.int(3),
+                                                          E.var(
+                                                            "branch_count",
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    call3(
+                                                      "set_node_position",
+                                                      E.var("node"),
+                                                      int_mul(
+                                                        E.int(3),
+                                                        E.int(260),
+                                                      ),
+                                                      int_div(
+                                                        int_mul(
+                                                          int_sub(
+                                                            int_sub(
+                                                              int_mul(
+                                                                E.int(2),
+                                                                E.var("lane"),
+                                                              ),
+                                                              E.var(
+                                                                "branch_count",
+                                                              ),
+                                                            ),
+                                                            E.int(1),
+                                                          ),
+                                                          E.int(180),
+                                                        ),
+                                                        E.int(2),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                         ),
-                                        fn(
-                                          P.tuple([
-                                            P.var("_idx"),
-                                            P.var("i"),
-                                          ]),
-                                          let_(
+                                        None,
+                                        None,
+                                      ),
+                                    ),
+                                    let_(
+                                      P.var("arcs"),
+                                      concat_(
+                                        mapi_(
+                                          range_(
+                                            E.int(1),
+                                            int_add(E.var("n1"), E.int(1)),
+                                          ),
+                                          fn(
+                                            P.tuple([
+                                              P.var("_idx"),
+                                              P.var("i"),
+                                            ]),
+                                            let_(
                                             P.var("b"),
                                             sconcat(
                                               sconcat(
@@ -2778,22 +3282,24 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                                                 ),
                                               ),
                                             ),
+                                            ),
+                                            None,
+                                            None,
                                           ),
-                                          None,
-                                          None,
                                         ),
                                       ),
-                                    ),
-                                    t4(
-                                      E.var("nodes"),
-                                      E.var("arcs"),
-                                      E.var("pin"),
-                                      E.var("pout"),
+                                      t4(
+                                        E.var("positioned_nodes"),
+                                        E.var("arcs"),
+                                        E.var("pin"),
+                                        E.var("pout"),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
+                          ),
                           ),
                         ),
                       ),
@@ -2819,18 +3325,7 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   let nodes = get_nodes(net) in
   let arcs = get_arcs(net) in
   let kept_nodes = filter(nodes, fun node -> get_id(node) != old_place) in
-  let placed_module_nodes =
-    mapi(
-      module_nodes,
-      fun (i, node) ->
-        let id = get_id(node) in
-        if id == pin
-        then set_node_position(node)(260)(0)
-        else if id == pout
-        then set_node_position(node)(260)(2 * 180)
-        else set_node_position(node)(260)((i + 1) * 180)
-    )
-  in
+  let placed_module_nodes = map(module_nodes, fun node -> translate_node(node)(260)(0)) in
   let rewired_arcs =
     map(
       arcs,
@@ -2890,40 +3385,15 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                           ),
                           let_(
                             P.var("placed_module_nodes"),
-                            mapi_(
+                            map_(
                               E.var("module_nodes"),
                               fn(
-                                P.tuple([P.var("i"), P.var("node")]),
-                                let_(
-                                  P.var("id"),
-                                  call("get_id", E.var("node")),
-                                  if_(
-                                    eq_(E.var("id"), E.var("pin")),
-                                    call3(
-                                      "set_node_position",
-                                      E.var("node"),
-                                      E.int(260),
-                                      E.int(0),
-                                    ),
-                                    if_(
-                                      eq_(E.var("id"), E.var("pout")),
-                                      call3(
-                                        "set_node_position",
-                                        E.var("node"),
-                                        E.int(260),
-                                        int_mul(E.int(2), E.int(180)),
-                                      ),
-                                      call3(
-                                        "set_node_position",
-                                        E.var("node"),
-                                        E.int(260),
-                                        int_mul(
-                                          int_add(E.var("i"), E.int(1)),
-                                          E.int(180),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                P.var("node"),
+                                call3(
+                                  "translate_node",
+                                  E.var("node"),
+                                  E.int(260),
+                                  E.int(0),
                                 ),
                                 None,
                                 None,
@@ -3013,26 +3483,7 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
   {
     name: "refine_place_sequence",
     str: {|fix refine_place_sequence -> fun net -> fun place_id -> fun prefix -> fun n ->
-  let (module_nodes, module_arcs, pin, pout) = build_sequence_place_module(prefix)(n) in
-  let nodes = get_nodes(net) in
-  let arcs = get_arcs(net) in
-  let kept_nodes = filter(nodes, fun node -> get_id(node) != place_id) in
-  let placed_module_nodes = map(module_nodes, fun node -> translate_node(node)(260)(0)) in
-  let rewired_arcs =
-    map(
-      arcs,
-      fun arc ->
-        let src = arc_source(arc) in
-        let tgt = arc_target(arc) in
-        if tgt == place_id
-        then arc_set_target(arc)(pin)
-        else if src == place_id
-        then arc_set_source(arc)(pout)
-        else arc
-    )
-  in
-  let net1 = set_nodes(net)(kept_nodes @ placed_module_nodes) in
-  set_arcs(net1)(rewired_arcs @ module_arcs)|},
+  refine_place_with_module(net)(place_id)(build_sequence_place_module(prefix)(n))|},
     arg: json_t,
     ret: Unknown(Internal),
     imp: {
@@ -3048,119 +3499,14 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                   P.var("prefix"),
                   fn(
                     P.var("n"),
-                    let_(
-                      P.tuple([
-                        P.var("module_nodes"),
-                        P.var("module_arcs"),
-                        P.var("pin"),
-                        P.var("pout"),
-                      ]),
+                    call3(
+                      "refine_place_with_module",
+                      E.var("net"),
+                      E.var("place_id"),
                       call2(
                         "build_sequence_place_module",
                         E.var("prefix"),
                         E.var("n"),
-                      ),
-                      let_(
-                        P.var("nodes"),
-                        call("get_nodes", E.var("net")),
-                        let_(
-                          P.var("arcs"),
-                          call("get_arcs", E.var("net")),
-                          let_(
-                            P.var("kept_nodes"),
-                            filter_(
-                              E.var("nodes"),
-                              fn(
-                                P.var("node"),
-                                E.bin_op(
-                                  Poly(NotEquals),
-                                  call("get_id", E.var("node")),
-                                  E.var("place_id"),
-                                ),
-                                None,
-                                None,
-                              ),
-                            ),
-                            let_(
-                              P.var("placed_module_nodes"),
-                              map_(
-                                E.var("module_nodes"),
-                                fn(
-                                  P.var("node"),
-                                  call3(
-                                    "translate_node",
-                                    E.var("node"),
-                                    E.int(260),
-                                    E.int(0),
-                                  ),
-                                  None,
-                                  None,
-                                ),
-                              ),
-                              let_(
-                                P.var("rewired_arcs"),
-                                map_(
-                                  E.var("arcs"),
-                                  fn(
-                                    P.var("arc"),
-                                    let_(
-                                      P.var("src"),
-                                      call("arc_source", E.var("arc")),
-                                      let_(
-                                        P.var("tgt"),
-                                        call("arc_target", E.var("arc")),
-                                        if_(
-                                          eq_(
-                                            E.var("tgt"),
-                                            E.var("place_id"),
-                                          ),
-                                          call2(
-                                            "arc_set_target",
-                                            E.var("arc"),
-                                            E.var("pin"),
-                                          ),
-                                          if_(
-                                            eq_(
-                                              E.var("src"),
-                                              E.var("place_id"),
-                                            ),
-                                            call2(
-                                              "arc_set_source",
-                                              E.var("arc"),
-                                              E.var("pout"),
-                                            ),
-                                            E.var("arc"),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    None,
-                                    None,
-                                  ),
-                                ),
-                                let_(
-                                  P.var("net1"),
-                                  call2(
-                                    "set_nodes",
-                                    E.var("net"),
-                                    append(
-                                      E.var("kept_nodes"),
-                                      E.var("placed_module_nodes"),
-                                    ),
-                                  ),
-                                  call2(
-                                    "set_arcs",
-                                    E.var("net1"),
-                                    append(
-                                      E.var("rewired_arcs"),
-                                      E.var("module_arcs"),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
                       ),
                     ),
                     None,
