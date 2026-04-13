@@ -895,9 +895,16 @@ module View = {
         model: Model.t,
       ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
+    let ast_hud_nodes =
+      if (Haz3lcore.PatchworkComm.is_in_patchwork()) {
+        [];
+      } else {
+        [ast_hud(model)];
+      };
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim, ast_hud(model)]
+      [FontSpecimen.view, JsUtil.clipboard_shim]
+      @ ast_hud_nodes
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };
