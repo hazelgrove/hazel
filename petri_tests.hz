@@ -75,6 +75,27 @@ in
 let has_arc_in = fun net -> fun src -> fun tgt ->
   length(filter(get_arcs(net), fun a -> arc_source(a) == src && arc_target(a) == tgt)) == 1
 in
+let lookup_node = fun net -> fun id ->
+  jq1([
+    jq_field("petriNetDefinition"),
+    jq_field("nodes"),
+    jq_iterate,
+    jq_select(fun n -> if jq1([jq_field("id")])(n) == String(id) then [Bool(true)] else [])
+  ])(net)
+in
+let lookup_arc = fun net -> fun src -> fun tgt ->
+  jq1([
+    jq_field("petriNetDefinition"),
+    jq_field("arcs"),
+    jq_iterate,
+    jq_select(
+      fun a ->
+        if jq1([jq_field("source")])(a) == String(src) && jq1([jq_field("target")])(a) == String(tgt)
+        then [Bool(true)]
+        else []
+    )
+  ])(net)
+in
 
 hint "mk_place creates place JSON"
   test jq1([jq_field("type")])(p) == String("place") end;
@@ -84,6 +105,30 @@ hint "mk_transition creates transition JSON"
 
 hint "mk_arc stores default weight"
   test jq1([jq_field("data"), jq_field("tokenWeights"), jq_field("default")])(a) == Int(3) end;
+
+hint "mk_place includes petrinaut geometry + initial token fields"
+  test
+    jq1([jq_field("position"), jq_field("x")])(p) == Int(0)
+    && jq1([jq_field("position"), jq_field("y")])(p) == Int(0)
+    && jq1([jq_field("height")])(p) == Int(130)
+    && jq1([jq_field("width")])(p) == Int(130)
+    && jq1([jq_field("data"), jq_field("initialTokenCounts"), jq_field("default")])(p) == Int(0)
+  end;
+
+hint "mk_transition includes petrinaut geometry fields"
+  test
+    jq1([jq_field("position"), jq_field("x")])(t) == Int(0)
+    && jq1([jq_field("position"), jq_field("y")])(t) == Int(0)
+    && jq1([jq_field("height")])(t) == Int(80)
+    && jq1([jq_field("width")])(t) == Int(160)
+  end;
+
+hint "mk_arc includes handles and interaction width"
+  test
+    jq1([jq_field("sourceHandle")])(a) == Null
+    && jq1([jq_field("targetHandle")])(a) == Null
+    && jq1([jq_field("interactionWidth")])(a) == Int(8)
+  end;
 
 hint "sequence module exposes expected pin and pout names"
   test seq_pin == "m_pin" && seq_pout == "m_pout" end;
@@ -119,6 +164,23 @@ hint "refine_place_sequence rewires loop topology exactly"
     && has_arc("seq_pin")("seq_t1")
     && has_arc("seq_t1")("seq_pout")
     && length(refined_arcs) == 4
+  end;
+
+hint "refined module nodes include geometry fields required by editor"
+  test
+    let seq_p1 = lookup_node(refined_seq)("seq_p1") in
+    jq1([jq_field("position"), jq_field("x")])(seq_p1) == Int(0)
+    && jq1([jq_field("position"), jq_field("y")])(seq_p1) == Int(0)
+    && jq1([jq_field("height")])(seq_p1) == Int(130)
+    && jq1([jq_field("width")])(seq_p1) == Int(130)
+  end;
+
+hint "refined arcs include handle + interaction metadata"
+  test
+    let seq_arc = lookup_arc(refined_seq)("seq_pin")("seq_t1") in
+    jq1([jq_field("sourceHandle")])(seq_arc) == Null
+    && jq1([jq_field("targetHandle")])(seq_arc) == Null
+    && jq1([jq_field("interactionWidth")])(seq_arc) == Int(8)
   end;
 
 hint "refine_place_parallel rewires tiny loop with split/join"
