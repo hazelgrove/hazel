@@ -69,15 +69,24 @@ in
 # Construct a place node with explicit initial default token count. #
 let mk_place_tokens = fun id -> fun tokens ->
   Assoc([
-    ("id", String(id)),
-    ("type", String("place")),
     ("data", Assoc([
       ("label", String(id)),
       ("type", String("place")),
+      ("initialTokenCounts", Assoc([
+        ("default", Int(tokens))
+      ])),
       ("tokenCounts", Assoc([
         ("default", Int(tokens))
       ]))
-    ]))
+    ])),
+    ("id", String(id)),
+    ("position", Assoc([
+      ("x", Int(0)),
+      ("y", Int(0))
+    ])),
+    ("type", String("place")),
+    ("height", Int(130)),
+    ("width", Int(130))
   ])
 in
 
@@ -89,27 +98,36 @@ in
 # Construct a transition node. #
 let mk_transition = fun id ->
   Assoc([
-    ("id", String(id)),
-    ("type", String("transition")),
     ("data", Assoc([
       ("label", String(id)),
       ("type", String("transition"))
-    ]))
+    ])),
+    ("id", String(id)),
+    ("position", Assoc([
+      ("x", Int(0)),
+      ("y", Int(0))
+    ])),
+    ("type", String("transition")),
+    ("height", Int(80)),
+    ("width", Int(160))
   ])
 in
 
 # Construct an arc with default token weight. #
 let mk_arc = fun src -> fun tgt -> fun weight ->
   Assoc([
-    ("id", String("arc__" ++ src ++ "__" ++ tgt)),
-    ("type", String("default")),
     ("source", String(src)),
+    ("sourceHandle", Null),
     ("target", String(tgt)),
+    ("targetHandle", Null),
+    ("id", String("arc__" ++ src ++ "-" ++ tgt)),
+    ("type", String("default")),
     ("data", Assoc([
       ("tokenWeights", Assoc([
         ("default", Int(weight))
       ]))
-    ]))
+    ])),
+    ("interactionWidth", Int(8))
   ])
 in
 

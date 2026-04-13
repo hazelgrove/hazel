@@ -466,13 +466,17 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
     name: "mk_place_tokens",
     str: {|fix mk_place_tokens -> fun id -> fun tokens ->
   Assoc([
-    ("id", String(id)),
-    ("type", String("place")),
     ("data", Assoc([
       ("label", String(id)),
       ("type", String("place")),
+      ("initialTokenCounts", Assoc([("default", Int(tokens))])),
       ("tokenCounts", Assoc([("default", Int(tokens))]))
-    ]))
+    ])),
+    ("id", String(id)),
+    ("position", Assoc([("x", Int(0)), ("y", Int(0))])),
+    ("type", String("place")),
+    ("height", Int(130)),
+    ("width", Int(130))
   ])|},
     arg: Atom(String),
     ret: Arrow(int(), JSON.t),
@@ -486,8 +490,6 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
               fn(
                 P.var("tokens"),
                 jassoc([
-                  pair("id", E.ap(Forward, JSON.json_string, E.var("id"))),
-                  pair("type", jstr("place")),
                   pair(
                     "data",
                     jassoc([
@@ -496,6 +498,15 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                         E.ap(Forward, JSON.json_string, E.var("id")),
                       ),
                       pair("type", jstr("place")),
+                      pair(
+                        "initialTokenCounts",
+                        jassoc([
+                          pair(
+                            "default",
+                            E.ap(Forward, JSON.json_int, E.var("tokens")),
+                          ),
+                        ]),
+                      ),
                       pair(
                         "tokenCounts",
                         jassoc([
@@ -507,6 +518,14 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                       ),
                     ]),
                   ),
+                  pair("id", E.ap(Forward, JSON.json_string, E.var("id"))),
+                  pair(
+                    "position",
+                    jassoc([pair("x", jint(0)), pair("y", jint(0))]),
+                  ),
+                  pair("type", jstr("place")),
+                  pair("height", jint(130)),
+                  pair("width", jint(130)),
                 ]),
                 None,
                 None,
@@ -547,12 +566,15 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
     name: "mk_transition",
     str: {|fix mk_transition -> fun id ->
   Assoc([
-    ("id", String(id)),
-    ("type", String("transition")),
     ("data", Assoc([
       ("label", String(id)),
       ("type", String("transition"))
-    ]))
+    ])),
+    ("id", String(id)),
+    ("position", Assoc([("x", Int(0)), ("y", Int(0))])),
+    ("type", String("transition")),
+    ("height", Int(80)),
+    ("width", Int(160))
   ])|},
     arg: Atom(String),
     ret: json_t,
@@ -564,8 +586,6 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
             fn(
               P.var("id"),
               jassoc([
-                pair("id", E.ap(Forward, JSON.json_string, E.var("id"))),
-                pair("type", jstr("transition")),
                 pair(
                   "data",
                   jassoc([
@@ -576,6 +596,14 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                     pair("type", jstr("transition")),
                   ]),
                 ),
+                pair("id", E.ap(Forward, JSON.json_string, E.var("id"))),
+                pair(
+                  "position",
+                  jassoc([pair("x", jint(0)), pair("y", jint(0))]),
+                ),
+                pair("type", jstr("transition")),
+                pair("height", jint(80)),
+                pair("width", jint(160)),
               ]),
               None,
               Some("mk_transition+"),
@@ -590,15 +618,18 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
     name: "mk_arc",
     str: {|fix mk_arc -> fun src -> fun tgt -> fun weight ->
   Assoc([
-    ("id", String("arc__" ++ src ++ "__" ++ tgt)),
-    ("type", String("default")),
     ("source", String(src)),
+    ("sourceHandle", Null),
     ("target", String(tgt)),
+    ("targetHandle", Null),
+    ("id", String("arc__" ++ src ++ "-" ++ tgt)),
+    ("type", String("default")),
     ("data", Assoc([
       ("tokenWeights", Assoc([
         ("default", Int(weight))
       ]))
-    ]))
+    ])),
+    ("interactionWidth", Int(8))
   ])|},
     arg: Atom(String),
     ret: Arrow(string(), arrow(int(), JSON.t)),
@@ -615,6 +646,16 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                   P.var("weight"),
                   jassoc([
                     pair(
+                      "source",
+                      E.ap(Forward, JSON.json_string, E.var("src")),
+                    ),
+                    pair("sourceHandle", JSON.json_null),
+                    pair(
+                      "target",
+                      E.ap(Forward, JSON.json_string, E.var("tgt")),
+                    ),
+                    pair("targetHandle", JSON.json_null),
+                    pair(
                       "id",
                       E.ap(
                         Forward,
@@ -622,21 +663,13 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                         sconcat(
                           sconcat(
                             sconcat(E.string("arc__"), E.var("src")),
-                            E.string("__"),
+                            E.string("-"),
                           ),
                           E.var("tgt"),
                         ),
                       ),
                     ),
                     pair("type", jstr("default")),
-                    pair(
-                      "source",
-                      E.ap(Forward, JSON.json_string, E.var("src")),
-                    ),
-                    pair(
-                      "target",
-                      E.ap(Forward, JSON.json_string, E.var("tgt")),
-                    ),
                     pair(
                       "data",
                       jassoc([
@@ -651,6 +684,7 @@ let builtins: list(BuiltinsUtil.hazel_fn) = [
                         ),
                       ]),
                     ),
+                    pair("interactionWidth", jint(8)),
                   ]),
                   None,
                   None,
