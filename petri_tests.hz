@@ -51,6 +51,10 @@ let refined_seq = refine_place_sequence(tiny_net)("p0")("seq")(1) in
 let refined_par = refine_place_parallel(tiny_net)("p0")("par")(2) in
 let refined_choice = refine_place_choice(tiny_net)("p0")("ch")(2) in
 let refined_dfc = refine_place_decision_free_choice(tiny_net)("p0")("df")(2) in
+let (layout_seq_nodes_raw, _layout_seq_arcs, layout_seq_pin, layout_seq_pout) = build_sequence_place_module("layout_seq")(2) in
+let layout_seq_nodes = layout_module_nodes(layout_seq_nodes_raw)(layout_seq_pin)(layout_seq_pout) in
+let (layout_par_nodes_raw, _layout_par_arcs, layout_par_pin, layout_par_pout) = build_parallel_place_module("layout_par")(2) in
+let layout_par_nodes = layout_module_nodes(layout_par_nodes_raw)(layout_par_pin)(layout_par_pout) in
 let shared_parallel_net =
   add_shared_parallel_resource(
     refined_seq
@@ -95,6 +99,12 @@ let lookup_arc = fun net -> fun src -> fun tgt ->
         else []
     )
   ])(net)
+in
+let as_int = fun json ->
+  case json
+  | Int(x) => x
+  | _ => 0
+  end
 in
 
 hint "mk_place creates place JSON"
@@ -181,6 +191,27 @@ hint "refined arcs include handle + interaction metadata"
     jq1([jq_field("sourceHandle")])(seq_arc) == Null
     && jq1([jq_field("targetHandle")])(seq_arc) == Null
     && jq1([jq_field("interactionWidth")])(seq_arc) == Int(8)
+  end;
+
+hint "layout lane spacing is monotonically increasing"
+  test
+    lane_x(1)(3) < lane_x(2)(3) && lane_x(2)(3) < lane_x(3)(3)
+  end;
+
+hint "position helpers round-trip explicit coordinates"
+  test
+    let pxy = set_node_position(mk_place("tmp2"))(10)(20) in
+    node_x(pxy) == 10 && node_y(pxy) == 20
+  end;
+
+hint "nearby-node shift helper translates positions"
+  test
+    let shifted = shift_nodes_near([mk_place("tmp")])(0)(0)(260) in
+    case shifted
+    | node::_ =>
+      as_int(jq1([jq_field("position"), jq_field("x")])(node)) == 260
+    | [] => false
+    end
   end;
 
 hint "refine_place_parallel rewires tiny loop with split/join"
