@@ -238,6 +238,25 @@ hint "refine_place_parallel rewires tiny loop with split/join"
     && length(get_arcs(refined_par)) == 10
   end;
 
+hint "refine_place_parallel lays branches vertically with left-to-right flow"
+  test
+    let par_pin = lookup_node(refined_par)("par_pin") in
+    let par_split = lookup_node(refined_par)("par_split") in
+    let par_join = lookup_node(refined_par)("par_join") in
+    let par_pout = lookup_node(refined_par)("par_pout") in
+    let par_b1 = lookup_node(refined_par)("par_b1") in
+    let par_b2 = lookup_node(refined_par)("par_b2") in
+    let par_b3 = lookup_node(refined_par)("par_b3") in
+    as_int(jq1([jq_field("position"), jq_field("x")])(par_pin)) < as_int(jq1([jq_field("position"), jq_field("x")])(par_split))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(par_split)) < as_int(jq1([jq_field("position"), jq_field("x")])(par_b1))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(par_b1)) < as_int(jq1([jq_field("position"), jq_field("x")])(par_join))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(par_join)) < as_int(jq1([jq_field("position"), jq_field("x")])(par_pout))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(par_b1)) == as_int(jq1([jq_field("position"), jq_field("x")])(par_b2))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(par_b2)) == as_int(jq1([jq_field("position"), jq_field("x")])(par_b3))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(par_b1)) < as_int(jq1([jq_field("position"), jq_field("y")])(par_b2))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(par_b2)) < as_int(jq1([jq_field("position"), jq_field("y")])(par_b3))
+  end;
+
 hint "refine_place_choice rewires tiny loop with explicit branch choices"
   test
     has_node_in(refined_choice)("t0")
@@ -268,6 +287,30 @@ hint "refine_place_choice rewires tiny loop with explicit branch choices"
     && has_arc_in(refined_choice)("ch_done3")("ch_pout")
     && length(get_nodes(refined_choice)) == 12
     && length(get_arcs(refined_choice)) == 14
+  end;
+
+hint "refine_place_choice lays alternatives vertically with horizontal branch flow"
+  test
+    let choose1 = lookup_node(refined_choice)("ch_choose1") in
+    let choose2 = lookup_node(refined_choice)("ch_choose2") in
+    let choose3 = lookup_node(refined_choice)("ch_choose3") in
+    let b1 = lookup_node(refined_choice)("ch_b1") in
+    let b2 = lookup_node(refined_choice)("ch_b2") in
+    let done1 = lookup_node(refined_choice)("ch_done1") in
+    let done2 = lookup_node(refined_choice)("ch_done2") in
+    let pout = lookup_node(refined_choice)("ch_pout") in
+    as_int(jq1([jq_field("position"), jq_field("x")])(choose1)) < as_int(jq1([jq_field("position"), jq_field("x")])(b1))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(b1)) < as_int(jq1([jq_field("position"), jq_field("x")])(done1))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(done1)) < as_int(jq1([jq_field("position"), jq_field("x")])(pout))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(choose2)) < as_int(jq1([jq_field("position"), jq_field("x")])(b2))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(b2)) < as_int(jq1([jq_field("position"), jq_field("x")])(done2))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(done2)) < as_int(jq1([jq_field("position"), jq_field("x")])(pout))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(choose1)) == as_int(jq1([jq_field("position"), jq_field("y")])(b1))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(b1)) == as_int(jq1([jq_field("position"), jq_field("y")])(done1))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(choose2)) == as_int(jq1([jq_field("position"), jq_field("y")])(b2))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(b2)) == as_int(jq1([jq_field("position"), jq_field("y")])(done2))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(choose1)) < as_int(jq1([jq_field("position"), jq_field("y")])(choose2))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(choose2)) < as_int(jq1([jq_field("position"), jq_field("y")])(choose3))
   end;
 
 hint "refine_place_decision_free_choice adds round-robin control topology"
@@ -301,6 +344,36 @@ hint "refine_place_decision_free_choice adds round-robin control topology"
     && has_arc_in(refined_dfc)("df_done3")("df_ctrl4")
     && length(get_nodes(refined_dfc)) == 15
     && length(get_arcs(refined_dfc)) == 20
+  end;
+
+hint "refine_place_decision_free_choice keeps rows vertical and row flow horizontal"
+  test
+    let ctrl1 = lookup_node(refined_dfc)("df_ctrl1") in
+    let ctrl2 = lookup_node(refined_dfc)("df_ctrl2") in
+    let ctrl3 = lookup_node(refined_dfc)("df_ctrl3") in
+    let choose1 = lookup_node(refined_dfc)("df_choose1") in
+    let choose2 = lookup_node(refined_dfc)("df_choose2") in
+    let b1 = lookup_node(refined_dfc)("df_b1") in
+    let b2 = lookup_node(refined_dfc)("df_b2") in
+    let done1 = lookup_node(refined_dfc)("df_done1") in
+    let done2 = lookup_node(refined_dfc)("df_done2") in
+    let pout = lookup_node(refined_dfc)("df_pout") in
+    as_int(jq1([jq_field("position"), jq_field("x")])(ctrl1)) < as_int(jq1([jq_field("position"), jq_field("x")])(choose1))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(choose1)) < as_int(jq1([jq_field("position"), jq_field("x")])(b1))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(b1)) < as_int(jq1([jq_field("position"), jq_field("x")])(done1))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(done1)) < as_int(jq1([jq_field("position"), jq_field("x")])(pout))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(ctrl2)) < as_int(jq1([jq_field("position"), jq_field("x")])(choose2))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(choose2)) < as_int(jq1([jq_field("position"), jq_field("x")])(b2))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(b2)) < as_int(jq1([jq_field("position"), jq_field("x")])(done2))
+    && as_int(jq1([jq_field("position"), jq_field("x")])(done2)) < as_int(jq1([jq_field("position"), jq_field("x")])(pout))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(ctrl1)) == as_int(jq1([jq_field("position"), jq_field("y")])(choose1))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(choose1)) == as_int(jq1([jq_field("position"), jq_field("y")])(b1))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(b1)) == as_int(jq1([jq_field("position"), jq_field("y")])(done1))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(ctrl2)) == as_int(jq1([jq_field("position"), jq_field("y")])(choose2))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(choose2)) == as_int(jq1([jq_field("position"), jq_field("y")])(b2))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(b2)) == as_int(jq1([jq_field("position"), jq_field("y")])(done2))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(ctrl1)) < as_int(jq1([jq_field("position"), jq_field("y")])(ctrl2))
+    && as_int(jq1([jq_field("position"), jq_field("y")])(ctrl2)) < as_int(jq1([jq_field("position"), jq_field("y")])(ctrl3))
   end;
 
 hint "nonshared resource adds exact lock-release arcs around t0"
