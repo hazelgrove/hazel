@@ -135,11 +135,10 @@ let get_coctx = (ctx: Ctx.t, ana: Typ.t, rule: t): CoCtx.t => {
      discuss with Andrew */
   let (statics, _) = Statics.mk(~ana, CoreSettings.on, full_ctx, c_exp);
   let root_id = Exp.rep_id(c_exp);
-  let info = Statics.Map.lookup(root_id, statics);
   let inner_coctx =
-    switch (info) {
-    | Some(Info.InfoExp(exp)) => Info.exp_co_ctx(exp)
-    | _ => []
+    switch (Statics.Map.lookup_exp(root_id, statics)) {
+    | Some(exp) => Info.exp_co_ctx(exp)
+    | None => []
     };
   CoCtx.mk(ctx, full_ctx, inner_coctx);
 };

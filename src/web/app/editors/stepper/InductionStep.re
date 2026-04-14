@@ -215,30 +215,22 @@ module F =
         let env = SemanticCtx.get_env(sem_ctx);
         Substitution.in_exp(env, raw);
       };
+    let scrut_statics = CodeEditable.Model.get_statics(scrut);
+    let scrut_rep_id = Exp.rep_id(scrut_statics.elaborated);
     let scrut_ty = {
       let self_ty =
-        switch (
-          Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
-          )
-        ) {
-        | Some(Info.InfoExp({ty, _})) => ty
-        | _ =>
+        switch (Statics.Map.ty_of(scrut_rep_id, scrut_statics.info_map)) {
+        | Some(ty) => ty
+        | None =>
           raise(Failure("Missing type info for induction step scrutinee"))
         };
       Calc.set(~eq=Typ.fast_equal, self_ty, scrut_ty);
     };
     let scrut_co_ctx = {
       let self_co_ctx =
-        switch (
-          Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
-          )
-        ) {
-        | Some(Info.InfoExp({co_ctx, _})) => co_ctx
-        | _ => CoCtx.empty
+        switch (Statics.Map.lookup_exp(scrut_rep_id, scrut_statics.info_map)) {
+        | Some({co_ctx, _}) => co_ctx
+        | None => CoCtx.empty
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };

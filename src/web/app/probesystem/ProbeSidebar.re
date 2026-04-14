@@ -78,10 +78,13 @@ let fancy =
     ) => {
   open Util.OptUtil.Syntax;
   let any =
-    switch (Language.Statics.Map.lookup(id, info_map)) {
-    | Some(InfoExp({user_term: term, _})) => Language.Grammar.Exp(term)
-    | Some(InfoPat({user_term: term, _})) => Language.Grammar.Pat(term)
-    | _ => Language.Grammar.Any()
+    switch (Language.Statics.Map.lookup_exp(id, info_map)) {
+    | Some({user_term: term, _}) => Language.Grammar.Exp(term)
+    | None =>
+      switch (Language.Statics.Map.lookup_pat(id, info_map)) {
+      | Some({user_term: term, _}) => Language.Grammar.Pat(term)
+      | None => Language.Grammar.Any()
+      }
     };
   let+ term_view =
     term_view(

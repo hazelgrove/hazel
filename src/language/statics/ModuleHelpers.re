@@ -95,8 +95,8 @@ let reclassify_expanded_module_items =
     (m, item: Mod.t) => {
       let ids = IdTagged.ids(item);
       let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
-      switch (Id.Map.find_opt(IdTagged.rep_id(item), m)) {
-      | Some(Info.InfoExp(info)) =>
+      switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
+      | Some(info) =>
         StaticsBase.Map.add_info(
           ids,
           Info.InfoExp({
@@ -105,7 +105,7 @@ let reclassify_expanded_module_items =
           }),
           m,
         )
-      | _ => m
+      | None => m
       };
     },
     m,
@@ -119,10 +119,9 @@ let module_actual_type = (items: list(Mod.t), m: StaticsBase.Map.t): Typ.t => {
     non_shadowed
     |> List.map(((name, pat)) => {
          let ty =
-           switch (Id.Map.find_opt(Pat.rep_id(pat), m)) {
-           | Some(Info.InfoPat({ty, ctx: pat_ctx, _})) =>
-             Typ.normalize(pat_ctx, ty)
-           | _ => Typ.temp(Unknown(Internal))
+           switch (StaticsBase.Map.lookup_pat(Pat.rep_id(pat), m)) {
+           | Some({ty, ctx: pat_ctx, _}) => Typ.normalize(pat_ctx, ty)
+           | None => Typ.temp(Unknown(Internal))
            };
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
        });

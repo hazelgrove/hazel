@@ -24,15 +24,15 @@ module Statics = {
   let derive_typ_status = (ctx: Ctx.t, expects: TypExpectation.t, ty: Typ.t) => {
     let (_, m) =
       utyp_to_info_map(~ctx, ~expects, ~ancestors=[], ty, Map.empty);
-    switch (Map.lookup(Typ.rep_id(ty), m)) {
-    | Some(InfoTyp(info)) =>
+    switch (Map.lookup_typ(Typ.rep_id(ty), m)) {
+    | Some(info) =>
       let ok =
         switch (info.message) {
         | Some(Message.TypOk(ok)) => Some(ok)
         | _ => None
         };
       (info.marks, ok);
-    | _ => ([], None)
+    | None => ([], None)
     };
   };
 };

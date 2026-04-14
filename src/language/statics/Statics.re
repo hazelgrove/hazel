@@ -763,7 +763,9 @@ and uexp_to_info_map =
               let (e_info, elab, m) = go(~ana, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
-                  ~inferred_label, e_info, m,
+                  ~inferred_label,
+                  e_info,
+                  m,
                 );
               (es @ [e_info], es_elab @ [elab], m);
             | TupLabel(label, value) =>
@@ -775,7 +777,9 @@ and uexp_to_info_map =
                 | Label(name) =>
                   let (label_syn, label_marks, label_invalid) =
                     LabeledTupleStaticsHelpers.validate_label_name(
-                      ~name, ~expected_labels, ~duplicate_labels,
+                      ~name,
+                      ~expected_labels,
+                      ~duplicate_labels,
                     );
                   let (_, _, m) =
                     add(
@@ -855,7 +859,9 @@ and uexp_to_info_map =
               let (e_info, elab, m) = go(~ana, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
-                  ~inferred_label, e_info, m,
+                  ~inferred_label,
+                  e_info,
+                  m,
                 );
               (es @ [e_info], es_elab @ [elab], m);
             },
@@ -2764,7 +2770,9 @@ and upat_to_info_map =
                 );
               let (info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_pat(
-                  ~inferred_label, info, m,
+                  ~inferred_label,
+                  info,
+                  m,
                 );
               (
                 info.ctx,
@@ -2791,7 +2799,9 @@ and upat_to_info_map =
                 | Label(name) =>
                   let (label_syn, label_marks, label_invalid) =
                     LabeledTupleStaticsHelpers.validate_label_name(
-                      ~name, ~expected_labels, ~duplicate_labels=new_duplicate_labels,
+                      ~name,
+                      ~expected_labels,
+                      ~duplicate_labels=new_duplicate_labels,
                     );
                   let (_, _, m) =
                     add(
@@ -2907,7 +2917,9 @@ and upat_to_info_map =
                 );
               let (info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_pat(
-                  ~inferred_label, info, m,
+                  ~inferred_label,
+                  info,
+                  m,
                 );
               (
                 info.ctx,

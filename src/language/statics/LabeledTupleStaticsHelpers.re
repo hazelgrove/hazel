@@ -4,14 +4,10 @@
 module Map = StaticsBase.Map;
 module Info = StaticsBase.Info;
 
-let decompose_label_mode =
-    (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
+let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
   switch (MatchedTyp.label(ctx, ana)) {
   | Some((labmode, val_mode)) => (labmode, val_mode)
-  | _ => (
-      Unknown(SynSwitch) |> Typ.temp,
-      Unknown(Internal) |> Typ.temp,
-    )
+  | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
   };
 
 type label_child_result = {
@@ -58,8 +54,7 @@ let tup_label_self_type =
     : (Typ.t, list(Mark.t)) =>
   switch (lab_name) {
   | Some(name) =>
-    let tup_syn =
-      TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp;
+    let tup_syn = TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp;
     label_invalid
       ? (
         tup_syn,
@@ -96,8 +91,7 @@ let tup_label_self_type =
           malformed_labels: [malformed_source],
           duplicate_labels: [],
           invalid_labels: [],
-          typ:
-            TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
+          typ: TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
         }),
       ],
     )
@@ -128,8 +122,7 @@ let standalone_tup_label_self_type =
           malformed_labels: [malformed_source],
           duplicate_labels: [],
           invalid_labels: [],
-          typ:
-            TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
+          typ: TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
         }),
       ],
     )
@@ -140,10 +133,7 @@ let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
   switch (Typ.weak_head_normalize(ctx, ana).term) {
   | Prod(ts) =>
     Some(
-      List.filter_map(
-        t => Typ.match_tup_label(t) |> Option.map(fst),
-        ts,
-      ),
+      List.filter_map(t => Typ.match_tup_label(t) |> Option.map(fst), ts),
     )
   | _ => None
   };
@@ -159,8 +149,7 @@ let expand_duplicate_labels =
   List.filter_map(
     item =>
       switch (match_tup_label(item)) {
-      | Some((name, _)) when List.mem(name, unique_duplicates) =>
-        Some(name)
+      | Some((name, _)) when List.mem(name, unique_duplicates) => Some(name)
       | _ => None
       },
     items,
@@ -197,7 +186,10 @@ let collect_malformed_labels =
     : list(Any.t) =>
   List.fold_left(
     (acc, info) =>
-      switch (has_tup_label(info), MarkSelection.highest_ranked_mark(get_marks(info))) {
+      switch (
+        has_tup_label(info),
+        MarkSelection.highest_ranked_mark(get_marks(info)),
+      ) {
       | (true, Some(Mark.TupleLabelError({malformed_labels, _}))) =>
         acc @ malformed_labels
       | _ => acc
@@ -245,30 +237,28 @@ let finalize_tuple_type =
 /* Apply inferred_label to an info record and update the map if needed.
    Works for both exp and pat by taking updater functions. */
 let apply_inferred_label_exp =
-    (
-      ~inferred_label: option(string),
-      info: Info.exp,
-      m: Map.t,
-    )
+    (~inferred_label: option(string), info: Info.exp, m: Map.t)
     : (Info.exp, Map.t) =>
   switch (inferred_label) {
   | Some(_) =>
-    let info = {...info, inferred_label};
+    let info = {
+      ...info,
+      inferred_label,
+    };
     let m = Map.add_info(IdTagged.ids(info.user_term), InfoExp(info), m);
     (info, m);
   | None => (info, m)
   };
 
 let apply_inferred_label_pat =
-    (
-      ~inferred_label: option(string),
-      info: Info.pat,
-      m: Map.t,
-    )
+    (~inferred_label: option(string), info: Info.pat, m: Map.t)
     : (Info.pat, Map.t) =>
   switch (inferred_label) {
   | Some(_) =>
-    let info = {...info, inferred_label};
+    let info = {
+      ...info,
+      inferred_label,
+    };
     let m = Map.add_info(IdTagged.ids(info.user_term), InfoPat(info), m);
     (info, m);
   | None => (info, m)

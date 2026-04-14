@@ -160,6 +160,49 @@ module Map = {
     | _ => []
     };
   };
+
+  let lookup_exp = (id: Id.t, m: t): option(Info.exp) =>
+    switch (lookup(id, m)) {
+    | Some(InfoExp(info)) => Some(info)
+    | _ => None
+    };
+
+  let lookup_pat = (id: Id.t, m: t): option(Info.pat) =>
+    switch (lookup(id, m)) {
+    | Some(InfoPat(info)) => Some(info)
+    | _ => None
+    };
+
+  let lookup_typ = (id: Id.t, m: t): option(Info.typ) =>
+    switch (lookup(id, m)) {
+    | Some(InfoTyp(info)) => Some(info)
+    | _ => None
+    };
+
+  let ty_of = (id: Id.t, m: t): option(Typ.t) =>
+    switch (lookup(id, m)) {
+    | Some(InfoExp({ty, _}))
+    | Some(InfoPat({ty, _})) => Some(ty)
+    | _ => None
+    };
+
+  let ctx_of = (id: Id.t, m: t): option(Ctx.t) =>
+    switch (lookup(id, m)) {
+    | Some(info) => Some(Info.ctx_of(info))
+    | None => None
+    };
+
+  let marks_of = (id: Id.t, m: t): list(Mark.t) =>
+    switch (lookup(id, m)) {
+    | Some(info) => Info.marks_of(info)
+    | None => []
+    };
+
+  let ancestors_of = (id: Id.t, m: t): list(Id.t) =>
+    switch (lookup(id, m)) {
+    | Some(info) => Info.ancestors_of(info)
+    | None => []
+    };
 };
 
 let set_marks_exp = (m: Map.t, e: Exp.t, marks: list(Mark.t)): Map.t =>
@@ -167,7 +210,10 @@ let set_marks_exp = (m: Map.t, e: Exp.t, marks: list(Mark.t)): Map.t =>
   | Some(Info.InfoExp(info)) =>
     Map.add_info(
       IdTagged.ids(info.user_term),
-      InfoExp({...info, marks}),
+      InfoExp({
+        ...info,
+        marks,
+      }),
       m,
     )
   | _ => m

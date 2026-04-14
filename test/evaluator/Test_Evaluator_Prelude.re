@@ -79,10 +79,13 @@ let parse_with_probes =
       Id.Map.fold(
         (id, (), acc) => {
           let refs =
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id)
-            | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
-            | _ => []
+            switch (Statics.Map.lookup_exp(id, info_map)) {
+            | Some(_) => Statics.Map.refs_in(info_map, id)
+            | None =>
+              switch (Statics.Map.lookup_pat(id, info_map)) {
+              | Some(_) => Statics.Map.bound_in(info_map, id)
+              | None => []
+              }
             };
           let spec: Sample.capture_spec = {refs: refs};
           Id.Map.add(id, spec, acc);
@@ -102,10 +105,10 @@ let elaborate = u => {
 };
 
 let elaborated_type = (info_map: Statics.Map.t, exp: Exp.t): Typ.t =>
-  switch (Statics.Map.lookup(Exp.rep_id(exp), info_map)) {
-  | Some(InfoExp({ana, ty, ctx, _})) =>
+  switch (Statics.Map.lookup_exp(Exp.rep_id(exp), info_map)) {
+  | Some({ana, ty, ctx, _}) =>
     Typ.match_synswitch(ana, ty) |> Typ.normalize(ctx) |> Typ.all_ids_temp
-  | _ =>
+  | None =>
     Alcotest.fail(
       "Preservation check failed: No type information found for expression",
     )
@@ -186,10 +189,10 @@ let full_preservation_test = (uexp: TermBase.exp_t): unit => {
 
   let new_ty =
     switch (
-      Statics.Map.lookup(evaluated.annotation.ids |> List.hd, new_statics)
+      Statics.Map.ty_of(evaluated.annotation.ids |> List.hd, new_statics)
     ) {
-    | Some(InfoExp({ty, _})) => ty
-    | _ =>
+    | Some(ty) => ty
+    | None =>
       Alcotest.fail(
         "Preservation check failed: No type information found for evaluated expression",
       )

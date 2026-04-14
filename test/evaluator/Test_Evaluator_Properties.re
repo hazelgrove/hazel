@@ -202,13 +202,10 @@ let qcheck_preservation_test =
                 Builtins.ctx_init(Some(Int)),
                 next,
               );
-            let info: option(Info.t) =
-              Statics.Map.lookup(next.annotation.ids |> List.hd, statics);
-
-            info;
+            Statics.Map.ty_of(next.annotation.ids |> List.hd, statics);
           }
         ) {
-        | Some(InfoExp({ty, _})) =>
+        | Some(ty) =>
           Typ.is_more_precise(Ctx.empty, ty, orig_ty)
             ? true
             : Alcotest.fail(

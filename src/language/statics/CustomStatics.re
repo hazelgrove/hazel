@@ -132,8 +132,7 @@ let analyze_label_to_info_map =
   let m =
     switch (label.term) {
     | Label(_) =>
-      set_marks_exp(m, label, [])
-      |> set_label_sort_exp(_, label, true)
+      set_marks_exp(m, label, []) |> set_label_sort_exp(_, label, true)
     | EmptyHole => set_label_sort_exp(m, label, true)
     | _ =>
       append_mark_exp(m, label, [BadLabel(Exp(label))])
@@ -141,7 +140,10 @@ let analyze_label_to_info_map =
     };
   (
     lab_name,
-    {...i, label_sort: true},
+    {
+      ...i,
+      label_sort: true,
+    },
     i_elab,
     m,
   );
@@ -166,7 +168,11 @@ let labels_to_info_map =
         switch (label.term, expected_labels, lab_name) {
         | (Label(name), Some(expected), _) when !List.mem(name, expected) =>
           let m =
-            set_marks_exp(m, lab_info.user_term, lab_info.marks @ [InvalidLabel(name, expected)]);
+            set_marks_exp(
+              m,
+              lab_info.user_term,
+              lab_info.marks @ [InvalidLabel(name, expected)],
+            );
           (None, m);
         | _ => (lab_name, m)
         };

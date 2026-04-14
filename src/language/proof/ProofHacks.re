@@ -274,23 +274,9 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
 }
 and get_inductive_hypotheses_inner' = (m, t, pat) => {
   let is_correct_type =
-    Util.OptUtil.Syntax.(
-      {
-        let* info = Id.Map.find_opt(Pat.rep_id(pat), m);
-        let* info =
-          switch (info) {
-          | Info.InfoPat(pinfo) => Some(pinfo)
-          | _ => None
-          };
-        let t' = info.ty;
-        if (Typ.fast_equal(t, t')) {
-          Some();
-        } else {
-          None;
-        };
-      }
-      |> Option.is_some
-    );
+    Statics.Map.ty_of(Pat.rep_id(pat), m)
+    |> Option.map(Typ.fast_equal(t))
+    |> Option.value(~default=false);
   (is_correct_type ? [pat] : []) @ get_inductive_hypotheses(m, t, pat);
 }
 and get_inductive_hypotheses_inner = (m, t, pat) =>
@@ -331,9 +317,9 @@ let rec replace_exp =
     );
   let uses_blacklist_var = (exp: Exp.t, blacklist_vars) => {
     let coctx =
-      switch (Id.Map.find_opt(Exp.rep_id(exp), info_map)) {
-      | Some(Info.InfoExp({co_ctx, _})) => co_ctx
-      | _ => CoCtx.empty
+      switch (Statics.Map.lookup_exp(Exp.rep_id(exp), info_map)) {
+      | Some({co_ctx, _}) => co_ctx
+      | None => CoCtx.empty
       };
     CoCtx.has_any(coctx, blacklist_vars);
   };

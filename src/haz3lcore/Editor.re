@@ -35,8 +35,7 @@ module Model = {
       |> Zipper.unselect_and_zip
       |> Segment.convex_grout
       |> Util.ListUtil.last_opt;
-    let+ info = Language.Statics.Map.lookup(grout.id, info_map);
-    Language.Info.ctx_of(info);
+    Language.Statics.Map.ctx_of(grout.id, info_map);
   };
 };
 

@@ -145,8 +145,7 @@ let parse_exp = (s: string) => {
 let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: IdTagged.IdTag.t) => {
-      let new_info = Id.Map.find_opt(List.hd(ids), info_map);
-      switch (new_info) {
+      switch (Statics.Map.lookup(List.hd(ids), info_map)) {
       | Some(info) =>
         switch (Info.marks_of(info)) {
         | [] => None
@@ -175,20 +174,12 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
 
 // Get the type from the statics
 let type_of = (~static_map=?, f) => {
-  IdTagged.rep_id(f)
-  |> Id.Map.find_opt(
-       _,
-       switch (static_map) {
-       | Some(s) => s
-       | None => statics(f)
-       },
-     )
-  |> Option.bind(
-       _,
-       fun
-       | InfoExp(e) => Some(e.ty)
-       | _ => None,
-     );
+  let m =
+    switch (static_map) {
+    | Some(s) => s
+    | None => statics(f)
+    };
+  Statics.Map.ty_of(IdTagged.rep_id(f), m);
 };
 
 let annotated_tree_test = (name, expected_type, expected_error_tree) => {
