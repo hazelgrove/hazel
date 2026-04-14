@@ -352,7 +352,7 @@ let is_def_body = (from_id, parent_id, info_map) =>
     false
   | Some(
       Language.Statics.Info.InfoExp({
-        term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
+        user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
         _,
       }),
     ) =>

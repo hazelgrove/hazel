@@ -153,7 +153,7 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
         }
       | None =>
         Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
-      };
+      }
     },
     exp,
   );

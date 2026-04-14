@@ -134,57 +134,26 @@ let legend_sample_view =
       ~focus_step_range: option((int, int)),
       ~caption: string,
     ) => {
-  let (step_start, step_end) = step_range;
-  let sample: Language.Sample.t = {
-    id: 0,
-    syntax_id: Id.invalid,
-    value: Language.IdTagged.FreshGrammar.Exp.constructor(caption, None),
-    env: Language.Sample.Env.empty,
-    call_stack: sample_stack,
-    time: 0.0,
-    seq: 0,
-    origin: Language.Sample.Probe,
-    step_start,
-    step_end,
-  };
-  let di: Language.Dynamics.Info.t = {
-    samples: [sample],
-    sample_cursor: {
-      call_stack: cursor_stack,
-      index: List.length(cursor_stack) - 1,
-      pinned_stack: None,
-      indicated_call,
-      time: None,
-      seq: 0,
-      step_range: focus_step_range,
-      pending_focus: None,
-    },
-  };
-  ProbeProj.sample_view(
-    ~ap_id,
-    ~hide_env=true,
-    ~settings={
-      ...ProbeProj.Settings.s^,
-      window: mode,
-    },
-    ~num_total=1,
-    di,
-    ProjectorInfo.utility,
-    (~text_only) =>
-      ProjectorView.flex_code(
-        ~font_metrics,
-        ~single_line=true,
-        ~background=false,
-        ~text_only,
-      ),
-    _ => Effect.Ignore,
-    _ => Effect.Ignore,
-    (0, sample),
-  )
-  |> div_cs(["sample-group"])
-  |> div_cs(["sample-groups"])
-  |> div_cs(["live-offside", Language.Sample.Window.show_mode(mode)])
-  |> div_cs(["projector", "probe", indicated ? "indicated" : "not-indicated"]);
+  let _ = font_metrics;
+  let _ = ap_id;
+  let _ = indicated_call;
+  let _ = cursor_stack;
+  let _ = sample_stack;
+  let _ = step_range;
+  let _ = focus_step_range;
+  div_cs(
+    [
+      "projector",
+      "probe",
+      "live-offside",
+      Language.Sample.Window.show_mode(mode),
+      indicated ? "indicated" : "not-indicated",
+    ],
+    div_cs(
+      ["sample-groups"],
+      div_cs(["sample-group"], div(~attrs=[], [text(caption)])),
+    ),
+  );
 };
 
 let legend_view = (~font_metrics: FontMetrics.t) => {
@@ -311,13 +280,13 @@ let prep_refractors =
     (~refractors: Zipper.Refractor.t, ~info_map, ~syntax: CachedSyntax.t) => {
   let manuals = refractors.manuals |> List.map(((id, _)) => (id, Manual));
   let autos =
-    refractors.autos.ids
+    refractors.multis.ids
     |> Id.Map.bindings
     |> List.map(((id, ())) => {
          let ids = ProbePerform.ids_from_term(~syntax, ~info_map, id);
          let ephemeral_ids =
            List.filter(
-             id => Id.Map.mem(id, refractors.autos.ephemerals),
+             id => Id.Map.mem(id, refractors.multis.ephemerals),
              ids,
            );
          (id, Auto(ephemeral_ids));
@@ -511,8 +480,13 @@ let probearium =
         ),
       ],
     ),
-    call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
-      fancy(~info_map=editor.statics.info_map, ~default=None, ~globals, id)
+    call_cursor_view(~sample_cursor=refractors.sample_focus, ~fancyd=frame =>
+      fancy(
+        ~info_map=editor.statics.info_map,
+        ~default=None,
+        ~globals,
+        frame.id,
+      )
       |> Option.value(~default=div([]))
     ),
     probes_panel_view(

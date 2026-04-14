@@ -1,7 +1,8 @@
 open Alcotest;
 open Language;
 
-let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+let statics = exp =>
+  Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp) |> fst;
 
 let parse_exp = (s: string) =>
   switch (Haz3lcore.Parser.to_term(s)) {
@@ -15,7 +16,7 @@ let find_var_refs =
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (info) {
-      | InfoExp({term: {term: Var(n), _}, _}) when n == name => [
+      | InfoExp({user_term: {term: Var(n), _}, _}) when n == name => [
           (id, info),
           ...acc,
         ]
@@ -35,7 +36,7 @@ let find_var_binding =
       | Some(_) => acc
       | None =>
         switch (info) {
-        | InfoPat({term: {term: Var(n), _}, _}) when n == name =>
+        | InfoPat({user_term: {term: Var(n), _}, _}) when n == name =>
           Some((id, info))
         | _ => None
         }
@@ -53,7 +54,7 @@ let find_tvar_binding =
       | Some(_) => acc
       | None =>
         switch (info) {
-        | InfoTPat({term: {term: Var(n), _}, _}) when n == name =>
+        | InfoTPat({user_term: {term: Var(n), _}, _}) when n == name =>
           Some((id, info))
         | _ => None
         }
@@ -68,7 +69,7 @@ let find_tvar_refs =
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (info) {
-      | InfoTyp({term: {term: Var(n), _}, _}) when n == name => [
+      | InfoTyp({user_term: {term: Var(n), _}, _}) when n == name => [
           (id, info),
           ...acc,
         ]
@@ -214,7 +215,8 @@ let test_shadowing =
         Id.Map.fold(
           (id, info: Info.t, acc) =>
             switch (info) {
-            | InfoPat({term: {term: Var("x"), _}, _}) when has_id(ids, id) => [
+            | InfoPat({user_term: {term: Var("x"), _}, _})
+                when has_id(ids, id) => [
                 id,
                 ...acc,
               ]
@@ -330,11 +332,13 @@ let find_ctr_refs =
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (info) {
-      | InfoExp({term: {term: Constructor(n, _), _}, _}) when n == name => [
+      | InfoExp({user_term: {term: Constructor(n, _), _}, _})
+          when n == name => [
           (id, info),
           ...acc,
         ]
-      | InfoPat({term: {term: Constructor(n, _), _}, _}) when n == name => [
+      | InfoPat({user_term: {term: Constructor(n, _), _}, _})
+          when n == name => [
           (id, info),
           ...acc,
         ]
@@ -354,7 +358,7 @@ let find_ctr_def =
       | None =>
         switch (info) {
         | InfoTyp({
-            term: {term: Var(n), _},
+            user_term: {term: Var(n), _},
             expects: ConstructorExpected(_, _),
             _,
           })

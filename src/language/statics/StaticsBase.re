@@ -94,6 +94,52 @@ module Map = {
     | _ => []
     };
 
+  /* IDs to highlight for a variable/type/constructor reference:
+   * all infos that resolve to the same binding site id, plus the binding id. */
+  let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) =>
+    switch (Info.get_binding_site(ci)) {
+    | Some(binding_id) =>
+      Id.Map.fold(
+        (id, info, acc) =>
+          switch (Info.get_binding_site(info)) {
+          | Some(id') when id' == binding_id => [id, ...acc]
+          | _ => acc
+          },
+        m,
+        [binding_id],
+      )
+      |> List.sort_uniq(Id.compare)
+    | None =>
+      let binding_id =
+        switch (ci) {
+        | Info.InfoPat({user_term: {term: Var(_), _}, _})
+        | Info.InfoTPat({user_term: {term: Var(_), _}, _})
+        | Info.InfoTyp({
+            user_term: {term: Var(_), _},
+            expects:
+              TypExpectation.ConstructorExpected(_, _) |
+              TypExpectation.VariantExpected(_),
+            _,
+          }) =>
+          Some(Info.id_of(ci))
+        | _ => None
+        };
+      switch (binding_id) {
+      | None => []
+      | Some(binding_id) =>
+        Id.Map.fold(
+          (id, info, acc) =>
+            switch (Info.get_binding_site(info)) {
+            | Some(id') when id' == binding_id => [id, ...acc]
+            | _ => acc
+            },
+          m,
+          [binding_id],
+        )
+        |> List.sort_uniq(Id.compare)
+      };
+    };
+
   let parent_ci_of = (map: t, id: Id.t): option(Info.t) => {
     let* ci = lookup(id, map);
     let* parent_id = Info.parent_id_of(ci);
