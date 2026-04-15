@@ -4,6 +4,8 @@ open ProjectorBase;
 open Language;
 open TableCore;
 
+let error_message = "Elaborated syntax is not a table: list of labeled tuples with consistent labels.";
+
 let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
@@ -85,9 +87,11 @@ module M: Projector = {
           0,
           lines,
         );
+      /* +1 vertical line reserved for the inline error banner
+       * rendered above the raw syntax in the error view. */
       ProjectorCore.Shape.{
-        vertical: n_lines <= 1 ? Inline : Block(n_lines - 1),
-        horizontal: max_width,
+        vertical: Block(n_lines),
+        horizontal: max(max_width, String.length(error_message)),
       };
     | Some((header, rows)) =>
       let max_header_length =
@@ -116,12 +120,7 @@ module M: Projector = {
   let diagnose = (_, info) =>
     switch (get(info)) {
     | Some(_) => None
-    | None =>
-      Some(
-        ProjectorBase.{
-          message: "Elaborated syntax is not a list of labeled tuples with consistent headers.",
-        },
-      )
+    | None => Some(ProjectorBase.{message: error_message})
     };
 
   let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
@@ -129,16 +128,16 @@ module M: Projector = {
     | None =>
       let seg = Segment.unparenthesize(info.syntax);
       let sort = Segment.sort_of(Segment.skel(seg), seg);
+      let banner =
+        Node.div(
+          ~attrs=[Attr.classes(["table-error-banner"])],
+          [Node.text(error_message)],
+        );
       View.mk(
         ~error=true,
         Node.div(
-          ~attrs=[
-            Attr.classes(["table-inner"]),
-            Attr.title(
-              "Table projector: elaborated syntax is not a list of labeled tuples with consistent headers.",
-            ),
-          ],
-          [view_seg(sort, seg)],
+          ~attrs=[Attr.classes(["table-inner"])],
+          [banner, view_seg(sort, seg)],
         ),
       );
     | Some(data) =>
