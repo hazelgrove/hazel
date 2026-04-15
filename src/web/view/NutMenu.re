@@ -200,6 +200,27 @@ let dev_group = (~globals: Globals.t) => {
         warning: None,
       },
       {
+        name: "Probe All",
+        active: globals.settings.core.probe_all,
+        setting: ProbeAll,
+        tooltip: Some("Enable probes on all top-level definitions"),
+        warning: None,
+      },
+      {
+        name: "Deep Reassociate",
+        active: globals.settings.core.deep_reassociate,
+        setting: DeepReassociate,
+        tooltip: Some("Enable deep reassociation of syntax"),
+        warning: None,
+      },
+      {
+        name: "Cap Undo Stack",
+        active: globals.settings.cap_undo_stack,
+        setting: CapUndoStack,
+        tooltip: Some("Cap the undo history stack size"),
+        warning: None,
+      },
+      {
         name: "Ruled Lines",
         active: globals.settings.show_row_lines,
         setting: ShowRowLines,

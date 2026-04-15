@@ -42,6 +42,7 @@ type t = {
   dynamics: bool,
   live_typing: bool,
   probe_all: bool,
+  deep_reassociate: bool,
   flip_animations: bool,
   display_warnings: bool,
   evaluation: Evaluation.t,
@@ -54,6 +55,7 @@ let off: t = {
   dynamics: false,
   live_typing: false,
   probe_all: false,
+  deep_reassociate: false,
   flip_animations: false,
   display_warnings: false,
   evaluation: Evaluation.init,
@@ -66,6 +68,7 @@ let on: t = {
   dynamics: true,
   live_typing: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
+  deep_reassociate: false,
   flip_animations: true,
   display_warnings: true,
   evaluation: Evaluation.init,

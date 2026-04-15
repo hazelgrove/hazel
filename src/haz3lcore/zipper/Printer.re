@@ -77,6 +77,7 @@ let of_segment =
       ~projector_to_segment=Triggers.projector_to_invoke,
       ~indent="",
       ~refractors=[],
+      ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
@@ -89,7 +90,7 @@ let of_segment =
        ~holes,
        ~concave_holes,
        ~refractors,
-       ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
+       ~refractor_seg_to_seg,
        ~projector_to_segment,
      )
   |> String.split_on_char('\n')

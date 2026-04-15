@@ -67,6 +67,31 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   | _ => CoCtx.empty
   };
 
+/* Walk a Pat.t AST and collect constructor references as co_ctx entries.
+ * Pattern constructors are uses of the constructor (for highlighting). */
+let rec collect_pat_ctr_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
+  switch (pat.term) {
+  | Constructor(name, _) =>
+    switch (Ctx.lookup_ctr(ctx, name)) {
+    | Some(_) =>
+      CoCtx.singleton(name, Pat.rep_id(pat), Unknown(Internal) |> Typ.temp)
+    | None => CoCtx.empty
+    }
+  | Ap(p1, p2)
+  | Cons(p1, p2)
+  | TupLabel(p1, p2) =>
+    CoCtx.union([
+      collect_pat_ctr_refs(ctx, p1),
+      collect_pat_ctr_refs(ctx, p2),
+    ])
+  | Tuple(ps)
+  | ListLit(ps) => CoCtx.union(List.map(collect_pat_ctr_refs(ctx), ps))
+  | Parens(p)
+  | Projector(_, p)
+  | Asc(p, _) => collect_pat_ctr_refs(ctx, p)
+  | _ => CoCtx.empty
+  };
+
 let rec any_to_info_map =
         (
           ~dynamics: DynamicStatics.Map.t,
@@ -1060,7 +1085,11 @@ and uexp_to_info_map =
           (info, m);
         | None => atomic(self)
         }
-      | _ => atomic(self)
+      | _ =>
+        /* Register constructor use in co_ctx so it bubbles up to
+         * the enclosing TyAlias, enabling use-site highlighting */
+        let co_ctx = CoCtx.singleton(ctr, Exp.rep_id(uexp), ana);
+        add(~self, ~co_ctx, m);
       };
     | Ap(_, fn, arg) =>
       switch (fn.term) {
@@ -1256,6 +1285,7 @@ and uexp_to_info_map =
       };
     | Fun(p, e, typ, _) =>
       let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _) =
@@ -1277,7 +1307,12 @@ and uexp_to_info_map =
         };
       add'(
         ~self,
-        ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p.ctx, e.co_ctx), pat_typ_refs]),
+        ~co_ctx=
+          CoCtx.union([
+            CoCtx.mk(ctx, p.ctx, e.co_ctx),
+            pat_typ_refs,
+            pat_ctr_refs,
+          ]),
         m,
       );
     | Forall(p, e) =>
@@ -1427,9 +1462,16 @@ and uexp_to_info_map =
           }
         };
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
-      /* add co_ctx to pattern */
+      /* add co_ctx to pattern: include def.co_ctx so recursive
+       * self-references in the definition are visible as uses */
       let (p_ana, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.union([def.co_ctx, body.co_ctx]),
+          ~ana=ty_p_ana,
+          p,
+          m,
+        );
       // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
       let Coverage.CheckMatrix.{exhaustiveness, _} =
@@ -1444,6 +1486,7 @@ and uexp_to_info_map =
           InexhaustiveMatch(unwrapped_self, unseen_pattern)
         };
       let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       add'(
         ~self,
         ~co_ctx=
@@ -1451,11 +1494,13 @@ and uexp_to_info_map =
             def.co_ctx,
             CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
             pat_typ_refs,
+            pat_ctr_refs,
           ]),
         m,
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       let (e1', m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
         go_pat(
@@ -1477,11 +1522,13 @@ and uexp_to_info_map =
             e1'.co_ctx,
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
             pat_typ_refs,
+            pat_ctr_refs,
           ]),
         m,
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
@@ -1496,6 +1543,7 @@ and uexp_to_info_map =
             p'.co_ctx,
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
             pat_typ_refs,
+            pat_ctr_refs,
           ]),
         m,
       );
@@ -1509,10 +1557,15 @@ and uexp_to_info_map =
       let (p'', m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
       let pat_typ_refs = collect_pat_type_refs(ctx, p);
+      let pat_ctr_refs = collect_pat_ctr_refs(ctx, p);
       add(
         ~self=Just(p'.ty),
         ~co_ctx=
-          CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx), pat_typ_refs]),
+          CoCtx.union([
+            CoCtx.mk(ctx, p''.ctx, e'.co_ctx),
+            pat_typ_refs,
+            pat_ctr_refs,
+          ]),
         m,
       );
     | If(e0, e1, e2) =>
@@ -1609,9 +1662,12 @@ and uexp_to_info_map =
         );
       };
       let m = add_redundancy(ps, redundant_rows, m);
+      let pat_ctr_refs =
+        CoCtx.union(List.map(collect_pat_ctr_refs(ctx), ps));
       let co_ctx =
         CoCtx.union([
           scrut.co_ctx,
+          pat_ctr_refs,
           ...List.map2(CoCtx.mk(ctx), p_ctxs, e_co_ctxs),
         ]);
       add'(~self, ~co_ctx, m);
@@ -2677,7 +2733,7 @@ and utpat_to_info_map =
     )
     : (Info.tpat, Map.t) => {
   let add = m => {
-    let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
+    let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors, ());
     (info, add_info(ids, InfoTPat(info), m));
   };
   let ancestors = [TPat.rep_id(utpat)] @ ancestors;
@@ -2742,6 +2798,7 @@ let mk =
       Id.Map.empty,
     )
     |> snd
+    |> Map.populate_tvar_co_ctxs
   });
 
 let mk =

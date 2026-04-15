@@ -103,11 +103,163 @@ module ViewComponents = {
 
   let context_view =
       (
-        ~content: string,
+        ~globals: Globals.t,
+        ~code_with_statics: CodeWithStatics.Model.t,
+        ~agent_view: AgentContext.Model.t,
+        ~eval_result: EvalResult.Model.t,
         ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
+    let segment =
+      CompositionView.Public.segment_for_agent_context(
+        code_with_statics.editor,
+        agent_view,
+      );
+    let static_error_lines =
+      ErrorPrint.all(
+        CompositionGo.Public.mk_statics(
+          code_with_statics.editor.state.zipper,
+        ),
+      );
+    let static_section =
+      div(
+        ~attrs=[clss(["agent-context-section"])],
+        [
+          div(
+            ~attrs=[clss(["agent-context-section-title"])],
+            [text("Static diagnostics")],
+          ),
+          if (static_error_lines == []) {
+            div(
+              ~attrs=[clss(["agent-context-static-ok"])],
+              [text("No static errors.")],
+            );
+          } else {
+            div(
+              ~attrs=[clss(["agent-context-static-list"])],
+              List.map(
+                (line: string) =>
+                  div(
+                    ~attrs=[clss(["agent-context-static-line"])],
+                    [text(line)],
+                  ),
+                static_error_lines,
+              ),
+            );
+          },
+        ],
+      );
+    let test_section = {
+      let test_results_opt =
+        EvalResult.Model.test_results(eval_result) |> Calc.get_value;
+      div(
+        ~attrs=[clss(["agent-context-section"])],
+        [
+          div(
+            ~attrs=[clss(["agent-context-section-title"])],
+            [text("Tests")],
+          ),
+          switch (test_results_opt) {
+          | None =>
+            div(
+              ~attrs=[clss(["agent-context-muted"])],
+              [
+                text(
+                  "Test results are not available yet (evaluation may still be running).",
+                ),
+              ],
+            )
+          | Some(results) when results.total == 0 =>
+            div(
+              ~attrs=[clss(["agent-context-muted"])],
+              [text("No tests in this program.")],
+            )
+          | Some(results) =>
+            let summary =
+              Language.TestResults.test_summary_str(results) |> String.trim;
+            let rows =
+              List.mapi(
+                (i, status: Language.TestStatus.t) => {
+                  let status_cls =
+                    switch (status) {
+                    | Pass => "agent-context-test-pass"
+                    | Fail => "agent-context-test-fail"
+                    | Indet => "agent-context-test-indet"
+                    };
+                  let icon =
+                    switch (status) {
+                    | Pass => Icons.confirm
+                    | Fail => Icons.cancel
+                    | Indet => Icons.circle_with_no_check
+                    };
+                  div(
+                    ~attrs=[clss(["agent-context-test-row", status_cls])],
+                    [
+                      div(
+                        ~attrs=[clss(["agent-context-test-icon"])],
+                        [icon],
+                      ),
+                      div(
+                        ~attrs=[clss(["agent-context-test-label"])],
+                        [
+                          text(
+                            "Test "
+                            ++ string_of_int(i + 1)
+                            ++ ": "
+                            ++ Language.TestStatus.to_string(status),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+                results.statuses,
+              );
+            div(
+              ~attrs=[clss(["agent-context-tests"])],
+              [
+                div(
+                  ~attrs=[clss(["agent-context-test-summary"])],
+                  [text(summary)],
+                ),
+                div(~attrs=[clss(["agent-context-test-rows"])], rows),
+              ],
+            );
+          },
+        ],
+      );
+    };
+    let program_section =
+      if (segment == []) {
+        div(
+          ~attrs=[clss(["agent-context-code-scroll"])],
+          [
+            div(
+              ~attrs=[clss(["agent-context-empty"])],
+              [text("No program in this scratchpad.")],
+            ),
+          ],
+        );
+      } else {
+        div(
+          ~attrs=[clss(["agent-context-code-scroll"])],
+          [
+            div(
+              ~attrs=[
+                clss(["agent-context-code", "tool-call-diff-segment"]),
+              ],
+              [
+                ToolResultView.render_segment(
+                  ~globals,
+                  ~shallow_complete=false,
+                  segment,
+                ),
+              ],
+            ),
+          ],
+        );
+      };
     div(
       ~attrs=[clss(["full-screen-view"])],
       [
@@ -139,8 +291,21 @@ module ViewComponents = {
           ],
         ),
         div(
-          ~attrs=[clss(["view-content", "system-message"])],
-          [text(content)],
+          ~attrs=[clss(["view-content", "agent-context-body"])],
+          [
+            div(
+              ~attrs=[clss(["agent-context-section"])],
+              [
+                div(
+                  ~attrs=[clss(["agent-context-section-title"])],
+                  [text("Program View")],
+                ),
+                program_section,
+              ],
+            ),
+            static_section,
+            test_section,
+          ],
         ),
       ],
     );
@@ -366,6 +531,8 @@ let view =
       ~agent_model: Agent.Agent.Model.t,
       ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
+      ~code_with_statics: CodeWithStatics.Model.t,
+      ~eval_result: EvalResult.Model.t,
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
@@ -982,7 +1149,10 @@ let view =
             };
 
           div(
-            ~attrs=[clss(["agent-tool-summary"]), Attr.id(summary_dom_id)],
+            ~attrs=[
+              clss(["agent-tool-summary", "collapsed"]),
+              Attr.id(summary_dom_id),
+            ],
             [
               div(
                 ~attrs=[
@@ -1025,6 +1195,23 @@ let view =
           ),
         ],
       );
+    | Agent.ChunkedUIChat.Model.CompactionNotice({method, content}) =>
+      div(
+        ~attrs=[clss(["message-container", "compaction-notice-container"])],
+        [
+          div(
+            ~attrs=[
+              clss(["message-identifier", "compaction-notice-identifier"]),
+            ],
+            [text("Conversation compacted")],
+          ),
+          div(
+            ~attrs=[clss(["compaction-notice-method"])],
+            [text("Method: " ++ method)],
+          ),
+          div(~attrs=[clss(["compaction-notice-body"])], [text(content)]),
+        ],
+      )
     | Agent.ChunkedUIChat.Model.ErrorMessage(error_content) =>
       // Error messages centered, red
       div(
@@ -1079,6 +1266,17 @@ let view =
               ]
             | _ => []
             }
+          )
+          @ (
+            switch (agent_model.compaction_in_progress) {
+            | Some(id) when id == current_chat_id => [
+                div(
+                  ~attrs=[clss(["compaction-in-progress-banner"])],
+                  [text("Compacting conversation…")],
+                ),
+              ]
+            | _ => []
+            }
           ),
         ),
       ],
@@ -1105,7 +1303,10 @@ let view =
   | Agent.Chat.Model.StaticErrors =>
     // Both AgentEditorView and StaticErrors now show context
     ViewComponents.context_view(
-      ~content=chunked_chat.context,
+      ~globals,
+      ~code_with_statics,
+      ~agent_view=current_chat.agent_view,
+      ~eval_result,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )

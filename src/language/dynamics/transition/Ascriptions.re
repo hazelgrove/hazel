@@ -190,7 +190,12 @@ let rec transition =
       switch (entry) {
       | Some(Some(t')) =>
         let+ payload' = recur(Asc(payload, t') |> DHExp.fresh);
-        Some(Ap(Forward, con, payload') |> DHExp.fresh);
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Ap(Forward, con, payload') |> DHExp.fresh,
+          ),
+        );
       | Some(None)
       | None => SampleWriter.return(None)
       };
@@ -198,7 +203,14 @@ let rec transition =
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       SampleWriter.return(Some(e))
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
-      SampleWriter.return(Some(ProofObject(e1) |> DHExp.fresh))
+      SampleWriter.return(
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            ProofObject(e1) |> DHExp.fresh,
+          ),
+        ),
+      )
     | (Test(_), Prod([])) => SampleWriter.return(Some(e))
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
@@ -234,22 +246,47 @@ let rec transition =
     | (ListConcat(d1, d2), List(_)) =>
       let* d1' = recur(Asc(d1, t) |> DHExp.fresh);
       let+ d2' = recur(Asc(d2, t) |> DHExp.fresh);
-      Some(ListConcat(d1', d2') |> DHExp.fresh);
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          ListConcat(d1', d2') |> DHExp.fresh,
+        ),
+      );
     | (Let(p, e1, e2), _) =>
       SampleWriter.return(
-        Some(Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh),
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+          ),
+        ),
       )
     | (Seq(e1, e2), _) =>
       SampleWriter.return(
-        Some(Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh),
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+          ),
+        ),
       )
-    | (Parens(e), _) =>
+    | (Parens(pe), _) =>
       SampleWriter.return(
-        Some(Parens(Asc(e, t) |> DHExp.fresh) |> DHExp.fresh),
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Parens(Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+          ),
+        ),
       )
-    | (Projector(data, e), _) =>
+    | (Projector(data, pe), _) =>
       SampleWriter.return(
-        Some(Projector(data, Asc(e, t) |> DHExp.fresh) |> DHExp.fresh),
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Projector(data, Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+          ),
+        ),
       )
     // We _could_ do this, but it would be a bit weird
     | (Use(_), _) // I'm scaredto do Use because the type-directed literals might make this look weird in the stepper

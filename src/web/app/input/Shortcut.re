@@ -125,6 +125,13 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Probe(ToggleStatics))),
     ),
     mk_shortcut(
+      ~hotkey=Keyboard.meta(sys) ++ "+p",
+      ~mdIcon="science",
+      ~section="Projection",
+      "Toggle Auto Probe",
+      Globals(Set(AutoprobeMode)),
+    ),
+    mk_shortcut(
       ~hotkey="alt+l",
       ~mdIcon="camera",
       ~section="Projection",
@@ -280,6 +287,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       "Add New Buffer",
+      ~hotkey="alt+n",
       ~mdIcon="add",
       ~section="Buffers",
       Editors(Scratch(AddSlide)),

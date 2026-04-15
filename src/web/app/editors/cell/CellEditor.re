@@ -1,3 +1,4 @@
+open Util;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
@@ -19,7 +20,7 @@ module Model = {
       dynamics: Language.Dynamics.empty,
       context_menu: None,
       dynamic_statics: Pending,
-      sample_cursor: Pending,
+      sample_focus: Pending,
     },
     result: EvalResult.Model.init,
   };
@@ -41,7 +42,7 @@ module Model = {
       dynamics: Language.Dynamics.empty,
       context_menu: None,
       dynamic_statics: Pending,
-      sample_cursor: Pending,
+      sample_focus: Pending,
     },
     result: EvalResult.Model.unpersist(result),
   };
@@ -74,7 +75,7 @@ module Update = {
         editor,
       };
     | ResultAction(action) =>
-      let* result =
+      let updated =
         EvalResult.Update.update(
           ~settings={
             ...settings,
@@ -86,9 +87,18 @@ module Update = {
           action,
           model.result,
         );
+      /* If the editor has pending_probe_cursor, force recalculation so
+         resolve_pending_probe_cursor can run with the new dynamics */
+      let needs_recalc =
+        model.editor.editor.state.zipper.refractors.pending_probe_cursor
+        != None;
       {
-        ...model,
-        result,
+        ...updated,
+        recalculate: updated.recalculate || needs_recalc,
+        model: {
+          ...model,
+          result: updated.model,
+        },
       };
     };
   };
@@ -96,7 +106,9 @@ module Update = {
   let calculate =
       (
         ~settings,
+        ~autoprobe_mode=false,
         ~is_edited,
+        ~statics_mode=CodeWithStatics.StaticsNormal,
         ~queue_worker,
         ~stitch,
         {editor, result}: Model.t,
@@ -106,12 +118,17 @@ module Update = {
     let editor =
       CodeEditable.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
+        ~statics_mode,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics_full(result),
         ~is_dynamic_term=false,
         editor,
       );
+    /* Save probe results reference before result calculation */
+    let probes_before =
+      EvalResult.Model.probe_results(result) |> Calc.get_value;
     /* Calculate result (may produce new dynamics from worker) */
     let result =
       EvalResult.Update.calculate(
@@ -124,22 +141,38 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
-    /* Second pass: if there's a pending focus waiting for dynamics,
-       recalculate editor with the (possibly new) dynamics */
+    /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
+     * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
+    let probes_after =
+      EvalResult.Model.probe_results(result) |> Calc.get_value;
+    let dynamics_changed =
+      switch (probes_before, probes_after) {
+      | (None, None) => false
+      | (Some(a), Some(b)) => a !== b
+      | _ => true
+      };
+    /* Second pass: if there's a pending focus, pending_probe_cursor waiting
+       for dynamics, or dynamics changed since the first pass */
+    let has_pending_focus =
+      editor.editor.state.zipper.refractors.sample_focus.pending_focus != None;
+    let has_pending_cursor =
+      editor.editor.state.zipper.refractors.pending_probe_cursor != None;
+    let needs_second_pass =
+      has_pending_focus || has_pending_cursor || dynamics_changed;
     let editor =
-      switch (
-        editor.editor.state.zipper.refractors.sample_cursor.pending_focus
-      ) {
-      | None => editor
-      | Some(_) =>
+      if (needs_second_pass) {
+        /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
         CodeEditable.Update.calculate(
           ~settings,
-          ~is_edited=false, /* Not an edit, just resolving pending focus */
+          ~autoprobe_mode,
+          ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
           ~dynamics=EvalResult.Model.dynamics_full(result),
           ~is_dynamic_term=false,
           editor,
-        )
+        );
+      } else {
+        editor;
       };
     {
       editor,

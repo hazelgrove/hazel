@@ -22,7 +22,7 @@ module Model = {
     statics: CachedStatics.t,
     dynamics: Dynamics.t,
     dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
-    sample_cursor: Calc.saved(Language.Sample.Cursor.t),
+    sample_focus: Calc.saved(Language.Sample.Focus.t),
   };
 
   let context_menu_is_open = (model: t): bool => model.context_menu != None;
@@ -34,7 +34,7 @@ module Model = {
       dynamics,
       context_menu: None,
       dynamic_statics: Calc.Pending,
-      sample_cursor: Calc.Pending,
+      sample_focus: Calc.Pending,
     };
   };
 
@@ -65,12 +65,13 @@ module Model = {
       dynamics:
         Option.bind(id, Dynamics.Map.lookup(_, model.dynamics.probe_map)),
       indicated_piece:
-        Indicated.piece''(model.editor.state.zipper)
-        |> Option.map(((p, _, _)) => p),
+        Indicated.for_decoration(model.editor.state.zipper)
+        |> Option.map(({piece, _}: Indicated.piece) => piece),
       selected_text:
         Some(
           () =>
             Printer.of_segment(
+              ~indent=" ",
               ~refractors=model.editor.state.zipper.refractors.manuals,
               model.editor.state.zipper.selection.content,
             ),
@@ -95,6 +96,47 @@ module Model = {
     p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
 
+type statics_mode =
+  | StaticsNormal
+  | StaticsDefer
+  | StaticsForce;
+
+/* Debounce statics computation during rapid typing. Only one mode is
+   active at a time, so a single timer/flag is shared across all modes. */
+module StaticsDebounce = {
+  let debounce_ms = 225.0;
+  let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
+  let force_on_next: ref(bool) = ref(false);
+
+  /* Call from calculate to get the statics_mode for this cycle.
+     schedule_refresh should dispatch the mode's RefreshStatics action. */
+  let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
+    let force_now = force_on_next^;
+    force_on_next := false;
+    if (is_edited && debounce_ms > 0.0) {
+      switch (timer_id^) {
+      | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+      | None => ()
+      };
+      timer_id :=
+        Some(
+          Js_of_ocaml.Dom_html.window##setTimeout(
+            Js_of_ocaml.Js.wrap_callback(() => {
+              timer_id := None;
+              schedule_refresh();
+            }),
+            debounce_ms,
+          ),
+        );
+      StaticsDefer;
+    } else if (force_now) {
+      StaticsForce;
+    } else {
+      StaticsNormal;
+    };
+  };
+};
+
 module Update = {
   // There are no events for a read-only editor
   type t;
@@ -103,7 +145,9 @@ module Update = {
   let calculate =
       (
         ~settings: CoreSettings.t,
+        ~autoprobe_mode=false,
         ~is_edited,
+        ~statics_mode=StaticsNormal,
         ~ctx=?,
         ~stitch,
         ~dynamics: Calc.t(Dynamics.t),
@@ -113,23 +157,45 @@ module Update = {
           editor,
           statics,
           dynamic_statics,
-          sample_cursor,
+          sample_focus,
           context_menu,
           dynamics: _,
         }: Model.t,
       )
       : Model.t => {
     let dynamics_map = Calc.map(dynamics, (d: Dynamics.t) => d.probe_map);
+    /* Capture ephemerals before editor calculation to detect auto probe changes */
+    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
+
     let editor =
       Editor.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
         statics,
         dynamics_map |> Calc.get_value,
         editor,
       );
+
+    /* Ephemerals can change without an explicit edit in several cases:
+     * (1) cursor movement in autoprobe mode (cursor crosses into a new
+     *     top-level definition), and
+     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
+     *     from persisted multis.ids once the info_map becomes available.
+     * In both cases we must recalculate statics so probe targets match
+     * the new ephemerals and the evaluator collects samples for them. */
+    let probes_changed =
+      !
+        Id.Map.equal(
+          Refractors.equal_entry,
+          old_ephemerals,
+          editor.state.zipper.refractors.multis.ephemerals,
+        );
+
     let statics =
-      is_edited
+      statics_mode == StaticsForce
+      || (is_edited || probes_changed)
+      && statics_mode != StaticsDefer
         ? CachedStatics.init(
             ~settings,
             ~stitch,
@@ -142,10 +208,10 @@ module Update = {
 
     let ctx_init: Ctx.t = Builtins.ctx_init(Some(Int));
 
-    // Track the current sample cursor state
-    let current_sample_cursor = editor.state.zipper.refractors.sample_cursor;
-    let sample_cursor_calc =
-      Calc.set(~eq=Sample.Cursor.equal, current_sample_cursor, sample_cursor);
+    // Track the current sample focus state
+    let current_sample_focus = editor.state.zipper.refractors.sample_focus;
+    let sample_focus_calc =
+      Calc.set(~eq=Sample.Focus.equal, current_sample_focus, sample_focus);
 
     let dynamic_statics =
       if (settings.live_typing) {
@@ -153,10 +219,10 @@ module Update = {
           dynamic_statics
           |> {
             let.calc dyn = dynamics
-            and.calc curr_sample_cursor = sample_cursor_calc;
+            and.calc curr_sample_focus = sample_focus_calc;
 
             let filtered_dynamics =
-              Language.Dynamics.filter_by_cursor(curr_sample_cursor, dyn);
+              Language.Dynamics.filter_by_focus(curr_sample_focus, dyn);
 
             let dynamic_expressions: Id.Map.t(DynamicStatics.Map.entry) =
               Id.Map.map(
@@ -198,7 +264,7 @@ module Update = {
           }
         );
       } else {
-        Calc.set((Statics.Map.empty, []), dynamic_statics);
+        Calc.set((StaticsBase.Map.empty, []), dynamic_statics);
       };
 
     let statics: CachedStatics.t = {
@@ -210,6 +276,7 @@ module Update = {
     let editor =
       Editor.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
         statics,
         dynamics_map |> Calc.get_value,
@@ -220,7 +287,7 @@ module Update = {
       statics,
       dynamics: Calc.get_value(dynamics),
       dynamic_statics: Calc.save(dynamic_statics),
-      sample_cursor: Calc.save(sample_cursor_calc),
+      sample_focus: Calc.save(sample_focus_calc),
       context_menu,
     };
   };

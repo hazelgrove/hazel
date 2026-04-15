@@ -39,21 +39,24 @@ module TypeInstMap = {
     );
   };
   let filter_type_instantiations_by_pin =
-      (sample_cursor: Sample.Cursor.t, closures: list(TypeInstantiation.t))
+      (sample_focus: Sample.Focus.t, closures: list(TypeInstantiation.t))
       : list(TypeInstantiation.t) =>
-    switch (sample_cursor.pinned_stack) {
+    switch (sample_focus.pinned_stack) {
     | Some(pinned_stack) =>
       List.filter(
         (closure: TypeInstantiation.t) =>
-          ListUtil.is_suffix_of(pinned_stack, closure.call_stack),
+          ListUtil.is_suffix_of(
+            Sample.ids_of_stack(pinned_stack),
+            closure.call_stack,
+          ),
         closures,
       )
     | None => closures
     };
 
-  let filter_by_cursor = (sample_cursor: Sample.Cursor.t, map: t): t =>
+  let filter_by_focus = (sample_focus: Sample.Focus.t, map: t): t =>
     Id.Map.map(
-      closures => filter_type_instantiations_by_pin(sample_cursor, closures),
+      closures => filter_type_instantiations_by_pin(sample_focus, closures),
       map,
     );
 };
@@ -63,39 +66,33 @@ module Info = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     samples: list(Sample.t),
-    sample_cursor: Sample.Cursor.t,
+    sample_focus: Sample.Focus.t,
   };
 
   let init = {
     samples: [],
-    sample_cursor: Sample.Cursor.init,
+    sample_focus: Sample.Focus.init,
   };
 
-  let is_in = (di: t): option(Sample.t) =>
+  let is_in = (di: t): option(Sample.t) => {
+    let cursor_ids =
+      Sample.ids_of_stack(Sample.Focus.effective_stack(di.sample_focus));
     List.find_opt(
       (sample: Sample.t) =>
-        Sample.Cursor.trimmed_stack(di.sample_cursor) == sample.call_stack,
+        Sample.ids_of_stack(sample.call_stack) == cursor_ids,
       di.samples,
     );
-
-  let first_cursor_sample = (ap_id: option(Id.t), di: t): option(Sample.t) => {
-    let find_cursor =
-      List.find_opt(
-        sample =>
-          Sample.Cursor.relation(
-            ~trimmed=true,
-            ~ap_id,
-            di.sample_cursor,
-            sample,
-          ).
-            is_call_cursor,
-        di.samples,
-      );
-    switch (find_cursor) {
-    | Some(sample) => Some(sample)
-    | None => None
-    };
   };
+
+  /* Find the sample most aligned with the cursor's call path.
+   * Uses the same suffix-first principle as Selection.most_aligned_index
+   * but returns the sample directly. */
+  let most_aligned_sample = (ap_id: option(Id.t), di: t): option(Sample.t) =>
+    Sample.Selection.most_aligned_sample(
+      ~ap_id,
+      ~cursor=di.sample_focus,
+      di.samples,
+    );
 };
 
 module Map = {
@@ -106,26 +103,19 @@ module Map = {
   let mk: t => t = Fun.id;
   let lookup = Sample.Map.lookup;
 
-  /* Filter samples based on pinned call stack.
-   * If no call is pinned, returns all samples.
-   * If a call is pinned, returns only samples where the pinned
-   * call stack is a suffix of the sample's call stack. */
-  let filter_samples_by_pin =
-      (pinned_call: Sample.Cursor.t, samples: list(Sample.t))
-      : list(Sample.t) =>
-    switch (pinned_call.pinned_stack) {
-    | Some(pinned_stack) =>
-      List.filter(
-        (sample: Sample.t) =>
-          ListUtil.is_suffix_of(pinned_stack, sample.call_stack),
-        samples,
-      )
-    | None => samples
-    };
-
-  /* Apply sample filtering to all probes in the map */
-  let filter_by_cursor = (pinned_call: Sample.Cursor.t, map: t): t =>
-    Id.Map.map(samples => filter_samples_by_pin(pinned_call, samples), map);
+  /* Apply pin filtering to all probes in the map, using the centralized
+   * Sample.Selection.filter_by_pin helper so filtering matches the
+   * semantics used by probe sample selection. */
+  let filter_by_focus = (focus: Sample.Focus.t, map: t): t =>
+    Id.Map.mapi(
+      (ap_id, samples) =>
+        Sample.Selection.filter_by_pin(
+          ~ap_id=Some(ap_id),
+          ~pinned=focus.pinned_stack,
+          samples,
+        ),
+      map,
+    );
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -152,11 +142,11 @@ let empty: t = {
   },
 };
 
-let filter_by_cursor = (sample_cursor: Sample.Cursor.t, dyn: t): t => {
+let filter_by_focus = (sample_focus: Sample.Focus.t, dyn: t): t => {
   {
-    probe_map: Map.filter_by_cursor(sample_cursor, dyn.probe_map),
+    probe_map: Map.filter_by_focus(sample_focus, dyn.probe_map),
     type_inst_map:
-      TypeInstMap.filter_by_cursor(sample_cursor, dyn.type_inst_map),
+      TypeInstMap.filter_by_focus(sample_focus, dyn.type_inst_map),
     test_results: dyn.test_results,
     theorems: dyn.theorems,
   };

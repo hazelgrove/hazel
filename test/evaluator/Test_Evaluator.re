@@ -3,6 +3,7 @@ let tests =
     Test_Evaluator_Labeled_Tuple.tests,
     Test_Evaluator_ProbeSteps.tests,
     Test_Evaluator_ProbeCallStack.tests,
+    Test_Evaluator_ProbeSelection.tests,
   ]
   @ Test_Evaluator_Probes.tests
   @ [
