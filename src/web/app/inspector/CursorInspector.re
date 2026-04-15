@@ -54,7 +54,7 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-let term_view = (~globals: Globals.t, ci) => {
+let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
   let sort = Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
 
   div(
@@ -62,7 +62,7 @@ let term_view = (~globals: Globals.t, ci) => {
       clss(
         ["ci-header", sort]
         @ (
-          Info.is_error(ci)
+          force_error || Info.is_error(ci)
             ? [errc]
             : Info.is_warning(ci) && globals.settings.core.display_warnings
                 ? [warnc] : [okc]
@@ -823,15 +823,18 @@ let inspector_view = (~globals: Globals.t, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
-let projector_diagnostic_inspector =
+let projector_error_inspector =
     (
       ~globals: Globals.t,
       ci: Language.Info.t,
-      diag: Haz3lcore.ProjectorBase.diagnostic,
+      err: Haz3lcore.ProjectorBase.error,
     ) =>
   div(
     ~attrs=[Attr.id("cursor-inspector"), clss([errc])],
-    [term_view(~globals, ci), div_err([text(diag.message)])],
+    [
+      term_view(~globals, ~force_error=true, ci),
+      div_err([text(err.message)]),
+    ],
   );
 
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
@@ -843,12 +846,12 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);
-  /* Look up projector diagnostic for the indicated piece */
-  let projector_diag =
+  /* Look up projector error for the indicated piece */
+  let projector_err =
     switch (cursor.indicated_piece, cursor.editor) {
     | (Some(Projector({id, kind, _})), Some(editor)) =>
-      switch (Id.Map.find_opt(id, editor.syntax.projector_diagnostics)) {
-      | Some(diag) => Some((kind, diag))
+      switch (Id.Map.find_opt(id, editor.syntax.projector_errors)) {
+      | Some(err) => Some((kind, err))
       | None => None
       }
     | _ => None
@@ -857,11 +860,11 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
-    /* Show projector diagnostic instead of normal status,
+    /* Show projector error instead of normal status,
      * unless there's a statics error (which takes priority) */
-    switch (projector_diag) {
-    | Some((_, diag)) when !Info.is_error(ci) =>
-      bar_view([projector_diagnostic_inspector(~globals, ci, diag)])
+    switch (projector_err) {
+    | Some((_, err)) when !Info.is_error(ci) =>
+      bar_view([projector_error_inspector(~globals, ci, err)])
     | _ => bar_view([inspector_view(~globals, ci)])
     }
   };

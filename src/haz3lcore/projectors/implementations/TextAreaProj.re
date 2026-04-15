@@ -125,7 +125,7 @@ module M: Projector = {
     };
   };
   let update = (model, _, _) => model;
-  let diagnose = (_, _): option(ProjectorBase.diagnostic) => None;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(

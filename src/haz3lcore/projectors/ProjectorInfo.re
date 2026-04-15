@@ -96,10 +96,10 @@ module ShapeMapSemantics = {
         ~elaborated: option(Exp.t),
         p: Base.projector,
       )
-      : (ProjectorCore.Shape.t, option(ProjectorBase.diagnostic)) => {
+      : (ProjectorCore.Shape.t, option(ProjectorBase.error)) => {
     let (module P) = ProjectorInit.to_module(p.kind);
     let info = mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
-    (P.placeholder(p.model, info), P.diagnose(p.model, info));
+    (P.placeholder(p.model, info), P.error(p.model, info));
   };
 
   let mk =
@@ -110,10 +110,7 @@ module ShapeMapSemantics = {
         dynamics: Dynamics.Map.t,
         ~elaborated: option(Exp.t),
       )
-      : (
-          Id.Map.t(ProjectorCore.Shape.t),
-          Id.Map.t(ProjectorBase.diagnostic),
-        ) => {
+      : (Id.Map.t(ProjectorCore.Shape.t), Id.Map.t(ProjectorBase.error)) => {
     let both =
       Id.Map.map(
         from_semantics(
@@ -125,7 +122,7 @@ module ShapeMapSemantics = {
         proj_map,
       );
     let shapes = Id.Map.map(((shape, _)) => shape, both);
-    let diagnostics = Id.Map.filter_map((_, (_, diag)) => diag, both);
-    (shapes, diagnostics);
+    let errors = Id.Map.filter_map((_, (_, err)) => err, both);
+    (shapes, errors);
   };
 };

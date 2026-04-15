@@ -117,7 +117,7 @@ module M: Projector = {
       };
     };
   let update = (model, _, _) => model;
-  let diagnose = (_, info) =>
+  let error = (_, info) =>
     switch (get(info)) {
     | Some(_) => None
     | None => Some(ProjectorBase.{message: error_message})

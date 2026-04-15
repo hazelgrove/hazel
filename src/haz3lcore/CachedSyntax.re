@@ -28,8 +28,8 @@ type t = {
    * underlying editor. In principle calculating this can involve
    * both static and dynamic information, so we cache this for perf */
   shape_map: ProjectorCore.Shape.Map.t,
-  /* Diagnostics reported by projectors (e.g. "can't render as table") */
-  projector_diagnostics: Id.Map.t(ProjectorBase.diagnostic),
+  /* Errors reported by projectors (e.g. "can't render as table") */
+  projector_errors: Id.Map.t(ProjectorBase.error),
   cached_backpack: list(Tile.t),
 };
 
@@ -43,7 +43,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
-  let (projector_shapes, projector_diagnostics) =
+  let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
       z.refractors,
@@ -64,7 +64,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     projectors,
     projector_list,
     shape_map: projector_shapes,
-    projector_diagnostics,
+    projector_errors,
     cached_backpack: Segment.global_missing_shards(segment),
   };
 };
@@ -86,12 +86,12 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
       selection_ids: Selection.selection_ids(z.selection),
     };
 
-/* Recompute just the shape_map, diagnostics, and measured layout.
+/* Recompute just the shape_map, errors, and measured layout.
  * Called after statics are recomputed so projector placeholders
  * reflect the latest elaborated expression. */
 let refresh_shapes =
     (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
-  let (shape_map, projector_diagnostics) =
+  let (shape_map, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       old.projectors,
       z.refractors,
@@ -105,7 +105,7 @@ let refresh_shapes =
   {
     ...old,
     shape_map,
-    projector_diagnostics,
+    projector_errors,
     measured,
   };
 };

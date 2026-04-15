@@ -1696,7 +1696,7 @@ module M: Projector = {
     | _ => []
     };
   };
-  let diagnose = (_, _): option(ProjectorBase.diagnostic) => None;
+  let error = (_, _): option(ProjectorBase.error) => None;
   let view =
       (
         {info, local, parent, view_seg, model, status, core_settings, _}:
