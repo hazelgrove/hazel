@@ -41,6 +41,7 @@ type t = {
   assist: bool,
   dynamics: bool,
   probe_all: bool,
+  deep_reassociate: bool,
   flip_animations: bool,
   display_warnings: bool,
   evaluation: Evaluation.t,
@@ -52,6 +53,7 @@ let off: t = {
   assist: false,
   dynamics: false,
   probe_all: false,
+  deep_reassociate: false,
   flip_animations: false,
   display_warnings: false,
   evaluation: Evaluation.init,
@@ -63,6 +65,7 @@ let on: t = {
   assist: true,
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
+  deep_reassociate: false,
   flip_animations: true,
   display_warnings: true,
   evaluation: Evaluation.init,

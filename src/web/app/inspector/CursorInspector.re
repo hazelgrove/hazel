@@ -85,8 +85,7 @@ let elements_noun: Cls.t => string =
   | Pat(ListLit) => "Elements"
   | Exp(ListConcat)
   | Exp(BinOp(Poly(_))) => "Operands"
-  | cls =>
-    failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
+  | _ => "Sub-expressions";
 
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   secondary: AutoFormat,

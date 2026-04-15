@@ -396,11 +396,6 @@ let of_segment_inner =
   map;
 };
 
-/* Memoized for perf. We use an inner function with positional args
-   because Core.Memo.general doesn't preserve labeled argument types.
-   The wrapper provides the nice labeled argument interface. */
-let of_segment_memo = Core.Memo.general(of_segment_inner);
-
 let of_segment =
     (
       ~indent_level=Id.Map.empty,
@@ -410,7 +405,7 @@ let of_segment =
       refractor_shape_map: Id.Map.t(int),
     )
     : t =>
-  of_segment_memo(
+  of_segment_inner(
     indent_level,
     is_single_line,
     seg,
