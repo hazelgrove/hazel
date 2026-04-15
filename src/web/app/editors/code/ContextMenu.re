@@ -463,6 +463,15 @@ module Projectors = {
       : list(menu_item_data) => {
     let current_kind = indicated_kind(z);
     let applicable = applicable_kinds(z, info_map, ~elaborated);
+    /* Always include the current projector's kind so it can be removed,
+     * even if it's no longer applicable for re-adding (e.g. TableProj
+     * when the elaborated form is no longer a table). Applicability
+     * gates enabling, not removal. */
+    let kinds =
+      switch (current_kind) {
+      | Some(k) when !List.mem(k, applicable) => applicable @ [k]
+      | _ => applicable
+      };
 
     let make_item_data = (kind: ProjectorCore.Kind.t): menu_item_data => {
       let name = display_name(kind);
@@ -480,7 +489,7 @@ module Projectors = {
       };
     };
 
-    List.map(make_item_data, applicable);
+    List.map(make_item_data, kinds);
   };
 };
 
