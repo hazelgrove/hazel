@@ -28,10 +28,17 @@ let get_dynamic_typ = (info: info): Typ.t => {
   let ctx =
     Option.map(Info.ctx_of, info.statics)
     |> Option.value(~default=Builtins.ctx_init(Some(Int)));
+  let ap_id = Option.bind(info.statics, Sample.Focus.cur_var_ap);
   info.dynamics
-  |> Option.map((d: Dynamics.Info.t) =>
-       DynamicTypInfer.dynamic_typ_of_samples_or_unknown(~ctx, d.samples)
-     )
+  |> Option.map((d: Dynamics.Info.t) => {
+       let filtered =
+         Sample.Selection.filter_by_pin(
+           ~ap_id,
+           ~pinned=d.sample_focus.pinned_stack,
+           d.samples,
+         );
+       DynamicTypInfer.dynamic_typ_of_samples_or_unknown(~ctx, filtered);
+     })
   |> Option.value(~default=Typ.fresh(Unknown(Internal)));
 };
 
