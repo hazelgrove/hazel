@@ -357,15 +357,15 @@ open Util.WebUtil;
 module Errors = {
   let of_id =
       (
-        ~is_dynamic=false,
+        ~is_live_typing=false,
         ~is_warning=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         id: Id.t,
       ) =>
     div_c(
-      is_dynamic
-        ? "dynamic-errors-piece"
+      is_live_typing
+        ? "live-typing-errors-piece"
         : is_warning ? "warnings-piece" : "errors-piece",
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
@@ -398,16 +398,17 @@ module Errors = {
 
   let of_ids =
       (
-        ~is_dynamic=false,
+        ~is_live_typing=false,
         ~is_warning=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         error_ids,
       ) =>
     div_c(
-      is_dynamic ? "dynamic-errors" : is_warning ? "warnings" : "errors",
+      is_live_typing
+        ? "live-typing-errors" : is_warning ? "warnings" : "errors",
       List.map(
-        of_id(~is_dynamic, ~is_warning, ~font_metrics, ~syntax),
+        of_id(~is_live_typing, ~is_warning, ~font_metrics, ~syntax),
         error_ids,
       ),
     );

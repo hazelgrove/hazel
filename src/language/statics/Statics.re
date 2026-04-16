@@ -94,7 +94,7 @@ let rec collect_pat_ctr_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
 
 let rec any_to_info_map =
         (
-          ~dynamics: DynamicStatics.Map.t,
+          ~dynamics: LiveTyping.Map.t,
           ~ctx: Ctx.t,
           ~ancestors,
           any: Any.t,
@@ -286,7 +286,7 @@ let rec any_to_info_map =
   | Any () => (CoCtx.empty, m)
   }
 and multi =
-    (~dynamics: DynamicStatics.Map.t, ~ctx, ~ancestors, m, tms)
+    (~dynamics: LiveTyping.Map.t, ~ctx, ~ancestors, m, tms)
     : (list(CoCtx.t), Map.t) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
@@ -298,7 +298,7 @@ and multi =
   )
 and uexp_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
@@ -316,7 +316,7 @@ and uexp_to_info_map =
   let calculate_dynamic_type = (uexp: Exp.t) => {
     let (ie, _) =
       uexp_to_info_map(
-        ~dynamics=DynamicStatics.Map.empty,
+        ~dynamics=LiveTyping.Map.empty,
         ~ctx,
         ~label_sort=false,
         ~ancestors,
@@ -1338,10 +1338,7 @@ and uexp_to_info_map =
 
           let ctx_body =
             switch (
-              DynamicStatics.Map.lookup_type_inst(
-                TPat.rep_id(utpat),
-                dynamics,
-              )
+              LiveTyping.Map.lookup_type_inst(TPat.rep_id(utpat), dynamics)
             ) {
             | None =>
               Ctx.extend_tvar(
@@ -1353,7 +1350,7 @@ and uexp_to_info_map =
                 },
               )
             | Some(insts) =>
-              DynamicStatics.extend_ctx_with_instantiations(
+              LiveTyping.extend_ctx_with_instantiations(
                 ctx,
                 name,
                 TPat.rep_id(utpat),
@@ -1885,7 +1882,7 @@ and uexp_to_info_map =
 }
 and upat_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~is_synswitch,
       ~ctx,
       // the co-ctx of the pattern's scope
@@ -2504,7 +2501,7 @@ and upat_to_info_map =
 }
 and utyp_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
@@ -2725,7 +2722,7 @@ and utyp_to_info_map =
 }
 and utpat_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~ctx,
       ~ancestors,
       {annotation: {ids, _}, term} as utpat: TPat.t,
@@ -2748,7 +2745,7 @@ and utpat_to_info_map =
 }
 and variant_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~ctx,
       ~ancestors,
       ~ty_sum,
@@ -2785,7 +2782,7 @@ and variant_to_info_map =
 
 let mk =
   Core.Memo.general(
-    ~cache_size_bound=1000, (dynamics: DynamicStatics.Map.t, ana, ctx, e) => {
+    ~cache_size_bound=1000, (dynamics: LiveTyping.Map.t, ana, ctx, e) => {
     uexp_to_info_map(
       ~dynamics,
       ~ana,
@@ -2803,7 +2800,7 @@ let mk =
 
 let mk =
     (
-      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+      ~dynamics: LiveTyping.Map.t=LiveTyping.Map.empty,
       ~ana=Typ.temp(Unknown(SynSwitch)),
       core: CoreSettings.t,
       ctx,

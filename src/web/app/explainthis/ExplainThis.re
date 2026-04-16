@@ -507,7 +507,7 @@ let get_doc =
             statics: CachedStatics.empty,
             dynamics: Dynamics.empty,
             context_menu: None,
-            dynamic_statics: Pending,
+            live_typing: Pending,
             sample_focus: Pending,
           },
         );

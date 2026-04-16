@@ -344,7 +344,7 @@ module type ExpressionStatics = {
     (option(list(string)), Typ.t, Exp.t, Map.t) =>
     (option(string), Info.exp, Map.t);
 
-  let dynamics: DynamicStatics.Map.t;
+  let dynamics: LiveTyping.Map.t;
 
   let calculate_dynamic_type: Exp.t => option(Typ.t);
 };

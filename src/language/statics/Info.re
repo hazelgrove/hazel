@@ -995,7 +995,7 @@ let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
 
 let derived_dynamic_self_common =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~calculate_dynamic_type: Exp.t => option(Typ.t),
       ~ctx,
       ~term_id: Id.t,
@@ -1004,11 +1004,11 @@ let derived_dynamic_self_common =
     : Self.t => {
   switch (self_common) {
   | Just(t) when Typ.count_unknowns(t) > 0 =>
-    switch (DynamicStatics.Map.lookup(term_id, dynamics)) {
+    switch (LiveTyping.Map.lookup(term_id, dynamics)) {
     | None => self_common
     | Some([]) => self_common
     | Some(entry) =>
-      let exps = List.map((s: DynamicStatics.sample) => s.exp, entry);
+      let exps = List.map((s: LiveTyping.sample) => s.exp, entry);
       let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
       let dyn_typ =
         Option.bind(
@@ -1023,7 +1023,7 @@ let derived_dynamic_self_common =
 
 let derived_dynamic_self_exp =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~calculate_dynamic_type: Exp.t => option(Typ.t),
       ~ctx,
       ~uexp: Exp.t,
@@ -1049,7 +1049,7 @@ let derived_dynamic_self_exp =
 let derived_exp =
     (
       ~calculate_dynamic_type: Exp.t => option(Typ.t),
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~uexp: Exp.t,
       ~ctx,
       ~ana,
@@ -1097,7 +1097,7 @@ let derived_exp =
 /* Add derivable attributes for pattern terms */
 let derived_dynamic_self_pat =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~calculate_dynamic_type: Exp.t => option(Typ.t),
       ~ctx,
       ~upat: Pat.t,
@@ -1120,7 +1120,7 @@ let derived_dynamic_self_pat =
 };
 let derived_pat =
     (
-      ~dynamics: DynamicStatics.Map.t,
+      ~dynamics: LiveTyping.Map.t,
       ~calculate_dynamic_type: Exp.t => option(Typ.t),
       ~upat: Pat.t,
       ~ctx,

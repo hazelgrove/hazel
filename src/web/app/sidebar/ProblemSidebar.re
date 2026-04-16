@@ -45,7 +45,7 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   | InfoExp({cls, status, _} as ie) =>
     CursorInspector.exp_view(
       ~globals,
-      ~dynamic_info=None,
+      ~live_typing_info=None,
       ~show_type_colon=false,
       cls,
       status,
@@ -54,7 +54,7 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   | InfoPat({cls, status, _} as ip) =>
     CursorInspector.pat_view(
       ~globals,
-      ~dynamic_info=None,
+      ~live_typing_info=None,
       ~show_type_colon=false,
       cls,
       status,

@@ -392,7 +392,7 @@ module Update = {
               dynamics:
                 EvalResult.Model.dynamics_full(cell.result) |> Calc.get_value,
               context_menu: cell.editor.context_menu,
-              dynamic_statics: cell.editor.dynamic_statics,
+              live_typing: cell.editor.live_typing,
               sample_focus: cell.editor.sample_focus,
             },
             result: cell.result,
@@ -991,7 +991,7 @@ module View = {
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.empty,
         context_menu: editor.editor.context_menu,
-        dynamic_statics: editor.editor.dynamic_statics,
+        live_typing: editor.editor.live_typing,
         sample_focus: editor.editor.sample_focus,
       },
       result: editor.result,

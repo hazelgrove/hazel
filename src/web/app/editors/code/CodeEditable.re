@@ -46,7 +46,7 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: None,
-            dynamic_statics: model.dynamic_statics,
+            live_typing: model.live_typing,
             sample_focus: model.sample_focus,
           }
         | Error(err) => raise(Action.Failure.Exception(err))

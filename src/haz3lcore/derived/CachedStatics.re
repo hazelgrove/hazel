@@ -9,8 +9,8 @@ type t = {
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
   targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
-  dynamic_info_map: Statics.Map.t,
-  dynamic_error_ids: list(Id.t),
+  live_typing_info_map: Statics.Map.t,
+  live_typing_error_ids: list(Id.t),
 };
 
 let empty: t = {
@@ -26,8 +26,8 @@ let empty: t = {
   error_ids: [],
   warning_ids: [],
   targets: Sample.no_targets,
-  dynamic_info_map: Id.Map.empty,
-  dynamic_error_ids: [],
+  live_typing_info_map: Id.Map.empty,
+  live_typing_error_ids: [],
 };
 
 let elaborate =
@@ -158,8 +158,8 @@ let init_from_term =
     error_ids,
     warning_ids,
     targets,
-    dynamic_info_map: Statics.Map.empty,
-    dynamic_error_ids: [],
+    live_typing_info_map: Statics.Map.empty,
+    live_typing_error_ids: [],
   };
 };
 

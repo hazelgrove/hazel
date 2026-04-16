@@ -21,7 +21,7 @@ module Model = {
     context_menu: context_menu_state,
     statics: CachedStatics.t,
     dynamics: Dynamics.t,
-    dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
+    live_typing: Calc.saved((StaticsBase.Map.t, list(Id.t))),
     sample_focus: Calc.saved(Language.Sample.Focus.t),
   };
 
@@ -33,7 +33,7 @@ module Model = {
       statics,
       dynamics,
       context_menu: None,
-      dynamic_statics: Calc.Pending,
+      live_typing: Calc.Pending,
       sample_focus: Calc.Pending,
     };
   };
@@ -53,15 +53,15 @@ module Model = {
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     let info =
       Indicated.ci_of(model.editor.state.zipper, model.statics.info_map);
-    let dynamic_info =
+    let live_typing_info =
       Indicated.ci_of(
         model.editor.state.zipper,
-        model.statics.dynamic_info_map,
+        model.statics.live_typing_info_map,
       );
     let id = Indicated.index(model.editor.state.zipper);
     {
       info,
-      dynamic_info,
+      live_typing_info,
       dynamics:
         Option.bind(id, Dynamics.Map.lookup(_, model.dynamics.probe_map)),
       indicated_piece:
@@ -156,7 +156,7 @@ module Update = {
         {
           editor,
           statics,
-          dynamic_statics,
+          live_typing,
           sample_focus,
           context_menu,
           dynamics: _,
@@ -213,10 +213,10 @@ module Update = {
     let sample_focus_calc =
       Calc.set(~eq=Sample.Focus.equal, current_sample_focus, sample_focus);
 
-    let dynamic_statics =
+    let live_typing =
       if (settings.live_typing) {
         Calc.Syntax.(
-          dynamic_statics
+          live_typing
           |> {
             let.calc dyn = dynamics
             and.calc curr_sample_focus = sample_focus_calc;
@@ -224,18 +224,18 @@ module Update = {
             let filtered_dynamics =
               Language.Dynamics.filter_by_focus(curr_sample_focus, dyn);
 
-            let dynamic_expressions: Id.Map.t(DynamicStatics.Map.entry) =
+            let dynamic_expressions: Id.Map.t(LiveTyping.Map.entry) =
               Id.Map.map(
-                List.map((sample: Sample.t): DynamicStatics.sample =>
+                List.map((sample: Sample.t): LiveTyping.sample =>
                   {exp: sample.value}
                 ),
                 filtered_dynamics.probe_map,
               );
 
-            let type_inst_probes: Id.Map.t(DynamicStatics.Map.type_inst_entry) =
+            let type_inst_probes: Id.Map.t(LiveTyping.Map.type_inst_entry) =
               Id.Map.map(
                 List.map(
-                  (inst: Dynamics.TypeInstantiation.t): DynamicStatics.type_instantiation =>
+                  (inst: Dynamics.TypeInstantiation.t): LiveTyping.type_instantiation =>
                   {
                     tpat_id: inst.tpat_id,
                     type_var: inst.type_var,
@@ -245,7 +245,7 @@ module Update = {
                 filtered_dynamics.type_inst_map,
               );
 
-            let dynamic_info_map =
+            let live_typing_info_map =
               Statics.mk(
                 ~dynamics={
                   exp_probes: dynamic_expressions,
@@ -256,21 +256,21 @@ module Update = {
                 statics.term,
               );
 
-            let dynamic_error_ids =
-              StaticsBase.Map.error_ids(dynamic_info_map)
+            let live_typing_error_ids =
+              StaticsBase.Map.error_ids(live_typing_info_map)
               |> List.filter(id => !List.mem(id, statics.error_ids));
 
-            (dynamic_info_map, dynamic_error_ids);
+            (live_typing_info_map, live_typing_error_ids);
           }
         );
       } else {
-        Calc.set((StaticsBase.Map.empty, []), dynamic_statics);
+        Calc.set((StaticsBase.Map.empty, []), live_typing);
       };
 
     let statics: CachedStatics.t = {
       ...statics,
-      dynamic_info_map: dynamic_statics |> Calc.get_value |> fst,
-      dynamic_error_ids: dynamic_statics |> Calc.get_value |> snd,
+      live_typing_info_map: live_typing |> Calc.get_value |> fst,
+      live_typing_error_ids: live_typing |> Calc.get_value |> snd,
     };
 
     let editor =
@@ -286,7 +286,7 @@ module Update = {
       editor,
       statics,
       dynamics: Calc.get_value(dynamics),
-      dynamic_statics: Calc.save(dynamic_statics),
+      live_typing: Calc.save(live_typing),
       sample_focus: Calc.save(sample_focus_calc),
       context_menu,
     };
@@ -320,7 +320,7 @@ module View = {
       );
     let error_decos =
       Arms.Errors.of_ids(
-        ~is_dynamic=false,
+        ~is_live_typing=false,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -334,12 +334,12 @@ module View = {
         ~syntax=model.editor.syntax,
         warning_ids,
       );
-    let dynamic_static_decos =
+    let live_typing_decos =
       Arms.Errors.of_ids(
-        ~is_dynamic=true,
+        ~is_live_typing=true,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        model.statics.dynamic_error_ids,
+        model.statics.live_typing_error_ids,
       );
     let container_classes =
       ["code-container"]
@@ -348,7 +348,7 @@ module View = {
     Node.div(
       ~attrs=[Attr.classes(container_classes)],
       // errors after warnings to prioritize errors over warnings
-      [code_text_view, warning_decos, error_decos, dynamic_static_decos]
+      [code_text_view, warning_decos, error_decos, live_typing_decos]
       @ overlays,
     );
   };

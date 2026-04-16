@@ -1,6 +1,6 @@
 open Util;
 
-/* This file exists to define data structures that statics uses during the dynamic to static feedback phase.
+/* This file exists to define data structures that statics uses during the live typing phase.
  * Importantly Statics cannot depend on Dynamics due to recursive dependencies, so we define these types here
  * in a way that both Statics can depend on and can be constructed from Dynamics.
  */

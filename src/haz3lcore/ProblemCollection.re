@@ -107,11 +107,11 @@ let make_problem_context =
   let live_typing_error_ids =
     List.filter_map(
       id =>
-        switch (Statics.Map.lookup(id, statics.dynamic_info_map)) {
+        switch (Statics.Map.lookup(id, statics.live_typing_info_map)) {
         | Some(ci) when Info.is_error(ci) => Some((id, ci))
         | _ => None
         },
-      statics.dynamic_error_ids,
+      statics.live_typing_error_ids,
     );
   /* Collect holes once and partition into convex (empty holes) and concave (missing operators) */
   let all_holes = Segment.holes(syntax.segment);

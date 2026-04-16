@@ -26,27 +26,27 @@ module FError =
   });
 
 /**
- * Helper function to assemble dynamic statics map from samples and type instantiations.
+ * Helper function to assemble live typing data map from samples and type instantiations.
  * This logic is shared between multiple test cases.
  */
-let mk_dynamic_statics =
+let mk_live_typing =
     (
       probe_data: Id.Map.t(list(Sample.t)),
       type_insts: Dynamics.TypeInstMap.t,
     )
-    : DynamicStatics.Map.t => {
-  DynamicStatics.Map.mk(
+    : LiveTyping.Map.t => {
+  LiveTyping.Map.mk(
     Id.Map.map(
       samples =>
         List.map(
-          (s: Sample.t): DynamicStatics.sample => {exp: s.value},
+          (s: Sample.t): LiveTyping.sample => {exp: s.value},
           samples,
         ),
       probe_data,
     ),
     Id.Map.map(
       List.map(
-        (inst: Dynamics.TypeInstantiation.t): DynamicStatics.type_instantiation =>
+        (inst: Dynamics.TypeInstantiation.t): LiveTyping.type_instantiation =>
         {
           tpat_id: inst.tpat_id,
           type_var: inst.type_var,
@@ -59,14 +59,14 @@ let mk_dynamic_statics =
 };
 
 /**
- * Maps static and dynamic error information to error annotations.
+ * Maps static and live typing error information to error annotations.
  * Simplifies the nested switch logic with pattern matching.
  */
-let map_error_annotation = (static_info, dynamic_info) => {
+let map_error_annotation = (static_info, live_typing_info) => {
   let static_error = Option.bind(static_info, Info.error_of);
-  let dynamic_error = Option.bind(dynamic_info, Info.error_of);
+  let live_typing_error = Option.bind(live_typing_info, Info.error_of);
 
-  switch (static_error, dynamic_error) {
+  switch (static_error, live_typing_error) {
   | (Some(e), _) => StaticError(e)
   | (None, Some(e)) => DynamicError(e)
   | (None, None) => NoError
@@ -134,10 +134,10 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
   let type_insts = EvaluatorState.get_type_insts(evaluation_state);
 
   // Convert probe closures and type instantiations to dynamic expressions for static re-analysis
-  let dynamic_expressions = mk_dynamic_statics(probe_data, type_insts);
+  let dynamic_expressions = mk_live_typing(probe_data, type_insts);
 
   // Re-run static analysis with dynamic information
-  let dynamic_statics =
+  let live_typing_statics =
     Statics.mk(
       ~dynamics=dynamic_expressions,
       CoreSettings.on,
@@ -154,13 +154,13 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
             IdTagged.IdTag.rep_id(id_tag),
             initial_statics,
           );
-        let dynamic_info =
+        let live_typing_info =
           StaticsBase.Map.lookup(
             IdTagged.IdTag.rep_id(id_tag),
-            dynamic_statics,
+            live_typing_statics,
           );
 
-        map_error_annotation(static_info, dynamic_info);
+        map_error_annotation(static_info, live_typing_info);
       },
       exp_with_ids,
     );
@@ -226,7 +226,7 @@ in
         let type_insts = EvaluatorState.get_type_insts(state);
 
         // Convert probe closures and type instantiations to dynamic expressions for static re-analysis
-        let dynamic_expressions = mk_dynamic_statics(dynamics, type_insts);
+        let dynamic_expressions = mk_live_typing(dynamics, type_insts);
         let _static_feedback =
           Statics.mk(
             ~dynamics=dynamic_expressions,

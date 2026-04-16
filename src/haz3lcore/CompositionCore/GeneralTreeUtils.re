@@ -24,7 +24,7 @@ let subtree_of =
         let pat_map =
           of_pat
             ? Statics.upat_to_info_map(
-                ~dynamics=DynamicStatics.Map.empty,
+                ~dynamics=LiveTyping.Map.empty,
                 ~is_synswitch=false,
                 ~ctx=pat_info.ctx,
                 ~co_ctx=pat_info.co_ctx,
@@ -40,7 +40,7 @@ let subtree_of =
         let def_map =
           of_def
             ? Statics.uexp_to_info_map(
-                ~dynamics=DynamicStatics.Map.empty,
+                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=def_info.ctx,
                 ~ana=def_info.ana,
                 ~is_in_filter=false,
@@ -57,7 +57,7 @@ let subtree_of =
         let body_map =
           of_body
             ? Statics.uexp_to_info_map(
-                ~dynamics=DynamicStatics.Map.empty,
+                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=body_info.ctx,
                 ~ana=body_info.ana,
                 ~is_in_filter=false,
@@ -81,7 +81,7 @@ let subtree_of =
         let tpat_map =
           of_pat
             ? Statics.utpat_to_info_map(
-                ~dynamics=DynamicStatics.Map.empty,
+                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=tpat_info.ctx,
                 ~ancestors=tpat_info.ancestors,
                 tpat,
@@ -92,7 +92,7 @@ let subtree_of =
         let tpat_map =
           of_def
             ? Statics.utyp_to_info_map(
-                ~dynamics=DynamicStatics.Map.empty,
+                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=tdef_info.ctx,
                 ~ancestors=tdef_info.ancestors,
                 tdef,
@@ -104,7 +104,7 @@ let subtree_of =
         let body_map =
           of_body
             ? Statics.uexp_to_info_map(
-                ~dynamics=DynamicStatics.Map.empty,
+                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=body_info.ctx,
                 ~ana=body_info.ana,
                 ~is_in_filter=false,
@@ -132,7 +132,7 @@ let subtree_of =
         let def_map =
           of_def
             ? Statics.uexp_to_info_map(
-                ~dynamics=DynamicStatics.Map.empty,
+                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=def_info.ctx,
                 ~ana=def_info.ana,
                 ~is_in_filter=false,
@@ -149,7 +149,7 @@ let subtree_of =
         let body_map =
           of_body
             ? Statics.uexp_to_info_map(
-                ~dynamics=DynamicStatics.Map.empty,
+                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=body_info.ctx,
                 ~ana=body_info.ana,
                 ~is_in_filter=false,

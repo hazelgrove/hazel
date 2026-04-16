@@ -386,21 +386,21 @@ svg.shard.selected-expanded > path {
   50% { stroke-dashoffset: 4; opacity: 0.7; }
 }
 
-/* Dynamic errors get a different color to distinguish them */
-.dynamic-errors .dynamic-errors-piece svg.shard {
+/* Live typing errors get a different color to distinguish them */
+.live-typing-errors .live-typing-errors-piece svg.shard {
   z-index: var(--err-hole-z);
   filter: none;
 }
 
-.dynamic-errors .dynamic-errors-piece svg.shard>path,
-.dynamic-errors .dynamic-errors-piece svg .child-line {
-  stroke: var(--dynamic-error-hole-stroke);
+.live-typing-errors .live-typing-errors-piece svg.shard>path,
+.live-typing-errors .live-typing-errors-piece svg .child-line {
+  stroke: var(--live-typing-error-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
   animation: stroke-pulse 1.6s ease-in-out infinite;
 }
-.dynamic-errors .dynamic-errors-piece svg.shard>path {
+.live-typing-errors .live-typing-errors-piece svg.shard>path {
   fill: var(--error-hole-fill);
 }
 

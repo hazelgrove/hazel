@@ -1467,7 +1467,7 @@ module Agent = {
               editor: updated_editor,
               statics: editor.statics,
               dynamics: editor.dynamics,
-              dynamic_statics: editor.dynamic_statics,
+              live_typing: editor.live_typing,
               sample_focus: editor.sample_focus,
               context_menu: editor.context_menu,
             },
