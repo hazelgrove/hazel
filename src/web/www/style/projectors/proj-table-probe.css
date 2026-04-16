@@ -129,6 +129,29 @@
   padding: 0;
   overflow: visible;
   pointer-events: auto;
+  position: relative;
+}
+
+.modal-backdrop.live-offside .modal .modal-close-btn {
+  position: absolute;
+  top: 0;
+  right: -18px;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--BR2);
+  cursor: pointer;
+  user-select: none;
+  /* Must exceed .table th z-index (projector-z + 1) so the button
+     stays visible if it ever overlaps sticky headers. */
+  z-index: calc(var(--projector-z) + 10);
+}
+
+.modal-backdrop.live-offside .modal .modal-close-btn:hover {
+  color: var(--R1);
 }
 
 .modal .table th {

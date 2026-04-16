@@ -329,19 +329,3 @@
   font-size: 12px;
 }
 
-.renderer-badge {
-  background-color: var(--T2);
-  border: 1px solid var(--BR2);
-  border-radius: 2px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 1px 3px var(--SHADOW);
-  font-size: 0.9em;
-}
-
-.renderer-badge:hover {
-  background-color: var(--T3);
-  border-color: var(--BR3);
-  box-shadow: 0 2px 6px var(--SHADOW);
-  transform: translateY(-1px);
-}

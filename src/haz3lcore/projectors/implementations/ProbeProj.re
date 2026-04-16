@@ -580,8 +580,7 @@ module ValueState = {
 
 let value_view =
     (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
-  let {settings, ap_id, utility, sort, core_settings, _} = ctx;
-  let rich_probes = core_settings.evaluation.rich_probes;
+  let {settings, ap_id, utility, _} = ctx;
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
       let target =
@@ -625,67 +624,29 @@ let value_view =
     };
   let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
-  /* Get badges for all compatible renderers for this specific value */
-  let compatible_badges =
-    if (!rich_probes) {
-      [];
-    } else {
-      renderers
-      |> List.filter(r => r.can_handle(sort, sample.value))
-      |> List.map(r =>
-           span(
-             ~attrs=[
-               Attr.on_click(_ => {
-                 let exp = sample.value;
-                 let oactive =
-                   switch (r.parse_packed(sort, exp)) {
-                   | Some(value_state) =>
-                     let model_state = r.init_packed(value_state);
-                     Some({
-                       renderer_id: r.id,
-                       model_state,
-                     });
-                   | None => None
-                   };
-                 local(ToggleModal(oactive));
-               }),
-               Attr.classes(["renderer-badge"]),
-             ],
-             [r.badge],
-           )
-         );
-    };
-
   div(
-    ~attrs=[Attr.style(Css_gen.create(~field="display", ~value="flex"))],
-    compatible_badges
-    @ [
-      div(
-        ~attrs=[
-          // Attr.title(Debug.str(~ap_id, sample)),
-          Attr.classes(
-            ["value", length_cls(length)]
-            @ cursor_clss(
-                ~settings=ctx.settings,
-                ~ap_id=ctx.ap_id,
-                ctx.dynamics,
-                sample,
-              )
-            @ (Option.is_some(ap_id) ? ["ap"] : [])
-            @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
-          ),
-          Attr.on_double_click(_ => local(ToggleWindowMode)),
-          Attr.on_pointerdown(evt =>
-            Key.meta_held(evt)
-              ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
-              : val_pointerdown(evt)
-          ),
-          Attr.on_pointerup(val_pointerup),
-          Attr.on_mousemove(val_mousemove),
-        ],
-        [view_seg(~text_only=false, seg)],
+    ~attrs=[
+      Attr.classes(
+        ["value", length_cls(length)]
+        @ cursor_clss(
+            ~settings=ctx.settings,
+            ~ap_id=ctx.ap_id,
+            ctx.dynamics,
+            sample,
+          )
+        @ (Option.is_some(ap_id) ? ["ap"] : [])
+        @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
+      Attr.on_double_click(_ => local(ToggleWindowMode)),
+      Attr.on_pointerdown(evt =>
+        Key.meta_held(evt)
+          ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
+          : val_pointerdown(evt)
+      ),
+      Attr.on_pointerup(val_pointerup),
+      Attr.on_mousemove(val_mousemove),
     ],
+    [view_seg(~text_only=false, seg)],
   );
 };
 
@@ -813,25 +774,65 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
-/* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
+/* Rich probe action: open a domain-specific visualization via ToggleModal.
+   One menu item per compatible renderer; r.badge supplies the icon. */
+let rich_probe_action =
+    (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t =>
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "rich-probe-action"]),
+      Attr.on_pointerdown(_ => {
+        let oactive =
+          switch (r.parse_packed(ctx.sort, sample.value)) {
+          | Some(value_state) =>
+            Some({
+              renderer_id: r.id,
+              model_state: r.init_packed(value_state),
+            })
+          | None => None
+          };
+        local(ToggleModal(oactive));
+      }),
+    ],
+    [r.badge, text("View as " ++ r.id)],
+  );
+
+let rich_probe_items =
+    (ctx: probe_ctx, local, sample: Sample.t): list(Node.t) =>
+  if (ctx.core_settings.evaluation.rich_probes) {
+    renderers
+    |> List.filter(r => r.can_handle(ctx.sort, sample.value))
+    |> List.map(rich_probe_action(ctx, local, sample));
+  } else {
+    [];
+  };
+
+/* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.) */
 let sample_context_actions =
-    (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) =>
+    (ctx: probe_ctx, local, ~can_step_into: bool, sample: Sample.t)
+    : list(Node.t) => {
+  let rich_items = rich_probe_items(ctx, local, sample);
   switch (ctx.ap_id) {
   | Some(ap_id) => [
       div(
         ~attrs=[Attr.classes(["context-actions"])],
         [pin_action(ctx, sample)]
-        @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : []),
+        @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
+        @ rich_items,
       ),
     ]
   | None when sample.call_stack != [] => [
       div(
         ~attrs=[Attr.classes(["context-actions"])],
-        [focus_action(ctx, sample)],
+        [focus_action(ctx, sample)] @ rich_items,
       ),
+    ]
+  | None when rich_items != [] => [
+      div(~attrs=[Attr.classes(["context-actions"])], rich_items),
     ]
   | None => []
   };
+};
 
 /* Get function name from statics info if this is an Ap expression */
 let get_fn_name_from_statics =
@@ -1027,7 +1028,7 @@ let sample_environment =
 
 /* Sample context menu (dropdown) combining actions and environment */
 let sample_context_menu =
-    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
+    (~show_env, ctx: probe_ctx, local, view_seg, sample: Sample.t): Node.t => {
   /* Get variable names shown in call display to filter from environment */
   let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
@@ -1045,6 +1046,7 @@ let sample_context_menu =
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
     sample_context_actions(
       ctx,
+      local,
       ~can_step_into=can_step_into(ctx.statics),
       sample,
     )
@@ -1071,8 +1073,11 @@ let sample_view =
       sample: Sample.t,
     ) => {
   let hide_env = hide_env(ctx.statics);
+  let has_rich =
+    ctx.core_settings.evaluation.rich_probes
+    && List.exists(r => r.can_handle(ctx.sort, sample.value), renderers);
   let has_dropdown =
-    !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+    !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
   let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
   div(
     ~attrs=
@@ -1086,7 +1091,7 @@ let sample_view =
     @ pin_view(ctx, sample)
     @ (
       has_dropdown
-        ? [sample_context_menu(~show_env, ctx, view_seg, sample)] : []
+        ? [sample_context_menu(~show_env, ctx, local, view_seg, sample)] : []
     ),
   );
 };
@@ -1684,7 +1689,17 @@ module M: Projector = {
                     Attr.classes(["modal"]),
                     Attr.on_click(_ => Effect.Stop_propagation),
                   ],
-                  [content],
+                  [
+                    div(
+                      ~attrs=[
+                        Attr.classes(["modal-close-btn"]),
+                        Attr.title("Close"),
+                        Attr.on_click(_ => local(ToggleModal(None))),
+                      ],
+                      [text({js|×|js})],
+                    ),
+                    content,
+                  ],
                 ),
               ],
             ),

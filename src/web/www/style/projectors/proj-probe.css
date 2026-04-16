@@ -746,6 +746,26 @@
   background-color: var(--R1);
 }
 
+.sample-context-menu .action-item.rich-probe-action .table-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  background-color: var(--LABEL);
+  scale: 0.75;
+}
+
+.sample-context-menu .action-item.rich-probe-action .table-badge svg {
+  width: 70%;
+  height: 70%;
+}
+
+.sample-context-menu .action-item.rich-probe-action .table-badge svg path {
+  fill: white;
+}
+
 .live-offside .live-env {
   padding: 0.2em 0.55em;
   background-color: var(--live-env-bkg);
