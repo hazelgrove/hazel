@@ -54,6 +54,7 @@ let mk_info =
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
+      ~elaborated: option(Exp.t),
     )
     : ProjectorBase.info => {
   id: p.id,
@@ -68,6 +69,21 @@ let mk_info =
       })
     | None => None
     },
+  elaborated: {
+    let (module P) = ProjectorInit.to_module(p.kind);
+    if (P.elaborate_syntax) {
+      let seg = Piece.unparenthesize(p.syntax);
+      let inner_id =
+        try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+        | _ => None
+        };
+      Option.bind(inner_id, id =>
+        Option.bind(elaborated, Exp.find_by_id(id))
+      );
+    } else {
+      None;
+    };
+  },
   utility,
 };
 
@@ -77,11 +93,13 @@ module ShapeMapSemantics = {
         sample_focus: Language.Sample.Focus.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
+        ~elaborated: option(Exp.t),
         p: Base.projector,
       )
-      : ProjectorCore.Shape.t => {
+      : (ProjectorCore.Shape.t, option(ProjectorBase.error)) => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~sample_focus, ~statics, ~dynamics));
+    let info = mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
+    (P.placeholder(p.model, info), P.error(p.model, info));
   };
 
   let mk =
@@ -90,10 +108,21 @@ module ShapeMapSemantics = {
         refractors: ZipperBase.Refractor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
+        ~elaborated: option(Exp.t),
       )
-      : Id.Map.t(ProjectorCore.Shape.t) =>
-    Id.Map.map(
-      from_semantics(refractors.sample_focus, statics, dynamics),
-      proj_map,
-    );
+      : (Id.Map.t(ProjectorCore.Shape.t), Id.Map.t(ProjectorBase.error)) => {
+    let both =
+      Id.Map.map(
+        from_semantics(
+          refractors.sample_focus,
+          statics,
+          dynamics,
+          ~elaborated,
+        ),
+        proj_map,
+      );
+    let shapes = Id.Map.map(((shape, _)) => shape, both);
+    let errors = Id.Map.filter_map((_, (_, err)) => err, both);
+    (shapes, errors);
+  };
 };

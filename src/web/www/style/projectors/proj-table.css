@@ -77,3 +77,13 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
     overflow-y: hidden;
     font-size: calc(var(--base-font-size) * 0.9);
 }
+
+.projector.table > .table-inner > .table-error-banner {
+    color: var(--R1);
+    font-size: calc(var(--base-font-size) * 0.95);
+    line-height: 1.2;
+    padding: 0.35em 0.5em 0.25em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

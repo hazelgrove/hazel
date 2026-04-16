@@ -1592,6 +1592,7 @@ module M: Projector = {
   };
 
   let dynamics = true;
+  let elaborate_syntax = false;
 
   let focusable =
     Focusable.{
@@ -1695,6 +1696,7 @@ module M: Projector = {
     | _ => []
     };
   };
+  let error = (_, _): option(ProjectorBase.error) => None;
   let view =
       (
         {info, local, parent, view_seg, model, status, core_settings, _}:
@@ -1735,6 +1737,7 @@ module M: Projector = {
             ),
           ),
         ),
+      error: false,
     };
   };
 };

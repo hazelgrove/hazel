@@ -4,6 +4,8 @@ open ProjectorBase;
 open Language;
 open TableCore;
 
+let error_message = "Elaborated syntax is not a table: list of labeled tuples with consistent labels.";
+
 let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
@@ -17,9 +19,13 @@ let table_of =
 
 let get =
     (info: info): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
-  switch (info.syntax |> info.utility.seg_to_term) {
-  | Some(s) => table_of(s)
-  | None => None
+  switch (info.elaborated) {
+  | Some(elab_exp) => table_of(Exp(elab_exp))
+  | None =>
+    switch (info.syntax |> info.utility.seg_to_term) {
+    | Some(s) => table_of(s)
+    | None => None
+    }
   };
 
 let table =
@@ -68,13 +74,25 @@ module M: Projector = {
       keyboard: None,
     };
   let dynamics = false;
+  let elaborate_syntax = true;
   let placeholder = (_, info) =>
     switch (get(info)) {
     | None =>
+      let s = info.utility.seg_to_string(info.syntax);
+      let lines = String.split_on_char('\n', s);
+      let n_lines = List.length(lines);
+      let max_width =
+        List.fold_left(
+          (acc, line) => max(acc, String.length(line)),
+          0,
+          lines,
+        );
+      /* +1 vertical line reserved for the inline error banner
+       * rendered above the raw syntax in the error view. */
       ProjectorCore.Shape.{
-        vertical: Inline,
-        horizontal: 3,
-      }
+        vertical: Block(n_lines),
+        horizontal: max(max_width, String.length(error_message)),
+      };
     | Some((header, rows)) =>
       let max_header_length =
         header |> List.map(String.length) |> List.fold_left((+), 0);
@@ -99,21 +117,29 @@ module M: Projector = {
       };
     };
   let update = (model, _, _) => model;
+  let error = (_, info) =>
+    switch (get(info)) {
+    | Some(_) => None
+    | None => Some(ProjectorBase.{message: error_message})
+    };
 
   let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
     switch (get(info)) {
     | None =>
+      let seg = Segment.unparenthesize(info.syntax);
+      let sort = Segment.sort_of(Segment.skel(seg), seg);
+      let banner =
+        Node.div(
+          ~attrs=[Attr.classes(["table-error-banner"])],
+          [Node.text(error_message)],
+        );
       View.mk(
+        ~error=true,
         Node.div(
           ~attrs=[Attr.classes(["table-inner"])],
-          [
-            Node.div(
-              ~attrs=[Attr.classes(["table", "error"])],
-              [Node.text("\xe2\x9a\xa0")],
-            ),
-          ],
+          [banner, view_seg(sort, seg)],
         ),
-      )
+      );
     | Some(data) =>
       View.mk(
         Node.div(

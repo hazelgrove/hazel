@@ -1081,7 +1081,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({id, kind, model, syntax} as pr) =>
+    | Projector({id, kind, model, syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);

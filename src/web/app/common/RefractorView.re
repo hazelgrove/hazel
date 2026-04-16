@@ -59,7 +59,14 @@ let mk_data =
         );
       let p = Refractors.to_projector(syntax_piece, id, entry);
       let+ measurement = measurement_of_term(id, term_data, measured);
-      let info = ProjectorInfo.mk_info(p, ~sample_focus, ~statics, ~dynamics);
+      let info =
+        ProjectorInfo.mk_info(
+          p,
+          ~sample_focus,
+          ~statics,
+          ~dynamics,
+          ~elaborated=None,
+        );
       ProjectorView.Model.{
         p,
         info,
@@ -79,6 +86,7 @@ let mk_data =
         statics_map: statics,
         dynamics_map: dynamics,
         sample_focus,
+        elaborated: None,
       };
     },
     Id.Map.bindings(refractors),

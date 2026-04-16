@@ -368,18 +368,39 @@ module Projectors = {
     | seg => MakeTerm.for_projection(seg)
     };
 
-  /* Check if a projector kind is applicable to the current term */
+  /* Check if a projector kind is applicable to the current term.
+   * For projectors with elaborate_syntax=true, also tries the
+   * elaborated version of the term (which has auto-labels etc.) */
   let is_applicable =
       (
         z: Zipper.t,
         info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
         kind: ProjectorCore.Kind.t,
       )
       : option(ProjectorCore.Kind.t) => {
     let (module P) = ProjectorInit.to_module(kind);
     let* term = target_term(z, info_map);
-    let+ _ = P.init(term);
-    kind;
+    switch (P.init(term)) {
+    | Some(_) => Some(kind)
+    | None =>
+      if (P.elaborate_syntax) {
+        /* Try the elaborated version of the term */
+        switch (term) {
+        | Exp(exp) =>
+          let term_id = Language.Exp.rep_id(exp);
+          switch (Language.Exp.find_by_id(term_id, elaborated)) {
+          | Some(elab_exp) =>
+            let+ _ = P.init(Exp(elab_exp));
+            kind;
+          | None => None
+          };
+        | _ => None
+        };
+      } else {
+        None;
+      }
+    };
   };
 
   /* Get the kind of projector on the indicated piece, if any */
@@ -417,12 +438,16 @@ module Projectors = {
 
   /* Get applicable projector kinds */
   let applicable_kinds =
-      (z: Zipper.t, info_map: Language.Statics.Map.t)
+      (
+        z: Zipper.t,
+        info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
+      )
       : list(ProjectorCore.Kind.t) => {
-    let fold_applicable = is_applicable(z, info_map, Fold);
+    let fold_applicable = is_applicable(z, info_map, ~elaborated, Fold);
     let livelit_applicable =
       List.find_map(
-        is_applicable(z, info_map),
+        is_applicable(z, info_map, ~elaborated),
         ProjectorCore.Kind.livelit_projectors,
       );
     List.filter_map(Fun.id, [fold_applicable, livelit_applicable]);
@@ -430,9 +455,23 @@ module Projectors = {
 
   /* Data-returning version for keyboard navigation */
   let actions_data =
-      (z: Zipper.t, info_map: Language.Statics.Map.t): list(menu_item_data) => {
+      (
+        z: Zipper.t,
+        info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
+      )
+      : list(menu_item_data) => {
     let current_kind = indicated_kind(z);
-    let applicable = applicable_kinds(z, info_map);
+    let applicable = applicable_kinds(z, info_map, ~elaborated);
+    /* Always include the current projector's kind so it can be removed,
+     * even if it's no longer applicable for re-adding (e.g. TableProj
+     * when the elaborated form is no longer a table). Applicability
+     * gates enabling, not removal. */
+    let kinds =
+      switch (current_kind) {
+      | Some(k) when !List.mem(k, applicable) => applicable @ [k]
+      | _ => applicable
+      };
 
     let make_item_data = (kind: ProjectorCore.Kind.t): menu_item_data => {
       let name = display_name(kind);
@@ -450,7 +489,7 @@ module Projectors = {
       };
     };
 
-    List.map(make_item_data, applicable);
+    List.map(make_item_data, kinds);
   };
 };
 
@@ -485,7 +524,11 @@ let refractor_actions_data =
 /* Get menu sections - each section is separated by a divider.
    This is the single source of truth for menu structure. */
 let get_sections =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t)
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~elaborated: Language.Exp.t,
+      z: Zipper.t,
+    )
     : list(list(menu_item_data)) => {
   let ci = Indicated.ci_of(z, info_map);
 
@@ -497,21 +540,31 @@ let get_sections =
     /* Section 3: Probes/Statics (refractors) */
     refractor_actions_data(~ci, info_map, z),
     /* Section 4: Projectors (fold, livelits) */
-    Projectors.actions_data(z, info_map),
+    Projectors.actions_data(z, info_map, ~elaborated),
   ]
   |> List.filter(section => section != []);
 };
 
 /* Get all menu items as a flat list */
 let get_all_items =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(menu_item_data) =>
-  List.concat(get_sections(~info_map, z));
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~elaborated: Language.Exp.t,
+      z: Zipper.t,
+    )
+    : list(menu_item_data) =>
+  List.concat(get_sections(~info_map, ~elaborated, z));
 
 /* Get action at index (for Enter key activation) */
 let get_action_at_index =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t, index: int)
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~elaborated: Language.Exp.t,
+      z: Zipper.t,
+      index: int,
+    )
     : option(Action.t) => {
-  let items = get_all_items(~info_map, z);
+  let items = get_all_items(~info_map, ~elaborated, z);
   List.nth_opt(items, index) |> Option.map(item => item.action);
 };
 
@@ -527,12 +580,19 @@ module WithContext = {
 
   /* Update menu state with clamping to valid item range */
   let update =
-      (~info_map: Language.Statics.Map.t, ~zipper: Zipper.t, action, state)
+      (
+        ~info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
+        ~zipper: Zipper.t,
+        action,
+        state,
+      )
       : Model.t => {
     let new_state = Model.update(action, state);
     switch (new_state) {
     | Some(n) =>
-      let item_count = List.length(get_all_items(~info_map, zipper));
+      let item_count =
+        List.length(get_all_items(~info_map, ~elaborated, zipper));
       Some(max(0, min(n, item_count - 1)));
     | None => None
     };
@@ -542,6 +602,7 @@ module WithContext = {
   let handle_key =
       (
         ~info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
         ~zipper: Zipper.t,
         key: Key.key,
         state: Model.t,
@@ -555,7 +616,9 @@ module WithContext = {
       | Key.D("ArrowUp") => MenuUpdate(Up)
       | Key.D("ArrowDown") => MenuUpdate(Down)
       | Key.D("Enter") =>
-        switch (get_action_at_index(~info_map, zipper, selected_index)) {
+        switch (
+          get_action_at_index(~info_map, ~elaborated, zipper, selected_index)
+        ) {
         | Some(action) => EditorAction(action)
         | None => MenuUpdate(Close)
         }
@@ -598,13 +661,14 @@ let view =
       ~inject: Action.t => Ui_effect.t(unit),
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
+      ~elaborated: Language.Exp.t,
       ~font_metrics: FontMetrics.t,
       ~selected_index: int,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let sections = get_sections(~info_map, z);
+  let sections = get_sections(~info_map, ~elaborated, z);
 
   /* Clamp selected_index to valid range */
   let item_count =

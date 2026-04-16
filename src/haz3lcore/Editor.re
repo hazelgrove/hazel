@@ -102,6 +102,7 @@ module Update = {
             state.zipper,
             old_statics.info_map,
             old_dynamics,
+            ~elaborated=Some(old_statics.elaborated),
             syntax,
           );
         } else {
@@ -189,6 +190,7 @@ module Update = {
         zipper,
         new_statics.info_map,
         new_dynamics,
+        ~elaborated=Some(new_statics.elaborated),
         syntax,
       );
 

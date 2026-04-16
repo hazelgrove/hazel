@@ -28,6 +28,8 @@ type t = {
    * underlying editor. In principle calculating this can involve
    * both static and dynamic information, so we cache this for perf */
   shape_map: ProjectorCore.Shape.Map.t,
+  /* Errors reported by projectors (e.g. "can't render as table") */
+  projector_errors: Id.Map.t(ProjectorBase.error),
   cached_backpack: list(Tile.t),
 };
 
@@ -37,16 +39,17 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~info_map, ~dyn_map, z): t => {
+let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
-  let projector_shapes =
+  let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
       z.refractors,
       info_map,
       dyn_map,
+      ~elaborated,
     );
   let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
   let measured =
@@ -61,6 +64,7 @@ let mk = (~info_map, ~dyn_map, z): t => {
     projectors,
     projector_list,
     shape_map: projector_shapes,
+    projector_errors,
     cached_backpack: Segment.global_missing_shards(segment),
   };
 };
@@ -74,10 +78,34 @@ let mark_old: t => t =
     old: true,
   };
 
-let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
+let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
   old.old
-    ? mk(z, ~info_map, ~dyn_map)
+    ? mk(z, ~info_map, ~dyn_map, ~elaborated)
     : {
       ...old,
       selection_ids: Selection.selection_ids(z.selection),
     };
+
+/* Recompute just the shape_map, errors, and measured layout.
+ * Called after statics are recomputed so projector placeholders
+ * reflect the latest elaborated expression. */
+let refresh_shapes =
+    (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+  let (shape_map, projector_errors) =
+    ProjectorInfo.ShapeMapSemantics.mk(
+      old.projectors,
+      z.refractors,
+      info_map,
+      dyn_map,
+      ~elaborated,
+    );
+  let refractor_shape_map = Id.Map.empty;
+  let measured =
+    Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+  {
+    ...old,
+    shape_map,
+    projector_errors,
+    measured,
+  };
+};

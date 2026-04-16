@@ -176,6 +176,10 @@ module Update = {
           editor.state.zipper.refractors.multis.ephemerals,
         );
 
+    /* Capture statics reference before the throttle gate below, so the
+     * refresh_shapes block further down can skip its second shape pass
+     * whenever the throttle returns the same statics record (no recompute). */
+    let old_statics = statics;
     let statics =
       statics_mode == StaticsForce
       || (is_edited || probes_changed)
@@ -189,6 +193,32 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
+    /* Refresh projector shapes with the new statics. This is a second
+     * shape computation in the same edit cycle: Editor.Update.calculate
+     * already computed shapes above, but it used the OLD statics because
+     * CachedStatics.init (which produces the new elaborated expression)
+     * must run after Editor.Update (which updates the zipper/autocomplete
+     * buffer that CachedStatics.init reads from). So the first computation
+     * has stale elaborated data, and we recompute here with the fresh
+     * statics to get correct projector placeholder sizes.
+     *
+     * Gated on statics identity so we skip this work whenever statics
+     * was reused (e.g. !is_edited, or — post-probes-III merge —
+     * when statics is throttled on fast keystrokes). */
+    let editor =
+      statics !== old_statics
+        ? {
+          ...editor,
+          syntax:
+            CachedSyntax.refresh_shapes(
+              editor.state.zipper,
+              statics.info_map,
+              dynamics,
+              ~elaborated=Some(statics.elaborated),
+              editor.syntax,
+            ),
+        }
+        : editor;
     {
       editor,
       statics,

@@ -48,7 +48,8 @@ let has_structural =
     (p: ProblemCollection.problem) =>
       switch (p.source) {
       | Structural(d) => d == desc
-      | FromInfo(_) => false
+      | FromInfo(_)
+      | FromProjector(_) => false
       },
     problems,
   );

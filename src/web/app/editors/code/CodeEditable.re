@@ -102,6 +102,7 @@ module Update = {
       let new_state =
         ContextMenu.WithContext.update(
           ~info_map=model.statics.info_map,
+          ~elaborated=model.statics.elaborated,
           ~zipper=model.editor.state.zipper,
           action,
           model.context_menu,
@@ -262,6 +263,7 @@ module Selection = {
     let context_menu_result =
       ContextMenu.WithContext.handle_key(
         ~info_map=model.statics.info_map,
+        ~elaborated=model.statics.elaborated,
         ~zipper=model.editor.state.zipper,
         key.key,
         model.context_menu,
@@ -418,6 +420,7 @@ module View = {
                   ~inject=a => inject(Perform(a)),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
+                  ~elaborated=model.statics.elaborated,
                   ~font_metrics=globals.font_metrics,
                   ~selected_index,
                   model.editor.state.zipper,
@@ -473,6 +476,7 @@ module View = {
           ~dynamics,
           ~sample_focus=zipper.refractors.sample_focus,
           ~editor_active=selected,
+          ~elaborated=Some(model.statics.elaborated),
         ),
         model.editor.syntax.projector_list,
       );

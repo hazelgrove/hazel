@@ -115,6 +115,7 @@ module M: Projector = {
       keyboard: Some(focus_keyboard),
     };
   let dynamics = false;
+  let elaborate_syntax = false;
   let placeholder = (_, info) => {
     let str = info |> get;
     ProjectorCore.Shape.{
@@ -124,6 +125,7 @@ module M: Projector = {
     };
   };
   let update = (model, _, _) => model;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(

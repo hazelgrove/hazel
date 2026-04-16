@@ -461,3 +461,24 @@ let rec get_fn_def_id = (e: t) =>
   };
 
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
+
+let find_by_id = (id: Id.t, exp: t): option(t) => {
+  module M = {
+    exception Found(t);
+  };
+  switch (
+    map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (rep_id(exp) == id) {
+            raise(M.Found(exp));
+          } else {
+            cont(exp);
+          },
+      exp,
+    )
+  ) {
+  | exception (M.Found(x)) => Some(x)
+  | _ => None
+  };
+};
