@@ -2,7 +2,6 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
-open CardTypes;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
@@ -21,6 +20,37 @@ let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
   | exception _ => {mode: Show}
   | m => m
   };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type suit =
+  | UnknownS
+  | Hearts
+  | Diamonds
+  | Clubs
+  | Spades;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rank =
+  | UnknownR
+  | Ace
+  | Two
+  | Three
+  | Four
+  | Five
+  | Six
+  | Seven
+  | Eight
+  | Nine
+  | Ten
+  | Jack
+  | Queen
+  | King;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type card = (suit, rank);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type hand = list(card);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type collection =
@@ -78,11 +108,27 @@ module SyntaxTerm = {
     | _ => p
     };
   };
+  let rec strip_wraps_exp = (e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Parens(inner) =>
+      switch (inner.term) {
+      | Tuple(_) => e
+      | _ => strip_wraps_exp(inner)
+      }
+    | _ => e
+    };
+  };
 
   open IdTagged.FreshGrammar;
   open OptUtil.Syntax;
 
-  let card_to_exp = CardSyntax.card_to_exp;
+  let card_to_exp = ((suit, rank): card): exp =>
+    Exp.parens(
+      Exp.tuple([
+        Exp.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None),
+        Exp.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None),
+      ]),
+    );
 
   let card_to_pat = ((suit, rank): card): pat =>
     Pat.parens(
@@ -90,18 +136,12 @@ module SyntaxTerm = {
         switch (suit) {
         | UnknownS => Pat.wild()
         | _ =>
-          Pat.constructor(
-            Sexplib.Sexp.to_string(CardTypes.sexp_of_suit(suit)),
-            None,
-          )
+          Pat.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None)
         },
         switch (rank) {
         | UnknownR => Pat.wild()
         | _ =>
-          Pat.constructor(
-            Sexplib.Sexp.to_string(CardTypes.sexp_of_rank(rank)),
-            None,
-          )
+          Pat.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None)
         },
       ]),
     );
@@ -125,11 +165,33 @@ module SyntaxTerm = {
     };
   };
 
-  let string_to_suit = CardSyntax.string_to_suit;
+  let string_to_suit = (s: string): option(suit) =>
+    switch (s |> Sexplib.Sexp.of_string |> suit_of_sexp) {
+    | s => Some(s)
+    | exception _ => None
+    };
 
-  let string_to_rank = CardSyntax.string_to_rank;
+  let string_to_rank = (s: string): option(rank) =>
+    switch (s |> Sexplib.Sexp.of_string |> rank_of_sexp) {
+    | r => Some(r)
+    | exception _ => None
+    };
 
-  let exp_to_card = CardSyntax.exp_to_card;
+  let rec exp_to_card = (term: Exp.t): option(card) => {
+    switch (term.term) {
+    | Parens(inner) => exp_to_card(inner)
+    | Tuple([t1, t2]) =>
+      switch (t1.term, t2.term) {
+      | (Constructor(suit, _), Constructor(rank, _)) =>
+        switch (string_to_suit(suit), string_to_rank(rank)) {
+        | (Some(s), Some(r)) => Some((s, r))
+        | _ => None
+        }
+      | _ => None
+      }
+    | _ => None
+    };
+  };
 
   let rec pat_to_card = (term: pat): option(card) => {
     switch (term.term) {
@@ -156,7 +218,7 @@ module SyntaxTerm = {
   let any_to_syntax = (term: Any.t): option(state) => {
     switch (term) {
     | Exp(term) =>
-      switch (CardSyntax.strip_wraps_exp(term).term) {
+      switch (strip_wraps_exp(term).term) {
       | ListLit(terms) =>
         let+ cards = terms |> List.map(exp_to_card) |> OptUtil.sequence;
         (Exp, Hand(cards));
@@ -221,6 +283,82 @@ module SyntaxTerm = {
       )
       |> Float.to_int
     };
+};
+
+let suit_to_int = (suit: suit): int =>
+  switch (suit) {
+  | Hearts => 0
+  | Clubs => 1
+  | Diamonds => 2
+  | Spades => 3
+  | UnknownS => 4
+  };
+
+let rank_to_int = (rank: rank): int =>
+  switch (rank) {
+  | Two => 1
+  | Three => 2
+  | Four => 3
+  | Five => 4
+  | Six => 5
+  | Seven => 6
+  | Eight => 7
+  | Nine => 8
+  | Ten => 9
+  | Jack => 10
+  | Queen => 11
+  | King => 12
+  | Ace => 13
+  | UnknownR => 14
+  };
+
+module Card = {
+  /* Card images are stored in a spritesheet. The sheet image
+   * has four rows (hearts, clubs, diamonds, spades) and 14
+   * columns (first is misc, then 2-10, then J Q K A) */
+
+  let width = 35; /* Width of each card in pixels */
+  let height = 47; /* Height of each card in pixels */
+
+  let card_to_offset = (_sort: Sort.t, (suit, rank): card): (int, int) => (
+    rank_to_int(rank) * width,
+    suit_to_int(suit) * height,
+  );
+
+  let background_offset = (~flipped, sort: Sort.t, card: card): Css_gen.t => {
+    let (offset_x, offset_y) =
+      flipped
+        ? switch (sort_of(sort)) {
+          | Exp => (0, 0)
+          | Pat => (0, height)
+          }
+        : card_to_offset(sort, card);
+    Css_gen.create(
+      ~field="background-position",
+      ~value=Printf.sprintf("%dpx %dpx", - offset_x, - offset_y),
+    );
+  };
+
+  let side: (Sort.t, card, ~flipped: bool, string) => Node.t =
+    (sort, card, ~flipped, clss) =>
+      Node.div(
+        ~attrs=[
+          Attr.classes(["card-sprite", clss, Sort.show(sort)]),
+          Attr.style(background_offset(~flipped, sort, card)),
+        ],
+        [],
+      );
+
+  let view =
+    Core.Memo.general((sort: Sort.t, card: card) =>
+      Node.div(
+        ~attrs=[Attr.classes(["card-scene", Sort.show(sort)])],
+        [
+          side(sort, card, ~flipped=false, "front"),
+          side(sort, card, ~flipped=true, "back"),
+        ],
+      )
+    );
 };
 
 module Chooser = {
@@ -294,7 +432,7 @@ module Chooser = {
         Attr.on_mousedown(replace_card(card)),
         card_pos(col, row),
       ],
-      [CardUtil.Card.view(sort, card)],
+      [Card.view(sort, card)],
     );
 
   let view =
@@ -364,9 +502,9 @@ module Singleton = {
       ],
       [
         switch (mode) {
-        | Show => CardUtil.Card.view(sort, card)
+        | Show => Card.view(sort, card)
         | Choose(_) => Chooser.view(info, parent, sort, card, None)
-        | Flipped => CardUtil.Card.view(sort, card)
+        | Flipped => Card.view(sort, card)
         },
       ],
     );
@@ -416,12 +554,12 @@ module CardInHand = {
       ],
       [
         switch (mode) {
-        | Show => CardUtil.Card.view(sort, card)
+        | Show => Card.view(sort, card)
         | Choose(cidx) =>
           cidx == index
             ? Chooser.view(info, parent, sort, card, Some(index))
-            : CardUtil.Card.view(sort, card)
-        | Flipped => CardUtil.Card.view(sort, card)
+            : Card.view(sort, card)
+        | Flipped => Card.view(sort, card)
         },
       ],
     );
@@ -493,6 +631,7 @@ module M: Projector = {
     switch (action) {
     | SetMode(mode) => {mode: mode}
     };
+
   let error = (_, _): option(ProjectorBase.error) => None;
 
   let view =
