@@ -320,7 +320,6 @@ module View = {
       );
     let error_decos =
       Arms.Errors.of_ids(
-        ~is_live_typing=false,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -329,14 +328,14 @@ module View = {
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let warning_decos =
       Arms.Errors.of_ids(
-        ~is_warning=true,
+        ~kind=Warning,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         warning_ids,
       );
     let live_typing_decos =
       Arms.Errors.of_ids(
-        ~is_live_typing=true,
+        ~kind=LiveTypingError,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.live_typing_error_ids,
