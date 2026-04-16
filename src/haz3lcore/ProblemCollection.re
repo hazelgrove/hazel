@@ -8,7 +8,8 @@ type problem_category =
   | Syntax
   | Hole
   | Static
-  | Warning;
+  | Warning
+  | LiveTyping;
 
 /* ---------- Problem data types ---------- */
 
@@ -31,6 +32,7 @@ type problem_context = {
   concave_holes: list(Grout.t),
   static_error_ids: list((Id.t, Info.t)),
   warning_ids: list((Id.t, Info.t)),
+  live_typing_error_ids: list((Id.t, Info.t)),
   segment: Segment.t,
   measured: Measured.t,
   row_to_line: int => option(int),
@@ -101,6 +103,16 @@ let make_problem_context =
     } else {
       [];
     };
+  /* Collect live typing error ids from dynamic statics */
+  let live_typing_error_ids =
+    List.filter_map(
+      id =>
+        switch (Statics.Map.lookup(id, statics.dynamic_info_map)) {
+        | Some(ci) when Info.is_error(ci) => Some((id, ci))
+        | _ => None
+        },
+      statics.dynamic_error_ids,
+    );
   /* Collect holes once and partition into convex (empty holes) and concave (missing operators) */
   let all_holes = Segment.holes(syntax.segment);
   let (hole_ids, concave_holes) =
@@ -112,6 +124,7 @@ let make_problem_context =
     concave_holes,
     static_error_ids,
     warning_ids,
+    live_typing_error_ids,
     segment: syntax.segment,
     measured,
     row_to_line,
@@ -198,6 +211,16 @@ let collect_category =
            source: FromInfo(ci),
          }
        )
+  | LiveTyping =>
+    ctx.live_typing_error_ids
+    |> List.to_seq
+    |> Seq.map(((id, ci)) =>
+         {
+           id,
+           category: LiveTyping,
+           source: FromInfo(ci),
+         }
+       )
   };
 
 /* ---------- Counts summary ---------- */
@@ -211,6 +234,6 @@ let counts_of_context =
 /* ---------- Convenience: all problems ---------- */
 
 let collect_all_problems = (ctx: problem_context): list(problem) => {
-  [Syntax, Hole, Static, Warning]
+  [Syntax, Hole, Static, Warning, LiveTyping]
   |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
 };

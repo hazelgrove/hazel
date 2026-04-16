@@ -156,6 +156,11 @@
   --hole-fill: oklch(92% 0.04 250);
   --hole-active: oklch(50% 0.2 250);
 
+  /* LIVE TYPING DECO (sidebar) */
+  --live-typing-stroke: oklch(0.4 0.3 326);
+  --live-typing-fill: oklch(92% 0.04 326);
+  --live-typing-active: oklch(0.35 0.3 326);
+
   /* BACKPACK DECO */
 
   --backpack-selection: var(--shard-selected);

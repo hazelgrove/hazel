@@ -259,7 +259,7 @@ let view =
           cat,
           collect_category(ctx, cat) |> List.of_seq |> sort_by_pos(ctx),
         ),
-      [Syntax, Hole, Static, Warning],
+      [Syntax, Hole, Static, Warning, LiveTyping],
     );
   let problems_settings = globals.settings.sidebar.problems;
   let has_any_problems =

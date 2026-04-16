@@ -12,7 +12,7 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
     Haz3lcore.ProblemCollection.problem_category =
-      | Syntax | Hole | Static | Warning;
+      | Syntax | Hole | Static | Warning | LiveTyping;
 
   /* Base CSS class for a category */
   let category_cls = cat =>
@@ -21,6 +21,7 @@ module Settings = {
     | Hole => "hole"
     | Static => "static"
     | Warning => "warning"
+    | LiveTyping => "live-typing"
     };
 
   /* Human-readable label */
@@ -30,6 +31,7 @@ module Settings = {
     | Hole => "Holes"
     | Static => "Static Errors"
     | Warning => "Warnings"
+    | LiveTyping => "Live Typing Errors"
     };
 
   /* Short label for legend */
@@ -39,6 +41,7 @@ module Settings = {
     | Hole => "Hole"
     | Static => "Static"
     | Warning => "Warning"
+    | LiveTyping => "Live Typing"
     };
 
   /* Badge severity: categories with higher values take priority in the tab icon.
@@ -47,6 +50,7 @@ module Settings = {
     switch (cat) {
     | Syntax
     | Static => 2
+    | LiveTyping => 2
     | Warning => 1
     | Hole => 0
     };
@@ -56,6 +60,7 @@ module Settings = {
     switch (cat) {
     | Syntax
     | Static => "has-errors"
+    | LiveTyping => "has-live-typing"
     | Warning => "has-warnings"
     | Hole => "has-holes"
     };
@@ -65,6 +70,7 @@ module Settings = {
     switch (cat) {
     | Syntax
     | Static => "error"
+    | LiveTyping => "live typing error"
     | Warning => "warning"
     | Hole => "hole"
     };
