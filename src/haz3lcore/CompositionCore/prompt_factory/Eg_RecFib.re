@@ -33,12 +33,12 @@ Tool call: `create_new_task`
 }
 ```
 
-**Step 2 — Implement.** The program is empty (`?`), so use `initialize` once to create bindings (the only option before any `let` exists). In real tasks, prefer a **minimal** first `initialize` and then `insert_*` / `update_*` for the rest; this walkthrough uses one larger `initialize` only to keep the transcript short.
+**Step 2 — Implement.** The program is empty (`?`), so use `insert_before` (or `insert_after`) with **no** `path` to seed the first binding. In real tasks, prefer a **minimal** first insert and then `insert_*` / `update_*` for the rest; this walkthrough uses one larger insert only to keep the transcript short.
 
-Tool call: `initialize`
+Tool call: `insert_before`
 ```json
 {
-  "code": "let fib : Int -> Int = fun n ->\n  if n <= 0\n    then 0\n    else if n == 1\n      then 1\n      else fib(n - 1) + fib(n - 2)\nin\n?"
+  "code": "let fib : Int -> Int = fun n ->\n  if n <= 0\n    then 0\n    else if n == 1\n      then 1\n      else fib(n - 1) + fib(n - 2)\nin"
 }
 ```
 
@@ -191,7 +191,7 @@ Tool call: `remove_probe` → `mark_active_subtask_complete` → `mark_active_ta
 ### Key Patterns to Notice
 
 1. **Plan when it helps**: For big, multi-turn work, use coarse workbench milestones; for quick edits, skip tasks and edit directly.
-2. **Use the right tool**: `initialize` only when there are no bindings yet (keep it small when possible); `insert_after`/`insert_before` for adding bindings, `update_definition`/`update_body` for modifying existing code — prefer **many small** edits over one huge `initialize`.
+2. **Use the right tool**: on an empty scratchpad, use `insert_after`/`insert_before` with **no** `path` to seed the first binding (keep it small when possible); path-based `insert_after`/`insert_before` for adding bindings, `update_definition`/`update_body` for modifying existing code — prefer **many small** edits over one huge paste.
 3. **Manage context**: Collapsed definitions (⋱) don't need to be expanded if tests or context already explain what they do. Expand only what you need.
 4. **Verify with probes**: After implementing, use `place_probe` to observe runtime values and confirm correctness. Clean up with `remove_probe` when done.
 5. **Check static errors**: After each edit, check the context for type errors. Fix them before moving on.

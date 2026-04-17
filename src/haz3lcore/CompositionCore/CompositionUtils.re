@@ -23,7 +23,6 @@ module Local = {
     SyntaxProjectorTools.place_syntax_projector,
     SyntaxProjectorTools.remove_syntax_projector,
     SyntaxProjectorTools.toggle_syntax_projector,
-    EditTools.initialize,
     EditTools.update_definition,
     EditTools.update_body,
     EditTools.update_pattern,
@@ -66,6 +65,17 @@ module Local = {
     | Some(paths) => paths
     | None =>
       raise(Failure("A list of paths must be provided for the action"))
+    };
+  };
+
+  /** Read an optional string field: None when absent or empty-string, Some otherwise.
+      Empty-string is treated as absent so LLMs that emit `"path": ""` still hit the
+      no-path branch of insert_before/insert_after. */
+  let get_optional_string = (args: API.Json.t, field: string): option(string) => {
+    switch (API.Json.dot(field, args)) {
+    | Some(`String("")) => None
+    | Some(`String(s)) => Some(s)
+    | _ => None
     };
   };
 
@@ -126,7 +136,6 @@ module Local = {
                   get_string_list(args, "paths"),
                 ),
               )
-            | "initialize" => Initialize(get_string(args, "code"))
             | "update_definition" =>
               EditorAction(
                 Update(
@@ -160,21 +169,17 @@ module Local = {
                 ),
               )
             | "insert_after" =>
-              EditorAction(
-                Insert(
-                  After,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
+              let code = get_string(args, "code");
+              switch (get_optional_string(args, "path")) {
+              | Some(path) => EditorAction(Insert(After, path, code))
+              | None => InsertAtProgramBoundary(After, code)
+              };
             | "insert_before" =>
-              EditorAction(
-                Insert(
-                  Before,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
+              let code = get_string(args, "code");
+              switch (get_optional_string(args, "path")) {
+              | Some(path) => EditorAction(Insert(Before, path, code))
+              | None => InsertAtProgramBoundary(Before, code)
+              };
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>
@@ -286,7 +291,10 @@ module Local = {
       "show_use_sites(\"" ++ path ++ "\")"
     | LanguageServerAction(ShowReferences(path)) =>
       "show_references(\"" ++ path ++ "\")"
-    | Initialize(code) => "initialize(\"" ++ code ++ "\")"
+    | InsertAtProgramBoundary(After, code) =>
+      "insert_after(\"" ++ code ++ "\")"
+    | InsertAtProgramBoundary(Before, code) =>
+      "insert_before(\"" ++ code ++ "\")"
     | EditorAction(Update(Definition, path, code)) =>
       "update_definition(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Update(Body, path, code)) =>

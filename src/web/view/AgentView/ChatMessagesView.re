@@ -1137,7 +1137,6 @@ let view =
 
       let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool => {
         switch (tool_result.tool_call.name) {
-        | "initialize"
         | "update_definition"
         | "update_body"
         | "update_pattern"

@@ -1512,7 +1512,6 @@ module Agent = {
             List.mem(
               n,
               [
-                "initialize",
                 "update_definition",
                 "update_body",
                 "update_pattern",
@@ -1685,47 +1684,48 @@ module Agent = {
       | LanguageServerAction(_) =>
         /* TODO: implement language server queries */
         Ok((agent, editor))
-      | Initialize(code) =>
-        /* Replace entire program content (select-all + paste).
-           Only allowed when program has no let/type-alias bindings. */
+      | InsertAtProgramBoundary(direction, code) =>
+        /* No-path variant of insert_before/insert_after.
+           - Before: move caret to program start, then paste code (prepend).
+           - After: move caret to program end, then paste code (append).
+           For an empty program (just `?`), either boundary effectively
+           seeds the program with the provided code. */
         let z = editor.editor.state.zipper;
         let mk_statics = CompositionGo.Public.mk_statics;
-        let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
-        | Some(_) =>
-          Error(
-            Failure.Info(
-              "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
-            ),
+        let initial_info_map = mk_statics(z);
+        let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
+          Result.of_option(~error, z);
+        let z_at_boundary =
+          switch ((direction: Action.Structural.insert_target)) {
+          | Before => Move.to_start(z)
+          | After => Move.to_end(z)
+          };
+        switch (
+          CompositionGo.Local.PerformUtils.introduce(
+            z_at_boundary,
+            "\n" ++ code ++ "\n",
+            return,
           )
-        | None =>
-          let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
-            Result.of_option(~error, z);
-          switch (
-            CompositionGo.Local.PerformUtils.introduce(
-              Select.all(z),
-              code,
-              return,
-            )
-          ) {
-          | Error(_) => Error(Failure.Info("Failed to initialize program"))
-          | Ok(new_z) =>
-            let new_statics = mk_statics(new_z);
-            let new_errors = ErrorPrint.all(new_statics);
-            if (List.length(new_errors) > 0) {
-              Error(
-                Failure.Info(
-                  "Not applying the action you requested as it would have the following static error(s): "
-                  ++ String.concat(", ", new_errors),
-                ),
-              );
-            } else {
-              let new_z = Dump.to_zipper(new_z);
-              let new_editor_model = Editor.Model.mk(new_z);
-              let new_code_with_statics =
-                CodeWithStatics.Model.mk(new_editor_model);
-              Ok((agent, new_code_with_statics));
-            };
+        ) {
+        | Error(_) =>
+          Error(Failure.Info("Failed to insert code at program boundary"))
+        | Ok(new_z) =>
+          let new_statics = mk_statics(new_z);
+          let old_errors = ErrorPrint.all(initial_info_map);
+          let new_errors = ErrorPrint.all(new_statics);
+          if (List.length(new_errors) > List.length(old_errors)) {
+            Error(
+              Failure.Info(
+                "Not applying the action you requested as it would introduce new static error(s): "
+                ++ String.concat(", ", new_errors),
+              ),
+            );
+          } else {
+            let new_z = Dump.to_zipper(new_z);
+            let new_editor_model = Editor.Model.mk(new_z);
+            let new_code_with_statics =
+              CodeWithStatics.Model.mk(new_editor_model);
+            Ok((agent, new_code_with_statics));
           };
         };
       | WorkbenchAction(workbench_action) =>
@@ -2778,7 +2778,7 @@ module Agent = {
         : (option(Segment.t), option(Segment.t)) => {
       switch (action) {
       | EditorAction(_)
-      | Initialize(_)
+      | InsertAtProgramBoundary(_)
       | ProbeAction(_)
       | StaticsAction(_)
       | SyntaxProjectorAction(_) =>

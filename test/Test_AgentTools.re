@@ -35,39 +35,43 @@ let run_agent_action = (code: string, a: Action.Structural.t) => {
   );
 };
 
-let run_initialize = (code: string, new_code: string) => {
+/** Runs a no-path insert_before / insert_after (the InsertAtProgramBoundary
+    action). Before → prepend at program start; After → append at program end. */
+let run_insert_at_program_boundary =
+    (
+      code: string,
+      direction: Action.Structural.insert_target,
+      new_code: string,
+    ) => {
   let z = mk_zipper(code);
-  let info_map = mk_statics(z);
-  switch (HighLevelNodeMap.build(z, info_map)) {
-  | Some(_) =>
-    Error(
-      Action.Failure.Composition_action_failure(
-        "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
-      ),
+  let initial_info_map = mk_statics(z);
+  let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
+    Result.of_option(~error, z);
+  let z_at_boundary =
+    switch (direction) {
+    | Before => Move.to_start(z)
+    | After => Move.to_end(z)
+    };
+  switch (
+    CompositionGo.Local.PerformUtils.introduce(
+      z_at_boundary,
+      "\n" ++ new_code ++ "\n",
+      return,
     )
-  | None =>
-    let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
-      Result.of_option(~error, z);
-    switch (
-      CompositionGo.Local.PerformUtils.introduce(
-        Select.all(z),
-        new_code,
-        return,
-      )
-    ) {
-    | Error(e) => Error(e)
-    | Ok(new_z) =>
-      let new_statics = mk_statics(new_z);
-      let new_errors = ErrorPrint.all(new_statics);
-      if (List.length(new_errors) > 0) {
-        Error(
-          Action.Failure.Composition_action_failure(
-            "Static errors: " ++ String.concat(", ", new_errors),
-          ),
-        );
-      } else {
-        Ok(Dump.to_zipper(new_z));
-      };
+  ) {
+  | Error(e) => Error(e)
+  | Ok(new_z) =>
+    let new_statics = mk_statics(new_z);
+    let old_errors = ErrorPrint.all(initial_info_map);
+    let new_errors = ErrorPrint.all(new_statics);
+    if (List.length(new_errors) > List.length(old_errors)) {
+      Error(
+        Action.Failure.Composition_action_failure(
+          "Static errors: " ++ String.concat(", ", new_errors),
+        ),
+      );
+    } else {
+      Ok(Dump.to_zipper(new_z));
     };
   };
 };
@@ -175,24 +179,44 @@ let expect_any_failure = (code: string, a: Action.Structural.t, name: string) =>
 let edit_action_tests = (
   "AgentTools.EditActions",
   [
-    test_case("initialize replaces program", `Quick, () => {
-      switch (run_initialize("?", "let a = 3 in a")) {
+    test_case("insert_before (no path) seeds empty program", `Quick, () => {
+      switch (run_insert_at_program_boundary("?", Before, "let a = 3 in")) {
       | Ok(z) =>
-        check_rendered("initialize", "let a = 3 in a", render_zipper(z))
-      | Error(err) =>
-        Alcotest.fail("Initialize failed: " ++ Action.Failure.show(err))
-      }
-    }),
-    test_case("initialize rejected on let program", `Quick, () => {
-      switch (run_initialize("let a = 1 in a", "let b = 2 in b")) {
-      | Ok(_) => Alcotest.fail("Expected failure: initialize on let")
-      | Error(Action.Failure.Composition_action_failure(_)) => ()
+        check_rendered(
+          "insert_before_no_path",
+          "let a = 3 in ?",
+          render_zipper(z),
+        )
       | Error(err) =>
         Alcotest.fail(
-          "Unexpected failure kind: " ++ Action.Failure.show(err),
+          "insert_before (no path) failed: " ++ Action.Failure.show(err),
         )
       }
     }),
+    test_case(
+      "insert_before (no path) prepends to non-empty program",
+      `Quick,
+      () => {
+        switch (
+          run_insert_at_program_boundary(
+            "let a = 1 in a",
+            Before,
+            "let x = 0 in",
+          )
+        ) {
+        | Ok(z) =>
+          check_rendered(
+            "insert_before_no_path_nonempty",
+            "let x = 0 in let a = 1 in a",
+            render_zipper(z),
+          )
+        | Error(err) =>
+          Alcotest.fail(
+            "insert_before (no path) failed: " ++ Action.Failure.show(err),
+          )
+        }
+      },
+    ),
     test_case(
       "update_definition replaces def",
       `Quick,
@@ -330,72 +354,104 @@ let edit_action_tests = (
 );
 
 /* ============================================================
-   2. INITIALIZE — edge cases and static error rejection
+   2. INSERT_AT_PROGRAM_BOUNDARY — no-path insert_before / insert_after
    ============================================================ */
 
-let initialize_tests = (
-  "AgentTools.Initialize",
+let insert_at_program_boundary_tests = (
+  "AgentTools.InsertAtProgramBoundary",
   [
-    test_case("initialize with hole produces valid program", `Quick, () => {
-      switch (run_initialize("?", "let x = 5 in x + 1")) {
-      | Ok(z) =>
-        check_rendered(
-          "initialize_hole",
-          "let x = 5 in x + 1",
-          render_zipper(z),
-        )
-      | Error(err) =>
-        Alcotest.fail("Initialize failed: " ++ Action.Failure.show(err))
-      }
-    }),
-    test_case("initialize with expression replaces it", `Quick, () => {
-      switch (run_initialize("42", "let a = 1 in let b = 2 in a + b")) {
-      | Ok(z) =>
-        check_rendered(
-          "initialize_expr",
-          "let a = 1 in let b = 2 in a + b",
-          render_zipper(z),
-        )
-      | Error(err) =>
-        Alcotest.fail("Initialize failed: " ++ Action.Failure.show(err))
-      }
-    }),
-    test_case("initialize rejected on type alias program", `Quick, () => {
-      switch (run_initialize("type T = Int in 0", "let x = 1 in x")) {
-      | Ok(_) => Alcotest.fail("Expected failure: initialize on type alias")
-      | Error(Action.Failure.Composition_action_failure(_)) => ()
-      | Error(err) =>
-        Alcotest.fail(
-          "Unexpected failure kind: " ++ Action.Failure.show(err),
-        )
-      }
-    }),
-    test_case("initialize multi-binding program", `Quick, () => {
-      switch (
-        run_initialize("?", "let a = 1 in let b = 2 in let c = a + b in c")
-      ) {
-      | Ok(z) =>
-        check_rendered(
-          "initialize_multi",
-          "let a = 1 in let b = 2 in let c = a + b in c",
-          render_zipper(z),
-        )
-      | Error(err) =>
-        Alcotest.fail("Initialize failed: " ++ Action.Failure.show(err))
-      }
-    }),
-    test_case("initialize with function value", `Quick, () => {
-      switch (run_initialize("?", "let f = fun x -> x + 1 in f(3)")) {
-      | Ok(z) =>
-        check_rendered(
-          "initialize_fun",
-          "let f = fun x -> x + 1 in f(3)",
-          render_zipper(z),
-        )
-      | Error(err) =>
-        Alcotest.fail("Initialize failed: " ++ Action.Failure.show(err))
-      }
-    }),
+    test_case(
+      "insert_before (no path) on hole produces valid program",
+      `Quick,
+      () => {
+        switch (
+          run_insert_at_program_boundary("?", Before, "let x = 5 in")
+        ) {
+        | Ok(z) =>
+          check_rendered(
+            "boundary_before_hole",
+            "let x = 5 in ?",
+            render_zipper(z),
+          )
+        | Error(err) =>
+          Alcotest.fail(
+            "insert_before failed: " ++ Action.Failure.show(err),
+          )
+        }
+      },
+    ),
+    test_case(
+      "insert_before (no path) seeds multi-binding program",
+      `Quick,
+      () => {
+        switch (
+          run_insert_at_program_boundary(
+            "?",
+            Before,
+            "let a = 1 in let b = 2 in let c = a + b in",
+          )
+        ) {
+        | Ok(z) =>
+          check_rendered(
+            "boundary_before_multi",
+            "let a = 1 in let b = 2 in let c = a + b in ?",
+            render_zipper(z),
+          )
+        | Error(err) =>
+          Alcotest.fail(
+            "insert_before failed: " ++ Action.Failure.show(err),
+          )
+        }
+      },
+    ),
+    test_case(
+      "insert_before (no path) with function value",
+      `Quick,
+      () => {
+        switch (
+          run_insert_at_program_boundary(
+            "?",
+            Before,
+            "let f = fun x -> x + 1 in",
+          )
+        ) {
+        | Ok(z) =>
+          check_rendered(
+            "boundary_before_fun",
+            "let f = fun x -> x + 1 in ?",
+            render_zipper(z),
+          )
+        | Error(err) =>
+          Alcotest.fail(
+            "insert_before failed: " ++ Action.Failure.show(err),
+          )
+        }
+      },
+    ),
+    test_case(
+      "insert_before (no path) prepends to non-empty program",
+      `Quick,
+      () => {
+        switch (
+          run_insert_at_program_boundary(
+            "let b = 2 in b",
+            Before,
+            "let a = 1 in",
+          )
+        ) {
+        | Ok(z) =>
+          check_rendered(
+            "boundary_before_nonempty",
+            "let a = 1 in let b = 2 in b",
+            render_zipper(z),
+          )
+        | Error(err) =>
+          Alcotest.fail(
+            "insert_before failed: " ++ Action.Failure.show(err),
+          )
+        }
+      },
+    ),
   ],
 );
 
@@ -1749,14 +1805,43 @@ let composition_utils_tests = (
       },
     ),
     test_case(
-      "parse initialize tool call",
+      "parse insert_after (no path) tool call → InsertAtProgramBoundary",
       `Quick,
       () => {
-        let args = mk_json_args([("code", "let x = 1 in x")]);
+        let args = mk_json_args([("code", "let x = 1 in")]);
         switch (
-          CompositionUtils.Public.action_of(~tool_name="initialize", ~args)
+          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
         ) {
-        | Action(Initialize("let x = 1 in x")) => ()
+        | Action(InsertAtProgramBoundary(After, "let x = 1 in")) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse insert_before (no path) tool call → InsertAtProgramBoundary",
+      `Quick,
+      () => {
+        let args = mk_json_args([("code", "let x = 1 in")]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="insert_before", ~args)
+        ) {
+        | Action(InsertAtProgramBoundary(Before, "let x = 1 in")) => ()
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "parse insert_after with empty path → InsertAtProgramBoundary",
+      `Quick,
+      () => {
+        let args =
+          mk_json_args([("path", ""), ("code", "let x = 1 in")]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
+        ) {
+        | Action(InsertAtProgramBoundary(After, "let x = 1 in")) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
@@ -2834,7 +2919,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        check(int, "tool count", 33, List.length(tools));
+        check(int, "tool count", 32, List.length(tools));
       },
     ),
     test_case(
@@ -2892,6 +2977,8 @@ let tool_json_tests = (
       "edit tools have required path parameter",
       `Quick,
       () => {
+        /* insert_after / insert_before are intentionally excluded: their
+           `path` is optional (omitting it inserts at the program boundary). */
         let edit_tool_names = [
           "update_definition",
           "update_body",
@@ -2899,8 +2986,6 @@ let tool_json_tests = (
           "update_binding_clause",
           "delete_binding_clause",
           "delete_body",
-          "insert_after",
-          "insert_before",
         ];
         let tools = CompositionUtils.Public.tools;
         List.iter(
@@ -3220,7 +3305,7 @@ let general_tree_refs_tests = (
 
 let tests = [
   edit_action_tests,
-  initialize_tests,
+  insert_at_program_boundary_tests,
   update_definition_tests,
   update_body_tests,
   update_pattern_tests,

@@ -89,7 +89,7 @@ let blurb_for_composition_prompt: list(string) = {
     "",
     "**CRITICAL — livelits are not automatic:** Ordinary Hazel code (`let speed = 50`, `let is_active = true`, list literals, records) renders as **plain text** until you call **`place_syntax_projector`**.",
     "If the user asks how livelits work, or wants sliders/checkboxes/CSV editors/text boxes, you **must** call `place_syntax_projector` with the right `kind` on each binding path (e.g. `slider` on `\"speed\"`, `check` on `\"is_active\"`, `text` on `\"message\"`, `csv` only when the RHS is `[]`, `card` only on playing-card tuples/lists—see livelit lines above; nested paths like `\"config/volume\"`).",
-    "**Never** describe interactive widgets as present based only on `initialize` or other edit tools — that is false unless the matching `place_syntax_projector` calls succeeded.",
+    "**Never** describe interactive widgets as present based only on `insert_*`, `update_*`, or other edit tools — that is false unless the matching `place_syntax_projector` calls succeeded.",
     "",
   ]
   @ [refractors_vs_syntax_sentence, ""];

@@ -1,60 +1,5 @@
 open Util;
 
-let initialize_description = {|
-Replaces the entire program with the given code.
-Use this when the program is EMPTY — just `?` or a standalone expression with no let/type/module bindings.
-When empty, you MUST use initialize to write code; update_definition and update_body will fail (they require an existing binding).
-Once the program has let/type/module bindings, use the other edit tools instead.
-
-Incremental workflow (strongly preferred for non-trivial programs): put only a **small** first program in `code` (e.g. one `let` and a hole, or a short skeleton), then add bindings with `insert_after` / `insert_before` and fill definitions with `update_definition` / `update_body`. Avoid one monolithic `initialize` that pastes the entire solution unless the user explicitly wants a full replacement in one step.
-
-Parameters:
-code: string — the complete new program
-
-Example:
-Current program: `?`
-Calling initialize(code="let x = 42 in\nlet y = x + 1 in\ny") produces:
-```
-let x = 42 in
-let y = x + 1 in
-y
-```
-|};
-
-let initialize: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("initialize")),
-        ("description", `String(initialize_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "code",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String("The new code to replace the definition with."),
-                    ),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("code")])),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
-
 let update_definition_description = {|
 Replaces the definition (the right-hand side of `=`, before `in`) of the binding at the given path.
 This overwrites the ENTIRE definition — including any nested let bindings within it.
@@ -479,8 +424,10 @@ let insert_after_description = {|
 Inserts a new binding immediately after the binding at the given path.
 The inserted code becomes part of the program between the target binding and its original body.
 
+If `path` is omitted, the code is inserted after the entire program (at the end). This is how you initialize an empty program: with the program at just `?`, call `insert_after(code="let x = 1 in")` (no path) to write the first binding.
+
 Parameters:
-path: string — slash-delimited path to the binding after which to insert
+path: string (optional) — slash-delimited path to the binding after which to insert. Omit to insert after the whole program.
 code: string — the code to insert (typically a let...in or type...in binding)
 
 Example:
@@ -498,6 +445,14 @@ let b = "hello" in
 ?
 ```
 Note: The new binding is inserted between "a" and "b". The rest of the program is preserved.
+
+Initialization example (empty program):
+Current program: `?`
+Calling insert_after(code="let x = 42 in") produces:
+```
+let x = 42 in
+?
+```
 |};
 
 let insert_after: API.Json.t =
@@ -522,7 +477,7 @@ let insert_after: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node after which the code should be inserted.",
+                        "Slash-delimited path to the node after which the code should be inserted. Omit to insert after the entire program (initializes an empty program).",
                       ),
                     ),
                   ]),
@@ -541,7 +496,7 @@ let insert_after: API.Json.t =
                 ),
               ]),
             ),
-            ("required", `List([`String("path"), `String("code")])),
+            ("required", `List([`String("code")])),
           ]),
         ),
       ]),
@@ -551,8 +506,10 @@ let insert_after: API.Json.t =
 let insert_before_description = {|
 Inserts a new binding immediately before the binding at the given path.
 
+If `path` is omitted, the code is inserted before the entire program (at the beginning). This is how you initialize an empty program: with the program at just `?`, call `insert_before(code="let x = 1 in")` (no path) to write the first binding.
+
 Parameters:
-path: string — slash-delimited path to the binding before which to insert
+path: string (optional) — slash-delimited path to the binding before which to insert. Omit to insert before the whole program.
 code: string — the code to insert (typically a let...in or type...in binding)
 
 Example:
@@ -570,6 +527,14 @@ let b = "hello" in
 ?
 ```
 Note: The new binding is inserted between "a" and "b". The rest of the program is preserved.
+
+Initialization example (empty program):
+Current program: `?`
+Calling insert_before(code="let x = 42 in") produces:
+```
+let x = 42 in
+?
+```
 |};
 
 let insert_before: API.Json.t =
@@ -594,7 +559,7 @@ let insert_before: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node before which the code should be inserted.",
+                        "Slash-delimited path to the node before which the code should be inserted. Omit to insert before the entire program (initializes an empty program).",
                       ),
                     ),
                   ]),
@@ -613,7 +578,7 @@ let insert_before: API.Json.t =
                 ),
               ]),
             ),
-            ("required", `List([`String("path"), `String("code")])),
+            ("required", `List([`String("code")])),
           ]),
         ),
       ]),

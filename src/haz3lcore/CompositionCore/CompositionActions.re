@@ -30,7 +30,7 @@ type syntax_projector_action =
 type action =
   | EditorAction(Action.Structural.t)
   | LanguageServerAction(language_server)
-  | Initialize(string) /* replace entire program content (select-all + paste) */
+  | InsertAtProgramBoundary(Action.Structural.insert_target, string) /* no-path insert: prepend (Before) or append (After) to the whole program */
   | WorkbenchAction(AgentWorkbench.Update.Action.BackendAction.action)
   | AgentContextAction(AgentContext.Update.action)
   | ProbeAction(probe_action)
