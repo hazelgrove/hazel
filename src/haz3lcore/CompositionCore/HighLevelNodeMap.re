@@ -403,18 +403,23 @@ let siblings_of = (node_map: t, node: node): list(node) => {
   List.map((id: Id.t) => find(node_map, id), node.siblings);
 };
 
+/* `mod` binds tighter than `+/-`, so parens matter; also wrap negatives before mod. */
 let next_sibling_of = (node: node): option(Id.t) => {
-  List.nth_opt(
-    node.siblings,
-    node.sibling_idx + 1 mod List.length(node.siblings),
-  );
+  let len = List.length(node.siblings);
+  if (len == 0) {
+    None;
+  } else {
+    List.nth_opt(node.siblings, (node.sibling_idx + 1) mod len);
+  };
 };
 
 let prev_sibling_of = (node: node): option(Id.t) => {
-  List.nth_opt(
-    node.siblings,
-    node.sibling_idx - 1 mod List.length(node.siblings),
-  );
+  let len = List.length(node.siblings);
+  if (len == 0) {
+    None;
+  } else {
+    List.nth_opt(node.siblings, (node.sibling_idx - 1 + len) mod len);
+  };
 };
 
 let lowest_enclosing_node_of = (info: Info.t, node_map: t): option(node) => {
@@ -715,8 +720,8 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
     };
 
   switch (Id.Map.bindings(node_map)) {
-  | [] =>
-    raise(Failure("No nodes to compare when searching for closest path"))
+  /* Called from error-handling paths (path_to_id failure branch); must not raise. */
+  | [] => ""
   | bindings =>
     let (first_id, first_node) = List.hd(bindings);
     let d0 = distance_for_node(first_node);

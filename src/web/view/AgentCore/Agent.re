@@ -2106,6 +2106,12 @@ module Agent = {
     let is_retryable_api_error = (code: int): bool =>
       code == 429 || code == 500 || code == 502 || code == 503;
 
+    let format_api_error_content = (~code: int, ~message: string): string =>
+      "Code: " ++ string_of_int(code) ++ "\nError: " ++ message;
+
+    /** Max retries when the assistant returns an empty reply with no tool calls. */
+    let max_empty_retries = 2;
+
     let enabled_tools = (prompting: Model.prompting): list(API.Json.t) =>
       List.filter(
         (tool: API.Json.t) =>
@@ -2393,8 +2399,7 @@ module Agent = {
           if (is_retryable_api_error(code) && retry_attempt < max_api_retries) {
             schedule_action(Action.RetryApiError(chat_id, retry_attempt));
           } else {
-            let api_error_content =
-              "Code: " ++ string_of_int(code) ++ "\\Error: " ++ message;
+            let api_error_content = format_api_error_content(~code, ~message);
             let api_error_message =
               Message.Utils.mk_api_failure_message(api_error_content);
             schedule_action(
@@ -2983,7 +2988,6 @@ module Agent = {
         )
       | _ =>
         let is_empty = String.trim(reply.content) == "";
-        let max_empty_retries = 2;
 
         // Empty response with no tool calls: retry with failure context (up to max_empty_retries)
         if (reply.tool_calls == [] && is_empty) {
@@ -3716,7 +3720,9 @@ module Agent = {
           let retry_msg =
             "[Retry "
             ++ string_of_int(attempt + 1)
-            ++ "/2] Your previous assistant message had no visible text (empty or whitespace-only). That is not allowed.\n"
+            ++ "/"
+            ++ string_of_int(max_empty_retries)
+            ++ "] Your previous assistant message had no visible text (empty or whitespace-only). That is not allowed.\n"
             ++ "MANDATORY: Reply now with at least one full sentence addressed to the user — acknowledge what they asked for, or summarize what you changed or attempted. Do not send an empty message again.\n"
             ++ "If you started a workbench plan and it is still open, update or close it when it matches your intent (e.g. mark_active_task_complete, mark_active_task_failed, or subtask tools). In the same turn or the next, write the required user-facing sentence.\n"
             ++ "Never end with both empty text and no tool calls.";
