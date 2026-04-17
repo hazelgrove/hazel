@@ -38,10 +38,6 @@ type menu_item =
       tooltip: string,
       action: unit => Ui_effect.t(unit),
     })
-  | Submenu({
-      text: string,
-      subitems: list(menu_item),
-    })
   | Separator;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -368,7 +364,6 @@ let render_menu = menu_data => {
       switch (item) {
       | Action({text, tooltip, action}) =>
         menu_item(~tooltip, text, _ => action())
-      | Submenu({text, subitems: _}) => menu_item(text, _ => Effect.Ignore)
       | Separator => menu_divider
       },
     menu_data,
