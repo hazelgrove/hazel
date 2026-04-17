@@ -490,7 +490,7 @@ module Selection = {
   let is_reachable_pinned =
       (~cursor: Focus.t, target_samples: list(sample)): bool => {
     let effective = Focus.effective_stack(cursor);
-    let fn_of_innermost = (stack: call_stack) : option(Id.t) =>
+    let fn_of_innermost = (stack: call_stack): option(Id.t) =>
       switch (stack) {
       | [] => None
       | [frame, ..._] => frame.fn_def_id
@@ -504,8 +504,8 @@ module Selection = {
     List.exists(
       (sample: sample) =>
         if (equal_call_stack(sample.call_stack, effective)) {
-          /* rule (a) */
           true;
+              /* rule (a) */
         } else if (target_fn != cursor_fn) {
           /* rule (b) */
           ListUtil.is_suffix_of(
