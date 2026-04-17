@@ -11,6 +11,13 @@ let abbreviated_seg_of: (utility, int, Exp.t) => (Segment.t, int);
 let length_cls: int => string;
 let value_view: (utility, (Sort.t, Segment.t) => Node.t, Exp.t) => Node.t;
 
+/* --- Table Assembly --- */
+
+let row_cells:
+  (utility, (Sort.t, Segment.t) => Node.t, list(Exp.t)) => list(Node.t);
+let table_view:
+  (~header_cells: list(Node.t), ~rows: list(list(Node.t))) => Node.t;
+
 /* --- Table Parsing --- */
 
 type table_data = (list(option(string)), list(list(Exp.t)));

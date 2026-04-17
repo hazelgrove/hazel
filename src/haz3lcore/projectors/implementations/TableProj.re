@@ -35,25 +35,9 @@ let table =
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
     ) =>
-  Node.table(
-    ~attrs=[Attr.classes(["table"])],
-    [
-      Node.thead([
-        Node.tr(List.map(h => Node.th([Node.text(h)]), headers)),
-      ]),
-      Node.tbody(
-        List.map(
-          row =>
-            Node.tr(
-              List.map(
-                e => Node.td([value_view(info.utility, view_seg, e)]),
-                row,
-              ),
-            ),
-          rows,
-        ),
-      ),
-    ],
+  table_view(
+    ~header_cells=List.map(h => Node.th([Node.text(h)]), headers),
+    ~rows=List.map(row_cells(info.utility, view_seg), rows),
   );
 
 module M: Projector = {

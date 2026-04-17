@@ -467,30 +467,16 @@ let render =
       header_cells;
     };
 
-  Node.table(
-    ~attrs=[Attr.classes(["table"])],
-    [
-      Node.thead([Node.tr(header_cells)]),
-      Node.tbody(
-        List.map(
-          row => {
-            let cells =
-              List.map(
-                e => Node.td([value_view(info.utility, view_seg, e)]),
-                row,
-              );
-            let cells =
-              if (!is_readonly) {
-                cells @ [Node.td([])];
-              } else {
-                cells;
-              };
-            Node.tr(cells);
-          },
-          rows,
-        ),
+  table_view(
+    ~header_cells,
+    ~rows=
+      List.map(
+        row => {
+          let cells = row_cells(info.utility, view_seg, row);
+          is_readonly ? cells : cells @ [Node.td([])];
+        },
+        rows,
       ),
-    ],
   );
 };
 
