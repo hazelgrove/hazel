@@ -484,6 +484,11 @@ let roundtrip_tests = (
     roundtrip_test({|Binary op: chained compact|}, {|1+2+3|}),
     roundtrip_test({|Binary op: chained mixed|}, {|1 +2+ 3|}),
     roundtrip_test({|Binary op: chained 4 terms|}, {|1 + 2 + 3 + 4|}),
+    /* Pipeline (|>) — Ap(Reverse). Left-associative, so chained pipes
+       must round-trip without gaining parens. */
+    roundtrip_test({|Pipeline: simple|}, {|x |> f|}),
+    roundtrip_test({|Pipeline: chained|}, {|x |> f |> g|}),
+    roundtrip_test({|Pipeline: chained 4 terms|}, {|x |> f |> g |> h|}),
     /* Prefix operators */
     roundtrip_test({|Prefix: negation|}, {|-x|}),
     roundtrip_test({|Prefix: negation with space|}, {|- x|}),
