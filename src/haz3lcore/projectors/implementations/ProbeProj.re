@@ -112,8 +112,6 @@ let probe_model_of_sexp = sexp =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
-  | ToggleShowAllVals(int)
-  | NoOp
   | ToggleModal(oactive_renderer)
   | RendererAction(string)
   | ToggleWindowMode
@@ -1612,7 +1610,6 @@ module M: Projector = {
       SampleLength.set(id, len);
       Settings.version := Settings.version^ + 1;
       model;
-    | ToggleShowAllVals(_)
     | ToggleWindowMode =>
       Settings.go(ToggleWindow);
       model;
@@ -1624,7 +1621,6 @@ module M: Projector = {
       Settings.reset_mode();
       SampleLength.reset();
       model;
-    | NoOp => model
     | ToggleModal(renderer) =>
       switch (model.active_renderer) {
       | None => {active_renderer: renderer}
