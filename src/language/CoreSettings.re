@@ -16,7 +16,6 @@ module Evaluation = {
     show_settings: bool,
     show_hidden_steps: bool,
     enable_proof: bool,
-    rich_probes: bool,
     project_tables: bool,
   };
 
@@ -33,7 +32,6 @@ module Evaluation = {
     show_settings: false,
     show_hidden_steps: false,
     enable_proof: false,
-    rich_probes: false,
     project_tables: false,
   };
 };

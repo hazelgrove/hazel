@@ -137,7 +137,6 @@ type probe_ctx = {
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
   sort: Sort.t,
-  core_settings: Language.CoreSettings.t,
 };
 
 /* Stateful window offset management (GUI-specific) */
@@ -695,13 +694,9 @@ let rich_probe_action =
 
 let rich_probe_items =
     (ctx: probe_ctx, local, sample: Sample.t): list(Node.t) =>
-  if (ctx.core_settings.evaluation.rich_probes) {
-    renderers
-    |> List.filter(r => r.can_handle(ctx.sort, sample.value))
-    |> List.map(rich_probe_action(ctx, local, sample));
-  } else {
-    [];
-  };
+  renderers
+  |> List.filter(r => r.can_handle(ctx.sort, sample.value))
+  |> List.map(rich_probe_action(ctx, local, sample));
 
 /* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.) */
 let sample_context_actions =
@@ -970,8 +965,7 @@ let sample_view =
     ) => {
   let hide_env = hide_env(ctx.statics);
   let has_rich =
-    ctx.core_settings.evaluation.rich_probes
-    && List.exists(r => r.can_handle(ctx.sort, sample.value), renderers);
+    List.exists(r => r.can_handle(ctx.sort, sample.value), renderers);
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
   let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
@@ -1313,7 +1307,6 @@ let offside_view =
       parent,
       ~settings: settings,
       ~sort: Sort.t,
-      ~core_settings: Language.CoreSettings.t,
       view_seg: View.seg,
     ) =>
   switch (info.dynamics, info.statics) {
@@ -1328,7 +1321,6 @@ let offside_view =
       utility: info.utility,
       parent,
       sort,
-      core_settings,
     };
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
@@ -1446,20 +1438,15 @@ let get_current = (~settings, info: info) => {
   };
 };
 
-let overlay_view =
-    (~settings, ~core_settings: Language.CoreSettings.t, ~sort, info: info)
-    : Node.t =>
+let overlay_view = (~settings, ~sort, info: info): Node.t =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let ap_id = Sample.Focus.cur_var_ap(statics);
     let has_renderer =
-      core_settings.evaluation.rich_probes
-      && (
-        switch (get_current(~settings, info)) {
-        | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
-        | None => false
-        }
-      );
+      switch (get_current(~settings, info)) {
+      | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
+      | None => false
+      };
     div(
       ~attrs=[
         Attr.classes(
@@ -1607,42 +1594,27 @@ module M: Projector = {
   let error = (_, _): option(ProjectorBase.error) => None;
   let view =
       (
-        {info, local, parent, view_seg, model, status, core_settings, _}:
+        {info, local, parent, view_seg, model, status, _}:
           View.args(model, action),
       ) => {
     let settings = Settings.s^;
     let sort = status.sort;
-    let rich_probes = core_settings.evaluation.rich_probes;
     View.{
       inline: Node.div([]),
-      overlay: Some(overlay_view(~settings, ~core_settings, ~sort, info)),
+      overlay: Some(overlay_view(~settings, ~sort, info)),
       offside:
         Some(
           div(
-            [
-              offside_view(
-                info,
-                local,
-                parent,
+            [offside_view(info, local, parent, ~settings, ~sort, view_seg)]
+            @ modal_overlay(
                 ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg,
                 ~sort,
-                ~core_settings,
-                view_seg,
               ),
-            ]
-            @ (
-              rich_probes
-                ? modal_overlay(
-                    ~settings,
-                    model,
-                    info,
-                    ~local,
-                    ~parent,
-                    ~view_seg,
-                    ~sort,
-                  )
-                : []
-            ),
           ),
         ),
       error: false,

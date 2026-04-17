@@ -153,7 +153,7 @@ module View = {
     view_seg: seg,
     /* Parent editor context on the projector */
     status,
-    /* Core settings for feature flags like rich_probes */
+    /* Core settings for feature flags */
     core_settings: Language.CoreSettings.t,
   };
 

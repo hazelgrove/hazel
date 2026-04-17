@@ -109,12 +109,6 @@ let values_group = (~globals: Globals.t) => {
         tooltip: Some("Project tables in evaluated results"),
       },
       {
-        name: "Rich Probes",
-        active: s.rich_probes,
-        setting: Evaluation(RichProbes),
-        tooltip: Some("Show rich probe displays"),
-      },
-      {
         name: "Ascriptions",
         active: s.show_ascriptions,
         setting: Evaluation(ShowAscriptions),

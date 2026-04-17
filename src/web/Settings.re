@@ -48,7 +48,6 @@ module Model = {
         show_settings: false,
         show_hidden_steps: false,
         enable_proof: false,
-        rich_probes: false,
         project_tables: false,
       },
     },
@@ -131,7 +130,6 @@ module Update = {
     | ShowFilters
     | ShowSettings
     | ShowHiddenSteps
-    | RichProbes
     | ProjectTables;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -248,10 +246,6 @@ module Update = {
           | EnableProof => {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
-            }
-          | RichProbes => {
-              ...evaluation,
-              rich_probes: !evaluation.rich_probes,
             }
           | ProjectTables => {
               ...evaluation,
