@@ -57,6 +57,35 @@ let misc_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
+/* Builder for (t, t) -> Ord comparison builtins. */
+let mk_compare =
+    (
+      type a,
+      name: string,
+      ty,
+      tag: Unboxing.unbox_request(a),
+      cmp: (a, a) => int,
+    )
+    : BuiltinsUtil.fn =>
+  BuiltinsUtil.{
+    name,
+    arg: Prod([ty(), ty()]),
+    ret: BuiltinsADT.Ord.t.term,
+    imp:
+      binary((d1, d2) => {
+        let-unbox n1 = (tag, d1);
+        let-unbox n2 = (tag, d2);
+        Some(
+          switch (cmp(n1, n2)) {
+          | 0 => BuiltinsADT.Ord.eq
+          | n when n < 0 => BuiltinsADT.Ord.lt
+          | _ => BuiltinsADT.Ord.gt
+          },
+        );
+      }),
+    custom_statics: None,
+  };
+
 let numeric_fns: list(BuiltinsUtil.fn) = [
   {
     name: "is_finite",
@@ -293,78 +322,10 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       }),
     custom_statics: None,
   },
-  BuiltinsADT.{
-    name: "int_compare",
-    arg: Prod([int(), int()]),
-    ret: Ord.t.term,
-    imp:
-      binary((d1, d2) => {
-        let-unbox n1 = (Atom(Int), d1);
-        let-unbox n2 = (Atom(Int), d2);
-        Some(
-          switch (Bigint.compare(n1, n2)) {
-          | 0 => Ord.eq
-          | n when n < 0 => Ord.lt
-          | _ => Ord.gt
-          },
-        );
-      }),
-    custom_statics: None,
-  },
-  BuiltinsADT.{
-    name: "float_compare",
-    arg: Prod([float(), float()]),
-    ret: Ord.t.term,
-    imp:
-      binary((d1, d2) => {
-        let-unbox n1 = (Atom(Float), d1);
-        let-unbox n2 = (Atom(Float), d2);
-        Some(
-          switch (Float.compare(n1, n2)) {
-          | 0 => Ord.eq
-          | n when n < 0 => Ord.lt
-          | _ => Ord.gt
-          },
-        );
-      }),
-    custom_statics: None,
-  },
-  BuiltinsADT.{
-    name: "sint_compare",
-    arg: Prod([sint(), sint()]),
-    ret: Ord.t.term,
-    imp:
-      binary((d1, d2) => {
-        let-unbox n1 = (Atom(SInt), d1);
-        let-unbox n2 = (Atom(SInt), d2);
-        Some(
-          switch (Int.compare(n1, n2)) {
-          | 0 => Ord.eq
-          | n when n < 0 => Ord.lt
-          | _ => Ord.gt
-          },
-        );
-      }),
-    custom_statics: None,
-  },
-  BuiltinsADT.{
-    name: "nat_compare",
-    arg: Prod([nat(), nat()]),
-    ret: Ord.t.term,
-    imp:
-      binary((d1, d2) => {
-        let-unbox n1 = (Atom(Nat), d1);
-        let-unbox n2 = (Atom(Nat), d2);
-        Some(
-          switch (Bigint.compare(n1, n2)) {
-          | 0 => Ord.eq
-          | n when n < 0 => Ord.lt
-          | _ => Ord.gt
-          },
-        );
-      }),
-    custom_statics: None,
-  },
+  mk_compare("int_compare", int, Atom(Int), Bigint.compare),
+  mk_compare("float_compare", float, Atom(Float), Float.compare),
+  mk_compare("sint_compare", sint, Atom(SInt), Int.compare),
+  mk_compare("nat_compare", nat, Atom(Nat), Bigint.compare),
 ];
 
 let string_fns: list(BuiltinsUtil.fn) = [
