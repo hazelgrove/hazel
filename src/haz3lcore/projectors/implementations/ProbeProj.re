@@ -4,92 +4,13 @@ open Virtual_dom.Vdom;
 
 open Js_of_ocaml;
 open Language;
+open RichProbe;
 
 /* Global probe display state. See ZipperBase.re for full probe state documentation.
  * - Settings.s: Global display settings (window mode, cutoffs)
  * - Settings.offset: Per-probe window scroll offsets
  * - SampleLength.lengths: Per-sample display lengths
  * These use mutable refs for simplicity since they're UI-only state. */
-
-/* Packed renderer type for heterogeneous renderer storage */
-type packed_renderer = {
-  id: string,
-  can_handle: (Sort.t, Exp.t) => bool,
-  parse_packed: (Sort.t, Exp.t) => option(string),
-  init_packed: string => string,
-  render_packed:
-    (
-      string,
-      ~info: info,
-      ~exp: Exp.t,
-      ~view_seg: (Sort.t, Segment.t) => Node.t,
-      ~local: string => Ui_effect.t(unit),
-      ~parent: external_action => Ui_effect.t(unit),
-      ~sort: Sort.t,
-      unit
-    ) =>
-    option(Node.t),
-  update_packed: (string, string) => string,
-  badge: Node.t,
-};
-
-/* Pack a renderer module conforming to RichProbe signature */
-let pack_renderer =
-    (
-      type m,
-      type a,
-      module_impl: (module RichProbe.RichProbe with
-                      type model = m and type action = a),
-      id: string,
-    )
-    : packed_renderer => {
-  module R = (val module_impl);
-
-  let serialize_model = m => m |> R.sexp_of_model |> Sexplib.Sexp.to_string;
-  let deserialize_model = s => s |> Sexplib.Sexp.of_string |> R.model_of_sexp;
-  let serialize_action = a => a |> R.sexp_of_action |> Sexplib.Sexp.to_string;
-  let deserialize_action = s =>
-    s |> Sexplib.Sexp.of_string |> R.action_of_sexp;
-  let serialize_value = v => v |> R.sexp_of_value |> Sexplib.Sexp.to_string;
-
-  {
-    id,
-    can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
-    parse_packed: (sort, exp) =>
-      R.parse(sort, exp) |> Option.map(serialize_value),
-    init_packed: value_str => {
-      let v = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
-      let m = R.init(v);
-      serialize_model(m);
-    },
-    render_packed:
-      (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) => {
-      let v = R.parse(sort, exp);
-      let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
-      switch (v) {
-      | Some(value) =>
-        Some(
-          R.render(
-            ~info,
-            ~exp,
-            ~value,
-            ~view_seg,
-            ~model,
-            ~local=action => local(serialize_action(action)),
-            ~parent,
-            ~sort,
-            (),
-          ),
-        )
-      | None => None
-      };
-    },
-    update_packed: (model_str, action_str) =>
-      R.update(deserialize_model(model_str), deserialize_action(action_str))
-      |> serialize_model,
-    badge: R.badge,
-  };
-};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type active_renderer = {
@@ -516,14 +437,11 @@ module Debug = {
     ++ Printf.sprintf("%.0f", sample.time);
 };
 
-/* Registry of available renderers - initialized once at module load */
-let renderers: list(packed_renderer) = [
-  pack_renderer((module TableRenderer), "table"),
-];
+let renderers = RichProbeRegistry.renderers;
 
 /* Find first compatible renderer for an expression */
 let find_compatible_renderer =
-    (sort: Sort.t, exp: Exp.t): option(packed_renderer) =>
+    (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>
   List.find_opt(r => r.can_handle(sort, exp), renderers);
 
 let pin_call = (ctx: probe_ctx) =>

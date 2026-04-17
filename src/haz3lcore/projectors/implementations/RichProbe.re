@@ -45,3 +45,85 @@ module type RichProbe = {
     ) =>
     Node.t;
 };
+
+/* Packed renderer: heterogeneous container for any RichProbe.
+ * Model/action/value are serialized to strings so ProbeProj can
+ * store a mixed list without knowing the concrete types. */
+type packed_renderer = {
+  id: string,
+  can_handle: (Sort.t, Exp.t) => bool,
+  parse_packed: (Sort.t, Exp.t) => option(string),
+  init_packed: string => string,
+  render_packed:
+    (
+      string,
+      ~info: info,
+      ~exp: Exp.t,
+      ~view_seg: (Sort.t, Segment.t) => Node.t,
+      ~local: string => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit),
+      ~sort: Sort.t,
+      unit
+    ) =>
+    option(Virtual_dom.Vdom.Node.t),
+  update_packed: (string, string) => string,
+  badge: Virtual_dom.Vdom.Node.t,
+};
+
+/* Pack a RichProbe module into a packed_renderer by serializing its
+ * model/action/value through sexp. */
+let pack_renderer =
+    (
+      type m,
+      type a,
+      module_impl: (module RichProbe with type model = m and type action = a),
+      id: string,
+    )
+    : packed_renderer => {
+  module R = (val module_impl);
+
+  let serialize_model = m => m |> R.sexp_of_model |> Sexplib.Sexp.to_string;
+  let deserialize_model = s => s |> Sexplib.Sexp.of_string |> R.model_of_sexp;
+  let serialize_action = a => a |> R.sexp_of_action |> Sexplib.Sexp.to_string;
+  let deserialize_action = s =>
+    s |> Sexplib.Sexp.of_string |> R.action_of_sexp;
+  let serialize_value = v => v |> R.sexp_of_value |> Sexplib.Sexp.to_string;
+
+  {
+    id,
+    can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
+    parse_packed: (sort, exp) =>
+      R.parse(sort, exp) |> Option.map(serialize_value),
+    init_packed: value_str => {
+      let v = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
+      let m = R.init(v);
+      serialize_model(m);
+    },
+    render_packed:
+      (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) => {
+      let v = R.parse(sort, exp);
+      let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
+      switch (v) {
+      | Some(value) =>
+        Some(
+          R.render(
+            ~info,
+            ~exp,
+            ~value,
+            ~view_seg,
+            ~model,
+            ~local=action => local(serialize_action(action)),
+            ~parent,
+            ~sort,
+            (),
+          ),
+        )
+      | None => None
+      };
+    },
+    update_packed: (model_str, action_str) =>
+      R.update(deserialize_model(model_str), deserialize_action(action_str))
+      |> serialize_model,
+    badge: R.badge,
+  };
+};
