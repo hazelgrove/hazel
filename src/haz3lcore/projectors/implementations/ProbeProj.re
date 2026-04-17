@@ -19,10 +19,7 @@ type active_renderer = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type oactive_renderer = option(active_renderer);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {active_renderer: oactive_renderer};
+type probe_model = {active_renderer: option(active_renderer)};
 
 let probe_model_of_sexp = sexp =>
   switch (probe_model_of_sexp(sexp)) {
@@ -33,7 +30,7 @@ let probe_model_of_sexp = sexp =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
-  | ToggleModal(oactive_renderer)
+  | ToggleModal(option(active_renderer))
   | RendererAction(string)
   | ToggleWindowMode
   | ToggleShowEnv
