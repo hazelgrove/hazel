@@ -12,6 +12,10 @@ module Model = {
     api_key: option(string),
     active_llm: option(OpenRouter.AvailableLLMs.Model.llm_info),
     available_llms: OpenRouter.AvailableLLMs.Model.t,
+    [@yojson.default ""] [@sexp.default ""]
+    model_filter: string,
+    [@yojson.default false] [@sexp.default false]
+    only_free_models: bool,
   };
 };
 
@@ -20,6 +24,8 @@ let init = (): Model.t => {
   api_key: None,
   active_llm: None,
   available_llms: [],
+  model_filter: "",
+  only_free_models: false,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {
@@ -75,6 +81,8 @@ module Update = {
     | SetApiKey(string)
     | SetActiveLlm(OpenRouter.AvailableLLMs.Model.llm_info)
     | SetAvailableLLMs(OpenRouter.AvailableLLMs.Model.t)
+    | SetModelFilter(string)
+    | SetOnlyFreeModels(bool)
     | SwitchInterface(Model.screen);
 
   let update =
@@ -109,6 +117,14 @@ module Update = {
     | SetAvailableLLMs(available_llms) => {
         ...model,
         available_llms,
+      }
+    | SetModelFilter(model_filter) => {
+        ...model,
+        model_filter,
+      }
+    | SetOnlyFreeModels(only_free_models) => {
+        ...model,
+        only_free_models,
       }
     | SwitchInterface(screen) => {
         ...model,

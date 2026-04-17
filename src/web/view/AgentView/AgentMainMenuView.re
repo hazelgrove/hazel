@@ -79,6 +79,22 @@ let view =
     ]);
   };
 
+  // Model search filter handler
+  let set_model_filter = (value: string) =>
+    globals.inject_global(
+      Globals.Action.SetAgentGlobals(
+        AgentGlobals.Update.SetModelFilter(value),
+      ),
+    );
+
+  // "Only free" toggle handler
+  let set_only_free = (value: bool) =>
+    globals.inject_global(
+      Globals.Action.SetAgentGlobals(
+        AgentGlobals.Update.SetOnlyFreeModels(value),
+      ),
+    );
+
   // Switch to chat interface handler
   let switch_to_chat = _ => {
     let switch_interface_action =
@@ -194,67 +210,221 @@ let view =
               text("."),
             ],
           ),
-          div(
-            ~attrs=[clss(["llm-list-container"])],
-            [
-              if (List.length(agent_globals.available_llms) == 0) {
+          {
+            let render_llm_item =
+                (
+                  ~tagline: option(string)=?,
+                  llm: OpenRouter.AvailableLLMs.Model.llm_info,
+                ) => {
+              let is_active =
+                switch (agent_globals.active_llm) {
+                | Some(active) => active.id == llm.id
+                | None => false
+                };
+              let classes =
+                ["llm-item"]
+                @ (is_active ? ["active"] : [])
+                @ (Option.is_some(tagline) ? ["llm-item-recommended"] : []);
+              let prompt = format_price_per_million(llm.pricing.prompt);
+              let completion =
+                format_price_per_million(llm.pricing.completion);
+              let base_children = [
                 div(
-                  ~attrs=[clss(["llm-empty"])],
-                  [text("No models available - set API key first")],
+                  ~attrs=[clss(["llm-id"]), Attr.hidden],
+                  [text(llm.id)],
+                ),
+                div(~attrs=[clss(["llm-name"])], [text(llm.name)]),
+                div(
+                  ~attrs=[clss(["llm-pricing"])],
+                  [
+                    text(
+                      "Prompt: "
+                      ++ prompt
+                      ++ " /M, Completion: "
+                      ++ completion
+                      ++ " /M",
+                    ),
+                  ],
+                ),
+              ];
+              let children =
+                switch (tagline) {
+                | Some(t) =>
+                  base_children
+                  @ [div(~attrs=[clss(["llm-tagline"])], [text(t)])]
+                | None => base_children
+                };
+              div(
+                ~attrs=[
+                  clss(classes),
+                  Attr.on_click(_ => set_active_llm(llm)),
+                ],
+                children,
+              );
+            };
+
+            if (List.length(agent_globals.available_llms) == 0) {
+              div(
+                ~attrs=[clss(["llm-list-container"])],
+                [
+                  div(
+                    ~attrs=[clss(["llm-empty"])],
+                    [text("No models available - set API key first")],
+                  ),
+                ],
+              );
+            } else {
+              // Preserve the curated declaration order (most capable → cheapest).
+              let recommended =
+                List.filter_map(
+                  ((id, _tagline)) =>
+                    List.find_opt(
+                      (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
+                        llm.id == id,
+                      agent_globals.available_llms,
+                    ),
+                  OpenRouter.AvailableLLMs.recommended_entries,
                 );
-              } else {
-                div(
-                  ~attrs=[clss(["llm-list"])],
-                  List.map(
-                    (llm: OpenRouter.AvailableLLMs.Model.llm_info) => {
-                      let is_active =
-                        switch (agent_globals.active_llm) {
-                        | Some(active) => active.id == llm.id
-                        | None => false
-                        };
-                      let classes =
-                        ["llm-item"] @ (is_active ? ["active"] : []);
+              let master_sorted =
+                List.sort(
+                  (
+                    a: OpenRouter.AvailableLLMs.Model.llm_info,
+                    b: OpenRouter.AvailableLLMs.Model.llm_info,
+                  ) =>
+                    String.compare(a.name, b.name),
+                  agent_globals.available_llms,
+                );
+              let filter = agent_globals.model_filter;
+              let master_filtered =
+                List.filter(
+                  (llm: OpenRouter.AvailableLLMs.Model.llm_info) => {
+                    let name_match =
+                      String.length(filter) == 0
+                      || StringUtil.subseq_search(llm.name, filter)
+                      || StringUtil.subseq_search(llm.id, filter);
+                    let free_match =
+                      !agent_globals.only_free_models
+                      || OpenRouter.AvailableLLMs.is_free(llm);
+                    name_match && free_match;
+                  },
+                  master_sorted,
+                );
+              let section_header = (label: string) =>
+                div(~attrs=[clss(["llm-section-header"])], [text(label)]);
+              div(
+                ~attrs=[clss(["llm-sections"])],
+                (
+                  List.length(recommended) == 0
+                    ? []
+                    : [
+                      section_header("Recommended by the FP Lab"),
                       div(
                         ~attrs=[
-                          clss(classes),
-                          Attr.on_click(_ => set_active_llm(llm)),
+                          clss([
+                            "llm-list-container",
+                            "llm-list-container-recommended",
+                          ]),
                         ],
-                        {
-                          let prompt =
-                            format_price_per_million(llm.pricing.prompt);
-                          let completion =
-                            format_price_per_million(llm.pricing.completion);
-                          [
-                            div(
-                              ~attrs=[clss(["llm-id"]), Attr.hidden],
-                              [text(llm.id)],
-                            ),
-                            div(
-                              ~attrs=[clss(["llm-name"])],
-                              [text(llm.name)],
-                            ),
-                            div(
-                              ~attrs=[clss(["llm-pricing"])],
-                              [
-                                text(
-                                  "Prompt: "
-                                  ++ prompt
-                                  ++ " /M, Completion: "
-                                  ++ completion
-                                  ++ " /M",
+                        [
+                          div(
+                            ~attrs=[clss(["llm-list"])],
+                            List.map(
+                              (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
+                                render_llm_item(
+                                  ~tagline=?
+                                    OpenRouter.AvailableLLMs.recommended_tagline(
+                                      llm,
+                                    ),
+                                  llm,
                                 ),
-                              ],
+                              recommended,
                             ),
-                          ];
-                        },
-                      );
-                    },
-                    agent_globals.available_llms,
+                          ),
+                        ],
+                      ),
+                    ]
+                )
+                @ [
+                  section_header("All Models"),
+                  div(
+                    ~attrs=[clss(["llm-controls"])],
+                    [
+                      input(
+                        ~attrs=[
+                          Attr.id("agent-model-search-input"),
+                          clss(["llm-search-input"]),
+                          Attr.placeholder("Search models..."),
+                          Attr.type_("text"),
+                          Attr.property(
+                            "autocomplete",
+                            Js.Unsafe.inject("off"),
+                          ),
+                          Attr.value(agent_globals.model_filter),
+                          Attr.on_focus(_ =>
+                            Effect.Many([
+                              signal(
+                                Editors.View.MakeActive(
+                                  Editors.Selection.Assistant,
+                                ),
+                              ),
+                              Effect.Stop_propagation,
+                            ])
+                          ),
+                          Attr.on_input((_, v) => set_model_filter(v)),
+                          Attr.on_copy(_ => Effect.Stop_propagation),
+                          Attr.on_paste(_ => Effect.Stop_propagation),
+                          Attr.on_cut(_ => Effect.Stop_propagation),
+                        ],
+                        (),
+                      ),
+                      div(
+                        ~attrs=[clss(["llm-only-free-toggle"])],
+                        [
+                          Node.span(
+                            ~attrs=[clss(["llm-only-free-label"])],
+                            [text("Only free")],
+                          ),
+                          toggle(
+                            ~tooltip="Show only free models",
+                            "",
+                            agent_globals.only_free_models,
+                            _ =>
+                            set_only_free(!agent_globals.only_free_models)
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                );
-              },
-            ],
-          ),
+                  div(
+                    ~attrs=[
+                      clss([
+                        "llm-list-container",
+                        "llm-list-container-master",
+                      ]),
+                    ],
+                    [
+                      List.length(master_filtered) == 0
+                        ? div(
+                            ~attrs=[clss(["llm-empty"])],
+                            [
+                              text(
+                                agent_globals.only_free_models
+                                && String.length(filter) == 0
+                                  ? "No free models available"
+                                  : "No models match your search",
+                              ),
+                            ],
+                          )
+                        : div(
+                            ~attrs=[clss(["llm-list"])],
+                            List.map(render_llm_item, master_filtered),
+                          ),
+                    ],
+                  ),
+                ],
+              );
+            };
+          },
           div(
             ~attrs=[clss(["llm-current"])],
             [

@@ -462,6 +462,24 @@ module AvailableLLMs = {
     type t = list(llm_info);
   };
 
+  // FP Lab-curated recommendations: (exact OpenRouter id, tagline).
+  let recommended_entries: list((string, string)) = [
+    ("anthropic/claude-opus-4.6", "Most capable"),
+    ("anthropic/claude-sonnet-4.6", "High quality and speedy"),
+    ("google/gemini-3-flash-preview", "Best balance of quality and cost"),
+    ("xiaomi/mimo-v2-pro", "Highly capable and affordable"),
+    ("google/gemma-4-31b-it", "Great cheap model"),
+  ];
+
+  let recommended_tagline = (info: Model.llm_info): option(string) =>
+    List.assoc_opt(info.id, recommended_entries);
+
+  let is_recommended = (info: Model.llm_info): bool =>
+    Option.is_some(recommended_tagline(info));
+
+  let is_free = (info: Model.llm_info): bool =>
+    StringUtil.match(StringUtil.regexp("free"), info.name);
+
   module Utils = {
     let get_models = (~key: string, ~handler: option(Json.t) => unit): unit => {
       print_endline("API: GETting OpenRouter models");
