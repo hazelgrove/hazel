@@ -685,6 +685,22 @@ let context_llm_snapshot_tests = [
   ),
 ];
 
+let api_error_format_tests = [
+  test_case(
+    "format_api_error_content: newline between Code and Error (not backslash-E)",
+    `Quick,
+    () => {
+      let s =
+        Agent.Agent.Update.format_api_error_content(
+          ~code=429,
+          ~message="rate limited",
+        );
+      check_string("expected format", "Code: 429\nError: rate limited", s);
+      check_bool("no literal backslash-E", false, String.contains(s, '\\'));
+    },
+  ),
+];
+
 let tests = (
   "Agent UX",
   slash_command_tests
@@ -697,5 +713,6 @@ let tests = (
   @ openrouter_tests
   @ context_meter_tests
   @ toolcall_handler_tests
-  @ context_llm_snapshot_tests,
+  @ context_llm_snapshot_tests
+  @ api_error_format_tests,
 );

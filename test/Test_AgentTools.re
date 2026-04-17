@@ -1488,6 +1488,82 @@ let high_level_node_map_tests = (
         );
       },
     ),
+    test_case(
+      "next_sibling_of wraps from last to first",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
+        let node_c = HighLevelNodeMap.path_to_node(node_map, "c");
+        switch (HighLevelNodeMap.next_sibling_of(node_c)) {
+        | None => Alcotest.fail("expected wrap-around from c to a")
+        | Some(id) =>
+          check(
+            string,
+            "wraps to a",
+            "a",
+            HighLevelNodeMap.id_to_name(node_map, id),
+          )
+        };
+      },
+    ),
+    test_case(
+      "prev_sibling_of wraps from first to last",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
+        let node_a = HighLevelNodeMap.path_to_node(node_map, "a");
+        switch (HighLevelNodeMap.prev_sibling_of(node_a)) {
+        | None => Alcotest.fail("expected wrap-around from a to c")
+        | Some(id) =>
+          check(
+            string,
+            "wraps to c",
+            "c",
+            HighLevelNodeMap.id_to_name(node_map, id),
+          )
+        };
+      },
+    ),
+    test_case(
+      "next_sibling_of steps forward within chain",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
+        let node_b = HighLevelNodeMap.path_to_node(node_map, "b");
+        switch (HighLevelNodeMap.next_sibling_of(node_b)) {
+        | None => Alcotest.fail("expected b -> c")
+        | Some(id) =>
+          check(
+            string,
+            "b next is c",
+            "c",
+            HighLevelNodeMap.id_to_name(node_map, id),
+          )
+        };
+      },
+    ),
+    test_case(
+      "prev_sibling_of steps backward within chain",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
+        let node_b = HighLevelNodeMap.path_to_node(node_map, "b");
+        switch (HighLevelNodeMap.prev_sibling_of(node_b)) {
+        | None => Alcotest.fail("expected b -> a")
+        | Some(id) =>
+          check(
+            string,
+            "b prev is a",
+            "a",
+            HighLevelNodeMap.id_to_name(node_map, id),
+          )
+        };
+      },
+    ),
   ],
 );
 

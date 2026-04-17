@@ -2106,6 +2106,9 @@ module Agent = {
     let is_retryable_api_error = (code: int): bool =>
       code == 429 || code == 500 || code == 502 || code == 503;
 
+    let format_api_error_content = (~code: int, ~message: string): string =>
+      "Code: " ++ string_of_int(code) ++ "\nError: " ++ message;
+
     let enabled_tools = (prompting: Model.prompting): list(API.Json.t) =>
       List.filter(
         (tool: API.Json.t) =>
@@ -2393,8 +2396,7 @@ module Agent = {
           if (is_retryable_api_error(code) && retry_attempt < max_api_retries) {
             schedule_action(Action.RetryApiError(chat_id, retry_attempt));
           } else {
-            let api_error_content =
-              "Code: " ++ string_of_int(code) ++ "\\Error: " ++ message;
+            let api_error_content = format_api_error_content(~code, ~message);
             let api_error_message =
               Message.Utils.mk_api_failure_message(api_error_content);
             schedule_action(
