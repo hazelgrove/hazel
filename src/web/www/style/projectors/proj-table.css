@@ -43,6 +43,8 @@ table.table {
     background-color: var(--df-hover-bg);
 }
 
+/* Threshold of 10 rows must stay in sync with scroll_threshold_rows
+   in TableProj.re's placeholder sizing — if either moves, both must. */
 div.projector.table:has(tbody tr:nth-child(10)) > .table-inner {
     overflow-y: auto;
 }

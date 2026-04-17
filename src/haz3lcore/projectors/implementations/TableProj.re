@@ -78,9 +78,19 @@ module M: Projector = {
         horizontal: max(max_width, String.length(error_message)),
       };
     | Some((header, rows)) =>
-      let max_header_length =
+      /* Outer space reserved for the table frame itself (border + the
+       * .table-inner wrapper's 5px horizontal padding, approximated). */
+      let outer_padding_chars = 4;
+      /* Approximate per-column cell padding, in characters. */
+      let per_column_padding_chars = 2;
+      /* Beyond this row count the table switches to scrolled mode with
+       * sticky headers — see proj-table.css's `:has(tbody tr:nth-child(10))`
+       * selector. Must stay in sync with that threshold. */
+      let scroll_threshold_rows = 10;
+
+      let header_row_chars =
         header |> List.map(String.length) |> List.fold_left((+), 0);
-      let max_row_length =
+      let widest_row_chars =
         rows
         |> List.map(row =>
              row
@@ -91,13 +101,17 @@ module M: Projector = {
              |> List.fold_left((+), 0, _)
            )
         |> List.fold_left(max, 0, _);
-      let max_length = max(max_header_length, max_row_length);
+      let content_chars = max(header_row_chars, widest_row_chars);
 
       let num_rows = List.length(rows);
       let num_cols = List.length(header);
       ProjectorCore.Shape.{
-        vertical: Block(min(num_rows, 10)),
-        horizontal: 4 + max_length * 1 + num_cols * 2,
+        vertical: Block(min(num_rows, scroll_threshold_rows)),
+        horizontal:
+          outer_padding_chars
+          + content_chars
+          + num_cols
+          * per_column_padding_chars,
       };
     };
   let update = (model, _, _) => model;
