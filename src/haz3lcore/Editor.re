@@ -163,7 +163,7 @@ module Update = {
         ~settings: Language.CoreSettings.t,
         ~autoprobe_mode: bool,
         ~is_edited,
-        new_statics: CachedStatics.t,
+        statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
         {syntax, state}: Model.t,
       )
@@ -176,31 +176,35 @@ module Update = {
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
         Buffer.set_tydi_buffer(
-          Indicated.ci_for_completion(state.zipper, new_statics.info_map),
+          Indicated.ci_for_completion(state.zipper, statics.info_map),
           state.zipper,
         );
       } else {
         state.zipper;
       };
 
-    /* 2. Recalculate syntax cache */
+    /* 2. Recalculate syntax cache. `CachedSyntax.calculate` detects
+     * input changes (info_map/dyn_map/elaborated refs) and chooses
+     * between full `mk`, shape-only refresh, or cheap selection-only
+     * update — so callers don't need to plumb "statics changed" signals. */
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
       CachedSyntax.calculate(
         zipper,
-        new_statics.info_map,
+        statics.info_map,
         new_dynamics,
-        ~elaborated=Some(new_statics.elaborated),
+        ~elaborated=Some(statics.elaborated),
         syntax,
       );
 
     /* 3. Probe effects: collision cleanup, auto-probe regeneration,
-     *    step-into focus resolution, and cursor reset */
+     *    step-into focus resolution, and cursor reset. May mutate
+     *    refractors (manuals/ephemerals). */
     let zipper =
       ProbePerform.editor_effects(
         ~is_edited,
         ~syntax,
-        ~info_map=new_statics.info_map,
+        ~info_map=statics.info_map,
         ~dynamics=new_dynamics,
         zipper,
       );
@@ -211,7 +215,7 @@ module Update = {
         let z =
           ProbePerform.update_autoprobe(
             ~syntax,
-            ~info_map=new_statics.info_map,
+            ~info_map=statics.info_map,
             zipper,
           );
         /* Resolve pending_probe_cursor again since update_autoprobe
@@ -219,14 +223,14 @@ module Update = {
         ProbePerform.resolve_pending_probe_cursor(
           ~dynamics=new_dynamics,
           ~syntax,
-          ~info_map=new_statics.info_map,
+          ~info_map=statics.info_map,
           z,
         );
       } else {
         /* If mode is off, clear any existing auto probe */
         ProbePerform.clear_autoprobe(
           ~syntax,
-          ~info_map=new_statics.info_map,
+          ~info_map=statics.info_map,
           zipper,
         );
       };

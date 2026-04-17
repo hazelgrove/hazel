@@ -148,8 +148,20 @@ module Update = {
         {editor, statics, context_menu, dynamics: _, _}: Model.t,
       )
       : Model.t => {
-    /* Capture ephemerals before editor calculation to detect auto probe changes */
-    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
+    /* Throttle gate: decide whether to do a full statics recompute this
+     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
+     * then skips the shape pass via phys-eq on info_map/elaborated. */
+    let statics =
+      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
+        ? CachedStatics.init(
+            ~settings,
+            ~stitch,
+            ~ctx?,
+            ~ana?,
+            ~is_dynamic_term,
+            editor.state.zipper,
+          )
+        : statics;
 
     let editor =
       Editor.Update.calculate(
@@ -161,64 +173,11 @@ module Update = {
         editor,
       );
 
-    /* Ephemerals can change without an explicit edit in several cases:
-     * (1) cursor movement in autoprobe mode (cursor crosses into a new
-     *     top-level definition), and
-     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
-     *     from persisted multis.ids once the info_map becomes available.
-     * In both cases we must recalculate statics so probe targets match
-     * the new ephemerals and the evaluator collects samples for them. */
-    let probes_changed =
-      !
-        Id.Map.equal(
-          Refractors.equal_entry,
-          old_ephemerals,
-          editor.state.zipper.refractors.multis.ephemerals,
-        );
-
-    /* Capture statics reference before the throttle gate below, so the
-     * refresh_shapes block further down can skip its second shape pass
-     * whenever the throttle returns the same statics record (no recompute). */
-    let old_statics = statics;
+    /* Refresh `statics.targets` against the post-probe-effects refractors.
+     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
+     * the rest of statics stays valid. */
     let statics =
-      statics_mode == StaticsForce
-      || (is_edited || probes_changed)
-      && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            editor.state.zipper,
-          )
-        : statics;
-    /* Refresh projector shapes with the new statics. This is a second
-     * shape computation in the same edit cycle: Editor.Update.calculate
-     * already computed shapes above, but it used the OLD statics because
-     * CachedStatics.init (which produces the new elaborated expression)
-     * must run after Editor.Update (which updates the zipper/autocomplete
-     * buffer that CachedStatics.init reads from). So the first computation
-     * has stale elaborated data, and we recompute here with the fresh
-     * statics to get correct projector placeholder sizes.
-     *
-     * Gated on statics identity so we skip this work whenever statics
-     * was reused (e.g. !is_edited, or — post-probes-III merge —
-     * when statics is throttled on fast keystrokes). */
-    let editor =
-      statics !== old_statics
-        ? {
-          ...editor,
-          syntax:
-            CachedSyntax.refresh_shapes(
-              editor.state.zipper,
-              statics.info_map,
-              dynamics,
-              ~elaborated=Some(statics.elaborated),
-              editor.syntax,
-            ),
-        }
-        : editor;
+      CachedStatics.with_targets(~settings, editor.state.zipper, statics);
     {
       editor,
       statics,

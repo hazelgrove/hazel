@@ -29,18 +29,6 @@ module ViewCache = {
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
 
-  /* Physical equality on option(Exp.t): `None === None` works since `None` is
-   * a shared immediate, but `Some(x) === Some(x)` is always false (new box).
-   * We want to hit the cache when the underlying Exp.t ref is unchanged,
-   * which is the same stability guarantee as statics_map/dynamics_map. */
-  let elaborated_phys_eq =
-      (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
-    switch (a, b) {
-    | (None, None) => true
-    | (Some(x), Some(y)) => x === y
-    | _ => false
-    };
-
   let lookup =
       (
         id,
@@ -59,7 +47,7 @@ module ViewCache = {
           e.statics_map === statics_map
           && e.dynamics_map === dynamics_map
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
-          && elaborated_phys_eq(e.elaborated, elaborated)
+          && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status

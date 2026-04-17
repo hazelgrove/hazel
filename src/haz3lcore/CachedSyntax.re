@@ -31,6 +31,12 @@ type t = {
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
   cached_backpack: list(Tile.t),
+  /* Inputs last used to compute shape_map/projector_errors/measured.
+   * Kept so `calculate` can detect when statics changed and refresh
+   * shapes automatically — callers don't need to plumb that signal. */
+  shape_info_map: Language.Statics.Map.t,
+  shape_dyn_map: Language.Dynamics.Map.t,
+  shape_elaborated: option(Language.Exp.t),
 };
 
 // should not be serializing
@@ -66,6 +72,9 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     shape_map: projector_shapes,
     projector_errors,
     cached_backpack: Segment.global_missing_shards(segment),
+    shape_info_map: info_map,
+    shape_dyn_map: dyn_map,
+    shape_elaborated: elaborated,
   };
 };
 
@@ -78,17 +87,11 @@ let mark_old: t => t =
     old: true,
   };
 
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
-  old.old
-    ? mk(z, ~info_map, ~dyn_map, ~elaborated)
-    : {
-      ...old,
-      selection_ids: Selection.selection_ids(z.selection),
-    };
-
-/* Recompute just the shape_map, errors, and measured layout.
- * Called after statics are recomputed so projector placeholders
- * reflect the latest elaborated expression. */
+/* Recompute only the statics-derived fields (shape_map, projector_errors,
+ * measured) while reusing the segment/term_data from a prior `mk` pass.
+ * Used on refresh-only frames: statics changed but the segment did not,
+ * so a full `mk` would be wasteful but shapes/measured need the new
+ * elaborated expression (e.g. TableProj placeholder size). */
 let refresh_shapes =
     (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let (shape_map, projector_errors) =
@@ -107,5 +110,38 @@ let refresh_shapes =
     shape_map,
     projector_errors,
     measured,
+    shape_info_map: info_map,
+    shape_dyn_map: dyn_map,
+    shape_elaborated: elaborated,
   };
 };
+
+/* Physical equality on option(Exp.t): `None === None` holds (shared
+ * immediate), but `Some(x) === Some(y)` is always false (new box). Hit the
+ * cache when the underlying Exp.t ref matches — same stability guarantee
+ * as info_map/dyn_map, which are persistent Id.Maps compared by ref. */
+let elaborated_phys_eq =
+    (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
+  switch (a, b) {
+  | (None, None) => true
+  | (Some(x), Some(y)) => x === y
+  | _ => false
+  };
+
+/* Decide how much work to do based on what changed:
+ *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
+ *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
+ *   - otherwise just update selection_ids (cheap cursor-only path) */
+let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
+  if (old.old) {
+    mk(z, ~info_map, ~dyn_map, ~elaborated);
+  } else if (info_map !== old.shape_info_map
+             || dyn_map !== old.shape_dyn_map
+             || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {
+    refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
+  } else {
+    {
+      ...old,
+      selection_ids: Selection.selection_ids(z.selection),
+    };
+  };
