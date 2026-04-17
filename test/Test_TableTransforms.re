@@ -476,11 +476,136 @@ let conversion_tests = [
   ),
 ];
 
+/* --- TableProj.error tests --- */
+
+let mk_info = (elaborated: option(Exp.t)): ProjectorBase.info => {
+  id: Id.invalid,
+  syntax: [],
+  statics: None,
+  dynamics: None,
+  elaborated,
+  utility: ProjectorInfo.utility,
+};
+
+let table_proj_error_tests = {
+  module G = IdTagged.FreshGrammar.Exp;
+  let good_table = mk_table([[("x", G.int(1))], [("x", G.int(2))]]);
+  let model =
+    switch (TableProj.M.init(Exp(good_table))) {
+    | Some(m) => m
+    | None => fail("TableProj.init should succeed on a valid table")
+    };
+  [
+    test_case(
+      "TableProj.error: None when elaborated is a valid table", `Quick, () =>
+      check(
+        bool,
+        "no error",
+        true,
+        Option.is_none(
+          TableProj.M.error(model, mk_info(Some(good_table))),
+        ),
+      )
+    ),
+    test_case(
+      "TableProj.error: Some when elaborated is a non-table", `Quick, () =>
+      switch (TableProj.M.error(model, mk_info(Some(G.int(42))))) {
+      | Some(err) =>
+        check(
+          bool,
+          "error has non-empty message",
+          true,
+          String.length(err.message) > 0,
+        )
+      | None => fail("Expected error for non-table elaborated form")
+      }
+    ),
+    test_case(
+      "TableProj.error: Some when elaborated is a list of unlabeled tuples",
+      `Quick,
+      () => {
+        /* Without labels the list fails parse_table (headers all None) */
+        let unlabeled =
+          G.list_lit([G.parens(G.tuple([G.int(1), G.int(2)]))]);
+        check(
+          bool,
+          "has error",
+          true,
+          Option.is_some(
+            TableProj.M.error(model, mk_info(Some(unlabeled))),
+          ),
+        );
+      },
+    ),
+  ];
+};
+
+/* --- packed_renderer round-trip tests --- */
+
+let packed_renderer_tests = {
+  module G = IdTagged.FreshGrammar.Exp;
+  let renderer = RichProbe.pack_renderer((module TableRenderer), "table");
+  let good_table = mk_table([[("x", G.int(1))]]);
+  let decode_model = (s: string): TableRenderer.model =>
+    s |> Sexplib.Sexp.of_string |> TableRenderer.model_of_sexp;
+  let encode_action = (a: TableRenderer.action): string =>
+    a |> TableRenderer.sexp_of_action |> Sexplib.Sexp.to_string;
+  [
+    test_case("packed_renderer: id is preserved", `Quick, () =>
+      check(string, "id", "table", renderer.id)
+    ),
+    test_case(
+      "packed_renderer: can_handle accepts a labeled table", `Quick, () =>
+      check(bool, "accepts", true, renderer.can_handle(Sort.Exp, good_table))
+    ),
+    test_case("packed_renderer: can_handle rejects a non-table", `Quick, () =>
+      check(
+        bool,
+        "rejects",
+        false,
+        renderer.can_handle(Sort.Exp, G.int(42)),
+      )
+    ),
+    test_case(
+      "packed_renderer: ShowMenu then CloseMenu round-trip",
+      `Quick,
+      () => {
+        let value_state =
+          switch (renderer.parse_packed(Sort.Exp, good_table)) {
+          | Some(s) => s
+          | None => fail("parse_packed should succeed on a valid table")
+          };
+        let m0 = renderer.init_packed(value_state);
+        check(
+          bool,
+          "initial menu_state is None",
+          true,
+          decode_model(m0).menu_state == None,
+        );
+        let m1 = renderer.update_packed(m0, encode_action(ShowMenu(1)));
+        switch (decode_model(m1).menu_state) {
+        | Some((1, [])) => ()
+        | _ => fail("Expected menu_state = Some((1, [])) after ShowMenu(1)")
+        };
+        let m2 = renderer.update_packed(m1, encode_action(CloseMenu));
+        check(
+          bool,
+          "menu_state is None after CloseMenu",
+          true,
+          decode_model(m2).menu_state == None,
+        );
+      },
+    ),
+  ];
+};
+
 let tests = (
   "TableTransforms",
   parse_table_tests
   @ transform_tests
   @ sort_tests
   @ type_utility_tests
-  @ conversion_tests,
+  @ conversion_tests
+  @ table_proj_error_tests
+  @ packed_renderer_tests,
 );
