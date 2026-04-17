@@ -720,8 +720,8 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
     };
 
   switch (Id.Map.bindings(node_map)) {
-  | [] =>
-    raise(Failure("No nodes to compare when searching for closest path"))
+  /* Called from error-handling paths (path_to_id failure branch); must not raise. */
+  | [] => ""
   | bindings =>
     let (first_id, first_node) = List.hd(bindings);
     let d0 = distance_for_node(first_node);
