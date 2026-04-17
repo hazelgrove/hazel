@@ -92,7 +92,7 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let (info_map, stalaborated) = Statics.mk(~ana?, settings, ctx_init, term);
+  let (info_map, elaborated) = Statics.mk(~ana?, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
@@ -100,7 +100,7 @@ let init_from_term =
     | _ when !settings.statics => dh_err("Statics disabled")
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
-    | _ => stalaborated
+    | _ => elaborated
     };
   let targets = compute_targets(~settings, ~info_map, ~probe_ids);
   {

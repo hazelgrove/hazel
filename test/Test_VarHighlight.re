@@ -332,13 +332,11 @@ let find_ctr_refs =
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (info) {
-      | InfoExp({user_term: {term: Constructor(n, _), _}, _})
-          when n == name => [
+      | InfoExp({user_term: {term: Constructor(n, _), _}, _}) when n == name => [
           (id, info),
           ...acc,
         ]
-      | InfoPat({user_term: {term: Constructor(n, _), _}, _})
-          when n == name => [
+      | InfoPat({user_term: {term: Constructor(n, _), _}, _}) when n == name => [
           (id, info),
           ...acc,
         ]

@@ -13,8 +13,8 @@ let expected_ty = (info: option(Info.t)): option(Typ.t) =>
 
 let self_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
-  | Some(InfoExp({syn_ty, _}))
-  | Some(InfoPat({syn_ty, _})) => Some(syn_ty)
+  | Some(InfoExp({elab_syn_ty, _}))
+  | Some(InfoPat({elab_syn_ty, _})) => Some(elab_syn_ty)
   | _ => None
   };
 

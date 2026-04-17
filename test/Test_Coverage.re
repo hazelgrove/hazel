@@ -3,7 +3,7 @@ open Language;
 open Mark;
 open Test_Statics_Prelude;
 
-/* InexhaustiveMatch carries syn_ty for the match head; statics may use a type
+/* InexhaustiveMatch carries elab_syn_ty for the match head; statics may use a type
    alias (e.g. Var("Tree")) vs Unknown. Coverage tests care about the example
    pattern and nested marks, not the exact syntactic type form. */
 let rec equal_mark_for_coverage = (m1: Mark.t, m2: Mark.t): bool =>
@@ -65,8 +65,7 @@ let has_errors =
         MenhirParser.Conversion.Exp.get_indicated_ids(indicated_exp);
 
       let s = statics(e);
-      let errors_map =
-        Statics.Map.collect_errors(s) |> issue_map_of_marks_map;
+      let errors_map = collect_errors(s) |> issue_map_of_marks_map;
       let actual_errors =
         switch (actual_errors_filter) {
         | Some(f) => f(errors_map)

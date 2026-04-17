@@ -22,7 +22,7 @@ type ok_common =
   | Ana(ok_ana);
 
 /* Non-error inspector payload for expressions / patterns. Principal syn type
-   is Info.syn_ty; Default is synthesis-only (no Ana payload). */
+   is Info.elab_syn_ty; Default is synthesis-only (no Ana payload). */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type exp =
   | Default

@@ -3,11 +3,13 @@ open OptUtil.Syntax;
 
 /* INFO.re — cursor statics bundle per AST node.
 
-   Statics supplies syn_ty, marks, optional warnings, and inspector message
+   Statics supplies elab_syn_ty, marks, optional warnings, and inspector message
    payloads; Info stores/queries the resulting per-node data.
 
-   syn_ty is the principal synthetic type from statics. Marks on Info are
-   statics errors; use marks_of for problem display.
+   elab_syn_ty is the synthesized type of the elaborated expression (before
+   hole fixing). Note: it can be influenced by the analytic type in some cases
+   (e.g. via expectation/meet interaction), so it is not purely synthetic.
+   Marks on Info are statics errors; use marks_of for problem display.
 
    See Message.re for inspector payload types; statics computes marks/messages.
    */
@@ -36,7 +38,7 @@ type exp = {
   ancestors, /* Ascending list of containing term ids */
   ctx: Ctx.t, /* Typing context for the term */
   ana: Typ.t, /* Parental type expectations  */
-  syn_ty: Typ.t, /* Principal synthetic type before hole fixing (statics) */
+  elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
   marks: list(Mark.t), /* Error marks from statics */
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
@@ -52,11 +54,12 @@ type exp = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat = {
   user_term: Pat.t,
+  elab_term: Pat.t,
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
   ana: Typ.t,
-  syn_ty: Typ.t,
+  elab_syn_ty: Typ.t,
   marks: list(Mark.t),
   cls: Cls.t,
   message: Message.t, /* DERIVED: non-error inspector payload (Pat only) */
@@ -270,36 +273,9 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 
-/* Determines whether an error is a syntax error (bad token or parse failure)
-   as opposed to a static type error. */
+/* Thin dispatcher; detection logic lives in Mark.is_syntax_error. */
 let is_syntax_error = (ci: t): bool =>
-  switch (ci) {
-  | InfoExp({marks, _}) =>
-    marks != []
-    && (
-      switch (MarkSelection.highest_ranked_mark(marks)) {
-      | Some(Mark.BadToken(_) | Mark.IsMulti) => true
-      | _ => false
-      }
-    )
-  | InfoPat({marks, _}) =>
-    marks != []
-    && (
-      switch (MarkSelection.highest_ranked_mark(marks)) {
-      | Some(Mark.BadToken(_) | Mark.IsMulti) => true
-      | _ => false
-      }
-    )
-  | InfoTyp({marks, _}) =>
-    List.exists(
-      fun
-      | Mark.BadToken(_) => true
-      | Mark.TypParseFailure => true
-      | _ => false,
-      marks,
-    )
-  | _ => false
-  };
+  Mark.is_syntax_error(sort_of(ci), marks_of(ci));
 
 let is_label = (info: t): bool =>
   switch (info) {

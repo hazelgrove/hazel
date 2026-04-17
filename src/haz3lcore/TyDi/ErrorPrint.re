@@ -170,13 +170,13 @@ let pat_marks_to_string =
     (ctx: Ctx.t, ana: Typ.t, marks: list(Mark.t)): string =>
   switch (marks) {
   | [Redundant, ...tl] =>
-    switch (MarkSelection.highest_ranked_mark(tl)) {
+    switch (Mark.highest(tl)) {
     | None => "Redundant"
     | Some(m) => core_mark_string(ctx, ana, m) ++ "; pattern is redundant"
     }
   | [ExpectedConstructor, ..._] => "Expected a constructor"
   | _ =>
-    switch (MarkSelection.highest_ranked_mark(marks)) {
+    switch (Mark.highest(marks)) {
     | None => "(static error)"
     | Some(m) => core_mark_string(ctx, ana, m)
     }
@@ -251,7 +251,7 @@ let tpat_mark_string: Mark.t => string =
 let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
   switch (info) {
   | InfoExp({ctx, ana, _}) =>
-    switch (MarkSelection.highest_ranked_mark(marks)) {
+    switch (Mark.highest(marks)) {
     | Some(m) => exp_mark_to_string(ctx, ana, m)
     | None => "(static error)"
     }
@@ -260,7 +260,7 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
     switch (marks) {
     | [] => "(static error)"
     | ms =>
-      switch (MarkSelection.highest_ranked_mark(ms)) {
+      switch (Mark.highest(ms)) {
       | Some(m) => typ_mark_string(m)
       | None => ""
       }
@@ -269,7 +269,7 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
     switch (marks) {
     | [] => "(static error)"
     | ms =>
-      switch (MarkSelection.highest_ranked_mark(ms)) {
+      switch (Mark.highest(ms)) {
       | Some(m) => tpat_mark_string(m)
       | None => ""
       }

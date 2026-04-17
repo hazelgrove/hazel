@@ -3,7 +3,11 @@ open Util;
 
 let elaborate = (exp: Exp.t): Exp.t => {
   let (_, elab) =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      exp,
+    );
   elab;
 };
 

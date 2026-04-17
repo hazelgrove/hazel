@@ -593,7 +593,7 @@ let exp_mark_err_view =
     let cls_str = Cls.show(cls);
     let additional =
       switch (
-        MarkSelection.highest_ranked_mark(inner_marks),
+        Mark.highest(inner_marks),
         Statics.ana_skip_explicit_nonlabel(ana).term,
       ) {
       | (Some(NoMeet(PolyEq, tys)), _) => Some(Typ.of_source(tys))
@@ -790,7 +790,7 @@ let exp_view =
           ~inferred_label,
           ~label_sort=info.label_sort,
           cls,
-          Message.Syn(info.syn_ty),
+          Message.Syn(info.elab_syn_ty),
         ),
       )
     | Exp(AnaDeferralConsistent(ana)) =>
@@ -815,7 +815,7 @@ let exp_view =
       failwith("CursorInspector.exp_view: expected Message.Exp(...)")
     }
   | true =>
-    switch (MarkSelection.highest_ranked_mark(marks)) {
+    switch (Mark.highest(marks)) {
     | Some(m) => exp_mark_err_view(~globals, ~show_type_colon, cls, m, info)
     | None =>
       div_err([
@@ -851,7 +851,7 @@ let pat_marks_err_view =
 
   switch (marks) {
   | [Redundant, ...tl] =>
-    let additional = MarkSelection.highest_ranked_mark(tl);
+    let additional = Mark.highest(tl);
     switch (additional) {
     | None => div_err([text("Pattern is redundant")])
     | Some(m) =>
@@ -875,7 +875,7 @@ let pat_marks_err_view =
     };
   | [ExpectedConstructor, ..._] => div_err([text("Expected a constructor")])
   | _ =>
-    switch (MarkSelection.highest_ranked_mark(marks)) {
+    switch (Mark.highest(marks)) {
     | None => div_err([text("(internal) pattern error but no pat syn mark")])
     | Some(m) =>
       div_err(
@@ -923,7 +923,7 @@ let pat_view =
     : {
       let ok =
         switch (message) {
-        | Pat(Default) => Message.Syn(info.syn_ty)
+        | Pat(Default) => Message.Syn(info.elab_syn_ty)
         | Pat(Common(ok)) => ok
         | Exp(_)
         | TypOk(_)
@@ -975,7 +975,7 @@ let typ_view =
     | None => div_err([text("(internal) missing type ok payload")])
     }
   | ms =>
-    switch (MarkSelection.highest_ranked_mark(ms)) {
+    switch (Mark.highest(ms)) {
     | Some(m) => div_err(typ_mark_err_view(~globals, m))
     | None => div_err([text("(internal) missing type mark")])
     }
@@ -997,7 +997,7 @@ let tpat_view =
     | None => div_err([text("(internal) missing tpat ok payload")])
     }
   | ms =>
-    switch (MarkSelection.highest_ranked_mark(ms)) {
+    switch (Mark.highest(ms)) {
     | None => div_err([text("(internal) missing type pattern mark")])
     | Some(m) =>
       switch (m) {

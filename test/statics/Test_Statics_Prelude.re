@@ -135,6 +135,31 @@ let testable_issue: testable(issue) =
 let statics = term =>
   fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
 
+/* Test-only helpers for inspecting the statics map. Kept here rather than in
+   StaticsBase since nothing in production code consumes them. */
+type errors_map = Id.Map.t(list(Mark.t));
+
+let errors = (map: Statics.Map.t): list((Id.t, list(Mark.t))) =>
+  Id.Map.fold(
+    (id, info: Info.t, acc) =>
+      switch (Info.marks_of(info)) {
+      | [] => acc
+      | ms => [(id, ms), ...acc]
+      },
+    map,
+    [],
+  );
+
+let collect_errors = (map: Statics.Map.t): errors_map =>
+  Id.Map.filter_map(
+    (_: Uuidm.t, info: Info.t) =>
+      switch (Info.marks_of(info)) {
+      | [] => None
+      | ms => Some(ms)
+      },
+    map,
+  );
+
 let parse_exp = (s: string) => {
   switch (Haz3lcore.Parser.to_term(s)) {
   | Some(e) => e
@@ -204,8 +229,7 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors =
-        List.map(ms => Marks(ms), List.map(snd, Statics.Map.errors(s)));
+      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
 
       Alcotest.check(
         neg(list(testable_issue)),
@@ -224,8 +248,7 @@ let fully_consistent_typecheck =
     () => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
-      let errors =
-        List.map(ms => Marks(ms), List.map(snd, Statics.Map.errors(s)));
+      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
       let actual_type =
         type_of(~static_map=s, exp)
         |> Option.map(

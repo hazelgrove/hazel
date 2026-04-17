@@ -131,8 +131,15 @@ let analyze_label_to_info_map =
   let (i, i_elab, m) = S.uexp_to_info_map(~ctx, ~ana=labmode, label, m);
   let m =
     switch (label.term) {
-    | Label(_) =>
-      set_marks_exp(m, label, []) |> set_label_sort_exp(_, label, true)
+    | Label(name) =>
+      /* `uexp_to_info_map` defaults Label(name) to UnexpectedLabelSort with
+         elab_syn_ty=Unknown(Internal) because most occurrences of a bare label
+         are wrong. In label position, the correct self type is Label(name);
+         clear the mark AND patch the synthesized type so the cursor inspector
+         shows Label(name) rather than Unknown(Internal). */
+      let m = set_marks_exp(m, label, []);
+      let m = patch_elab_syn_ty_exp(m, label, Label(name) |> Typ.temp);
+      set_label_sort_exp(m, label, true);
     | EmptyHole => set_label_sort_exp(m, label, true)
     | _ =>
       append_mark_exp(m, label, [BadLabel(Exp(label))])
@@ -190,7 +197,7 @@ let invalid_args_fallback =
     let (arg_info, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
     add(
       ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
-      ~syn_ty=unknown,
+      ~elab_syn_ty=unknown,
       ~marks=[error],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
       m,
@@ -230,7 +237,7 @@ let handle_tuple_operation =
           arg.annotation.ids,
           InfoExp({
             cls: Cls.Exp(Exp.cls_of_term(arg.term)),
-            syn_ty: args_typ,
+            elab_syn_ty: args_typ,
             marks: [],
             ty: fixed_typ(ctx, syn, args_typ),
             ana: syn,
@@ -252,7 +259,7 @@ let handle_tuple_operation =
       let result_type = compute_result_type(labeled_tup_info, labels);
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
-        ~syn_ty=result_type,
+        ~elab_syn_ty=result_type,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
@@ -418,7 +425,7 @@ let group_by_label_statics =
           arg.annotation.ids,
           InfoExp({
             cls: Cls.Exp(Exp.cls_of_term(arg.term)),
-            syn_ty: Prod([table_info.ty, unknown]) |> Typ.temp,
+            elab_syn_ty: Prod([table_info.ty, unknown]) |> Typ.temp,
             marks: [],
             ty:
               fixed_typ(
@@ -470,7 +477,7 @@ let group_by_label_statics =
 
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
-        ~syn_ty=unknown,
+        ~elab_syn_ty=unknown,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
@@ -518,7 +525,7 @@ let to_lvs_statics =
 
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~syn_ty=
+        ~elab_syn_ty=
           IdTagged.FreshGrammar.Typ.(
             list(
               prod([
@@ -534,7 +541,7 @@ let to_lvs_statics =
     | _ =>
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~syn_ty=ty_out,
+        ~elab_syn_ty=ty_out,
         ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -543,7 +550,7 @@ let to_lvs_statics =
   | Unknown(_) =>
     add(
       ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-      ~syn_ty=ty_out,
+      ~elab_syn_ty=ty_out,
       ~marks=[],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
@@ -551,7 +558,7 @@ let to_lvs_statics =
   | _ =>
     add(
       ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-      ~syn_ty=ty_out,
+      ~elab_syn_ty=ty_out,
       ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
@@ -586,7 +593,7 @@ let omit_all_labels_statics =
 
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~syn_ty=Typ.to_product(entries),
+        ~elab_syn_ty=Typ.to_product(entries),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -594,7 +601,7 @@ let omit_all_labels_statics =
     | Unknown(_) =>
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~syn_ty=ty_out,
+        ~elab_syn_ty=ty_out,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -602,7 +609,7 @@ let omit_all_labels_statics =
     | _ =>
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~syn_ty=unknown,
+        ~elab_syn_ty=unknown,
         ~marks=[BuiltinError(ArgumentMustBeTuple)],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -651,7 +658,7 @@ let custom_statics_deferred_ap =
       let (_, m) = validate_label_arguments((module S), ~ctx, labels, m);
 
       add(
-        ~syn_ty=Arrow(unknown, unknown) |> Typ.temp,
+        ~elab_syn_ty=Arrow(unknown, unknown) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
@@ -663,7 +670,7 @@ let custom_statics_deferred_ap =
         validate_label_arguments((module S), ~ctx, [pivot_label], m);
 
       add(
-        ~syn_ty=unknown,
+        ~elab_syn_ty=unknown,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
@@ -673,7 +680,7 @@ let custom_statics_deferred_ap =
       let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
       add(
-        ~syn_ty=unknown,
+        ~elab_syn_ty=unknown,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
         m,
@@ -691,7 +698,7 @@ let custom_statics_deferred_ap =
         );
 
       add(
-        ~syn_ty=unknown,
+        ~elab_syn_ty=unknown,
         ~marks=[BuiltinError(AtLeast2Arguments)],
         ~co_ctx=combined_co_ctx,
         m,
@@ -709,7 +716,7 @@ let custom_statics_deferred_ap =
         );
 
       add(
-        ~syn_ty=unknown,
+        ~elab_syn_ty=unknown,
         ~marks=[BuiltinError(Exactly2Arguments)],
         ~co_ctx=combined_co_ctx,
         m,
@@ -731,7 +738,7 @@ let custom_statics_deferred_ap =
         |> Typ.to_product;
 
       add(
-        ~syn_ty=Arrow(ty_in', unknown) |> Typ.temp,
+        ~elab_syn_ty=Arrow(ty_in', unknown) |> Typ.temp,
         ~marks=[],
         ~co_ctx=combined_co_ctx,
         m,

@@ -1,32 +1,10 @@
 /* STATICS.re
 
-   This module determines the statics semantics of a program.
-   It makes use of the following modules:
+      This module determines the statics semantics of a program. This
+      includes the type information and the elaboration for expressions
+      and patterns.
 
-   INFO.re: Defines the Info.t type which is used to represent the
-   static STATUS of a term. This STATUS can be either OK or ERROR,
-   and is determined by reconcilling two sources of typing information,
-   the ANA and the SELF.
-
-   (ana:Typ.t): Defines the Mode.t type which is used to represent the
-   typing expectations imposed by a term's ancestors.
-
-   SELF.re: Define the Mark.t type which is used to represent the
-   type information derivable from the term itself.
-
-   The point of STATICS.re itself is to derive a map between each
-   term's unique id and that term's static INFO. The below functions
-   are intended mostly as infrastructure: The point is to define a
-   traversal through the syntax tree which, for each term, passes
-   down the MODE, passes up the SELF, calculates the INFO, and adds
-   it to the map.
-
-   The architectural intention here is that most type-manipulation
-   logic is defined in INFO, MODE, and SELF, and the STATICS module
-   itself is dedicated to the piping necessary to (A) introduce and
-   (B) propagate the necessary information through the syntax tree.
-
-    */
+   */
 
 open Util;
 include StaticsBase;
@@ -90,7 +68,7 @@ and uexp_to_info_map =
       (
         ~user_term=uexp,
         ~elab_term: Exp.t,
-        ~syn_ty: Typ.t,
+        ~elab_syn_ty: Typ.t,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
         ~ctx=ctx,
@@ -106,7 +84,7 @@ and uexp_to_info_map =
       )
       : (Info.exp, Exp.t, Map.t) => {
     let marks =
-      switch (expectation_mismatch_mark(ctx, ana, syn_ty)) {
+      switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
       | None => marks
       | Some(m) when marks == [] => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -116,15 +94,16 @@ and uexp_to_info_map =
         () =>
           switch (ana) {
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
-          | _ => Message.Exp(Common(syn_ana_ok_common(ctx, ana, syn_ty)))
+          | _ =>
+            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
           },
         message,
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-    let ty = fixed_typ(ctx, ana, syn_ty);
+    let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let info: Info.exp = {
       cls,
-      syn_ty,
+      elab_syn_ty,
       marks,
       ty,
       ana,
@@ -245,7 +224,7 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Closure(env, e_elab) |> rewrap,
-        ~syn_ty=e.ty,
+        ~elab_syn_ty=e.ty,
         ~marks=[],
         ~co_ctx=e.co_ctx,
         m,
@@ -255,7 +234,7 @@ and uexp_to_info_map =
       let (e2, e2_elab, m) = go(~ana=syn, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
@@ -265,7 +244,7 @@ and uexp_to_info_map =
         multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
       add(
         ~elab_term=MultiHole(tms_elab) |> rewrap,
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
         ~co_ctx=CoCtx.union(co_ctxs),
         m,
@@ -279,7 +258,7 @@ and uexp_to_info_map =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
         ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
-        ~syn_ty=t_ty,
+        ~elab_syn_ty=t_ty,
         ~marks=[],
         ~co_ctx=CoCtx.union([e.co_ctx, typ_refs]),
         m,
@@ -287,7 +266,7 @@ and uexp_to_info_map =
     | Invalid(token) =>
       add(
         ~elab_term=Invalid(token) |> rewrap,
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[BadToken(token)],
         ~co_ctx=hole_co_ctx,
         m,
@@ -295,7 +274,7 @@ and uexp_to_info_map =
     | EmptyHole =>
       add(
         ~elab_term=EmptyHole |> rewrap,
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[],
         ~co_ctx=hole_co_ctx,
         m,
@@ -308,7 +287,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=Deferral(position) |> rewrap,
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks,
         ~message?,
         ~co_ctx=CoCtx.empty,
@@ -317,7 +296,7 @@ and uexp_to_info_map =
     | Undefined =>
       add(
         ~elab_term=Undefined |> rewrap,
-        ~syn_ty=Unknown(Hole(EmptyHole)) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Hole(EmptyHole)) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -331,7 +310,7 @@ and uexp_to_info_map =
         let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
         add(
           ~elab_term=Atom(c) |> rewrap,
-          ~syn_ty=ty,
+          ~elab_syn_ty=ty,
           ~marks=[],
           ~co_ctx=CoCtx.empty,
           m,
@@ -339,7 +318,7 @@ and uexp_to_info_map =
       | R(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,
-          ~syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[BadToken(str)],
           ~co_ctx=CoCtx.empty,
           m,
@@ -354,7 +333,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=LivelitName(name) |> rewrap,
-        ~syn_ty=syn_lit,
+        ~elab_syn_ty=syn_lit,
         ~marks=marks_lit,
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         m,
@@ -378,7 +357,7 @@ and uexp_to_info_map =
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
           ~elab_term=ListLit(ds) |> rewrap,
-          ~syn_ty=syn_no_meet,
+          ~elab_syn_ty=syn_no_meet,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
               ? [NoMeet(List, Typ.add_source(ids, tys))] : [],
@@ -388,7 +367,7 @@ and uexp_to_info_map =
       | Some(ty) =>
         add(
           ~elab_term=ListLit(ds) |> rewrap,
-          ~syn_ty=List(ty) |> Typ.temp,
+          ~elab_syn_ty=List(ty) |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
           m,
@@ -415,7 +394,7 @@ and uexp_to_info_map =
         |> IdTagged.FreshGrammar.Exp.asc(_, elab_ty);
       add(
         ~elab_term=elab,
-        ~syn_ty=self_ty,
+        ~elab_syn_ty=self_ty,
         ~marks=[],
         ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
         m,
@@ -437,7 +416,7 @@ and uexp_to_info_map =
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
           ~elab_term=ListConcat(e1_elab, e2_elab) |> rewrap,
-          ~syn_ty=syn_no_meet,
+          ~elab_syn_ty=syn_no_meet,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
               ? [NoMeet(List, Typ.add_source(ids, [e1.ty, e2.ty]))] : [],
@@ -447,7 +426,7 @@ and uexp_to_info_map =
       | Some(ty) =>
         add(
           ~elab_term=ListConcat(e1_elab, e2_elab) |> rewrap,
-          ~syn_ty=ty,
+          ~elab_syn_ty=ty,
           ~marks=[],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           m,
@@ -463,7 +442,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=Var(name) |> rewrap,
-        ~syn_ty=syn_v,
+        ~elab_syn_ty=syn_v,
         ~marks=marks_v,
         ~co_ctx,
         m,
@@ -472,7 +451,7 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
-        ~syn_ty=e.syn_ty,
+        ~elab_syn_ty=e.elab_syn_ty,
         ~marks=e.marks,
         ~co_ctx=e.co_ctx,
         m,
@@ -481,7 +460,7 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Parens(e_elab) |> rewrap,
-        ~syn_ty=e.syn_ty,
+        ~elab_syn_ty=e.elab_syn_ty,
         ~marks=e.marks,
         ~co_ctx=e.co_ctx,
         m,
@@ -490,7 +469,7 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
-        ~syn_ty=e.syn_ty,
+        ~elab_syn_ty=e.elab_syn_ty,
         ~marks=e.marks,
         ~co_ctx=e.co_ctx,
         m,
@@ -534,7 +513,7 @@ and uexp_to_info_map =
         if (is_in_filter) {
           add(
             ~elab_term=unquote_elab,
-            ~syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
             ~marks=[],
             ~co_ctx=e.co_ctx,
             m,
@@ -542,7 +521,7 @@ and uexp_to_info_map =
         } else {
           add(
             ~elab_term=unquote_elab,
-            ~syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
             ~marks=[BadOperator("Unquote not in filter")],
             ~co_ctx=e.co_ctx,
             m,
@@ -568,7 +547,7 @@ and uexp_to_info_map =
         let (e, e_elab, m) = go(~ana=syn, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
-          ~syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[BadOperator(msg)],
           ~co_ctx=e.co_ctx,
           m,
@@ -579,7 +558,7 @@ and uexp_to_info_map =
         let (e, e_elab, m) = go(~ana=ty_in, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
-          ~syn_ty=ty_out,
+          ~elab_syn_ty=ty_out,
           ~marks=[],
           ~co_ctx=e.co_ctx,
           m,
@@ -594,7 +573,7 @@ and uexp_to_info_map =
         let (e2, e2_elab, m) = go(~ana=syn, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
-          ~syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[BadOperator(msg)],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           m,
@@ -615,7 +594,8 @@ and uexp_to_info_map =
         | None =>
           add(
             ~elab_term=elab_poly,
-            ~syn_ty=SynTy.meet_of(PolyEq, Unknown(Internal) |> Typ.temp),
+            ~elab_syn_ty=
+              SynTy.meet_of(PolyEq, Unknown(Internal) |> Typ.temp),
             ~marks=[NoMeet(PolyEq, Typ.add_source(ids, tys))],
             ~co_ctx=co_poly,
             m,
@@ -623,7 +603,7 @@ and uexp_to_info_map =
         | Some(ty) when Typ.normalize(ctx, ty) |> Typ.has_fun =>
           add(
             ~elab_term=elab_poly,
-            ~syn_ty=Atom(Bool) |> Typ.fresh,
+            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
             ~marks=[CompareFun(ty)],
             ~co_ctx=co_poly,
             m,
@@ -631,7 +611,7 @@ and uexp_to_info_map =
         | Some(_) =>
           add(
             ~elab_term=elab_poly,
-            ~syn_ty=Atom(Bool) |> Typ.fresh,
+            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
             ~marks=[],
             ~co_ctx=co_poly,
             m,
@@ -645,7 +625,7 @@ and uexp_to_info_map =
         let (e2, e2_elab, m) = go(~ana=ty2, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
-          ~syn_ty=ty_out,
+          ~elab_syn_ty=ty_out,
           ~marks=[],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           m,
@@ -699,11 +679,11 @@ and uexp_to_info_map =
             )
           );
 
-        add(~elab_term, ~syn_ty=ty, ~marks=[], ~co_ctx, m);
+        add(~elab_term, ~elab_syn_ty=ty, ~marks=[], ~co_ctx, m);
       | _ =>
         add(
           ~elab_term,
-          ~syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
+          ~elab_syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
           ~marks=[],
           ~co_ctx,
           m,
@@ -788,7 +768,7 @@ and uexp_to_info_map =
                       ~elab_term=label,
                       ~ctx,
                       ~ana=labmode,
-                      ~syn_ty=label_syn,
+                      ~elab_syn_ty=label_syn,
                       ~marks=label_marks,
                       ~co_ctx=CoCtx.empty,
                       ~label_inference=None,
@@ -807,7 +787,7 @@ and uexp_to_info_map =
                       ~elab_term=label,
                       ~ctx,
                       ~ana=labmode,
-                      ~syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                      ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
                       ~marks=[],
                       ~co_ctx=CoCtx.empty,
                       ~label_inference=None,
@@ -844,7 +824,7 @@ and uexp_to_info_map =
                   ~ctx,
                   ~ana,
                   ~ancestors=ancestors_inclusive,
-                  ~syn_ty=syn_tl,
+                  ~elab_syn_ty=syn_tl,
                   ~marks=cms_tl,
                   ~co_ctx=value_info.co_ctx,
                   ~label_inference=None,
@@ -908,7 +888,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=tuple_elab,
-        ~syn_ty=syn_tuple,
+        ~elab_syn_ty=syn_tuple,
         ~marks=cms_tuple,
         ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
         ~label_inference=
@@ -930,7 +910,7 @@ and uexp_to_info_map =
           ~ancestors=ancestors_inclusive,
           ~ctx,
           ~ana=syn,
-          ~syn_ty=ExplicitNonlabel |> Typ.temp,
+          ~elab_syn_ty=ExplicitNonlabel |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.empty,
           ~label_inference=None,
@@ -942,7 +922,7 @@ and uexp_to_info_map =
         );
       add(
         ~elab_term=TupLabel(elab_label, elab_inner) |> rewrap,
-        ~syn_ty=e.ty,
+        ~elab_syn_ty=e.ty,
         ~marks=[],
         ~co_ctx=e.co_ctx,
         m,
@@ -961,7 +941,7 @@ and uexp_to_info_map =
               ~ancestors=ancestors_inclusive,
               ~ctx,
               ~ana=labmode,
-              ~syn_ty=Label(name) |> Typ.temp,
+              ~elab_syn_ty=Label(name) |> Typ.temp,
               ~marks=[],
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
@@ -980,7 +960,7 @@ and uexp_to_info_map =
               ~ancestors=ancestors_inclusive,
               ~ctx,
               ~ana=labmode,
-              ~syn_ty=Unknown(SynSwitch) |> Typ.temp,
+              ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
               ~marks=[],
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
@@ -1009,7 +989,7 @@ and uexp_to_info_map =
         );
       add(
         ~elab_term=TupLabel(label, elab_child) |> rewrap,
-        ~syn_ty=syn_tl,
+        ~elab_syn_ty=syn_tl,
         ~marks=cms_tl,
         ~co_ctx=e.co_ctx,
         m,
@@ -1017,7 +997,7 @@ and uexp_to_info_map =
     | ExplicitNonlabel =>
       add(
         ~elab_term=ExplicitNonlabel |> rewrap,
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[ExplicitNonlabel],
         ~co_ctx=CoCtx.empty,
         m,
@@ -1025,7 +1005,7 @@ and uexp_to_info_map =
     | Label(name) =>
       add(
         ~elab_term=Label(name) |> rewrap,
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[UnexpectedLabelSort(name)],
         ~co_ctx=CoCtx.empty,
         m,
@@ -1038,7 +1018,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=BuiltinFun(string) |> rewrap,
-        ~syn_ty=syn_b,
+        ~elab_syn_ty=syn_b,
         ~marks=marks_b,
         ~co_ctx=CoCtx.empty,
         m,
@@ -1070,7 +1050,7 @@ and uexp_to_info_map =
             ~ancestors=ancestors_inclusive,
             ~ctx,
             ~ana=syn,
-            ~syn_ty=Label(name) |> Typ.temp,
+            ~elab_syn_ty=Label(name) |> Typ.temp,
             ~marks=[],
             ~co_ctx=CoCtx.empty,
             ~label_inference=None,
@@ -1127,7 +1107,7 @@ and uexp_to_info_map =
           | Some(typ) =>
             add(
               ~elab_term=dot_elab,
-              ~syn_ty=typ,
+              ~elab_syn_ty=typ,
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1136,7 +1116,7 @@ and uexp_to_info_map =
           | None =>
             add(
               ~elab_term=dot_elab,
-              ~syn_ty=Unknown(Internal) |> Typ.temp,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
               ~marks=[LabelNotFound(name, labels)],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1146,7 +1126,7 @@ and uexp_to_info_map =
         | EmptyHole =>
           add(
             ~elab_term=dot_elab,
-            ~syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
             ~marks=[],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1155,7 +1135,7 @@ and uexp_to_info_map =
         | _ =>
           add(
             ~elab_term=dot_elab,
-            ~syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
             ~marks=[BadLabel(Exp(e2))],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1175,7 +1155,7 @@ and uexp_to_info_map =
           | Some(typ) =>
             add(
               ~elab_term=dot_elab,
-              ~syn_ty=List(typ) |> Typ.fresh,
+              ~elab_syn_ty=List(typ) |> Typ.fresh,
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1184,7 +1164,7 @@ and uexp_to_info_map =
           | None =>
             add(
               ~elab_term=dot_elab,
-              ~syn_ty=Unknown(Internal) |> Typ.temp,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
               ~marks=[LabelNotFound(name, labels)],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1194,7 +1174,7 @@ and uexp_to_info_map =
         | EmptyHole =>
           add(
             ~elab_term=dot_elab,
-            ~syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
             ~marks=[],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1203,7 +1183,7 @@ and uexp_to_info_map =
         | _ =>
           add(
             ~elab_term=dot_elab,
-            ~syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
             ~marks=[BadLabel(Exp(e2))],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1213,7 +1193,7 @@ and uexp_to_info_map =
       | List({term: Unknown(_), _}) =>
         add(
           ~elab_term=dot_elab,
-          ~syn_ty=List(Unknown(Internal) |> Typ.temp) |> Typ.temp,
+          ~elab_syn_ty=List(Unknown(Internal) |> Typ.temp) |> Typ.temp,
           ~marks=[],
           ~dot_labels=available_labels,
           ~co_ctx=dot_co_ctx,
@@ -1222,7 +1202,7 @@ and uexp_to_info_map =
       | _ =>
         add(
           ~elab_term=dot_elab,
-          ~syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[DotOperatorRequiresTuple],
           ~dot_labels=available_labels,
           ~co_ctx=dot_co_ctx,
@@ -1233,7 +1213,7 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Test(e_elab) |> rewrap,
-        ~syn_ty=Prod([]) |> Typ.temp,
+        ~elab_syn_ty=Prod([]) |> Typ.temp,
         ~marks=[],
         ~co_ctx=e.co_ctx,
         m,
@@ -1243,7 +1223,7 @@ and uexp_to_info_map =
       let (hint, hint_elab, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
       add(
         ~elab_term=HintedTest(e_elab, hint_elab) |> rewrap,
-        ~syn_ty=Prod([]) |> Typ.temp,
+        ~elab_syn_ty=Prod([]) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.union([e.co_ctx, hint.co_ctx]),
         m,
@@ -1261,7 +1241,7 @@ and uexp_to_info_map =
             body_elab,
           )
           |> rewrap,
-        ~syn_ty=body.ty,
+        ~elab_syn_ty=body.ty,
         ~marks=[],
         ~co_ctx=CoCtx.union([cond.co_ctx, body.co_ctx]),
         m,
@@ -1270,7 +1250,7 @@ and uexp_to_info_map =
       let (body, body_elab, m) = go(~ana, body, m);
       add(
         ~elab_term=Filter(Residue(i, act), body_elab) |> rewrap,
-        ~syn_ty=body.ty,
+        ~elab_syn_ty=body.ty,
         ~marks=[],
         ~co_ctx=CoCtx.union([body.co_ctx]),
         m,
@@ -1280,7 +1260,7 @@ and uexp_to_info_map =
       let (e2, e2_elab, m) = go(~ana, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~syn_ty=e2.ty,
+        ~elab_syn_ty=e2.ty,
         ~marks=[],
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
@@ -1298,7 +1278,7 @@ and uexp_to_info_map =
           let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
           let elab_term = Var(name) |> rewrap;
           let (info, _, m) =
-            add(~elab_term, ~syn_ty=typ, ~marks=[], ~co_ctx, m);
+            add(~elab_term, ~elab_syn_ty=typ, ~marks=[], ~co_ctx, m);
           let m =
             add_info(
               ids,
@@ -1313,7 +1293,7 @@ and uexp_to_info_map =
           let elab_term = Constructor(ctr, Some(None)) |> rewrap;
           add(
             ~elab_term,
-            ~syn_ty=syn_res,
+            ~elab_syn_ty=syn_res,
             ~marks=marks_res,
             ~co_ctx=CoCtx.empty,
             m,
@@ -1328,7 +1308,7 @@ and uexp_to_info_map =
           |> rewrap;
         add(
           ~elab_term,
-          ~syn_ty=syn_res,
+          ~elab_syn_ty=syn_res,
           ~marks=marks_res,
           ~co_ctx=CoCtx.empty,
           m,
@@ -1349,7 +1329,7 @@ and uexp_to_info_map =
             let (info, elab, m) =
               add(
                 ~elab_term=expanded,
-                ~syn_ty=expansion_t,
+                ~elab_syn_ty=expansion_t,
                 ~marks=[],
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 m,
@@ -1364,7 +1344,7 @@ and uexp_to_info_map =
             // if we can't expand, flag as improper model
             add(
               ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-              ~syn_ty=expansion_t,
+              ~elab_syn_ty=expansion_t,
               ~marks=[BadLivelitModel(expansion_t)],
               ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
               m,
@@ -1378,7 +1358,7 @@ and uexp_to_info_map =
             go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
           add(
             ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-            ~syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
             ~marks=[],
             ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
             m,
@@ -1436,12 +1416,18 @@ and uexp_to_info_map =
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
             ? add(
                 ~elab_term,
-                ~syn_ty=ty_out,
+                ~elab_syn_ty=ty_out,
                 ~marks=[BadTrivAp(ty_in)],
                 ~co_ctx=co_ap,
                 m,
               )
-            : add(~elab_term, ~syn_ty=ty_out, ~marks=[], ~co_ctx=co_ap, m);
+            : add(
+                ~elab_term,
+                ~elab_syn_ty=ty_out,
+                ~marks=[],
+                ~co_ctx=co_ap,
+                m,
+              );
         };
       }
     | TypAp(fn, utyp) =>
@@ -1455,13 +1441,13 @@ and uexp_to_info_map =
       | Some(name) =>
         add(
           ~elab_term,
-          ~syn_ty=Typ.subst(utyp, name, ty_body),
+          ~elab_syn_ty=Typ.subst(utyp, name, ty_body),
           ~marks=[],
           ~co_ctx=fn.co_ctx,
           m,
         )
       | None =>
-        add(~elab_term, ~syn_ty=ty_body, ~marks=[], ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
+        add(~elab_term, ~elab_syn_ty=ty_body, ~marks=[], ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
       };
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
@@ -1527,7 +1513,7 @@ and uexp_to_info_map =
             );
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
-            ~syn_ty=Arrow(ty_in', ty_out) |> Typ.temp,
+            ~elab_syn_ty=Arrow(ty_in', ty_out) |> Typ.temp,
             ~marks=[],
             ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
             m,
@@ -1539,7 +1525,7 @@ and uexp_to_info_map =
           let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
-            ~syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
             ~marks=[
               IsBadPartialAp(
                 ArityMismatch({
@@ -1576,7 +1562,7 @@ and uexp_to_info_map =
       let elab_term = Fun(p_elab, e_elab, Some(p.ty), n) |> rewrap;
       add(
         ~elab_term,
-        ~syn_ty=syn_ty_fun,
+        ~elab_syn_ty=syn_ty_fun,
         ~marks=marks_fun,
         ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p.ctx, e.co_ctx), pat_typ_refs]),
         m,
@@ -1588,7 +1574,7 @@ and uexp_to_info_map =
         go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
-        ~syn_ty=Atom(Bool) |> Typ.temp,
+        ~elab_syn_ty=Atom(Bool) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
         m,
@@ -1625,7 +1611,7 @@ and uexp_to_info_map =
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
-        ~syn_ty=Poly(utpat, body.ty) |> Typ.temp,
+        ~elab_syn_ty=Poly(utpat, body.ty) |> Typ.temp,
         ~marks=[],
         ~co_ctx=body.co_ctx,
         m,
@@ -1798,7 +1784,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term,
-        ~syn_ty=syn_ty_let,
+        ~elab_syn_ty=syn_ty_let,
         ~marks=marks_let,
         ~co_ctx=
           CoCtx.union([
@@ -1825,7 +1811,7 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
-        ~syn_ty=e2.ty,
+        ~elab_syn_ty=e2.ty,
         ~marks=[],
         ~co_ctx=
           CoCtx.union([
@@ -1847,7 +1833,7 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
-        ~syn_ty=e2.ty,
+        ~elab_syn_ty=e2.ty,
         ~marks=[BadTheorem(e2.ty)],
         ~co_ctx=
           CoCtx.union([
@@ -1861,7 +1847,7 @@ and uexp_to_info_map =
       let (_, e_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=ProofObject(e_elab) |> rewrap,
-        ~syn_ty=Typ.temp(ProofOf(e)),
+        ~elab_syn_ty=Typ.temp(ProofOf(e)),
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -1877,7 +1863,7 @@ and uexp_to_info_map =
         FixF(p_elab, Asc(e_elab, p'.ty) |> Exp.fresh, env) |> rewrap;
       add(
         ~elab_term,
-        ~syn_ty=p'.ty,
+        ~elab_syn_ty=p'.ty,
         ~marks=[],
         ~co_ctx=
           CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx), pat_typ_refs]),
@@ -1905,7 +1891,7 @@ and uexp_to_info_map =
         |> rewrap;
       add(
         ~elab_term=elab,
-        ~syn_ty=syn_if,
+        ~elab_syn_ty=syn_if,
         ~marks=cms_if,
         ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
         m,
@@ -2015,7 +2001,13 @@ and uexp_to_info_map =
         );
       let elab_term =
         Match(scrut_elab, List.combine(ps_elabs, es_elabs)) |> rewrap;
-      add(~elab_term, ~syn_ty=syn_ty_match, ~marks=marks_match', ~co_ctx, m);
+      add(
+        ~elab_term,
+        ~elab_syn_ty=syn_ty_match,
+        ~marks=marks_match',
+        ~co_ctx,
+        m,
+      );
     | TyAlias(typat, utyp, body) =>
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
@@ -2093,7 +2085,7 @@ and uexp_to_info_map =
           );
         add(
           ~elab_term=body_elab,
-          ~syn_ty=ty_escape,
+          ~elab_syn_ty=ty_escape,
           ~marks=[],
           ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
           m,
@@ -2115,7 +2107,7 @@ and uexp_to_info_map =
           );
         add(
           ~elab_term=body_elab,
-          ~syn_ty=ty_body,
+          ~elab_syn_ty=ty_body,
           ~marks=[],
           ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
           m,
@@ -2142,7 +2134,7 @@ and uexp_to_info_map =
       | Some(_) =>
         add(
           ~elab_term=body_elab,
-          ~syn_ty=body.ty,
+          ~elab_syn_ty=body.ty,
           ~marks=[],
           ~co_ctx=body.co_ctx,
           m,
@@ -2151,7 +2143,7 @@ and uexp_to_info_map =
           when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.user_term) =>
         add(
           ~elab_term=body_elab,
-          ~syn_ty=body.ty,
+          ~elab_syn_ty=body.ty,
           ~marks=[],
           ~co_ctx=body.co_ctx,
           m,
@@ -2159,7 +2151,7 @@ and uexp_to_info_map =
       | None =>
         add(
           ~elab_term=body_elab,
-          ~syn_ty=body.ty,
+          ~elab_syn_ty=body.ty,
           ~marks=[
             InvalidUseMode({
               bad_typ: typ.user_term,
@@ -2191,7 +2183,7 @@ and uexp_to_info_map =
         );
       add(
         ~elab_term=module_elab,
-        ~syn_ty=actual_ty,
+        ~elab_syn_ty=actual_ty,
         ~marks=[],
         ~co_ctx=expanded_info.co_ctx,
         m,
@@ -2232,7 +2224,7 @@ and uexp_to_info_map =
         ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
       add(
         ~elab_term=moduleexp_elab,
-        ~syn_ty=expanded_info.ty,
+        ~elab_syn_ty=expanded_info.ty,
         ~marks=[],
         ~co_ctx=expanded_info.co_ctx,
         m,
@@ -2277,12 +2269,12 @@ and upat_to_info_map =
   let add =
       (
         ~user_term: Pat.t=upat,
-        ~elab: Pat.t=user_term,
+        ~elab_term: Pat.t=user_term,
         ~ctx=ctx,
         ~co_ctx=co_ctx,
         ~ana=ana,
         ~ancestors=ancestors_inclusive,
-        ~syn_ty: Typ.t,
+        ~elab_syn_ty: Typ.t,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
         ~constraint_: Coverage.Constraint.t,
@@ -2296,7 +2288,7 @@ and upat_to_info_map =
       if (marks != []) {
         marks;
       } else {
-        switch (expectation_mismatch_mark(ctx, ana, syn_ty)) {
+        switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
         | None => marks
         | Some(m) => marks @ [m]
         };
@@ -2307,11 +2299,11 @@ and upat_to_info_map =
         : Message.Pat(
             switch (ana) {
             | {term: Unknown(SynSwitch), _} => Message.Default
-            | _ => Message.Common(syn_ana_ok_common(ctx, ana, syn_ty))
+            | _ => Message.Common(syn_ana_ok_common(ctx, ana, elab_syn_ty))
             },
           );
     let cls = Cls.Pat(Pat.cls_of_term(user_term.term));
-    let ty = fixed_typ(ctx, ana, syn_ty);
+    let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let warning_acc =
       warnings
       @ (
@@ -2328,7 +2320,7 @@ and upat_to_info_map =
       };
     let info: Info.pat = {
       cls,
-      syn_ty,
+      elab_syn_ty,
       marks,
       ana,
       ty,
@@ -2338,12 +2330,13 @@ and upat_to_info_map =
       co_ctx,
       ancestors,
       user_term,
+      elab_term,
       constraint_: constraint_',
       label_inference,
       inferred_label,
       label_sort,
     };
-    (info, elab, add_info(IdTagged.ids(user_term), InfoPat(info), m));
+    (info, elab_term, add_info(IdTagged.ids(user_term), InfoPat(info), m));
   };
   let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
   let _ = ancestors;
@@ -2411,7 +2404,7 @@ and upat_to_info_map =
     | MultiHole(tms) =>
       let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
       add(
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -2419,7 +2412,7 @@ and upat_to_info_map =
       );
     | Invalid(token) =>
       add(
-        ~syn_ty=SynTy.unknown_internal(),
+        ~elab_syn_ty=SynTy.unknown_internal(),
         ~marks=[BadToken(token)],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -2427,7 +2420,7 @@ and upat_to_info_map =
       )
     | EmptyHole =>
       add(
-        ~syn_ty=unknown,
+        ~elab_syn_ty=unknown,
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -2439,8 +2432,8 @@ and upat_to_info_map =
       switch (c) {
       | L(Nat(nat)) =>
         add(
-          ~elab=Atom(Nat(nat)) |> rewrap,
-          ~syn_ty=Atom(Nat) |> Typ.temp,
+          ~elab_term=Atom(Nat(nat)) |> rewrap,
+          ~elab_syn_ty=Atom(Nat) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.BigInt(nat),
@@ -2448,8 +2441,8 @@ and upat_to_info_map =
         )
       | L(Int(int)) =>
         add(
-          ~elab=Atom(Int(int)) |> rewrap,
-          ~syn_ty=Atom(Int) |> Typ.temp,
+          ~elab_term=Atom(Int(int)) |> rewrap,
+          ~elab_syn_ty=Atom(Int) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.BigInt(int),
@@ -2457,8 +2450,8 @@ and upat_to_info_map =
         )
       | L(SInt(int)) =>
         add(
-          ~elab=Atom(SInt(int)) |> rewrap,
-          ~syn_ty=Atom(SInt) |> Typ.temp,
+          ~elab_term=Atom(SInt(int)) |> rewrap,
+          ~elab_syn_ty=Atom(SInt) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.SInt(int),
@@ -2466,8 +2459,8 @@ and upat_to_info_map =
         )
       | L(Float(float)) =>
         add(
-          ~elab=Atom(Float(float)) |> rewrap,
-          ~syn_ty=Atom(Float) |> Typ.temp,
+          ~elab_term=Atom(Float(float)) |> rewrap,
+          ~elab_syn_ty=Atom(Float) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.Float(float),
@@ -2475,8 +2468,8 @@ and upat_to_info_map =
         )
       | L(Bool(bool)) =>
         add(
-          ~elab=Atom(Bool(bool)) |> rewrap,
-          ~syn_ty=Atom(Bool) |> Typ.temp,
+          ~elab_term=Atom(Bool(bool)) |> rewrap,
+          ~elab_syn_ty=Atom(Bool) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=
@@ -2485,8 +2478,8 @@ and upat_to_info_map =
         )
       | L(String(string)) =>
         add(
-          ~elab=Atom(String(string)) |> rewrap,
-          ~syn_ty=Atom(String) |> Typ.temp,
+          ~elab_term=Atom(String(string)) |> rewrap,
+          ~elab_syn_ty=Atom(String) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.String(string),
@@ -2494,8 +2487,8 @@ and upat_to_info_map =
         )
       | R(BadInt(str)) =>
         add(
-          ~elab=Invalid(str) |> rewrap,
-          ~syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_term=Invalid(str) |> rewrap,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[BadToken(str)],
           ~ctx,
           ~constraint_=Coverage.Constraint.Hole(None),
@@ -2527,8 +2520,8 @@ and upat_to_info_map =
       | None =>
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
-          ~elab=ListLit(ps_elabs) |> rewrap,
-          ~syn_ty=syn_no_meet,
+          ~elab_term=ListLit(ps_elabs) |> rewrap,
+          ~elab_syn_ty=syn_no_meet,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
               ? [NoMeet(List, Typ.add_source(ids, tys))] : [],
@@ -2538,8 +2531,8 @@ and upat_to_info_map =
         );
       | Some(ty) =>
         add(
-          ~elab=ListLit(ps_elabs) |> rewrap,
-          ~syn_ty=List(ty) |> Typ.temp,
+          ~elab_term=ListLit(ps_elabs) |> rewrap,
+          ~elab_syn_ty=List(ty) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=list_constraint(cons),
@@ -2552,8 +2545,8 @@ and upat_to_info_map =
       let (tl, tl_elab, m) =
         go(~ctx=hd.ctx, ~ana=List(inner_ty) |> Typ.fresh, tl, m);
       add(
-        ~elab=Cons(hd_elab, tl_elab) |> rewrap,
-        ~syn_ty=List(hd.ty) |> Typ.temp,
+        ~elab_term=Cons(hd_elab, tl_elab) |> rewrap,
+        ~elab_syn_ty=List(hd.ty) |> Typ.temp,
         ~marks=[],
         ~ctx=tl.ctx,
         ~constraint_=Coverage.Constraint.cons(hd.constraint_, tl.constraint_),
@@ -2561,7 +2554,7 @@ and upat_to_info_map =
       );
     | Wild =>
       add(
-        ~syn_ty=unknown,
+        ~elab_syn_ty=unknown,
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -2583,7 +2576,7 @@ and upat_to_info_map =
       List.exists(l => name == l, duplicate_bindings)
         ? {
           add(
-            ~syn_ty=unknown,
+            ~elab_syn_ty=unknown,
             ~marks=[Mark.DuplicateVar(name, unknown)],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
@@ -2591,7 +2584,7 @@ and upat_to_info_map =
           );
         }
         : add(
-            ~syn_ty=unknown,
+            ~elab_syn_ty=unknown,
             ~marks=[],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
@@ -2604,12 +2597,12 @@ and upat_to_info_map =
       let (_, _, m) =
         add(
           ~user_term=label,
-          ~elab=label,
+          ~elab_term=label,
           ~ctx,
           ~co_ctx,
           ~ana=syn,
           ~ancestors=ancestors_inclusive,
-          ~syn_ty=ExplicitNonlabel |> Typ.temp,
+          ~elab_syn_ty=ExplicitNonlabel |> Typ.temp,
           ~marks=[],
           ~constraint_=Coverage.Constraint.Truth,
           ~label_inference=None,
@@ -2621,7 +2614,7 @@ and upat_to_info_map =
       (p, p_elab, add_info(ids, InfoPat(p), m));
     | ExplicitNonlabel =>
       add(
-        ~syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[ExplicitNonlabel],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -2637,12 +2630,12 @@ and upat_to_info_map =
           let (_, _, m) =
             add(
               ~user_term=label,
-              ~elab=label,
+              ~elab_term=label,
               ~ctx,
               ~co_ctx,
               ~ana=labmode,
               ~ancestors=ancestors_inclusive,
-              ~syn_ty=Label(name) |> Typ.temp,
+              ~elab_syn_ty=Label(name) |> Typ.temp,
               ~marks=[],
               ~constraint_=Coverage.Constraint.Truth,
               ~label_inference=None,
@@ -2656,12 +2649,12 @@ and upat_to_info_map =
           let (_, _, m) =
             add(
               ~user_term=label,
-              ~elab=label,
+              ~elab_term=label,
               ~ctx,
               ~co_ctx,
               ~ana=labmode,
               ~ancestors=ancestors_inclusive,
-              ~syn_ty=Unknown(SynSwitch) |> Typ.temp,
+              ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
               ~marks=[],
               ~constraint_=Coverage.Constraint.Truth,
               ~label_inference=None,
@@ -2676,12 +2669,12 @@ and upat_to_info_map =
           let (_, _, m) =
             add(
               ~user_term=p_info.user_term,
-              ~elab=p_elab,
+              ~elab_term=p_elab,
               ~ctx=p_info.ctx,
               ~co_ctx=p_info.co_ctx,
               ~ana=p_info.ana,
               ~ancestors=p_info.ancestors,
-              ~syn_ty=p_info.syn_ty,
+              ~elab_syn_ty=p_info.elab_syn_ty,
               ~marks=p_info.marks @ [BadLabel(Pat(label))],
               ~constraint_=p_info.constraint_,
               ~label_inference=p_info.label_inference,
@@ -2700,7 +2693,7 @@ and upat_to_info_map =
           ~malformed_source=Pat(label),
         );
       add(
-        ~syn_ty=syn_tl,
+        ~elab_syn_ty=syn_tl,
         ~marks=cms_tl,
         ~ctx=p.ctx,
         ~constraint_=Coverage.Constraint.Tuple([p.constraint_]),
@@ -2806,12 +2799,12 @@ and upat_to_info_map =
                   let (_, _, m) =
                     add(
                       ~user_term=label,
-                      ~elab=label,
+                      ~elab_term=label,
                       ~ctx,
                       ~co_ctx,
                       ~ana=labmode,
                       ~ancestors=ancestors_inclusive,
-                      ~syn_ty=label_syn,
+                      ~elab_syn_ty=label_syn,
                       ~marks=label_marks,
                       ~constraint_=Coverage.Constraint.Truth,
                       ~label_inference=None,
@@ -2825,12 +2818,12 @@ and upat_to_info_map =
                   let (_, _, m) =
                     add(
                       ~user_term=label,
-                      ~elab=label,
+                      ~elab_term=label,
                       ~ctx,
                       ~co_ctx,
                       ~ana=labmode,
                       ~ancestors=ancestors_inclusive,
-                      ~syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                      ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
                       ~marks=[],
                       ~constraint_=Coverage.Constraint.Truth,
                       ~label_inference=None,
@@ -2845,12 +2838,12 @@ and upat_to_info_map =
                   let (p_info, _, m) =
                     add(
                       ~user_term=p_info.user_term,
-                      ~elab=p_elab,
+                      ~elab_term=p_elab,
                       ~ctx=p_info.ctx,
                       ~co_ctx=p_info.co_ctx,
                       ~ana=p_info.ana,
                       ~ancestors=p_info.ancestors,
-                      ~syn_ty=p_info.syn_ty,
+                      ~elab_syn_ty=p_info.elab_syn_ty,
                       ~marks=p_info.marks @ [BadLabel(Pat(label))],
                       ~constraint_=p_info.constraint_,
                       ~label_inference=p_info.label_inference,
@@ -2883,12 +2876,12 @@ and upat_to_info_map =
               let (info, _, m) =
                 add(
                   ~user_term=e,
-                  ~elab=e,
+                  ~elab_term=e,
                   ~ctx=value_info.ctx,
                   ~co_ctx,
                   ~ana,
                   ~ancestors=ancestors_inclusive,
-                  ~syn_ty=syn_tl,
+                  ~elab_syn_ty=syn_tl,
                   ~marks=cms_tl,
                   ~constraint_,
                   ~label_inference=None,
@@ -2955,7 +2948,7 @@ and upat_to_info_map =
           tys,
         );
       add(
-        ~syn_ty=syn_tp,
+        ~elab_syn_ty=syn_tp,
         ~marks=cms_tp,
         ~ctx,
         ~constraint_,
@@ -2966,12 +2959,12 @@ and upat_to_info_map =
               new_labels,
             ),
           ),
-        ~elab=Tuple(ps_elabs) |> rewrap,
+        ~elab_term=Tuple(ps_elabs) |> rewrap,
         m,
       );
     | Label(name) =>
       add(
-        ~syn_ty=Label(name) |> Typ.temp,
+        ~elab_syn_ty=Label(name) |> Typ.temp,
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -2980,8 +2973,8 @@ and upat_to_info_map =
     | Parens(p) =>
       let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
-        ~elab=Parens(p_elab) |> rewrap,
-        ~syn_ty=p.syn_ty,
+        ~elab_term=Parens(p_elab) |> rewrap,
+        ~elab_syn_ty=p.elab_syn_ty,
         ~marks=p.marks,
         ~ctx=p.ctx,
         ~constraint_=p.constraint_,
@@ -2990,8 +2983,8 @@ and upat_to_info_map =
     | Projector(data, p) =>
       let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
-        ~elab=Projector(data, p_elab) |> rewrap,
-        ~syn_ty=p.syn_ty,
+        ~elab_term=Projector(data, p_elab) |> rewrap,
+        ~elab_syn_ty=p.elab_syn_ty,
         ~marks=p.marks,
         ~ctx=p.ctx,
         ~constraint_=p.constraint_,
@@ -3006,12 +2999,13 @@ and upat_to_info_map =
           Ctx.lookup_ctr(ctx, ctr),
         ) {
         | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
-        | (_, Some({typ: syn_ty, _})) => Some(Typ.normalize(ctx, syn_ty))
+        | (_, Some({typ: elab_syn_ty, _})) =>
+          Some(Typ.normalize(ctx, elab_syn_ty))
         | _ => None
         };
       add(
-        ~elab=Constructor(ctr, Some(elab_ty)) |> rewrap,
-        ~syn_ty=syn_ctr,
+        ~elab_term=Constructor(ctr, Some(elab_ty)) |> rewrap,
+        ~elab_syn_ty=syn_ctr,
         ~marks=cms_ctr,
         ~ctx,
         ~constraint_=Coverage.Constraint.Ap(ctr, None),
@@ -3037,8 +3031,8 @@ and upat_to_info_map =
         | None => Coverage.Constraint.Hole(None)
         };
       add(
-        ~elab=Ap(fn_elab, arg_elab) |> rewrap,
-        ~syn_ty=ty_out,
+        ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
+        ~elab_syn_ty=ty_out,
         ~marks=[],
         ~ctx=arg.ctx,
         ~constraint_,
@@ -3052,8 +3046,8 @@ and upat_to_info_map =
       let (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
-        ~elab=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
-        ~syn_ty=ann_ty,
+        ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
+        ~elab_syn_ty=ann_ty,
         ~marks=[],
         ~ctx=p.ctx,
         ~constraint_=p.constraint_,

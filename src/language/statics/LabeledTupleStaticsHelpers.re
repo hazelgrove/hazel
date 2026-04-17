@@ -16,7 +16,7 @@ type label_child_result = {
 };
 
 /* Validate a label name against expected/duplicate label lists.
-   Returns (syn_ty, marks, is_invalid) for the label itself. */
+   Returns (elab_syn_ty, marks, is_invalid) for the label itself. */
 let validate_label_name =
     (
       ~name: string,
@@ -186,10 +186,7 @@ let collect_malformed_labels =
     : list(Any.t) =>
   List.fold_left(
     (acc, info) =>
-      switch (
-        has_tup_label(info),
-        MarkSelection.highest_ranked_mark(get_marks(info)),
-      ) {
+      switch (has_tup_label(info), Mark.highest(get_marks(info))) {
       | (true, Some(Mark.TupleLabelError({malformed_labels, _}))) =>
         acc @ malformed_labels
       | _ => acc

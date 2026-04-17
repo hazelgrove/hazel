@@ -88,6 +88,8 @@ let cls = (id: t) => "id" ++ str8(id);
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
 
+module Set = Set.Make(Uuidm);
+
 module Map = {
   include Map.Make(Uuidm);
 

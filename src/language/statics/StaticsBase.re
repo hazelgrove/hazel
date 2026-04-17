@@ -5,20 +5,6 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
-  [@deriving show({with_path: false})]
-  type errors = Id.Map.t(list(Mark.t));
-
-  let equal_errors: (errors, errors) => bool =
-    Id.Map.equal((a: list(Mark.t), b: list(Mark.t)) => a == b);
-
-  let show_errors = (m: errors): string =>
-    Id.Map.bindings(m)
-    |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
-    |> List.map(((id, marks)) =>
-         Id.show(id) ++ " => " ++ [%derive.show: list(Mark.t)](marks)
-       )
-    |> String.concat("\n");
-
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
   let filter = Id.Map.filter;
@@ -57,27 +43,6 @@ module Map = {
       [],
     );
 
-  let errors = (map: t): list((Id.t, list(Mark.t))) =>
-    Id.Map.fold(
-      (id, info: Info.t, acc) =>
-        switch (Info.marks_of(info)) {
-        | [] => acc
-        | ms => [(id, ms), ...acc]
-        },
-      map,
-      [],
-    );
-
-  let collect_errors = (map: t): errors =>
-    Id.Map.filter_map(
-      (_: Uuidm.t, info: Info.t) =>
-        switch (Info.marks_of(info)) {
-        | [] => None
-        | ms => Some(ms)
-        },
-      map,
-    );
-
   /* The ids of binding sites for for all references in term with `id` */
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
@@ -94,23 +59,26 @@ module Map = {
     | _ => []
     };
 
+  /* Collect all infos whose binding site is `binding_id`, plus `binding_id`
+     itself. Deduplication is handled by accumulating into an `Id.Set`. */
+  let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        switch (Info.get_binding_site(info)) {
+        | Some(id') when Id.equal(id', binding_id) => Id.Set.add(id, acc)
+        | _ => acc
+        },
+      m,
+      Id.Set.singleton(binding_id),
+    );
+
   /* IDs to highlight for a variable/type/constructor reference:
    * all infos that resolve to the same binding site id, plus the binding id. */
-  let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) =>
-    switch (Info.get_binding_site(ci)) {
-    | Some(binding_id) =>
-      Id.Map.fold(
-        (id, info, acc) =>
-          switch (Info.get_binding_site(info)) {
-          | Some(id') when id' == binding_id => [id, ...acc]
-          | _ => acc
-          },
-        m,
-        [binding_id],
-      )
-      |> List.sort_uniq(Id.compare)
-    | None =>
-      let binding_id =
+  let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) => {
+    let binding_id =
+      switch (Info.get_binding_site(ci)) {
+      | Some(_) as b => b
+      | None =>
         switch (ci) {
         | Info.InfoPat({user_term: {term: Var(_), _}, _})
         | Info.InfoTPat({user_term: {term: Var(_), _}, _})
@@ -123,22 +91,14 @@ module Map = {
           }) =>
           Some(Info.id_of(ci))
         | _ => None
-        };
-      switch (binding_id) {
-      | None => []
-      | Some(binding_id) =>
-        Id.Map.fold(
-          (id, info, acc) =>
-            switch (Info.get_binding_site(info)) {
-            | Some(id') when id' == binding_id => [id, ...acc]
-            | _ => acc
-            },
-          m,
-          [binding_id],
-        )
-        |> List.sort_uniq(Id.compare)
+        }
       };
+    switch (binding_id) {
+    | None => []
+    | Some(binding_id) =>
+      Id.Set.elements(ids_referencing_binding(m, binding_id))
     };
+  };
 
   let parent_ci_of = (map: t, id: Id.t): option(Info.t) => {
     let* ci = lookup(id, map);
@@ -175,37 +135,30 @@ module Map = {
     climb(Info.ancestors_of(ci_binder));
   };
 
-  let let_definition_path = (~statics: t, ~id: Id.t): list(Pat.t) => {
-    let rec contains_id = (target: Id.t, ids: list(Id.t)): bool =>
-      switch (ids) {
-      | [] => false
-      | [head, ...tail] =>
-        Id.equal(head, target) || contains_id(target, tail)
-      };
-
-    let rec gather =
-            (remaining: list(Id.t), seen: list(Id.t), acc: list(Pat.t))
-            : list(Pat.t) =>
-      switch (remaining) {
-      | [] => acc
-      | [current_id, ...rest] =>
-        let acc' =
-          switch (lookup(current_id, statics)) {
-          | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
-            contains_id(IdTagged.rep_id(def), seen) ? [pat, ...acc] : acc
-          | _ => acc
-          };
-        gather(rest, [current_id, ...seen], acc');
-      };
-
+  let let_definition_path = (~statics: t, ~id: Id.t): list(Pat.t) =>
     switch (lookup(id, statics)) {
     | Some(info) =>
-      let ancestors: list(Id.t) = Info.ancestors_of(info);
-      let collected: list(Pat.t) = gather(ancestors, [id], []);
+      let ancestors = Info.ancestors_of(info);
+      let (_, collected) =
+        List.fold_left(
+          ((seen, acc), current_id) => {
+            let acc' =
+              switch (lookup(current_id, statics)) {
+              | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _}))
+                  when Id.Set.mem(IdTagged.rep_id(def), seen) => [
+                  pat,
+                  ...acc,
+                ]
+              | _ => acc
+              };
+            (Id.Set.add(current_id, seen), acc');
+          },
+          (Id.Set.singleton(id), []),
+          ancestors,
+        );
       List.rev(collected);
     | _ => []
     };
-  };
 
   let lookup_exp = (id: Id.t, m: t): option(Info.exp) =>
     switch (lookup(id, m)) {
@@ -328,25 +281,25 @@ let syn = Unknown(SynSwitch) |> Typ.temp;
 /* Type after hole fixing: best type consistent with analysis expectation and
    statics synthetic type (Typ.meet). On meet failure, prefer syn under
    synthesis and ana under analysis. */
-let fixed_typ = (ctx: Ctx.t, ana: Typ.t, syn_ty: Typ.t): Typ.t =>
-  switch (Typ.meet(ctx, ana, syn_ty)) {
+let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
+  switch (Typ.meet(ctx, ana, elab_syn_ty)) {
   | Some(ty) => ty
   | None =>
     if (Typ.is_syn_plus(ana)) {
-      syn_ty;
+      elab_syn_ty;
     } else {
       ana;
     }
   };
 
-let patch_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
+let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
   | Some(Info.InfoExp(info)) =>
     Map.add_info(
       IdTagged.ids(info.user_term),
       InfoExp({
         ...info,
-        syn_ty: new_syn_ty,
+        elab_syn_ty: new_syn_ty,
         ty: fixed_typ(info.ctx, info.ana, new_syn_ty),
       }),
       m,
@@ -362,25 +315,26 @@ let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
   | _ => ty_ana
   };
 
-let should_emit_nomeet_mark = (ctx: Ctx.t, ana: Typ.t, syn_ty: Typ.t): bool =>
-  switch (Typ.meet(ctx, ana_skip_explicit_nonlabel(ana), syn_ty)) {
+let should_emit_nomeet_mark =
+    (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): bool =>
+  switch (Typ.meet(ctx, ana_skip_explicit_nonlabel(ana), elab_syn_ty)) {
   | Some(_) => false
   | None => true
   };
 
 let syn_ana_ok_common =
-    (ctx: Ctx.t, ty_ana: Typ.t, syn_ty: Typ.t): Message.ok_common => {
+    (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
-  | Unknown(SynSwitch) => Message.Syn(syn_ty)
+  | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
   | _ =>
-    switch (Typ.meet(ctx, ana, syn_ty)) {
-    | None => Message.Syn(syn_ty)
+    switch (Typ.meet(ctx, ana, elab_syn_ty)) {
+    | None => Message.Syn(elab_syn_ty)
     | Some(meet) =>
       Message.Ana(
         Message.Consistent({
           ana,
-          syn: syn_ty,
+          syn: elab_syn_ty,
           meet,
         }),
       )
@@ -389,18 +343,18 @@ let syn_ana_ok_common =
 };
 
 let expectation_mismatch_mark =
-    (ctx: Ctx.t, ana: Typ.t, syn_ty: Typ.t): option(Mark.t) => {
+    (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): option(Mark.t) => {
   let ana' = ana_skip_explicit_nonlabel(ana);
   switch (ana'.term) {
   | Unknown(SynSwitch) => None
   | _ =>
-    switch (Typ.meet(ctx, ana', syn_ty)) {
+    switch (Typ.meet(ctx, ana', elab_syn_ty)) {
     | Some(_) => None
     | None =>
       Some(
         Mark.ExpectationMismatch({
           ana: ana',
-          syn: syn_ty,
+          syn: elab_syn_ty,
         }),
       )
     }
@@ -504,7 +458,7 @@ module type ExpressionStatics = {
     (
       ~user_term: Exp.t=?,
       ~elab_term: Exp.t,
-      ~syn_ty: Typ.t,
+      ~elab_syn_ty: Typ.t,
       ~marks: list(Mark.t)=?,
       ~warnings: list(Warning.list_item)=?,
       ~ctx: Ctx.t=?,
