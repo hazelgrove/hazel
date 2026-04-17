@@ -92,10 +92,10 @@ let build_column_menu =
   let can_move_left = can_move_column(columns_opt, h, true);
   let can_move_right = can_move_column(columns_opt, h, false);
   let apply = ts =>
-    Effect.Many([
-      local(CloseMenu),
-      parent(SetSyntax(to_segment(info, ts))),
-    ]);
+    switch (to_segment(info, ts)) {
+    | Some(seg) => Effect.Many([local(CloseMenu), parent(SetSyntax(seg))])
+    | None => local(CloseMenu)
+    };
 
   // If we're in a submenu, show that submenu
   switch (menu_path) {
@@ -234,12 +234,10 @@ let build_column_menu =
             text: "Move Left",
             tooltip: "Move this column one position to the left",
             action: () =>
-              apply([
-                OptUtil.get_or_fail(
-                  "move left failed",
-                  move_column(dyn_type, h, true),
-                ),
-              ]),
+              switch (move_column(dyn_type, h, true)) {
+              | Some(t) => apply([t])
+              | None => local(CloseMenu)
+              },
           }),
         ]
         : []
@@ -251,12 +249,10 @@ let build_column_menu =
             text: "Move Right",
             tooltip: "Move this column one position to the right",
             action: () =>
-              apply([
-                OptUtil.get_or_fail(
-                  "move right failed",
-                  move_column(dyn_type, h, false),
-                ),
-              ]),
+              switch (move_column(dyn_type, h, false)) {
+              | Some(t) => apply([t])
+              | None => local(CloseMenu)
+              },
           }),
         ]
         : []
@@ -456,9 +452,10 @@ let render =
               switch (new_column_name) {
               | None => Effect.Ignore
               | Some(new_name) =>
-                parent(
-                  SetSyntax(to_segment(info, [add_column(new_name)])),
-                )
+                switch (to_segment(info, [add_column(new_name)])) {
+                | Some(seg) => parent(SetSyntax(seg))
+                | None => Effect.Ignore
+                }
               };
             }),
             Attr.create("title", "Add column"),

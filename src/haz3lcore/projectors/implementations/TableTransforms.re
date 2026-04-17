@@ -132,20 +132,24 @@ let apply_transforms = (base: Exp.t, transforms: list(transform)): Exp.t => {
   );
 };
 
-/* Single conversion point: transform list → Base.segment */
-let to_segment = (info: info, transforms: list(transform)): Base.segment => {
-  switch (
+/* Single conversion point: transform list → Base.segment.
+ * Returns None if the syntax isn't an expression or if lifting fails —
+ * callers should treat that as "do nothing" rather than crashing. */
+let to_segment =
+    (info: info, transforms: list(transform)): option(Base.segment) => {
+  let ok = ref(true);
+  let lifted =
     info.utility.lift_syntax(
       ~inline=false,
       fun
       | Exp(exp) => Exp(apply_transforms(exp, transforms))
-      | _ => failwith("TableTransforms: to_segment: not an expression"),
+      | other => {
+          ok := false;
+          other;
+        },
       info.syntax,
-    )
-  ) {
-  | Some(s) => s
-  | None => failwith("TableTransforms: to_segment: lift failed")
-  };
+    );
+  ok^ ? lifted : None;
 };
 
 /* Column transformation operations */
