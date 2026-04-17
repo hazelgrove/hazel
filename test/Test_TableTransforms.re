@@ -219,7 +219,7 @@ let sort_tests = [
     },
   ),
   test_case(
-    "sort_column: Int descending pipes through reverse",
+    "sort_column: Int descending wraps comparator in invert_ord",
     `Quick,
     () => {
       let int_ty = Typ.fresh(Atom(Int));
@@ -227,7 +227,7 @@ let sort_tests = [
       | Some(transforms) =>
         assert_transforms(
           transforms,
-          {|table |> sort(fun (r1, r2) -> int_compare(r1.age, r2.age), _) |> reverse|},
+          {|table |> sort(fun (r1, r2) -> invert_ord(int_compare(r1.age, r2.age)), _)|},
         )
       | None => fail("Expected Some transforms for descending sort")
       };

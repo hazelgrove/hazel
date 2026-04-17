@@ -326,6 +326,21 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   mk_compare("float_compare", float, Atom(Float), Float.compare),
   mk_compare("sint_compare", sint, Atom(SInt), Int.compare),
   mk_compare("nat_compare", nat, Atom(Nat), Bigint.compare),
+  {
+    /* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an
+     * ascending comparator without a second pass to reverse the list. */
+    name: "invert_ord",
+    arg: BuiltinsADT.Ord.t.term,
+    ret: BuiltinsADT.Ord.t.term,
+    imp: d =>
+      switch (DHExp.term_of(d)) {
+      | Constructor("Lt", _) => Some(BuiltinsADT.Ord.gt)
+      | Constructor("Gt", _) => Some(BuiltinsADT.Ord.lt)
+      | Constructor("Eq", _) => Some(BuiltinsADT.Ord.eq)
+      | _ => None
+      },
+    custom_statics: None,
+  },
 ];
 
 let string_fns: list(BuiltinsUtil.fn) = [

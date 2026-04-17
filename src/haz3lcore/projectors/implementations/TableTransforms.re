@@ -437,6 +437,27 @@ let sort_column =
     };
   switch (compare_fn) {
   | Some(compare_fn_name) =>
+    let cmp_call =
+      IdTagged.FreshGrammar.(
+        Exp.(
+          ap(
+            Forward,
+            var(compare_fn_name),
+            tuple([
+              dot(var("r1"), label(header)),
+              dot(var("r2"), label(header)),
+            ]),
+          )
+        )
+      );
+    /* Descending wraps the comparator in invert_ord so one pass
+     * of sort handles both directions — no separate reverse step. */
+    let body =
+      descending
+        ? IdTagged.FreshGrammar.Exp.(
+            ap(Forward, var("invert_ord"), cmp_call)
+          )
+        : cmp_call;
     let sort_transform =
       Listwise(
         IdTagged.FreshGrammar.(
@@ -446,14 +467,7 @@ let sort_column =
               [
                 fn(
                   Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
-                  ap(
-                    Forward,
-                    var(compare_fn_name),
-                    tuple([
-                      dot(var("r1"), label(header)),
-                      dot(var("r2"), label(header)),
-                    ]),
-                  ),
+                  body,
                   None,
                   None,
                 ),
@@ -463,14 +477,7 @@ let sort_column =
           )
         ),
       );
-    if (descending) {
-      Some([
-        sort_transform,
-        Listwise(IdTagged.FreshGrammar.Exp.var("reverse")),
-      ]);
-    } else {
-      Some([sort_transform]);
-    };
+    Some([sort_transform]);
   | None => None
   };
 };
