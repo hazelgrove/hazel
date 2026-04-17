@@ -564,7 +564,9 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     failwith("weak_head_normalize exceeded 1000 recursive calls");
   };
   switch (term_of(ty)) {
-  | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+  | Parens(t)
+  | Projector(_, t) =>
+    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
@@ -720,6 +722,7 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
     | _ => Prod(fields) |> rewrap
     };
   | Parens(t) => Parens(desugar_sig(ctx, t)) |> rewrap
+  | Projector(_, t) => desugar_sig(ctx, t)
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(desugar_sig(ctx), ts)) |> rewrap

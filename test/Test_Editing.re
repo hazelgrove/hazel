@@ -1892,6 +1892,18 @@ else f|});
       ],
     ~goal={|§x + y + z¦|},
   ),
+  /* --- Sum types with leading prefix + --- */
+  test(
+    ~name=
+      "Cmd+D on infix + in sum type with leading +: select includes leading +",
+    ~acts=mk({|1:(+A ¦+ B)|}) @ [Select(Term(Current))],
+    ~goal={|1:(§+A + B¦)|},
+  ),
+  test(
+    ~name="Cmd+D on leading + in sum type: select includes leading +",
+    ~acts=mk({|1:(¦+ A + B)|}) @ [Select(Term(Current))],
+    ~goal={|1:(§+ A + B¦)|},
+  ),
 ];
 
 /* Check that no incomplete tiles exist anywhere in a segment (recursive). */
