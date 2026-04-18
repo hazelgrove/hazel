@@ -187,7 +187,7 @@ let view =
           category_node,
           div(
             ~attrs=[clss(["tool-call-name"])],
-            [text(tool_result.tool_call.name)],
+            [text(ToolCallSummary.display_name_for(tool_result.tool_call))],
           ),
           signifier_node,
           div(

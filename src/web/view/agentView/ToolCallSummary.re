@@ -99,6 +99,21 @@ let jump_paths_of_opt = (path: option(string)): list(string) =>
   | None => []
   };
 
+/** UI-facing name for a tool_call. Overrides [tc.name] for cases where the raw
+    tool name plus a placeholder signifier would mislead — e.g. [insert_before]
+    with no [path] would otherwise render as "insert_before cursor", which reads
+    like a variable named [cursor]. Display as plain "insert" instead. */
+let display_name_for = (tc: OpenRouter.Reply.Model.tool_call): string =>
+  switch (tc.name) {
+  | "insert_after"
+  | "insert_before" =>
+    switch (get_string_field(tc.args, "path")) {
+    | None => "insert"
+    | Some(_) => tc.name
+    }
+  | _ => tc.name
+  };
+
 /** Builds a [[t]] for a given tool_call, or [[None]] if the tool name is unknown. */
 let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
   let args = tc.args;
@@ -150,7 +165,7 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
     let path = get_string_field(args, "path");
     Some({
       category: Edit,
-      signifier: Some(Option.value(path, ~default="cursor")),
+      signifier: path,
       jump_paths: jump_paths_of_opt(path),
       persists: true,
     });

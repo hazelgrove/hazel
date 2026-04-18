@@ -884,16 +884,34 @@ let tool_call_summary_tests = [
     },
   ),
   test_case(
-    "insert_before with no path: signifier defaults to 'cursor'",
+    "insert_before with no path: signifier=None and display_name='insert'",
     `Quick,
     () => {
-      let s = get_summary(mk_tc(~name="insert_before", ~args=`Assoc([])));
-      check_signifier(
-        "insert_before cursor",
-        Some("cursor"),
-        mk_tc(~name="insert_before", ~args=`Assoc([])),
-      );
+      let tc = mk_tc(~name="insert_before", ~args=`Assoc([]));
+      let s = get_summary(tc);
+      check_signifier("no signifier when path absent", None, tc);
       check_bool("no jump_paths when path absent", true, s.jump_paths == []);
+      check_bool(
+        "display_name='insert'",
+        true,
+        ToolCallSummary.display_name_for(tc) == "insert",
+      );
+    },
+  ),
+  test_case(
+    "insert_before with path: display_name preserves tool name",
+    `Quick,
+    () => {
+      let tc =
+        mk_tc(
+          ~name="insert_before",
+          ~args=`Assoc([("path", `String("fib"))]),
+        );
+      check_bool(
+        "display_name unchanged when path present",
+        true,
+        ToolCallSummary.display_name_for(tc) == "insert_before",
+      );
     },
   ),
   test_case(

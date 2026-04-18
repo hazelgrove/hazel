@@ -1443,7 +1443,11 @@ let view =
                 ),
                 span(
                   ~attrs=[clss(["summary-tool-link-name"])],
-                  [text(tool_result.tool_call.name)],
+                  [
+                    text(
+                      ToolCallSummary.display_name_for(tool_result.tool_call),
+                    ),
+                  ],
                 ),
                 signifier_node,
                 span(
