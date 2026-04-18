@@ -230,7 +230,13 @@ let view =
               ~eval_result,
             )
           | Agent.Chat.Model.Workbench =>
-            WorkbenchView.view(~globals, ~agent_model, ~agent_inject, ~signal)
+            WorkbenchView.view(
+              ~globals,
+              ~agent_model,
+              ~agent_inject,
+              ~signal,
+              ~code_with_statics,
+            )
           | Agent.Chat.Model.Prompt
           | Agent.Chat.Model.DeveloperNotes
           | Agent.Chat.Model.Tools
