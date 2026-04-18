@@ -652,6 +652,14 @@
   transition: width 0.2s ease;
 }
 
+.token-context-meter-pct {
+  font-family: monospace;
+  font-size: 0.72em;
+  color: var(--BR4);
+  text-align: center;
+  line-height: 1.25;
+}
+
 /* Toast notification for copy */
 .copy-toast {
   position: absolute;

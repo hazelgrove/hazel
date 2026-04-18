@@ -29,7 +29,14 @@ let slash_command_tests = [
       check(
         list(string),
         "alphabetical order",
-        ["account-usage", "compact", "cost", "help", "key", "key-usage"],
+        [
+          "account-usage",
+          "compact",
+          "help",
+          "key",
+          "key-usage",
+          "session-usage",
+        ],
         names,
       );
       List.iter(
@@ -40,12 +47,12 @@ let slash_command_tests = [
     },
   ),
   test_case(
-    "ChatSlashCommands.filtered: 'c' matches compact, cost",
+    "ChatSlashCommands.filtered: 'c' matches compact only",
     `Quick,
     () => {
       let xs = Agent.ChatSlashCommands.filtered("c");
       let names = List.map(fst, xs);
-      check(list(string), "c-prefix", ["compact", "cost"], names);
+      check(list(string), "c-prefix", ["compact"], names);
     },
   ),
   test_case(
@@ -92,7 +99,7 @@ let slash_command_tests = [
         );
       let has = needle => List.mem(needle, names);
       check_bool("compact listed", true, has("compact"));
-      check_bool("cost listed", true, has("cost"));
+      check_bool("session-usage listed", true, has("session-usage"));
       check_bool("account-usage listed", true, has("account-usage"));
       check_bool("help listed", true, has("help"));
       check_bool("key-usage listed", true, has("key-usage"));

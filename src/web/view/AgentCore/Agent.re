@@ -1224,10 +1224,10 @@ module ChatSlashCommands = {
   let all_alphabetical: list((string, string)) = [
     ("account-usage", "Show your OpenRouter account credit balance"),
     ("compact", "Summarize the conversation"),
-    ("cost", "Estimate $ cost of this chat from token usage"),
     ("help", "List available slash commands"),
     ("key", "Show the currently-set OpenRouter API key"),
     ("key-usage", "Show usage and limits for the active OpenRouter key"),
+    ("session-usage", "Estimate $ cost of this chat from token usage"),
   ];
 
   let filtered = (filter: string): list((string, string)) => {

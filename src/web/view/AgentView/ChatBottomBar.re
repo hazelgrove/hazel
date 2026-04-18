@@ -55,7 +55,7 @@ let view =
       dispatch_slash(
         Agent.Agent.Update.Action.RequestForcedCompaction(current_chat_id),
       )
-    | "cost" =>
+    | "session-usage" =>
       dispatch_slash(
         Agent.Agent.Update.Action.RunSlashCommandCost(current_chat_id),
       )
@@ -444,13 +444,7 @@ let view =
             [
               div(
                 ~attrs=[clss(["token-context-meter-label"])],
-                [text(meter_base_label)]
-                @ (
-                  switch (meter_pct_line_opt) {
-                  | Some(line) => [br(), text(line)]
-                  | None => []
-                  }
-                ),
+                [text(meter_base_label)],
               ),
               div(
                 ~attrs=[clss(["context-meter-track"])],
@@ -478,6 +472,14 @@ let view =
                   ),
                 ],
               ),
+              switch (meter_pct_line_opt) {
+              | Some(line) =>
+                div(
+                  ~attrs=[clss(["token-context-meter-pct"])],
+                  [text(line)],
+                )
+              | None => div(~attrs=[], [])
+              },
             ],
           ),
           // Right side export and copy buttons
