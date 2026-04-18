@@ -272,6 +272,9 @@ let view_help = (p: Agent.Message.Model.help_output): Node.t => {
 let view_error = (msg: string): Node.t =>
   card(~kind="error", ~title="Slash command", ~icon="!", [text(msg)]);
 
+let view_notice = (msg: string): Node.t =>
+  card(~kind="notice", ~title="Slash command", ~icon="i", [text(msg)]);
+
 let view = (payload: Agent.Message.Model.slash_command_payload): Node.t =>
   switch (payload) {
   | CostOutput(p) => view_cost(p)
@@ -279,5 +282,6 @@ let view = (payload: Agent.Message.Model.slash_command_payload): Node.t =>
   | UsageOutput(p) => view_usage(p)
   | KeyOutput(k) => view_key(k)
   | HelpOutput(p) => view_help(p)
+  | Notice(s) => view_notice(s)
   | SlashError(s) => view_error(s)
   };

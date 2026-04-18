@@ -28,6 +28,7 @@ let mk_reply =
   content,
   tool_calls,
   usage: None,
+  reasoning: None,
 };
 
 let tool_result_names_in_order =
@@ -73,6 +74,7 @@ let run_handle_llm_response =
         reply,
         chat_id,
         agent.main_llm_seq,
+        0,
       ),
       agent,
       cell_editor,

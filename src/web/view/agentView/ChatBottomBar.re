@@ -77,6 +77,28 @@ let view =
       dispatch_slash(
         Agent.Agent.Update.Action.RunSlashCommandFetchUsage(current_chat_id),
       )
+    | "show-thinking" =>
+      // Toggle the global flag and confirm with a UI-only Notice. The "after"
+      // state is the inverse of the current value, since the toggle reducer
+      // hasn't run yet at the time we format the message.
+      let next_on = !globals.settings.agent_globals.show_thinking;
+      let notice =
+        "Show thinking messages toggled " ++ (next_on ? "on" : "off");
+      Effect.Many([
+        globals.inject_global(
+          Globals.Action.SetAgentGlobals(
+            AgentGlobals.Update.ToggleShowThinking,
+          ),
+        ),
+        agent_inject(
+          Agent.Agent.Update.Action.AppendSlashCommandOutput(
+            current_chat_id,
+            Agent.Message.Model.Notice(notice),
+          ),
+        ),
+        clear_text_effect,
+        Effect.Stop_propagation,
+      ]);
     | _ => Effect.Stop_propagation
     };
 
@@ -311,6 +333,148 @@ let view =
     };
   };
 
+  // "change model" text button — routes to MainMenu screen.
+  let switch_to_main_menu = _ => {
+    Effect.Many([
+      globals.inject_global(
+        Globals.Action.SetAgentGlobals(
+          AgentGlobals.Update.SwitchInterface(AgentGlobals.Model.MainMenu),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+  // Pretty-print model id by stripping provider prefix and title-casing the slug.
+  // "google/gemini-3-flash-preview" -> "Gemini 3 Flash Preview".
+  let pretty_model_name = (id: string): string => {
+    let after_slash =
+      switch (String.index_opt(id, '/')) {
+      | Some(i) => String.sub(id, i + 1, String.length(id) - i - 1)
+      | None => id
+      };
+    let parts = String.split_on_char('-', after_slash);
+    let cap = (s: string): string =>
+      if (s == "") {
+        s;
+      } else {
+        let first = String.sub(s, 0, 1) |> String.uppercase_ascii;
+        let rest = String.sub(s, 1, String.length(s) - 1);
+        first ++ rest;
+      };
+    String.concat(" ", List.map(cap, parts));
+  };
+
+  let change_model_button: Node.t =
+    div(
+      ~attrs=[
+        clss(["change-model-button"]),
+        Attr.on_click(switch_to_main_menu),
+        Attr.title("Choose a different model"),
+      ],
+      [text("change model")],
+    );
+
+  let model_name_label: option(Node.t) = {
+    let agent_globals = globals.settings.agent_globals;
+    switch (agent_globals.active_llm) {
+    | None => None
+    | Some(llm) =>
+      Some(
+        div(
+          ~attrs=[clss(["change-model-current-name"])],
+          [text(pretty_model_name(llm.id))],
+        ),
+      )
+    };
+  };
+
+  let change_model_stack: Node.t =
+    div(
+      ~attrs=[clss(["change-model-stack"])],
+      List.filter_map(
+        x => x,
+        [model_name_label, Some(change_model_button)],
+      ),
+    );
+
+  // Reasoning effort dropup (only for models that support reasoning).
+  // Rendered as an absolute-positioned overlay inside the chat input container,
+  // anchored to its bottom-left corner.
+  let reasoning_effort_dropup: Node.t = {
+    let agent_globals = globals.settings.agent_globals;
+    if (AgentGlobals.active_supports_reasoning(agent_globals)) {
+      let current_label =
+        switch (agent_globals.reasoning_effort) {
+        | None => "Off"
+        | Some(Low) => "Low"
+        | Some(Medium) => "Medium"
+        | Some(High) => "High"
+        };
+      let set_effort =
+          (e: option(OpenRouter.Payload.Model.effort_level), _evt) => {
+        // Close the dropup after selection. Defer the blur to the next tick so any
+        // focus reshuffle from the mousedown/click has already happened.
+        JsUtil.delay(0.0, () =>
+          Js.Opt.iter(
+            Dom_html.document##.activeElement,
+            el => {
+              let coerced = Js.Unsafe.coerce(el);
+              ignore(coerced##blur());
+            },
+          )
+        );
+        Effect.Many([
+          globals.inject_global(
+            Globals.Action.SetAgentGlobals(
+              AgentGlobals.Update.SetReasoningEffort(e),
+            ),
+          ),
+          Effect.Stop_propagation,
+        ]);
+      };
+      let menu_item =
+          (label: string, e: option(OpenRouter.Payload.Model.effort_level)) => {
+        let selected =
+          e == agent_globals.reasoning_effort ? ["selected"] : [];
+        div(
+          ~attrs=[
+            clss(["reasoning-effort-menu-item"] @ selected),
+            Attr.on_mousedown(set_effort(e)),
+          ],
+          [text(label)],
+        );
+      };
+      div(
+        ~attrs=[
+          clss(["reasoning-effort-dropup"]),
+          Attr.create("tabindex", "0"),
+        ],
+        [
+          div(
+            ~attrs=[
+              clss(["reasoning-effort-button"]),
+              Attr.title(
+                "Reasoning effort (only sent for models that support it)",
+              ),
+            ],
+            [text("\xE2\x8C\x83 " ++ current_label)],
+          ),
+          div(
+            ~attrs=[clss(["reasoning-effort-menu"])],
+            [
+              menu_item("Off", None),
+              menu_item("Low", Some(Low)),
+              menu_item("Medium", Some(Medium)),
+              menu_item("High", Some(High)),
+            ],
+          ),
+        ],
+      );
+    } else {
+      Node.none;
+    };
+  };
+
   // Input area at bottom with buttons above
   div(
     ~attrs=[clss(["chat-input-container"])],
@@ -357,79 +521,6 @@ let view =
                 );
               } else {
                 div(~attrs=[], []);
-              },
-              {
-                // Reasoning effort dropup (only for models that support reasoning)
-
-                let agent_globals = globals.settings.agent_globals;
-                let supports =
-                  switch (agent_globals.active_llm) {
-                  | Some(llm) =>
-                    OpenRouter.AvailableLLMs.supports_reasoning(llm)
-                  | None => false
-                  };
-                if (supports) {
-                  let current_label =
-                    switch (agent_globals.reasoning_effort) {
-                    | None => "Off"
-                    | Some(Low) => "Low"
-                    | Some(Medium) => "Medium"
-                    | Some(High) => "High"
-                    };
-                  let set_effort =
-                      (
-                        e: option(OpenRouter.Payload.Model.effort_level),
-                        _evt,
-                      ) =>
-                    Effect.Many([
-                      globals.inject_global(
-                        Globals.Action.SetAgentGlobals(
-                          AgentGlobals.Update.SetReasoningEffort(e),
-                        ),
-                      ),
-                      Effect.Stop_propagation,
-                    ]);
-                  let menu_item =
-                      (
-                        label: string,
-                        e: option(OpenRouter.Payload.Model.effort_level),
-                      ) => {
-                    let selected =
-                      e == agent_globals.reasoning_effort ? ["selected"] : [];
-                    div(
-                      ~attrs=[
-                        clss(["reasoning-effort-menu-item"] @ selected),
-                        Attr.on_mousedown(set_effort(e)),
-                      ],
-                      [text(label)],
-                    );
-                  };
-                  div(
-                    ~attrs=[clss(["reasoning-effort-dropup"])],
-                    [
-                      div(
-                        ~attrs=[
-                          clss(["reasoning-effort-button"]),
-                          Attr.title(
-                            "Reasoning effort (only sent for models that support it)",
-                          ),
-                        ],
-                        [text("\xE2\x8C\x83 " ++ current_label)],
-                      ),
-                      div(
-                        ~attrs=[clss(["reasoning-effort-menu"])],
-                        [
-                          menu_item("Off", None),
-                          menu_item("Low", Some(Low)),
-                          menu_item("Medium", Some(Medium)),
-                          menu_item("High", Some(High)),
-                        ],
-                      ),
-                    ],
-                  );
-                } else {
-                  div(~attrs=[], []);
-                };
               },
             ],
           ),
@@ -723,53 +814,71 @@ let view =
             ],
             [text(current_text)],
           ),
-          if (agent_busy && String.length(String.trim(current_text)) > 0) {
+          {
+            // Thin in-composer bottom bar: reasoning dropup left, send/stop right.
+            let queue_button =
+              if (agent_busy && String.length(String.trim(current_text)) > 0) {
+                div(
+                  ~attrs=[
+                    clss([
+                      "send-button",
+                      "icon",
+                      "chat-message-queue-send-button",
+                    ]),
+                    Attr.on_click(send_message),
+                    Attr.title("Add to queue (same as Enter)"),
+                  ],
+                  [Icons.send],
+                );
+              } else {
+                Node.none;
+              };
+            let primary_button =
+              if (agent_busy) {
+                div(
+                  ~attrs=[
+                    clss(["send-button", "icon", "chat-message-stop-button"]),
+                    Attr.on_click(stop_agent),
+                    Attr.title(
+                      "Stop — ignore the in-flight response (click only; no keyboard shortcut)",
+                    ),
+                  ],
+                  [Icons.stop_square],
+                );
+              } else if (String.length(String.trim(current_text)) > 0) {
+                div(
+                  ~attrs=[
+                    clss(["send-button", "icon", "chat-message-send-button"]),
+                    Attr.on_click(send_message),
+                    Attr.title("Send Message"),
+                  ],
+                  [Icons.send],
+                );
+              } else {
+                div(
+                  ~attrs=[
+                    clss([
+                      "send-button-disabled",
+                      "icon",
+                      "chat-message-send-button",
+                    ]),
+                    Attr.title("Send Message Disabled"),
+                  ],
+                  [Icons.send],
+                );
+              };
             div(
-              ~attrs=[
-                clss([
-                  "send-button",
-                  "icon",
-                  "chat-message-queue-send-button",
-                ]),
-                Attr.on_click(send_message),
-                Attr.title("Add to queue (same as Enter)"),
-              ],
-              [Icons.send],
-            );
-          } else {
-            div(~attrs=[], []);
-          },
-          if (agent_busy) {
-            div(
-              ~attrs=[
-                clss(["send-button", "icon", "chat-message-stop-button"]),
-                Attr.on_click(stop_agent),
-                Attr.title(
-                  "Stop — ignore the in-flight response (click only; no keyboard shortcut)",
+              ~attrs=[clss(["chat-input-bottom-bar"])],
+              [
+                div(
+                  ~attrs=[clss(["chat-input-bottom-bar-left"])],
+                  [reasoning_effort_dropup, change_model_stack],
+                ),
+                div(
+                  ~attrs=[clss(["chat-input-bottom-bar-right"])],
+                  [queue_button, primary_button],
                 ),
               ],
-              [Icons.stop_square],
-            );
-          } else if (String.length(String.trim(current_text)) > 0) {
-            div(
-              ~attrs=[
-                clss(["send-button", "icon", "chat-message-send-button"]),
-                Attr.on_click(send_message),
-                Attr.title("Send Message"),
-              ],
-              [Icons.send],
-            );
-          } else {
-            div(
-              ~attrs=[
-                clss([
-                  "send-button-disabled",
-                  "icon",
-                  "chat-message-send-button",
-                ]),
-                Attr.title("Send Message Disabled"),
-              ],
-              [Icons.send],
             );
           },
         ],

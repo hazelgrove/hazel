@@ -85,6 +85,7 @@ module Message = {
       | UsageOutput(usage_output)
       | KeyOutput(string) // current OpenRouter API key; "" means none set
       | HelpOutput(help_output)
+      | Notice(string) // plain-text confirmation (e.g., toggle ack)
       | SlashError(string);
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -117,6 +118,10 @@ module Message = {
       api_message: option(OpenRouter.Message.Model.t),
       children: list(Id.t),
       current_child: option(Id.t),
+      [@yojson.default None] [@sexp.default None]
+      reasoning: option(string),
+      [@yojson.default None] [@sexp.default None]
+      reasoning_duration_ms: option(int),
     };
   };
 
@@ -148,6 +153,8 @@ module Message = {
           Some(OpenRouter.Message.Utils.mk_system_msg(sanitized_content)),
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
     /** Shown when the user stops the agent or compaction and the HTTP reply arrives later. */
@@ -161,6 +168,8 @@ module Message = {
         api_message: None,
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
 
@@ -178,6 +187,8 @@ module Message = {
         api_message: None,
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
 
@@ -206,6 +217,8 @@ module Message = {
         api_message,
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
 
@@ -220,16 +233,25 @@ module Message = {
           Some(OpenRouter.Message.Utils.mk_developer_msg(sanitized_content)),
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
     let mk_agent_message =
         (
           ~tool_calls: list(OpenRouter.Reply.Model.tool_call)=[],
+          ~reasoning: option(string)=None,
+          ~reasoning_duration_ms: option(int)=None,
           content: string,
           usage: option(OpenRouter.Reply.Model.usage),
         )
         : Model.t => {
       let sanitized_content = String.trim(content);
+      let reasoning =
+        switch (reasoning) {
+        | Some(s) when String.trim(s) != "" => Some(String.trim(s))
+        | _ => None
+        };
       {
         id: Id.mk(),
         content: sanitized_content,
@@ -244,6 +266,8 @@ module Message = {
           ),
         children: [],
         current_child: None,
+        reasoning,
+        reasoning_duration_ms,
       };
     };
 
@@ -273,6 +297,8 @@ module Message = {
           ),
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
 
@@ -287,6 +313,8 @@ module Message = {
           Some(OpenRouter.Message.Utils.mk_user_msg(sanitized_content)),
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
     /** Exact [content] string embedded in the context system message on the API (tags + footer).
@@ -355,6 +383,8 @@ module Message = {
         api_message: Some(OpenRouter.Message.Utils.mk_system_msg(content)),
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
 
@@ -388,6 +418,8 @@ module Message = {
         api_message: None,
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
 
@@ -407,6 +439,8 @@ module Message = {
         api_message: Some(OpenRouter.Message.Utils.mk_system_msg(api_text)),
         children: [],
         current_child: None,
+        reasoning: None,
+        reasoning_duration_ms: None,
       };
     };
 
@@ -449,6 +483,7 @@ module Message = {
                 | UsageOutput(_) => "usage"
                 | KeyOutput(_) => "key"
                 | HelpOutput(_) => "help"
+                | Notice(_) => "notice"
                 | SlashError(_) => "error"
                 };
               `Assoc([("slash_command_output", `String(kind))]);
@@ -1228,6 +1263,7 @@ module ChatSlashCommands = {
     ("key", "Show the currently-set OpenRouter API key"),
     ("key-usage", "Show usage and limits for the active OpenRouter key"),
     ("session-usage", "Estimate $ cost of this chat from token usage"),
+    ("show-thinking", "Toggle display of agent thinking/reasoning text"),
   ];
 
   let filtered = (filter: string): list((string, string)) => {
@@ -2189,7 +2225,14 @@ module Agent = {
       type t =
         | ChatSystemAction(ChatSystem.Update.Action.t)
         | SendMessage(Message.Model.t, Id.t)
-        | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t, int)
+        | /** Last [int] is elapsed wall-time (ms) from send to reply,
+              used to render "Thought for Ns" on reasoning-bearing turns. */
+          HandleLLMResponse(
+            OpenRouter.Reply.Model.t,
+            Id.t,
+            int,
+            int,
+          )
         | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t, int)
         | HandleChatNamingResponse(string, Id.t)
         | ApiErrorResponse(Id.t, Message.Model.t, llm_error_origin)
@@ -2683,11 +2726,18 @@ module Agent = {
           ~main_flight_seq: int,
         )
         : unit => {
+      let send_started_at = JsUtil.timestamp();
       let handler = (response: option(API.Json.t)): unit => {
+        let elapsed_ms = int_of_float(JsUtil.timestamp() -. send_started_at);
         switch (OpenRouter.Utils.handle_chat(response)) {
         | Some(OpenRouter.Model.Reply(reply)) =>
           schedule_action(
-            Action.HandleLLMResponse(reply, chat_id, main_flight_seq),
+            Action.HandleLLMResponse(
+              reply,
+              chat_id,
+              main_flight_seq,
+              elapsed_ms,
+            ),
           )
         | Some(OpenRouter.Model.Error({message, code})) =>
           if (is_retryable_api_error(code) && retry_attempt < max_api_retries) {
@@ -3274,6 +3324,7 @@ module Agent = {
           reply: OpenRouter.Reply.Model.t,
           chat_id: Id.t,
           flight_seq: int,
+          elapsed_ms: int,
           model: Model.t,
           cell_editor: CellEditor.Model.t,
           settings: Settings.t,
@@ -3342,6 +3393,9 @@ module Agent = {
           let new_message =
             Message.Utils.mk_agent_message(
               ~tool_calls=reply.tool_calls,
+              ~reasoning=reply.reasoning,
+              ~reasoning_duration_ms=
+                Option.is_some(reply.reasoning) ? Some(elapsed_ms) : None,
               content,
               reply.usage,
             );
@@ -3691,12 +3745,13 @@ module Agent = {
             (model', editor |> Updated.return);
           };
         }
-      | HandleLLMResponse(reply, chat_id, flight_seq) =>
+      | HandleLLMResponse(reply, chat_id, flight_seq, elapsed_ms) =>
         let (m, e) =
           handle_llm_response(
             reply,
             chat_id,
             flight_seq,
+            elapsed_ms,
             model,
             editor,
             settings,
@@ -3815,6 +3870,7 @@ module Agent = {
           | UsageOutput(p) => usage_fallback_text(p)
           | KeyOutput(k) => key_fallback_text(k)
           | HelpOutput(p) => help_fallback_text(p)
+          | Notice(s) => s
           | SlashError(s) => s
           };
         let msg =

@@ -414,3 +414,71 @@ let has_ancestor_class =
     };
   go(el, 0);
 };
+
+/** Walk up to an [Element] from any [Node] (text nodes → their parentElement). */
+let element_of_node =
+    (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
+  switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {
+  | Some(el) => Some(el)
+  | None =>
+    // Text/comment nodes: climb to parentElement.
+    let parent = Js.Unsafe.get(node, "parentElement");
+    Js.Opt.to_option(parent);
+  };
+
+/** If the current window selection is non-collapsed and its anchor sits
+    (within [max_depth]) under an element with any of [classes], write the
+    selected text into [evt.clipboardData] as text/plain, preventDefault the
+    event, and return [true]. Otherwise return [false] and touch nothing.
+
+    Used to rescue native copy when a focused hidden element (e.g. the editor's
+    clipboard shim) would otherwise intercept Cmd/Ctrl+C. */
+let try_copy_window_selection_in_classes =
+    (
+      ~max_depth=8,
+      evt: Js.t(Dom_html.clipboardEvent),
+      classes: list(string),
+    )
+    : bool => {
+  let window_ = Dom_html.window;
+  let sel_opt =
+    Js.Optdef.to_option(Js.Unsafe.meth_call(window_, "getSelection", [||]));
+  switch (sel_opt) {
+  | None => false
+  | Some(sel) =>
+    let is_collapsed = Js.to_bool(Js.Unsafe.get(sel, "isCollapsed"));
+    let text = Js.to_string(Js.Unsafe.meth_call(sel, "toString", [||]));
+    if (is_collapsed || String.length(text) == 0) {
+      false;
+    } else {
+      let anchor_opt: option(Js.t(Dom.node)) =
+        Js.Opt.to_option(Js.Unsafe.get(sel, "anchorNode"));
+      switch (Option.bind(anchor_opt, element_of_node)) {
+      | None => false
+      | Some(anchor_el) =>
+        let in_any =
+          List.exists(
+            cls => has_ancestor_class(~max_depth, anchor_el, cls),
+            classes,
+          );
+        if (!in_any) {
+          false;
+        } else {
+          let clipboard_data = Js.Unsafe.get(evt, "clipboardData");
+          ignore(
+            Js.Unsafe.meth_call(
+              clipboard_data,
+              "setData",
+              [|
+                Js.Unsafe.inject(Js.string("text/plain")),
+                Js.Unsafe.inject(Js.string(text)),
+              |],
+            ),
+          );
+          Dom.preventDefault(evt);
+          true;
+        };
+      };
+    };
+  };
+};

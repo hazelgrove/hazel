@@ -67,14 +67,22 @@ let view =
     };
   };
 
-  // LLM selection handler
+  // LLM selection handler — also routes back to the chat so the picker
+  // doubles as the "change model" target from the in-chat shortcut.
   let set_active_llm = (llm_info: OpenRouter.AvailableLLMs.Model.llm_info) => {
-    let set_active_llm_action =
-      Globals.Action.SetAgentGlobals(
-        AgentGlobals.Update.SetActiveLlm(llm_info),
-      );
     Effect.Many([
-      globals.inject_global(set_active_llm_action),
+      globals.inject_global(
+        Globals.Action.SetAgentGlobals(
+          AgentGlobals.Update.SetActiveLlm(llm_info),
+        ),
+      ),
+      globals.inject_global(
+        Globals.Action.SetAgentGlobals(
+          AgentGlobals.Update.SwitchInterface(
+            AgentGlobals.Model.AgentChatInterface,
+          ),
+        ),
+      ),
       Effect.Stop_propagation,
     ]);
   };
@@ -228,12 +236,22 @@ let view =
               let prompt = format_price_per_million(llm.pricing.prompt);
               let completion =
                 format_price_per_million(llm.pricing.completion);
+              let name_children =
+                OpenRouter.AvailableLLMs.is_free(llm)
+                  ? [
+                    text(llm.name),
+                    Node.span(
+                      ~attrs=[clss(["llm-free-marker"])],
+                      [text(" *")],
+                    ),
+                  ]
+                  : [text(llm.name)];
               let base_children = [
                 div(
                   ~attrs=[clss(["llm-id"]), Attr.hidden],
                   [text(llm.id)],
                 ),
-                div(~attrs=[clss(["llm-name"])], [text(llm.name)]),
+                div(~attrs=[clss(["llm-name"])], name_children),
                 div(
                   ~attrs=[clss(["llm-pricing"])],
                   [
@@ -382,7 +400,13 @@ let view =
                         [
                           Node.span(
                             ~attrs=[clss(["llm-only-free-label"])],
-                            [text("Only free")],
+                            [
+                              text("Free"),
+                              Node.span(
+                                ~attrs=[clss(["llm-free-marker"])],
+                                [text(" *")],
+                              ),
+                            ],
                           ),
                           toggle(
                             ~tooltip="Show only free models",
@@ -419,6 +443,14 @@ let view =
                             ~attrs=[clss(["llm-list"])],
                             List.map(render_llm_item, master_filtered),
                           ),
+                    ],
+                  ),
+                  div(
+                    ~attrs=[clss(["llm-free-footnote"])],
+                    [
+                      text(
+                        "* Free models tend to be heavily rate-limited and often don't support tool calling, which is required by the Hazel coding agent.",
+                      ),
                     ],
                   ),
                 ],

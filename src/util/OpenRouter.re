@@ -24,6 +24,8 @@ module Reply = {
       content: string,
       tool_calls: list(tool_call),
       usage: option(usage),
+      [@yojson.default None] [@sexp.default None]
+      reasoning: option(string),
     };
   };
 };
@@ -308,37 +310,55 @@ module Utils = {
     };
   };
 
-  let first_message_content = (choices: Json.t): option(string) => {
-    let* choices = Json.list(choices);
-    let* hd = ListUtil.hd_opt(choices);
-    let* delta =
-      switch (Json.dot("message", hd)) {
-      | Some(message) => Some(message)
-      | None => Json.dot("delta", hd)
-      };
-    let from_content =
-      switch (Json.dot("content", delta)) {
-      | None => None
-      | Some(c) => message_content_string(c)
-      };
-    let from_reasoning = Option.bind(Json.dot("reasoning", delta), Json.str);
-    let from_reasoning_content =
-      Option.bind(Json.dot("reasoning_content", delta), Json.str);
-    let from_thinking = Option.bind(Json.dot("thinking", delta), Json.str);
-    switch (
-      List.find_map(
-        (o: option(string)) =>
-          switch (o) {
-          | Some(s) when String.trim(s) != "" => Some(s)
-          | _ => None
-          },
-        [from_content, from_reasoning_content, from_reasoning, from_thinking],
-      )
-    ) {
-    | Some(s) => Some(s)
-    | None => from_content
+  /** Extracts visible content and reasoning text from the first choice.
+      Returns [(content, reasoning)]. If [content] is empty/missing but a
+      reasoning-style field is present, falls back to surfacing it as content
+      (legacy behavior for models that only emit reasoning). */
+  let first_message_content_and_reasoning =
+      (choices: Json.t): (option(string), option(string)) => {
+    let extracted = {
+      let* choices = Json.list(choices);
+      let* hd = ListUtil.hd_opt(choices);
+      let* delta =
+        switch (Json.dot("message", hd)) {
+        | Some(message) => Some(message)
+        | None => Json.dot("delta", hd)
+        };
+      let from_content =
+        switch (Json.dot("content", delta)) {
+        | None => None
+        | Some(c) => message_content_string(c)
+        };
+      let from_reasoning =
+        Option.bind(Json.dot("reasoning", delta), Json.str);
+      let from_reasoning_content =
+        Option.bind(Json.dot("reasoning_content", delta), Json.str);
+      let from_thinking = Option.bind(Json.dot("thinking", delta), Json.str);
+      let nonempty = (o: option(string)): option(string) =>
+        switch (o) {
+        | Some(s) when String.trim(s) != "" => Some(s)
+        | _ => None
+        };
+      let reasoning =
+        List.find_map(
+          nonempty,
+          [from_reasoning_content, from_reasoning, from_thinking],
+        );
+      Some((nonempty(from_content), reasoning));
+    };
+    switch (extracted) {
+    | None => (None, None)
+    | Some((Some(_) as c, r)) => (c, r)
+    | Some((None, Some(_) as r)) =>
+      // Reasoning-only response: surface as content for back-compat; don't
+      // double-render by also returning it under reasoning.
+      (r, None)
+    | Some((None, None)) => (None, None)
     };
   };
+
+  let first_message_content = (choices: Json.t): option(string) =>
+    fst(first_message_content_and_reasoning(choices));
 
   let parse_tool_args = (args: Json.t): Json.t => {
     switch (args) {
@@ -413,16 +433,12 @@ module Utils = {
     switch (parse_errs(json)) {
     | Some(e) => Some(Model.Error(e))
     | None =>
-      let content =
-        switch (
-          {
-            let* choices = Json.dot("choices", json);
-            first_message_content(choices);
-          }
-        ) {
-        | Some(content) => content
-        | None => ""
+      let (content_opt, reasoning) =
+        switch (Json.dot("choices", json)) {
+        | Some(choices) => first_message_content_and_reasoning(choices)
+        | None => (None, None)
         };
+      let content = Option.value(~default="", content_opt);
       let tool_calls =
         switch (Json.dot("choices", json)) {
         | Some(choices) => parse_tool_calls(choices)
@@ -437,6 +453,7 @@ module Utils = {
           content,
           tool_calls,
           usage,
+          reasoning,
         }),
       );
     };

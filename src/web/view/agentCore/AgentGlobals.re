@@ -18,6 +18,8 @@ module Model = {
     only_free_models: bool,
     [@yojson.default None] [@sexp.default None]
     reasoning_effort: option(OpenRouter.Payload.Model.effort_level),
+    [@yojson.default true] [@sexp.default true]
+    show_thinking: bool,
   };
 };
 
@@ -29,6 +31,7 @@ let init = (): Model.t => {
   model_filter: "",
   only_free_models: false,
   reasoning_effort: None,
+  show_thinking: true,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {
@@ -78,6 +81,25 @@ let context_meter_limit_for_active = (model: Model.t): option(int) =>
     context_length_for_active(model),
   );
 
+/** True iff active model supports the OpenRouter [reasoning] parameter.
+    Prefers the freshly-fetched catalog over [active_llm] (which may be a persisted
+    snapshot saved before [supports_reasoning] existed and would default to [false]). */
+let active_supports_reasoning = (model: Model.t): bool => {
+  switch (model.active_llm) {
+  | None => false
+  | Some(llm) =>
+    switch (
+      List.find_opt(
+        (m: OpenRouter.AvailableLLMs.Model.llm_info) => m.id == llm.id,
+        model.available_llms,
+      )
+    ) {
+    | Some(m) => m.supports_reasoning
+    | None => llm.supports_reasoning
+    }
+  };
+};
+
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
@@ -87,6 +109,7 @@ module Update = {
     | SetModelFilter(string)
     | SetOnlyFreeModels(bool)
     | SetReasoningEffort(option(OpenRouter.Payload.Model.effort_level))
+    | ToggleShowThinking
     | SwitchInterface(Model.screen);
 
   let update =
@@ -133,6 +156,10 @@ module Update = {
     | SetReasoningEffort(reasoning_effort) => {
         ...model,
         reasoning_effort,
+      }
+    | ToggleShowThinking => {
+        ...model,
+        show_thinking: !model.show_thinking,
       }
     | SwitchInterface(screen) => {
         ...model,

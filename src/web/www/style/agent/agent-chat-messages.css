@@ -1,5 +1,15 @@
 /* Chat Messages View Styles */
 
+/* Force text selection/copy everywhere inside the agent chat view, overriding
+   any per-element `user-select: none` declarations (buttons, headers, etc.). */
+.chat-view-container,
+.chat-view-container * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
 .chat-messages-view {
   display: flex;
   flex-direction: column;
@@ -130,6 +140,39 @@
   -moz-user-select: text;
   -ms-user-select: text;
   cursor: text;
+}
+
+.agent-thinking-block {
+  margin-bottom: 0.5em;
+  padding-left: 0.5em;
+  border-left: 2px solid var(--STONE);
+  border-left-color: rgba(128, 128, 128, 0.3);
+}
+
+.agent-thinking-header {
+  font-size: 0.78em;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--STONE);
+  opacity: 0.75;
+  margin-bottom: 0.25em;
+  user-select: text;
+}
+
+.agent-thinking-text {
+  font-size: 0.78em;
+  font-style: italic;
+  color: var(--STONE);
+  opacity: 0.65;
+  line-height: 1.4;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.agent-thinking-text .agent-message-markdown {
+  white-space: normal;
 }
 
 /* Markdown inside Filbert replies (Omd → vdom) */
@@ -1210,7 +1253,7 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  margin-left: 4px;
+  outline: none;
 }
 
 .reasoning-effort-button {
@@ -1219,8 +1262,9 @@
   color: var(--STONE);
   opacity: 0.85;
   padding: 2px 6px;
-  border: 1px solid var(--BR1);
+  border: 1px solid var(--BR2);
   border-radius: 3px;
+  background-color: var(--SAND);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -1232,13 +1276,53 @@
   border-color: var(--BR3);
 }
 
+/* Plain text "change model" button — same font as the reasoning button,
+   no border/background so it reads as a hoverable label. */
+.change-model-button {
+  font-size: 9px;
+  line-height: 1;
+  font-family: var(--code-font);
+  color: var(--STONE);
+  opacity: 0.7;
+  padding: 0 4px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+
+.change-model-button:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.change-model-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+}
+
+.change-model-current-name {
+  font-size: 9px;
+  line-height: 1;
+  font-family: var(--code-font);
+  color: var(--STONE);
+  opacity: 0.5;
+  padding: 0 4px;
+  user-select: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .reasoning-effort-menu {
   position: absolute;
   bottom: calc(100% + 4px);
   left: 0;
   display: none;
   flex-direction: column;
-  background: var(--main-bg-color);
+  background: var(--SAND);
   border: 1px solid var(--BR2);
   border-radius: 3px;
   min-width: 80px;
@@ -1246,7 +1330,8 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
-.reasoning-effort-dropup:hover .reasoning-effort-menu,
+/* Click button → dropup gets focus → menu opens.
+   Click outside → focus leaves → menu closes. Selection blurs explicitly. */
 .reasoning-effort-dropup:focus-within .reasoning-effort-menu {
   display: flex;
 }
@@ -1275,9 +1360,35 @@
   width: 100%;
   max-width: 100%;
   display: flex;
-  flex-direction: row;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0;
+  border-radius: 8px;
+  border: 0.6px solid var(--BR2);
+  background-color: var(--SAND);
+  overflow: visible;
+}
+
+.chat-message-input-container:hover,
+.chat-message-input-container:focus-within {
+  border-color: var(--BR3);
+}
+
+/* Thin in-composer bottom bar: dropup left, send/stop right. */
+.chat-input-bottom-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  min-height: 24px;
+}
+
+.chat-input-bottom-bar-left,
+.chat-input-bottom-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Slash commands: palette above the composer (triggered by typing "/") */
@@ -1330,12 +1441,10 @@
 .chat-message-input {
   width: 100%;
   padding: 0.6em 0.8em;
-  padding-right: 4.25em; /* send and/or queue+stop inside composer */
-  border-radius: 8px;
-  border: 0.6px solid var(--BR2);
+  border-radius: 8px 8px 0 0;
+  border: none;
   background-color: var(--SAND);
   color: var(--STONE);
-  /* font-family: var(--code-font); */
   font-size: 0.9em;
   line-height: 1.4;
   resize: none;
@@ -1344,25 +1453,6 @@
   max-height: 200px;
   box-sizing: border-box;
   outline: none;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-
-/* Only the textarea is in normal flow; send/stop are position:absolute */
-.chat-message-input-container > .chat-message-input {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-}
-
-.chat-message-input:hover {
-  border-color: var(--BR3);
-  background-color: var(--SAND);
-}
-
-.chat-message-input:focus {
-  border-color: var(--BR3);
-  background-color: var(--SAND);
-  outline: 0.6px solid var(--BR3);
 }
 
 .chat-message-input::placeholder {
@@ -1469,11 +1559,9 @@
   background-color: var(--T3);
 }
 
-/* Chat message send button - positioned inside textarea, bottom right */
+/* Chat message send button - sits in the in-composer bottom bar (right side). */
 .chat-message-input-container .chat-message-send-button {
-  position: absolute;
-  bottom: 0.6em;
-  right: 0.35em;
+  position: static;
   width: 20px;
   height: 20px;
   border: 0.75px solid var(--BR3);
@@ -1486,7 +1574,6 @@
   line-height: 0;
   padding: 0;
   fill: var(--STONE);
-  z-index: 10;
   pointer-events: auto;
 }
 
@@ -1512,11 +1599,9 @@
   background-color: var(--T3);
 }
 
-/* Stop — same slot and size as .chat-message-send-button (inside composer) */
+/* Stop — same size as .chat-message-send-button (in the bottom bar). */
 .chat-message-input-container .chat-message-stop-button {
-  position: absolute;
-  bottom: 0.6em;
-  right: 0.35em;
+  position: static;
   width: 20px;
   height: 20px;
   border: 0.75px solid var(--BR3);
@@ -1529,7 +1614,6 @@
   line-height: 0;
   padding: 0;
   fill: var(--STONE);
-  z-index: 11;
   pointer-events: auto;
 }
 
@@ -1547,11 +1631,9 @@
   background-color: var(--T3);
 }
 
-/* Queue send (while busy) — sits left of the stop button */
+/* Queue send (while busy) — sits left of the stop button in the bottom bar. */
 .chat-message-input-container .chat-message-queue-send-button {
-  position: absolute;
-  bottom: 0.6em;
-  right: 2.35em;
+  position: static;
   width: 20px;
   height: 20px;
   border: 0.75px solid var(--BR3);
@@ -1564,7 +1646,6 @@
   line-height: 0;
   padding: 0;
   fill: var(--STONE);
-  z-index: 11;
   pointer-events: auto;
 }
 
@@ -1683,6 +1764,20 @@
 
 .agent-tool-call-inline.stale .tool-call-signifier {
   opacity: 0.5;
+}
+
+/* Visually group consecutive tool calls produced by the same LLM turn (batch).
+   A thin left border brackets the rows; tighter vertical spacing within. */
+.agent-tool-call-batch {
+  border-left: 2px solid var(--BR2);
+  padding-left: 0.5em;
+  margin-top: 0.4em;
+  margin-bottom: 0.4em;
+}
+
+.agent-tool-call-batch .agent-tool-call-inline {
+  margin-top: 0.1em;
+  margin-bottom: 0.1em;
 }
 
 /* Edit Summary Display */

@@ -623,6 +623,10 @@ let chat_messages_scroll_stamp =
           (m: Agent.Message.Model.t) => {
             mix(String.length(m.content));
             mix(Hashtbl.hash(m.id));
+            switch (m.reasoning) {
+            | Some(r) => mix(String.length(r))
+            | None => mix(0)
+            };
             switch (m.role) {
             | ToolResult(tr) => mix(tr.expanded ? 1 : 0)
             | Agent(_) => mix(3)
@@ -673,6 +677,9 @@ let chat_messages_scroll_stamp =
         | HelpOutput(p) =>
           mix(94);
           mix(List.length(p.help_entries));
+        | Notice(s) =>
+          mix(97);
+          mix(String.length(s));
         | SlashError(s) =>
           mix(95);
           mix(String.length(s));
@@ -1102,72 +1109,145 @@ let view =
       );
     | Agent.ChunkedUIChat.Model.AgentResponseChunk(agent_chunk) =>
       // Agent response chunk - display messages linearly
-      // Render each message in the content list linearly
-      // Filter out empty agent messages - don't display them at all
-      let linear_messages_display =
-        agent_chunk.content
-        |> List.filter_map((msg: Agent.Message.Model.t) => {
-             switch (msg.role) {
-             | Agent(_) =>
-               // Only show agent message if it has content
-               if (msg.content != "" && String.trim(msg.content) != "") {
-                 Some(
-                   div(
-                     ~attrs=[clss(["agent-message"])],
-                     [AgentMessageMarkdown.view(msg.content)],
-                   ),
-                 );
-               } else {
-                 None; // Don't display empty agent messages
-               }
-             | Agent.Message.Model.System(Agent.Message.Model.RetryNote) =>
-               Some(
-                 div(
-                   ~attrs=[
-                     clss(["agent-system-message", "agent-retry-note"]),
-                   ],
-                   [text(msg.content)],
-                 ),
-               )
-             | Agent.Message.Model.System(
-                 Agent.Message.Model.ResponseCancelled,
-               ) =>
-               /* Chunked as ResponseCancelledMessage — not under Filbert */
-               None
-             | ToolResult(tool_result) =>
-               // Tool call message - display inline with expand/collapse
-               let toggle_expanded = _ => {
-                 Effect.Many([
-                   agent_inject(
-                     Agent.Agent.Update.Action.ChatSystemAction(
-                       Agent.ChatSystem.Update.Action.ChatAction(
-                         Agent.Chat.Update.Action.MessageAction(
-                           msg.id,
-                           Agent.Message.Update.SetToolResultExpanded(
-                             !tool_result.expanded,
-                           ),
-                         ),
-                         current_chat_id,
-                       ),
-                     ),
-                   ),
-                   Effect.Stop_propagation,
-                 ]);
-               };
-               Some(
-                 ToolResultView.view(
-                   ~globals,
-                   ~node_map?,
-                   ~tool_result,
-                   ~toggle_expanded,
-                   (),
-                 ),
-               );
-             | _ => None
-             }
-           });
-
-      let linear_display = linear_messages_display;
+      // Render each message in the content list linearly.
+      // Group consecutive ToolResult messages into a "batch" wrapper:
+      // tool calls produced by a single LLM turn are emitted as one batch
+      // (an Agent message ends the batch, as does a RetryNote / non-tool entry).
+      let render_tool_node =
+          (
+            msg: Agent.Message.Model.t,
+            tool_result: AgentToolResult.tool_result,
+          ) => {
+        let toggle_expanded = _ => {
+          Effect.Many([
+            agent_inject(
+              Agent.Agent.Update.Action.ChatSystemAction(
+                Agent.ChatSystem.Update.Action.ChatAction(
+                  Agent.Chat.Update.Action.MessageAction(
+                    msg.id,
+                    Agent.Message.Update.SetToolResultExpanded(
+                      !tool_result.expanded,
+                    ),
+                  ),
+                  current_chat_id,
+                ),
+              ),
+            ),
+            Effect.Stop_propagation,
+          ]);
+        };
+        ToolResultView.view(
+          ~globals,
+          ~node_map?,
+          ~tool_result,
+          ~toggle_expanded,
+          (),
+        );
+      };
+      let wrap_batch = (nodes: list(Node.t)): Node.t =>
+        switch (nodes) {
+        | [single] =>
+          // Solo tool call — no batch decoration
+          single
+        | _ => div(~attrs=[clss(["agent-tool-call-batch"])], nodes)
+        };
+      let (linear_display_rev, pending_batch) =
+        List.fold_left(
+          ((acc, batch), msg: Agent.Message.Model.t) => {
+            let flush = (acc, batch) =>
+              switch (List.rev(batch)) {
+              | [] => acc
+              | xs => [wrap_batch(xs), ...acc]
+              };
+            switch (msg.role) {
+            | ToolResult(tool_result) => (
+                acc,
+                [render_tool_node(msg, tool_result), ...batch],
+              )
+            | Agent(_) =>
+              let acc = flush(acc, batch);
+              let show_thinking = globals.settings.agent_globals.show_thinking;
+              let format_thinking_duration = (ms: int): string => {
+                let secs = max(0, ms / 1000);
+                if (secs < 60) {
+                  "Thought for " ++ string_of_int(secs) ++ "s";
+                } else {
+                  let m = secs / 60;
+                  let s = secs mod 60;
+                  "Thought for "
+                  ++ string_of_int(m)
+                  ++ "m "
+                  ++ string_of_int(s)
+                  ++ "s";
+                };
+              };
+              let reasoning_node: option(Node.t) =
+                switch (show_thinking, msg.reasoning) {
+                | (true, Some(text_content))
+                    when String.trim(text_content) != "" =>
+                  let header_text =
+                    switch (msg.reasoning_duration_ms) {
+                    | Some(ms) => format_thinking_duration(ms)
+                    | None => "Thinking"
+                    };
+                  Some(
+                    div(
+                      ~attrs=[clss(["agent-thinking-block"])],
+                      [
+                        div(
+                          ~attrs=[clss(["agent-thinking-header"])],
+                          [text(header_text)],
+                        ),
+                        div(
+                          ~attrs=[clss(["agent-thinking-text"])],
+                          [AgentMessageMarkdown.view(text_content)],
+                        ),
+                      ],
+                    ),
+                  );
+                | _ => None
+                };
+              let content_node: option(Node.t) =
+                if (msg.content != "" && String.trim(msg.content) != "") {
+                  Some(
+                    div(
+                      ~attrs=[clss(["agent-message"])],
+                      [AgentMessageMarkdown.view(msg.content)],
+                    ),
+                  );
+                } else {
+                  None;
+                };
+              let nodes =
+                List.filter_map(x => x, [reasoning_node, content_node]);
+              switch (nodes) {
+              | [] => (acc, [])
+              | xs => (List.rev_append(xs, acc), [])
+              };
+            | System(RetryNote) =>
+              let acc = flush(acc, batch);
+              let node =
+                div(
+                  ~attrs=[
+                    clss(["agent-system-message", "agent-retry-note"]),
+                  ],
+                  [text(msg.content)],
+                );
+              ([node, ...acc], []);
+            | System(ResponseCancelled)
+            | _ => (acc, batch)
+            };
+          },
+          ([], []),
+          agent_chunk.content,
+        );
+      let linear_display =
+        List.rev(
+          switch (List.rev(pending_batch)) {
+          | [] => linear_display_rev
+          | xs => [wrap_batch(xs), ...linear_display_rev]
+          },
+        );
 
       let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool => {
         switch (tool_result.tool_call.name) {

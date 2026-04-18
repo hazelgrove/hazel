@@ -519,7 +519,20 @@ module View = {
         switch (target) {
         | Some(el) =>
           let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
+          // Clipboard-shim always holds focus, so native Cmd+C on agent
+          // sidebar text would copy the shim's (empty) content. The helper
+          // writes the window selection to clipboardData + preventDefault'd
+          // when the selection lives inside the agent sidebar.
+          let sidebar_handled =
+            JsUtil.try_copy_window_selection_in_classes(
+              evt,
+              [
+                "agent-main-menu",
+                "chat-view-container",
+                "chat-interface-placeholder",
+              ],
+            );
+          if (is_input_field(elId) || sidebar_handled) {
             ();
           } else {
             let el = Js.Unsafe.coerce(el);

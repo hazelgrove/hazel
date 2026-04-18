@@ -36,6 +36,7 @@ let slash_command_tests = [
           "key",
           "key-usage",
           "session-usage",
+          "show-thinking",
         ],
         names,
       );
