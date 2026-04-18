@@ -2436,6 +2436,7 @@ module Agent = {
             OpenRouter.Message.Utils.mk_user_msg(user_message),
           ],
           ~tools=[],
+          (),
         );
       let handler = (response: option(API.Json.t)): unit => {
         switch (OpenRouter.Utils.handle_chat(response)) {
@@ -2520,6 +2521,7 @@ module Agent = {
           ~model_id=llm_id,
           ~messages,
           ~tools=[],
+          (),
         );
       OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
     };
@@ -2721,6 +2723,7 @@ module Agent = {
         (
           ~api_key: option(string),
           ~llm_id: option(string),
+          ~reasoning_effort: option(OpenRouter.Payload.Model.effort_level),
           new_message: Message.Model.t,
           chat_id: Id.t,
           model: Model.t,
@@ -2816,6 +2819,12 @@ module Agent = {
                     ),
                   ),
                 ~tools=enabled_tools(model.prompting),
+                ~reasoning=?
+                  Option.map(
+                    e => OpenRouter.Payload.Model.Effort(e),
+                    reasoning_effort,
+                  ),
+                (),
               ),
             ~schedule_action,
             ~chat_id,
@@ -2912,6 +2921,12 @@ module Agent = {
                     ),
                   ),
                 ~tools=enabled_tools(model.prompting),
+                ~reasoning=?
+                  Option.map(
+                    e => OpenRouter.Payload.Model.Effort(e),
+                    settings.agent_globals.reasoning_effort,
+                  ),
+                (),
               ),
             ~schedule_action,
             ~chat_id,
@@ -3571,6 +3586,7 @@ module Agent = {
           send_message(
             ~api_key=settings.agent_globals.api_key,
             ~llm_id=AgentGlobals.get_active_llm_id(settings.agent_globals),
+            ~reasoning_effort=settings.agent_globals.reasoning_effort,
             message,
             chat_id,
             model,
@@ -4042,6 +4058,12 @@ module Agent = {
                       ),
                     ),
                   ~tools=enabled_tools(model.prompting),
+                  ~reasoning=?
+                    Option.map(
+                      e => OpenRouter.Payload.Model.Effort(e),
+                      settings.agent_globals.reasoning_effort,
+                    ),
+                  (),
                 ),
               ~schedule_action,
               ~chat_id,
@@ -4140,6 +4162,12 @@ module Agent = {
                       ),
                     ),
                   ~tools=enabled_tools(model.prompting),
+                  ~reasoning=?
+                    Option.map(
+                      e => OpenRouter.Payload.Model.Effort(e),
+                      settings.agent_globals.reasoning_effort,
+                    ),
+                  (),
                 ),
               ~schedule_action,
               ~chat_id,

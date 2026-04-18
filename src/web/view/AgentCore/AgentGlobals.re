@@ -16,6 +16,8 @@ module Model = {
     model_filter: string,
     [@yojson.default false] [@sexp.default false]
     only_free_models: bool,
+    [@yojson.default None] [@sexp.default None]
+    reasoning_effort: option(OpenRouter.Payload.Model.effort_level),
   };
 };
 
@@ -26,6 +28,7 @@ let init = (): Model.t => {
   available_llms: [],
   model_filter: "",
   only_free_models: false,
+  reasoning_effort: None,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {
@@ -83,6 +86,7 @@ module Update = {
     | SetAvailableLLMs(OpenRouter.AvailableLLMs.Model.t)
     | SetModelFilter(string)
     | SetOnlyFreeModels(bool)
+    | SetReasoningEffort(option(OpenRouter.Payload.Model.effort_level))
     | SwitchInterface(Model.screen);
 
   let update =
@@ -125,6 +129,10 @@ module Update = {
     | SetOnlyFreeModels(only_free_models) => {
         ...model,
         only_free_models,
+      }
+    | SetReasoningEffort(reasoning_effort) => {
+        ...model,
+        reasoning_effort,
       }
     | SwitchInterface(screen) => {
         ...model,

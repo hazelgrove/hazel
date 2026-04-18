@@ -345,6 +345,24 @@
 .slash-card-key {
   border-left-color: var(--STONE);
 }
+.slash-key-value {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.slash-key-code {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 0.82em;
+  padding: 0.25em 0.45em;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: normal;
+  color: var(--STONE);
+}
 .slash-card-error {
   border-left-color: var(--RED, #b04848);
   background: rgba(176, 72, 72, 0.06);
@@ -1177,6 +1195,71 @@
 .chat-action-button:hover svg {
   fill: var(--BR3);
   animation: jello 0.6s ease 0s 1 normal forwards;
+}
+
+/* Reasoning effort dropup — sits in the bottom-bar action row */
+.reasoning-effort-dropup {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.reasoning-effort-button {
+  font-size: 11px;
+  font-family: var(--code-font);
+  color: var(--STONE);
+  opacity: 0.85;
+  padding: 2px 6px;
+  border: 1px solid var(--BR1);
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.reasoning-effort-button:hover {
+  opacity: 1;
+  border-color: var(--BR3);
+}
+
+.reasoning-effort-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  display: none;
+  flex-direction: column;
+  background: var(--main-bg-color);
+  border: 1px solid var(--BR2);
+  border-radius: 3px;
+  min-width: 80px;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.reasoning-effort-dropup:hover .reasoning-effort-menu,
+.reasoning-effort-dropup:focus-within .reasoning-effort-menu {
+  display: flex;
+}
+
+.reasoning-effort-menu-item {
+  font-size: 11px;
+  font-family: var(--code-font);
+  color: var(--STONE);
+  padding: 4px 8px;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.reasoning-effort-menu-item:hover {
+  background: var(--BR1);
+  opacity: 1;
+}
+
+.reasoning-effort-menu-item.selected {
+  color: var(--BR3);
+  opacity: 1;
 }
 
 .chat-message-input-container {

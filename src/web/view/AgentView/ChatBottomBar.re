@@ -358,6 +358,79 @@ let view =
               } else {
                 div(~attrs=[], []);
               },
+              {
+                // Reasoning effort dropup (only for models that support reasoning)
+
+                let agent_globals = globals.settings.agent_globals;
+                let supports =
+                  switch (agent_globals.active_llm) {
+                  | Some(llm) =>
+                    OpenRouter.AvailableLLMs.supports_reasoning(llm)
+                  | None => false
+                  };
+                if (supports) {
+                  let current_label =
+                    switch (agent_globals.reasoning_effort) {
+                    | None => "Off"
+                    | Some(Low) => "Low"
+                    | Some(Medium) => "Medium"
+                    | Some(High) => "High"
+                    };
+                  let set_effort =
+                      (
+                        e: option(OpenRouter.Payload.Model.effort_level),
+                        _evt,
+                      ) =>
+                    Effect.Many([
+                      globals.inject_global(
+                        Globals.Action.SetAgentGlobals(
+                          AgentGlobals.Update.SetReasoningEffort(e),
+                        ),
+                      ),
+                      Effect.Stop_propagation,
+                    ]);
+                  let menu_item =
+                      (
+                        label: string,
+                        e: option(OpenRouter.Payload.Model.effort_level),
+                      ) => {
+                    let selected =
+                      e == agent_globals.reasoning_effort ? ["selected"] : [];
+                    div(
+                      ~attrs=[
+                        clss(["reasoning-effort-menu-item"] @ selected),
+                        Attr.on_mousedown(set_effort(e)),
+                      ],
+                      [text(label)],
+                    );
+                  };
+                  div(
+                    ~attrs=[clss(["reasoning-effort-dropup"])],
+                    [
+                      div(
+                        ~attrs=[
+                          clss(["reasoning-effort-button"]),
+                          Attr.title(
+                            "Reasoning effort (only sent for models that support it)",
+                          ),
+                        ],
+                        [text("\xE2\x8C\x83 " ++ current_label)],
+                      ),
+                      div(
+                        ~attrs=[clss(["reasoning-effort-menu"])],
+                        [
+                          menu_item("Off", None),
+                          menu_item("Low", Some(Low)),
+                          menu_item("Medium", Some(Medium)),
+                          menu_item("High", Some(High)),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  div(~attrs=[], []);
+                };
+              },
             ],
           ),
           div(

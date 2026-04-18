@@ -160,10 +160,12 @@ module Payload = {
           ~model_id: string,
           ~messages: list(Message.Model.t),
           ~tools: list(Json.t),
+          ~reasoning: option(Model.reasoning)=?,
+          (),
         )
         : Model.t => {
       model_id,
-      reasoning: None,
+      reasoning,
       temperature: 1.0,
       top_p: 1.0,
       tools,
@@ -456,6 +458,8 @@ module AvailableLLMs = {
       pricing,
       [@yojson.default None]
       context_length: option(int),
+      [@yojson.default false] [@sexp.default false]
+      supports_reasoning: bool,
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -479,6 +483,9 @@ module AvailableLLMs = {
 
   let is_free = (info: Model.llm_info): bool =>
     StringUtil.match(StringUtil.regexp("free"), info.name);
+
+  let supports_reasoning = (info: Model.llm_info): bool =>
+    info.supports_reasoning;
 
   module Utils = {
     let get_models = (~key: string, ~handler: option(Json.t) => unit): unit => {
@@ -546,6 +553,17 @@ module AvailableLLMs = {
                     if (!has_required_parameters(params_opt)) {
                       None;
                     } else {
+                      let supports_reasoning =
+                        switch (params_opt) {
+                        | Some(`List(params)) =>
+                          List.exists(
+                            fun
+                            | `String("reasoning") => true
+                            | _ => false,
+                            params,
+                          )
+                        | _ => false
+                        };
                       switch (id_opt, name_opt, pricing_opt) {
                       | (
                           Some(`String(id)),
@@ -566,6 +584,7 @@ module AvailableLLMs = {
                                 completion: c,
                               },
                               context_length,
+                              supports_reasoning,
                             }: Model.llm_info,
                           )
                         | _ => None
