@@ -86,11 +86,38 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
   };
 };
 
+let category_icon = (c: ToolCallSummary.category): Node.t =>
+  switch (c) {
+  | Edit => cat_edit
+  | Read => cat_read
+  | View => cat_view
+  | Projector => cat_projector
+  | Probe => cat_probe
+  | Statics => cat_statics
+  | Workbench => cat_workbench
+  };
+
+/** Returns [[Some(id)]] for the first path in [[jump_paths]] that resolves in
+    [[node_map]]; [[None]] otherwise (including when [[node_map]] is [[None]]). */
+let first_resolving_id =
+    (~node_map: option(HighLevelNodeMap.t), jump_paths: list(string))
+    : option(Id.t) =>
+  switch (node_map) {
+  | None => None
+  | Some(nm) =>
+    List.find_map(
+      (p: string) => HighLevelNodeMap.Public.path_to_id_opt(nm, p),
+      jump_paths,
+    )
+  };
+
 let view =
     (
       ~globals: Globals.t,
+      ~node_map: option(HighLevelNodeMap.t)=?,
       ~tool_result: AgentToolResult.tool_result,
       ~toggle_expanded: 'a => Effect.t(unit),
+      (),
     )
     : Node.t => {
   let (status_icon, status_class) =
@@ -101,23 +128,71 @@ let view =
     } else {
       (cancel, "tool-call-failure");
     };
+  let summary_opt = ToolCallSummary.of_tool_call(tool_result.tool_call);
+  let resolved_id: option(Id.t) =
+    switch (summary_opt) {
+    | Some(s) when s.jump_paths != [] =>
+      first_resolving_id(~node_map, s.jump_paths)
+    | _ => None
+    };
+  let is_stale: bool =
+    switch (summary_opt) {
+    | Some(s) when s.persists && s.jump_paths != [] =>
+      resolved_id == None && node_map != None
+    | _ => false
+    };
+  let category_node: Node.t =
+    switch (summary_opt) {
+    | Some(s) =>
+      div(
+        ~attrs=[
+          clss([
+            "tool-call-category-icon",
+            ToolCallSummary.category_class(s.category),
+          ]),
+        ],
+        [category_icon(s.category)],
+      )
+    | None => Node.none
+    };
+  let signifier_node: Node.t =
+    switch (summary_opt) {
+    | Some({signifier: Some(s), _}) =>
+      span(~attrs=[clss(["tool-call-signifier"])], [text(s)])
+    | _ => Node.none
+    };
+  let on_header_click = (evt): Effect.t(unit) => {
+    let is_meta_click = Key.ctrl_held(evt) || Key.meta_held(evt);
+    switch (is_meta_click, resolved_id) {
+    | (true, Some(id)) =>
+      Effect.Many([
+        globals.inject_global(Globals.Update.JumpToTile(id)),
+        Effect.Stop_propagation,
+      ])
+    | _ => toggle_expanded(evt)
+    };
+  };
   let dom_id = "tool-call-" ++ tool_result.tool_call.id;
+  let root_classes =
+    ["agent-tool-call-inline"] @ (is_stale ? ["stale"] : []);
   div(
-    ~attrs=[clss(["agent-tool-call-inline"]), Attr.id(dom_id)],
+    ~attrs=[clss(root_classes), Attr.id(dom_id)],
     [
       div(
         ~attrs=[
           clss(["tool-call-header", tool_result.expanded ? "expanded" : ""]),
-          Attr.on_click(toggle_expanded),
+          Attr.on_click(on_header_click),
         ],
         [
-          div(
-            ~attrs=[clss(["tool-call-status-icon", status_class])],
-            [status_icon],
-          ),
+          category_node,
           div(
             ~attrs=[clss(["tool-call-name"])],
             [text(tool_result.tool_call.name)],
+          ),
+          signifier_node,
+          div(
+            ~attrs=[clss(["tool-call-status-icon", status_class])],
+            [status_icon],
           ),
         ],
       ),

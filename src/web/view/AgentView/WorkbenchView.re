@@ -23,9 +23,17 @@ let view =
       ~agent_model: Agent.Agent.Model.t,
       ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
       ~signal as _: Editors.View.signal => Effect.t(unit),
+      ~code_with_statics: CodeWithStatics.Model.t,
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
+  // Build the high-level node map once for this render pass, used by tool-call
+  // rows for stale-path detection and cmd/ctrl-click jump targets.
+  let node_map: option(HighLevelNodeMap.t) = {
+    let z = code_with_statics.editor.state.zipper;
+    let info_map = CompositionGo.Public.mk_statics(z);
+    HighLevelNodeMap.build(z, info_map);
+  };
   let current_chat_id = chat_system.current;
   let current_chat =
     Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
@@ -101,7 +109,13 @@ let view =
         Effect.Stop_propagation,
       ]);
     };
-    ToolResultView.view(~globals, ~tool_result, ~toggle_expanded);
+    ToolResultView.view(
+      ~globals,
+      ~node_map?,
+      ~tool_result,
+      ~toggle_expanded,
+      (),
+    );
   };
 
   let render_subtask =

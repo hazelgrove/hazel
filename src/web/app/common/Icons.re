@@ -594,3 +594,65 @@ let copy =
       "M19.5 16.5L19.5 4.5L18.75 3.75H9L8.25 4.5L8.25 7.5L5.25 7.5L4.5 8.25V20.25L5.25 21H15L15.75 20.25V17.25H18.75L19.5 16.5ZM15.75 15.75L15.75 8.25L15 7.5L9.75 7.5V5.25L18 5.25V15.75H15.75ZM6 9L14.25 9L14.25 19.5L6 19.5L6 9Z",
     ],
   );
+
+/* Tool-call category glyphs. Kept minimal/geometric — their purpose is
+   category differentiation at small sizes, not decorative iconography. */
+
+let cat_edit =
+  simple_icon(
+    ~view="0 0 24 24",
+    [
+      "M3 21h3.75l11.06-11.06-3.75-3.75L3 17.25V21z",
+      "M20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
+    ],
+  );
+
+let cat_read =
+  simple_icon(
+    ~view="0 0 24 24",
+    [
+      "M12 5c-5.5 0-9.5 7-9.5 7s4 7 9.5 7 9.5-7 9.5-7-4-7-9.5-7zm0 11a4 4 0 110-8 4 4 0 010 8z",
+      "M12 10a2 2 0 100 4 2 2 0 000-4z",
+    ],
+  );
+
+let cat_view =
+  simple_icon(
+    ~view="0 0 24 24",
+    ["M4 5h16v2H4V5zm4 6h12v2H8v-2zm-4 6h16v2H4v-2z"],
+  );
+
+let cat_projector =
+  simple_icon(
+    ~view="0 0 24 24",
+    [
+      "M3 11h5v2H3v-2zm13 0h5v2h-5v-2z",
+      "M12 8a4 4 0 100 8 4 4 0 000-8zm0 2a2 2 0 110 4 2 2 0 010-4z",
+    ],
+  );
+
+let cat_probe =
+  simple_icon(
+    ~view="0 0 24 24",
+    [
+      "M10 3a7 7 0 105.29 11.59l4.71 4.71 1.41-1.41-4.71-4.71A7 7 0 0010 3zm0 2a5 5 0 110 10 5 5 0 010-10z",
+    ],
+  );
+
+let cat_statics =
+  simple_icon(
+    ~view="0 0 24 24",
+    [
+      "M12 7.25a1.5 1.5 0 100-3 1.5 1.5 0 000 3z",
+      "M12 19.75a1.5 1.5 0 100-3 1.5 1.5 0 000 3z",
+    ],
+  );
+
+let cat_workbench =
+  simple_icon(
+    ~view="0 0 24 24",
+    [
+      "M9 2h6a1 1 0 011 1v1h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2V3a1 1 0 011-1zm0 2v2h6V4H9zM6 6v14h12V6h-2v2H8V6H6z",
+      "M8 11h8v1.5H8V11zm0 3h5v1.5H8V14z",
+    ],
+  );

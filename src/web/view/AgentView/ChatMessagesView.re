@@ -769,6 +769,13 @@ let view =
   let current_chat =
     Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
   let chunked_chat = Agent.ChunkedUIChat.Utils.mk(current_chat);
+  // Build the high-level node map once for this render pass, used by tool-call rows
+  // for stale-path detection and cmd/ctrl-click jump targets.
+  let node_map: option(HighLevelNodeMap.t) = {
+    let z = code_with_statics.editor.state.zipper;
+    let info_map = CompositionGo.Public.mk_statics(z);
+    HighLevelNodeMap.build(z, info_map);
+  };
 
   // Auto-resize textarea helper
   let autosize_textarea = (id: string) => {
@@ -1125,8 +1132,10 @@ let view =
                Some(
                  ToolResultView.view(
                    ~globals,
+                   ~node_map?,
                    ~tool_result,
                    ~toggle_expanded,
+                   (),
                  ),
                );
              | _ => None
@@ -1296,6 +1305,14 @@ let view =
                 scroll_to_tool_call(tool_result.tool_call.id, msg_id)
               | None => Effect.Stop_propagation
               };
+            let summary_opt =
+              ToolCallSummary.of_tool_call(tool_result.tool_call);
+            let signifier_node =
+              switch (summary_opt) {
+              | Some({signifier: Some(s), _}) =>
+                span(~attrs=[clss(["tool-call-signifier"])], [text(s)])
+              | _ => Node.none
+              };
             div(
               ~attrs=[
                 clss(["summary-tool-link"]),
@@ -1321,6 +1338,7 @@ let view =
                   ~attrs=[clss(["summary-tool-link-name"])],
                   [text(tool_result.tool_call.name)],
                 ),
+                signifier_node,
                 span(
                   ~attrs=[clss(["summary-tool-link-arrow"])],
                   [text({|↗|})],

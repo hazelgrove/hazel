@@ -685,6 +685,301 @@ let context_llm_snapshot_tests = [
   ),
 ];
 
+/* -------------------------------------------------------------------------- */
+/* ToolCallSummary: category mapping, signifier extraction, path joining */
+
+let mk_tc =
+    (~name: string, ~args: API.Json.t): OpenRouter.Reply.Model.tool_call =>
+  OpenRouter.Reply.Model.{
+    id: "id",
+    name,
+    args,
+  };
+
+let get_summary = (tc: OpenRouter.Reply.Model.tool_call): ToolCallSummary.t =>
+  switch (ToolCallSummary.of_tool_call(tc)) {
+  | Some(s) => s
+  | None => fail("summary: unknown tool name " ++ tc.name)
+  };
+
+let check_category =
+    (name: string, expected: ToolCallSummary.category, tc): unit => {
+  let s = get_summary(tc);
+  check_bool(name, true, s.category == expected);
+};
+
+let check_signifier = (name: string, expected: option(string), tc): unit => {
+  let s = get_summary(tc);
+  check_bool(name ++ " signifier", true, s.signifier == expected);
+};
+
+let tool_call_summary_tests = [
+  test_case(
+    "category mapping: edit tools -> Edit",
+    `Quick,
+    () => {
+      let args = `Assoc([("path", `String("fib"))]);
+      check_category(
+        "update_definition",
+        Edit,
+        mk_tc(~name="update_definition", ~args),
+      );
+      check_category("update_body", Edit, mk_tc(~name="update_body", ~args));
+      check_category(
+        "delete_binding_clause",
+        Edit,
+        mk_tc(~name="delete_binding_clause", ~args),
+      );
+      check_category(
+        "insert_before",
+        Edit,
+        mk_tc(~name="insert_before", ~args),
+      );
+    },
+  ),
+  test_case(
+    "category mapping: read tools -> Read",
+    `Quick,
+    () => {
+      let args = `Assoc([]);
+      check_category(
+        "view_entire_definition",
+        Read,
+        mk_tc(~name="view_entire_definition", ~args),
+      );
+      check_category(
+        "view_context",
+        Read,
+        mk_tc(~name="view_context", ~args),
+      );
+      check_category(
+        "show_references",
+        Read,
+        mk_tc(~name="show_references", ~args),
+      );
+    },
+  ),
+  test_case(
+    "category mapping: view/projector/probe/statics/workbench",
+    `Quick,
+    () => {
+      let empty = `Assoc([]);
+      let paths = `Assoc([("paths", `List([`String("x")]))]);
+      check_category("expand", View, mk_tc(~name="expand", ~args=paths));
+      check_category(
+        "place_syntax_projector",
+        Projector,
+        mk_tc(~name="place_syntax_projector", ~args=paths),
+      );
+      check_category(
+        "place_probe",
+        Probe,
+        mk_tc(~name="place_probe", ~args=paths),
+      );
+      check_category(
+        "place_statics",
+        Statics,
+        mk_tc(~name="place_statics", ~args=paths),
+      );
+      check_category(
+        "unset_active_task",
+        Workbench,
+        mk_tc(~name="unset_active_task", ~args=empty),
+      );
+    },
+  ),
+  test_case(
+    "unknown tool name returns None",
+    `Quick,
+    () => {
+      let r =
+        ToolCallSummary.of_tool_call(mk_tc(~name="nope", ~args=`Assoc([])));
+      check_bool("None", true, r == None);
+    },
+  ),
+  test_case(
+    "single-path edit: signifier and jump_paths from `path` string",
+    `Quick,
+    () => {
+      let args = `Assoc([("path", `String("fib"))]);
+      let s = get_summary(mk_tc(~name="update_definition", ~args));
+      check_signifier(
+        "update_definition",
+        Some("fib"),
+        mk_tc(~name="update_definition", ~args),
+      );
+      check_bool("persists=true", true, s.persists);
+      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+    },
+  ),
+  test_case(
+    "delete tools: persists=false",
+    `Quick,
+    () => {
+      let args = `Assoc([("path", `String("fib"))]);
+      let s = get_summary(mk_tc(~name="delete_body", ~args));
+      check_bool("persists=false", false, s.persists);
+    },
+  ),
+  test_case(
+    "insert_before with no path: signifier defaults to 'cursor'",
+    `Quick,
+    () => {
+      let s = get_summary(mk_tc(~name="insert_before", ~args=`Assoc([])));
+      check_signifier(
+        "insert_before cursor",
+        Some("cursor"),
+        mk_tc(~name="insert_before", ~args=`Assoc([])),
+      );
+      check_bool("no jump_paths when path absent", true, s.jump_paths == []);
+    },
+  ),
+  test_case(
+    "paths joining: 2 entries joined with ', '",
+    `Quick,
+    () => {
+      let args = `Assoc([("paths", `List([`String("a"), `String("b")]))]);
+      check_signifier("a, b", Some("a, b"), mk_tc(~name="expand", ~args));
+    },
+  ),
+  test_case(
+    "paths joining: 5 entries truncate to 'a, b +3'",
+    `Quick,
+    () => {
+      let args =
+        `Assoc([
+          (
+            "paths",
+            `List([
+              `String("a"),
+              `String("b"),
+              `String("c"),
+              `String("d"),
+              `String("e"),
+            ]),
+          ),
+        ]);
+      check_signifier(
+        "a, b +3",
+        Some("a, b +3"),
+        mk_tc(~name="expand", ~args),
+      );
+    },
+  ),
+  test_case(
+    "projector place: signifier appends [kind]",
+    `Quick,
+    () => {
+      let args =
+        `Assoc([
+          ("paths", `List([`String("fib")])),
+          ("kind", `String("slider")),
+        ]);
+      check_signifier(
+        "fib  [slider]",
+        Some("fib  [slider]"),
+        mk_tc(~name="place_syntax_projector", ~args),
+      );
+    },
+  ),
+  test_case(
+    "multi-path: jump_paths preserves full list",
+    `Quick,
+    () => {
+      let args =
+        `Assoc([
+          ("paths", `List([`String("a"), `String("b"), `String("c")])),
+        ]);
+      let s = get_summary(mk_tc(~name="place_probe", ~args));
+      check_bool(
+        "jump_paths=[a;b;c]",
+        true,
+        s.jump_paths == ["a", "b", "c"],
+      );
+    },
+  ),
+  test_case(
+    "workbench create_new_task: signifier from task.title, truncated past 40 chars",
+    `Quick,
+    () => {
+      let long_title = String.make(60, 'x');
+      let args =
+        `Assoc([
+          (
+            "task",
+            `Assoc([
+              ("title", `String(long_title)),
+              ("description", `String("d")),
+            ]),
+          ),
+        ]);
+      let s = get_summary(mk_tc(~name="create_new_task", ~args));
+      switch (s.signifier) {
+      | Some(sig_) =>
+        check_bool(
+          "truncated with ellipsis",
+          true,
+          String.length(sig_) < 60 && String.length(sig_) > 0,
+        );
+        check_bool(
+          "ends with ellipsis",
+          true,
+          String.length(sig_) > 1
+          && String.sub(sig_, String.length(sig_) - 3, 3) == {|…|},
+        );
+      | None => fail("expected signifier")
+      };
+    },
+  ),
+  test_case(
+    "workbench reorder_subtasks_in_active_task: signifier is count of subtasks",
+    `Quick,
+    () => {
+      let args =
+        `Assoc([
+          (
+            "subtasks_ordering",
+            `List([`String("a"), `String("b"), `String("c")]),
+          ),
+        ]);
+      check_signifier(
+        "3 subtasks",
+        Some("3 subtasks"),
+        mk_tc(~name="reorder_subtasks_in_active_task", ~args),
+      );
+    },
+  ),
+  test_case(
+    "workbench tools with no natural signifier: signifier=None",
+    `Quick,
+    () => {
+      check_signifier(
+        "unset_active_task",
+        None,
+        mk_tc(~name="unset_active_task", ~args=`Assoc([])),
+      );
+      check_signifier(
+        "mark_active_task_complete",
+        None,
+        mk_tc(~name="mark_active_task_complete", ~args=`Assoc([])),
+      );
+    },
+  ),
+  test_case(
+    "read tools: signifier=None, jump_paths=[], persists=false",
+    `Quick,
+    () => {
+      let s =
+        get_summary(
+          mk_tc(~name="view_entire_definition", ~args=`Assoc([])),
+        );
+      check_bool("signifier=None", true, s.signifier == None);
+      check_bool("jump_paths=[]", true, s.jump_paths == []);
+      check_bool("persists=false", false, s.persists);
+    },
+  ),
+];
+
 let api_error_format_tests = [
   test_case(
     "format_api_error_content: newline between Code and Error (not backslash-E)",
@@ -714,5 +1009,6 @@ let tests = (
   @ context_meter_tests
   @ toolcall_handler_tests
   @ context_llm_snapshot_tests
+  @ tool_call_summary_tests
   @ api_error_format_tests,
 );
