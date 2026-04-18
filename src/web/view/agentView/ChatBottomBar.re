@@ -333,6 +333,54 @@ let view =
     };
   };
 
+  let token_context_meter_node: Node.t =
+    div(
+      ~attrs=[
+        clss(["token-context-meter"]),
+        ...switch (hover_title_pct) {
+           | Some(t) => [Attr.title(t)]
+           | None => []
+           },
+      ],
+      [
+        div(
+          ~attrs=[clss(["token-context-meter-label"])],
+          [text(meter_base_label)],
+        ),
+        div(
+          ~attrs=[clss(["context-meter-track"])],
+          [
+            div(
+              ~attrs=[
+                clss(["context-meter-fill"]),
+                ...switch (fill_pct_opt) {
+                   | Some(pct) => [
+                       Attr.style(
+                         Css_gen.create(
+                           ~field="width",
+                           ~value=string_of_int(pct) ++ "%",
+                         ),
+                       ),
+                     ]
+                   | None => [
+                       Attr.style(
+                         Css_gen.create(~field="width", ~value="0%"),
+                       ),
+                     ]
+                   },
+              ],
+              [],
+            ),
+          ],
+        ),
+        switch (meter_pct_line_opt) {
+        | Some(line) =>
+          div(~attrs=[clss(["token-context-meter-pct"])], [text(line)])
+        | None => div(~attrs=[], [])
+        },
+      ],
+    );
+
   // "change model" text button — routes to MainMenu screen.
   let switch_to_main_menu = _ => {
     Effect.Many([
@@ -515,55 +563,7 @@ let view =
               },
             ],
           ),
-          div(
-            ~attrs=[
-              clss(["token-context-meter"]),
-              ...switch (hover_title_pct) {
-                 | Some(t) => [Attr.title(t)]
-                 | None => []
-                 },
-            ],
-            [
-              div(
-                ~attrs=[clss(["token-context-meter-label"])],
-                [text(meter_base_label)],
-              ),
-              div(
-                ~attrs=[clss(["context-meter-track"])],
-                [
-                  div(
-                    ~attrs=[
-                      clss(["context-meter-fill"]),
-                      ...switch (fill_pct_opt) {
-                         | Some(pct) => [
-                             Attr.style(
-                               Css_gen.create(
-                                 ~field="width",
-                                 ~value=string_of_int(pct) ++ "%",
-                               ),
-                             ),
-                           ]
-                         | None => [
-                             Attr.style(
-                               Css_gen.create(~field="width", ~value="0%"),
-                             ),
-                           ]
-                         },
-                    ],
-                    [],
-                  ),
-                ],
-              ),
-              switch (meter_pct_line_opt) {
-              | Some(line) =>
-                div(
-                  ~attrs=[clss(["token-context-meter-pct"])],
-                  [text(line)],
-                )
-              | None => div(~attrs=[], [])
-              },
-            ],
-          ),
+          token_context_meter_node,
           // Right side export and copy buttons
           div(
             ~attrs=[clss(["chat-action-buttons-right"])],
@@ -607,71 +607,71 @@ let view =
       } else {
         div(~attrs=[], []);
       },
-      div(
-        ~attrs=[clss(["chat-message-input-container"])],
-        [
-          {
-            let mode = globals.settings.agent_globals.session_mode;
-            let label = AgentGlobals.session_mode_label(mode);
-            let mode_class =
-              switch (mode) {
-              | Converse => "session-mode-converse"
-              | Edit => "session-mode-edit"
-              | Plan => "session-mode-plan"
-              };
-            let mode_explanation =
-              switch (mode) {
-              | Converse => "Converse mode: pure conversation. Edits, overlay placement, and workbench tasks are disabled. Only view tools (expand / collapse) are allowed. Use this to discuss ideas, ask questions, and clarify intent without changing any state."
-              | Edit => "Edit mode: full latitude. All tools are enabled (subject to your per-tool toggles). The agent may plan, converse, place overlays, manage workbench tasks, and apply program edits."
-              | Plan => "Plan mode: read-only with respect to program code. Edit tools are disabled; the agent is encouraged to inspect the codebase, converse with you in markdown, and build an explicit plan using the workbench (create / order tasks and subtasks). Switch to edit mode when ready to execute."
-              };
-            let cycle = _ =>
-              Effect.Many([
-                globals.inject_global(
-                  Globals.Action.SetAgentGlobals(
-                    AgentGlobals.Update.CycleSessionMode,
-                  ),
-                ),
-                Effect.Stop_propagation,
-              ]);
+      {
+        let mode = globals.settings.agent_globals.session_mode;
+        let label = AgentGlobals.session_mode_label(mode);
+        let mode_class =
+          switch (mode) {
+          | Converse => "session-mode-converse"
+          | Edit => "session-mode-edit"
+          | Plan => "session-mode-plan"
+          };
+        let mode_explanation =
+          switch (mode) {
+          | Converse => "Converse mode: pure conversation. Edits, overlay placement, and workbench tasks are disabled. Only view tools (expand / collapse) are allowed. Use this to discuss ideas, ask questions, and clarify intent without changing any state."
+          | Edit => "Edit mode: full latitude. All tools are enabled (subject to your per-tool toggles). The agent may plan, converse, place overlays, manage workbench tasks, and apply program edits."
+          | Plan => "Plan mode: read-only with respect to program code. Edit tools are disabled; the agent is encouraged to inspect the codebase, converse with you in markdown, and build an explicit plan using the workbench (create / order tasks and subtasks). Switch to edit mode when ready to execute."
+          };
+        let cycle = _ =>
+          Effect.Many([
+            globals.inject_global(
+              Globals.Action.SetAgentGlobals(
+                AgentGlobals.Update.CycleSessionMode,
+              ),
+            ),
+            Effect.Stop_propagation,
+          ]);
+        div(
+          ~attrs=[clss(["chat-input-top-bar"])],
+          [
             div(
-              ~attrs=[clss(["chat-input-top-bar"])],
+              ~attrs=[clss(["chat-input-top-bar-left"])],
               [
-                div(
-                  ~attrs=[clss(["chat-input-top-bar-left"])],
+                span(
+                  ~attrs=[clss(["session-mode-info"])],
                   [
                     span(
-                      ~attrs=[clss(["session-mode-info"])],
-                      [
-                        span(
-                          ~attrs=[clss(["session-mode-info-icon"])],
-                          [Icons.info],
-                        ),
-                        div(
-                          ~attrs=[clss(["session-mode-info-tooltip"])],
-                          [text(mode_explanation)],
-                        ),
-                      ],
+                      ~attrs=[clss(["session-mode-info-icon"])],
+                      [Icons.info],
                     ),
-                    span(
-                      ~attrs=[
-                        clss(["session-mode-toggle", mode_class]),
-                        Attr.on_click(cycle),
-                        Attr.title(
-                          "Click to cycle session mode (converse → edit → plan)",
-                        ),
-                      ],
-                      [text(label)],
+                    div(
+                      ~attrs=[clss(["session-mode-info-tooltip"])],
+                      [text(mode_explanation)],
                     ),
                   ],
                 ),
-                div(
-                  ~attrs=[clss(["chat-input-top-bar-right"])],
-                  List.filter_map(x => x, [model_name_label]),
+                span(
+                  ~attrs=[
+                    clss(["session-mode-toggle", mode_class]),
+                    Attr.on_click(cycle),
+                    Attr.title(
+                      "Click to cycle session mode (converse → edit → plan)",
+                    ),
+                  ],
+                  [text(label)],
                 ),
               ],
-            );
-          },
+            ),
+            div(
+              ~attrs=[clss(["chat-input-top-bar-right"])],
+              List.filter_map(x => x, [model_name_label]),
+            ),
+          ],
+        );
+      },
+      div(
+        ~attrs=[clss(["chat-message-input-container"])],
+        [
           switch (slash_menu) {
           | None => div(~attrs=[], [])
           | Some(sm) =>
@@ -717,7 +717,7 @@ let view =
                   ? "Compacting… Type a message to add to queue..."
                   : is_awaiting_assistant
                       ? "Type a message to add to queue..."
-                      : "Type your message...\nTip: type / to view available commands",
+                      : "Type your message...",
               ),
               Attr.property("autocomplete", Js.Unsafe.inject("off")),
               Attr.on_focus(_ => {

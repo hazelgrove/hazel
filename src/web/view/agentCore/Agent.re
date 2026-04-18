@@ -3536,83 +3536,35 @@ module Agent = {
           };
           switch (reply.tool_calls) {
           | [] =>
-            let max_task_nudges = 1;
-            let current_chat =
-              ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-            let workbench = current_chat.agent_workbench;
-            let has_incomplete_active_subtask =
-              switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
-              | Some(task) =>
-                switch (task.completion_info) {
-                | Some(_) => false
-                | None =>
-                  switch (task.active_subtask) {
-                  | Some(st) =>
-                    switch (
-                      AgentWorkbench.Utils.SubtaskUtils.find_subtask(task, st)
-                    ) {
-                    | Some(sub) =>
-                      !AgentWorkbench.Utils.SubtaskUtils.is_completed(sub)
-                    | None => false
-                    }
-                  | None => false
-                  }
-                }
-              | None => false
-              };
-            let nudge_count =
-              Option.value(~default=0, model.last_active_task_nudge_attempt);
-            if (has_incomplete_active_subtask && nudge_count < max_task_nudges) {
-              let nudge_content =
-                "[Workbench] You have an **active workbench plan** with an open subtask.\n"
-                ++ "MANDATORY: Your next assistant message MUST include at least one full sentence to the user (acknowledge their request or briefly say what you did next). Empty assistant text is invalid.\n"
-                ++ "Either: (1) continue program work with edit tools, (2) mark_active_subtask_complete if that milestone is done, (3) mark_active_subtask_failed if stuck, or (4) mark_active_task_complete / mark_active_task_failed when the whole plan is done or abandoned.\n"
-                ++ "If you no longer want this plan, close or fail it so the board matches reality.";
-              let nudge_message =
-                Message.Utils.mk_retry_note_message(
-                  ~content=nudge_content,
-                  ~sent_to_api=true,
-                  ~deliver_as_user_on_api=true,
-                );
-              schedule_action(Action.SendMessage(nudge_message, chat_id));
-              (
-                {
-                  ...model,
-                  last_active_task_nudge_attempt: Some(nudge_count + 1),
-                },
-                cell_editor |> Updated.return_quiet,
+            let model_idle = {
+              ...model,
+              awaiting_response: None,
+              last_active_task_nudge_attempt: None,
+            };
+            let limit_opt =
+              AgentGlobals.context_meter_limit_for_active(
+                settings.agent_globals,
               );
-            } else {
-              let model_idle = {
-                ...model,
-                awaiting_response: None,
-                last_active_task_nudge_attempt: None,
+            let should_compact =
+              switch (reply.usage, limit_opt) {
+              | (Some(usage), Some(limit)) => usage.prompt_tokens >= limit
+              | _ => false
               };
-              let limit_opt =
-                AgentGlobals.context_meter_limit_for_active(
-                  settings.agent_globals,
+            let may_start_compaction =
+              Option.is_none(model_idle.compaction_in_progress);
+            if (should_compact && may_start_compaction) {
+              let model' =
+                maybe_start_compaction(
+                  ~manual=false,
+                  ~model=model_idle,
+                  ~chat_id,
+                  ~settings,
+                  ~schedule_action,
+                  ~cell_editor,
                 );
-              let should_compact =
-                switch (reply.usage, limit_opt) {
-                | (Some(usage), Some(limit)) => usage.prompt_tokens >= limit
-                | _ => false
-                };
-              let may_start_compaction =
-                Option.is_none(model_idle.compaction_in_progress);
-              if (should_compact && may_start_compaction) {
-                let model' =
-                  maybe_start_compaction(
-                    ~manual=false,
-                    ~model=model_idle,
-                    ~chat_id,
-                    ~settings,
-                    ~schedule_action,
-                    ~cell_editor,
-                  );
-                (model', cell_editor |> Updated.return_quiet);
-              } else {
-                (model_idle, cell_editor |> Updated.return_quiet);
-              };
+              (model', cell_editor |> Updated.return_quiet);
+            } else {
+              (model_idle, cell_editor |> Updated.return_quiet);
             };
           | tool_calls =>
             let (model_after_tools, _, tool_msgs_rev, cell_editor_updated, _) =
