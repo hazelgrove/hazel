@@ -321,6 +321,7 @@ module Message = {
         Program text is [[CompositionView.Public.print]] with probes when present (see [[CompositionView]]). */
     let context_snapshot_body_for_llm =
         (
+          ~session_mode: AgentGlobals.Model.session_mode,
           agent_editor_content: string,
           static_errors_content: string,
           test_results_content: string,
@@ -332,6 +333,10 @@ module Message = {
         String.trim(static_errors_content);
       let sanitized_test_results_content = String.trim(test_results_content);
       let sanitized_workbench_content = String.trim(workbench_content);
+
+      let session_mode_label = AgentGlobals.session_mode_label(session_mode);
+      let session_mode_block =
+        "\n<sessionMode>" ++ session_mode_label ++ "</sessionMode>\n";
 
       let agent_editor_content_prefix = "\n<agentEditorView>\n```";
       let agent_editor_content_suffix = "```\n</agentEditorView>\n";
@@ -365,6 +370,7 @@ module Message = {
       let context_suffix = "\n</context>\n";
       let context_content =
         context_prefix
+        ++ session_mode_block
         ++ agent_editor_block
         ++ static_errors_block
         ++ test_results_block
@@ -392,6 +398,7 @@ module Message = {
         Diagnostics belong in [<staticErrorsInfo>], not in separate system messages. See file header. */
     let mk_context_message =
         (
+          ~session_mode: AgentGlobals.Model.session_mode,
           agent_editor_content: string,
           static_errors_content: string,
           test_results_content: string,
@@ -400,6 +407,7 @@ module Message = {
         : Model.t => {
       mk_context_system_message(
         context_snapshot_body_for_llm(
+          ~session_mode,
           agent_editor_content,
           static_errors_content,
           test_results_content,
@@ -776,6 +784,7 @@ module Chat = {
 
     let update_context =
         (
+          ~session_mode: AgentGlobals.Model.session_mode,
           agent_editor_view: string,
           static_errors_info: string,
           test_results_info: string,
@@ -784,6 +793,7 @@ module Chat = {
         : Model.t => {
       let workbench =
         Message.Utils.mk_context_message(
+          ~session_mode,
           agent_editor_view,
           static_errors_info,
           test_results_info,
@@ -945,7 +955,12 @@ module Chat = {
         | BranchOff(Id.t)
         | AgentContextAction(AgentContext.Update.action)
         | WorkbenchAction(AgentWorkbench.Update.Action.action)
-        | UpdateContext(string, string, string)
+        | UpdateContext(
+            AgentGlobals.Model.session_mode,
+            string,
+            string,
+            string,
+          )
         | AppendToMessageContent(Id.t, string)
         | OverwriteMessage(Id.t, Message.Model.t)
         | SwitchView(Model.current_view)
@@ -990,12 +1005,14 @@ module Chat = {
         | Failure(error) => Error(Failure.Info(error))
         };
       | UpdateContext(
+          session_mode,
           agent_editor_view,
           static_errors_info,
           test_results_info,
         ) =>
         Ok(
           Utils.update_context(
+            ~session_mode,
             agent_editor_view,
             static_errors_info,
             test_results_info,
@@ -1741,6 +1758,7 @@ module Agent = {
         when built from the same inputs (e.g. after [[Update.update_context]] on send). */
     let llm_context_snapshot_text =
         (
+          ~session_mode: AgentGlobals.Model.session_mode,
           ~cell_result: EvalResult.Model.t,
           cws: CodeWithStatics.Model.t,
           chat: Chat.Model.t,
@@ -1760,6 +1778,7 @@ module Agent = {
       let test_results_info_string =
         test_results_for_context(EvalResult.Model.test_results(cell_result));
       Message.Utils.context_snapshot_body_for_llm(
+        ~session_mode,
         agent_editor_view_string,
         static_errors_info_string,
         test_results_info_string,
@@ -2447,11 +2466,73 @@ module Agent = {
     /** Max retries when the assistant returns an empty reply with no tool calls. */
     let max_empty_retries = 2;
 
-    let enabled_tools = (prompting: Model.prompting): list(API.Json.t) =>
+    /** Names of tools that mutate the program (EditTools.*). Blocked in Plan mode. */
+    let edit_tool_names = [
+      "update_definition",
+      "update_body",
+      "update_pattern",
+      "update_binding_clause",
+      "delete_binding_clause",
+      "delete_body",
+      "insert_after",
+      "insert_before",
+    ];
+
+    /** Names of tools that mutate the workbench task board (WorkbenchTools.*).
+        Blocked in Converse mode (along with edit + overlay tools). */
+    let workbench_tool_names = [
+      "create_new_task",
+      "set_active_task",
+      "unset_active_task",
+      "set_active_subtask",
+      "unset_active_subtask",
+      "mark_active_task_complete",
+      "mark_active_task_incomplete",
+      "mark_active_subtask_complete",
+      "mark_active_subtask_incomplete",
+      "mark_active_subtask_failed",
+      "mark_active_task_failed",
+      "add_new_subtask_to_active_task",
+      "reorder_subtasks_in_active_task",
+    ];
+
+    /** Names of overlay-placement tools (probes / statics / syntax projectors).
+        Blocked in Converse mode; allowed in Plan and Edit. */
+    let overlay_tool_names = [
+      "place_probe",
+      "remove_probe",
+      "toggle_probe",
+      "place_statics",
+      "remove_statics",
+      "toggle_statics",
+      "place_syntax_projector",
+      "remove_syntax_projector",
+      "toggle_syntax_projector",
+    ];
+
+    /** True iff [name] is allowed in [mode]. Edit allows everything; Plan
+        blocks edit tools; Converse blocks edit + workbench + overlay tools
+        (only ViewTools like expand/collapse remain). */
+    let tool_allowed_in_mode =
+        (mode: AgentGlobals.Model.session_mode, name: string): bool =>
+      switch (mode) {
+      | Edit => true
+      | Plan => !List.mem(name, edit_tool_names)
+      | Converse =>
+        !List.mem(name, edit_tool_names)
+        && !List.mem(name, workbench_tool_names)
+        && !List.mem(name, overlay_tool_names)
+      };
+
+    let enabled_tools =
+        (~mode: AgentGlobals.Model.session_mode, prompting: Model.prompting)
+        : list(API.Json.t) =>
       List.filter(
         (tool: API.Json.t) =>
           switch (ToolUtils.get_name(tool)) {
-          | Some(name) => !List.mem(name, prompting.disabled_tool_names)
+          | Some(name) =>
+            !List.mem(name, prompting.disabled_tool_names)
+            && tool_allowed_in_mode(mode, name)
           | None => true
           },
         CompositionUtils.Public.tools,
@@ -2498,11 +2579,17 @@ module Agent = {
         live editor and [[agent_view]] — appended last to the compaction API so the summarizer
         has current program text, errors, tests, and workbench (without changing UI state). */
     let compaction_context_snapshot_message =
-        (model: Model.t, cell_editor: CellEditor.Model.t, chat_id: Id.t)
+        (
+          ~session_mode: AgentGlobals.Model.session_mode,
+          model: Model.t,
+          cell_editor: CellEditor.Model.t,
+          chat_id: Id.t,
+        )
         : Message.Model.t => {
       let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
       Message.Utils.mk_context_system_message(
         Utils.llm_context_snapshot_text(
+          ~session_mode,
           ~cell_result=cell_editor.result,
           cell_editor.editor,
           curr_chat,
@@ -2649,7 +2736,12 @@ module Agent = {
           };
         } else {
           let context_msg =
-            compaction_context_snapshot_message(model, cell_editor, chat_id);
+            compaction_context_snapshot_message(
+              ~session_mode=settings.agent_globals.session_mode,
+              model,
+              cell_editor,
+              chat_id,
+            );
           /* Send the live program snapshot as a **user** message, not a second
              system message. Some providers return empty assistant text when the
              request ends with [system] after [assistant]. */
@@ -2774,6 +2866,7 @@ module Agent = {
           ~api_key: option(string),
           ~llm_id: option(string),
           ~reasoning_effort: option(OpenRouter.Payload.Model.effort_level),
+          ~session_mode: AgentGlobals.Model.session_mode,
           new_message: Message.Model.t,
           chat_id: Id.t,
           model: Model.t,
@@ -2868,7 +2961,7 @@ module Agent = {
                       ChatSystem.Utils.find_chat(chat_id, chat_system),
                     ),
                   ),
-                ~tools=enabled_tools(model.prompting),
+                ~tools=enabled_tools(~mode=session_mode, model.prompting),
                 ~reasoning=?
                   Option.map(
                     e => OpenRouter.Payload.Model.Effort(e),
@@ -2970,7 +3063,11 @@ module Agent = {
                       ChatSystem.Utils.find_chat(chat_id, model.chat_system),
                     ),
                   ),
-                ~tools=enabled_tools(model.prompting),
+                ~tools=
+                  enabled_tools(
+                    ~mode=settings.agent_globals.session_mode,
+                    model.prompting,
+                  ),
                 ~reasoning=?
                   Option.map(
                     e => OpenRouter.Payload.Model.Effort(e),
@@ -2994,6 +3091,7 @@ module Agent = {
 
     let update_context =
         (
+          ~session_mode: AgentGlobals.Model.session_mode,
           ~test_results: option(Language.TestResults.t)=?,
           model: Model.t,
           editor: CodeWithStatics.Model.t,
@@ -3018,6 +3116,7 @@ module Agent = {
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
             Chat.Update.Action.UpdateContext(
+              session_mode,
               agent_editor_view_string,
               static_errors_info_string,
               test_results_info_string,
@@ -3182,7 +3281,13 @@ module Agent = {
           }
         ) {
         | Ok((model, editor)) =>
-          let model = update_context(model, editor, chat_id);
+          let model =
+            update_context(
+              ~session_mode=settings.agent_globals.session_mode,
+              model,
+              editor,
+              chat_id,
+            );
           let success_message =
             "The "
             ++ tool_call.name
@@ -3631,6 +3736,7 @@ module Agent = {
       | SendMessage(message, chat_id) =>
         let model =
           update_context(
+            ~session_mode=settings.agent_globals.session_mode,
             ~test_results=?EvalResult.Model.test_results(editor.result),
             model,
             editor.editor,
@@ -3641,6 +3747,7 @@ module Agent = {
             ~api_key=settings.agent_globals.api_key,
             ~llm_id=AgentGlobals.get_active_llm_id(settings.agent_globals),
             ~reasoning_effort=settings.agent_globals.reasoning_effort,
+            ~session_mode=settings.agent_globals.session_mode,
             message,
             chat_id,
             model,
@@ -4080,6 +4187,7 @@ module Agent = {
       | DoRetryApiSend(chat_id, attempt) =>
         let model =
           update_context(
+            ~session_mode=settings.agent_globals.session_mode,
             ~test_results=?EvalResult.Model.test_results(editor.result),
             model,
             editor.editor,
@@ -4113,7 +4221,11 @@ module Agent = {
                         ChatSystem.Utils.find_chat(chat_id, chat_system),
                       ),
                     ),
-                  ~tools=enabled_tools(model.prompting),
+                  ~tools=
+                    enabled_tools(
+                      ~mode=settings.agent_globals.session_mode,
+                      model.prompting,
+                    ),
                   ~reasoning=?
                     Option.map(
                       e => OpenRouter.Payload.Model.Effort(e),
@@ -4217,7 +4329,11 @@ module Agent = {
                         ),
                       ),
                     ),
-                  ~tools=enabled_tools(model.prompting),
+                  ~tools=
+                    enabled_tools(
+                      ~mode=settings.agent_globals.session_mode,
+                      model.prompting,
+                    ),
                   ~reasoning=?
                     Option.map(
                       e => OpenRouter.Payload.Model.Effort(e),

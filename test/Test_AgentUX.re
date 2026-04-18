@@ -677,6 +677,7 @@ let context_llm_snapshot_tests = [
     () => {
       let body =
         Agent.Message.Utils.context_snapshot_body_for_llm(
+          ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
           " err ",
           " tests ",
@@ -684,6 +685,7 @@ let context_llm_snapshot_tests = [
         );
       let msg =
         Agent.Message.Utils.mk_context_message(
+          ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
           " err ",
           " tests ",
@@ -725,9 +727,17 @@ let context_llm_snapshot_tests = [
           chat.agent_workbench,
         );
       let expected =
-        Agent.Message.Utils.mk_context_message(prog, errs, tests, wb).content;
+        Agent.Message.Utils.mk_context_message(
+          ~session_mode=Web.AgentGlobals.Model.Edit,
+          prog,
+          errs,
+          tests,
+          wb,
+        ).
+          content;
       let actual =
         Agent.Agent.Utils.llm_context_snapshot_text(
+          ~session_mode=Web.AgentGlobals.Model.Edit,
           ~cell_result=eval_result,
           cws,
           chat,

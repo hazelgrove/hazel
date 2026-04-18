@@ -1278,8 +1278,110 @@
 
 /* Plain text "change model" button — same font as the reasoning button,
    no border/background so it reads as a hoverable label. */
+.chat-input-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 0 8px;
+  user-select: none;
+}
+
+.chat-input-top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chat-input-top-bar-right {
+  display: flex;
+  align-items: center;
+}
+
+.session-mode-toggle {
+  font-size: 11px;
+  line-height: 1;
+  font-family: var(--code-font);
+  font-weight: 600;
+  padding: 2px 4px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+  opacity: 0.85;
+}
+
+.session-mode-toggle:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.session-mode-converse {
+  color: #2e8b57;
+}
+
+.session-mode-edit {
+  color: #8a2be2;
+}
+
+.session-mode-plan {
+  color: #1f6feb;
+}
+
+.session-mode-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+
+.session-mode-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  color: var(--STONE);
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.session-mode-info-icon svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.session-mode-info:hover .session-mode-info-icon {
+  opacity: 1;
+}
+
+.session-mode-info-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: none;
+  width: 320px;
+  max-width: 320px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  font-family: var(--code-font);
+  color: var(--STONE);
+  background: var(--SAND);
+  border: 1px solid var(--BR2);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.session-mode-info:hover .session-mode-info-tooltip {
+  display: block;
+}
+
 .change-model-button {
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1;
   font-family: var(--code-font);
   color: var(--STONE);
@@ -1305,7 +1407,7 @@
 }
 
 .change-model-current-name {
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1;
   font-family: var(--code-font);
   color: var(--STONE);

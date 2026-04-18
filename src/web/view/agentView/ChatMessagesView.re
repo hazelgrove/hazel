@@ -279,6 +279,8 @@ module ViewComponents = {
                     Attr.on_click(_ => {
                       let snapshot =
                         Agent.Agent.Utils.llm_context_snapshot_text(
+                          ~session_mode=
+                            globals.settings.agent_globals.session_mode,
                           ~cell_result=eval_result,
                           code_with_statics,
                           current_chat,

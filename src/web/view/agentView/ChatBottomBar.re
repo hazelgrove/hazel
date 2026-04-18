@@ -388,15 +388,6 @@ let view =
     };
   };
 
-  let change_model_stack: Node.t =
-    div(
-      ~attrs=[clss(["change-model-stack"])],
-      List.filter_map(
-        x => x,
-        [model_name_label, Some(change_model_button)],
-      ),
-    );
-
   // Reasoning effort dropup (only for models that support reasoning).
   // Rendered as an absolute-positioned overlay inside the chat input container,
   // anchored to its bottom-left corner.
@@ -619,6 +610,68 @@ let view =
       div(
         ~attrs=[clss(["chat-message-input-container"])],
         [
+          {
+            let mode = globals.settings.agent_globals.session_mode;
+            let label = AgentGlobals.session_mode_label(mode);
+            let mode_class =
+              switch (mode) {
+              | Converse => "session-mode-converse"
+              | Edit => "session-mode-edit"
+              | Plan => "session-mode-plan"
+              };
+            let mode_explanation =
+              switch (mode) {
+              | Converse => "Converse mode: pure conversation. Edits, overlay placement, and workbench tasks are disabled. Only view tools (expand / collapse) are allowed. Use this to discuss ideas, ask questions, and clarify intent without changing any state."
+              | Edit => "Edit mode: full latitude. All tools are enabled (subject to your per-tool toggles). The agent may plan, converse, place overlays, manage workbench tasks, and apply program edits."
+              | Plan => "Plan mode: read-only with respect to program code. Edit tools are disabled; the agent is encouraged to inspect the codebase, converse with you in markdown, and build an explicit plan using the workbench (create / order tasks and subtasks). Switch to edit mode when ready to execute."
+              };
+            let cycle = _ =>
+              Effect.Many([
+                globals.inject_global(
+                  Globals.Action.SetAgentGlobals(
+                    AgentGlobals.Update.CycleSessionMode,
+                  ),
+                ),
+                Effect.Stop_propagation,
+              ]);
+            div(
+              ~attrs=[clss(["chat-input-top-bar"])],
+              [
+                div(
+                  ~attrs=[clss(["chat-input-top-bar-left"])],
+                  [
+                    span(
+                      ~attrs=[clss(["session-mode-info"])],
+                      [
+                        span(
+                          ~attrs=[clss(["session-mode-info-icon"])],
+                          [Icons.info],
+                        ),
+                        div(
+                          ~attrs=[clss(["session-mode-info-tooltip"])],
+                          [text(mode_explanation)],
+                        ),
+                      ],
+                    ),
+                    span(
+                      ~attrs=[
+                        clss(["session-mode-toggle", mode_class]),
+                        Attr.on_click(cycle),
+                        Attr.title(
+                          "Click to cycle session mode (converse → edit → plan)",
+                        ),
+                      ],
+                      [text(label)],
+                    ),
+                  ],
+                ),
+                div(
+                  ~attrs=[clss(["chat-input-top-bar-right"])],
+                  List.filter_map(x => x, [model_name_label]),
+                ),
+              ],
+            );
+          },
           switch (slash_menu) {
           | None => div(~attrs=[], [])
           | Some(sm) =>
@@ -664,7 +717,7 @@ let view =
                   ? "Compacting… Type a message to add to queue..."
                   : is_awaiting_assistant
                       ? "Type a message to add to queue..."
-                      : "Type your message...",
+                      : "Type your message...\nTip: type / to view available commands",
               ),
               Attr.property("autocomplete", Js.Unsafe.inject("off")),
               Attr.on_focus(_ => {
@@ -872,7 +925,7 @@ let view =
               [
                 div(
                   ~attrs=[clss(["chat-input-bottom-bar-left"])],
-                  [reasoning_effort_dropup, change_model_stack],
+                  [reasoning_effort_dropup, change_model_button],
                 ),
                 div(
                   ~attrs=[clss(["chat-input-bottom-bar-right"])],

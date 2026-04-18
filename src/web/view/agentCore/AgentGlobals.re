@@ -6,6 +6,13 @@ module Model = {
     | MainMenu
     | AgentChatInterface;
 
+  /** Cycle: Converse → Edit → Plan → Converse. See [[next_session_mode]]. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type session_mode =
+    | Converse
+    | Edit
+    | Plan;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     active_screen: screen,
@@ -20,8 +27,24 @@ module Model = {
     reasoning_effort: option(OpenRouter.Payload.Model.effort_level),
     [@yojson.default true] [@sexp.default true]
     show_thinking: bool,
+    [@yojson.default Edit] [@sexp.default Edit]
+    session_mode,
   };
 };
+
+let session_mode_label = (m: Model.session_mode): string =>
+  switch (m) {
+  | Converse => "converse"
+  | Edit => "edit"
+  | Plan => "plan"
+  };
+
+let next_session_mode = (m: Model.session_mode): Model.session_mode =>
+  switch (m) {
+  | Converse => Edit
+  | Edit => Plan
+  | Plan => Converse
+  };
 
 let init = (): Model.t => {
   active_screen: MainMenu,
@@ -32,6 +55,7 @@ let init = (): Model.t => {
   only_free_models: false,
   reasoning_effort: None,
   show_thinking: true,
+  session_mode: Edit,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {
@@ -110,6 +134,7 @@ module Update = {
     | SetOnlyFreeModels(bool)
     | SetReasoningEffort(option(OpenRouter.Payload.Model.effort_level))
     | ToggleShowThinking
+    | CycleSessionMode
     | SwitchInterface(Model.screen);
 
   let update =
@@ -160,6 +185,10 @@ module Update = {
     | ToggleShowThinking => {
         ...model,
         show_thinking: !model.show_thinking,
+      }
+    | CycleSessionMode => {
+        ...model,
+        session_mode: next_session_mode(model.session_mode),
       }
     | SwitchInterface(screen) => {
         ...model,
