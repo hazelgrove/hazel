@@ -6,7 +6,7 @@ module Model = {
     | MainMenu
     | AgentChatInterface;
 
-  /** Cycle: Converse → Edit → Plan → Converse. See [[next_session_mode]]. */
+  /** Cycle: Edit → Converse → Plan → Edit. See [[next_session_mode]]. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type session_mode =
     | Converse
@@ -41,9 +41,9 @@ let session_mode_label = (m: Model.session_mode): string =>
 
 let next_session_mode = (m: Model.session_mode): Model.session_mode =>
   switch (m) {
-  | Converse => Edit
-  | Edit => Plan
-  | Plan => Converse
+  | Edit => Converse
+  | Converse => Plan
+  | Plan => Edit
   };
 
 let init = (): Model.t => {

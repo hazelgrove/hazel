@@ -655,7 +655,7 @@ let view =
                     clss(["session-mode-toggle", mode_class]),
                     Attr.on_click(cycle),
                     Attr.title(
-                      "Click to cycle session mode (converse → edit → plan)",
+                      "Click to cycle session mode (edit → converse → plan)",
                     ),
                   ],
                   [text(label)],
