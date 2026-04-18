@@ -35,20 +35,48 @@ let view =
 
   let slash_menu = chat_system.ui.slash_menu;
 
+  let clear_text_effect =
+    agent_inject(
+      Agent.Agent.Update.Action.ChatSystemAction(
+        Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
+      ),
+    );
+
+  let dispatch_slash = (action: Agent.Agent.Update.Action.t) =>
+    Effect.Many([
+      agent_inject(action),
+      clear_text_effect,
+      Effect.Stop_propagation,
+    ]);
+
   let effect_run_slash_command = (name: string) =>
     switch (name) {
     | "compact" =>
-      Effect.Many([
-        agent_inject(
-          Agent.Agent.Update.Action.RequestForcedCompaction(current_chat_id),
+      dispatch_slash(
+        Agent.Agent.Update.Action.RequestForcedCompaction(current_chat_id),
+      )
+    | "cost" =>
+      dispatch_slash(
+        Agent.Agent.Update.Action.RunSlashCommandCost(current_chat_id),
+      )
+    | "account-usage" =>
+      dispatch_slash(
+        Agent.Agent.Update.Action.RunSlashCommandFetchCredits(
+          current_chat_id,
         ),
-        agent_inject(
-          Agent.Agent.Update.Action.ChatSystemAction(
-            Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
-          ),
-        ),
-        Effect.Stop_propagation,
-      ])
+      )
+    | "help" =>
+      dispatch_slash(
+        Agent.Agent.Update.Action.RunSlashCommandHelp(current_chat_id),
+      )
+    | "key" =>
+      dispatch_slash(
+        Agent.Agent.Update.Action.RunSlashCommandShowKey(current_chat_id),
+      )
+    | "key-usage" =>
+      dispatch_slash(
+        Agent.Agent.Update.Action.RunSlashCommandFetchUsage(current_chat_id),
+      )
     | _ => Effect.Stop_propagation
     };
 

@@ -599,3 +599,124 @@ module AvailableLLMs = {
       };
   };
 };
+
+/** GET /api/v1/credits — `{ data: { total_credits, total_usage } }`. */
+module Credits = {
+  module Model = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      total_credits: float,
+      total_usage: float,
+    };
+  };
+
+  module Utils = {
+    let get_credits = (~key: string, ~handler: option(Json.t) => unit): unit => {
+      print_endline("API: GETting OpenRouter credits");
+      request(
+        ~method=GET,
+        ~url="https://openrouter.ai/api/v1/credits",
+        ~headers=[
+          ("Content-Type", "application/json"),
+          ("Authorization", "Bearer " ++ key),
+        ],
+        ~body=`Null,
+        handler,
+      );
+    };
+
+    let num = (json: Json.t): option(float) =>
+      switch (json) {
+      | `Int(n) => Some(float_of_int(n))
+      | `Float(f) => Some(f)
+      | _ => None
+      };
+
+    let parse_credits_response = (json: Json.t): option(Model.t) => {
+      let* data = Json.dot("data", json);
+      let* total_credits = Json.dot("total_credits", data);
+      let* total_credits = num(total_credits);
+      let* total_usage = Json.dot("total_usage", data);
+      let+ total_usage = num(total_usage);
+      (
+        {
+          total_credits,
+          total_usage,
+        }: Model.t
+      );
+    };
+  };
+};
+
+/** GET /api/v1/key — label, limits, and per-period usage for the active key. */
+module KeyInfo = {
+  module Model = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      label: option(string),
+      limit: option(float),
+      limit_remaining: option(float),
+      usage: float,
+      usage_daily: option(float),
+      usage_weekly: option(float),
+      usage_monthly: option(float),
+      is_free_tier: bool,
+    };
+  };
+
+  module Utils = {
+    let get_key = (~key: string, ~handler: option(Json.t) => unit): unit => {
+      print_endline("API: GETting OpenRouter key info");
+      request(
+        ~method=GET,
+        ~url="https://openrouter.ai/api/v1/key",
+        ~headers=[
+          ("Content-Type", "application/json"),
+          ("Authorization", "Bearer " ++ key),
+        ],
+        ~body=`Null,
+        handler,
+      );
+    };
+
+    let num_opt = (json: option(Json.t)): option(float) =>
+      switch (json) {
+      | Some(`Int(n)) => Some(float_of_int(n))
+      | Some(`Float(f)) => Some(f)
+      | _ => None
+      };
+
+    let str_opt = (json: option(Json.t)): option(string) =>
+      switch (json) {
+      | Some(`String(s)) => Some(s)
+      | _ => None
+      };
+
+    let bool_or = (json: option(Json.t), default: bool): bool =>
+      switch (json) {
+      | Some(`Bool(b)) => b
+      | _ => default
+      };
+
+    let parse_key_response = (json: Json.t): option(Model.t) => {
+      let* data = Json.dot("data", json);
+      let usage =
+        switch (num_opt(Json.dot("usage", data))) {
+        | Some(f) => f
+        | None => 0.0
+        };
+      Some(
+        {
+          label: str_opt(Json.dot("label", data)),
+          limit: num_opt(Json.dot("limit", data)),
+          limit_remaining: num_opt(Json.dot("limit_remaining", data)),
+          usage,
+          usage_daily: num_opt(Json.dot("usage_daily", data)),
+          usage_weekly: num_opt(Json.dot("usage_weekly", data)),
+          usage_monthly: num_opt(Json.dot("usage_monthly", data)),
+          is_free_tier: bool_or(Json.dot("is_free_tier", data), false),
+        }: Model.t,
+      );
+    };
+  };
+};

@@ -307,6 +307,234 @@
   margin: 0.2em 0 0.35em;
 }
 
+/* Inline output of a chat slash command (/cost, /credits, /usage, /help).
+   Each variant has its own .slash-card-<kind> for accent colors; shared layout below. */
+.slash-command-output-message-container {
+  justify-content: stretch;
+}
+
+.slash-card {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0.5em 0;
+  padding: 0.7em 0.9em;
+  background: var(--main-bkg, rgba(255, 255, 255, 0.55));
+  border: 0.5px solid var(--BR3, var(--STONE));
+  border-left: 3px solid var(--BR2, var(--STONE));
+  border-radius: 6px;
+  text-align: left;
+  font-size: 0.92em;
+  color: var(--STONE);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.slash-card-cost {
+  border-left-color: var(--YELLOW, #c79c2c);
+}
+.slash-card-credits {
+  border-left-color: var(--GREEN, #4a8c5e);
+}
+.slash-card-usage {
+  border-left-color: var(--BLUE, #4a6f8c);
+}
+.slash-card-help {
+  border-left-color: var(--BR2, var(--STONE));
+}
+.slash-card-key {
+  border-left-color: var(--STONE);
+}
+.slash-card-error {
+  border-left-color: var(--RED, #b04848);
+  background: rgba(176, 72, 72, 0.06);
+}
+
+.slash-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  border-bottom: 0.5px solid var(--BR3, var(--STONE));
+  padding-bottom: 0.35em;
+}
+
+.slash-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  background: var(--BR3, var(--STONE));
+  color: var(--main-bkg, #fff);
+  font-weight: 700;
+  font-size: 0.85em;
+  line-height: 1;
+}
+.slash-card-cost .slash-card-icon {
+  background: var(--YELLOW, #c79c2c);
+}
+.slash-card-credits .slash-card-icon {
+  background: var(--GREEN, #4a8c5e);
+}
+.slash-card-usage .slash-card-icon {
+  background: var(--BLUE, #4a6f8c);
+}
+.slash-card-error .slash-card-icon {
+  background: var(--RED, #b04848);
+}
+
+.slash-card-title {
+  font-weight: 600;
+  font-size: 0.95em;
+  letter-spacing: 0.02em;
+}
+
+.slash-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+}
+
+.slash-card-note {
+  font-size: 0.82em;
+  color: var(--STONE);
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.slash-card-footer {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  font-size: 0.82em;
+  color: var(--STONE);
+}
+.slash-card-footer-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+}
+.slash-card-footer-value {
+  font-family: var(--font-mono, monospace);
+}
+
+/* Three-up tile row used by /cost and /credits */
+.slash-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5em;
+}
+
+.slash-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  padding: 0.45em 0.55em;
+  background: rgba(0, 0, 0, 0.035);
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.slash-stat-label {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--STONE);
+  opacity: 0.8;
+}
+
+.slash-stat-value {
+  font-family: var(--font-mono, monospace);
+  font-size: 1.05em;
+  font-weight: 600;
+  color: var(--STONE);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slash-stat-accent .slash-stat-value {
+  color: var(--BR1);
+}
+.slash-card-cost .slash-stat-accent .slash-stat-value {
+  color: var(--YELLOW, #c79c2c);
+}
+.slash-card-credits .slash-stat-accent .slash-stat-value {
+  color: var(--GREEN, #4a8c5e);
+}
+
+/* Used/total bar under /credits */
+.slash-progress {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.slash-progress-fill {
+  height: 100%;
+  background: var(--GREEN, #4a8c5e);
+}
+
+/* Key-value grid used by /usage */
+.slash-kv-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.05em;
+}
+.slash-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.3em 0.45em;
+  border-bottom: 0.5px solid var(--BR3, rgba(0, 0, 0, 0.07));
+}
+.slash-kv:last-child {
+  border-bottom: none;
+}
+.slash-kv-key {
+  font-size: 0.85em;
+  color: var(--STONE);
+  opacity: 0.8;
+  text-transform: lowercase;
+}
+.slash-kv-value {
+  font-family: var(--font-mono, monospace);
+  font-weight: 500;
+  color: var(--STONE);
+}
+.slash-kv-strong .slash-kv-value {
+  font-weight: 700;
+  font-size: 1.02em;
+}
+
+/* /help command list */
+.slash-help-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+.slash-help-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  padding: 0.2em 0;
+}
+.slash-help-cmd {
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: var(--STONE);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.1em 0.45em;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.slash-help-desc {
+  font-size: 0.9em;
+  color: var(--STONE);
+}
+
 /* Input Container at Bottom */
 .chat-input-container {
   padding: 0.8em 1em;

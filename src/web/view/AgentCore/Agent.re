@@ -41,6 +41,52 @@ module Result = {
 
 module Message = {
   module Model = {
+    /** Typed payloads for the inline output of chat slash commands (/cost, /credits, /usage, /help).
+        Carries the raw values so the view layer owns formatting. */
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type cost_output = {
+      cost_model: string, // "" if no model selected
+      cost_input_tokens: int,
+      cost_output_tokens: int,
+      cost_estimated_usd: option(float) // None when no model selected
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type credits_output = {
+      credits_used: float,
+      credits_total: float,
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type usage_output = {
+      usage_label: option(string),
+      usage_is_free_tier: bool,
+      usage_total: float,
+      usage_daily: option(float),
+      usage_weekly: option(float),
+      usage_monthly: option(float),
+      usage_limit: option(float),
+      usage_remaining: option(float),
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type help_entry = {
+      help_name: string,
+      help_description: string,
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type help_output = {help_entries: list(help_entry)};
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type slash_command_payload =
+      | CostOutput(cost_output)
+      | CreditsOutput(credits_output)
+      | UsageOutput(usage_output)
+      | KeyOutput(string) // current OpenRouter API key; "" means none set
+      | HelpOutput(help_output)
+      | SlashError(string);
+
     [@deriving (show({with_path: false}), sexp, yojson)]
     type system_kind =
       | ApiFailure
@@ -49,6 +95,7 @@ module Message = {
       | Context
       | RetryNote // Research transparency: empty/API retries
       | ResponseCancelled // User stopped in-flight LLM; UI-only, not sent to API
+      | SlashCommandOutput(slash_command_payload) // Inline result of a chat slash command. UI-only.
       | CompactionSummary(string); // method label for UI; ends API prefix before this on older turns
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -111,6 +158,23 @@ module Message = {
         content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: System(ResponseCancelled),
+        api_message: None,
+        children: [],
+        current_child: None,
+      };
+    };
+
+    /** UI-only inline output from a chat slash command (/cost, /credits, /usage, /help).
+        `content` is a brief plain-text fallback for archival/copy; the real rendering
+        reads the typed payload off the role. Never sent to the API. */
+    let mk_slash_command_output_message =
+        (~payload: Model.slash_command_payload, ~content: string): Model.t => {
+      let sanitized_content = String.trim(content);
+      {
+        id: Id.mk(),
+        content: sanitized_content,
+        timestamp: JsUtil.timestamp(),
+        role: System(SlashCommandOutput(payload)),
         api_message: None,
         children: [],
         current_child: None,
@@ -377,6 +441,17 @@ module Message = {
             | Context => `String("context")
             | RetryNote => `String("retry_note")
             | ResponseCancelled => `String("response_cancelled")
+            | SlashCommandOutput(payload) =>
+              let kind =
+                switch (payload) {
+                | CostOutput(_) => "cost"
+                | CreditsOutput(_) => "credits"
+                | UsageOutput(_) => "usage"
+                | KeyOutput(_) => "key"
+                | HelpOutput(_) => "help"
+                | SlashError(_) => "error"
+                };
+              `Assoc([("slash_command_output", `String(kind))]);
             | CompactionSummary(method) =>
               `Assoc([("compaction_summary", `String(method))])
             }
@@ -943,6 +1018,10 @@ module ChunkedUIChat = {
       | /** Stopped in-flight LLM/compaction — not under Filbert (see ChunkedUIChat.Utils.mk). */
         ResponseCancelledMessage(
           string,
+        )
+      | /** Inline output of a chat slash command (/cost, /credits, /usage, /help). UI-only. */
+        SlashCommandOutputMessage(
+          Message.Model.slash_command_payload,
         );
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1105,7 +1184,8 @@ module ChunkedUIChat = {
             | UserMessage(_)
             | CompactionNotice(_)
             | ErrorMessage(_)
-            | ResponseCancelledMessage(_) =>
+            | ResponseCancelledMessage(_)
+            | SlashCommandOutputMessage(_) =>
               let chunk = mk_agent_response_chunk(message);
               let updated_model = {
                 ...acc_model,
@@ -1115,6 +1195,13 @@ module ChunkedUIChat = {
             }
           | System(ResponseCancelled) =>
             let chunk = Model.ResponseCancelledMessage(message.content);
+            let updated_model = {
+              ...acc_model,
+              log: acc_model.log @ [chunk],
+            };
+            convert_helper(rest, updated_model);
+          | System(SlashCommandOutput(payload)) =>
+            let chunk = Model.SlashCommandOutputMessage(payload);
             let updated_model = {
               ...acc_model,
               log: acc_model.log @ [chunk],
@@ -1135,7 +1222,12 @@ module ChunkedUIChat = {
 /** Slash commands in the chat input (see ChatBottomBar). Alphabetically ordered names. */
 module ChatSlashCommands = {
   let all_alphabetical: list((string, string)) = [
+    ("account-usage", "Show your OpenRouter account credit balance"),
     ("compact", "Summarize the conversation"),
+    ("cost", "Estimate $ cost of this chat from token usage"),
+    ("help", "List available slash commands"),
+    ("key", "Show the currently-set OpenRouter API key"),
+    ("key-usage", "Show usage and limits for the active OpenRouter key"),
   ];
 
   let filtered = (filter: string): list((string, string)) => {
@@ -1145,6 +1237,20 @@ module ChatSlashCommands = {
          String.length(f) == 0
          || String.starts_with(~prefix=f, String.lowercase_ascii(name))
        );
+  };
+
+  /** Typed payload for the /help command — entries are rendered into a custom card. */
+  let help_payload = (): Message.Model.help_output => {
+    let entries: list(Message.Model.help_entry) =
+      List.map(
+        ((name, description)): Message.Model.help_entry =>
+          {
+            help_name: name,
+            help_description: description,
+          },
+        all_alphabetical,
+      );
+    {help_entries: entries};
   };
 };
 
@@ -2099,7 +2205,13 @@ module Agent = {
         | ToggleToolsViewExpanded(string)
         | RequestForcedCompaction(Id.t)
         | StopAgenticLoop
-        | FlushPendingSend(Id.t);
+        | FlushPendingSend(Id.t)
+        | RunSlashCommandCost(Id.t)
+        | RunSlashCommandHelp(Id.t)
+        | RunSlashCommandShowKey(Id.t)
+        | RunSlashCommandFetchCredits(Id.t)
+        | RunSlashCommandFetchUsage(Id.t)
+        | AppendSlashCommandOutput(Id.t, Message.Model.slash_command_payload);
     };
 
     let max_api_retries = 3;
@@ -2108,6 +2220,186 @@ module Agent = {
 
     let format_api_error_content = (~code: int, ~message: string): string =>
       "Code: " ++ string_of_int(code) ++ "\nError: " ++ message;
+
+    /* -- Slash-command result formatters and helpers ----------------------- */
+
+    /** Per-token pricing parsed from OpenRouter's [pricing.prompt]/[pricing.completion]
+        strings (dollars per token). Returns 0.0 on parse failure — callers note the
+        approximation when prices are missing. */
+    let pricing_per_token =
+        (llm: option(OpenRouter.AvailableLLMs.Model.llm_info))
+        : (float, float) =>
+      switch (llm) {
+      | None => (0.0, 0.0)
+      | Some(info) =>
+        let parse = s =>
+          try(float_of_string(s)) {
+          | _ => 0.0
+          };
+        (parse(info.pricing.prompt), parse(info.pricing.completion));
+      };
+
+    /** Walk a chat and sum prompt/completion tokens across all Agent messages
+        that carry usage. Returns (in_tokens, out_tokens). */
+    let chat_usage_totals = (chat: Chat.Model.t): (int, int) => {
+      let messages = Chat.Utils.get(chat);
+      List.fold_left(
+        (acc, msg: Message.Model.t) =>
+          switch (msg.role) {
+          | Agent(Some(usage)) =>
+            let (i, o) = acc;
+            (i + usage.prompt_tokens, o + usage.completion_tokens);
+          | _ => acc
+          },
+        (0, 0),
+        messages,
+      );
+    };
+
+    /** Build the typed payload for /cost from the current chat + active model. */
+    let cost_payload =
+        (
+          ~chat: Chat.Model.t,
+          ~active_llm: option(OpenRouter.AvailableLLMs.Model.llm_info),
+        )
+        : Message.Model.cost_output => {
+      let (in_tok, out_tok) = chat_usage_totals(chat);
+      let (price_in, price_out) = pricing_per_token(active_llm);
+      let estimated =
+        switch (active_llm) {
+        | Some(_) =>
+          Some(
+            float_of_int(in_tok)
+            *. price_in
+            +. float_of_int(out_tok)
+            *. price_out,
+          )
+        | None => None
+        };
+      let model =
+        switch (active_llm) {
+        | Some(info) => info.id
+        | None => ""
+        };
+      {
+        cost_model: model,
+        cost_input_tokens: in_tok,
+        cost_output_tokens: out_tok,
+        cost_estimated_usd: estimated,
+      };
+    };
+
+    /** Plain-text one-liner used as the message's stored `content` (archival/copy). */
+    let cost_fallback_text = (p: Message.Model.cost_output): string => {
+      let cost_str =
+        switch (p.cost_estimated_usd) {
+        | None => "(no model)"
+        | Some(c) => Printf.sprintf("$%.4f", c)
+        };
+      let model_str = p.cost_model == "" ? "(no model)" : p.cost_model;
+      Printf.sprintf(
+        "Session cost: %d in / %d out tokens, est. %s (%s)",
+        p.cost_input_tokens,
+        p.cost_output_tokens,
+        cost_str,
+        model_str,
+      );
+    };
+
+    let credits_payload =
+        (credits: OpenRouter.Credits.Model.t): Message.Model.credits_output => {
+      credits_used: credits.total_usage,
+      credits_total: credits.total_credits,
+    };
+
+    let credits_fallback_text = (p: Message.Model.credits_output): string =>
+      Printf.sprintf(
+        "Credits: $%.2f used of $%.2f (~$%.2f remaining)",
+        p.credits_used,
+        p.credits_total,
+        p.credits_total -. p.credits_used,
+      );
+
+    let usage_payload =
+        (k: OpenRouter.KeyInfo.Model.t): Message.Model.usage_output => {
+      usage_label: k.label,
+      usage_is_free_tier: k.is_free_tier,
+      usage_total: k.usage,
+      usage_daily: k.usage_daily,
+      usage_weekly: k.usage_weekly,
+      usage_monthly: k.usage_monthly,
+      usage_limit: k.limit,
+      usage_remaining: k.limit_remaining,
+    };
+
+    let usage_fallback_text = (p: Message.Model.usage_output): string =>
+      Printf.sprintf(
+        "Key usage: $%.2f total (%s)",
+        p.usage_total,
+        p.usage_is_free_tier ? "free" : "paid",
+      );
+
+    let help_fallback_text = (p: Message.Model.help_output): string => {
+      let names =
+        List.map(
+          (e: Message.Model.help_entry) => "/" ++ e.help_name,
+          p.help_entries,
+        );
+      "Slash commands: " ++ String.concat(", ", names);
+    };
+
+    let key_fallback_text = (key: string): string =>
+      key == "" ? "No OpenRouter API key set." : "OpenRouter API key: " ++ key;
+
+    /** Fire `/api/v1/credits`; on response (or failure), schedule
+        [AppendSlashCommandOutput] so the result appears inline in the chat. */
+    let fetch_credits_for_slash =
+        (~api_key: string, ~chat_id: Id.t, ~schedule_action: Action.t => unit)
+        : unit => {
+      let handler = (response: option(API.Json.t)): unit => {
+        let payload: Message.Model.slash_command_payload =
+          switch (response) {
+          | None =>
+            SlashError(
+              "Couldn't reach OpenRouter — check your network and API key.",
+            )
+          | Some(json) =>
+            switch (OpenRouter.Credits.Utils.parse_credits_response(json)) {
+            | Some(credits) => CreditsOutput(credits_payload(credits))
+            | None =>
+              SlashError(
+                "OpenRouter responded but the credits payload was unrecognized.",
+              )
+            }
+          };
+        schedule_action(Action.AppendSlashCommandOutput(chat_id, payload));
+      };
+      OpenRouter.Credits.Utils.get_credits(~key=api_key, ~handler);
+    };
+
+    let fetch_key_for_slash =
+        (~api_key: string, ~chat_id: Id.t, ~schedule_action: Action.t => unit)
+        : unit => {
+      let handler = (response: option(API.Json.t)): unit => {
+        let payload: Message.Model.slash_command_payload =
+          switch (response) {
+          | None =>
+            SlashError(
+              "Couldn't reach OpenRouter — check your network and API key.",
+            )
+          | Some(json) =>
+            switch (OpenRouter.KeyInfo.Utils.parse_key_response(json)) {
+            | Some(key_info) => UsageOutput(usage_payload(key_info))
+            | None =>
+              SlashError(
+                "OpenRouter responded but the key payload was unrecognized.",
+              )
+            }
+          };
+        schedule_action(Action.AppendSlashCommandOutput(chat_id, payload));
+      };
+      OpenRouter.KeyInfo.Utils.get_key(~key=api_key, ~handler);
+    };
 
     /** Max retries when the assistant returns an empty reply with no tool calls. */
     let max_empty_retries = 2;
@@ -3499,6 +3791,88 @@ module Agent = {
             ~cell_editor=editor,
           );
         (model', editor |> Updated.return);
+      | AppendSlashCommandOutput(chat_id, payload) =>
+        let content: string =
+          switch (payload) {
+          | CostOutput(p) => cost_fallback_text(p)
+          | CreditsOutput(p) => credits_fallback_text(p)
+          | UsageOutput(p) => usage_fallback_text(p)
+          | KeyOutput(k) => key_fallback_text(k)
+          | HelpOutput(p) => help_fallback_text(p)
+          | SlashError(s) => s
+          };
+        let msg =
+          Message.Utils.mk_slash_command_output_message(~payload, ~content);
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AppendMessage(msg),
+              chat_id,
+            ),
+            model.chat_system,
+          )
+          |> ChatSystem.Update.get;
+        (
+          {
+            ...model,
+            chat_system,
+          },
+          editor |> Updated.return,
+        );
+      | RunSlashCommandHelp(chat_id) =>
+        schedule_action(
+          Action.AppendSlashCommandOutput(
+            chat_id,
+            HelpOutput(ChatSlashCommands.help_payload()),
+          ),
+        );
+        (model, editor |> Updated.return);
+      | RunSlashCommandCost(chat_id) =>
+        let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+        let payload =
+          cost_payload(~chat, ~active_llm=settings.agent_globals.active_llm);
+        schedule_action(
+          Action.AppendSlashCommandOutput(chat_id, CostOutput(payload)),
+        );
+        (model, editor |> Updated.return);
+      | RunSlashCommandShowKey(chat_id) =>
+        let key =
+          switch (settings.agent_globals.api_key) {
+          | None => ""
+          | Some(k) => k
+          };
+        schedule_action(
+          Action.AppendSlashCommandOutput(chat_id, KeyOutput(key)),
+        );
+        (model, editor |> Updated.return);
+      | RunSlashCommandFetchCredits(chat_id) =>
+        switch (settings.agent_globals.api_key) {
+        | None =>
+          schedule_action(
+            Action.AppendSlashCommandOutput(
+              chat_id,
+              SlashError("Set an OpenRouter API key first."),
+            ),
+          );
+          (model, editor |> Updated.return);
+        | Some(api_key) =>
+          fetch_credits_for_slash(~api_key, ~chat_id, ~schedule_action);
+          (model, editor |> Updated.return);
+        }
+      | RunSlashCommandFetchUsage(chat_id) =>
+        switch (settings.agent_globals.api_key) {
+        | None =>
+          schedule_action(
+            Action.AppendSlashCommandOutput(
+              chat_id,
+              SlashError("Set an OpenRouter API key first."),
+            ),
+          );
+          (model, editor |> Updated.return);
+        | Some(api_key) =>
+          fetch_key_for_slash(~api_key, ~chat_id, ~schedule_action);
+          (model, editor |> Updated.return);
+        }
       | HandleChatNamingResponse(title, chat_id) =>
         let chat_system =
           ChatSystem.Update.update(

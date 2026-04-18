@@ -652,6 +652,31 @@ let chat_messages_scroll_stamp =
       | ResponseCancelledMessage(s) =>
         mix(8);
         mix(String.length(s));
+      | SlashCommandOutputMessage(payload) =>
+        mix(9);
+        switch (payload) {
+        | CostOutput(p) =>
+          mix(91);
+          mix(p.cost_input_tokens);
+          mix(p.cost_output_tokens);
+          mix(String.length(p.cost_model));
+        | CreditsOutput(p) =>
+          mix(92);
+          mix(int_of_float(p.credits_used *. 1000.));
+          mix(int_of_float(p.credits_total *. 1000.));
+        | UsageOutput(p) =>
+          mix(93);
+          mix(int_of_float(p.usage_total *. 1000.));
+        | KeyOutput(k) =>
+          mix(96);
+          mix(String.length(k));
+        | HelpOutput(p) =>
+          mix(94);
+          mix(List.length(p.help_entries));
+        | SlashError(s) =>
+          mix(95);
+          mix(String.length(s));
+        };
       },
     chunked_chat.log,
   );
@@ -1479,6 +1504,8 @@ let view =
           ),
         ],
       )
+    | Agent.ChunkedUIChat.Model.SlashCommandOutputMessage(payload) =>
+      SlashCommandOutputView.view(payload)
     };
   };
 

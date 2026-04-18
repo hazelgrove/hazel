@@ -25,13 +25,27 @@ let slash_command_tests = [
     `Quick,
     () => {
       let xs = Agent.ChatSlashCommands.filtered("");
-      check(int, "count", 1, List.length(xs));
-      switch (xs) {
-      | [(name, desc), ..._] =>
-        check_string("name", "compact", name);
-        check_bool("desc non-empty", true, String.length(desc) > 0);
-      | [] => fail("expected at least one command")
-      };
+      let names = List.map(fst, xs);
+      check(
+        list(string),
+        "alphabetical order",
+        ["account-usage", "compact", "cost", "help", "key", "key-usage"],
+        names,
+      );
+      List.iter(
+        ((_, desc)) =>
+          check_bool("desc non-empty", true, String.length(desc) > 0),
+        xs,
+      );
+    },
+  ),
+  test_case(
+    "ChatSlashCommands.filtered: 'c' matches compact, cost",
+    `Quick,
+    () => {
+      let xs = Agent.ChatSlashCommands.filtered("c");
+      let names = List.map(fst, xs);
+      check(list(string), "c-prefix", ["compact", "cost"], names);
     },
   ),
   test_case(
@@ -47,11 +61,41 @@ let slash_command_tests = [
     },
   ),
   test_case(
+    "ChatSlashCommands.filtered: 'h' matches help only",
+    `Quick,
+    () => {
+      let xs = Agent.ChatSlashCommands.filtered("h");
+      check(int, "one match", 1, List.length(xs));
+      switch (xs) {
+      | [(name, _), ..._] => check_string("name", "help", name)
+      | [] => fail("expected match")
+      };
+    },
+  ),
+  test_case(
     "ChatSlashCommands.filtered: no match returns empty",
     `Quick,
     () => {
       let xs = Agent.ChatSlashCommands.filtered("zzz");
       check(int, "empty", 0, List.length(xs));
+    },
+  ),
+  test_case(
+    "ChatSlashCommands.help_payload: contains every command",
+    `Quick,
+    () => {
+      let p = Agent.ChatSlashCommands.help_payload();
+      let names =
+        List.map(
+          (e: Agent.Message.Model.help_entry) => e.help_name,
+          p.help_entries,
+        );
+      let has = needle => List.mem(needle, names);
+      check_bool("compact listed", true, has("compact"));
+      check_bool("cost listed", true, has("cost"));
+      check_bool("account-usage listed", true, has("account-usage"));
+      check_bool("help listed", true, has("help"));
+      check_bool("key-usage listed", true, has("key-usage"));
     },
   ),
 ];
@@ -141,8 +185,8 @@ let slash_menu_tests = [
         switch (cs2.ui.slash_menu) {
         | None => fail("menu should stay open")
         | Some(sm1) =>
-          /* Single command => modulo 1 keeps index 0 */
-          check_int("index after down", 0, sm1.selected_index)
+          /* Down moves to index 1 (5 commands listed). */
+          check_int("index after down", 1, sm1.selected_index)
         };
       };
     },
