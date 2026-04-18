@@ -4,6 +4,16 @@
   position: relative;
 }
 
+.code-container.show-row-lines {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) var(--row-height-px)
+  );
+}
+
 /* Use this style for all text that should
  * be formatted like code, even if it's not
  * going to be inside an editor. For example,
@@ -22,13 +32,13 @@
   white-space: pre;
 }
 
-.line-numbers{
+.line-numbers {
   background-color: var(--ui-bkg);
   left: 0;
-  position: sticky; 
+  position: sticky;
   display: flex;
   padding: 0 1em 0 0.2em;
-  margin: -2px -0.6em -2px 0;
+  margin: -2px -0.6em -2px 1.5em;
   min-width: 31px; /*The width of three digits*/
   text-align: right;
   justify-content: flex-end;
@@ -39,22 +49,22 @@
 
 /* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
 #main.Documentation .line-numbers,
-#main.Scratch .line-numbers{
+#main.Scratch .line-numbers {
   background-color: var(--cell-active);
   border-color: var(--cell-active);
 }
 
-.line-numbers.line-numbers-selected{
+.line-numbers.line-numbers-selected {
   background-color: var(--cell-active);
   border-color: var(--cell-active);
 }
 
-.code .code-text.line-numbers-text :not(.line-numbers-bold){
+.code .code-text.line-numbers-text :not(.line-numbers-bold) {
   color: var(--BR1);
 }
 
-.code .code-text.line-numbers-text .line-numbers-bold{
-  font-weight: bolder; 
+.code .code-text.line-numbers-text .line-numbers-bold {
+  font-weight: bolder;
   color: var(--BR2);
 }
 
@@ -67,8 +77,6 @@
 .code-text:after {
   content: "​";
 }
-
-
 
 /* TOKEN COLORS */
 
@@ -361,6 +369,34 @@ svg.shard.selected.buffer-parsed > path {
   stroke: var(--T1);
 }
 
+/* VAR HIGHLIGHT DECO */
+
+.var-highlights {
+  pointer-events: none;
+}
+
+.var-highlight {
+  border-bottom: 2.3px dotted;
+  box-sizing: border-box;
+}
+
+.var-highlight.Exp {
+  border-bottom-color: var(--token-exp);
+  background-color: color-mix(in srgb, var(--token-exp) 10%, transparent);
+}
+.var-highlight.Pat {
+  border-bottom-color: var(--token-pat);
+  background-color: color-mix(in srgb, var(--token-pat) 10%, transparent);
+}
+.var-highlight.Typ {
+  border-bottom-color: var(--token-typ);
+  background-color: color-mix(in srgb, var(--token-typ) 10%, transparent);
+}
+.var-highlight.TPat {
+  border-bottom-color: var(--token-tpat);
+  background-color: color-mix(in srgb, var(--token-tpat) 10%, transparent);
+}
+
 /* EMPTY HOLE DECO */
 
 .empty-hole > path {
@@ -517,20 +553,44 @@ svg:has(.child-line) {
 
 /* Open animations for each direction - scale from origin while maintaining translate */
 @keyframes context-menu-open-down-right {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @keyframes context-menu-open-down-left {
-  from { opacity: 0; transform: translateX(-100%) scale(0.95); }
-  to { opacity: 1; transform: translateX(-100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateX(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-100%) scale(1);
+  }
 }
 @keyframes context-menu-open-up-right {
-  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
-  to { opacity: 1; transform: translateY(-100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%) scale(1);
+  }
 }
 @keyframes context-menu-open-up-left {
-  from { opacity: 0; transform: translate(-100%, -100%) scale(0.95); }
-  to { opacity: 1; transform: translate(-100%, -100%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translate(-100%, -100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-100%, -100%) scale(1);
+  }
 }
 
 .context-menu .group .contents {
@@ -551,6 +611,10 @@ svg:has(.child-line) {
 .context-menu .group .contents .named-menu-item.selected {
   background-color: var(--SAND);
   border-radius: 0.2em;
+}
+/* When hovering any item, suppress keyboard-selected highlight */
+.context-menu .group .contents:hover .named-menu-item.selected:not(:hover) {
+  background-color: transparent;
 }
 .context-menu .named-menu-item .menu-shortcut {
   margin-left: auto;

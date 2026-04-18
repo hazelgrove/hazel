@@ -57,16 +57,16 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       ~hotkey="shift+tab",
-      ~mdIcon="swipe_left_alt",
+      ~mdIcon="arrow_upward",
       ~section="Navigation",
-      "Go to Previous Hole",
-      Globals(ActiveEditor(Move(Goal(Hole(Left))))),
+      "Go to Previous Problem",
+      Globals(ActiveEditor(Move(Goal(NextProblem(Left))))),
     ),
     mk_shortcut(
-      ~mdIcon="swipe_right_alt",
+      ~mdIcon="arrow_downward",
       ~section="Navigation",
-      "Go To Next Hole",
-      Globals(ActiveEditor(Move(Goal(Hole(Right))))),
+      "Go to Next Problem",
+      Globals(ActiveEditor(Move(Goal(NextProblem(Right))))),
       // Tab is overloaded so not setting it here
     ),
     mk_shortcut(
@@ -123,6 +123,13 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Projection",
       "Statics",
       Globals(ActiveEditor(Probe(ToggleStatics))),
+    ),
+    mk_shortcut(
+      ~hotkey=Keyboard.meta(sys) ++ "+p",
+      ~mdIcon="science",
+      ~section="Projection",
+      "Toggle Auto Probe",
+      Globals(Set(AutoprobeMode)),
     ),
     mk_shortcut(
       ~hotkey="alt+l",
@@ -274,6 +281,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       "Add New Buffer",
+      ~hotkey="alt+n",
       ~mdIcon="add",
       ~section="Buffers",
       Editors(Scratch(AddSlide)),

@@ -54,7 +54,8 @@ type error_no_type =
   | BadLabel(Any.t)
   /* Invalid label in tuple */
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
-  | UnexpectedLabelSort(LabeledTuple.label) /* A Label is present but not expected */;
+  | UnexpectedLabelSort(LabeledTuple.label) /* A Label is present but not expected */
+  | MultiHole /* Broken expression: multiple terms without valid operator */;
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -318,6 +319,7 @@ type tpat = {
   cls: Cls.t,
   status: status_tpat,
   warning: Warning.t,
+  tvar_co_ctx: VarMap.t_(list(Id.t)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -574,7 +576,7 @@ let rec status_common =
     InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
   | (DuplicateVar(lab, _), _) =>
     InHole(DuplicateVar(lab, Unknown(Internal) |> Typ.temp))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
+  | (IsMulti, _) => InHole(NoType(MultiHole))
   | (NoMeet(PolyEq, tys), _)
   | (NoMeet(_, tys), {term: Unknown(SynSwitch), _}) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
@@ -873,6 +875,19 @@ let is_error = (ci: t): bool => {
 
 let is_warning = (ci: t): bool => warning_of(ci) != None;
 
+/* Determines whether an error is a syntax error (bad token or parse failure)
+   as opposed to a static type error. */
+let is_syntax_error = (ci: t): bool =>
+  switch (ci) {
+  | InfoExp({status: InHole(Common(NoType(BadToken(_) | MultiHole))), _}) =>
+    true
+  | InfoPat({status: InHole(Common(NoType(BadToken(_) | MultiHole))), _}) =>
+    true
+  | InfoTyp({status: InHole(BadToken(_)), _}) => true
+  | InfoTyp({status: InHole(ParseFailure), _}) => true
+  | _ => false
+  };
+
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
@@ -906,7 +921,8 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
     | NoType(BadToken(_))
     | NoType(BadLabel(_))
     | NoType(InvalidLabel(_))
-    | NoType(UnexpectedLabelSort(_)) => Unknown(Internal) |> Typ.temp
+    | NoType(UnexpectedLabelSort(_))
+    | NoType(MultiHole) => Unknown(Internal) |> Typ.temp
     | TupleLabelError({typ, _})
     | DuplicateLabel(_, typ)
     | DuplicateVar(_, typ) => typ_or_ana(typ)
@@ -1089,7 +1105,8 @@ let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
 };
 
 /* Add derivable attributes for type patterns */
-let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
+let derived_tpat =
+    (~utpat: TPat.t, ~ctx, ~ancestors, ~tvar_co_ctx=VarMap.empty, ()): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
   let warning: Warning.t = None;
@@ -1100,6 +1117,7 @@ let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
     warning,
     ctx,
     term: utpat,
+    tvar_co_ctx,
   };
 };
 

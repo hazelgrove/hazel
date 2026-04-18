@@ -68,7 +68,7 @@ let probes_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=Probes,
     ~cls=["probes-button"],
-    ~icon=Icons.shutter,
+    ~icon=Icons.microscope2,
     ~tooltip="Switch to Probes Panel",
     ~globals,
   );
@@ -82,6 +82,68 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let problems_tab_icon =
+    (counts: list((SidebarModel.Settings.problem_category, int))): Node.t => {
+  open SidebarModel.Settings;
+  let digit_cls = n =>
+    n >= 100 ? "digits-3" : n >= 10 ? "digits-2" : "digits-1";
+  /* Aggregate counts by badge group: sum counts sharing the same badge_cls */
+  let grouped =
+    List.fold_left(
+      (acc, (cat, n)) => {
+        let cls = category_badge_cls(cat);
+        let sev = category_badge_severity(cat);
+        let label = category_badge_label(cat);
+        switch (List.assoc_opt(cls, acc)) {
+        | Some((total, s, _)) => [
+            (cls, (total + n, max(s, sev), label)),
+            ...List.remove_assoc(cls, acc),
+          ]
+        | None => [(cls, (n, sev, label)), ...acc]
+        };
+      },
+      [],
+      counts,
+    );
+  let sorted =
+    List.sort(
+      ((_, (_, s1, _)), (_, (_, s2, _))) => compare(s2, s1),
+      grouped,
+    );
+  let (status_class, icon_text, title) =
+    switch (List.find_opt(((_, (n, _, _))) => n > 0, sorted)) {
+    | Some((cls, (n, _, label))) =>
+      let plural = n > 1 ? label ++ "s" : label;
+      (
+        cls ++ " " ++ digit_cls(n),
+        string_of_int(n),
+        string_of_int(n) ++ " " ++ plural,
+      );
+    | None => ("no-errors", {|✓|}, "No errors")
+    };
+  div(
+    ~attrs=[
+      clss(["tab-status-indicator", status_class]),
+      Attr.title(title),
+    ],
+    [span(~attrs=[], [text(icon_text)])],
+  );
+};
+
+let problems_tab =
+    (
+      ~globals: Globals.t,
+      ~counts: list((SidebarModel.Settings.problem_category, int)),
+    )
+    : Node.t =>
+  tab_of(
+    ~panel=Problems,
+    ~cls=["problems-button"],
+    ~icon=problems_tab_icon(counts),
+    ~tooltip="Switch to Problems Panel",
+    ~globals,
+  );
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -92,7 +154,11 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
   );
 };
 
-let persistent_view = (~globals: Globals.t) =>
+let persistent_view =
+    (
+      ~globals: Globals.t,
+      ~counts: list((SidebarModel.Settings.problem_category, int)),
+    ) =>
   div(
     ~attrs=[Attr.id("persistent")],
     [
@@ -102,6 +168,7 @@ let persistent_view = (~globals: Globals.t) =>
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
+          problems_tab(~globals, ~counts),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
@@ -209,6 +276,13 @@ let view =
       ~editor: CodeWithStatics.Model.t,
       ~signal,
     ) => {
+  let ctx =
+    Haz3lcore.ProblemCollection.make_problem_context(
+      ~display_warnings=globals.settings.core.display_warnings,
+      ~statics=editor.statics,
+      ~syntax=editor.editor.syntax,
+    );
+  let counts = Haz3lcore.ProblemCollection.counts_of_context(ctx);
   let sub =
     globals.settings.sidebar.show
       ? div(
@@ -238,6 +312,7 @@ let view =
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )
+            | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctx)
             },
           ],
         )
@@ -245,5 +320,8 @@ let view =
         resetElementStyles();
         div([]);
       };
-  div(~attrs=[Attr.id("sidebars")], [sub, persistent_view(~globals)]);
+  div(
+    ~attrs=[Attr.id("sidebars")],
+    [sub, persistent_view(~globals, ~counts)],
+  );
 };

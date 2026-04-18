@@ -213,7 +213,7 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
  *   ]
  * The comma is first parsed as part of a Tuple on row 1, creating term_data
  * with a skeleton spanning only row 1. When `[`/`]` absorbs this into a
- * ListLit, the comma's term_data still has the Tuple's skeleton. AutoProbe
+ * ListLit, the comma's term_data still has the Tuple's skeleton. MultiProbe
  * uses term_data to find terms ending on each row, so it sees a "phantom
  * tuple" on row 1 and selects it for probing, but Arms can't find the
  * correct term to draw decorations for. Consolidation fixes this by giving
@@ -840,7 +840,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
-    | ([(_, (["+"], []))], []) => (Sum(t0), ids)
+    | ([(_, (["+"], []))], []) =>
+      adopted_ids := ids @ adopted_ids^;
+      (Sum(t0), ids);
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Typ(t)) as tm =>

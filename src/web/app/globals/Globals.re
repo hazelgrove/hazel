@@ -69,7 +69,8 @@ module Action = {
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
     | RethrowException
-    | ClearException;
+    | ClearException
+    | RestoreLastKnownGood;
 };
 
 module Model = {
@@ -164,6 +165,7 @@ module Update = {
     | Log(_) => false
     | RethrowException => false
     | ClearException => false
+    | RestoreLastKnownGood => false
     };
   };
 };

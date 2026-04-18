@@ -13,9 +13,14 @@ module Model = {
     show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
+    /* Auto probe: automatically place a multi probe on the body of
+       whichever top-level definition the cursor is currently inside */
+    autoprobe_mode: bool,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    cap_undo_stack: bool,
+    show_row_lines: bool,
   };
 
   let init = {
@@ -27,6 +32,7 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
+      deep_reassociate: true,
       flip_animations: true,
       display_warnings: true,
       evaluation: {
@@ -57,10 +63,18 @@ module Model = {
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
+      problems: {
+        collapsed: [],
+        flat: false,
+        expanded: [],
+      },
     },
+    autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
+    cap_undo_stack: false,
+    show_row_lines: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -76,7 +90,18 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
 
-  let persist = x => x;
+  /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
+     and go stale across sessions. */
+  let persist = settings => {
+    ...settings,
+    sidebar: {
+      ...settings.sidebar,
+      problems: {
+        ...settings.sidebar.problems,
+        expanded: [],
+      },
+    },
+  };
   let unpersist = fix_instructor_mode;
 };
 
@@ -112,6 +137,7 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
+    | DeepReassociate
     | Assist
     | Elaborate
     | Benchmark
@@ -123,8 +149,11 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | AutoprobeMode
     | ToggleLineNumbers
-    | ToggleRelativeLineNumbers;
+    | ToggleRelativeLineNumbers
+    | CapUndoStack
+    | ShowRowLines;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -169,6 +198,13 @@ module Update = {
             dynamics: !settings.core.probe_all || settings.core.dynamics,
             statics: !settings.core.probe_all || settings.core.statics,
             probe_all: !settings.core.probe_all,
+          },
+        }
+      | DeepReassociate => {
+          ...settings,
+          core: {
+            ...settings.core,
+            deep_reassociate: !settings.core.deep_reassociate,
           },
         }
       | Assist => {
@@ -267,11 +303,44 @@ module Update = {
       | Sidebar(SwitchPanel(windowToSwitchTo)) => {
           ...settings,
           sidebar: {
+            ...settings.sidebar,
             show:
               !settings.sidebar.show
                 ? true
                 : settings.sidebar.panel == windowToSwitchTo ? false : true,
             panel: windowToSwitchTo,
+          },
+        }
+      | Sidebar(Problems(ToggleCollapsed(cat))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_collapsed(
+                cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleFlat)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems: {
+              ...settings.sidebar.problems,
+              flat: !settings.sidebar.problems.flat,
+            },
+          },
+        }
+      | Sidebar(Problems(ToggleExpanded(id))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_expanded(
+                id,
+                settings.sidebar.problems,
+              ),
           },
         }
       | ExplainThis(ToggleShowFeedback) => {
@@ -324,6 +393,10 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
+      | AutoprobeMode => {
+          ...settings,
+          autoprobe_mode: !settings.autoprobe_mode,
+        }
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
@@ -331,6 +404,14 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | CapUndoStack => {
+          ...settings,
+          cap_undo_stack: !settings.cap_undo_stack,
+        }
+      | ShowRowLines => {
+          ...settings,
+          show_row_lines: !settings.show_row_lines,
         }
       }
     )
