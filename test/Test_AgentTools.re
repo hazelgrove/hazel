@@ -194,29 +194,26 @@ let edit_action_tests = (
       }
     }),
     test_case(
-      "insert_before (no path) prepends to non-empty program",
-      `Quick,
-      () => {
-        switch (
-          run_insert_at_program_boundary(
-            "let a = 1 in a",
-            Before,
-            "let x = 0 in",
-          )
-        ) {
-        | Ok(z) =>
-          check_rendered(
-            "insert_before_no_path_nonempty",
-            "let x = 0 in let a = 1 in a",
-            render_zipper(z),
-          )
-        | Error(err) =>
-          Alcotest.fail(
-            "insert_before (no path) failed: " ++ Action.Failure.show(err),
-          )
-        }
-      },
-    ),
+      "insert_before (no path) prepends to non-empty program", `Quick, () => {
+      switch (
+        run_insert_at_program_boundary(
+          "let a = 1 in a",
+          Before,
+          "let x = 0 in",
+        )
+      ) {
+      | Ok(z) =>
+        check_rendered(
+          "insert_before_no_path_nonempty",
+          "let x = 0 in let a = 1 in a",
+          render_zipper(z),
+        )
+      | Error(err) =>
+        Alcotest.fail(
+          "insert_before (no path) failed: " ++ Action.Failure.show(err),
+        )
+      }
+    }),
     test_case(
       "update_definition replaces def",
       `Quick,
@@ -361,97 +358,74 @@ let insert_at_program_boundary_tests = (
   "AgentTools.InsertAtProgramBoundary",
   [
     test_case(
-      "insert_before (no path) on hole produces valid program",
-      `Quick,
-      () => {
-        switch (
-          run_insert_at_program_boundary("?", Before, "let x = 5 in")
-        ) {
-        | Ok(z) =>
-          check_rendered(
-            "boundary_before_hole",
-            "let x = 5 in ?",
-            render_zipper(z),
-          )
-        | Error(err) =>
-          Alcotest.fail(
-            "insert_before failed: " ++ Action.Failure.show(err),
-          )
-        }
-      },
-    ),
+      "insert_before (no path) on hole produces valid program", `Quick, () => {
+      switch (run_insert_at_program_boundary("?", Before, "let x = 5 in")) {
+      | Ok(z) =>
+        check_rendered(
+          "boundary_before_hole",
+          "let x = 5 in ?",
+          render_zipper(z),
+        )
+      | Error(err) =>
+        Alcotest.fail("insert_before failed: " ++ Action.Failure.show(err))
+      }
+    }),
     test_case(
-      "insert_before (no path) seeds multi-binding program",
-      `Quick,
-      () => {
-        switch (
-          run_insert_at_program_boundary(
-            "?",
-            Before,
-            "let a = 1 in let b = 2 in let c = a + b in",
-          )
-        ) {
-        | Ok(z) =>
-          check_rendered(
-            "boundary_before_multi",
-            "let a = 1 in let b = 2 in let c = a + b in ?",
-            render_zipper(z),
-          )
-        | Error(err) =>
-          Alcotest.fail(
-            "insert_before failed: " ++ Action.Failure.show(err),
-          )
-        }
-      },
-    ),
+      "insert_before (no path) seeds multi-binding program", `Quick, () => {
+      switch (
+        run_insert_at_program_boundary(
+          "?",
+          Before,
+          "let a = 1 in let b = 2 in let c = a + b in",
+        )
+      ) {
+      | Ok(z) =>
+        check_rendered(
+          "boundary_before_multi",
+          "let a = 1 in let b = 2 in let c = a + b in ?",
+          render_zipper(z),
+        )
+      | Error(err) =>
+        Alcotest.fail("insert_before failed: " ++ Action.Failure.show(err))
+      }
+    }),
+    test_case("insert_before (no path) with function value", `Quick, () => {
+      switch (
+        run_insert_at_program_boundary(
+          "?",
+          Before,
+          "let f = fun x -> x + 1 in",
+        )
+      ) {
+      | Ok(z) =>
+        check_rendered(
+          "boundary_before_fun",
+          "let f = fun x -> x + 1 in ?",
+          render_zipper(z),
+        )
+      | Error(err) =>
+        Alcotest.fail("insert_before failed: " ++ Action.Failure.show(err))
+      }
+    }),
     test_case(
-      "insert_before (no path) with function value",
-      `Quick,
-      () => {
-        switch (
-          run_insert_at_program_boundary(
-            "?",
-            Before,
-            "let f = fun x -> x + 1 in",
-          )
-        ) {
-        | Ok(z) =>
-          check_rendered(
-            "boundary_before_fun",
-            "let f = fun x -> x + 1 in ?",
-            render_zipper(z),
-          )
-        | Error(err) =>
-          Alcotest.fail(
-            "insert_before failed: " ++ Action.Failure.show(err),
-          )
-        }
-      },
-    ),
-    test_case(
-      "insert_before (no path) prepends to non-empty program",
-      `Quick,
-      () => {
-        switch (
-          run_insert_at_program_boundary(
-            "let b = 2 in b",
-            Before,
-            "let a = 1 in",
-          )
-        ) {
-        | Ok(z) =>
-          check_rendered(
-            "boundary_before_nonempty",
-            "let a = 1 in let b = 2 in b",
-            render_zipper(z),
-          )
-        | Error(err) =>
-          Alcotest.fail(
-            "insert_before failed: " ++ Action.Failure.show(err),
-          )
-        }
-      },
-    ),
+      "insert_before (no path) prepends to non-empty program", `Quick, () => {
+      switch (
+        run_insert_at_program_boundary(
+          "let b = 2 in b",
+          Before,
+          "let a = 1 in",
+        )
+      ) {
+      | Ok(z) =>
+        check_rendered(
+          "boundary_before_nonempty",
+          "let a = 1 in let b = 2 in b",
+          render_zipper(z),
+        )
+      | Error(err) =>
+        Alcotest.fail("insert_before failed: " ++ Action.Failure.show(err))
+      }
+    }),
   ],
 );
 
@@ -1836,8 +1810,7 @@ let composition_utils_tests = (
       "parse insert_after with empty path → InsertAtProgramBoundary",
       `Quick,
       () => {
-        let args =
-          mk_json_args([("path", ""), ("code", "let x = 1 in")]);
+        let args = mk_json_args([("path", ""), ("code", "let x = 1 in")]);
         switch (
           CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
         ) {
