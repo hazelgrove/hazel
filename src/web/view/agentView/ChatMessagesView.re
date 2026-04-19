@@ -608,6 +608,8 @@ let chat_messages_scroll_stamp =
       ~chunked_chat: Agent.ChunkedUIChat.Model.t,
       ~awaiting_dots: bool,
       ~compaction_banner: bool,
+      ~pending_content: string,
+      ~pending_reasoning: string,
     )
     : int => {
   let acc = ref(0);
@@ -691,6 +693,11 @@ let chat_messages_scroll_stamp =
   );
   mix(awaiting_dots ? 11 : 0);
   mix(compaction_banner ? 13 : 0);
+  /* Keeps the stamp moving while streaming deltas accumulate into the
+     in-progress bubble; otherwise the scroll hook sees a stable input
+     and the user has to manually chase the stream. */
+  mix(String.length(pending_content));
+  mix(String.length(pending_reasoning));
   acc^;
 };
 
@@ -1632,6 +1639,8 @@ let view =
         ~chunked_chat,
         ~awaiting_dots,
         ~compaction_banner,
+        ~pending_content=agent_model.pending_assistant_content,
+        ~pending_reasoning=agent_model.pending_assistant_reasoning,
       );
     div(
       ~attrs=[clss(["chat-messages-view"])],
