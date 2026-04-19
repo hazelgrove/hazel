@@ -1572,6 +1572,14 @@ module Agent = {
       pending_ignore_main_reply_seq: option(int),
       [@yojson.default None]
       pending_ignore_compaction_reply_seq: option(int),
+      /* Accumulated SSE deltas for the in-flight main reply. Cleared on
+         HandleLLMResponse, ApiErrorResponse, and StopAgenticLoop. The XHR
+         handle itself is not serializable and lives in a module-level ref
+         ([pending_main_stream_handle] inside Update). */
+      [@yojson.default ""] [@sexp.default ""]
+      pending_assistant_content: string,
+      [@yojson.default ""] [@sexp.default ""]
+      pending_assistant_reasoning: string,
     };
   };
 
@@ -1596,6 +1604,8 @@ module Agent = {
         compaction_llm_seq: 0,
         pending_ignore_main_reply_seq: None,
         pending_ignore_compaction_reply_seq: None,
+        pending_assistant_content: "",
+        pending_assistant_reasoning: "",
       };
     };
 
@@ -1619,6 +1629,8 @@ module Agent = {
         compaction_llm_seq: 0,
         pending_ignore_main_reply_seq: None,
         pending_ignore_compaction_reply_seq: None,
+        pending_assistant_content: "",
+        pending_assistant_reasoning: "",
       };
     };
   };
@@ -1731,6 +1743,8 @@ module Agent = {
         compaction_llm_seq: 0,
         pending_ignore_main_reply_seq: None,
         pending_ignore_compaction_reply_seq: None,
+        pending_assistant_content: "",
+        pending_assistant_reasoning: "",
       };
     };
 
@@ -2273,7 +2287,16 @@ module Agent = {
         | RunSlashCommandShowKey(Id.t)
         | RunSlashCommandFetchCredits(Id.t)
         | RunSlashCommandFetchUsage(Id.t)
-        | AppendSlashCommandOutput(Id.t, Message.Model.slash_command_payload);
+        | AppendSlashCommandOutput(Id.t, Message.Model.slash_command_payload)
+        | /** Incremental SSE delta from the main agent stream. Carries
+              (chat_id, flight_seq, content_delta, reasoning_delta). Dropped
+              when [pending_ignore_main_reply_seq] matches [flight_seq]. */
+          StreamDelta(
+            Id.t,
+            int,
+            string,
+            string,
+          );
     };
 
     let max_api_retries = 3;
@@ -2282,6 +2305,37 @@ module Agent = {
 
     let format_api_error_content = (~code: int, ~message: string): string =>
       "Code: " ++ string_of_int(code) ++ "\nError: " ++ message;
+
+    /* In-flight streaming request handles. Not part of Model.t because
+       [API.streaming_handle] holds a closure and is not serializable; these
+       are strictly transient and meaningless across reloads. Cleared in the
+       stream's [on_done] and on Stop. */
+    let pending_main_stream_handle: ref(option(API.streaming_handle)) =
+      ref(None);
+    let pending_compaction_stream_handle: ref(option(API.streaming_handle)) =
+      ref(None);
+
+    let clear_pending_assistant_stream = (model: Model.t): Model.t => {
+      ...model,
+      pending_assistant_content: "",
+      pending_assistant_reasoning: "",
+    };
+
+    let abort_main_stream_handle = (): unit =>
+      switch (pending_main_stream_handle^) {
+      | Some(h) =>
+        pending_main_stream_handle := None;
+        h.abort();
+      | None => ()
+      };
+
+    let abort_compaction_stream_handle = (): unit =>
+      switch (pending_compaction_stream_handle^) {
+      | Some(h) =>
+        pending_compaction_stream_handle := None;
+        h.abort();
+      | None => ()
+      };
 
     /* -- Slash-command result formatters and helpers ----------------------- */
 
@@ -2609,9 +2663,24 @@ module Agent = {
           ~compaction_flight_seq: int,
         )
         : unit => {
-      let handler = (response: option(API.Json.t)): unit => {
-        switch (OpenRouter.Utils.handle_chat(response)) {
-        | Some(OpenRouter.Model.Reply(reply)) =>
+      let payload =
+        OpenRouter.Payload.Utils.mk_default(
+          ~model_id=llm_id,
+          ~messages,
+          ~tools=[],
+          (),
+        );
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let on_chunk = (chunk: API.Json.t): unit => {
+        let _delta = OpenRouter.Utils.StreamAccumulator.feed(acc, chunk);
+        /* Compaction surfaces nothing mid-stream; deltas are silently buffered
+           and delivered all at once via HandleCompactionLLMReply on done. */
+        ();
+      };
+      let on_done = (): unit => {
+        pending_compaction_stream_handle := None;
+        switch (OpenRouter.Utils.StreamAccumulator.finalize(acc)) {
+        | OpenRouter.Model.Reply(reply) =>
           schedule_action(
             Action.HandleCompactionLLMReply(
               reply,
@@ -2619,7 +2688,7 @@ module Agent = {
               compaction_flight_seq,
             ),
           )
-        | Some(OpenRouter.Model.Error({message, code})) =>
+        | OpenRouter.Model.Error({message, code}) =>
           let api_error_content =
             "Compaction failed (code "
             ++ string_of_int(code)
@@ -2634,26 +2703,16 @@ module Agent = {
               CompactionRequest(compaction_flight_seq),
             ),
           );
-        | None =>
-          schedule_action(
-            Action.ApiErrorResponse(
-              chat_id,
-              Message.Utils.mk_api_failure_message(
-                "Compaction failed: empty API response.",
-              ),
-              CompactionRequest(compaction_flight_seq),
-            ),
-          )
         };
       };
-      let payload =
-        OpenRouter.Payload.Utils.mk_default(
-          ~model_id=llm_id,
-          ~messages,
-          ~tools=[],
-          (),
+      let handle =
+        OpenRouter.Utils.start_streaming_chat(
+          ~payload,
+          ~key=api_key,
+          ~on_chunk,
+          ~on_done,
         );
-      OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
+      pending_compaction_stream_handle := Some(handle);
     };
 
     /** Shared auto (token limit) and manual (/compact) compaction kickoff. */
@@ -2819,10 +2878,29 @@ module Agent = {
         )
         : unit => {
       let send_started_at = JsUtil.timestamp();
-      let handler = (response: option(API.Json.t)): unit => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let on_chunk = (chunk: API.Json.t): unit => {
+        let {content_delta, reasoning_delta}: OpenRouter.Utils.StreamAccumulator.delta =
+          OpenRouter.Utils.StreamAccumulator.feed(acc, chunk);
+        /* Suppress empty deltas (many providers emit role-only or
+           keepalive-style chunks). StreamDelta gating by flight_seq still
+           happens in the reducer. */
+        if (content_delta != "" || reasoning_delta != "") {
+          schedule_action(
+            Action.StreamDelta(
+              chat_id,
+              main_flight_seq,
+              content_delta,
+              reasoning_delta,
+            ),
+          );
+        };
+      };
+      let on_done = (): unit => {
+        pending_main_stream_handle := None;
         let elapsed_ms = int_of_float(JsUtil.timestamp() -. send_started_at);
-        switch (OpenRouter.Utils.handle_chat(response)) {
-        | Some(OpenRouter.Model.Reply(reply)) =>
+        switch (OpenRouter.Utils.StreamAccumulator.finalize(acc)) {
+        | OpenRouter.Model.Reply(reply) =>
           schedule_action(
             Action.HandleLLMResponse(
               reply,
@@ -2831,7 +2909,7 @@ module Agent = {
               elapsed_ms,
             ),
           )
-        | Some(OpenRouter.Model.Error({message, code})) =>
+        | OpenRouter.Model.Error({message, code}) =>
           if (is_retryable_api_error(code) && retry_attempt < max_api_retries) {
             schedule_action(Action.RetryApiError(chat_id, retry_attempt));
           } else {
@@ -2846,19 +2924,16 @@ module Agent = {
               ),
             );
           }
-        | None =>
-          schedule_action(
-            Action.ApiErrorResponse(
-              chat_id,
-              Message.Utils.mk_api_failure_message(
-                "No response from the language model.",
-              ),
-              MainRequest(main_flight_seq),
-            ),
-          )
         };
       };
-      OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
+      let handle =
+        OpenRouter.Utils.start_streaming_chat(
+          ~payload,
+          ~key=api_key,
+          ~on_chunk,
+          ~on_done,
+        );
+      pending_main_stream_handle := Some(handle);
     };
 
     let send_message =
@@ -3436,6 +3511,9 @@ module Agent = {
           schedule_action: Action.t => unit,
         )
         : (Model.t, Updated.t(CellEditor.Model.t)) => {
+      /* The streamed pending text has been superseded by [reply.content]; the
+         complete assistant message is about to be appended via AppendMessage. */
+      let model = clear_pending_assistant_stream(model);
       switch (model.pending_ignore_main_reply_seq) {
       | Some(ignore_seq) when ignore_seq == flight_seq =>
         /* Cancel line was already appended in StopAgenticLoop. */
@@ -3718,6 +3796,10 @@ module Agent = {
         let (m, e) =
           switch (model.awaiting_response, model.compaction_in_progress) {
           | (Some(awaiting_chat_id), _) =>
+            /* Abort the in-flight XHR so the user stops paying for generation.
+               The seq gate still catches any delta that slipped through before
+               [abort] took effect. */
+            abort_main_stream_handle();
             /* Append cancel immediately so it stays above e.g. a flushed
                queued user message (late HTTP still uses pending_ignore_*). */
             let cancelled =
@@ -3734,17 +3816,18 @@ module Agent = {
               )
               |> ChatSystem.Update.get;
             (
-              {
+              clear_pending_assistant_stream({
                 ...model,
                 chat_system,
                 awaiting_response: None,
                 last_empty_retry_attempt: None,
                 last_active_task_nudge_attempt: None,
                 pending_ignore_main_reply_seq: Some(model.main_llm_seq),
-              },
+              }),
               editor |> Updated.return,
             );
           | (None, Some(compaction_chat_id)) =>
+            abort_compaction_stream_handle();
             let cancelled =
               Message.Utils.mk_response_cancelled_message(
                 ~content="Compaction cancelled.",
@@ -4022,6 +4105,13 @@ module Agent = {
           editor |> Updated.return,
         );
       | ApiErrorResponse(chat_id, api_error_message, origin) =>
+        /* Any partial stream is now moot; clear it before branching so every
+           return path below is safe. */
+        let model =
+          switch (origin) {
+          | MainRequest(_) => clear_pending_assistant_stream(model)
+          | CompactionRequest(_) => model
+          };
         let (m, e) =
           switch (origin) {
           | MainRequest(seq) =>
@@ -4469,6 +4559,25 @@ module Agent = {
           },
           editor |> Updated.return,
         );
+      | StreamDelta(_chat_id, flight_seq, content_delta, reasoning_delta) =>
+        /* Late deltas from a stream the user Stopped or superseded are
+           dropped. The same seq-gate protects HandleLLMResponse / ApiError. */
+        switch (model.pending_ignore_main_reply_seq) {
+        | Some(ignore_seq) when ignore_seq == flight_seq => (
+            model,
+            editor |> Updated.return_quiet,
+          )
+        | _ => (
+            {
+              ...model,
+              pending_assistant_content:
+                model.pending_assistant_content ++ content_delta,
+              pending_assistant_reasoning:
+                model.pending_assistant_reasoning ++ reasoning_delta,
+            },
+            editor |> Updated.return_quiet,
+          )
+        }
       };
     };
   };

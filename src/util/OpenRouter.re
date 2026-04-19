@@ -458,6 +458,271 @@ module Utils = {
       );
     };
   };
+
+  /** Accumulates SSE chunks from a streaming chat response into the same
+      [Model.result] the non-streaming [handle_chat] produces. [feed] updates
+      internal state per chunk and returns the visible content/reasoning delta
+      that landed in this chunk (for UI dispatch); tool-call args, usage, and
+      errors are buffered silently and surfaced at [finalize]. */
+  module StreamAccumulator = {
+    type partial_tool_call = {
+      id: ref(option(string)),
+      name: ref(option(string)),
+      args_buf: Buffer.t,
+    };
+
+    type delta = {
+      content_delta: string,
+      reasoning_delta: string,
+    };
+
+    type t = {
+      content: Buffer.t,
+      reasoning: Buffer.t,
+      /* Keyed by the streaming [index] on each tool_call delta. */
+      tool_calls: Hashtbl.t(int, partial_tool_call),
+      usage: ref(option(Reply.Model.usage)),
+      error: ref(option(Model.error)),
+    };
+
+    let create = (): t => {
+      content: Buffer.create(256),
+      reasoning: Buffer.create(256),
+      tool_calls: Hashtbl.create(4),
+      usage: ref(None),
+      error: ref(None),
+    };
+
+    let absorb_one_tool_call = (t: t, tc: Json.t): unit => {
+      let idx =
+        switch (Json.dot("index", tc)) {
+        | Some(`Int(n)) => n
+        | _ => 0
+        };
+      let partial =
+        switch (Hashtbl.find_opt(t.tool_calls, idx)) {
+        | Some(p) => p
+        | None =>
+          let p = {
+            id: ref(None),
+            name: ref(None),
+            args_buf: Buffer.create(64),
+          };
+          Hashtbl.replace(t.tool_calls, idx, p);
+          p;
+        };
+      switch (Json.dot("id", tc)) {
+      | Some(`String(s)) => partial.id := Some(s)
+      | _ => ()
+      };
+      switch (Json.dot("function", tc)) {
+      | None => ()
+      | Some(f) =>
+        switch (Json.dot("name", f)) {
+        | Some(`String(s)) => partial.name := Some(s)
+        | _ => ()
+        };
+        switch (Json.dot("arguments", f)) {
+        | Some(`String(s)) => Buffer.add_string(partial.args_buf, s)
+        | _ => ()
+        };
+      };
+    };
+
+    let absorb_tool_calls = (t: t, chunk: Json.t): unit =>
+      switch (Json.dot("choices", chunk)) {
+      | None => ()
+      | Some(choices) =>
+        switch (Json.list(choices)) {
+        | None
+        | Some([]) => ()
+        | Some([hd, ..._]) =>
+          let container =
+            switch (Json.dot("delta", hd)) {
+            | Some(d) => Some(d)
+            | None => Json.dot("message", hd)
+            };
+          switch (container) {
+          | None => ()
+          | Some(d) =>
+            switch (Json.dot("tool_calls", d)) {
+            | None => ()
+            | Some(tcs) =>
+              switch (Json.list(tcs)) {
+              | None => ()
+              | Some(tcs_list) =>
+                List.iter(tc => absorb_one_tool_call(t, tc), tcs_list)
+              }
+            }
+          };
+        }
+      };
+
+    /* Read raw content / reasoning from the first choice without the
+       back-compat swap that [first_message_content_and_reasoning] applies.
+       Streaming must keep the two buffers distinct per chunk; the swap
+       (surfacing reasoning as content when content is absent) is applied
+       at [finalize] instead. */
+    let raw_first_choice_content_reasoning =
+        (choices: Json.t): (option(string), option(string)) => {
+      let result = {
+        let* choices_list = Json.list(choices);
+        let* hd = ListUtil.hd_opt(choices_list);
+        let* delta =
+          switch (Json.dot("message", hd)) {
+          | Some(m) => Some(m)
+          | None => Json.dot("delta", hd)
+          };
+        let from_content =
+          switch (Json.dot("content", delta)) {
+          | None => None
+          | Some(c) => message_content_string(c)
+          };
+        let from_reasoning =
+          Option.bind(Json.dot("reasoning", delta), Json.str);
+        let from_reasoning_content =
+          Option.bind(Json.dot("reasoning_content", delta), Json.str);
+        let from_thinking =
+          Option.bind(Json.dot("thinking", delta), Json.str);
+        let nonempty = (o: option(string)): option(string) =>
+          switch (o) {
+          | Some(s) when s != "" => Some(s)
+          | _ => None
+          };
+        let reasoning =
+          List.find_map(
+            nonempty,
+            [from_reasoning_content, from_reasoning, from_thinking],
+          );
+        Some((nonempty(from_content), reasoning));
+      };
+      switch (result) {
+      | None => (None, None)
+      | Some(pair) => pair
+      };
+    };
+
+    let feed = (t: t, chunk: Json.t): delta => {
+      switch (parse_errs(chunk)) {
+      | Some(e) => t.error := Some(e)
+      | None => ()
+      };
+      switch (Json.dot("usage", chunk)) {
+      | Some(u) =>
+        switch (of_usage(u)) {
+        | Some(parsed) => t.usage := Some(parsed)
+        | None => ()
+        }
+      | None => ()
+      };
+      let (c_opt, r_opt) =
+        switch (Json.dot("choices", chunk)) {
+        | Some(choices) => raw_first_choice_content_reasoning(choices)
+        | None => (None, None)
+        };
+      let content_delta = Option.value(~default="", c_opt);
+      let reasoning_delta = Option.value(~default="", r_opt);
+      if (content_delta != "") {
+        Buffer.add_string(t.content, content_delta);
+      };
+      if (reasoning_delta != "") {
+        Buffer.add_string(t.reasoning, reasoning_delta);
+      };
+      absorb_tool_calls(t, chunk);
+      {
+        content_delta,
+        reasoning_delta,
+      };
+    };
+
+    let finalize_tool_calls = (t: t): list(Reply.Model.tool_call) => {
+      let entries =
+        Hashtbl.fold(
+          (idx, p, acc) => [(idx, p), ...acc],
+          t.tool_calls,
+          [],
+        );
+      let sorted = List.sort(((a, _), (b, _)) => compare(a, b), entries);
+      List.filter_map(
+        ((_, p: partial_tool_call)) => {
+          let* id = p.id^;
+          let* name = p.name^;
+          let args_str = Buffer.contents(p.args_buf);
+          let args = parse_tool_args(`String(args_str));
+          Some(
+            {
+              id,
+              name,
+              args,
+            }: Reply.Model.tool_call,
+          );
+        },
+        sorted,
+      );
+    };
+
+    let finalize = (t: t): Model.result =>
+      switch (t.error^) {
+      | Some(e) => Model.Error(e)
+      | None =>
+        let content_buf = Buffer.contents(t.content);
+        let reasoning_buf = Buffer.contents(t.reasoning);
+        let tool_calls = finalize_tool_calls(t);
+        /* Mirror [handle_chat]'s back-compat: if content is empty but
+           reasoning is present and there are no tool calls, surface
+           reasoning as content so downstream text-only consumers don't
+           see an empty reply. Reasoning stays available separately
+           only when content was independently present. */
+        let (content, reasoning) =
+          if (content_buf == "" && reasoning_buf != "" && tool_calls == []) {
+            (reasoning_buf, None);
+          } else {
+            let reasoning =
+              if (reasoning_buf == "") {
+                None;
+              } else {
+                Some(reasoning_buf);
+              };
+            (content_buf, reasoning);
+          };
+        Model.Reply({
+          content,
+          tool_calls,
+          usage: t.usage^,
+          reasoning,
+        });
+      };
+  };
+
+  let start_streaming_chat =
+      (
+        ~payload: Payload.Model.t,
+        ~key: string,
+        ~on_chunk: Json.t => unit,
+        ~on_done: unit => unit,
+      )
+      : API.streaming_handle => {
+    print_endline("API: POSTing OpenRouter streaming request");
+    let streaming_payload = {
+      ...payload,
+      stream: true,
+    };
+    let body = Payload.Utils.json_of_payload(~payload=streaming_payload);
+    API.request_streaming(
+      ~with_credentials=false,
+      ~method=POST,
+      ~url="https://openrouter.ai/api/v1/chat/completions",
+      ~headers=[
+        ("Content-Type", "application/json"),
+        ("Accept", "text/event-stream"),
+        ("Authorization", "Bearer " ++ key),
+      ],
+      ~body,
+      ~on_chunk,
+      ~on_done,
+      (),
+    );
+  };
 };
 
 module AvailableLLMs = {

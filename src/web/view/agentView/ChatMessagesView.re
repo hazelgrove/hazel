@@ -1653,7 +1653,67 @@ let view =
           List.mapi(render_chunk, chunked_chat.log)
           @ (
             switch (agent_model.awaiting_response) {
-            | Some(awaiting_id) when awaiting_id == current_chat_id => [
+            | Some(awaiting_id) when awaiting_id == current_chat_id =>
+              let show_thinking = globals.settings.agent_globals.show_thinking;
+              let pending_content = agent_model.pending_assistant_content;
+              let pending_reasoning = agent_model.pending_assistant_reasoning;
+              let has_reasoning =
+                show_thinking && String.trim(pending_reasoning) != "";
+              let has_content = String.trim(pending_content) != "";
+              let reasoning_node: option(Node.t) =
+                if (has_reasoning) {
+                  Some(
+                    div(
+                      ~attrs=[clss(["agent-thinking-block"])],
+                      [
+                        div(
+                          ~attrs=[clss(["agent-thinking-header"])],
+                          [text("Thinking")],
+                        ),
+                        div(
+                          ~attrs=[
+                            clss([
+                              "agent-thinking-text",
+                              "agent-streaming-plaintext",
+                            ]),
+                          ],
+                          [text(pending_reasoning)],
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  None;
+                };
+              let content_node: option(Node.t) =
+                if (has_content) {
+                  Some(
+                    div(
+                      ~attrs=[
+                        clss(["agent-message", "agent-streaming-plaintext"]),
+                      ],
+                      [text(pending_content)],
+                    ),
+                  );
+                } else {
+                  None;
+                };
+              let body_nodes: list(Node.t) =
+                if (has_reasoning || has_content) {
+                  List.filter_map(x => x, [reasoning_node, content_node]);
+                } else {
+                  [
+                    div(
+                      ~attrs=[clss(["agent-message-loading-dots"])],
+                      [
+                        span(~attrs=[clss(["dot", "dot1"])], []),
+                        span(~attrs=[clss(["dot", "dot2"])], []),
+                        span(~attrs=[clss(["dot"])], []),
+                      ],
+                    ),
+                  ];
+                };
+              [
                 div(
                   ~attrs=[
                     clss(["message-container", "agent-message-container"]),
@@ -1665,17 +1725,10 @@ let view =
                       ],
                       [Icons.filbert, text("Filbert")],
                     ),
-                    div(
-                      ~attrs=[clss(["agent-message-loading-dots"])],
-                      [
-                        span(~attrs=[clss(["dot", "dot1"])], []),
-                        span(~attrs=[clss(["dot", "dot2"])], []),
-                        span(~attrs=[clss(["dot"])], []),
-                      ],
-                    ),
+                    ...body_nodes,
                   ],
                 ),
-              ]
+              ];
             | _ => []
             }
           )

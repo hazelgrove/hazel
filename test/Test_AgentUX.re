@@ -1076,6 +1076,175 @@ let api_error_format_tests = [
   ),
 ];
 
+/* -------------------------------------------------------------------------- */
+/* OpenRouter.Utils.StreamAccumulator — SSE delta assembly */
+
+let feed_json = (acc, s: string) =>
+  OpenRouter.Utils.StreamAccumulator.feed(acc, json_of_string(s));
+
+let finalize_reply =
+    (acc: OpenRouter.Utils.StreamAccumulator.t): OpenRouter.Reply.Model.t =>
+  switch (OpenRouter.Utils.StreamAccumulator.finalize(acc)) {
+  | OpenRouter.Model.Reply(r) => r
+  | OpenRouter.Model.Error(_) => fail("unexpected accumulator error")
+  };
+
+let stream_accumulator_tests = [
+  test_case(
+    "StreamAccumulator: content-only deltas concatenate",
+    `Quick,
+    () => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let d1 =
+        feed_json(acc, {|{"choices":[{"delta":{"content":"hello "}}]}|});
+      let d2 =
+        feed_json(acc, {|{"choices":[{"delta":{"content":"world"}}]}|});
+      check_string("first delta", "hello ", d1.content_delta);
+      check_string("first reasoning", "", d1.reasoning_delta);
+      check_string("second delta", "world", d2.content_delta);
+      let r = finalize_reply(acc);
+      check_string("final content", "hello world", r.content);
+      check_bool("no reasoning", true, r.reasoning == None);
+      check_int("no tool calls", 0, List.length(r.tool_calls));
+    },
+  ),
+  test_case(
+    "StreamAccumulator: reasoning-only deltas stay separate per chunk",
+    `Quick,
+    () => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let d1 =
+        feed_json(acc, {|{"choices":[{"delta":{"reasoning":"thinking "}}]}|});
+      let d2 =
+        feed_json(acc, {|{"choices":[{"delta":{"reasoning":"out loud"}}]}|});
+      /* Per-chunk deltas must route reasoning to the reasoning field,
+         not silently promote it to content — streaming UX needs the
+         "Thinking" section to fill independently. */
+      check_string("no content delta 1", "", d1.content_delta);
+      check_string("reasoning delta 1", "thinking ", d1.reasoning_delta);
+      check_string("no content delta 2", "", d2.content_delta);
+      check_string("reasoning delta 2", "out loud", d2.reasoning_delta);
+    },
+  ),
+  test_case(
+    "StreamAccumulator: reasoning-only finalize surfaces reasoning as content",
+    `Quick,
+    () => {
+      /* Back-compat with [handle_chat]: when the entire reply is
+         reasoning-only, downstream consumers that only read [content]
+         should still see text. [reasoning] is dropped in that case to
+         avoid double-rendering. */
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let _ =
+        feed_json(acc, {|{"choices":[{"delta":{"reasoning":"alone"}}]}|});
+      let r = finalize_reply(acc);
+      check_string("content takes over", "alone", r.content);
+      check_bool("reasoning cleared", true, r.reasoning == None);
+    },
+  ),
+  test_case(
+    "StreamAccumulator: mixed finalize keeps reasoning alongside content",
+    `Quick,
+    () => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let _ =
+        feed_json(
+          acc,
+          {|{"choices":[{"delta":{"content":"answer","reasoning":"why"}}]}|},
+        );
+      let r = finalize_reply(acc);
+      check_string("content preserved", "answer", r.content);
+      switch (r.reasoning) {
+      | Some(s) => check_string("reasoning preserved", "why", s)
+      | None => fail("expected reasoning")
+      };
+    },
+  ),
+  test_case(
+    "StreamAccumulator: mixed content and reasoning in a single delta",
+    `Quick,
+    () => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let d =
+        feed_json(
+          acc,
+          {|{"choices":[{"delta":{"content":"hi","reasoning":"why"}}]}|},
+        );
+      check_string("content delta", "hi", d.content_delta);
+      check_string("reasoning delta", "why", d.reasoning_delta);
+    },
+  ),
+  test_case(
+    "StreamAccumulator: tool call args split across chunks reassemble at finalize",
+    `Quick,
+    () => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let _ =
+        feed_json(
+          acc,
+          {|{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","function":{"name":"probe","arguments":"{\"pa"}}]}}]}|},
+        );
+      let _ =
+        feed_json(
+          acc,
+          {|{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"th\":\"x\"}"}}]}}]}|},
+        );
+      let r = finalize_reply(acc);
+      check_int("one tool call", 1, List.length(r.tool_calls));
+      switch (r.tool_calls) {
+      | [tc] =>
+        check_string("id", "call_a", tc.id);
+        check_string("name", "probe", tc.name);
+      | _ => fail("expected exactly one tool call")
+      };
+    },
+  ),
+  test_case(
+    "StreamAccumulator: usage chunk captured into finalize",
+    `Quick,
+    () => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let _ = feed_json(acc, {|{"choices":[{"delta":{"content":"x"}}]}|});
+      let _ =
+        feed_json(
+          acc,
+          {|{"choices":[],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}|},
+        );
+      let r = finalize_reply(acc);
+      switch (r.usage) {
+      | Some(u) =>
+        check_int("prompt", 7, u.prompt_tokens);
+        check_int("completion", 3, u.completion_tokens);
+        check_int("total", 10, u.total_tokens);
+      | None => fail("expected usage")
+      };
+    },
+  ),
+  test_case(
+    "StreamAccumulator: error chunk surfaces as Model.Error",
+    `Quick,
+    () => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let _ =
+        feed_json(acc, {|{"error":{"code":429,"message":"rate limited"}}|});
+      switch (OpenRouter.Utils.StreamAccumulator.finalize(acc)) {
+      | OpenRouter.Model.Error(_) => ()
+      | OpenRouter.Model.Reply(_) => fail("expected error finalize")
+      };
+    },
+  ),
+  test_case(
+    "StreamAccumulator: empty choices array does not break feed",
+    `Quick,
+    () => {
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let d = feed_json(acc, {|{"choices":[]}|});
+      check_string("no content", "", d.content_delta);
+      check_string("no reasoning", "", d.reasoning_delta);
+    },
+  ),
+];
+
 let tests = (
   "Agent UX",
   slash_command_tests
@@ -1090,5 +1259,6 @@ let tests = (
   @ toolcall_handler_tests
   @ context_llm_snapshot_tests
   @ tool_call_summary_tests
-  @ api_error_format_tests,
+  @ api_error_format_tests
+  @ stream_accumulator_tests,
 );
