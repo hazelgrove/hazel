@@ -229,6 +229,22 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
   | "mark_active_task_complete"
   | "mark_active_task_incomplete"
   | "mark_active_subtask_incomplete" => workbench(~signifier=None)
+  | "update_active_task"
+  | "update_active_subtask" =>
+    let sig_text =
+      switch (
+        get_string_field(args, "new_title"),
+        get_string_field(args, "new_description"),
+      ) {
+      | (Some(t), _) => Some(t)
+      | (None, Some(d)) => Some(d)
+      | (None, None) => None
+      };
+    workbench(~signifier=Option.map(truncate_free_text, sig_text));
+  | "delete_task"
+  | "delete_subtask" =>
+    let title = get_string_field(args, "title");
+    workbench(~signifier=Option.map(truncate_free_text, title));
   | _ => None
   };
 };
