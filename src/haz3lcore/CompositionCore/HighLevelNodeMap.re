@@ -749,6 +749,45 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
   };
 };
 
+/** All binding paths in [[node_map]] rendered as their slash-joined name
+    strings, sorted for stable output. Used for failure diagnostics so the
+    agent can self-correct rather than guess. */
+let all_path_strings = (node_map: t): list(string) => {
+  Id.Map.bindings(node_map)
+  |> List.map(((_, node: node)) =>
+       String.concat(
+         "/",
+         List.map((id: Id.t) => id_to_name(node_map, id), node.path),
+       )
+     )
+  |> List.sort_uniq(String.compare);
+};
+
+/** If [[path]] is a bare name (no `/`) and exactly one binding in the map has
+    that as its last name segment, return its full qualified path. This catches
+    the nested-binding case ("meant Square/Piece?") where the bare name didn't
+    match top-level but is uniquely present deeper. */
+let unique_suffix_match = (node_map: t, path: string): option(string) =>
+  if (String.contains(path, '/')) {
+    None;
+  } else {
+    let matches =
+      Id.Map.bindings(node_map)
+      |> List.filter_map(((_, node: node)) => {
+           let names =
+             List.map((id: Id.t) => id_to_name(node_map, id), node.path);
+           switch (ListUtil.last_opt(names)) {
+           | Some(last) when String.equal(last, path) =>
+             Some(String.concat("/", names))
+           | _ => None
+           };
+         });
+    switch (matches) {
+    | [qualified] => Some(qualified)
+    | _ => None
+    };
+  };
+
 let path_to_id = (node_map: t, path: string): Id.t => {
   let path_names = split_path(path);
   // Convert each node's path (list of Ids) to a list of names and compare
@@ -762,17 +801,32 @@ let path_to_id = (node_map: t, path: string): Id.t => {
        );
   switch (matches) {
   | [] =>
+    let closest = closest_valid_path_to_ill_path(node_map, path);
+    let suffix_hint =
+      switch (unique_suffix_match(node_map, path)) {
+      | Some(qualified) when !String.equal(qualified, closest) =>
+        "\nOr the fully qualified nested path \"" ++ qualified ++ "\"."
+      | _ => ""
+      };
+    let available = all_path_strings(node_map);
+    let available_str =
+      switch (available) {
+      | [] => ""
+      | xs => "\nAvailable paths in the node map: " ++ String.concat(", ", xs)
+      };
     raise(
       Failure(
         "Path \""
         ++ path
         ++ "\" not found in node map"
         ++ "\nPerhaps you meant \""
-        ++ closest_valid_path_to_ill_path(node_map, path)
+        ++ closest
         ++ "\"?"
-        ++ "\nNested bindings use paths like outer/inner (not just the inner name).",
+        ++ suffix_hint
+        ++ "\nNested bindings use paths like outer/inner (not just the inner name)."
+        ++ available_str,
       ),
-    )
+    );
   | [id] => id
   | [_, _, ..._] as ids => pick_id_for_ambiguous_path(node_map, ids)
   };

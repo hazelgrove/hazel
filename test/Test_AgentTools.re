@@ -1211,6 +1211,65 @@ let invalid_path_tests = (
         );
       },
     ),
+    test_case(
+      "failure message lists available paths (diagnostic for agent self-correction)",
+      `Quick,
+      () => {
+      /* When the agent picks a wrong path, it should see the *actual* set
+         of paths in the node map so its retry can be correct. */
+      switch (
+        run_agent_action(
+          "let a = 1 in let b = 2 in a + b",
+          Delete(BindingClause, "nonexistent"),
+        )
+      ) {
+      | Ok(_) => Alcotest.fail("Expected failure")
+      | Error(err) =>
+        let msg = Action.Failure.show(err);
+        check(
+          bool,
+          "error mentions 'Available paths'",
+          true,
+          Util.StringUtil.plain_search("Available paths", msg, 0) >= 0,
+        );
+        check(
+          bool,
+          "error lists binding 'a'",
+          true,
+          Util.StringUtil.plain_search("a", msg, 0) >= 0,
+        );
+        check(
+          bool,
+          "error lists binding 'b'",
+          true,
+          Util.StringUtil.plain_search("b", msg, 0) >= 0,
+        );
+      }
+    }),
+    test_case(
+      "failure hints fully-qualified nested path when bare name is uniquely nested",
+      `Quick,
+      () => {
+      /* `inner` lives at path `outer/inner` (nested inside outer's def).
+         A bare query for `inner` should fail, but the error now includes
+         the qualified suggestion so the agent knows the right form. */
+      switch (
+        run_agent_action(
+          "let outer = let inner = 1 in inner in outer",
+          Delete(BindingClause, "inner"),
+        )
+      ) {
+      | Ok(_) => Alcotest.fail("Expected failure")
+      | Error(err) =>
+        let msg = Action.Failure.show(err);
+        check(
+          bool,
+          "error includes 'outer/inner' suggestion",
+          true,
+          Util.StringUtil.plain_search("outer/inner", msg, 0) >= 0,
+        );
+      }
+    }),
   ],
 );
 
