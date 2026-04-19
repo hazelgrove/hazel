@@ -3775,6 +3775,59 @@ let ascribed_binding_tests = (
         };
       },
     ),
+    test_case(
+      "place_probe on ascribed recursive fib: add_manual + statics rebuild",
+      `Quick,
+      () => {
+        /* Reproduces the live-editor Exception-during-View captured when
+           placing a probe on [fib] in a recursive, ascribed let binding. The
+           agent-layer call succeeded in the editor and only the view blew up
+           (TypeError on reading length of undefined), so this test only
+           validates the agent-side invariants:
+             1. path [fib] resolves,
+             2. add_manual does not raise,
+             3. statics can be rebuilt on the probed zipper,
+             4. node_map can be rebuilt on the probed zipper.
+           If all four hold, the crash lives downstream in view/eval render. */
+        let code = {|let fib : Int -> Int = fun n ->
+  if n <= 0
+    then 0
+    else if n == 1
+      then 1
+      else fib(n - 1) + fib(n - 2)
+in
+test fib(0) == 0 end;
+test fib(1) == 1 end;
+test fib(5) == 5 end;
+test fib(10) == 55 end;
+fib(10)|};
+        let z = mk_zipper(code);
+        let info_map = mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None =>
+          Alcotest.fail("expected high-level node map for fib program")
+        | Some(nm) =>
+          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "fib")) {
+          | None => Alcotest.fail("expected path fib to resolve")
+          | Some(id) =>
+            let syntax = CachedSyntax.init(z);
+            let z2 = ProbePerform.add_manual(~syntax, id, info_map, z);
+            let info_map2 = mk_statics(z2);
+            check(
+              bool,
+              "statics rebuild on probed fib is non-empty",
+              true,
+              Id.Map.cardinal(info_map2) > 0,
+            );
+            switch (HighLevelNodeMap.build(z2, info_map2)) {
+            | None =>
+              Alcotest.fail("node_map rebuild returned None after probe")
+            | Some(_) => ()
+            };
+          }
+        };
+      },
+    ),
   ],
 );
 
