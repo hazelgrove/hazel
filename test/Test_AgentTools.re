@@ -3686,6 +3686,95 @@ let ascribed_binding_tests = (
         );
       },
     ),
+    test_case(
+      "get_diff after Delete(BindingClause) does not raise when path vanishes",
+      `Quick,
+      () => {
+        /* Regression for the live-editor bug the ascribed-binding suite couldn't
+           reach: `apply_and_render` only exercises [[Perform.go]], but the
+           agent's diff-rendering path calls [[CompositionGo.Local.get_diff]]
+           on (old_zipper, new_zipper) AFTER the delete has succeeded. That
+           code used to call [[path_to_id]] on the new node map, which
+           (correctly) no longer contains the deleted binding — so every
+           successful delete surfaced to the agent as a tool-call failure. */
+        let code = "type Color = + White + Black in type Piece = (Color, Color) in let x = 1 in x";
+        let old_z = mk_zipper(code);
+        switch (
+          Perform.go(
+            ~settings=CoreSettings.on,
+            ~statics=CachedStatics.empty,
+            ~syntax=CachedSyntax.init(old_z),
+            Structural(Delete(BindingClause, "Piece")),
+            {
+              zipper: old_z,
+              col_target: None,
+            },
+          )
+        ) {
+        | Error(e) =>
+          Alcotest.fail("Delete itself failed: " ++ Action.Failure.show(e))
+        | Ok(new_z) =>
+          let syntax = CachedSyntax.init(old_z);
+          let diff =
+            CompositionGo.Local.get_diff(
+              old_z,
+              new_z,
+              Delete(BindingClause, "Piece"),
+              mk_statics,
+              syntax,
+            );
+          switch (diff) {
+          | None => Alcotest.fail("get_diff returned None unexpectedly")
+          | Some((_old_seg, new_seg)) =>
+            check(
+              bool,
+              "new_segment is None for BindingClause delete",
+              true,
+              new_seg == None,
+            )
+          };
+        };
+      },
+    ),
+    test_case(
+      "get_diff after Delete(BindingClause) on chess program does not raise",
+      `Quick,
+      () => {
+        /* Same bug, full chess program — matches the exact shape the user
+           captured in the live editor. */
+        let code = "type Color = + White + Black in type PieceType = + Pawn + Knight in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Pawn))]] in ?";
+        let old_z = mk_zipper(code);
+        switch (
+          Perform.go(
+            ~settings=CoreSettings.on,
+            ~statics=CachedStatics.empty,
+            ~syntax=CachedSyntax.init(old_z),
+            Structural(Delete(BindingClause, "Piece")),
+            {
+              zipper: old_z,
+              col_target: None,
+            },
+          )
+        ) {
+        | Error(e) =>
+          Alcotest.fail("Delete itself failed: " ++ Action.Failure.show(e))
+        | Ok(new_z) =>
+          let syntax = CachedSyntax.init(old_z);
+          /* Before fix, this raised:
+               Failure "Path \"Piece\" not found in node map ..."
+             Now should return Some((old, None)). */
+          let diff =
+            CompositionGo.Local.get_diff(
+              old_z,
+              new_z,
+              Delete(BindingClause, "Piece"),
+              mk_statics,
+              syntax,
+            );
+          check(bool, "diff computation did not raise", true, diff != None);
+        };
+      },
+    ),
   ],
 );
 

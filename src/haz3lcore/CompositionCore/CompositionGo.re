@@ -96,16 +96,27 @@ module Local = {
       Some((old_segment, new_segment));
     | Update(_, path, _)
     | Delete(_, path) =>
+      /* Delete (especially BindingClause) removes the target from the new
+         program; Delete(Pattern) replaces the naming pat with a hole so the
+         path no longer resolves by name. Resolve the new-side target with
+         [[path_to_id_opt]] and treat non-resolution as "no replacement
+         segment" — the diff becomes "old segment deleted" instead of
+         raising. Historical bug: using [[path_to_id]] here raised
+         "Path X not found in node map" after every successful delete,
+         surfacing to the agent as a spurious tool-call failure. */
       let* old_node_map =
         HighLevelNodeMap.build(old_zipper, mk_statics(old_zipper));
       let* new_node_map =
         HighLevelNodeMap.build(new_zipper, mk_statics(new_zipper));
       let old_target_id = path_to_id(old_node_map, path);
-      let new_target_id = path_to_id(new_node_map, path);
       let* old_segment =
         segment_of_term(old_zipper, Some(old_target_id), syntax);
       let new_segment =
-        segment_of_term(new_zipper, Some(new_target_id), syntax);
+        switch (path_to_id_opt(new_node_map, path)) {
+        | Some(new_target_id) =>
+          segment_of_term(new_zipper, Some(new_target_id), syntax)
+        | None => None
+        };
       Some((old_segment, new_segment));
     };
   };
