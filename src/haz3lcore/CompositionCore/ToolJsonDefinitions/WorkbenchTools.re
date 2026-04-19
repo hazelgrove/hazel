@@ -666,3 +666,210 @@ let reorder_subtasks_in_active_task: API.Json.t =
       ]),
     ),
   ]);
+
+let update_active_task_description = {|
+Updates the currently active task's title and/or description.
+Provide either or both fields — only the fields you pass are changed.
+Changing the title renames the task's key in the dictionary; pointers (active_task, display_task) follow automatically.
+Fails if the new title collides with an existing task, or if no active task is set.
+
+Parameters:
+new_title: string (optional) — the new title for the active task
+new_description: string (optional) — the new description for the active task
+|};
+
+let update_active_task: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("update_active_task")),
+        ("description", `String(update_active_task_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "new_title",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Optional. The new title for the active task. Omit to keep the current title.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "new_description",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Optional. The new description for the active task. Omit to keep the current description.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let update_active_subtask_description = {|
+Updates the currently active subtask's title and/or description.
+Provide either or both fields — only the fields you pass are changed.
+Changing the title renames the subtask's key within the active task and updates the subtask ordering and active_subtask pointer automatically.
+Fails if the new title collides with an existing subtask in the active task, or if no active subtask is set.
+
+Parameters:
+new_title: string (optional) — the new title for the active subtask
+new_description: string (optional) — the new description for the active subtask
+|};
+
+let update_active_subtask: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("update_active_subtask")),
+        ("description", `String(update_active_subtask_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "new_title",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Optional. The new title for the active subtask. Omit to keep the current title.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "new_description",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Optional. The new description for the active subtask. Omit to keep the current description.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let delete_task_description = {|
+Hard-deletes the task with the given title from the task dictionary.
+If the deleted task was the active task, active_task is cleared.
+If it was the currently-displayed task in the UI, display_task is cleared.
+Fails if no task with that title exists.
+
+Parameters:
+title: string — the title of the task to delete
+|};
+
+let delete_task: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("delete_task")),
+        ("description", `String(delete_task_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "title",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The title of the task to delete."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("title")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let delete_subtask_description = {|
+Hard-deletes the subtask with the given title from the currently active task.
+Removes it from the subtask ordering. If it was the active subtask, active_subtask is cleared.
+Fails if no active task is set or if no subtask with that title exists in the active task.
+
+Parameters:
+title: string — the title of the subtask to delete
+|};
+
+let delete_subtask: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("delete_subtask")),
+        ("description", `String(delete_subtask_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "title",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The title of the subtask to delete from the active task.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("title")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);

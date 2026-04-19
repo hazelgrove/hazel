@@ -44,6 +44,10 @@ module Local = {
     WorkbenchTools.mark_active_task_failed,
     WorkbenchTools.add_new_subtask_to_active_task,
     WorkbenchTools.reorder_subtasks_in_active_task,
+    WorkbenchTools.update_active_task,
+    WorkbenchTools.update_active_subtask,
+    WorkbenchTools.delete_task,
+    WorkbenchTools.delete_subtask,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {
@@ -245,6 +249,24 @@ module Local = {
                   get_string_list(args, "subtasks_ordering"),
                 ),
               )
+            | "update_active_task" =>
+              WorkbenchAction(
+                UpdateActiveTask(
+                  get_optional_string(args, "new_title"),
+                  get_optional_string(args, "new_description"),
+                ),
+              )
+            | "update_active_subtask" =>
+              WorkbenchAction(
+                UpdateActiveSubtask(
+                  get_optional_string(args, "new_title"),
+                  get_optional_string(args, "new_description"),
+                ),
+              )
+            | "delete_task" =>
+              WorkbenchAction(DeleteTask(get_string(args, "title")))
+            | "delete_subtask" =>
+              WorkbenchAction(DeleteSubtask(get_string(args, "title")))
             | _ => raise(Failure("The tool called does not exist."))
             };
           Action(action);
@@ -340,6 +362,32 @@ module Local = {
       "reorder_subtasks_in_active_task( \"["
       ++ String.concat(", ", subtasks_ordering)
       ++ "]\" )"
+    | WorkbenchAction(UpdateActiveTask(new_title, new_description)) =>
+      let fields =
+        List.filter_map(
+          ((k, v)) =>
+            switch (v) {
+            | Some(s) => Some(k ++ "=\"" ++ s ++ "\"")
+            | None => None
+            },
+          [("new_title", new_title), ("new_description", new_description)],
+        );
+      "update_active_task(" ++ String.concat(", ", fields) ++ ")";
+    | WorkbenchAction(UpdateActiveSubtask(new_title, new_description)) =>
+      let fields =
+        List.filter_map(
+          ((k, v)) =>
+            switch (v) {
+            | Some(s) => Some(k ++ "=\"" ++ s ++ "\"")
+            | None => None
+            },
+          [("new_title", new_title), ("new_description", new_description)],
+        );
+      "update_active_subtask(" ++ String.concat(", ", fields) ++ ")";
+    | WorkbenchAction(DeleteTask(title)) =>
+      "delete_task(\"" ++ title ++ "\")"
+    | WorkbenchAction(DeleteSubtask(title)) =>
+      "delete_subtask(\"" ++ title ++ "\")"
     };
   };
 };
