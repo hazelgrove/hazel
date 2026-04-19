@@ -1472,6 +1472,44 @@ let high_level_node_map_tests = (
       },
     ),
     test_case(
+      "ascribed let after type chain lands in node map",
+      `Quick,
+      () => {
+        let code = "type Board = Int in let initial_board : Board = 1 in ?";
+        let node_map = build_node_map(code);
+        check(
+          bool,
+          "initial_board is in node map",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "initial_board") != None,
+        );
+        check(
+          bool,
+          "Board is also in node map",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "Board") != None,
+        );
+      },
+    ),
+    test_case(
+      "chess-style long type chain + ascribed let with list literal",
+      `Quick,
+      () => {
+        let code = "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Rook))]] in ?";
+        let node_map = build_node_map(code);
+        let all_names =
+          Id.Map.bindings(node_map)
+          |> List.map(((_, n: HighLevelNodeMap.node)) => n.name)
+          |> List.sort(String.compare);
+        check(
+          list(string),
+          "all top-level binding names present",
+          ["Board", "Color", "Piece", "PieceType", "Square", "initial_board"],
+          all_names,
+        );
+      },
+    ),
+    test_case(
       "build returns None for non-binding program",
       `Quick,
       () => {
@@ -3279,6 +3317,320 @@ let general_tree_refs_tests = (
 );
 
 /* ============================================================
+   ASCRIBED / EXPLICITLY-TYPED BINDINGS — edit-action regression tests
+   ============================================================
+
+   Regression coverage for bindings with type ascriptions
+   (`let x : T = v in ...`). These shapes were implicated in a chess-style
+   reproducer where the agent claimed `initial_board` wasn't in the node map
+   after a chain of `type` aliases ending in an ascribed `let`. The bug did
+   not reproduce here — but these tests make sure it stays that way as the
+   node-map builder and edit dispatch evolve. */
+
+let ascribed_binding_tests = (
+  "AgentTools.AscribedBindings",
+  [
+    test_case(
+      "path_to_id resolves ascribed top-level let",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let x : Int = 1 in x");
+        check(
+          bool,
+          "x present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
+        );
+      },
+    ),
+    test_case(
+      "path_to_id resolves ascribed let after type alias",
+      `Quick,
+      () => {
+        let node_map = build_node_map("type T = Int in let x : T = 1 in x");
+        check(
+          bool,
+          "x present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
+        );
+        check(
+          bool,
+          "T present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "T") != None,
+        );
+      },
+    ),
+    test_case(
+      "path_to_id resolves ascribed let after chain of type aliases",
+      `Quick,
+      () => {
+        /* Direct analogue of the chess reproducer: long tyalias body chain
+           then an ascribed let at the end. */
+        let code = "type A = Int in type B = A in type C = B in let x : C = 1 in ?";
+        let node_map = build_node_map(code);
+        check(
+          bool,
+          "x present at end of type chain",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
+        );
+      },
+    ),
+    test_case(
+      "path_to_id resolves ascribed let nested in def (outer/inner)",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let outer = let inner : Int = 1 in inner in outer");
+        check(
+          bool,
+          "outer/inner present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "outer/inner") != None,
+        );
+        check(
+          bool,
+          "bare inner not ambiguously at top level",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "inner") == None,
+        );
+      },
+    ),
+    test_case(
+      "delete_binding_clause on simple ascribed let (body preserved, x becomes free)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x : Int = 1 in x + 1",
+            Delete(BindingClause, "x"),
+          );
+        check_rendered("delete ascribed x", "x + 1", result);
+      },
+    ),
+    test_case(
+      "delete_binding_clause on ascribed let in middle of chain",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let a = 1 in let b : Int = 2 in let c = 3 in a + b + c",
+            Delete(BindingClause, "b"),
+          );
+        check_rendered(
+          "delete ascribed middle b",
+          "let a = 1 in let c = 3 in a + b + c",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete_binding_clause on ascribed let following type chain",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "type T = Int in let x : T = 1 in x",
+            Delete(BindingClause, "x"),
+          );
+        check_rendered(
+          "delete x after type chain",
+          "type T = Int in x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete_binding_clause on ascribed let with complex list-literal body",
+      `Quick,
+      () => {
+        /* Shape close to chess: ascribed let whose definition is a nested
+           list literal of constructor applications. */
+        let code = "type Color = + White + Black in type Board = [[Color]] in let initial : Board = [[White, Black], [Black, White]] in ?";
+        let result =
+          apply_and_render(code, Delete(BindingClause, "initial"));
+        check_rendered(
+          "delete ascribed let with list-literal def",
+          "type Color = + White + Black in type Board = [[Color]] in ?",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete_body on ascribed let",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render("let x : Int = 1 in x + 2", Delete(Body, "x"));
+        check_rendered(
+          "delete body of ascribed x",
+          "let x : Int = 1 in ?",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition on ascribed let preserves ascription",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x : Int = 1 in x + 1",
+            Update(Definition, "x", "42"),
+          );
+        check_rendered(
+          "update def of ascribed x",
+          "let x : Int = 42 in x + 1",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_binding_clause replaces whole let header incl. ascription",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x : Int = 1 in x",
+            Update(BindingClause, "x", "let x : Float = 1.0 in"),
+          );
+        check_rendered(
+          "update binding clause with new ascription",
+          "let x : Float = 1.0 in x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "insert_before ascribed let",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x : Int = 1 in x",
+            Insert(Before, "x", "let y : Int = 2 in"),
+          );
+        check_rendered(
+          "insert ascribed let before ascribed let",
+          "let y : Int = 2 in let x : Int = 1 in x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "insert_after ascribed let",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x : Int = 1 in x",
+            Insert(After, "x", "let y : Int = 2 in"),
+          );
+        check_rendered(
+          "insert ascribed let after ascribed let",
+          "let x : Int = 1 in let y : Int = 2 in x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "chess-style sequence: delete each type alias and the ascribed let",
+      `Quick,
+      () => {
+        /* Matches the live-reproducer setup: 5 type aliases + an ascribed let
+           with a deeply nested list-literal body. Deleting every binding in
+           turn should end at an all-holes program. */
+        let code = "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Rook))]] in ?";
+        let result =
+          apply_chain_render(
+            code,
+            [
+              Delete(BindingClause, "Color"),
+              Delete(BindingClause, "PieceType"),
+              Delete(BindingClause, "Piece"),
+              Delete(BindingClause, "Square"),
+              Delete(BindingClause, "Board"),
+              Delete(BindingClause, "initial_board"),
+            ],
+          );
+        check_rendered("deleting all bindings leaves hole", "?", result);
+      },
+    ),
+    test_case(
+      "verbatim chess program: Piece is present in node map",
+      `Quick,
+      () => {
+        /* Exact program from the live-editor repro. `delete_binding_clause Piece`
+           reportedly fails with "Path 'Piece' not found in node map" even though
+           `type Piece = (Color, PieceType) in` is clearly present. This test
+           reproduces the full program verbatim and asserts every top-level
+           binding — including `Piece` — is findable via [path_to_id_opt]. */
+        let code = "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [\n    [Occupied((White, Rook)), Occupied((White, Knight)), Occupied((White, Bishop)), Occupied((White, Queen)), Occupied((White, King)), Occupied((White, Bishop)), Occupied((White, Knight)), Occupied((White, Rook))],\n    [Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn))],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn))],\n    [Occupied((Black, Rook)), Occupied((Black, Knight)), Occupied((Black, Bishop)), Occupied((Black, Queen)), Occupied((Black, King)), Occupied((Black, Bishop)), Occupied((Black, Knight)), Occupied((Black, Rook))]\n] in ?";
+        let node_map = build_node_map(code);
+        check(
+          bool,
+          "Color present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "Color") != None,
+        );
+        check(
+          bool,
+          "PieceType present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "PieceType") != None,
+        );
+        check(
+          bool,
+          "Piece present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "Piece") != None,
+        );
+        check(
+          bool,
+          "Square present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "Square") != None,
+        );
+        check(
+          bool,
+          "Board present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "Board") != None,
+        );
+        check(
+          bool,
+          "initial_board present",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "initial_board") != None,
+        );
+      },
+    ),
+    test_case(
+      "verbatim chess program: delete_binding_clause Piece succeeds",
+      `Quick,
+      () => {
+        /* Single action repro of the exact user flow: send the chess program,
+           ask to delete `Piece`. Should succeed (the binding exists). */
+        let code = "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [\n    [Occupied((White, Rook)), Occupied((White, Knight)), Occupied((White, Bishop)), Occupied((White, Queen)), Occupied((White, King)), Occupied((White, Bishop)), Occupied((White, Knight)), Occupied((White, Rook))],\n    [Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn))],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn))],\n    [Occupied((Black, Rook)), Occupied((Black, Knight)), Occupied((Black, Bishop)), Occupied((Black, Queen)), Occupied((Black, King)), Occupied((Black, Bishop)), Occupied((Black, Knight)), Occupied((Black, Rook))]\n] in ?";
+        let result = apply_and_render(code, Delete(BindingClause, "Piece"));
+        /* We just assert the action didn't raise / didn't produce the "not
+           found" failure string. Any non-failure render is acceptable here —
+           this test is about proving the binding is discoverable. */
+        check(
+          bool,
+          "delete Piece did not emit 'not found in node map' failure",
+          false,
+          Util.StringUtil.plain_search("not found in node map", result, 0)
+          >= 0,
+        );
+      },
+    ),
+  ],
+);
+
+/* ============================================================
    AGGREGATE ALL TESTS
    ============================================================ */
 
@@ -3306,4 +3658,5 @@ let tests = [
   agent_context_tests,
   error_print_tests,
   tool_json_tests,
+  ascribed_binding_tests,
 ];
