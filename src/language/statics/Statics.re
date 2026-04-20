@@ -594,8 +594,7 @@ and uexp_to_info_map =
         | None =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=
-              SynTy.meet_of(PolyEq, Unknown(Internal) |> Typ.temp),
+            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
             ~marks=[NoMeet(PolyEq, Typ.add_source(ids, tys))],
             ~co_ctx=co_poly,
             m,
@@ -751,7 +750,7 @@ and uexp_to_info_map =
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-              let (value_info, _, m) = go(~ana=val_mode, value, m);
+              let (value_info, value_elab, m) = go(~ana=val_mode, value, m);
               let (lab_name, label_invalid, m) =
                 switch (label.term) {
                 | Label(name) =>
@@ -820,7 +819,7 @@ and uexp_to_info_map =
               let (e_info, elab, m) =
                 add(
                   ~user_term=e,
-                  ~elab_term=TupLabel(label, value) |> rewrap,
+                  ~elab_term=TupLabel(label, value_elab) |> rewrap,
                   ~ctx,
                   ~ana,
                   ~ancestors=ancestors_inclusive,
@@ -1548,7 +1547,7 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=mode_pat, p, m);
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.elab_syn_ty, p, m);
       let syn_ty_fun = Arrow(p.ty, e.ty) |> Typ.temp;
       let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
@@ -2506,7 +2505,11 @@ and upat_to_info_map =
       let ids = List.map(Pat.rep_id, ps);
       let mode = MatchedTyp.list_tolerant(ctx, ana);
       let modes = List.init(List.length(ps), _ => mode);
-      let (ctx, tys, cons, m, _, ps_elabs) =
+      /* First pass: analyze each element with the initial mode, so sibling
+         elements can contribute to the refined element type via meet. We
+         discard the intermediate info map and only use the synthesized types
+         to compute the refined mode. */
+      let (_, tys_first, _, _, _, _) =
         fold_patterns_with_modes(
           ~analyze=
             (~ctx, ~ana, ~duplicate_bindings, p, m) =>
@@ -2514,6 +2517,27 @@ and upat_to_info_map =
           ~ctx,
           ps,
           modes,
+          m,
+        );
+      /* Second pass: re-analyze each element against the refined element
+         type so that pattern-variable bindings in sibling positions (e.g.
+         `x` in `[false, x]`) pick up the refined type in their context.
+         See also: the `Let` case above, which performs a similar re-analysis
+         after the def's type is known. */
+      let refined_mode =
+        switch (Typ.meet_all(~empty=unknown, ctx, tys_first)) {
+        | Some(ty) => ty
+        | None => mode
+        };
+      let refined_modes = List.init(List.length(ps), _ => refined_mode);
+      let (ctx, tys, cons, m, _, ps_elabs) =
+        fold_patterns_with_modes(
+          ~analyze=
+            (~ctx, ~ana, ~duplicate_bindings, p, m) =>
+              go(~ctx, ~ana, ~duplicate_bindings, p, m),
+          ~ctx,
+          ps,
+          refined_modes,
           m,
         );
       switch (Typ.meet_all(~empty=unknown, ctx, tys)) {
@@ -2541,9 +2565,21 @@ and upat_to_info_map =
       };
     | Cons(hd, tl) =>
       let inner_ty = MatchedTyp.list_tolerant(ctx, ana);
-      let (hd, hd_elab, m) = go(~ctx, ~ana=inner_ty, hd, m);
+      /* First pass: determine the head's synthesized type so we can refine
+         the element type used to analyze both the head and tail in pass two. */
+      let (hd_first, _, _) = go(~ctx, ~ana=inner_ty, hd, m);
+      let refined_inner =
+        switch (Typ.meet(ctx, inner_ty, hd_first.ty)) {
+        | Some(ty) => ty
+        | None => inner_ty
+        };
+      /* Second pass: re-analyze with the refined element type so that
+         pattern-variable bindings (e.g. `x` in `0 :: x` giving `x : [Int]`)
+         pick up the refined type in their context. Mirrors the re-analysis
+         performed for `Let` patterns once the def's type is known. */
+      let (hd, hd_elab, m) = go(~ctx, ~ana=refined_inner, hd, m);
       let (tl, tl_elab, m) =
-        go(~ctx=hd.ctx, ~ana=List(inner_ty) |> Typ.fresh, tl, m);
+        go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.fresh, tl, m);
       add(
         ~elab_term=Cons(hd_elab, tl_elab) |> rewrap,
         ~elab_syn_ty=List(hd.ty) |> Typ.temp,
@@ -2778,7 +2814,7 @@ and upat_to_info_map =
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-              let (value_info, _, m) =
+              let (value_info, value_elab, m) =
                 go(
                   ~ctx,
                   ~ana=val_mode,
@@ -2873,10 +2909,12 @@ and upat_to_info_map =
                 );
               let constraint_ =
                 Coverage.Constraint.Tuple([value_info.constraint_]);
+              let (_, e_rewrap) = Pat.unwrap(e);
+              let elab_tl = TupLabel(label, value_elab) |> e_rewrap;
               let (info, _, m) =
                 add(
                   ~user_term=e,
-                  ~elab_term=e,
+                  ~elab_term=elab_tl,
                   ~ctx=value_info.ctx,
                   ~co_ctx,
                   ~ana,
@@ -2896,7 +2934,7 @@ and upat_to_info_map =
                 cons @ [info.constraint_],
                 m,
                 info_all @ [info],
-                elabs @ [e],
+                elabs @ [elab_tl],
               );
             | _ =>
               let (info, elab, m) =
