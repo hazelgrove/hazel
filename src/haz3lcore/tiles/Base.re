@@ -116,7 +116,7 @@ and tile_to_string =
       ~projector_to_segment,
       t: tile,
     )
-    : string =>
+    : string => {
   Aba.mk(t.shards, t.children)
   |> Aba.join(
        List.nth(t.label),
@@ -129,3 +129,4 @@ and tile_to_string =
        ),
      )
   |> String.concat("");
+};

@@ -974,7 +974,7 @@ and Stepper: {
                       ),
                       from_exp,
                       Direction.Right,
-                      "Reflexive(==)",
+                      "refl_eq",
                     ),
                   );
                 },
@@ -1029,7 +1029,7 @@ and Stepper: {
                             ),
                             from_exp,
                             Direction.Right,
-                            "Reflexive(==)",
+                            "refl_eq",
                           ),
                         );
                       },

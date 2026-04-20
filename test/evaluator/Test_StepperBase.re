@@ -35,7 +35,7 @@ module StepKindHelpers = {
         ~name="reflexivity",
         ~at_idx=0,
         ~direction=Direction.Right,
-        ~equality="Reflexive(==)",
+        ~equality="refl_eq",
         at_exp,
       ) // Required parameter at the end
       : StepperBase.step_kind_model => {
@@ -125,8 +125,8 @@ module InductionCaseHelpers = {
   let mk_reflexivity_step = (goal_exp: Exp.t): StepperBase.step_model => {
     let axiom_kind =
       StepKindHelpers.mk_axiom_step(
-        ~name="Reflexive(==)",
-        ~equality="Reflexive(==)",
+        ~name="refl_eq",
+        ~equality="refl_eq",
         goal_exp,
       );
     mk_test_step(~step_kind=axiom_kind, ());
@@ -611,8 +611,8 @@ let tests = (
                     ~goal_str="[] == []",
                     [
                       StepKindHelpers.mk_axiom_step(
-                        ~name="Reflexive(==)",
-                        ~equality="Reflexive(==)",
+                        ~name="refl_eq",
+                        ~equality="refl_eq",
                         parse_exp("[] == []"),
                       ),
                     ],
@@ -627,8 +627,8 @@ let tests = (
                         parse_exp("tl"),
                       ),
                       StepKindHelpers.mk_axiom_step(
-                        ~name="Reflexive(==)",
-                        ~equality="Reflexive(==)",
+                        ~name="refl_eq",
+                        ~equality="refl_eq",
                         parse_exp("hd::tl == hd::tl"),
                       ),
                     ],

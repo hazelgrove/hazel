@@ -127,6 +127,16 @@ type mpat = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type proof = {
+  id: Id.t,
+  user_term: Proof.t,
+  cls: Cls.t,
+  sort: Sort.t,
+  ctx: Ctx.t,
+  ancestors,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type secondary = {
   id: Id.t, // Id of term static info is sourced from
   cls: Cls.t, // Cls of secondary, not source term
@@ -145,6 +155,7 @@ type t =
   | InfoMod(mod_)
   | InfoSig(sig_)
   | InfoMPat(mpat)
+  | InfoProof(proof)
   | Secondary(secondary);
 
 /* ==================================== Getters ==================================== */
@@ -160,6 +171,7 @@ let sort_of: t => Sort.t =
   | InfoMod(_) => Mod
   | InfoSig(_) => Sig
   | InfoMPat(_) => MPat
+  | InfoProof(_) => Proof
   | Secondary(s) => s.sort;
 
 /* The grammar's mold system uses a single `Drv(Exp)` outer sort for all of
@@ -194,6 +206,7 @@ let cls_of: t => Cls.t =
   | InfoMod({cls, _})
   | InfoSig({cls, _})
   | InfoMPat({cls, _})
+  | InfoProof({cls, _})
   | Secondary({cls, _}) => cls;
 
 let any_of: t => option(Any.t) =
@@ -206,6 +219,7 @@ let any_of: t => option(Any.t) =
   | InfoMod({user_term, _}) => Some(Mod(user_term))
   | InfoSig({user_term, _}) => Some(Sig(user_term))
   | InfoMPat({user_term, _}) => Some(MPat(user_term))
+  | InfoProof({user_term, _}) => Some(Proof(user_term))
   | Secondary(_) => None;
 
 let ctx_of: t => Ctx.t =
@@ -218,6 +232,7 @@ let ctx_of: t => Ctx.t =
   | InfoMod({ctx, _})
   | InfoSig({ctx, _})
   | InfoMPat({ctx, _})
+  | InfoProof({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
 let ancestors_of: t => ancestors =
@@ -229,7 +244,8 @@ let ancestors_of: t => ancestors =
   | InfoTPat({ancestors, _})
   | InfoMod({ancestors, _})
   | InfoSig({ancestors, _})
-  | InfoMPat({ancestors, _}) => ancestors
+  | InfoMPat({ancestors, _})
+  | InfoProof({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
 
 let parent_id_of: t => option(Id.t) =
@@ -244,7 +260,8 @@ let id_of: t => Id.t =
   | InfoTPat(i) => TPat.rep_id(i.user_term)
   | InfoMod({id, _})
   | InfoSig({id, _})
-  | InfoMPat({id, _}) => id
+  | InfoMPat({id, _})
+  | InfoProof({id, _}) => id
   | Secondary(s) => s.id;
 
 let marks_of: t => list(Mark.t) =
@@ -257,6 +274,7 @@ let marks_of: t => list(Mark.t) =
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
+  | InfoProof(_)
   | Secondary(_) => [];
 
 /* Determines whether any term is in an error hole. Drv info uses its own
@@ -277,6 +295,7 @@ let warnings_of: t => list(Warning.list_item) =
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
+  | InfoProof(_)
   | Secondary(_) => [];
 
 let is_warning = (ci: t): bool => warnings_of(ci) != [];
@@ -297,6 +316,7 @@ let is_typable_term: option(t) => bool =
   | Some(
       InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) | InfoMPat(_) |
       InfoDrv(_) |
+      InfoProof(_) |
       Secondary(_),
     ) =>
     false

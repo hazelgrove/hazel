@@ -151,6 +151,42 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
   Aba.mk(ps, clauses);
 };
 
+let is_proof_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Proof.t)) => {
+  open OptUtil.Syntax;
+  let+ ps =
+    (ts: list(tile))
+    |> List.map(
+         fun
+         | (_, (["|", "=>"], [Pat(p)])) => Some(p)
+         | _ => None: tile => option(TermBase.pat_t),
+       )
+    |> OptUtil.sequence
+  /* An EMPTY case body between two rule tiles parses as grout in
+   * a slot whose nib sorts disagree (Proof on the `=>` side, Exp
+   * on the next `|`'s side), so `unsorted` sorts it as Any and
+   * `go_s` defaults the sortless grout to an Exp hole. It is a
+   * Proof hole for our purposes — without this coercion a single
+   * empty body collapses the whole induction into a MultiHole.
+   * (A typed `?` body is unaffected: the explicit hole tile molds
+   * as Proof in that position.) */
+  and+ bodies =
+    kids
+    |> List.map(
+         fun
+         | Proof(body) => Some(body)
+         | Exp({term: EmptyHole, annotation}) =>
+           Some(
+             {
+               term: EmptyHole,
+               annotation,
+             }: TermBase.proof_t,
+           )
+         | _ => None: TermBase.any_t => option(TermBase.proof_t),
+       )
+    |> OptUtil.sequence;
+  Aba.mk(ps, bodies);
+};
+
 let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
 let ids =
   fun
@@ -422,9 +458,11 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   | Typ => Typ(typ(unsorted(Typ, skel, seg)))
   | Exp => Exp(exp(unsorted(Exp, skel, seg)))
   | Rul => Rul(rul(unsorted(Rul, skel, seg)))
+  | PRul => PRul(prul(unsorted(PRul, skel, seg)))
   | Mod => Mod(mod_(unsorted(Mod, skel, seg))) /* Phase 1.2: proper module parsing */
   | Sig => Sig(sig_(unsorted(Sig, skel, seg)))
   | MPat => MPat(mpat(unsorted(MPat, skel, seg)))
+  | Proof => Proof(proof(unsorted(Proof, skel, seg)))
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
@@ -916,8 +954,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["module", "=", "in"], [MPat(mp), Exp(def)]) =>
           ModuleExp(mp, def, r)
-        | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
-          Theorem(pat, thm, r)
+        | (["theorem", "=", "proof", "in"], [Pat(pat), Exp(thm), Proof(pf)]) =>
+          Theorem(pat, thm, pf, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(
             Filter({
@@ -1785,6 +1823,70 @@ and mpat_term: unsorted => TermBase.MPat.term = {
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 
+and proof = unsorted => {
+  let term = proof_term(unsorted);
+  let ids = ids(unsorted);
+  return(p => Proof(p), ids, IdTagged.mk(ids, get_secondary(ids), term));
+}
+and proof_term: unsorted => TermBase.Proof.term = {
+  let ret = (term: TermBase.Proof.term) => term;
+  let hole = unsorted => Proof.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      switch (tile) {
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | (
+          ["axiom", "at", "on", "end"],
+          [Exp(equality), Exp(at_idx), Exp(at_exp)],
+        ) =>
+        ret(
+          AxiomStep({
+            equality,
+            at_idx,
+            at_exp,
+            direction: Direction.Right,
+          }),
+        )
+      | (
+          ["rewrite", "with", "at", "end"],
+          [Exp(at_exp), Exp(with_exp), Exp(at_idx)],
+        ) =>
+        ret(
+          AlgebriteStep({
+            at_exp,
+            with_exp,
+            at_idx,
+          }),
+        )
+      | (["eval", "at", "end"], [Exp(at_exp), Exp(at_idx)]) =>
+        ret(
+          EvalStep({
+            at_idx,
+            at_exp,
+          }),
+        )
+      | (["induction", "end"], [PRul(pr)]) =>
+        /* Induction: body is a PRul term holding (scrut, cases). */
+        switch (pr.term) {
+        | ProofRules(scrut, cases) => ret(Induction(scrut, cases))
+        | _ => ret(hole(tm))
+        }
+      | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
+        ret(Invalid(t))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
+  | Bin(Proof(p1), tiles, Proof(p2)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([";"], []))], []) => ret(Seq(p1, p2))
+    | _ => ret(hole(tm))
+    }
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+}
+
 and rul = (unsorted): Rul.t => {
   let e = exp(unsorted);
   let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
@@ -1812,6 +1914,57 @@ and rul = (unsorted): Rul.t => {
     | _ => mk_rules(e, [], [Id.invalid])
     }
   | _ => mk_rules(e, [], [Id.invalid])
+  };
+}
+
+and prul = (unsorted): PRul.t => {
+  /* Parse a PRul (proof-rule) child. Expected shape:
+       `<Exp_scrut> | <Pat> => <Proof_body> | <Pat> => <Proof_body> ...`
+     i.e. a Bin between an Exp scrutinee and a trailing Proof body, with
+     `| p => ·` tiles in between carrying the case patterns.
+     A bare scrutinee with no cases (`<Exp_scrut>`, no `| <pat> => <body>`
+     tiles) is also valid and produces `ProofRules(scrut, [])`. When the
+     shape doesn't match anything sensible (e.g. dangling case tiles
+     without a scrutinee) we fall back to a MultiHole so partial edits
+     remain reachable.                                                   */
+  let wrap = (pr: PRul.t): TermBase.Any.t => PRul(pr);
+  let mk_proof_rules = (scrut: Exp.t, cases, ids): PRul.t => {
+    let pr: PRul.t = {
+      term: ProofRules(scrut, cases),
+      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+    };
+    return(wrap, ids, pr);
+  };
+  let mk_multihole = (): PRul.t => {
+    let ids = ids(unsorted);
+    let any_kids = kids_of_unsorted(unsorted);
+    let pr: PRul.t = {
+      term: MultiHole(any_kids),
+      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+    };
+    return(wrap, ids, pr);
+  };
+  switch (unsorted) {
+  | Bin(Exp(scrut), tiles, Proof(last_body)) =>
+    switch (is_proof_rules(tiles)) {
+    | Some((ps, leading_bodies)) =>
+      mk_proof_rules(
+        scrut,
+        List.combine(ps, leading_bodies @ [last_body]),
+        ids(unsorted),
+      )
+    | None => mk_multihole()
+    }
+  /* Bare scrutinee, no case tiles: re-parse the whole slot as an Exp
+   * and emit `ProofRules(scrut, [])`. Covers `induction <scrut> end`
+   * with `<scrut>` ranging over single-tile (Op), prefix/postfix and
+   * binary expressions. */
+  | Op(_) as tm
+  | Pre(_, Exp(_)) as tm
+  | Post(Exp(_), _) as tm
+  | Bin(Exp(_), _, Exp(_)) as tm =>
+    mk_proof_rules(exp(tm), [], ids(unsorted))
+  | _ => mk_multihole()
   };
 }
 
@@ -1892,9 +2045,11 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
          let s = s_l == s_r ? s_l : Sort.Any;
          go_s(s, kid, seg);
        })
-    |> Aba.map_a(p
-         // TODO throw proper exception
-         => (Piece.id(p), Aba.mk(tokens(p), tile_kids(p))));
+    |> Aba.map_a(p => {
+         let toks = tokens(p);
+         let kids = tile_kids(p);
+         (Piece.id(p), Aba.mk(toks, kids));
+       });
 
   let (l_sort, r_sort) = {
     let p_l = Aba.first_a(root);
@@ -2028,12 +2183,14 @@ let for_projection =
           switch (tpat(unsorted)) {
           | _ => Some(TPat(tpat(unsorted)))
           }
-        /* Rul case below prevents returning pseudo-terms
+        /* Rul/PRul cases below prevent returning pseudo-terms
          * consisting of case scrutinee + rule(s) */
         | Rul => None
+        | PRul => None
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
         | MPat => Some(MPat(mpat(unsorted)))
+        | Proof => Some(Proof(proof(unsorted)))
         /* Default unresolved sort to Exp, matching go_s above.
          * Reject bare Tuple(_) for the same reason as the Exp
          * branch: at top level it isn't well-structured in

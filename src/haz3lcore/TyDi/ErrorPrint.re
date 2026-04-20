@@ -302,6 +302,7 @@ let term_string_of: Info.t => string =
   | InfoMod({user_term, _}) => Print.term(Mod(user_term))
   | InfoSig({user_term, _}) => Print.term(Sig(user_term))
   | InfoMPat({user_term, _}) => Print.term(MPat(user_term))
+  | InfoProof({user_term, _}) => Print.term(Proof(user_term))
   | Secondary(_) => failwith("ChatLSP: term_string_of: Secondary");
 
 let all = (info_map: Statics.Map.t): list(string) => {

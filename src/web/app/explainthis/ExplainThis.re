@@ -743,6 +743,7 @@ let get_doc =
     | _ => simple("Signature item")
     }
   | Some(InfoMPat(_)) => simple("Module name")
+  | Some(InfoProof(_)) => simple("Proof term")
   | Some(InfoExp({cls: Mod(ModLet), _})) =>
     message_single(ModLetDecl.single)
   | Some(InfoExp({cls: Mod(ModType), _})) =>
@@ -1969,20 +1970,27 @@ let get_doc =
         | Projector(_)
         | Asc(_) => default // Shouldn't get hit?
         };
-      | Theorem(pat, thm, body) =>
+      | Theorem(pat, thm, pf, body) =>
         let pat_id = List.nth(IdTagged.ids(pat), 0);
         let thm_id = List.nth(IdTagged.ids(thm), 0);
+        let proof_id = List.nth(IdTagged.ids(pf), 0);
         let body_id = List.nth(IdTagged.ids(body), 0);
         get_message(
           ~colorings=
-            TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
+            TheoremExp.test_exp_coloring_ids(
+              ~body_id,
+              ~pat_id,
+              ~thm_id,
+              ~proof_id,
+            ),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(pat_id),
+                  Scanf.format_from_string(msg, "%s%s%s"),
                   Id.to_string(thm_id),
+                  Id.to_string(proof_id),
+                  Id.to_string(pat_id),
                 ),
             ),
           TheoremExp.tests,

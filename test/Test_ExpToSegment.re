@@ -914,10 +914,29 @@ end|}),
     roundtrip_test({|ProofObject: simple|}, {|proof_object 1 end|}),
     roundtrip_test({|ProofObject: spaced|}, {|proof_object  1  end|}),
     roundtrip_test({|ProofObject: with expr|}, {|proof_object 1 + 2 end|}),
-    /* Theorem expressions (theorem ... = ... in) */
-    roundtrip_test({|Theorem: simple|}, {|theorem x = 1 in x|}),
-    roundtrip_test({|Theorem: spaced|}, {|theorem x  =  1  in  x|}),
-    roundtrip_test({|Theorem: compact|}, {|theorem x=1 in x|}),
+    /* Theorem expressions (theorem ... = ... proof ... in ...) */
+    roundtrip_test(
+      {|Theorem: simple|},
+      {|theorem x = 1 proof axiom y at y on y end in x|},
+    ),
+    roundtrip_test(
+      {|Theorem: spaced|},
+      {|theorem x  =  1  proof  axiom y at y on y end  in  x|},
+    ),
+    roundtrip_test(
+      {|Theorem: compact|},
+      {|theorem x=1 proof axiom y at y on y end in x|},
+    ),
+    /* Proof: induction (single case, case-like syntax — no `with` keyword) */
+    roundtrip_test(
+      {|Induction: single-case|},
+      {|theorem x = 1 proof induction y | a => axiom y at y on y end end in x|},
+    ),
+    /* Proof: induction (multi-case) */
+    roundtrip_test(
+      {|Induction: multi-case|},
+      {|theorem x = 1 proof induction y | a => axiom y at y on y end | b => axiom z at z on z end end in x|},
+    ),
     /* Module expressions: empty module roundtrip */
     roundtrip_test({|Module: empty|}, {|{}|}),
     /* Module text round-trip tests */

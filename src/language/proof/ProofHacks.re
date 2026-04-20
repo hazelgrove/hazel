@@ -395,7 +395,7 @@ let rec replace_exp =
             ),
           )
           |> rewrap
-        | Theorem(p, e1, e2) =>
+        | Theorem(p, e1, pf, e2) =>
           if (is_bound(p)) {
             if (uses_blacklist_var(
                   exp,
@@ -403,7 +403,7 @@ let rec replace_exp =
                 )) {
               raise(BlacklistVarFound);
             };
-            Theorem(p, replace_exp(e1, blacklist_vars), e2) |> rewrap;
+            Theorem(p, replace_exp(e1, blacklist_vars), pf, e2) |> rewrap;
           } else {
             continue(exp);
           }
@@ -535,7 +535,7 @@ let strip_theorems = (exp: Exp.t): Exp.t => {
     ~f_exp=
       (cont, exp) => {
         switch (exp |> Exp.term_of) {
-        | Theorem(_, _, e2) => cont(e2)
+        | Theorem(_, _, _, e2) => cont(e2)
         | _ => cont(exp)
         }
       },

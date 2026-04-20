@@ -36,6 +36,7 @@ type equality = {
   mod_: (TermBase.Mod.t, TermBase.Mod.t) => bool,
   sig_: (TermBase.Sig.t, TermBase.Sig.t) => bool,
   mpat: (TermBase.MPat.t, TermBase.MPat.t) => bool,
+  proof: (TermBase.Proof.t, TermBase.Proof.t) => bool,
   any: (Any.t, Any.t) => bool,
 };
 
@@ -269,14 +270,15 @@ let equality =
       | None => false
       }
     | (Let(_, _, _), _) => false
-    | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
+    | (Theorem(p1, e1, pf1, e2), Theorem(p2, e3, pf2, e4)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
         exp(alphas_exp, alphas_typ, e1, e3)
+        && proof(alphas_exp, alphas_typ, pf1, pf2)
         && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
       | None => false
       }
-    | (Theorem(_, _, _), _) => false
+    | (Theorem(_, _, _, _), _) => false
 
     // Forms with type binders
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
@@ -827,6 +829,37 @@ let equality =
     | (MultiHole(_), _) => false
     };
   }
+  and prul =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, r1: PRul.t, r2: PRul.t)
+      : bool => {
+    let pat' = pat(alphas_exp, alphas_typ);
+    let exp' = exp(alphas_exp, alphas_typ);
+    let proof' = proof(alphas_exp, alphas_typ);
+    switch (r1 |> Annotated.term_of, r2 |> Annotated.term_of) {
+    | (ProofRules(e1, rls1), ProofRules(e2, rls2))
+        when List.length(rls1) == List.length(rls2) =>
+      exp'(e1, e2)
+      && List.for_all2(
+           ((p1, b1), (p2, b2)) =>
+             Option.is_some(pat'(p1, p2)) && proof'(b1, b2),
+           rls1,
+           rls2,
+         )
+    | (ProofRules(_, _), _) => false
+
+    | (MultiHole(_) | Invalid(_), MultiHole(_) | Invalid(_))
+        when ignore_unknown_provenance =>
+      true
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(_), _) => false
+    | (MultiHole(xs1), MultiHole(xs2))
+        when
+          List.length(xs1) == List.length(xs2)
+          && List.equal((_, _) => true, xs1, xs2) =>
+      true
+    | (MultiHole(_), _) => false
+    };
+  }
   and filter =
       (
         alphas_exp: Alphas.t,
@@ -865,11 +898,72 @@ let equality =
     | (MPat(mp1), MPat(mp2)) =>
       mpat(alphas_exp, alphas_typ, mp1, mp2) |> Option.is_some
     | (MPat(_), _) => false
+    | (Proof(p1), Proof(p2)) => proof(alphas_exp, alphas_typ, p1, p2)
+    | (Proof(_), _) => false
+    | (PRul(r1), PRul(r2)) => prul(alphas_exp, alphas_typ, r1, r2)
+    | (PRul(_), _) => false
     | (Any (), Any ()) => true
     | (Any (), _) => false
     | (Drv(d1), Drv(d2)) => d1 == d2
     | (Drv(_), _) => false
     };
+  }
+  and proof =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        p1: TermBase.Proof.t,
+        p2: TermBase.Proof.t,
+      )
+      : bool => {
+    let exp' = exp(alphas_exp, alphas_typ);
+    let pat' = pat(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ);
+    let rec proof' = (p1: TermBase.Proof.t, p2: TermBase.Proof.t): bool =>
+      switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
+      | (EmptyHole, EmptyHole) => true
+      | (EmptyHole, _) => false
+      | (Invalid(s1), Invalid(s2)) => s1 == s2
+      | (Invalid(_), _) => false
+      | (MultiHole(xs1), MultiHole(xs2)) =>
+        List.length(xs1) == List.length(xs2)
+        && List.for_all2(any', xs1, xs2)
+      | (MultiHole(_), _) => false
+      | (Seq(a1, a2), Seq(b1, b2)) => proof'(a1, b1) && proof'(a2, b2)
+      | (Seq(_, _), _) => false
+      | (
+          AxiomStep({at_idx: i1, at_exp: e1, direction: d1, equality: q1}),
+          AxiomStep({at_idx: i2, at_exp: e2, direction: d2, equality: q2}),
+        ) =>
+        exp'(i1, i2) && exp'(e1, e2) && d1 == d2 && exp'(q1, q2)
+      | (AxiomStep(_), _) => false
+      | (
+          AlgebriteStep({at_idx: i1, at_exp: e1, with_exp: w1}),
+          AlgebriteStep({at_idx: i2, at_exp: e2, with_exp: w2}),
+        ) =>
+        exp'(i1, i2) && exp'(e1, e2) && exp'(w1, w2)
+      | (AlgebriteStep(_), _) => false
+      | (
+          EvalStep({at_idx: i1, at_exp: e1}),
+          EvalStep({at_idx: i2, at_exp: e2}),
+        ) =>
+        exp'(i1, i2) && exp'(e1, e2)
+      | (EvalStep(_), _) => false
+      | (Induction(e1, cs1), Induction(e2, cs2))
+          when List.length(cs1) == List.length(cs2) =>
+        exp'(e1, e2)
+        && List.for_all2(
+             ((pa, ba), (pb, bb)) =>
+               Option.is_some(pat'(pa, pb)) && proof'(ba, bb),
+             cs1,
+             cs2,
+           )
+      | (Induction(_, _), _) => false
+      | (Forall(x1, b1), Forall(x2, b2)) =>
+        Option.is_some(pat'(x1, x2)) && proof'(b1, b2)
+      | (Forall(_, _), _) => false
+      };
+    proof'(p1, p2);
   };
 
   {
@@ -883,6 +977,7 @@ let equality =
     sig_: (s1, s2) => sig_(Alphas.empty, Alphas.empty, s1, s2),
     mpat: (mp1, mp2) =>
       mpat(Alphas.empty, Alphas.empty, mp1, mp2) |> Option.is_some,
+    proof: proof(Alphas.empty, Alphas.empty),
     any: any(Alphas.empty, Alphas.empty),
   };
 };

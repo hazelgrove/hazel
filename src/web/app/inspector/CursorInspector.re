@@ -1051,6 +1051,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoProof({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>

@@ -48,10 +48,12 @@ let rec any_to_info_map =
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
+  | PRul(r) => prul_to_info_map(~ctx, ~ancestors, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
   | MPat(mp_term) =>
     mpat_to_info_map(~ctx, ~ancestors, ~probe_ids, mp_term, m)
+  | Proof(p_term) => proof_to_info_map(~ctx, ~ancestors, p_term, m)
   | Any () => (CoCtx.empty, Any(), m)
   }
 and multi =
@@ -2181,7 +2183,7 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem({term: Var(_), _} as p, e1, e2) =>
+    | Theorem({term: Var(_), _} as p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
@@ -2192,12 +2194,19 @@ and uexp_to_info_map =
           p,
           m,
         );
+      let (_, _, m) =
+        any_to_info_map(
+          ~ctx=p'.ctx,
+          ~ancestors=ancestors_inclusive,
+          Proof(pf),
+          m,
+        );
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
-        ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
+        ~elab_term=Theorem(p_elab, e1_elab, pf, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[],
         ~co_ctx=
@@ -2215,17 +2224,24 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem(p, e1, e2) =>
+    | Theorem(p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let (_, _, m) =
+        any_to_info_map(
+          ~ctx=p'.ctx,
+          ~ancestors=ancestors_inclusive,
+          Proof(pf),
+          m,
+        );
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
-        ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
+        ~elab_term=Theorem(p_elab, e1_elab, pf, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[BadTheorem(e2.ty)],
         ~co_ctx=
@@ -4137,6 +4153,30 @@ and rul_to_info_map =
     (CoCtx.union(co_ctxs), Rul(r), m);
   | Invalid(_) => (CoCtx.empty, Rul(r), m)
   }
+and prul_to_info_map =
+    (~ctx, ~ancestors, r: PRul.t, m: Map.t): (CoCtx.t, Any.t, Map.t) =>
+  /* Fallback handler for proof-rule tiles not absorbed into an induction;
+     treat the contents as a multihole for purposes of info collection. */
+  switch (r.term) {
+  | ProofRules(scrut, cases) =>
+    let tms =
+      cases
+      |> List.map(((p, body)) => [Grammar.Pat(p), Grammar.Proof(body)])
+      |> List.concat;
+    any_to_info_map(
+      ~ctx,
+      ~ancestors,
+      Exp({
+        term: MultiHole([Exp(scrut), ...tms]),
+        annotation: r.annotation,
+      }),
+      m,
+    );
+  | MultiHole(tms) =>
+    let (co_ctxs, _, m) = multi(~ctx, ~ancestors, m, tms);
+    (CoCtx.union(co_ctxs), PRul(r), m);
+  | Invalid(_) => (CoCtx.empty, PRul(r), m)
+  }
 and mod_to_info_map =
     (
       ~ctx,
@@ -4283,6 +4323,100 @@ and mpat_to_info_map =
       any_to_info_map(~ctx, ~ancestors, ~probe_ids, MPat(inner), m);
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(typ), m);
     (CoCtx.empty, MPat(mp_term), add_mpat_info(m));
+  };
+}
+and proof_to_info_map =
+    (~ctx, ~ancestors, p_term: Proof.t, m: Map.t): (CoCtx.t, Any.t, Map.t) => {
+  let ids = IdTagged.ids(p_term);
+  let cls = Cls.Proof(Proof.cls_of_term(p_term.term));
+  let add_proof_info = m =>
+    add_info(
+      ids,
+      InfoProof({
+        id: IdTagged.rep_id(p_term),
+        user_term: p_term,
+        cls,
+        sort: Proof,
+        ctx,
+        ancestors,
+      }),
+      m,
+    );
+  /* Proof sort does not yet participate in type-checking; we walk children
+     purely to populate the info map so cursor-inspection works on the new
+     syntactic constructs. */
+  let ancestors_inclusive = [IdTagged.rep_id(p_term), ...ancestors];
+  switch (p_term.term) {
+  | Invalid(_)
+  | EmptyHole => (CoCtx.empty, Proof(p_term), add_proof_info(m))
+  | MultiHole(tms) =>
+    let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
+    (CoCtx.empty, Proof(p_term), add_proof_info(m));
+  | Seq(p1, p2) =>
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(p1), m);
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(p2), m);
+    (CoCtx.empty, Proof(p_term), add_proof_info(m));
+  | AxiomStep({at_idx, at_exp, direction: _, equality}) =>
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Exp(at_idx), m);
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Exp(at_exp), m);
+    let (_, _, m) =
+      any_to_info_map(
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        Exp(equality),
+        m,
+      );
+    (CoCtx.empty, Proof(p_term), add_proof_info(m));
+  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Exp(at_idx), m);
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Exp(at_exp), m);
+    let (_, _, m) =
+      any_to_info_map(
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        Exp(with_exp),
+        m,
+      );
+    (CoCtx.empty, Proof(p_term), add_proof_info(m));
+  | EvalStep({at_idx, at_exp}) =>
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Exp(at_idx), m);
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Exp(at_exp), m);
+    (CoCtx.empty, Proof(p_term), add_proof_info(m));
+  | Induction(scrut, cases) =>
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Exp(scrut), m);
+    let m =
+      List.fold_left(
+        (m, (p, body)) => {
+          let (_, _, m) =
+            any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Pat(p), m);
+          let (_, _, m) =
+            any_to_info_map(
+              ~ctx,
+              ~ancestors=ancestors_inclusive,
+              Proof(body),
+              m,
+            );
+          m;
+        },
+        m,
+        cases,
+      );
+    (CoCtx.empty, Proof(p_term), add_proof_info(m));
+  | Forall(x, body) =>
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Pat(x), m);
+    let (_, _, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(body), m);
+    (CoCtx.empty, Proof(p_term), add_proof_info(m));
   };
 };
 

@@ -109,6 +109,12 @@
 .code .token.MPat {
   color: var(--token-mpat);
 }
+.code .token.Proof {
+  color: var(--token-proof);
+}
+.code .token.PRul {
+  color: var(--token-prul);
+}
 
 .code .token.poly,
 .code .token.keyword {
@@ -246,6 +252,16 @@ svg.shard.indicated.Sig {
 svg.shard.indicated.MPat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-mpat));
 }
+svg.shard.indicated.Proof {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-proof)
+  );
+}
+svg.shard.indicated.PRul {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-prul)
+  );
+}
 
 svg.shard.indicated.Any > path {
   fill: var(--shard-any);
@@ -277,6 +293,12 @@ svg.shard.indicated.Sig > path {
 svg.shard.indicated.MPat > path {
   fill: var(--shard-mpat);
 }
+svg.shard.indicated.Proof > path {
+  fill: var(--shard-proof);
+}
+svg.shard.indicated.PRul > path {
+  fill: var(--shard-prul);
+}
 
 svg.shard.indicated.caret.Exp > path {
   fill: var(--shard-caret-exp);
@@ -298,6 +320,12 @@ svg.shard.indicated.caret.Sig > path {
 }
 svg.shard.indicated.caret.MPat > path {
   fill: var(--shard-caret-mpat);
+}
+svg.shard.indicated.caret.Proof > path {
+  fill: var(--shard-caret-proof);
+}
+svg.shard.indicated.caret.PRul > path {
+  fill: var(--shard-caret-prul);
 }
 
 svg.shard.selected {
@@ -491,6 +519,12 @@ svg:has(.child-line) {
 }
 .child-line.MPat {
   stroke: var(--token-mpat);
+}
+.child-line.Proof {
+  stroke: var(--shard-lines-proof);
+}
+.child-line.PRul {
+  stroke: var(--shard-lines-prul);
 }
 
 /* QUIVER DECO (completion visualization) */

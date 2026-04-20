@@ -12,6 +12,7 @@ let exp = v => mk_monotile(Form.mk_atom_op(Exp, v));
 let pat = v => mk_monotile(Form.mk_atom_op(Pat, v));
 let typ = t => mk_monotile(Form.mk_atom_op(Typ, t));
 let tpat = v => mk_monotile(Form.mk_atom_op(TPat, v));
+let proof = v => mk_monotile(Form.mk_atom_op(Proof, v));
 let mk_parens_exp = mk_tile(Form.get(ParensExp));
 let mk_parens_pat = mk_tile(Form.get(ParensPat));
 let mk_parens_typ = mk_tile(Form.get(ParensTyp));

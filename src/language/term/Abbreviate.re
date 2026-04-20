@@ -901,7 +901,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Let(p', e1', e2');
         }
 
-      | Theorem(p, e1, e2) =>
+      | Theorem(p, e1, pf, e2) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
@@ -918,8 +918,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           available := available^ - 11;
           Invalid("theorem…in…");
         } else {
-          /* Full: "theorem " (8) + p + " = " (3) + e1 + " in " (4) + e2 */
-          available := available^ - 15;
+          /* Full: "theorem " (8) + p + " = " (3) + e1 + " proof " (7) + pf + " in " (4) + e2 */
+          available := available^ - 22;
           let pool = available^;
           let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=3);
           let (p', _) =
@@ -934,7 +934,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             AbbrevBudget.with_budget(~budget=List.nth(budgets, 2), ~run=() =>
               abbreviate_exp(e2)
             );
-          Theorem(p', e1', e2');
+          Theorem(p', e1', pf, e2');
         }
 
       | ProofObject(t) =>
@@ -1844,9 +1844,11 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_) => any
   | Drv(_) => any
+  | PRul(_) => any
   | Mod(m) => Mod(abbreviate_mod_item(m))
   | Sig(s) => Sig(abbreviate_sig_item(s))
   | MPat(mp) => MPat(abbreviate_mpat(mp))
+  | Proof(_) => any
   | Any(_) => any
   };
 

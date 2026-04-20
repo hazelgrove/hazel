@@ -22,22 +22,39 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
     | Some({label: ["case", "end"], _}) => true
     | _ => false
     };
+  let before_induction_shard = (z: t): bool =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile({label: ["induction", "end"], shards: [0], _}) => true
+        | _ => false
+        },
+      z.relatives.siblings |> fst,
+    );
+  let inside_induction = (z: t): bool =>
+    switch (Ancestors.parent(z.relatives.ancestors)) {
+    | Some({label: ["induction", "end"], _}) => true
+    | _ => false
+    };
   switch (t) {
   | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
     /* Special case for constructing string/label literals. */
     ([t ++ t], Left)
-  | "|" when before_case_shard(z) || inside_case(z) =>
-    /* SPECIAL CASE: Case rule delimiter.
-       Inside a case, always expand | to Rule form regardless of local sort.
+  | "|"
+      when
+        before_case_shard(z)
+        || inside_case(z)
+        || before_induction_shard(z)
+        || inside_induction(z) =>
+    /* SPECIAL CASE: Case/induction rule delimiter.
+       Inside a case (or induction) body, always expand | to a rule form
+       regardless of local sort. Remolding picks the right variant (Rule vs
+       ProofRule) based on the surrounding Rul/PRul context.
 
        Why this is needed: The Rule form's left nib is Exp (it expects an
        expression). But rule bodies can have type ascriptions like `expr : Type`,
        which means Relatives.sort returns Typ even though semantically we have
-       an expression. Sort-specific expansion would fail to find | for Typ.
-
-       This bypasses Form.Expansion.get entirely for | inside case expressions,
-       hardcoding the Rule form label. A more principled fix might register |
-       for multiple sorts (Exp, Typ, etc.) in Form.Expansion. */
+       an expression. Sort-specific expansion would fail to find | for Typ. */
     (["|", "=>"], Left)
   | "|" =>
     /* Outside case: | has no meaning, don't expand */

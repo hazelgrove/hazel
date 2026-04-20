@@ -66,9 +66,9 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     mk(Let(p, edef, ebody'), e1);
-  | Theorem(p, thm, ebody) =>
+  | Theorem(p, thm, pf, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    mk(Theorem(p, thm, ebody'), e1);
+    mk(Theorem(p, thm, pf, ebody'), e1);
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     mk(TyAlias(tp, tdef, ebody'), e1);

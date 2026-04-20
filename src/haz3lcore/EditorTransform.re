@@ -69,6 +69,18 @@ let reflow_subtree =
           (acc @ [p], true);
         } else {
           switch (p) {
+          /* Induction lays out as a unit (scrutinee on the keyword
+           * line, each case body on its own indented line — see
+           * PrettySegment's induction/end rule), so a replacement
+           * landing in its slot reflows the whole tile rather than the
+           * bare slot content, which wouldn't know it's an induction. */
+          | Tile(t)
+              when
+                t.label == ["induction", "end"]
+                && List.exists(contains_root, t.children) => (
+              acc @ PrettySegment.prettify([Tile(t)]),
+              true,
+            )
           | Tile(t) =>
             let (children, found') = reflow_children(t.children);
             (

@@ -545,6 +545,8 @@ let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   | InfoMPat(m) => mpat_view(~globals, ~raw, m)
   | Secondary(s) => secondary_view(~globals, s)
   | InfoDrv(d) => drv_view(~globals, d)
+  | InfoProof(_) =>
+    section(~globals, "InfoProof", () => [field_str("(proof)", "—")])
   };
 
 /* ---- Syntax sections: the syntactic/zipper layer under the cursor, ----

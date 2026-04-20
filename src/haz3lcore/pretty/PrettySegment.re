@@ -948,6 +948,69 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
+  /* induction/end: the scrutinee stays on the keyword line; each case
+     rule sits on its own line with its body on the following line(s),
+     indented; `end` closes on its own line:
+       induction x
+       | p =>
+         body
+       end
+     A bare `induction scrut end` (no cases yet) gets the generic
+     operand-form layout instead. */
+  | ["induction", "end"] =>
+    switch (triples) {
+    | [(_, body_child, _)] =>
+      switch (split_at_next_rule(strip_whitespace(body_child))) {
+      | (_, []) =>
+        let inner = child_doc(s, body_child);
+        let tile_doc =
+          Group(
+            cats([shard(0), Space, inner, Break, shard(last_shard_idx)]),
+          );
+        tile_with_rest(tile_doc);
+      | (scrut, rules) =>
+        let scrut_doc =
+          switch (scrut) {
+          | [] => Empty
+          | _ => cats([Space, Group(segment_to_doc(s, scrut))])
+          };
+        let rec rules_doc = (pieces: list(Piece.t)): doc =>
+          switch (pieces) {
+          | [] => Empty
+          | [r, ...rest'] =>
+            let (body, remaining) = split_at_next_rule(rest');
+            let body_doc =
+              switch (body) {
+              | [] => Empty
+              | _ =>
+                Nest(
+                  indent_unit,
+                  cats([HardBreak, Group(segment_to_doc(s, body))]),
+                )
+              };
+            cats([
+              piece_doc(r),
+              body_doc,
+              switch (remaining) {
+              | [] => Empty
+              | _ => cats([HardBreak, rules_doc(remaining)])
+              },
+            ]);
+          };
+        let tile_doc =
+          cats([
+            shard(0),
+            scrut_doc,
+            HardBreak,
+            rules_doc(rules),
+            HardBreak,
+            shard(last_shard_idx),
+          ]);
+        tile_with_rest(tile_doc);
+      }
+    | _ => fallback()
+    }
+
   /* Other operand forms ending in "end": proof_of/end, proof_object/end.
      Same treatment as case/end (Space after keyword, Break before end). */
   | [_, "end"] =>

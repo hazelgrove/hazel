@@ -502,7 +502,7 @@ module Transition = (EV: EV_MODE) => {
         });
       };
 
-    | Theorem({term: Var(n), _} as dp, e, d1) =>
+    | Theorem({term: Var(n), _} as dp, e, _pf, d1) =>
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
       let env' = Environment.extend(env, (n, generated(ProofObject(e'))));

@@ -569,10 +569,11 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
-  | Theorem(p, thm, e) =>
+  | Theorem(p, thm, pf, e) =>
     Theorem(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(thm) |> paren_at(Precedence.min),
+      pf,
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
@@ -1091,6 +1092,8 @@ and parenthesize_any =
   | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
+  | Proof(_) => any
+  | PRul(_) => any
   | Any(_) => any
   };
 
@@ -2269,14 +2272,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     wrap(exp, [mk_form(Let, id, [p, e1])] @ e2);
-  | Theorem(p, thm, e) =>
+  | Theorem(p, thm, pf, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ thm = go(thm)
+    and+ pf = proof_to_pretty(~settings: Settings.t, pf)
     and+ e = go(e);
     let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
-    wrap(exp, [mk_form(Theorem, id, [p, thm])] @ e);
+    wrap(exp, [mk_form(Theorem, id, [p, thm, pf])] @ e);
   | ProofObject(t) =>
     let id = exp |> Exp.rep_id;
     let+ t = exp_to_pretty(~settings: Settings.t, t);
@@ -3323,6 +3327,84 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
 and mpat_to_pretty = (~settings: Settings.t, mp: MPat.t): pretty => {
   p_just(mpat_to_seg(~settings, mp));
 }
+and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let (@) = concat_segment(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let id = p |> Proof.rep_id;
+  switch (p.term) {
+  | EmptyHole =>
+    p_just(
+      wrap(
+        p,
+        [
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ],
+      ),
+    )
+  | Invalid(s) => p_just(wrap(p, text_to_pretty(id, Sort.Proof, s)))
+  | MultiHole(_) => p_just(wrap(p, text_to_pretty(id, Sort.Proof, "?")))
+  | Seq(p1, p2) =>
+    let+ s1 = proof_to_pretty(~settings, p1)
+    and+ s2 = proof_to_pretty(~settings, p2);
+    wrap(
+      p,
+      s1
+      @ [
+        Tile({
+          id,
+          label: [";"],
+          mold: Mold.mk_bin(Precedence.semi, Sort.Proof, []),
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ s2,
+    );
+  | Forall(x, body) =>
+    let+ x = pat_to_pretty(~settings, x)
+    and+ b = proof_to_pretty(~settings, body);
+    wrap(p, [mk_form(ProofForall, id, [x])] @ b);
+  | AxiomStep({at_idx, at_exp, direction: _, equality}) =>
+    let+ eq = exp_to_pretty(~settings, equality)
+    and+ i = exp_to_pretty(~settings, at_idx)
+    and+ ae = exp_to_pretty(~settings, at_exp);
+    wrap(p, [mk_form(ProofAxiom, id, [eq, i, ae])]);
+  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+    let+ ae = exp_to_pretty(~settings, at_exp)
+    and+ we = exp_to_pretty(~settings, with_exp)
+    and+ i = exp_to_pretty(~settings, at_idx);
+    wrap(p, [mk_form(ProofAlgebrite, id, [ae, we, i])]);
+  | EvalStep({at_idx, at_exp}) =>
+    let+ ae = exp_to_pretty(~settings, at_exp)
+    and+ i = exp_to_pretty(~settings, at_idx);
+    wrap(p, [mk_form(ProofEval, id, [ae, i])]);
+  | Induction(scrut, cases) =>
+    /* Tile-level induction rendering. The induction tile has a single PRul
+       child slot containing `<scrut> | <pat1> => <body1> | <pat2> => ...`.
+       We emit the scrutinee tiles first, then a `| pat => body` tile chain
+       for each case. */
+    let+ s = exp_to_pretty(~settings, scrut)
+    and+ rendered_cases: list((Segment.t, Segment.t)) =
+      cases
+      |> List.map(((pat, body)) =>
+           (pat_to_pretty(~settings, pat), proof_to_pretty(~settings, body))
+         )
+      |> all;
+    let cases_seg: Segment.t =
+      List.map(
+        ((pat_seg, body_seg)) =>
+          [mk_form(ProofRule, Id.mk(), [pat_seg])] @ body_seg,
+        rendered_cases,
+      )
+      |> List.flatten;
+    let prul_child: Segment.t = s @ cases_seg;
+    wrap(p, [mk_form(ProofInduction, id, [prul_child])]);
+  };
+}
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   switch (any) {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
@@ -3334,7 +3416,9 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)
   | Rul(r) => rul_to_pretty(~settings, r)
-  | Any(_) =>
+  | Proof(p) => proof_to_pretty(~settings, p)
+  | Any(_)
+  | PRul(_) =>
     let id = any |> Any.rep_id;
     p_just([
       Grout({

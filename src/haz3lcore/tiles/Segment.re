@@ -166,10 +166,12 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Pat => remold_pat(shape, seg)
   | Exp => remold_exp(shape, seg)
   | Rul => remold_rul(shape, seg)
+  | PRul => remold_prul(shape, seg)
   | TPat => remold_tpat(shape, seg)
   | Mod => remold_mod(shape, seg)
   | Sig => remold_sig(shape, seg)
   | MPat => remold_mpat(shape, seg)
+  | Proof => remold_proof(shape, seg)
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
@@ -545,6 +547,12 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
             remold_template_uni(sort, shape, tl);
           let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest, []);
           ([Piece.Tile(t), ...remolded_drv] @ remolded_exp, shape, rest);
+        | (_, {shape, sort: Proof}) =>
+          let (remolded_proof, shape, rest) =
+            remold_proof_uni(shape, tl, [Sort.Exp, ...parent_sorts]);
+          let (remolded_exp, shape, rest) =
+            remold_exp_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_proof] @ remolded_exp, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_exp_uni(snd(Tile.shapes(t)), tl, parent_sorts);
@@ -591,6 +599,52 @@ and remold_rul = (shape, seg: t): t =>
       }
     }
   }
+and remold_prul = (shape, seg: t): t =>
+  /* Mirrors remold_rul but allows Proof on the right of a PRul-sorted tile
+     (i.e. ProofRule), since proof-rules bind to Proof bodies.  The scrutinee
+     is an ordinary Exp chain that precedes the first rule tile. */
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) => [hd, ...remold_prul(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_prul(snd(ProjectorCore.shapes(p)), tl),
+      ]
+    | Tile(t) =>
+      switch (remold_tile(PRul, shape, t)) {
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        [Tile(t), ...remolded];
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Exp}) =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.PRul]);
+          [Piece.Tile(t), ...remolded] @ remold_prul(shape, rest);
+        | (_, {shape, sort: Pat}) =>
+          let (remolded, shape, rest) =
+            remold_pat_uni(shape, tl, [Sort.PRul]);
+          [Piece.Tile(t), ...remolded] @ remold_prul(shape, rest);
+        | (_, {shape, sort: Proof}) =>
+          let (remolded, shape, rest) =
+            remold_proof_uni(shape, tl, [Sort.PRul]);
+          [Piece.Tile(t), ...remolded] @ remold_prul(shape, rest);
+        | _ => failwith("remold_prul unexpected")
+        }
+      | None =>
+        let (remolded, shape, rest) =
+          remold_exp_uni(shape, [hd, ...tl], []);
+        switch (remolded) {
+        | [] => [Piece.Tile(t), ...remold_prul(shape, tl)]
+        | [_, ..._] => remolded @ remold_prul(shape, rest)
+        };
+      }
+    }
+  }
 and remold_exp = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
@@ -624,6 +678,10 @@ and remold_exp = (shape, seg: t): t =>
         | (_, {shape, sort: Mod}) =>
           let (remolded, shape, rest) =
             remold_mod_uni(shape, tl, [Sort.Exp]);
+          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+        | (_, {shape, sort: Proof}) =>
+          let (remolded, shape, rest) =
+            remold_proof_uni(shape, tl, [Sort.Exp]);
           [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
         | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
         }
@@ -869,6 +927,89 @@ and remold_mpat = (shape, seg: t): t =>
             remold_typ_uni(shape, tl, [Sort.MPat]);
           [Piece.Tile(t), ...remolded] @ remold_mpat(shape, rest);
         | _ => [Tile(t), ...remold_mpat(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  }
+and remold_proof_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) =>
+      let (remolded, shape, rest) =
+        remold_proof_uni(shape, tl, parent_sorts);
+      ([hd, ...remolded], shape, rest);
+    | Projector(p) =>
+      let (remolded, shape, rest) =
+        remold_proof_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
+      ([hd, ...remolded], shape, rest);
+    | Tile(t) =>
+      switch (remold_tile(Proof, shape, t)) {
+      | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Pat}) =>
+          let (remolded_pat, shape, rest) =
+            remold_pat_uni(shape, tl, [Sort.Proof, ...parent_sorts]);
+          let (remolded_proof, shape, rest) =
+            remold_proof_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_pat] @ remolded_proof, shape, rest);
+        | (_, {shape, sort: Exp}) =>
+          let (remolded_exp, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.Proof, ...parent_sorts]);
+          let (remolded_proof, shape, rest) =
+            remold_proof_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_exp] @ remolded_proof, shape, rest);
+        | (_, {shape, sort: PRul}) => (
+            [Tile(t), ...remold_prul(shape, tl)],
+            shape,
+            [],
+          )
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_proof_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+          ([Tile(t), ...remolded], shape, rest);
+        }
+      }
+    }
+  }
+and remold_proof = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) => [hd, ...remold_proof(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_proof(snd(ProjectorCore.shapes(p)), tl),
+      ]
+    | Tile(t) =>
+      switch (remold_tile(Proof, shape, t)) {
+      | None => [Tile(t), ...remold_proof(snd(Tile.shapes(t)), tl)]
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        [Tile(t), ...remolded];
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Pat}) =>
+          let (remolded, shape, rest) =
+            remold_pat_uni(shape, tl, [Sort.Proof]);
+          [Piece.Tile(t), ...remolded] @ remold_proof(shape, rest);
+        | (_, {shape, sort: Exp}) =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.Proof]);
+          [Piece.Tile(t), ...remolded] @ remold_proof(shape, rest);
+        | (_, {shape, sort: PRul}) => [Tile(t), ...remold_prul(shape, tl)]
+        | _ => [Tile(t), ...remold_proof(snd(Tile.shapes(t)), tl)]
         }
       }
     }
