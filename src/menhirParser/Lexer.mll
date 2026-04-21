@@ -49,6 +49,7 @@ rule token =
     | projector_invoke as p { PROJECTOR_INVOKE p }
     | "true" { TRUE }
     | "false" { FALSE }
+    | "module" { MODULE }
     | "let" { LET }
     | "in" { IN }
     | "end" { END }
@@ -63,6 +64,8 @@ rule token =
     | ")" { CLOSE_PAREN }
     | "{{{" { OPEN_TRIPLE_CURLY }
     | "}}}" { CLOSE_TRIPLE_CURLY }
+    | "{" { OPEN_CURLY }
+    | "}" { CLOSE_CURLY }
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
@@ -136,7 +139,7 @@ rule token =
     | "?tp" {TP_TPAT}
     | "?e" {E_EXP}
     | "named_fun" {NAMED_FUN}
-    | "forall" {FORALL}
+    | "poly" {POLY}
     | "rec" {REC}
     | identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}

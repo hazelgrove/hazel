@@ -177,6 +177,7 @@ let handle_tuple_operation =
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
               ~inferred_label=None,
+              ~dot_labels=[],
               ~label_sort=false,
             ),
           ),
@@ -360,6 +361,7 @@ let group_by_label_statics =
                 Common(Just(Prod([table_info.ty, unknown]) |> Typ.temp)),
               ~label_inference=None,
               ~inferred_label=None,
+              ~dot_labels=[],
               ~label_sort=false,
             ),
           ),
@@ -437,7 +439,7 @@ let to_lvs_statics =
       let val_typs = List.map(snd, entries);
       let joined_typ =
         Util.OptUtil.fold_left_opt(
-          (acc, t) => Typ.join(ctx, acc, t),
+          (acc, t) => Typ.meet(ctx, acc, t),
           val_typs,
           unknown,
         )

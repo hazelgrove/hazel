@@ -3,35 +3,35 @@ open Language;
 
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
-let join_tests = (
-  "Typ.join",
+let meet_tests = (
+  "Typ.meet",
   IdTagged.FreshGrammar.Typ.[
     test_case(
-      "Typ join on polymorphic types",
+      "Typ meet on polymorphic types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(Some(Int)),
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           );
         check(
           option(testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal)),
-          "Forall alpha equivalent",
+          "Type all alpha equivalent",
           Some(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
           ),
           t,
         );
       },
     ),
     test_case(
-      "Typ join on product projection with fully known types",
+      "Typ meet on product projection with fully known types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(
@@ -42,33 +42,33 @@ let join_tests = (
               label("a"),
             ),
           );
-        check(option(typ), "Joined product projections", Some(int()), t);
+        check(option(typ), "Meet product projections", Some(int()), t);
       },
     ),
     test_case(
-      "Typ join on product projection with unknown types",
+      "Typ meet on product projection with unknown types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(unknown(Internal), label("a")),
           );
         check(
           option(typ),
-          "Joined product projections with unknown",
+          "Meet product projections with unknown",
           Some(int()),
           t,
         );
       },
     ),
     test_case(
-      "Typ join on product projection with unknown label",
+      "Typ meet on product projection with unknown label",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(
@@ -81,18 +81,18 @@ let join_tests = (
           );
         check(
           option(typ),
-          "Joined product projections with unknown label",
+          "Meet product projections with unknown label",
           Some(int()),
           t,
         );
       },
     ),
     test_case(
-      "Typ join on product extension with fully known extension types",
+      "Typ meet on product extension with fully known extension types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             prod_extension(
               prod([
@@ -116,7 +116,7 @@ let join_tests = (
           );
         check(
           option(typ),
-          "Joined product extensions",
+          "Meet product extensions",
           Some(
             prod([
               tup_label(label("a"), int()),
@@ -131,11 +131,11 @@ let join_tests = (
       },
     ),
     test_case(
-      "Typ join on two product extensions with known extension types",
+      "Typ meet on two product extensions with known extension types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             prod_extension(
               prod([
@@ -151,7 +151,7 @@ let join_tests = (
           );
         check(
           option(typ),
-          "Joined product extensions",
+          "Meet product extensions",
           Some(
             prod([
               tup_label(label("a"), int()),
@@ -175,22 +175,20 @@ let fast_equal_tests = (
       () => {
         check(
           bool,
-          "Forall alpha equivalent",
+          "Poly alpha equivalent",
           true,
           Typ.fast_equal(
-            ~alpha_equivalence=true,
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
         );
         check(
           bool,
-          "Forall non alpha equivalent",
+          "Poly non alpha equivalent",
           false,
-          Typ.fast_equal(
-            ~alpha_equivalence=false,
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+          Equality.syntactic.typ(
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
         );
       },
@@ -198,4 +196,4 @@ let fast_equal_tests = (
   ],
 );
 
-let tests = [join_tests, fast_equal_tests];
+let tests = [meet_tests, fast_equal_tests];

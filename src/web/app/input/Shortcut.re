@@ -31,12 +31,6 @@ let instructor_shortcuts: list(t) = [
     "Export Transitionary Exercise Module",
     Editors(Exercises(ExportTransitionary)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
   ),
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
-    "Export Grading Exercise Module",
-    Editors(Exercises(ExportGrading)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
-  ),
 ];
 
 // List of shortcuts configured to show up in the command palette and have hotkey support
@@ -63,16 +57,16 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       ~hotkey="shift+tab",
-      ~mdIcon="swipe_left_alt",
+      ~mdIcon="arrow_upward",
       ~section="Navigation",
-      "Go to Previous Hole",
-      Globals(ActiveEditor(Move(Goal(Hole(Left))))),
+      "Go to Previous Problem",
+      Globals(ActiveEditor(Move(Goal(NextProblem(Left))))),
     ),
     mk_shortcut(
-      ~mdIcon="swipe_right_alt",
+      ~mdIcon="arrow_downward",
       ~section="Navigation",
-      "Go To Next Hole",
-      Globals(ActiveEditor(Move(Goal(Hole(Right))))),
+      "Go to Next Problem",
+      Globals(ActiveEditor(Move(Goal(NextProblem(Right))))),
       // Tab is overloaded so not setting it here
     ),
     mk_shortcut(
@@ -110,6 +104,20 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Select(SetFocus(Right)))),
     ),
     mk_shortcut(
+      ~mdIcon="chevron_left",
+      ~section="Selection",
+      ~hotkey="alt+shift+left",
+      "Extend Selection Left by Token",
+      Globals(ActiveEditor(Select(Resize(Local(Left, ByToken))))),
+    ),
+    mk_shortcut(
+      ~mdIcon="chevron_right",
+      ~section="Selection",
+      ~hotkey="alt+shift+right",
+      "Extend Selection Right by Token",
+      Globals(ActiveEditor(Select(Resize(Local(Right, ByToken))))),
+    ),
+    mk_shortcut(
       ~hotkey="alt+f",
       ~mdIcon="camera",
       ~section="Projection",
@@ -117,18 +125,25 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
     ),
     mk_shortcut(
-      ~hotkey="alt+v",
+      ~hotkey=Keyboard.meta(sys) ++ "+e",
       ~mdIcon="camera",
       ~section="Projection",
       "Probe",
-      Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
+      Globals(ActiveEditor(Probe(ToggleManual))),
     ),
     mk_shortcut(
       ~hotkey="alt+t",
       ~mdIcon="camera",
       ~section="Projection",
-      "Type",
-      Globals(ActiveEditor(Project(SetIndicated(Specific(Info))))),
+      "Statics",
+      Globals(ActiveEditor(Probe(ToggleStatics))),
+    ),
+    mk_shortcut(
+      ~hotkey=Keyboard.meta(sys) ++ "+p",
+      ~mdIcon="science",
+      ~section="Projection",
+      "Toggle Auto Probe",
+      Globals(Set(AutoprobeMode)),
     ),
     mk_shortcut(
       ~hotkey="alt+l",
@@ -164,7 +179,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
-      "Toggle Toggle Dynamics",
+      "Toggle Dynamics",
       Globals(Set(Dynamics)),
     ),
     mk_shortcut(
@@ -242,6 +257,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~mdIcon="download",
       ~section="Export",
+      "Encode Scratch Slide in URL",
+      Editors(Scratch(Encode)),
+    ),
+    mk_shortcut(
+      ~mdIcon="download",
+      ~section="Export",
       "Export For Init",
       Globals(ExportForInit),
     ),
@@ -274,6 +295,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       "Add New Buffer",
+      ~hotkey="alt+n",
       ~mdIcon="add",
       ~section="Buffers",
       Editors(Scratch(AddSlide)),

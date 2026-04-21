@@ -4,7 +4,7 @@ open Transition;
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    env: ClosureEnvironment.t, // technically can be calculated from ctx
+    env: Environment.t(Exp.t), // technically can be calculated from ctx
     d_loc: DHExp.t,
     ctx: EvalCtx.t,
     knd: step_kind,
@@ -39,7 +39,7 @@ module EvalObj = {
 
 let rec matches =
         (
-          env: ClosureEnvironment.t,
+          env: Environment.t(Exp.t),
           flt: FilterEnvironment.t,
           ctx: EvalCtx.t,
           exp: DHExp.t,
@@ -95,6 +95,9 @@ let rec matches =
       | Let2(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
+      | Theorem(dp, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Theorem(dp, d1, ctx) |> rewrap;
       | Fun(dp, ctx, ty, name) =>
         // TODO: Should this env include the bound variables?
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -163,9 +166,6 @@ let rec matches =
       | Parens(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Parens(ctx) |> rewrap;
-      | Probe(ctx, pr) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Probe(ctx, pr) |> rewrap;
       | ListLit(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListLit(ctx, ds) |> rewrap;
@@ -218,7 +218,7 @@ let should_hide_eval_obj =
     (Eval, x);
   } else {
     let (act, _, ctx) =
-      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
+      matches(Environment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
     | (Eval, _) => (
         Eval,
@@ -260,10 +260,10 @@ module Decompose = {
   } = {
     type state = ref(EvaluatorState.t);
     type requirement('a) = (Result.t, 'a);
-    type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
+    type requirements('a, 'b) = ('b, Result.t, Environment.t(Exp.t), 'a);
     type result = Result.t;
 
-    let (&&): (Result.t, Result.t) => Result.t =
+    let (&&&): (Result.t, Result.t) => Result.t =
       (u, v) =>
         switch (u, v) {
         | (Step(ss1), Step(ss2)) => Step(ss1 @ ss2)
@@ -293,7 +293,7 @@ module Decompose = {
       | [d, ...ds] => {
           let (r1, v) = req_final(cont, wr(_, (ds', ds)), d);
           let (r2, vs) = req_all_final'(cont, wr, [d, ...ds'], ds);
-          (r1 && r2, [v, ...vs]);
+          (r1 &&& r2, [v, ...vs]);
         };
 
     let req_all_final = (cont, wr, ds) => {
@@ -301,41 +301,43 @@ module Decompose = {
     };
 
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
-      (rq, rl) =>
-        switch (rq) {
-        | (_, Result.Step(_) as r, _, _) => r
-        | (undo, r, env, v) =>
-          switch (rl(v)) {
-          | Constructor => r
-          | Value => Result.BoxedValue
-          | Indet => Result.Indet
-          | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
-          // TODO: Actually show these exceptions to the user!
-          | exception (EvaluatorError.Exception(_)) => Result.Indet
-          }
+      (rq, rl) => {
+        let (undo, r, env, v) = rq;
+        let rq_steps =
+          switch (r) {
+          | Result.Step(ss) => ss
+          | Result.BoxedValue
+          | Result.Indet => []
+          };
+        switch (rl(v)) {
+        | Constructor => r
+        | Value => List.is_empty(rq_steps) ? Result.BoxedValue : r
+        | Indet => List.is_empty(rq_steps) ? Result.Indet : r
+        | Step(s) when s.kind == CompleteFilter && !List.is_empty(rq_steps) =>
+          Result.Step(rq_steps)
+        | Step(s) =>
+          Result.Step([EvalObj.mk(Mark, env, undo, s.kind), ...rq_steps])
+        // TODO: Actually show these exceptions to the user!
+        | exception (EvaluatorError.Exception(_)) => Result.Indet
         };
+      };
 
     let (and.):
       (requirements('a, 'c => 'b), requirement('c)) =>
       requirements(('a, 'c), 'b) =
-      ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
+      ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 &&& r2, env, (v1, v2));
 
     let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
-    let update_test = (state, id, v) =>
-      state := EvaluatorState.add_test(state^, id, v);
-    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (~in_closure=?, state, env, exp) => {
+  let rec decompose = (~in_closure=?, env, exp) => {
     switch (exp) {
     | _ =>
       Decomp.transition(
         decompose,
         ~mode=`Substitution,
         ~in_closure?,
-        state,
         env,
         exp,
       )
@@ -360,9 +362,7 @@ module TakeStep = {
 
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {
-      | Step({expr, state_update, _}) =>
-        state_update();
-        Some(expr);
+      | Step({expr, _}) => Some(expr)
       | Constructor
       | Value
       | Indet => None
@@ -371,22 +371,15 @@ module TakeStep = {
     let (and.) = (x1, x2) => (x1, x2);
 
     let otherwise = (_, _) => ();
-
-    let update_test = (state, id, v) =>
-      state := EvaluatorState.add_test(state^, id, v);
-
-    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
 
-  let take_step = (~in_closure=?, state, env, d) =>
+  let take_step = (~in_closure=?, env, d) =>
     TakeStepEV.transition(
-      (~in_closure as _=?, _, _, _) => None,
+      (~in_closure as _=?, _, _) => None,
       ~mode=`Substitution,
       ~in_closure?,
-      state,
       env,
       d,
     )
@@ -395,10 +388,9 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
-  let env = ClosureEnvironment.of_environment(Builtins.env_init);
-  let rs = Decompose.decompose(ref(es), env, d);
-  Decompose.Result.unbox(rs);
+let decompose = (d: DHExp.t, env: Environment.t(Exp.t)) => {
+  let rs = Decompose.decompose(env, d);
+  Decompose.Result.unbox(rs) |> List.rev;
 };
 
 /* ========== PUBLIC METHODS ========== */
@@ -417,9 +409,9 @@ type status =
   | AutoStep(step)
   | AvailableSteps(list(step));
 
-let get_status = (~settings: CoreSettings.t, exp, state) => {
+let get_status = (~settings: CoreSettings.t, exp, env) => {
   let eos =
-    decompose(exp, state)
+    decompose(exp, env)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   switch (List.find_opt(((x, _)) => x == FilterAction.Eval, eos)) {
   | Some((_, x)) => AutoStep(x)
@@ -432,29 +424,31 @@ let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 let get_step_kind = (step: step): step_kind => step.knd;
 
 let take_step = (step: EvalObj.t) => {
-  let state = ref(EvaluatorState.init); // HACK: state isn't actually carried through the stepper...
-  let+ next_expr = take_step(state, step.env, step.d_loc);
+  let+ next_expr = take_step(step.env, step.d_loc);
   let next_expr = {
     ...next_expr,
-    annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},
+    annotation:
+      IdTagged.IdTag.{
+        ids: step.d_loc |> IdTagged.ids,
+        secondary: empty_secondary,
+      },
   };
-  let next_state = state^;
   let next_expr =
     EvalCtx.compose(step.ctx, next_expr)
-    |> Exp.replace_all_ids
-    |> DHExp.substitute_closures(Builtins.env_init);
-  (next_expr, next_state);
+    |> Substitution.in_exp(Environment.empty)
+    |> Exp.replace_all_ids;
+  next_expr;
 };
 
 let refresh_step =
     (
       ~settings: CoreSettings.t,
       exp: Exp.t,
-      state: EvaluatorState.t,
+      env: Environment.t(Exp.t),
       step: persistent,
     ) => {
   let eos =
-    decompose(exp, state)
+    decompose(exp, env)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* desired_id =
     ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)

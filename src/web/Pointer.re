@@ -30,6 +30,7 @@ module Event = {
     loc: Point.t,
     current_target: Js.opt(Js.t(Dom_html.element)),
     button,
+    buttons: int,
     shift: held,
     meta: held,
     ctrl: held,
@@ -62,6 +63,7 @@ module Event = {
     },
     current_target: evt##.currentTarget,
     button: button(evt),
+    buttons: Js.Unsafe.coerce(evt)##.buttons,
     shift: Js.to_bool(evt##.shiftKey) ? Down : Up,
     meta: Js.to_bool(evt##.metaKey) ? Down : Up,
     ctrl: Js.to_bool(evt##.ctrlKey) ? Down : Up,
@@ -127,6 +129,8 @@ module MkState = () => {
   let count = (): int => state.count;
 
   let is_button_down = (): bool => state.button == Down;
+
+  let get_down_loc = (): Point.t => state.loc;
 
   let is_init = (): bool =>
     state.button == Up && state.count == 0 && state.loc == Point.zero;

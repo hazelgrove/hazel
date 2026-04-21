@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Oddly Recursive",
+    "report": {
+      "summary": "Overall: 0.0/4.0\n\nTest Validation: 0.0/1.0\n\nSource Code:\n\ntest not(false) end;\ntest not(not(true)) end; \n \n\nMutation Testing: 0.0/1.0\n\nImpl Grading: 0.0/2.0\n\nSource Code:\n\nlet odd: Int -> Bool =\n  fun n -> if n < 0 then odd(-n) else \n    if n == 0 then true else not(odd(n-1)) \nin  \n\n",
+      "overall": [ 0.0, 4.0 ]
+    }
+  },
+  {
+    "name": "Recursive Fibonacci",
+    "report": {
+      "summary": "Overall: 0.0/4.0\n\nTest Validation: 0.0/1.0\n\nSource Code:\n\n \n\nMutation Testing: 0.0/1.0\n\nImpl Grading: 0.0/2.0\n\nSource Code:\n\nlet fib : Int -> Int = \n  fun n ->  \nin  \n\n",
+      "overall": [ 0.0, 4.0 ]
+    }
+  }
+]

@@ -398,7 +398,6 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
-  | Probe(p, _)
   | Asc(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -406,16 +405,14 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p)
-  | Probe(p, _) => bypass_parens_pat(p)
+  | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e)
-  | Probe(e, _) => bypass_parens_exp(e)
+  | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -509,6 +506,7 @@ let get_doc =
             editor,
             statics: CachedStatics.empty,
             dynamics: Dynamics.Map.empty,
+            context_menu: None,
           },
         );
       let example_view =
@@ -535,6 +533,27 @@ let get_doc =
   };
 
   switch (info) {
+  | Some(InfoMod({cls, _})) =>
+    switch (cls) {
+    | Mod(ModLet) => message_single(ModLetDecl.single)
+    | Mod(ModType) => message_single(ModTypeDecl.single)
+    | Mod(ModuleMod) => message_single(ModuleKeywordDecl.single)
+    | _ => simple("Module item")
+    }
+  | Some(InfoSig({cls, _})) =>
+    switch (cls) {
+    | Sig(SigLet) => message_single(SigLetDecl.single)
+    | Sig(SigType) => message_single(SigTypeDecl.single)
+    | _ => simple("Signature item")
+    }
+  | Some(InfoMPat(_)) => simple("Module name")
+  | Some(InfoExp({cls: Mod(ModLet), _})) =>
+    message_single(ModLetDecl.single)
+  | Some(InfoExp({cls: Mod(ModType), _})) =>
+    message_single(ModTypeDecl.single)
+  | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
+    message_single(ModuleKeywordDecl.single)
+  | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
             (term)
@@ -1142,9 +1161,9 @@ let get_doc =
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
-        | Probe(_)
         | Label(_)
         | ExplicitNonlabel
+        | Projector(_)
         | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1730,9 +1749,57 @@ let get_doc =
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
-        | Probe(_) => default // Shouldn't get hit?
+        | Projector(_)
         | Asc(_) => default // Shouldn't get hit?
         };
+      | Theorem(pat, thm, body) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let thm_id = List.nth(IdTagged.ids(thm), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=
+            TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(thm_id),
+                ),
+            ),
+          TheoremExp.tests,
+        );
+      | ProofObject(exp) =>
+        let typ_id = List.nth(IdTagged.ids(exp), 0);
+        get_message(
+          ~colorings=ProofObjectExp.proof_of_exp_coloring_ids(~typ_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(typ_id),
+                ),
+            ),
+          ProofObjectExp.proof_of_exps,
+        );
+      | Forall(pat, typ) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let body_id = List.nth(IdTagged.ids(typ), 0);
+        get_message(
+          ~colorings=ForallExp.forall_exp_coloring_ids(~pat_id, ~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          ForallExp.forall,
+        );
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
@@ -1932,8 +1999,7 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term)
-      | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | Parens(term) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
         let hint_id = List.nth(IdTagged.ids(hint), 0);
         let body_id = List.nth(IdTagged.ids(body), 0);
@@ -2136,6 +2202,9 @@ let get_doc =
             ),
           TerminalExp.ctr(v),
         )
+      | Module(_) => message_single(ModuleExp.single)
+      | ModuleExp(_) => message_single(ModuleKeywordExp.single)
+      | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
@@ -2398,7 +2467,7 @@ let get_doc =
       );
     | Invalid(_) => simple("Not a valid pattern")
     | Parens(_)
-    | Probe(_) =>
+    | Projector(_) =>
       // Shouldn't be hit?
       default
     }
@@ -2428,11 +2497,11 @@ let get_doc =
           ),
         ListTyp.list,
       );
-    | Forall(tpat, typ) =>
+    | Poly(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
       let tbody_id = List.nth(IdTagged.ids(typ), 0);
       get_message(
-        ~colorings=ForallTyp.forall_typ_coloring_ids(~tpat_id, ~tbody_id),
+        ~colorings=PolyTyp.poly_typ_coloring_ids(~tpat_id, ~tbody_id),
         ~format=
           Some(
             msg =>
@@ -2442,7 +2511,7 @@ let get_doc =
                 Id.to_string(tbody_id),
               ),
           ),
-        ForallTyp.forall,
+        PolyTyp.poly,
       );
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
@@ -2459,6 +2528,20 @@ let get_doc =
               ),
           ),
         RecTyp.rec_,
+      );
+    | ProofOf(exp) =>
+      let body_id = List.nth(IdTagged.ids(exp), 0);
+      get_message(
+        ~colorings=ProofOfTyp.proof_of_typ_coloring_ids(~body_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s"),
+                Id.to_string(body_id),
+              ),
+          ),
+        ProofOfTyp.proof_of,
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(IdTagged.ids(arg), 0);
@@ -2617,10 +2700,12 @@ let get_doc =
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | ProdProjection(_) => get_message(DotTyp.dot)
     | ExplicitNonlabel
-    | ProdProjection(_)
     | ProdExtension(_)
-    | Parens(_) => default // Shouldn't be hit?
+    | Parens(_)
+    | Sig(_) => message_single(SigTyp.single)
+    | Projector(_) => default
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
@@ -2641,7 +2726,7 @@ let get_doc =
     | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
     | Secondary(Comment) =>
       simple("Comments are ignored by systems but treasured by readers")
-    | _ => failwith("ExplainThis: Secondary Impossible")
+    | _ => simple("No documentation available")
     }
   | None => default
   };

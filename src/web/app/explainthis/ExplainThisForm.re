@@ -103,6 +103,10 @@ type example_id =
   | TupleExtension2
   | TupleExtension3
   | Let(let_examples)
+  | Theorem
+  | ProofOf
+  | Forall
+  | Yes
   | UseExp1
   | TypFunAp
   | FunAp
@@ -146,7 +150,15 @@ type example_id =
   | Undefined2
   | Asc1
   | Asc2
-  | Asc3;
+  | Asc3
+  | Module1
+  | ModLet1
+  | ModType1
+  | Sig1
+  | SigLet1
+  | SigType1
+  | ModuleKeyword1
+  | ModuleKeywordDecl1;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -205,6 +217,8 @@ type form_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | FixExp(pat_sub_form_id)
+  | TheoremExp
+  | ProofObjectExp
   | TypFunApExp
   | FunApExp
   | ConApExp
@@ -250,7 +264,7 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | ForallTyp
+  | PolyTyp
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
@@ -261,6 +275,8 @@ type form_id =
   | Tuple3Typ
   | DotTyp
   | Label
+  | ForallExp
+  | ProofOfTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -274,7 +290,15 @@ type form_id =
   | FilterHide
   | FilterSelector
   | AscExp
-  | TupleExtensionExp;
+  | TupleExtensionExp
+  | ModuleExp
+  | ModLetDecl
+  | ModTypeDecl
+  | SigTyp
+  | SigLetDecl
+  | SigTypeDecl
+  | ModuleKeywordExp
+  | ModuleKeywordDecl;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -314,6 +338,8 @@ type group_id =
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | TheoremExp
+  | ProofObjectExp
   | TypFunApExp
   | FixExp(pat_sub_form_id)
   | FunApExp
@@ -362,8 +388,10 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | ForallTyp
+  | PolyTyp
   | RecTyp
+  | ForallExp
+  | ProofOfTyp
   | ArrowTyp
   | Arrow3Typ
   | LabeledTyp
@@ -383,7 +411,15 @@ type group_id =
   | FilterEval
   | FilterDebug
   | FilterHide
-  | FilterSelector;
+  | FilterSelector
+  | ModuleExp
+  | ModLetDecl
+  | ModTypeDecl
+  | SigTyp
+  | SigLetDecl
+  | SigTypeDecl
+  | ModuleKeywordExp
+  | ModuleKeywordDecl;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {

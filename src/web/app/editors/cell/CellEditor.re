@@ -17,6 +17,7 @@ module Model = {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      context_menu: None,
     },
     result: EvalResult.Model.init,
   };
@@ -36,6 +37,7 @@ module Model = {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      context_menu: None,
     },
     result: EvalResult.Model.unpersist(result),
   };
@@ -68,7 +70,7 @@ module Update = {
         editor,
       };
     | ResultAction(action) =>
-      let* result =
+      let updated =
         EvalResult.Update.update(
           ~settings={
             ...settings,
@@ -80,9 +82,18 @@ module Update = {
           action,
           model.result,
         );
+      /* If the editor has pending_probe_cursor, force recalculation so
+         resolve_pending_probe_cursor can run with the new dynamics */
+      let needs_recalc =
+        model.editor.editor.state.zipper.refractors.pending_probe_cursor
+        != None;
       {
-        ...model,
-        result,
+        ...updated,
+        recalculate: updated.recalculate || needs_recalc,
+        model: {
+          ...model,
+          result: updated.model,
+        },
       };
     };
   };
@@ -90,21 +101,29 @@ module Update = {
   let calculate =
       (
         ~settings,
+        ~autoprobe_mode=false,
         ~is_edited,
+        ~statics_mode=CodeWithStatics.StaticsNormal,
         ~queue_worker,
         ~stitch,
         {editor, result}: Model.t,
       )
       : Model.t => {
+    /* First pass: calculate editor with current dynamics (may be stale) */
     let editor =
       CodeEditable.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
+        ~statics_mode,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
         ~is_dynamic_term=false,
         editor,
       );
+    /* Save probe results reference before result calculation */
+    let probes_before = EvalResult.Model.probe_results(result);
+    /* Calculate result (may produce new dynamics from worker) */
     let result =
       EvalResult.Update.calculate(
         ~settings={
@@ -116,6 +135,38 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
+    /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
+     * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
+    let probes_after = EvalResult.Model.probe_results(result);
+    let dynamics_changed =
+      switch (probes_before, probes_after) {
+      | (None, None) => false
+      | (Some(a), Some(b)) => a !== b
+      | _ => true
+      };
+    /* Second pass: if there's a pending focus, pending_probe_cursor waiting
+       for dynamics, or dynamics changed since the first pass */
+    let has_pending_focus =
+      editor.editor.state.zipper.refractors.sample_focus.pending_focus != None;
+    let has_pending_cursor =
+      editor.editor.state.zipper.refractors.pending_probe_cursor != None;
+    let needs_second_pass =
+      has_pending_focus || has_pending_cursor || dynamics_changed;
+    let editor =
+      if (needs_second_pass) {
+        /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
+        CodeEditable.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
+          ~stitch,
+          ~dynamics=EvalResult.Model.dynamics(result),
+          ~is_dynamic_term=false,
+          editor,
+        );
+      } else {
+        editor;
+      };
     {
       editor,
       result,
@@ -178,6 +229,7 @@ module View = {
         ~caption: option(Node.t)=?,
         ~result_kind=?,
         ~locked=false,
+        ~lines=false,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -228,6 +280,8 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
+          ~lines,
+          ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,
         ),
       ]

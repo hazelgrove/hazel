@@ -37,12 +37,8 @@ between the two without clearing your local storage (in browser dev tools).
 
 NOTE: This is only relevant to the EECS490 repo (which include the haz3lschool build target).
 
-1. Open the exercise in instructor mode and export a grading version (button in top bar) which generates an OCaml file.
+1. Update the `src/haz3lschool/Specs.re` module with `<module_name>.exercise`.
 
-2. Move the file to `src/haz3lschool/specs`.
+2. Run `make grade SUBMISSION=<path to submission json>` under project root to generate a grade report.
 
-3. Update the `src/haz3lschool/Specs.re` module with `<module_name>.exercise`.
-
-4. Run `dune exec ./src/haz3lschool/gradescope.exe <path_to_student_json>` under project root to print the grade report.
-
-To change the output format, adjust `Main.gen_grading_report` function in `Gradescope.re` .
+TODO: currently batch grading, export to gradescope, and autograder generation are have regressed. Next time 490 is taught, these can be added by consulting with commit b715dba2ce2949b7277a2d4de0451ccbea6a878c. 

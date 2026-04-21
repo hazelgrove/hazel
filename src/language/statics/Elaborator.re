@@ -142,22 +142,25 @@ let rec elaborate_pattern =
       let (p1', _) = elaborate_pattern(m, p1);
       let (p2', _) = elaborate_pattern(m, p2);
       Ap(p1', p2') |> rewrap;
+    | MultiHole([Pat(p1), ..._]) =>
+      /* Elaborate up to the multi-hole */
+      let (p1', _) = elaborate_pattern(m, p1);
+      p1';
+    | MultiHole(_)
     | Invalid(_)
     | EmptyHole
-    | MultiHole(_)
     | Wild => upat
     | Var(_) => upat
     // Type annotations should already appeard
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
-      p';
+      Parens(p') |> rewrap;
+    | Projector(data, p) =>
+      let (p', _) = elaborate_pattern(m, p);
+      Projector(data, p') |> rewrap;
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
-    | Probe(p, probe) =>
-      let (e', _) = elaborate_pattern(m, p);
-      let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
-      Probe(e', probe) |> rewrap;
     | Constructor(c, _) =>
       let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -209,11 +212,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
-      e';
-    | Probe(e, probe) =>
+      Parens(e') |> rewrap;
+    | Projector(data, e) =>
       let (e', _) = elaborate(m, e);
-      let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
-      Probe(e', probe) |> rewrap;
+      Projector(data, e') |> rewrap;
     | Deferral(_) => uexp
     | Atom(c) =>
       let c =
@@ -224,11 +226,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> List.split;
-      let joined_ty =
-        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
+      let meet_ty =
+        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
 
       let ds' =
-        List.map2((d, t) => fresh_ascription(d, t, joined_ty), ds, tys);
+        List.map2((d, t) => fresh_ascription(d, t, meet_ty), ds, tys);
       ListLit(ds') |> rewrap;
     | LivelitName(_) => uexp
     | Constructor(c, _) =>
@@ -237,16 +239,26 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | Some(Info.InfoExp({self, ty, _})) => (self, ty)
         | _ => raise(MissingTypeInfo)
         };
-      let t =
-        switch (self) {
-        | Common(FreeConstructor(_)) => Some(None)
-        | _ => Some(Some(Typ.normalize(ctx, ty)))
-        };
-      Constructor(c, t) |> rewrap;
+      /* If name is not a constructor but is a variable (e.g. capitalized
+         module name), elaborate to Var instead of Constructor */
+      switch (Ctx.lookup_ctr(ctx, c), Ctx.lookup_var(ctx, c)) {
+      | (None, Some(_)) => Var(c) |> rewrap
+      | _ =>
+        let t =
+          switch (self) {
+          | Common(FreeConstructor(_)) => Some(None)
+          | _ => Some(Some(Typ.normalize(ctx, ty)))
+          };
+        Constructor(c, t) |> rewrap;
+      };
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
       Fun(p', e', Some(typ), n) |> rewrap;
+    | Forall(p, e) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e', _) = elaborate(m, e);
+      Forall(p', e') |> rewrap;
     | TypFun(tpat, e, name) =>
       let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;
@@ -309,8 +321,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         };
       let is_recursive =
         Statics.is_recursive(ctx, p, def, ty1)
-        && Pat.get_bindings(p)
-        |> Option.get
+        && Pat.bound_vars(p)
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
         let (def, _) = elaborate(m, def);
@@ -327,10 +338,18 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap;
       };
+    | Theorem(p, e1, e2) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      Theorem(p', e1', e2') |> rewrap;
+    | ProofObject(e) =>
+      let (e', _) = elaborate(m, e);
+      ProofObject(e') |> rewrap;
     | FixF(p, e, env) =>
       let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
-      FixF(p', Asc(e', pty) |> rewrap, env) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
+      FixF(p', Asc(e', pty) |> Exp.fresh, env) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
     // These forms are removed in elaboration
     | Use(_, e)
     | TyAlias(_, _, e) =>
@@ -446,6 +465,63 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           es,
         );
       Match(e', List.combine(ps', es')) |> rewrap;
+    | Module(items) =>
+      /* Elaborate module by expanding to nested let/type + labeled tuple.
+         We elaborate each item's inner expressions and construct the expanded
+         form directly, preserving Mod item IDs on the wrapper expressions
+         for cursor inspector support. */
+      let elaborate_mod_item = (item: Mod.t, body: Exp.t): Exp.t => {
+        let item_id = Mod.rep_id(item);
+        switch (item.term) {
+        | ModLet(pat, def) =>
+          let (pat', _) = elaborate_pattern(m, pat, false);
+          let (def', _) = elaborate(m, def);
+          /* Preserve ModLet's ID on wrapper Let for cursor inspector */
+          IdTagged.fast_copy(item_id, Exp.fresh(Let(pat', def', body)));
+        | ModType(tpat, typ) =>
+          /* Type aliases don't need elaboration of their type */
+          IdTagged.fast_copy(
+            item_id,
+            Exp.fresh(TyAlias(tpat, Typ.normalize(ctx, typ), body)),
+          )
+        | ModExp(e) =>
+          /* Bare expression: fresh ID since ModExp is synthetic.
+             The inner expression e keeps its original IDs. */
+          let (e', _) = elaborate(m, e);
+          let wild_pat = Pat.fresh(Wild);
+          Exp.fresh(Let(wild_pat, e', body));
+        | ModuleMod(mp, def) =>
+          let pat = ExpandModule.mpat_to_pat(mp);
+          let (def', _) = elaborate(m, def);
+          IdTagged.fast_copy(item_id, Exp.fresh(Let(pat, def', body)));
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) =>
+          /* Error cases - skip the item */
+          body
+        };
+      };
+
+      /* Build the labeled tuple body. In statics, build_labeled_tuple uses a
+         fresh ID to avoid colliding with the Module's InfoExp entry. Here in
+         the elaborator we use the Module's ID so the evaluator records samples
+         under the Module's ID, enabling probes on module expressions. */
+      let non_shadowed = ExpandModule.compute_non_shadowed_bindings(items);
+      let tuple_body =
+        IdTagged.fast_copy(
+          Exp.rep_id(uexp),
+          ExpandModule.build_labeled_tuple(non_shadowed),
+        );
+
+      /* Wrap with elaborated items from bottom to top */
+      List.fold_right(elaborate_mod_item, items, tuple_body);
+    | ModuleExp(mp, def, body) =>
+      /* ModuleExp is expanded to Let during statics; elaborate as Let */
+      let pat = ExpandModule.mpat_to_pat(mp);
+      let (pat', _) = elaborate_pattern(m, pat, false);
+      let (def', _) = elaborate(m, def);
+      let (body', _) = elaborate(m, body);
+      Let(pat', def', body') |> rewrap;
     };
   (dhexp, elaborated_type);
 };

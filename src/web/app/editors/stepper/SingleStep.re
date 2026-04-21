@@ -14,7 +14,6 @@ type model'('stepper) = {
   // Calculated
   evalobj: Calc.saved(EvaluatorStep.step),
   next_exp: Calc.saved(Exp.t),
-  next_state: Calc.saved(EvaluatorState.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -61,7 +60,6 @@ module F =
       persistent_evalobj: p,
       evalobj: Calc.Pending,
       next_exp: Calc.Pending,
-      next_state: Calc.Pending,
     };
   };
 
@@ -77,24 +75,25 @@ module F =
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx as _: Calc.t(Ctx.t),
-        ~state: Calc.t(EvaluatorState.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~info_map as _,
+        ~ana as _,
         model: model,
       ) => {
-    let {persistent_evalobj, evalobj, next_exp, next_state} = model;
+    let {persistent_evalobj, evalobj, next_exp} = model;
     let* hidden_and_eo =
-      Calc.pair_saved(hidden, evalobj)
+      Calc.saved_pair((hidden, evalobj))
       |> Calc.map_saved(Option.some)
       |> {
         let.calc settings = settings
         and.calc exp = exp
-        and.calc state = state;
+        and.calc ctx = ctx;
         let+ (filter_action, eo) =
           EvaluatorStep.refresh_step(
             ~settings,
             exp,
-            state,
+            SemanticCtx.get_env(ctx),
             persistent_evalobj,
           );
         let hidden =
@@ -106,24 +105,23 @@ module F =
       }
       |> Calc.to_option;
     let (hidden, evalobj) = Calc.to_pair(hidden_and_eo);
-    let+ next_exp_and_state =
-      Calc.pair_saved(next_exp, next_state)
+    let+ next_exp =
+      next_exp
       |> Calc.map_saved(Option.some)
       |> {
         let.calc evalobj = evalobj;
         EvaluatorStep.take_step(evalobj);
       }
       |> Calc.to_option;
-    let (next_exp, next_state) = Calc.to_pair(next_exp_and_state);
     (
       {
         persistent_evalobj,
         evalobj: evalobj |> Calc.save,
         next_exp: next_exp |> Calc.save,
-        next_state: next_state |> Calc.save,
       },
       hidden,
-      Some((next_exp, next_state)),
+      Some(next_exp),
+      Calc.OldValue(Some(true)),
     );
   };
 

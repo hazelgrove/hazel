@@ -6,8 +6,8 @@ open OptUtil.Syntax;
  * that expansion should happen in. This is rightwards for leading
  * expanding delimiters, leftwards for trailing delimiters. This
  * is mostly a wrapper around Form.Expansion; the additional logic
- * hers handles one special case of sort-dependendent expansion  */
-let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
+ * here handles special cases of context-dependent expansion. */
+let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   let before_case_shard = (z: t): bool =>
     List.exists(
       (p: Piece.t) =>
@@ -26,10 +26,54 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
   | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
     /* Special case for constructing string/label literals. */
     ([t ++ t], Left)
-  | "|" when !(before_case_shard(z) || inside_case(z)) =>
-    /* Only expand case rules when inside a case */
+  | "|" when before_case_shard(z) || inside_case(z) =>
+    /* SPECIAL CASE: Case rule delimiter.
+       Inside a case, always expand | to Rule form regardless of local sort.
+
+       Why this is needed: The Rule form's left nib is Exp (it expects an
+       expression). But rule bodies can have type ascriptions like `expr : Type`,
+       which means Relatives.sort returns Typ even though semantically we have
+       an expression. Sort-specific expansion would fail to find | for Typ.
+
+       This bypasses Form.Expansion.get entirely for | inside case expressions,
+       hardcoding the Rule form label. A more principled fix might register |
+       for multiple sorts (Exp, Typ, etc.) in Form.Expansion. */
+    (["|", "=>"], Left)
+  | "|" =>
+    /* Outside case: | has no meaning, don't expand */
     ([t], Left)
-  | _ => Form.Expansion.get(t)
+  | _ => Form.Expansion.get(sort, t)
+  };
+};
+
+/* Determine the effective sort for insertion, considering both local and parent sorts.
+   Default: local-first (try local sort, fall back to parent).
+   Special cases:
+   - Semicolon with Mod parent prefers Mod (for ModSeq over CellJoin)
+   - Mod context falls back to Exp since bare expressions are valid module items */
+let effective_sort = (t: Token.t, z: t): Sort.t => {
+  let local_sort = Relatives.sort(z.relatives);
+  let parent_sort = Ancestors.sort(z.relatives.ancestors);
+
+  /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
+  if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
+    parent_sort;
+  } else {
+    /* Default: local-first with parent fallback */
+    switch (Form.Expansion.try_get(local_sort, t)) {
+    | Some(_) => local_sort
+    | None =>
+      /* In Mod context, try Exp since bare expressions are valid module items.
+         This mirrors remold_mod which also falls back to Exp. */
+      if (local_sort == Sort.Mod) {
+        switch (Form.Expansion.try_get(Exp, t)) {
+        | Some(_) => Exp
+        | None => parent_sort
+        };
+      } else {
+        parent_sort;
+      }
+    };
   };
 };
 
@@ -42,10 +86,9 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
     let target = Zipper.backpack_find(t, z) |> Option.get;
     Zipper.put_down_target(d, target, z);
   } else {
-    let (label, delim_d) = expansion(t, z);
-    let molds = Form.Molds.get(label);
-    assert(molds != []);
-    let mold = List.hd(molds);
+    let sort = effective_sort(t, z);
+    let (label, delim_d) = expansion(sort, t, z);
+    let mold = Form.Molds.get(sort, label);
     let shard =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);
@@ -89,6 +132,18 @@ let parens_edge_case = (char: string, z: t): bool =>
   | _ => false
   };
 
+/* Check if the RIGHT sibling (without disassembly) is a complete
+ * multi-shard tile. Only block rightward merges (where a new token
+ * would steal the leading delimiter of the complete tile and cause
+ * shard theft during rescan). Leftward merges (extending the trailing
+ * delimiter) are legitimate editing (e.g., typing after `in` to
+ * make `inner`). */
+let has_complete_multishard_right_sibling = (z: t): bool =>
+  switch (Siblings.neighbor(Right, z.relatives.siblings)) {
+  | Some(Tile(t)) => Tile.is_complete(t) && List.length(t.label) > 1
+  | _ => false
+  };
+
 /* Decide which if any sibling we can append `char` to.
  * We bias towards the left sibling */
 let sibling_appendability = (char: string, z: t): appendability =>
@@ -101,7 +156,8 @@ let sibling_appendability = (char: string, z: t): appendability =>
   | (_, Some(t))
       when
         Token.is_potential_token(Token.append(char, t))
-        && !parens_edge_case(char, z) =>
+        && !parens_edge_case(char, z)
+        && !has_complete_multishard_right_sibling(z) =>
     Some((Right, Token.append(char, t)))
   | _ => None
   };
@@ -126,15 +182,15 @@ let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
   | _ => (Id.mk(), z)
   };
 
-/* Figure out if we should avoid inserting a space
- * because grout is due to be inserted instead,
- *  e.g. when splitting `[|]` or `(|)` */
-let should_supress_space = (z: t): bool =>
+/* Check if regrout would insert a grout to our left.
+ * Returns the grout so we can insert it ourselves and
+ * track its ID for later space redemption. */
+let grout_for_suppressed_space = (z: t): option(Grout.t) =>
   switch (
     Siblings.neighbor(Left, remold_regrout(Right, z).relatives.siblings)
   ) {
-  | None => false
-  | Some(p) => Piece.is_grout(p)
+  | Some(Grout(g)) => Some(g)
+  | _ => None
   };
 
 /* This is special-case logic for advancing the caret to between
@@ -151,7 +207,7 @@ let move_into_string_or_comment = (char: string, z: t): t =>
 /* Split creates three tokens; two from splitting the existing one,
  * and a new single-character token (or grout) in the middle. */
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
-  let (l, r) = Token.split_nth(idx, t);
+  let (l, r) = Token.split_nth(t, idx);
   let id = Zipper.adjacent_monotile_or_new_id(Right, z);
   let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   let z =
@@ -167,20 +223,29 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
         |> insert_shard(~id, ~d=Left, l)
         |> insert_shard(~id=Id.mk(), ~d=Right, r);
   let z =
-    Token.space == char && should_supress_space(z)
-      ? z
-      : z
-        |> insert_shard(~id=Id.mk(), ~d=Left, char)
-        |> move_into_string_or_comment(char);
+    switch (Token.space == char ? grout_for_suppressed_space(z) : None) {
+    | Some(g) =>
+      Grout.mark_space_owed(g.id);
+      Zipper.put_down_seg(Left, [Grout(g)], z);
+    | None =>
+      z
+      |> insert_shard(~id=Id.mk(), ~d=Left, char)
+      |> move_into_string_or_comment(char)
+    };
   remold_regrout(Right, z);
 };
 
 /* If the caret is precisely between two tokens, which
- * can become a valid token if merged, merge those tokens */
+ * can become a valid token if merged, merge those tokens.
+ * Guarded against merging with a complete multi-shard right
+ * sibling to prevent disassembly and shard theft. */
 let will_merge = (z: t): option((Token.t, Token.t)) =>
   switch (Zipper.neighbor_tokens(z)) {
   | (Some(l), Some(r))
-      when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
+      when
+        Token.is_potential_token(Token.append(l, r))
+        && z.caret == Outer
+        && !has_complete_multishard_right_sibling(z) =>
     Some((l, r))
   | _ => None
   };
@@ -222,6 +287,11 @@ let insert_or_append = (char: string, z: t): option(t) => {
     switch (sibling_appendability(char, z)) {
     | None =>
       let (id, z) = preserve_grout_id(char, z);
+      let z =
+        switch (Grout.redeem_space(id)) {
+        | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
+        | None => z
+        };
       Some(insert_shard(~id, ~d=Left, char, z));
     | Some((d, t)) => replace_shard(d, t, z)
     };
@@ -233,45 +303,199 @@ let insert_or_append = (char: string, z: t): option(t) => {
   adjust_caret_pos(~z_final, ~z_init);
 };
 
-let go = (char: string, z: t): option(t) => {
-  /* If there's a selection, delete it before proceeding */
-  let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
-  switch (z.caret, neighbor_tokens(z)) {
-  /* If we try to insert a quote inside an existing string, or a #
-   * in a comment, we are instead moved to the righthand side of
-   * the operand. Note that this behavior is load-bearing for the
-   * current parsing approach including Paste */
-  | (_, (_, Some(t))) when Token.closing_stringlit_or_comment(char, t) =>
-    z |> Caret.set(Outer) |> Zipper.move(Right)
-  | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
-    Some(z)
-  | (Inner(idx), (_, Some(t))) =>
-    let idx = idx + 1;
-    let new_token = Token.insert_nth(idx, char, t);
-    let z = Caret.set(Inner(idx), z);
-    Token.is_potential_token(new_token)
-      ? z
-        |> replace_shard(Right, new_token)
-        |> Option.map(remold_regrout(Right))
-      : split(z, char, idx, t);
-  | (Inner(_), (_, None)) => None
-  | (Outer, _) =>
-    let z =
-      Caret.set(
-        switch (sibling_appendability(char, z)) {
-        | Some((Right, _)) => Inner(0)
-        | None
-        | Some((Left, _)) => Outer
-        },
-        z,
-      );
-    insert_or_append(char, z);
+/* === SELECTION WRAPPING ===
+ * When the user types an opening delimiter with an active selection,
+ * wrap the selection in that delimiter rather than replacing it.
+ * Balanced delimiters (parens, brackets, braces) create a wrapping
+ * tile with the selection as child. Quote delimiters (double-quote,
+ * backtick, hash) serialize the selection to text and create a
+ * token or secondary piece. */
+
+let is_opening_delimiter = (char: string): bool =>
+  char == "(" || char == "[" || char == "{";
+
+let delimiter_label = (char: string): Label.t =>
+  switch (char) {
+  | "(" => ["(", ")"]
+  | "[" => ["[", "]"]
+  | "{" => ["{", "}"]
+  | _ => failwith("not a delimiter: " ++ char)
+  };
+
+/* Wrap selection in balanced delimiters. Creates the wrapping tile
+ * as an ancestor with the content inside, retaining the selection. */
+let wrap_balanced = (~deep_reassociate=false, char: string, z: t): t => {
+  let content = z.selection.content;
+  let sort = Relatives.sort(z.relatives);
+  let (left_sibs, right_sibs) = z.relatives.siblings;
+  let label = delimiter_label(char);
+  let mold = Form.Molds.get(sort, label);
+  let ancestor: Ancestor.t = {
+    id: Id.mk(),
+    label,
+    mold,
+    shards: ([0], [1]),
+    children: ([], []),
+  };
+  /* Re-ID incomplete shards in the content whose counterparts remain
+   * in the outer siblings. Wrapping places these at different nesting
+   * levels, and shared IDs would cause MakeTerm to create duplicate
+   * terms, leading to infinite recursion in the elaborator. */
+  let outer_ids =
+    Segment.incomplete_tiles(left_sibs @ right_sibs)
+    |> List.map((t: Tile.t) => t.id);
+  let content =
+    List.map(
+      fun
+      | Piece.Tile(t) when !Tile.is_complete(t) && List.mem(t.id, outer_ids) =>
+        Piece.Tile({
+          ...t,
+          id: Id.mk(),
+        })
+      | p => p,
+      content,
+    );
+  /* Place content as right siblings inside the new ancestor,
+   * remold/regrout with empty selection, then re-select */
+  let z = {
+    ...z,
+    caret: Outer,
+    selection: Selection.empty,
+    relatives: {
+      siblings: ([], content),
+      ancestors: [
+        (ancestor, (left_sibs, right_sibs)),
+        ...z.relatives.ancestors,
+      ],
+    },
+  };
+  let z = remold_regrout(Right, z);
+  let z = deep_reassociate ? Reassociate.go(z) : z;
+  let right = snd(z.relatives.siblings);
+  {
+    ...z,
+    selection: Selection.mk(~focus=Right, right),
+    relatives: {
+      ...z.relatives,
+      siblings: (fst(z.relatives.siblings), []),
+    },
   };
 };
 
+/* Get the text of a segment for quote wrapping validation */
+let segment_text = (content: Segment.t): string =>
+  Segment.to_string(
+    ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
+    ~projector_to_segment=Triggers.projector_to_invoke,
+    content,
+  );
+
+/* Check if text is valid for wrapping in the given delimiter.
+ * Rejects text containing the delimiter char or newlines. */
+let is_valid_quote_content = (delim: string, text: string): bool =>
+  !String.contains(text, '\n') && !String.contains(text, delim.[0]);
+
+/* Wrap selection in a quote delimiter (string, label, or comment).
+ * Returns None if the text contains invalid characters, causing
+ * fallthrough to normal insert behavior (selection replacement). */
+let wrap_quote = (char: string, z: t): option(t) => {
+  let content = z.selection.content;
+  let text = segment_text(content);
+  if (!is_valid_quote_content(char, text)) {
+    None;
+  } else {
+    let z = destroy_selection(z);
+    if (Token.is_comment_delim(char)) {
+      let comment = "#" ++ text ++ "#";
+      let piece = Piece.mk_secondary(Id.mk(), comment);
+      Some(Zipper.insert_segment(z, [piece]));
+    } else {
+      let token = char ++ text ++ char;
+      let sort = Relatives.sort(z.relatives);
+      let mold = Form.Molds.get(sort, [token]);
+      let tile: Piece.t =
+        Tile({
+          id: Id.mk(),
+          label: [token],
+          mold,
+          shards: [0],
+          children: [],
+        });
+      Some(Zipper.insert_segment(z, [tile]));
+    };
+  };
+};
+
+/* Try to wrap selection in a delimiter. Returns Some if wrapping
+ * occurred, None to fall through to normal insert behavior. */
+let try_wrap_selection =
+    (~deep_reassociate=false, char: string, z: t): option(t) =>
+  if (is_opening_delimiter(char)) {
+    Some(wrap_balanced(~deep_reassociate, char, z));
+  } else if (Token.is_string_or_comment_delim(char)) {
+    wrap_quote(char, z);
+  } else {
+    None;
+  };
+
+let go = (~deep_reassociate=false, char: string, z: t): option(t) => {
+  /* If there's a selection, try wrapping before falling through */
+  switch (
+    z.selection.content != []
+      ? try_wrap_selection(~deep_reassociate, char, z) : None
+  ) {
+  | Some(z) => Some(z)
+  | None =>
+    /* Normal path: delete selection (if any) before proceeding */
+    let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
+    switch (z.caret, neighbor_tokens(z)) {
+    /* If we try to insert a quote inside an existing string, or a #
+     * in a comment, we are instead moved to the righthand side of
+     * the operand. Note that this behavior is load-bearing for the
+     * current parsing approach including Paste */
+    | (_, (_, Some(t))) when Token.closing_stringlit_or_comment(char, t) =>
+      z |> Caret.set(Outer) |> Zipper.move(Right)
+    | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
+      Some(z)
+    | (Inner(idx), (_, Some(t))) =>
+      let idx = idx + 1;
+      let new_token = Token.insert_nth(idx, char, t);
+      let z = Caret.set(Inner(idx), z);
+      Token.is_potential_token(new_token)
+        ? z
+          |> replace_shard(Right, new_token)
+          |> Option.map(remold_regrout(Right))
+        : split(z, char, idx, t);
+    | (Inner(_), (_, None)) => None
+    | (Outer, _) =>
+      let z =
+        Caret.set(
+          switch (sibling_appendability(char, z)) {
+          | Some((Right, _)) => Inner(0)
+          | None
+          | Some((Left, _)) => Outer
+          },
+          z,
+        );
+      insert_or_append(char, z);
+    };
+  };
+};
+
+/* Expose the inner go for profiling */
+let go_inner = go;
+
 /* This is a wrapper intended to effectuate after-insertion conditional
  * operations. See Triggers.re for more details */
-let go = (~ci: option(Language.Info.t)=None, char: string, z: t): option(t) => {
-  let+ z = go(char, z);
-  Triggers.insert(~ci, z);
+let go =
+    (
+      ~deep_reassociate=false,
+      ~ci: option(Language.Info.t)=None,
+      char: string,
+      z: t,
+    )
+    : option(t) => {
+  let+ z = go(~deep_reassociate, char, z);
+  let z = Triggers.insert(~ci, z);
+  Zipper.rescan_reassemble(Left, z);
 };

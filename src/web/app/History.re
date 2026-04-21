@@ -1,5 +1,7 @@
 open Util;
 
+let capped_undo_stack_size = 250;
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = Page.Model.t;
@@ -13,8 +15,14 @@ module Model = {
 
   let equal = (===);
 
-  let init = () => {
+  let load = () => {
     current: Page.Store.load(),
+    undo_stack: [],
+    redo_stack: [],
+  };
+
+  let reset = (~font_metrics=?, ()) => {
+    current: Page.Model.reset(~font_metrics?, ()),
     undo_stack: [],
     redo_stack: [],
   };
@@ -41,7 +49,7 @@ module Update = {
       switch (model.undo_stack) {
       | [] =>
         print_endline("Cannot undo");
-        model |> return_quiet;
+        model |> Updated.raise_invalid_action;
       | [x, ...rest] => {
           ...x,
           model: {
@@ -61,7 +69,7 @@ module Update = {
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
-        model |> return_quiet;
+        model |> Updated.raise_invalid_action;
       | [x, ...rest] => {
           ...x,
           model: {
@@ -86,19 +94,25 @@ module Update = {
           action,
           model.current,
         );
-      let _ = Log.update(action, current);
       if (Page.Update.can_undo(action)) {
+        let new_stack = [
+          {
+            ...current,
+            model: model.current,
+          },
+          ...model.undo_stack,
+        ];
+        let undo_stack =
+          if (model.current.globals.settings.cap_undo_stack) {
+            List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
+          } else {
+            new_stack;
+          };
         {
           ...current,
           model: {
             current: current.model,
-            undo_stack: [
-              {
-                ...current,
-                model: model.current,
-              },
-              ...model.undo_stack,
-            ],
+            undo_stack,
             redo_stack: [],
           },
         };

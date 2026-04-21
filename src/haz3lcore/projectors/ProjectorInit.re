@@ -7,7 +7,7 @@ open ProjectorBase;
 let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   switch (kind) {
   | Fold => (module Cook(FoldProj.M))
-  | Info => (module Cook(TypeProj.M))
+  | Statics => (module Cook(TypeProj.M))
   | Probe => (module Cook(ProbeProj.M))
   | Slider => (module Cook(SliderProj.M))
   | SliderF => (module Cook(SliderFProj.M))
@@ -15,6 +15,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | TextArea => (module Cook(TextAreaProj.M))
   | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
+  | Csv => (module Cook(CSVProjector.M))
   };
 
 let init =
@@ -38,7 +39,7 @@ let init_or_noop_from_str =
     (
       kind: ProjectorCore.Kind.t,
       syntax: syntax,
-      any: Language.Term.Any.t,
+      any: Language.Any.t,
       model_str: string,
     )
     : syntax => {
