@@ -1,8 +1,10 @@
 open Util;
+open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type data = {
-  range: (int, int),
+  skel: Skel.t,
+  sort: Sort.t,
   base_seg: Segment.t,
   root_piece: Piece.t,
 };
@@ -10,27 +12,114 @@ type data = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Id.Map.t(data);
 
-let mk = (p: Piece.t, skel: Skel.t, seg: Segment.t): data => {
-  range: Skel.range(skel),
-  base_seg: seg,
+let empty: t = Id.Map.empty;
+
+let mk = (p: Piece.t, sort: Sort.t, skel: Skel.t, base_seg: Segment.t): data => {
+  skel,
+  sort,
+  base_seg,
   root_piece: p,
 };
 
-let extremes = (id: Id.t, data: t) => {
-  let {range: (l, r), base_seg, _} = Id.Map.find(id, data);
-  try((List.nth(base_seg, l), List.nth(base_seg, r))) {
-  | Not_found => failwith("TermData: Invalid range")
-  };
-};
-
-let root_tile = (id: Id.t, data: t): Tile.t =>
-  switch (Id.Map.find(id, data)) {
-  | {root_piece: Tile(t), _} => t
-  | _ => failwith("TermData: root_tile: invalid data")
-  };
-
-let root_tile_opt = (id: Id.t, data: t): option(Tile.t) =>
-  switch (Id.Map.find(id, data)) {
-  | {root_piece: Tile(t), _} => Some(t)
+let root_tile = (id: Id.t, data: t): option(Tile.t) =>
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({root_piece: Tile(t), _}) => Some(t)
   | _ => None
   };
+
+let sort = (id: Id.t, data: t): Sort.t =>
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({sort, _}) => sort
+  | None => Any
+  };
+
+let extremes_opt = (id: Id.t, data: t) =>
+  /* This currently fails for singleton labelled tuples due
+     to their maketerm hack, otherwise the extreme functions
+     could be failwiths instead of options */
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({skel, base_seg, _}) =>
+    let (l, r) = Skel.range(skel);
+    switch (List.nth(base_seg, l), List.nth(base_seg, r)) {
+    | exception _ => None
+    | (l, r) => Some((l, r))
+    };
+  | None => None
+  };
+
+let extremes_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
+  switch (extremes_opt(id, data)) {
+  | Some((l, r)) => Some((Piece.l_shard_of(l), Piece.r_shard_of(r)))
+  | None => None
+  };
+
+let root_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({root_piece, _}) =>
+    Some((Piece.l_shard_of(root_piece), Piece.r_shard_of(root_piece)))
+  | _ => None
+  };
+
+let extreme_ids = (id: Id.t, data: t): option((Id.t, Id.t)) =>
+  switch (extremes_opt(id, data)) {
+  | Some((l, r)) => Some((Piece.id(l), Piece.id(r)))
+  | None => None
+  };
+
+let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
+  switch (extremes_opt(id, data)) {
+  | Some((l, r)) =>
+    switch (
+      Measured.find_p(l, measured).origin,
+      Measured.find_p(r, measured).last,
+    ) {
+    | exception _ => None
+    | (l, r) => Some((l, r))
+    }
+  | None => None
+  };
+
+/* The segment corresponding to the `id` term */
+let segment = (id: Id.t, data: t): option(Segment.t) => {
+  let+ {base_seg, skel, _} = Id.Map.find_opt(id, data);
+  let (l, r) = Skel.range(skel);
+  ListUtil.sublist((l, r + 1), base_seg);
+};
+
+let get_term_rows =
+    (id: Id.t, data: t, measured: Measured.t)
+    : option((int, list(Segment.t))) => {
+  let+ (start, final) = extreme_measures(id, data, measured);
+  let term_rows =
+    measured.piece_rows
+    |> List.rev
+    |> Util.ListUtil.sublist((start.row, final.row + 1))
+    |> List.map(List.rev);
+  (start.row, term_rows);
+};
+
+let get_root_id_using_ranges =
+    (s: Base.segment, data: t, measured: Measured.t): option(Id.t) => {
+  let id_and_ranges =
+    s
+    |> List.filter_map((p: Piece.t) => {
+         let id = Piece.id(p);
+         let range_opt = extreme_measures(id, data, measured);
+         Option.map(r => (id, r), range_opt);
+       });
+  ListUtil.max(
+    ((_, (start1, end1)), (_, (start2, end2))) =>
+      switch (Point.comp(start1, start2)) {
+      | Under => Direction.Left
+      | Over => Direction.Right
+      | Exact =>
+        switch (Point.comp(end1, end2)) {
+        | Under => Direction.Right
+        | Over => Direction.Left
+        | Exact => Direction.Right
+        }
+      },
+    id_and_ranges,
+  )
+  |> Option.map(fst);
+};

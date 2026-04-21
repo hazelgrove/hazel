@@ -52,9 +52,25 @@ let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
   );
 };
 
-/* Note: this currently shadows in the case of duplicates */
+/* Merge co-contexts, combining entry lists for the same variable name. */
 let union: list(t) => t =
-  List.fold_left((co_ctx1, co_ctx2) => co_ctx1 @ co_ctx2, []);
+  co_ctxs => {
+    List.fold_left(
+      (acc, co_ctx) =>
+        List.fold_left(
+          (acc, (name, entries)) =>
+            if (VarMap.contains(acc, name)) {
+              VarMap.update(acc, name, existing => existing @ entries);
+            } else {
+              VarMap.extend(acc, (name, entries));
+            },
+          acc,
+          co_ctx,
+        ),
+      VarMap.empty,
+      co_ctxs,
+    );
+  };
 
 let singleton = (name, id, expected_ty): t => [
   (
@@ -68,16 +84,19 @@ let singleton = (name, id, expected_ty): t => [
   ),
 ];
 
-let join: (Ctx.t, list(entry)) => Typ.t =
+let meet: (Ctx.t, list(entry)) => Typ.t =
   (ctx, entries) => {
     let expected_tys = List.map(entry => entry.expected_ty, entries);
     switch (
-      Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, expected_tys)
+      Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, expected_tys)
     ) {
     | None => Unknown(Internal) |> Typ.fresh
     | Some(ty) => ty
     };
   };
+
+let contains_hole = (co_ctx: t): bool =>
+  VarMap.lookup(co_ctx, "$hole") !== None;
 
 let has_any = (co_ctx: t, vs: list(Var.t)): bool => {
   List.exists(v => VarMap.contains(co_ctx, v), vs);

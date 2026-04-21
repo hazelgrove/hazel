@@ -18,28 +18,10 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
+    refractors: Refractor.init,
   };
 
 let next_blank = _ => Id.mk();
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type chunkiness =
-  | ByChar
-  | ByToken;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type planar =
-  | Up
-  | Down
-  | Left(chunkiness)
-  | Right(chunkiness);
-
-let from_plane: planar => Direction.t =
-  fun
-  | Left(_) => Left
-  | Right(_) => Right
-  | Up => Left
-  | Down => Right;
 
 let delete_parent = (z: t): t => {
   ...z,
@@ -49,13 +31,18 @@ let delete_parent = (z: t): t => {
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
-let unzip = (seg: Segment.t): t => {
+let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   selection: Selection.mk([]),
   relatives: {
-    siblings: (seg, []),
+    siblings:
+      switch (direction) {
+      | Right => (seg, [])
+      | Left => ([], seg)
+      },
     ancestors: [],
   },
   caret: Outer,
+  refractors: Refractor.init,
 };
 
 let regrout = (d: Direction.t, z: t): t => {
@@ -76,6 +63,193 @@ let remold = (z: t): t => {
 };
 
 let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+
+/* Rescan siblings for label-based shard conversion, then
+ * reassemble + remold + regrout. This handles the case where
+ * a standalone monotile should retroactively become a shard
+ * of an incomplete tile (e.g. standalone `->` matching `fun`).
+ * Should be called after edits, not during cursor movement. */
+/* Rescan ancestor-level siblings: converts standalone monotiles that
+ * match a parent ancestor's missing shards, giving them the parent's
+ * ID, then absorbs them into the parent via reassemble_parent-style
+ * logic. This handles delimiters (e.g. =) re-inserted via paste with
+ * fresh IDs that don't match their ancestor tile. */
+let rescan_parent_shards = (z: t): t => {
+  /* For each ancestor, compute its missing shards as (token, index) pairs */
+  let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
+    let all_shards = fst(a.shards) @ snd(a.shards);
+    List.init(List.length(a.label), Fun.id)
+    |> List.filter(i => !List.mem(i, all_shards))
+    |> List.map(i => (List.nth(a.label, i), i));
+  };
+
+  let convert_piece =
+      (a: Ancestor.t, missing: list((string, int)), p: Piece.t): Piece.t =>
+    switch (p) {
+    | Tile(t) when List.length(t.shards) == 1 && t.id != a.Ancestor.id =>
+      let tok = List.hd(Tile.effective_label(t));
+      switch (List.assoc_opt(tok, missing)) {
+      | Some(idx) =>
+        Tile({
+          ...t,
+          id: a.Ancestor.id,
+          label: a.Ancestor.label,
+          mold: a.Ancestor.mold,
+          shards: [idx],
+        })
+      | None => p
+      };
+    | _ => p
+    };
+
+  /* Try converting sibs against target ancestor's missing shards.
+   * If conversion happens, absorb converted shards into the target
+   * ancestor using reassemble_parent-style logic. Returns updated
+   * (sibs, target) or None if no conversion happened. */
+  let try_absorb =
+      (sibs: Siblings.t, target: Ancestor.t)
+      : option((Siblings.t, Ancestor.t)) => {
+    let missing = ancestor_missing(target);
+    if (missing == []) {
+      None;
+    } else {
+      let convert = convert_piece(target, missing);
+      let (l, r) = sibs;
+      let new_sibs = (List.map(convert, l), List.map(convert, r));
+      if (new_sibs == sibs) {
+        None;
+      } else {
+        /* Absorb converted shards into target using split_by_matching */
+        let flatten_match =
+          Aba.fold_right(
+            (t: Tile.t, kid, (shards, kids)) =>
+              Aba.mk(t.shards @ shards, t.children @ [kid, ...kids]),
+            (t: Tile.t) => Aba.mk(t.shards, t.children),
+          );
+        let (l_match, r_match) =
+          new_sibs
+          |> Siblings.split_by_matching(target.Ancestor.id)
+          |> TupleUtil.map2(Aba.trim);
+        let (target, new_l) =
+          switch (l_match) {
+          | None => (target, fst(new_sibs))
+          | Some((outer_l, match_l, inner_l)) =>
+            let (shards_l, kids_l) = flatten_match(match_l);
+            let target = {
+              ...target,
+              shards: target.shards |> PairUtil.map_fst(ss => ss @ shards_l),
+              children:
+                target.children
+                |> PairUtil.map_fst(kids =>
+                     Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+                   ),
+            };
+            (target, inner_l);
+          };
+        let (target, new_r) =
+          switch (r_match) {
+          | None => (target, snd(new_sibs))
+          | Some((inner_r, match_r, outer_r)) =>
+            let (shards_r, kids_r) = flatten_match(match_r);
+            let target = {
+              ...target,
+              shards: target.shards |> PairUtil.map_snd(ss => shards_r @ ss),
+              children:
+                target.children
+                |> PairUtil.map_snd(kids =>
+                     Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+                   ),
+            };
+            (target, inner_r);
+          };
+        Some(((new_l, new_r), target));
+      };
+    };
+  };
+
+  /* Walk ancestor chain. For each (inner, sibs), try to absorb
+   * converted shards from `sibs` into the parent ancestor.
+   * Also try direct siblings against the immediate ancestor. */
+  let rec go = (ancestors: Ancestors.t): Ancestors.t =>
+    switch (ancestors) {
+    | [] => []
+    | [(a, sibs)] => [(a, sibs)]
+    | [(a, sibs), (parent, parent_sibs), ...rest] =>
+      let rest = go([(parent, parent_sibs), ...rest]);
+      switch (rest) {
+      | [] => [(a, sibs)]
+      | [(parent, parent_sibs), ...rest_tail] =>
+        switch (try_absorb(sibs, parent)) {
+        | None => [(a, sibs), (parent, parent_sibs), ...rest_tail]
+        | Some((new_sibs, new_parent)) => [
+            (a, new_sibs),
+            (new_parent, parent_sibs),
+            ...rest_tail,
+          ]
+        }
+      };
+    };
+
+  let ancestors = go(z.relatives.ancestors);
+  let (siblings, ancestors) =
+    switch (ancestors) {
+    | [] => (z.relatives.siblings, ancestors)
+    | [(a, a_sibs), ...rest] =>
+      switch (try_absorb(z.relatives.siblings, a)) {
+      | None => (z.relatives.siblings, ancestors)
+      | Some((new_sibs, new_a)) => (new_sibs, [(new_a, a_sibs), ...rest])
+      }
+    };
+
+  if (ancestors == z.relatives.ancestors && siblings == z.relatives.siblings) {
+    z;
+  } else {
+    {
+      ...z,
+      relatives: {
+        siblings,
+        ancestors,
+      },
+    };
+  };
+};
+
+let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
+  let siblings = Siblings.rescan(z.relatives.siblings);
+  let z =
+    if (siblings == z.relatives.siblings) {
+      z;
+    } else {
+      let relatives =
+        {
+          ...z.relatives,
+          siblings,
+        }
+        |> Relatives.reassemble
+        |> Relatives.remold
+        |> Relatives.regrout(d);
+      {
+        ...z,
+        relatives,
+      };
+    };
+  if (with_parent) {
+    let z' = rescan_parent_shards(z);
+    if (z'.relatives.ancestors != z.relatives.ancestors
+        || z'.relatives.siblings != z.relatives.siblings) {
+      let relatives =
+        z'.relatives |> Relatives.remold |> Relatives.regrout(d);
+      {
+        ...z',
+        relatives,
+      };
+    } else {
+      z;
+    };
+  } else {
+    z;
+  };
+};
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
@@ -199,67 +373,130 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
-  switch (seg) {
-  | [Tile(t)] =>
-    switch (Tile.effective_label(t)) {
-    | [tok] => Some(tok)
-    | _ => None
-    }
+/* As opposed to the Siblings.neighbor functions, which simply returns
+ * the adjacent piece (if any) in the focal segment, this function is a
+ * more general notion of 'the token to the left/right' of the cursor'.
+ * It agrees with Sibling.neighbor whenever you are in the middle of
+ * the focal segment; it returns None only if you are at the start/end
+ * of the entire program, and if you are at an extreme of the focal
+ * segment it returns the ADJACENT SHARD of the containing parent.
+ * Note that this last case necessarily returns an incomplete tile and
+ * thus does not retain knowledge of the tile's in-situ completeness */
+let generalized_neighbor = (d: Direction.t, z: t): option(Piece.t) => {
+  let* z = select(d, unselect(z));
+  switch (z.selection.content) {
+  | [p] => Some(p)
   | _ => None
   };
+};
 
-let neighbor_shard = (d: Direction.t, z: t): option(Token.t) =>
-  switch (Siblings.neighbor(d, z.relatives.siblings)) {
-  | Some(p) when Piece.monotile(p) != None => Piece.monotile(p)
-  | _ =>
-    let* z = select(d, z);
-    singleton_shard_selection(z.selection.content);
-  };
+type neighbors = (option(Piece.t), option(Piece.t));
 
-let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
-  neighbor_shard(Left, z),
-  neighbor_shard(Right, z),
+let generalized_neighbors = (z: t): neighbors => (
+  generalized_neighbor(Left, z),
+  generalized_neighbor(Right, z),
 );
 
-let adj_pos = (d: Direction.t, z: t): t =>
-  switch (d) {
-  | Left => z
-  | Right =>
-    switch (move(Left, z)) {
-    | None => z
-    | Some(z) => z
-    }
+let neighbor_token = (d: Direction.t, z: t): option(Token.t) => {
+  let* p = generalized_neighbor(d, z);
+  Piece.token_of(p);
+};
+
+let neighbor_tokens = (z: t): (option(Token.t), option(Token.t)) => (
+  neighbor_token(Left, z),
+  neighbor_token(Right, z),
+);
+
+/* Iterative version to avoid stack overflow on large programs */
+let do_until_piece =
+    (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let current = ref(action(z));
+  let result = ref(None);
+  let done_ = ref(false);
+  while (! done_^) {
+    switch (current^) {
+    | None =>
+      result := None;
+      done_ := true;
+    | Some(z) =>
+      if (p_n(Siblings.neighbors(z.relatives.siblings))) {
+        result := Some(z);
+        done_ := true;
+      } else {
+        current := action(z);
+      }
+    };
+  };
+  result^;
+};
+
+/* Do `action` until the predicate on the generalized neigbors of the
+   caret becomes true. A generalized neighbor is the neighboring piece, unless
+   the neighbor is a polytile, in which case it's the relevant shard, or
+   we are at the edge of a segment, in which case it's the relevant shard
+   of the parent. The None case strictly means the beginning/end of the program.
+   If no such piece is found, don't move. Does not check predicate before
+   moving; caller should handle that case if necessary.
+
+   NOTE: This is implemented iteratively to avoid stack overflow on large
+   programs. The previous recursive implementation would overflow when
+   traversing documents with thousands of tokens. */
+let do_until =
+    (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let current = ref(action(z));
+  let result = ref(None);
+  let done_ = ref(false);
+  while (! done_^) {
+    switch (current^) {
+    | None =>
+      result := None;
+      done_ := true;
+    | Some(z) =>
+      if (p_n(generalized_neighbors(z))) {
+        result := Some(z);
+        done_ := true;
+      } else {
+        current := action(z);
+      }
+    };
+  };
+  result^;
+};
+
+let do_to_extreme = (action: t => option(t), z: t): t =>
+  do_until(
+    action,
+    (neighbors: neighbors) =>
+      switch (neighbors) {
+      | (None, _) => true
+      | (_, None) => true
+      | _ => false
+      },
+    z,
+  )
+  |> Option.value(~default=z);
+
+let linebreak_on = (d: Direction.t, neighbors: neighbors): bool =>
+  switch (neighbors) {
+  | (_, Some(Secondary(s))) when d == Right && Secondary.is_linebreak(s) =>
+    true
+  | (_, None) when d == Right => true
+  | (Some(Secondary(s)), _) when d == Left && Secondary.is_linebreak(s) =>
+    true
+  | (None, _) when d == Left => true
+  | _ => false
   };
 
-let put_down_core = (seg: Segment.t, z: t): t =>
-  z |> replace_selection(Right, seg) |> unselect;
-
-let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
-  z |> put_down_core(seg) |> adj_pos(d);
+let do_until_linebreak =
+    (f: t => option(t), d: Direction.t, z: t): option(t) =>
+  linebreak_on(d, generalized_neighbors(z))
+    ? Some(z) : do_until(f, linebreak_on(d), z);
 
 let local_backpack = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
-let can_put_down = z =>
-  switch (local_backpack(z)) {
-  | [] => false
-  | _ => z.caret == Outer
-  };
-
-let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
-  let z = put_down_core([Tile(target)], z);
-  let z = z |> regrout(Left) |> remold;
-  adj_pos(d, z);
-};
-
 let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
-
-let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
-  let+ target = backpack_hd(z);
-  put_down_regrout_target(d, target, z);
-};
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
@@ -277,25 +514,44 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let will_glom = (tok: Token.t, z: t): bool => backpack_find(tok, z) != None;
+let insert_segment = (z: t, seg: Segment.t): t =>
+  z |> replace_selection(Right, seg) |> unselect |> remold_regrout(Right);
 
-let glom = (d: Direction.t, tok: Token.t, z: t): option(t) => {
-  let+ target = backpack_find(tok, z);
-  put_down_regrout_target(d, target, z);
-};
+let adj_pos = (d: Direction.t, z: t): t =>
+  switch (d) {
+  | Left => z
+  | Right =>
+    switch (move(Left, z)) {
+    | None => z
+    | Some(z) => z
+    }
+  };
+
+let put_down_core = (seg: Segment.t, z: t): t =>
+  z |> replace_selection(Right, seg) |> unselect;
+
+let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
+  z |> put_down_core(seg) |> adj_pos(d);
+
+let can_put_down = z =>
+  switch (local_backpack(z)) {
+  | [] => false
+  | _ => z.caret == Outer
+  };
+
+let put_down_target = (d: Direction.t, target: Tile.t, z: t): t =>
+  z |> put_down_core([Tile(target)]) |> remold_regrout(Left) |> adj_pos(d);
+
+let put_down = (z: t): option(t) =>
+  z.caret == Outer
+    ? {
+      let+ target = backpack_hd(z);
+      put_down_target(Left, target, z);
+    }
+    : None;
 
 let delete = (d: Direction.t, z: t): option(t) =>
   z |> select(d) |> Option.map(destroy_selection);
-
-let glom_prev = (z: t) =>
-  switch (neighbor_shard(Left, z)) {
-  | Some(t) when will_glom(t, z) =>
-    switch (delete(Left, z)) {
-    | Some(z) => glom(Left, t, z)
-    | None => Some(z)
-    }
-  | _ => None
-  };
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
@@ -341,10 +597,30 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
 };
 
 module Caret = {
-  let offset: caret => int =
-    fun
+  /* String shards can span multiple columns because emoji render wider than
+     ASCII.  Translate an inner caret index into measured columns by consulting
+     the token width table. */
+  let string_offset = (token: Token.t, idx: int): int =>
+    1 + Token.string_prefix_columns(token, idx);
+
+  /* Determine how many columns to advance for an Inner caret.  Prefer the
+     token on the left; if none exists fall back to the token on the right.
+     Non-strings retain the classic one-column-per-character behaviour. */
+  let inner_offset = (idx: int, z: t): int =>
+    switch (neighbor_token(Left, z)) {
+    | Some(token) when Token.is_string(token) => string_offset(token, idx)
+    | _ =>
+      switch (neighbor_token(Right, z)) {
+      | Some(token) when Token.is_string(token) => string_offset(token, idx)
+      | _ => idx + 1
+      }
+    };
+
+  let offset = (z: t): int =>
+    switch (z.caret) {
     | Outer => 0
-    | Inner(idx) => idx + 1;
+    | Inner(idx) => inner_offset(idx, z)
+    };
 
   let set = (caret: caret, z: t): t => {
     ...z,
@@ -354,7 +630,7 @@ module Caret = {
   /* Max internal index of the shard the caret is adjacent to */
   let nhbr_max_idx = (d: Direction.t, z: t): option(int) => {
     let* t =
-      switch (d, neighbor_shards(z)) {
+      switch (d, neighbor_tokens(z)) {
       | (Left, (Some(t), _)) => Some(t)
       | (Right, (_, Some(t))) => Some(t)
       | _ => None
@@ -388,15 +664,110 @@ module Caret = {
     };
 
   /* Grid position of the caret */
+  /* Convert a caret to a concrete grid point for rendering and hit testing. */
   let point = (measured: Measured.t, z: t): Point.t => {
     let Point.{row, col} = base_point(measured, z);
     {
       row,
-      col: col + offset(z.caret),
+      col: col + offset(z),
     };
   };
 
   type t = ZipperBase.caret;
+};
+
+let do_towards_point =
+    (
+      ~anchor: option(Measured.Point.t)=?,
+      ~measured: Measured.t,
+      ~force_progress: bool=false,
+      f: (Direction.t, t) => option(t),
+      goal: Measured.Point.t,
+      z: t,
+    )
+    : option(t) => {
+  let caret_point = Caret.point(measured);
+
+  let is_at_side_of_row = (d: Direction.t, z: t) => {
+    let Point.{row, col} = caret_point(z);
+    switch (move(d, z)) {
+    | None => true
+    | Some(z) =>
+      let Point.{row: rowp, col: colp} = caret_point(z);
+      row != rowp || col == colp;
+    };
+  };
+
+  let direction_to_from = (p1: Point.t, p2: Point.t): Direction.t => {
+    let before_row = p1.row < p2.row;
+    let at_row = p1.row == p2.row;
+    let before_col = p1.col < p2.col;
+    before_row || at_row && before_col ? Left : Right;
+  };
+
+  let closer_to_prev = (curr, prev, goal: Point.t) =>
+    /* Default to true if equal */
+    abs(caret_point(prev).col - goal.col)
+    < abs(caret_point(curr).col - goal.col);
+
+  let init = caret_point(z);
+  let d_to_goal = direction_to_from(goal, init);
+  let rec go = (prev: t, curr: t) => {
+    let curr_p = caret_point(curr);
+    let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
+    let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
+    switch (y_progress, x_progress) {
+    /* If we're not there yet, keep going */
+    | (Under, Over | Exact | Under)
+    | (Exact, Under) =>
+      switch (f(d_to_goal, curr)) {
+      | Some(next) => go(curr, next)
+      | None => curr /* Should only occur at start/end of program */
+      }
+    /* If we're there, stop */
+    | (Exact, Exact) => curr
+    /* If we've overshot, meaning the exact goal is inaccessible,
+     * we choose between current and previous (undershot) positions */
+    | (Over, Over | Exact | Under) =>
+      switch (force_progress) {
+      /* Ideally we would use the same logic as from the below
+       * anchor case here; however that results in strange
+       * behavior when accidentally starting a drag at the end
+       * of a line, which triggers the (invisible) selection of
+       * a linebreak, making it appear that the caret has jumped
+       * to the next line. The downside of leaving this as-is is
+       * that multiline tokens (projectors) do not become part of
+       * the selection when dragging until you're all the way
+       * over them, which is slightly visually jarring */
+      | false => prev
+      /* Up/down kb movement works by setting a goal one row
+       * below the current. When adjacent to a multiline token,
+       * the nearest next caret position may be multiple lines down.
+       * We must allow this overshoot in order to make progress. */
+      | true => caret_point(prev) == init ? curr : prev
+      }
+    | (Exact, Over) =>
+      switch (anchor) {
+      | None =>
+        /* If you're trying to (eg) move down at the end of a row
+         * but the first position of the next row is further right
+         * than the currentrow's end, we want to make progress
+         * regardless of whether the new position would be closer
+         * or further from the goal.  Otherwise, we try to just
+         * get as close as we can  */
+        is_at_side_of_row(Direction.toggle(d_to_goal), curr)
+          ? curr : closer_to_prev(curr, prev, goal) ? prev : curr
+      | Some(anchor) =>
+        /* If we're dragging to make a selection, decide whether or
+         * not to force progress based on the relative position of the
+         * anchor (the position where the drag was started) */
+        direction_to_from(goal, anchor) == d_to_goal ? curr : prev
+      }
+    };
+  };
+  let res = go(z, z);
+  Measured.Point.equals(caret_point(res), caret_point(z))
+    ? None : Some(res);
 };
 
 let selection_anchor_point = (measured, z: t): option(Point.t) => {
@@ -445,60 +816,3 @@ let is_linebreak_to_right_of_caret =
   | _ => false
   };
 };
-
-/* Try to complete the syntax to give better semantic feeback.
- * This is a best-effort approach focussed on adding new definitions
- * as opposed to restructuring; it does not complete the syntax in
- * all cases.
- *
- * NOTE: Setting the caret to outer was necessary to 'get it past'
- * string literals, i.e. offer live feeback when typing inside a
- * string; not sure if this is a hack or not, it may be compensating
- * for the put_down logic not working right with string lits. To test,
- * try to look at live evaluation while typing inside a string lit with
- * stuff left to drop in backpack with below set: Outer disabled. */
-let try_to_dump_backpack = (zipper: t) => {
-  switch (local_backpack(zipper)) {
-  | [] => zipper
-  | _ =>
-    let zipper = {
-      ...zipper,
-      caret: Outer,
-    };
-    let rec move_until_cant_put_down = (z_last, z: t) =>
-      if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => move_until_cant_put_down(z, z_new)
-        };
-      } else {
-        z_last;
-      };
-    let rec move_until_can_put_down = (z: t) =>
-      if (!can_put_down(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => move_until_can_put_down(z_new)
-        };
-      } else {
-        z;
-      };
-    let rec go = (z: t): t => {
-      let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
-      let z_cant = move_until_cant_put_down(z_can, z_can);
-      switch (put_down_regrout_remold(Right, z_cant)) {
-      | None => z_cant
-      | Some(z) => go(z)
-      };
-    };
-    go(zipper);
-  };
-};
-
-let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
-  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
-  let z = dump_backpack ? try_to_dump_backpack(z) : z;
-  unselect_and_zip(~erase_buffer, z);
-};
-
-let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);

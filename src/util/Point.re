@@ -16,6 +16,16 @@ let zero = {
   col: 0,
 };
 
+let mk = (~row: row, ~col: col): t => {
+  row,
+  col,
+};
+
+let add = (p: t, q: t): t => {
+  row: p.row + q.row,
+  col: p.col + q.col,
+};
+
 let equals: (t, t) => bool = (p, q) => p.row == q.row && p.col == q.col;
 
 type comparison =

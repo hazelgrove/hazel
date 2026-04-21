@@ -5,7 +5,11 @@ open Fresh.Typ;
 let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
   variants
   |> List.map(((name, typ_opt)) =>
-       ConstructorMap.Variant(name, [Id.mk()], typ_opt)
+       ConstructorMap.Variant(
+         name,
+         ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+         typ_opt,
+       )
      )
   |> sum;
 
@@ -64,7 +68,7 @@ module Option = {
 
   let builtins: list(hazel_fn) = [
     {
-      str: {|fun (opt, f) -> case opt
+      str: {|fix option_map -> fun (opt, f) -> case opt
                | None => None
                | Some(x) => Some(f(x))
              end|},
@@ -74,19 +78,23 @@ module Option = {
       imp: {
         Fresh.(
           Exp.(
-            fn(
-              Pat.tuple([Pat.var("opt"), Pat.var("f")]),
-              match(
-                var("opt"),
-                [
-                  (pat_none, none),
-                  (
-                    Pat.ap(pat_some, Pat.var("x")),
-                    ap(Forward, some, ap(Forward, var("f"), var("x"))),
-                  ),
-                ],
+            fix_f(
+              Pat.var("option_map"),
+              fn(
+                Pat.tuple([Pat.var("opt"), Pat.var("f")]),
+                match(
+                  var("opt"),
+                  [
+                    (pat_none, none),
+                    (
+                      Pat.ap(pat_some, Pat.var("x")),
+                      ap(Forward, some, ap(Forward, var("f"), var("x"))),
+                    ),
+                  ],
+                ),
+                None,
+                Some("option_map+"),
               ),
-              None,
               None,
             )
           )
@@ -94,7 +102,7 @@ module Option = {
       },
     },
     {
-      str: {|fun (opt, f) -> case opt
+      str: {|fix option_bind -> fun (opt, f) -> case opt
                | None => None
                | Some x => f(x)
              end|},
@@ -104,19 +112,23 @@ module Option = {
       imp: {
         Fresh.(
           Exp.(
-            fn(
-              Pat.tuple([Pat.var("opt"), Pat.var("f")]),
-              match(
-                var("opt"),
-                [
-                  (pat_none, none),
-                  (
-                    Pat.ap(pat_some, Pat.var("x")),
-                    ap(Forward, var("f"), var("x")),
-                  ),
-                ],
+            fix_f(
+              Pat.var("option_bind"),
+              fn(
+                Pat.tuple([Pat.var("opt"), Pat.var("f")]),
+                match(
+                  var("opt"),
+                  [
+                    (pat_none, none),
+                    (
+                      Pat.ap(pat_some, Pat.var("x")),
+                      ap(Forward, var("f"), var("x")),
+                    ),
+                  ],
+                ),
+                None,
+                Some("option_bind+"),
               ),
-              None,
               None,
             )
           )
@@ -127,23 +139,30 @@ module Option = {
       name: "option_to_list",
       arg: t.term,
       ret: List(unknown(Internal)),
-      str: {|fun opt -> case opt
+      str: {|fix option_to_list -> fun opt -> case opt
                | None => []
                | Some x => [x]
              end|},
       imp: {
         Fresh.(
           Exp.(
-            fn(
-              Pat.var("opt"),
-              match(
-                var("opt"),
-                [
-                  (pat_none, list_lit([])),
-                  (Pat.ap(pat_some, Pat.var("x")), list_lit([var("x")])),
-                ],
+            fix_f(
+              Pat.var("option_to_list"),
+              fn(
+                Pat.var("opt"),
+                match(
+                  var("opt"),
+                  [
+                    (pat_none, list_lit([])),
+                    (
+                      Pat.ap(pat_some, Pat.var("x")),
+                      list_lit([var("x")]),
+                    ),
+                  ],
+                ),
+                None,
+                Some("option_to_list+"),
               ),
-              None,
               None,
             )
           )
@@ -181,7 +200,7 @@ let constructors: Ctx.t = {
         | Sum(cons_map) => cons_map
         | _ => failwith("Type alias must be a sum type")
         };
-      Ctx.add_ctrs(ctx, name, Id.invalid, cons_map);
+      Ctx.add_ctrs(ctx, name, cons_map);
     },
     Ctx.empty,
     type_aliases,

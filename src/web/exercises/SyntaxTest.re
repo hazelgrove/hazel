@@ -23,14 +23,15 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | MultiHole(_)
   | Atom(_)
   | Label(_)
-  | Constructor(_) => false
+  | Constructor(_)
+  | ExplicitNonlabel => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | TupLabel(_, up) => find_var_upat(name, up)
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
   | Parens(up)
-  | Probe(up, _) => find_var_upat(name, up)
+  | Projector(_, up) => find_var_upat(name, up)
   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | Asc(up, _) => find_var_upat(name, up)
   };
@@ -46,10 +47,12 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
 let rec find_in_let =
         (name: string, upat: Pat.t, def: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (upat.term, def.term) {
-  | (Parens(up) | Probe(up, _), Parens(ue) | Probe(ue, _)) =>
-    find_in_let(name, up, ue, l)
-  | (Parens(up) | Probe(up, _), _) => find_in_let(name, up, def, l)
-  | (_, Parens(ue) | Probe(ue, _)) => find_in_let(name, upat, ue, l)
+  | (Parens(up), Parens(ue))
+  | (Projector(_, up), Projector(_, ue)) => find_in_let(name, up, ue, l)
+  | (Parens(up), _)
+  | (Projector(_, up), _) => find_in_let(name, up, def, l)
+  | (_, Parens(ue))
+  | (_, Projector(_, ue)) => find_in_let(name, upat, ue, l)
   | (Asc(up, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
@@ -72,7 +75,8 @@ let rec find_in_let =
       ListLit(_) |
       Constructor(_) |
       Cons(_, _) |
-      Ap(_, _),
+      Ap(_, _) |
+      ExplicitNonlabel,
       _,
     ) => l
   };
@@ -85,21 +89,25 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
+  | Theorem(up, def, body) =>
+    l |> find_in_let(name, up, def) |> find_fn(name, body)
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
   | TypFun(_, body, _)
   | FixF(_, body, _)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
+  | Forall(_, body) => l |> find_fn(name, body)
   | TupLabel(_, u1)
   | TypAp(u1, _)
   | Parens(u1)
-  | Probe(u1, _)
+  | Projector(_, u1)
   | Asc(u1, _)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
   | Use(_, u1)
   | Test(u1)
+  | ProofObject(u1)
   | HintedTest(u1, _)
   | Closure(_, u1)
   | Filter(_, u1) => l |> find_fn(name, u1)
@@ -122,6 +130,23 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
       l |> find_fn(name, u1),
       ul,
     )
+  | Module(items) =>
+    List.fold_left(
+      (acc, item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(p, def) => acc |> find_in_let(name, p, def)
+        | ModuleMod(_, def)
+        | ModExp(def) => acc |> find_fn(name, def)
+        | ModType(_, _)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => acc
+        },
+      l,
+      items,
+    )
+  | ModuleExp(_, def, body) =>
+    l |> find_fn(name, def) |> find_fn(name, body)
   | EmptyHole
   | Deferral(_)
   | Invalid(_)
@@ -129,6 +154,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | DynamicErrorHole(_)
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | LivelitName(_)
   | Constructor(_)
   | Undefined
@@ -149,6 +175,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | MultiHole(_)
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | Constructor(_) => false
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
@@ -160,11 +187,21 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
       l,
     )
   | Parens(up)
-  | Probe(up, _)
+  | Projector(_, up)
   | TupLabel(_, up) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | Asc(up, _) => var_mention_upat(name, up)
+  };
+};
+
+let rec var_mention_mpat = (name: string, mp: MPat.t): bool => {
+  switch (mp.term) {
+  | Var(x) => x == name
+  | Asc(inner, _) => var_mention_mpat(name, inner)
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_) => false
   };
 };
 
@@ -179,24 +216,46 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | MultiHole(_)
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | Constructor(_)
   | Undefined
   | LivelitName(_)
   | Deferral(_) => false
+  | Module(items) =>
+    List.exists(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(_, def)
+        | ModuleMod(_, def)
+        | ModExp(def) => var_mention(name, def)
+        | ModType(_, _)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => false
+        },
+      items,
+    )
+  | ModuleExp(mp, def, body) =>
+    var_mention(name, def)
+    || (var_mention_mpat(name, mp) ? false : var_mention(name, body))
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Let(p, def, body) =>
-    var_mention_upat(name, p)
-      ? false : var_mention(name, def) || var_mention(name, body)
+    (var_mention_upat(name, p) ? false : var_mention(name, body))
+    || var_mention(name, def)
+  | Theorem(p, thm, body) =>
+    (var_mention_upat(name, p) ? false : var_mention(name, body))
+    || var_mention(name, thm)
+  | ProofObject(e) => var_mention(name, e)
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Test(u)
   | HintedTest(u, _)
   | Parens(u)
-  | Probe(u, _)
+  | Projector(_, u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Use(_, u)
@@ -204,6 +263,8 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Filter(_, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
   | FixF(args, body, _) =>
+    var_mention_upat(name, args) ? false : var_mention(name, body)
+  | Forall(args, body) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | Closure(_, u) => var_mention(name, u)
   | BuiltinFun(_) => false
@@ -244,24 +305,48 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | MultiHole(_)
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | Constructor(_)
   | Undefined
   | LivelitName(_)
   | Deferral(_) => false
+  | Module(items) =>
+    List.exists(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(_, def)
+        | ModuleMod(_, def)
+        | ModExp(def) => var_applied(name, def)
+        | ModType(_, _)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => false
+        },
+      items,
+    )
+  | ModuleExp(mp, def, body) =>
+    var_applied(name, def)
+    || (var_mention_mpat(name, mp) ? false : var_applied(name, body))
   | Fun(args, body, _, _)
   | FixF(args, body, _) =>
+    var_mention_upat(name, args) ? false : var_applied(name, body)
+  | Forall(args, body) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
   | Let(p, def, body) =>
-    var_mention_upat(name, p)
-      ? false : var_applied(name, def) || var_applied(name, body)
+    (var_mention_upat(name, p) ? false : var_applied(name, body))
+    || var_applied(name, def)
+  | Theorem(p, thm, body) =>
+    (var_mention_upat(name, p) ? false : var_applied(name, body))
+    || var_applied(name, thm)
+  | ProofObject(e) => var_applied(name, e)
   | TypFun(_, u, _)
   | Test(u)
   | HintedTest(u, _)
   | Parens(u)
-  | Probe(u, _)
+  | Projector(_, u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Use(_, u)
@@ -333,6 +418,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   switch (uexp.term) {
   | EmptyHole
   | Deferral(_)
+  | ExplicitNonlabel
   | Invalid(_)
   | MultiHole(_)
   | DynamicErrorHole(_)
@@ -343,12 +429,37 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Var(_)
   | LivelitName(_)
   | BuiltinFun(_) => true
+  | Module(items) =>
+    /* Module items are not in tail position; check that none mention the variable */
+    !
+      List.exists(
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModLet(_, def)
+          | ModuleMod(_, def)
+          | ModExp(def) => var_mention(name, def)
+          | ModType(_, _)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => false
+          },
+        items,
+      )
+  | ModuleExp(mp, def, body) =>
+    var_mention_mpat(name, mp) || var_mention(name, def)
+      ? false : tail_check(name, body)
   | FixF(args, body, _)
   | Fun(args, body, _, _) =>
+    var_mention_upat(name, args) ? false : tail_check(name, body)
+  | Forall(args, body) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
+  | Theorem(p, thm, body) =>
+    var_mention_upat(name, p) || var_mention(name, thm)
+      ? false : tail_check(name, body)
+  | ProofObject(_) => false
   | ListLit(l)
   | Tuple(l) =>
     //If l has no recursive calls then true
@@ -364,7 +475,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Parens(u)
-  | Probe(u, _) => tail_check(name, u)
+  | Projector(_, u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | DeferredAp(fn, args) =>

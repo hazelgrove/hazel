@@ -105,6 +105,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Editor(Exercise.pos, CellEditor.Update.t)
+    | RefreshStatics
     | ResetEditor(Exercise.pos)
     | ResetExercise
     | Instructor(instructor);
@@ -260,6 +261,7 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | Editor(_, action) => CellEditor.Update.can_undo(action)
+    | RefreshStatics => false
     | ResetEditor(_) => true
     | ResetExercise => true
     | Instructor(_) => false
@@ -276,10 +278,17 @@ module Update = {
       // Redirect to editors
       let editor =
         Exercise.main_editor_of_state(~selection=pos, model.editors);
-      let* new_editor =
+      let cell =
+        switch (Exercise.get_stitched(pos, model.cells)) {
+        | cell_editor => cell_editor
+        | exception (Failure(_)) => CellEditor.Model.mk(editor)
+        };
+      let* new_code_editor =
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
-        editor
-        |> CodeEditable.Model.mk
+        {
+          ...cell.editor,
+          editor,
+        }
         |> CodeEditable.Update.update(~settings, action);
       {
         ...model,
@@ -287,7 +296,16 @@ module Update = {
           Exercise.put_main_editor(
             ~selection=pos,
             model.editors,
-            new_editor.editor,
+            new_code_editor.editor,
+          ),
+        cells:
+          Exercise.put_stitched(
+            pos,
+            model.cells,
+            {
+              ...cell,
+              editor: new_code_editor,
+            },
           ),
       };
     | Editor(pos, MainEditor(action)) =>
@@ -326,7 +344,10 @@ module Update = {
         ...model,
         cells: Exercise.put_stitched(pos, model.cells, new_cell),
       };
-    | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
+    | Editor(_, ResultAction(_)) => Updated.raise_invalid_action(model) // TODO: I think this case should never happen
+    | RefreshStatics =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      model |> Updated.return_quiet(~recalculate=true);
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
       let new_editor = Editor.Model.mk(spec);
@@ -350,11 +371,16 @@ module Update = {
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+    let statics_mode =
+      CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
+
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
-    let queue_worker = (pos, expr) => {
+    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
       worker_request :=
-        worker_request^ @ [(pos |> Exercise.key_for_statics, expr)];
+        worker_request^ @ [(pos |> Exercise.key_for_statics, req_value)];
     };
     let cells =
       Exercise.map2_stitched(
@@ -364,12 +390,14 @@ module Update = {
               editor,
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
+              context_menu: cell.editor.context_menu,
             },
             result: cell.result,
           }
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
                term
@@ -418,7 +446,14 @@ module Update = {
        statics to take */
     let editors: Exercise.p('a) = {
       let calculate = (statics, dynamics, ed) =>
-        Editor.Update.calculate(~settings, statics, dynamics, ~is_edited, ed);
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode=false,
+          statics,
+          dynamics,
+          ~is_edited,
+          ed,
+        );
 
       {
         id: model.editors.id,
@@ -535,12 +570,15 @@ module Selection = {
       : option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_tile_opt(id, e.syntax.term_data) != None
+         TermData.root_tile(id, e.syntax.term_data) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(id))))),
+           Update.Editor(
+             pos,
+             MainEditor(Perform(Move(Goal(TileId(id))))),
+           ),
            Cell(pos, CellEditor.Selection.MainEditor),
          )
        );
@@ -636,6 +674,7 @@ module View = {
             )
           | _ => CellCommon.caption(caption, ~rest=?subcaption)
           },
+        ~lines=true,
         cell,
       );
     };
@@ -948,6 +987,7 @@ module View = {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.Map.empty,
+        context_menu: editor.editor.context_menu,
       },
       result: editor.result,
     };
@@ -973,7 +1013,7 @@ module View = {
                     inject(
                       Editor(
                         YourTestsValidation,
-                        MainEditor(Perform(Jump(TileId(id)))),
+                        MainEditor(Perform(Move(Goal(TileId(id))))),
                       ),
                     ),
                 ~signal_editing_test_val_rep=
@@ -1105,7 +1145,7 @@ module View = {
               inject(
                 Editor(
                   YourTestsTesting,
-                  MainEditor(Perform(Jump(TileId(id)))),
+                  MainEditor(Perform(Move(Goal(TileId(id))))),
                 ),
               ),
           ~inject_set_editing_impl_grd_rep=

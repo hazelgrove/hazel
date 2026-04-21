@@ -42,6 +42,12 @@ let view =
         Evaluation(ShowCaseClauses),
       ),
       setting(
+        "⇨",
+        "show case steps",
+        settings.show_case_steps,
+        Evaluation(ShowCaseSteps),
+      ),
+      setting(
         "λ",
         "show function bodies",
         settings.show_fn_bodies,
@@ -54,7 +60,13 @@ let view =
         Evaluation(ShowFixpoints),
       ),
       setting(
-        Util.Unicode.castArrowSym,
+        ":",
+        "show ascriptions",
+        settings.show_ascriptions,
+        Evaluation(ShowAscriptions),
+      ),
+      setting(
+        "⇨",
         "show ascription steps",
         settings.show_ascription_steps,
         Evaluation(ShowAscriptionSteps),

@@ -16,11 +16,24 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
-    assistant: AssistantModel.t,
     selection,
   };
 
   let equal = (===);
+
+  let reset = (~font_metrics=?, ()) => {
+    let globals = Globals.Model.init(~font_metrics?, ());
+    let settings = globals.settings;
+    let instructor_mode = globals.settings.instructor_mode;
+    let editors =
+      Editors.Store.reset(~settings=settings.core, ~instructor_mode);
+    {
+      globals,
+      editors,
+      explain_this: ExplainThisModel.init,
+      selection: Editors.Selection.default_selection(editors),
+    };
+  };
 };
 
 module Store = {
@@ -32,12 +45,10 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
-    let assistant = AssistantModel.Store.load();
     {
       editors,
       globals,
       explain_this,
-      assistant,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -49,12 +60,19 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
-    AssistantModel.Store.save(m.assistant);
   };
 };
 
 module Update = {
   open Updated;
+
+  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+    switch (model.editors) {
+    | Scratch(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Documentation(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Exercises(m) => ExercisesMode.Model.get_editor(m)
+    };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
@@ -66,7 +84,6 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
-    | Assistant(AssistantUpdate.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -74,30 +91,10 @@ module Update = {
 
   let equal = (===);
 
-  let assistant_callback =
-      (
-        ~schedule_action: t => unit,
-        model: Model.t,
-        editor: CodeEditable.Model.t,
-      ) =>
-    AssistantUpdate.check_req(
-      ~schedule_action=a => schedule_action(Assistant(a)),
-      ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
-      ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-      ~editor,
-    );
-
-  let get_editor = (model: Model.t): CodeEditable.Model.t =>
-    switch (model.editors) {
-    | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
-    | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
-    | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
-    };
-
   let update_global =
       (
         ~import_log,
-        ~schedule_action,
+        ~schedule_action: t => unit,
         ~globals: Globals.Model.t,
         action: Globals.Update.t,
         model: Model.t,
@@ -122,6 +119,23 @@ module Update = {
           settings,
         },
       };
+    | SetAgentGlobals(agent_globals_action) =>
+      let agent_globals =
+        AgentGlobals.Update.update(
+          agent_globals_action, model.globals.settings.agent_globals, action =>
+          schedule_action(Globals(SetAgentGlobals(action)))
+        );
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings: {
+            ...model.globals.settings,
+            agent_globals,
+          },
+        },
+      }
+      |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
@@ -130,14 +144,12 @@ module Update = {
           model.editors,
         );
       switch (jump) {
-      | None => model |> Updated.return_quiet
+      | None => model |> Updated.raise_invalid_action
       | Some((action, selection)) =>
         let* editors =
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_assistant_insertion_info=
-              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -152,9 +164,34 @@ module Update = {
         schedule_action(Globals(FinishImportAll(data)))
       );
       model |> return_quiet;
+    | SetMetaDown(meta_down) =>
+      model.globals.meta_down == meta_down
+        ? model |> return_quiet
+        : {
+            ...model,
+            globals: {
+              ...model.globals,
+              meta_down,
+            },
+          }
+          |> return_quiet
+    | UpdateVisibleRows(visible_rows) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          visible_rows: Some(visible_rows),
+        },
+      }
+      |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
-      Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
+      Export.import_all(
+        ~import_log,
+        data,
+        ~exercise_specs=ExerciseSettings.exercises,
+        ~tutorial_specs=TutorialSettings.lessons,
+      );
       Store.load() |> return;
     | ExportForInit =>
       let (filename, content) =
@@ -163,20 +200,26 @@ module Update = {
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let filename =
-            (current |> fst |> StringUtil.sanitize_filename) ++ ".ml";
+            (current.name |> StringUtil.sanitize_filename) ++ ".ml";
 
           let content =
-            [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
-              current |> fst,
-              current
-              |> snd
-              |> ((e: CellEditor.Model.t) => e.editor)
-              |> CodeWithStatics.Model.persist,
-            ));
+            Haz3lcore.(
+              [%derive.show: (string, PersistentSegment.t)]((
+                current.name,
+                current.editor.editor.editor.state.zipper
+                |> PersistentSegment.persist,
+              ))
+            );
+          (filename, content);
+        | Tutorial(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
-          let filename = current.editors.module_name ++ ".ml";
+          let filename =
+            ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
           let content = "not supported";
           (filename, content);
         };
@@ -184,7 +227,7 @@ module Update = {
         ~filename,
         ~content_type="text/plain",
         ~contents=
-          "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
+          "let out : string * Haz3lcore.PersistentSegment.t = " ++ content,
       );
       model |> return_quiet;
     | ActiveEditor(action) =>
@@ -200,8 +243,6 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_assistant_insertion_info=
-              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -210,8 +251,15 @@ module Update = {
           editors,
         };
       };
+    | Log(_)
     | Undo
-    | Redo => failwith("Undo/Redo are handled in the history module")
+    | Redo
+    | RethrowException
+    | ClearException
+    | RestoreLastKnownGood =>
+      failwith(
+        "Undo/Redo/Log import/RethrowException/ClearException/RestoreLastKnownGood are handled in higher-level modules",
+      )
     };
   };
 
@@ -236,14 +284,23 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
-          ~send_assistant_insertion_info=
-            assistant_callback(~schedule_action, model),
           action,
           model.editors,
         );
+      /* Reset visible_rows when switching to modes without viewport culling,
+       * otherwise stale culling bounds hide projectors incorrectly */
+      let globals =
+        switch (action) {
+        | SwitchMode(Tutorial | Exercises) => {
+            ...model.globals,
+            visible_rows: None,
+          }
+        | _ => model.globals
+        };
       {
         ...model,
         editors,
+        globals,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -252,26 +309,12 @@ module Update = {
         ...model,
         explain_this,
       };
-    | Assistant(action) =>
-      let* assistant =
-        AssistantUpdate.update(
-          ~action,
-          ~settings=globals.settings,
-          ~model=model.assistant,
-          ~editor=get_editor(model),
-          ~schedule_action=a => schedule_action(Assistant(a)),
-          ~schedule_editor_action=a => schedule_action(Editors(a)),
-        );
-      {
-        ...model,
-        assistant,
-      };
     | MakeActive(selection) =>
       {
         ...model,
         selection,
       }
-      |> Updated.return
+      |> Updated.return(~is_edit=false, ~scroll_active=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -280,7 +323,7 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
-    | Start => model |> return // Triggers recalculation at the start
+    | Start => model |> return
     | Save =>
       print_endline("Saving...");
       Store.save(model);
@@ -293,7 +336,6 @@ module Update = {
     | Globals(action) => Globals.Update.can_undo(action)
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | Assistant(action) => AssistantUpdate.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
@@ -301,10 +343,18 @@ module Update = {
     };
   };
 
-  let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
+  let calculate =
+      (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
-        ~settings=model.globals.settings.core,
+        ~settings=
+          dynamics
+            ? model.globals.settings.core
+            : {
+              ...model.globals.settings.core,
+              dynamics: false,
+            },
+        ~autoprobe_mode=model.globals.settings.autoprobe_mode,
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
         model.editors,
@@ -337,7 +387,15 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
     switch (event) {
-    | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+    | {
+        key: D("F7"),
+        sys: Mac | PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Up,
+        alt: Up,
+        _,
+      } =>
       Some(Update.Benchmark(Start))
     | {
         key: D("Z" | "z"),
@@ -346,6 +404,7 @@ module Selection = {
         meta: Down,
         ctrl: Up,
         alt: Up,
+        _,
       }
     | {
         key: D("Z" | "z"),
@@ -354,11 +413,48 @@ module Selection = {
         meta: Up,
         ctrl: Down,
         alt: Up,
+        _,
       } =>
       Some(Update.Globals(Redo))
-    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+    | {
+        key: D("Z" | "z"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {
+        key: D("Z" | "z"),
+        sys: PC,
+        shift: Up,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+        _,
+      } =>
       Some(Update.Globals(Undo))
+    /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
+    | {
+        key: D("P" | "p"),
+        sys: Mac,
+        shift: Up,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+        _,
+      }
+    | {
+        key: D("P" | "p"),
+        sys: PC,
+        shift: Up,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+        _,
+      } =>
+      Some(Update.Globals(Set(AutoprobeMode)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
@@ -378,7 +474,8 @@ module View = {
     | Some("module-name-input")
     | Some("prompt-input-box")
     | Some("test-required-input")
-    | Some("point-max-input") => true
+    | Some("point-max-input")
+    | Some("agent-api-key-input") => true
     | Some(id) when String.starts_with(~prefix="hint-input", id) => true
     | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
       true
@@ -387,15 +484,55 @@ module View = {
     };
   };
 
+  let selection_has_refractors =
+      (
+        refractors: Haz3lcore.Zipper.Refractor.t,
+        selection: Haz3lcore.Segment.t,
+      )
+      : bool =>
+    if (List.is_empty(refractors.manuals)) {
+      false;
+    } else {
+      let ids = Haz3lcore.Segment.ids(selection);
+      List.exists(
+        id =>
+          List.exists(((id2, _)) => Id.equal(id, id2), refractors.manuals),
+        ids,
+      );
+    };
+
+  let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
+    let str = (cursor.selected_text |> Option.value(~default=() => ""))();
+    let should_set =
+      switch (cursor.editor, cursor.selection) {
+      | (Some(editor), Some(selection)) =>
+        /* If the selection contains refractors, we forgo the segment cache
+         * for the sake of preserving refractors in the copy via expanding
+         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
+        !selection_has_refractors(editor.state.zipper.refractors, selection)
+      | _ => true
+      };
+    should_set
+      ? Haz3lcore.Parser.set_segment_cache(cursor.selection, str) : ();
+    JsUtil.copy(str);
+  };
+
   let handlers =
       (
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
+    let update_meta =
+        (evt: Js.t(Dom_html.keyboardEvent)): list(Effect.t(unit)) => {
+      let meta_down = Js.to_bool(evt##.metaKey);
+      model.globals.meta_down == meta_down
+        ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+    };
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) =>
+        : Effect.t(unit) => {
+      let meta_effects = update_meta(evt);
       Effect.(
         switch (
           Selection.handle_key_event(
@@ -404,17 +541,23 @@ module View = {
             model,
           )
         ) {
-        | None => Ignore
+        | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
-          Many([Prevent_default, Stop_propagation, inject(action)])
+          Many(
+            [Prevent_default, Stop_propagation, inject(action)]
+            @ meta_effects,
+          )
         }
       );
+    };
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
       Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
-        Effect.Ignore;
+        model.globals.meta_down
+          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
+          : Effect.Ignore;
       }),
       Attr.on_focus(_ => {
         JsUtil.focus_clipboard_shim();
@@ -428,12 +571,13 @@ module View = {
           if (is_input_field(elId)) {
             ();
           } else {
-            let str =
-              (cursor.selected_text |> Option.value(~default=() => ""))();
-            /* Note that we cannot use the ClipboardCache system here unless
-             * we refine it further to replace unique ids on paste */
-            ClipboardCache.set(cursor.selection, str);
-            JsUtil.copy(str);
+            let el = Js.Unsafe.coerce(el);
+            if (JsUtil.has_ancestor_class(el, "system-message")
+                || JsUtil.has_ancestor_class(el, "agent-message")) {
+              ();
+            } else {
+              copy(cursor);
+            };
           };
         | None => ()
         };
@@ -447,9 +591,7 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
-            JsUtil.copy(
-              (cursor.selected_text |> Option.value(~default=() => ""))(),
-            );
+            copy(cursor);
             Option.map(
               inject,
               Selection.handle_key_event(
@@ -457,6 +599,7 @@ module View = {
                 ~event=
                   Key.{
                     key: D("Delete"),
+                    code: "Delete",
                     sys: Os.is_mac^ ? Mac : PC,
                     shift: Up,
                     meta: Up,
@@ -481,11 +624,12 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
-            let pasted_text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+            let text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
+            let action =
+              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Dom.preventDefault(evt);
-            switch (cursor.editor_action(Paste(String(pasted_text)))) {
+            switch (cursor.editor_action(action)) {
             | None => Effect.Ignore
             | Some(action) => inject(Editors(action))
             };
@@ -540,6 +684,16 @@ module View = {
     );
   };
 
+  let autoprobe_indicator = (~globals: Globals.t, ~inject) => [
+    Widgets.toggle(
+      ~tooltip="Auto-probe mode active (Cmd/Ctrl+P to toggle)",
+      "🔬",
+      globals.settings.autoprobe_mode,
+      _ =>
+      inject(Update.Globals(Set(AutoprobeMode)))
+    ),
+  ];
+
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -569,42 +723,37 @@ module View = {
   let main_view =
       (
         ~get_log_and: (string => unit) => unit,
+        ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        {
-          globals,
-          editors,
-          explain_this: explainThisModel,
-          assistant: assistantModel,
-          selection,
-        } as model: Model.t,
+        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
       ) => {
+    let log_count = LogCount.get();
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),
       get_log_and,
+      get_log_count: _ =>
+        failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
-    let bottom_bar =
-      CursorInspector.view(
-        ~globals,
-        ~inject=a => inject(Editors(a)),
-        cursor,
-      );
+    let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
       Sidebar.view(
         ~globals,
-        ~explain_this_inject=action => inject(ExplainThis(action)),
-        ~assistant_inject=action => inject(Assistant(action)),
+        ~explain_this_inject=
+          (action: ExplainThisUpdate.update) => inject(ExplainThis(action)),
+        ~explainThisModel,
+        ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
+        ~editors,
+        ~editor=Update.get_editor(model),
         ~signal=
           fun
-          | MakeActive(s) => inject(MakeActive(Scratch(s))),
-        ~explainThisModel,
-        ~assistantModel,
-        ~editor=Update.get_editor(model),
-        cursor.info,
+          | MakeActive(s: Selection.t) => inject(MakeActive(s)),
+        ~log_model,
+        ~log_count,
+        ~cursor,
       );
-
     let editors_view =
       Editors.View.view(
         ~globals,
@@ -616,12 +765,61 @@ module View = {
         ~selection=Some(selection),
         model.editors,
       );
+
+    /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
+    let current_editor = Update.get_editor(model);
+    let indicated_id =
+      Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
+    let closure_cursor_bar =
+      SampleFocusBar.view(
+        ~globals,
+        ~refractors=current_editor.editor.state.zipper.refractors,
+        ~info_map=current_editor.statics.info_map,
+        ~indicated_id,
+      );
+
+    /* Scroll handler for viewport culling. Only enabled for Scratch and
+     * Documentation modes where there's a single editor filling the
+     * scrollable area. Tutorial and Exercises have multiple editors. */
+    let on_scroll = (evt: Js.t(Dom_html.event)) => {
+      let culling_enabled =
+        switch (editors) {
+        | Scratch(_)
+        | Documentation(_)
+        | Tutorial(_)
+        | Exercises(_) => false
+        };
+      if (!culling_enabled) {
+        Effect.Ignore;
+      } else {
+        let container =
+          Js.Opt.to_option(evt##.currentTarget)
+          |> Option.map(Js.Unsafe.coerce);
+        switch (container) {
+        | None => Effect.Ignore
+        | Some(c) =>
+          let new_visible =
+            Globals.VisibleRows.compute(
+              ~scroll_top=float_of_int(c##.scrollTop),
+              ~client_height=float_of_int(c##.clientHeight),
+              ~row_height=globals.font_metrics.row_height,
+              (),
+            );
+          Globals.VisibleRows.changed(globals.visible_rows, new_visible)
+            ? inject(Globals(UpdateVisibleRows(new_visible)))
+            : Effect.Ignore;
+        };
+      };
+    };
+
     [
       top_bar(~globals, ~inject, ~editors),
+      closure_cursor_bar,
       div(
         ~attrs=[
           Attr.id("main"),
           Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.on_scroll(on_scroll),
         ],
         editors_view,
       ),
@@ -632,12 +830,17 @@ module View = {
   };
 
   let view =
-      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+      (
+        ~log_model,
+        ~get_log_and,
+        ~inject: Update.t => Ui_effect.t(unit),
+        model: Model.t,
+      ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
+      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };
 };
