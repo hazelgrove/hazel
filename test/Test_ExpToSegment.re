@@ -356,6 +356,32 @@ let tests = (
         ),
       )
     }),
+    test_case(
+      "Float negation produces 0.0 -. e",
+      `Quick,
+      () => {
+        /* UnOp(Float(Minus), e) should be rewritten to 0.0 -. e
+           so it round-trips through MakeTerm correctly (MakeTerm
+           parses unary - as Int(Minus), breaking float evaluation) */
+        let seg =
+          exp_to_segment(
+            IdTagged.FreshGrammar.Exp.(un_op(Float(Minus), float(3.14))),
+          );
+        let serialized = print_seg(seg);
+        check(
+          string,
+          "Float negation text",
+          "0.000000 -. 3.140000",
+          serialized,
+        );
+        /* Verify round-trip: segment → term → segment preserves float minus */
+        switch (MakeTerm.for_projection(seg)) {
+        | Some(Exp({term: BinOp(Float(Minus), _, _), _})) => ()
+        | _ =>
+          Alcotest.fail("Expected BinOp(Float(Minus), ...) after round-trip")
+        };
+      },
+    ),
     test_case("Dot operator on float", `Quick, () => {
       check(
         string,

@@ -200,7 +200,7 @@ let constructors: Ctx.t = {
         | Sum(cons_map) => cons_map
         | _ => failwith("Type alias must be a sum type")
         };
-      Ctx.add_ctrs(ctx, name, Id.invalid, cons_map);
+      Ctx.add_ctrs(ctx, name, cons_map);
     },
     Ctx.empty,
     type_aliases,
