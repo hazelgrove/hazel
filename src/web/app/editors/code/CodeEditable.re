@@ -138,6 +138,11 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = unit;
 
+  let is_command_palette_open = (): bool => {
+    let palette = JsUtil.get_elem_by_id("ninja-keys");
+    Js.Unsafe.get(palette, "opened");
+  };
+
   let get_cursor_info =
       (
         ~inject: Update.t => Ui_effect.t(unit),
@@ -316,6 +321,9 @@ module Selection = {
   let handle_key_event =
       (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
+    | {key: D("Escape"), _} when is_command_palette_open() =>
+      /* Let Escape bubble so NinjaKeys can close itself. */
+      None
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.TAB)
     /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
