@@ -23,14 +23,14 @@ module Scratchpad = {
   type t = {
     name: string,
     editor: CellEditor.Model.t,
-    agent: Agent.Agent.Model.t,
+    agent: Agent.Model.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
     name: string,
     editor: option(CellEditor.Model.persistent),
-    agent: Agent.Agent.Persistent.t,
+    agent: Agent.Persistent.t,
   };
 
   let persist = (s: t): persistent => {
@@ -55,7 +55,7 @@ module Scratchpad = {
     {
       name: s.name,
       editor,
-      agent: Agent.Agent.Persistent.persist(s.agent),
+      agent: Agent.Persistent.persist(s.agent),
     };
   };
 
@@ -68,13 +68,13 @@ module Scratchpad = {
         p.editor,
       )
       |> CellEditor.Model.unpersist(~settings),
-    agent: Agent.Agent.Persistent.unpersist(p.agent),
+    agent: Agent.Persistent.unpersist(p.agent),
   };
 
   let mk = (~name, ~editor, ()): t => {
     name,
     editor,
-    agent: Agent.Agent.Utils.init(),
+    agent: Agent.Utils.init(),
   };
 };
 
@@ -106,7 +106,7 @@ module Model = {
           Scratchpad.{
             name: s.name,
             editor,
-            agent: Agent.Agent.Persistent.persist(s.agent),
+            agent: Agent.Persistent.persist(s.agent),
           };
         },
         model.scratchpads,
@@ -143,7 +143,7 @@ module Model = {
    Key layout:
      <prefix>:_meta         → slide_meta (current_index, names)
      <prefix>:<name>        → CellEditor.Model.persistent
-     <prefix>:<name>:agent  → Agent.Agent.Persistent.t */
+     <prefix>:<name>:agent  → Agent.Persistent.t */
 module Persist = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type slide_meta = {
@@ -201,22 +201,17 @@ module Persist = {
   };
 
   let save_agent =
-      (prefix: string, name: string, agent: Agent.Agent.Persistent.t): unit => {
+      (prefix: string, name: string, agent: Agent.Persistent.t): unit => {
     let key = agent_key(prefix, name);
     let serialized =
-      agent |> Agent.Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
+      agent |> Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
     HazelDB.kv_save(key, serialized);
   };
 
-  let load_agent =
-      (prefix: string, name: string): option(Agent.Agent.Persistent.t) =>
+  let load_agent = (prefix: string, name: string): option(Agent.Persistent.t) =>
     switch (HazelDB.kv_get(agent_key(prefix, name))) {
     | Some(data) =>
-      try(
-        Some(
-          data |> Sexplib.Sexp.of_string |> Agent.Agent.Persistent.t_of_sexp,
-        )
-      ) {
+      try(Some(data |> Sexplib.Sexp.of_string |> Agent.Persistent.t_of_sexp)) {
       | _ => None
       }
     | None => None
@@ -237,7 +232,7 @@ module Persist = {
     | Some(editor) => save_slide(prefix, sp.name, editor)
     | None => ()
     };
-    save_agent(prefix, sp.name, Agent.Agent.Persistent.persist(sp.agent));
+    save_agent(prefix, sp.name, Agent.Persistent.persist(sp.agent));
   };
 
   let load_scratchpad =
@@ -252,8 +247,8 @@ module Persist = {
       |> CellEditor.Model.unpersist(~settings);
     let agent =
       switch (load_agent(prefix, name)) {
-      | Some(p) => Agent.Agent.Persistent.unpersist(p)
-      | None => Agent.Agent.Utils.init()
+      | Some(p) => Agent.Persistent.unpersist(p)
+      | None => Agent.Utils.init()
       };
     Scratchpad.{
       name,
@@ -298,7 +293,7 @@ module Persist = {
           let agent =
             switch (load_agent(prefix, name)) {
             | Some(a) => a
-            | None => Agent.Agent.Persistent.persist(Agent.Agent.Utils.init())
+            | None => Agent.Persistent.persist(Agent.Utils.init())
             };
           Scratchpad.{
             name,
@@ -380,7 +375,7 @@ module Update = {
   type t =
     | CellAction(CellEditor.Update.t)
     | RefreshStatics
-    | AgentAction(Agent.Agent.Update.Action.t)
+    | AgentAction(Agent.Update.Action.t)
     | SwitchSlide(int)
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -518,10 +513,10 @@ module Update = {
     switch (action) {
     | AgentAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
-      let schedule_agent = (a: Agent.Agent.Update.Action.t) =>
+      let schedule_agent = (a: Agent.Update.Action.t) =>
         schedule_action(AgentAction(a));
       let (new_agent, updated_editor) =
-        Agent.Agent.Update.update(
+        Agent.Update.update(
           a,
           scratchpad.agent,
           scratchpad.editor,

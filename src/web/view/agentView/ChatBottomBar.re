@@ -11,16 +11,15 @@ open JsUtil;
 let view =
     (
       ~globals: Globals.t,
-      ~agent_model: Agent.Agent.Model.t,
-      ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+      ~agent_model: Agent.Model.t,
+      ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
-      ~chunked_chat: Agent.ChunkedUIChat.Model.t,
+      ~chunked_chat: ChunkedUIChat.Model.t,
       ~current_chat_id: Id.t,
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
-  let current_chat =
-    Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
+  let current_chat = ChatSystem.Utils.find_chat(current_chat_id, chat_system);
   let is_compacting =
     switch (agent_model.compaction_in_progress) {
     | Some(id) when id == current_chat_id => true
@@ -37,12 +36,12 @@ let view =
 
   let clear_text_effect =
     agent_inject(
-      Agent.Agent.Update.Action.ChatSystemAction(
-        Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
+      Agent.Update.Action.ChatSystemAction(
+        ChatSystem.Update.Action.SaveTextBoxContent(""),
       ),
     );
 
-  let dispatch_slash = (action: Agent.Agent.Update.Action.t) =>
+  let dispatch_slash = (action: Agent.Update.Action.t) =>
     Effect.Many([
       agent_inject(action),
       clear_text_effect,
@@ -53,29 +52,27 @@ let view =
     switch (name) {
     | "compact" =>
       dispatch_slash(
-        Agent.Agent.Update.Action.RequestForcedCompaction(current_chat_id),
+        Agent.Update.Action.RequestForcedCompaction(current_chat_id),
       )
     | "session-usage" =>
       dispatch_slash(
-        Agent.Agent.Update.Action.RunSlashCommandCost(current_chat_id),
+        Agent.Update.Action.RunSlashCommandCost(current_chat_id),
       )
     | "account-usage" =>
       dispatch_slash(
-        Agent.Agent.Update.Action.RunSlashCommandFetchCredits(
-          current_chat_id,
-        ),
+        Agent.Update.Action.RunSlashCommandFetchCredits(current_chat_id),
       )
     | "help" =>
       dispatch_slash(
-        Agent.Agent.Update.Action.RunSlashCommandHelp(current_chat_id),
+        Agent.Update.Action.RunSlashCommandHelp(current_chat_id),
       )
     | "key" =>
       dispatch_slash(
-        Agent.Agent.Update.Action.RunSlashCommandShowKey(current_chat_id),
+        Agent.Update.Action.RunSlashCommandShowKey(current_chat_id),
       )
     | "key-usage" =>
       dispatch_slash(
-        Agent.Agent.Update.Action.RunSlashCommandFetchUsage(current_chat_id),
+        Agent.Update.Action.RunSlashCommandFetchUsage(current_chat_id),
       )
     | "show-thinking" =>
       // Toggle the global flag and confirm with a UI-only Notice. The "after"
@@ -91,9 +88,9 @@ let view =
           ),
         ),
         agent_inject(
-          Agent.Agent.Update.Action.AppendSlashCommandOutput(
+          Agent.Update.Action.AppendSlashCommandOutput(
             current_chat_id,
-            Agent.Message.Model.Notice(notice),
+            Message.Model.Notice(notice),
           ),
         ),
         clear_text_effect,
@@ -127,8 +124,8 @@ let view =
     JsUtil.delay(0.0, () => autosize_textarea("chat-message-input"));
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.SaveTextBoxContent(value),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.SaveTextBoxContent(value),
         ),
       ),
       Effect.Stop_propagation,
@@ -139,17 +136,14 @@ let view =
   let send_message = _ => {
     let message_content = String.trim(current_text);
     if (String.length(message_content) > 0) {
-      let user_message = Agent.Message.Utils.mk_user_message(message_content);
+      let user_message = Message.Utils.mk_user_message(message_content);
       Effect.Many([
         agent_inject(
-          Agent.Agent.Update.Action.SendMessage(
-            user_message,
-            current_chat_id,
-          ),
+          Agent.Update.Action.SendMessage(user_message, current_chat_id),
         ),
         agent_inject(
-          Agent.Agent.Update.Action.ChatSystemAction(
-            Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
+          Agent.Update.Action.ChatSystemAction(
+            ChatSystem.Update.Action.SaveTextBoxContent(""),
           ),
         ),
         Effect.Stop_propagation,
@@ -163,9 +157,9 @@ let view =
   let switch_to_prompt = _ => {
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Prompt),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.SwitchView(Chat.Model.Prompt),
             current_chat_id,
           ),
         ),
@@ -177,9 +171,9 @@ let view =
   let switch_to_tools = _ => {
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Tools),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.SwitchView(Chat.Model.Tools),
             current_chat_id,
           ),
         ),
@@ -191,11 +185,9 @@ let view =
   let switch_to_context_view = _ => {
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(
-              Agent.Chat.Model.AgentEditorView,
-            ),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.SwitchView(Chat.Model.AgentEditorView),
             current_chat_id,
           ),
         ),
@@ -206,9 +198,9 @@ let view =
 
   // Export messages function
   let export_chat = _ => {
-    let messages = Agent.Chat.Utils.get(current_chat);
+    let messages = Chat.Utils.get(current_chat);
     let messages_json =
-      Agent.Chat.Utils.json_of_messages(
+      Chat.Utils.json_of_messages(
         messages,
         AgentGlobals.get_active_llm_id(globals.settings.agent_globals),
       );
@@ -223,26 +215,26 @@ let view =
   // Copy chat as human-readable text function with toast notification
   let stop_agent = _ =>
     Effect.Many([
-      agent_inject(Agent.Agent.Update.Action.StopAgenticLoop),
+      agent_inject(Agent.Update.Action.StopAgenticLoop),
       Effect.Stop_propagation,
     ]);
 
   let copy_chat = _ => {
-    let messages = Agent.Chat.Utils.get(current_chat);
+    let messages = Chat.Utils.get(current_chat);
     let user_facing_messages =
       List.filter(
-        (msg: Agent.Message.Model.t) =>
+        (msg: Message.Model.t) =>
           switch (msg.role) {
-          | Agent.Message.Model.System(_) => false
+          | Message.Model.System(_) => false
           | _ => true
           },
         messages,
       );
-    let format_message = (msg: Agent.Message.Model.t): string => {
+    let format_message = (msg: Message.Model.t): string => {
       switch (msg.role) {
-      | Agent.Message.Model.User => "User: " ++ msg.content ++ "\n\n"
-      | Agent.Message.Model.Agent(_) => "LLM: " ++ msg.content ++ "\n\n"
-      | Agent.Message.Model.ToolResult(tool_result) =>
+      | Message.Model.User => "User: " ++ msg.content ++ "\n\n"
+      | Message.Model.Agent(_) => "LLM: " ++ msg.content ++ "\n\n"
+      | Message.Model.ToolResult(tool_result) =>
         "Tool Call: "
         ++ tool_result.tool_call.name
         ++ " "
@@ -252,7 +244,7 @@ let view =
             : tool_result.success ? "[success]" : "[failure]"
         )
         ++ "\n\n"
-      | Agent.Message.Model.System(_) => ""
+      | Message.Model.System(_) => ""
       };
     };
     let formatted_text =
@@ -297,7 +289,7 @@ let view =
   /** Provider-reported prompt_tokens from the last agent turn when applicable; [None] → “—” in the
       label (e.g. before any reply or after compaction until the next assistant message reports usage). */
   let last_prompt_tokens_opt: option(int) =
-    Agent.Chat.Utils.context_meter_prompt_tokens(current_chat);
+    Chat.Utils.context_meter_prompt_tokens(current_chat);
   let context_limit_opt =
     AgentGlobals.context_meter_limit_for_active(
       globals.settings.agent_globals,
@@ -675,7 +667,7 @@ let view =
           switch (slash_menu) {
           | None => div(~attrs=[], [])
           | Some(sm) =>
-            let cmds = Agent.ChatSlashCommands.filtered(sm.filter);
+            let cmds = ChatSlashCommands.filtered(sm.filter);
             div(
               ~attrs=[clss(["chat-slash-menu"])],
               List.mapi(
@@ -756,8 +748,8 @@ let view =
                   | Some(_) =>
                     Effect.Many([
                       agent_inject(
-                        Agent.Agent.Update.Action.ChatSystemAction(
-                          Agent.ChatSystem.Update.Action.SlashMenuAdjustSelection(
+                        Agent.Update.Action.ChatSystemAction(
+                          ChatSystem.Update.Action.SlashMenuAdjustSelection(
                             1,
                           ),
                         ),
@@ -772,8 +764,8 @@ let view =
                   | Some(_) =>
                     Effect.Many([
                       agent_inject(
-                        Agent.Agent.Update.Action.ChatSystemAction(
-                          Agent.ChatSystem.Update.Action.SlashMenuAdjustSelection(
+                        Agent.Update.Action.ChatSystemAction(
+                          ChatSystem.Update.Action.SlashMenuAdjustSelection(
                             -1,
                           ),
                         ),
@@ -788,10 +780,8 @@ let view =
                   | Some(_) =>
                     Effect.Many([
                       agent_inject(
-                        Agent.Agent.Update.Action.ChatSystemAction(
-                          Agent.ChatSystem.Update.Action.SaveTextBoxContent(
-                            "",
-                          ),
+                        Agent.Update.Action.ChatSystemAction(
+                          ChatSystem.Update.Action.SaveTextBoxContent(""),
                         ),
                       ),
                       Effect.Prevent_default,
@@ -802,7 +792,7 @@ let view =
                 | Some("Enter") when !shift_pressed =>
                   switch (slash_menu) {
                   | Some(sm) =>
-                    let cmds = Agent.ChatSlashCommands.filtered(sm.filter);
+                    let cmds = ChatSlashCommands.filtered(sm.filter);
                     switch (List.nth_opt(cmds, sm.selected_index)) {
                     | Some((name, _)) =>
                       Js.Opt.iter(

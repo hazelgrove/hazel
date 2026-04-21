@@ -75,7 +75,7 @@ let kv_row = (~k: string, ~v: string, ~strong=false, ()): Node.t =>
     ],
   );
 
-let view_cost = (p: Agent.Message.Model.cost_output): Node.t => {
+let view_cost = (p: Message.Model.cost_output): Node.t => {
   let model_name = p.cost_model == "" ? "(no model selected)" : p.cost_model;
   let cost_value =
     switch (p.cost_estimated_usd) {
@@ -137,7 +137,7 @@ let view_cost = (p: Agent.Message.Model.cost_output): Node.t => {
   );
 };
 
-let view_credits = (p: Agent.Message.Model.credits_output): Node.t => {
+let view_credits = (p: Message.Model.credits_output): Node.t => {
   let remaining = p.credits_total -. p.credits_used;
   let pct =
     if (p.credits_total <= 0.0) {
@@ -187,7 +187,7 @@ let view_credits = (p: Agent.Message.Model.credits_output): Node.t => {
   );
 };
 
-let view_usage = (p: Agent.Message.Model.usage_output): Node.t => {
+let view_usage = (p: Message.Model.usage_output): Node.t => {
   let opt_row = (label: string, value: option(float)): option(Node.t) =>
     switch (value) {
     | None => None
@@ -242,10 +242,10 @@ let view_key = (key: string): Node.t =>
     );
   };
 
-let view_help = (p: Agent.Message.Model.help_output): Node.t => {
+let view_help = (p: Message.Model.help_output): Node.t => {
   let rows =
     List.map(
-      (e: Agent.Message.Model.help_entry) =>
+      (e: Message.Model.help_entry) =>
         div(
           ~attrs=[clss(["slash-help-row"])],
           [
@@ -275,7 +275,7 @@ let view_error = (msg: string): Node.t =>
 let view_notice = (msg: string): Node.t =>
   card(~kind="notice", ~title="Slash command", ~icon="i", [text(msg)]);
 
-let view = (payload: Agent.Message.Model.slash_command_payload): Node.t =>
+let view = (payload: Message.Model.slash_command_payload): Node.t =>
   switch (payload) {
   | CostOutput(p) => view_cost(p)
   | CreditsOutput(p) => view_credits(p)

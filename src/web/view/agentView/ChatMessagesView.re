@@ -14,7 +14,7 @@ module ViewComponents = {
   let prompt_view =
       (
         ~content: string,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -31,11 +31,9 @@ module ViewComponents = {
                 Attr.on_click(_ =>
                   Effect.Many([
                     agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
+                      Agent.Update.Action.ChatSystemAction(
+                        ChatSystem.Update.Action.ChatAction(
+                          Chat.Update.Action.SwitchView(Chat.Model.Messages),
                           chat_id,
                         ),
                       ),
@@ -59,7 +57,7 @@ module ViewComponents = {
   let developer_notes_view =
       (
         ~content: string,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -76,11 +74,9 @@ module ViewComponents = {
                 Attr.on_click(_ =>
                   Effect.Many([
                     agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
+                      Agent.Update.Action.ChatSystemAction(
+                        ChatSystem.Update.Action.ChatAction(
+                          Chat.Update.Action.SwitchView(Chat.Model.Messages),
                           chat_id,
                         ),
                       ),
@@ -107,8 +103,8 @@ module ViewComponents = {
         ~code_with_statics: CodeWithStatics.Model.t,
         ~agent_view: AgentContext.Model.t,
         ~eval_result: EvalResult.Model.t,
-        ~current_chat: Agent.Chat.Model.t,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~current_chat: Chat.Model.t,
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -278,7 +274,7 @@ module ViewComponents = {
                     ),
                     Attr.on_click(_ => {
                       let snapshot =
-                        Agent.Agent.Utils.llm_context_snapshot_text(
+                        Agent.Utils.llm_context_snapshot_text(
                           ~session_mode=
                             globals.settings.agent_globals.session_mode,
                           ~cell_result=eval_result,
@@ -298,10 +294,10 @@ module ViewComponents = {
                     Attr.on_click(_ =>
                       Effect.Many([
                         agent_inject(
-                          Agent.Agent.Update.Action.ChatSystemAction(
-                            Agent.ChatSystem.Update.Action.ChatAction(
-                              Agent.Chat.Update.Action.SwitchView(
-                                Agent.Chat.Model.Messages,
+                          Agent.Update.Action.ChatSystemAction(
+                            ChatSystem.Update.Action.ChatAction(
+                              Chat.Update.Action.SwitchView(
+                                Chat.Model.Messages,
                               ),
                               chat_id,
                             ),
@@ -340,8 +336,8 @@ module ViewComponents = {
 
   let tools_view =
       (
-        ~agent_model: Agent.Agent.Model.t,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~agent_model: Agent.Model.t,
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -354,11 +350,11 @@ module ViewComponents = {
     let tool_items =
       tools
       |> List.filter_map((tool: API.Json.t) => {
-           switch (Agent.Agent.ToolUtils.get_name(tool)) {
+           switch (Agent.ToolUtils.get_name(tool)) {
            | Some(name) =>
-             let category = Agent.Agent.ToolUtils.category_of_tool(name);
+             let category = Agent.ToolUtils.category_of_tool(name);
              let description =
-               Agent.Agent.ToolUtils.get_description(tool)
+               Agent.ToolUtils.get_description(tool)
                |> Option.value(~default="No description.");
              let is_enabled = !List.mem(name, disabled);
              let is_expanded = List.mem(name, expanded);
@@ -393,15 +389,13 @@ module ViewComponents = {
       let toggle_tool = _ =>
         Effect.Many([
           agent_inject(
-            Agent.Agent.Update.Action.SetToolEnabled(name, !is_enabled),
+            Agent.Update.Action.SetToolEnabled(name, !is_enabled),
           ),
           Effect.Stop_propagation,
         ]);
       let toggle_expand = _ =>
         Effect.Many([
-          agent_inject(
-            Agent.Agent.Update.Action.ToggleToolsViewExpanded(name),
-          ),
+          agent_inject(Agent.Update.Action.ToggleToolsViewExpanded(name)),
           Effect.Stop_propagation,
         ]);
       div(
@@ -461,7 +455,7 @@ module ViewComponents = {
       let toggle_category = _ =>
         Effect.Many([
           agent_inject(
-            Agent.Agent.Update.Action.SetToolsInCategoryEnabled(
+            Agent.Update.Action.SetToolsInCategoryEnabled(
               category,
               !all_enabled,
             ),
@@ -526,11 +520,9 @@ module ViewComponents = {
                 Attr.on_click(_ =>
                   Effect.Many([
                     agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
+                      Agent.Update.Action.ChatSystemAction(
+                        ChatSystem.Update.Action.ChatAction(
+                          Chat.Update.Action.SwitchView(Chat.Model.Messages),
                           chat_id,
                         ),
                       ),
@@ -553,7 +545,7 @@ module ViewComponents = {
 
   let workbench_view =
       (
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -570,11 +562,9 @@ module ViewComponents = {
                 Attr.on_click(_ =>
                   Effect.Many([
                     agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
+                      Agent.Update.Action.ChatSystemAction(
+                        ChatSystem.Update.Action.ChatAction(
+                          Chat.Update.Action.SwitchView(Chat.Model.Messages),
                           chat_id,
                         ),
                       ),
@@ -605,7 +595,7 @@ type timeline_node = {
 /** Changes when the messages pane content or trailing banners change height. */
 let chat_messages_scroll_stamp =
     (
-      ~chunked_chat: Agent.ChunkedUIChat.Model.t,
+      ~chunked_chat: ChunkedUIChat.Model.t,
       ~awaiting_dots: bool,
       ~compaction_banner: bool,
       ~pending_content: string,
@@ -615,7 +605,7 @@ let chat_messages_scroll_stamp =
   let acc = ref(0);
   let mix = (n: int) => acc := Hashtbl.hash((acc^, n));
   List.iter(
-    (chunk: Agent.ChunkedUIChat.Model.chunk) =>
+    (chunk: ChunkedUIChat.Model.chunk) =>
       switch (chunk) {
       | UserMessage({content, origin_id}) =>
         mix(1);
@@ -624,7 +614,7 @@ let chat_messages_scroll_stamp =
       | AgentResponseChunk({content, agent_reasoning, tool_results}) =>
         mix(2);
         List.iter(
-          (m: Agent.Message.Model.t) => {
+          (m: Message.Model.t) => {
             mix(String.length(m.content));
             mix(Hashtbl.hash(m.id));
             switch (m.reasoning) {
@@ -798,8 +788,8 @@ module ChatMessagesScrollHook = {
 let view =
     (
       ~globals: Globals.t,
-      ~agent_model: Agent.Agent.Model.t,
-      ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+      ~agent_model: Agent.Model.t,
+      ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
       ~code_with_statics: CodeWithStatics.Model.t,
       ~eval_result: EvalResult.Model.t,
@@ -807,9 +797,8 @@ let view =
     : Node.t => {
   let chat_system = agent_model.chat_system;
   let current_chat_id = chat_system.current;
-  let current_chat =
-    Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
-  let chunked_chat = Agent.ChunkedUIChat.Utils.mk(current_chat);
+  let current_chat = ChatSystem.Utils.find_chat(current_chat_id, chat_system);
+  let chunked_chat = ChunkedUIChat.Utils.mk(current_chat);
   // Build the high-level node map once for this render pass, used by tool-call rows
   // for stale-path detection and cmd/ctrl-click jump targets.
   let node_map: option(HighLevelNodeMap.t) = {
@@ -855,25 +844,21 @@ let view =
     let trimmed_content = String.trim(updated_content);
     if (String.length(trimmed_content) > 0) {
       // Create a new user message with updated content
-      let updated_message =
-        Agent.Message.Utils.mk_user_message(trimmed_content);
+      let updated_message = Message.Utils.mk_user_message(trimmed_content);
       // Send the message (appends and triggers LLM response)
       Effect.Many([
         agent_inject(
-          Agent.Agent.Update.Action.ChatSystemAction(
-            Agent.ChatSystem.Update.Action.ChatAction(
-              Agent.Chat.Update.Action.BranchOff(
-                Agent.Chat.Utils.parent_of(message_id, current_chat).id,
+          Agent.Update.Action.ChatSystemAction(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.BranchOff(
+                Chat.Utils.parent_of(message_id, current_chat).id,
               ),
               current_chat_id,
             ),
           ),
         ),
         agent_inject(
-          Agent.Agent.Update.Action.SendMessage(
-            updated_message,
-            current_chat_id,
-          ),
+          Agent.Update.Action.SendMessage(updated_message, current_chat_id),
         ),
         Effect.Stop_propagation,
       ]);
@@ -886,7 +871,7 @@ let view =
   let render_branch_navigation = (message_id: Id.t): Node.t => {
     // Find parent message and check if it has multiple children
     let parent_msg_opt =
-      try(Some(Agent.Chat.Utils.parent_of(message_id, current_chat))) {
+      try(Some(Chat.Utils.parent_of(message_id, current_chat))) {
       | _ => None
       };
     switch (parent_msg_opt) {
@@ -915,9 +900,9 @@ let view =
               List.nth(parent_msg.children, current_index - 1);
             Effect.Many([
               agent_inject(
-                Agent.Agent.Update.Action.ChatSystemAction(
-                  Agent.ChatSystem.Update.Action.ChatAction(
-                    Agent.Chat.Update.Action.SwitchBranch(
+                Agent.Update.Action.ChatSystemAction(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.SwitchBranch(
                       parent_msg.id,
                       prev_child_id,
                     ),
@@ -936,9 +921,9 @@ let view =
               List.nth(parent_msg.children, current_index + 1);
             Effect.Many([
               agent_inject(
-                Agent.Agent.Update.Action.ChatSystemAction(
-                  Agent.ChatSystem.Update.Action.ChatAction(
-                    Agent.Chat.Update.Action.SwitchBranch(
+                Agent.Update.Action.ChatSystemAction(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.SwitchBranch(
                       parent_msg.id,
                       next_child_id,
                     ),
@@ -997,9 +982,9 @@ let view =
     ),
   );
 
-  let render_chunk = (index: int, chunk: Agent.ChunkedUIChat.Model.chunk) => {
+  let render_chunk = (index: int, chunk: ChunkedUIChat.Model.chunk) => {
     switch (chunk) {
-    | Agent.ChunkedUIChat.Model.UserMessage(user_msg) =>
+    | ChunkedUIChat.Model.UserMessage(user_msg) =>
       // User messages on the right, editable
       let unique_id = "user-message-input-" ++ string_of_int(index);
       // Auto-size on mount - run after element is inserted into DOM
@@ -1116,25 +1101,22 @@ let view =
           ),
         ],
       );
-    | Agent.ChunkedUIChat.Model.AgentResponseChunk(agent_chunk) =>
+    | ChunkedUIChat.Model.AgentResponseChunk(agent_chunk) =>
       // Agent response chunk - display messages linearly
       // Render each message in the content list linearly.
       // Group consecutive ToolResult messages into a "batch" wrapper:
       // tool calls produced by a single LLM turn are emitted as one batch
       // (an Agent message ends the batch, as does a RetryNote / non-tool entry).
       let render_tool_node =
-          (
-            msg: Agent.Message.Model.t,
-            tool_result: AgentToolResult.tool_result,
-          ) => {
+          (msg: Message.Model.t, tool_result: AgentToolResult.tool_result) => {
         let toggle_expanded = _ => {
           Effect.Many([
             agent_inject(
-              Agent.Agent.Update.Action.ChatSystemAction(
-                Agent.ChatSystem.Update.Action.ChatAction(
-                  Agent.Chat.Update.Action.MessageAction(
+              Agent.Update.Action.ChatSystemAction(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.MessageAction(
                     msg.id,
-                    Agent.Message.Update.SetToolResultExpanded(
+                    Message.Update.SetToolResultExpanded(
                       !tool_result.expanded,
                     ),
                   ),
@@ -1162,7 +1144,7 @@ let view =
         };
       let (linear_display_rev, pending_batch) =
         List.fold_left(
-          ((acc, batch), msg: Agent.Message.Model.t) => {
+          ((acc, batch), msg: Message.Model.t) => {
             let flush = (acc, batch) =>
               switch (List.rev(batch)) {
               | [] => acc
@@ -1278,7 +1260,7 @@ let view =
       // Extract message IDs and tool results from content for toggle wiring
       let tool_result_messages =
         agent_chunk.content
-        |> List.filter_map((msg: Agent.Message.Model.t) =>
+        |> List.filter_map((msg: Message.Model.t) =>
              switch (msg.role) {
              | ToolResult(tool_result) => Some((msg.id, tool_result))
              | _ => None
@@ -1329,11 +1311,11 @@ let view =
         );
         Effect.Many([
           agent_inject(
-            Agent.Agent.Update.Action.ChatSystemAction(
-              Agent.ChatSystem.Update.Action.ChatAction(
-                Agent.Chat.Update.Action.MessageAction(
+            Agent.Update.Action.ChatSystemAction(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.MessageAction(
                   msg_id,
-                  Agent.Message.Update.SetToolResultExpanded(true),
+                  Message.Update.SetToolResultExpanded(true),
                 ),
                 current_chat_id,
               ),
@@ -1366,7 +1348,7 @@ let view =
               | Some(segment) =>
                 Effect.Many([
                   agent_inject(
-                    Agent.Agent.Update.Action.LoadTimelineSegment(
+                    Agent.Update.Action.LoadTimelineSegment(
                       segment,
                       node.index,
                     ),
@@ -1503,7 +1485,7 @@ let view =
                   clss(["agent-restore-original-button"]),
                   Attr.on_click(_ =>
                     Effect.Many([
-                      agent_inject(Agent.Agent.Update.Action.RestoreOriginal),
+                      agent_inject(Agent.Update.Action.RestoreOriginal),
                       Effect.Stop_propagation,
                     ])
                   ),
@@ -1565,7 +1547,7 @@ let view =
           ),
         ],
       );
-    | Agent.ChunkedUIChat.Model.CompactionNotice({method, content}) =>
+    | ChunkedUIChat.Model.CompactionNotice({method, content}) =>
       div(
         ~attrs=[clss(["message-container", "compaction-notice-container"])],
         [
@@ -1585,7 +1567,7 @@ let view =
           ),
         ],
       )
-    | Agent.ChunkedUIChat.Model.ErrorMessage(error_content) =>
+    | ChunkedUIChat.Model.ErrorMessage(error_content) =>
       // Error messages centered, red
       div(
         ~attrs=[
@@ -1593,7 +1575,7 @@ let view =
         ],
         [div(~attrs=[clss(["system-message"])], [text(error_content)])],
       )
-    | Agent.ChunkedUIChat.Model.ResponseCancelledMessage(content) =>
+    | ChunkedUIChat.Model.ResponseCancelledMessage(content) =>
       div(
         ~attrs=[
           clss([
@@ -1615,14 +1597,14 @@ let view =
           ),
         ],
       )
-    | Agent.ChunkedUIChat.Model.SlashCommandOutputMessage(payload) =>
+    | ChunkedUIChat.Model.SlashCommandOutputMessage(payload) =>
       SlashCommandOutputView.view(payload)
     };
   };
 
   // Check current view and render appropriate view
   switch (current_chat.current_view) {
-  | Agent.Chat.Model.Messages =>
+  | Chat.Model.Messages =>
     // Normal messages view (content only, bottom bar handled in ChatView)
     let awaiting_dots =
       switch (agent_model.awaiting_response) {
@@ -1755,26 +1737,26 @@ let view =
         ),
       ],
     );
-  | Agent.Chat.Model.Prompt =>
+  | Chat.Model.Prompt =>
     ViewComponents.prompt_view(
       ~content=chunked_chat.prompt,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.DeveloperNotes =>
+  | Chat.Model.DeveloperNotes =>
     ViewComponents.developer_notes_view(
       ~content=chunked_chat.developer_notes,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.Tools =>
+  | Chat.Model.Tools =>
     ViewComponents.tools_view(
       ~agent_model,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.AgentEditorView
-  | Agent.Chat.Model.StaticErrors =>
+  | Chat.Model.AgentEditorView
+  | Chat.Model.StaticErrors =>
     // Both AgentEditorView and StaticErrors now show context
     ViewComponents.context_view(
       ~globals,
@@ -1785,7 +1767,7 @@ let view =
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.Workbench =>
+  | Chat.Model.Workbench =>
     ViewComponents.workbench_view(~agent_inject, ~chat_id=current_chat_id)
   };
 };

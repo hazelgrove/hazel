@@ -1,4 +1,4 @@
-/** Integration-style tests for [[Agent.Agent.Update]] handling of assistant replies
+/** Integration-style tests for [[Agent.Update]] handling of assistant replies
     that contain **multiple** tool_calls: calls run in order until the first
     **failure**; later calls are not executed and produce **skipped** ToolResult
     rows. On an all-success batch, each call runs and one follow-up dispatch runs
@@ -32,10 +32,10 @@ let mk_reply =
 };
 
 let tool_result_names_in_order =
-    (model: Agent.Agent.Model.t, chat_id: Id.t): list(string) => {
-  let chat = Agent.ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-  Agent.Chat.Utils.linearize(chat)
-  |> List.filter_map((m: Agent.Message.Model.t) =>
+    (model: Agent.Model.t, chat_id: Id.t): list(string) => {
+  let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+  Chat.Utils.linearize(chat)
+  |> List.filter_map((m: Message.Model.t) =>
        switch (m.role) {
        | ToolResult(tr) => Some(tr.tool_call.name)
        | _ => None
@@ -44,11 +44,10 @@ let tool_result_names_in_order =
 };
 
 let tool_results_in_order =
-    (model: Agent.Agent.Model.t, chat_id: Id.t)
-    : list(AgentToolResult.tool_result) => {
-  let chat = Agent.ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-  Agent.Chat.Utils.linearize(chat)
-  |> List.filter_map((m: Agent.Message.Model.t) =>
+    (model: Agent.Model.t, chat_id: Id.t): list(AgentToolResult.tool_result) => {
+  let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+  Chat.Utils.linearize(chat)
+  |> List.filter_map((m: Message.Model.t) =>
        switch (m.role) {
        | ToolResult(tr) => Some(tr)
        | _ => None
@@ -59,18 +58,18 @@ let tool_results_in_order =
 let run_handle_llm_response =
     (
       reply: OpenRouter.Reply.Model.t,
-      ~agent: Agent.Agent.Model.t,
+      ~agent: Agent.Model.t,
       ~cell_editor: CellEditor.Model.t,
       ~settings: Settings.t,
     )
-    : (Agent.Agent.Model.t, list(Agent.Agent.Update.Action.t)) => {
+    : (Agent.Model.t, list(Agent.Update.Action.t)) => {
   let chat_id = agent.chat_system.current;
   let scheduled = ref([]);
-  let schedule_action = (a: Agent.Agent.Update.Action.t) =>
+  let schedule_action = (a: Agent.Update.Action.t) =>
     scheduled := scheduled^ @ [a];
   let (agent', _cell_ed) =
-    Agent.Agent.Update.update(
-      Agent.Agent.Update.Action.HandleLLMResponse(
+    Agent.Update.update(
+      Agent.Update.Action.HandleLLMResponse(
         reply,
         chat_id,
         agent.main_llm_seq,
@@ -88,7 +87,7 @@ let empty_args = yo_assoc([]);
 
 let test_two_workbench_tools_two_results = () => {
   let settings = Settings.Model.init;
-  let agent = Agent.Agent.Utils.init();
+  let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
   let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
   let reply =
@@ -114,7 +113,7 @@ let test_two_workbench_tools_two_results = () => {
   let has_llm_response =
     List.exists(
       fun
-      | Agent.Agent.Update.Action.HandleLLMResponse(_) => true
+      | Agent.Update.Action.HandleLLMResponse(_) => true
       | _ => false,
       scheduled,
     );
@@ -128,7 +127,7 @@ let test_two_workbench_tools_two_results = () => {
 
 let test_three_tools_preserve_order = () => {
   let settings = Settings.Model.init;
-  let agent = Agent.Agent.Utils.init();
+  let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
   let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
   let task_payload =
@@ -183,7 +182,7 @@ let test_three_tools_preserve_order = () => {
 
 let test_invalid_tool_skips_following_tools = () => {
   let settings = Settings.Model.init;
-  let agent = Agent.Agent.Utils.init();
+  let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
   let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
   let reply =
@@ -210,7 +209,7 @@ let test_invalid_tool_skips_following_tools = () => {
 
 let test_success_then_fail_then_skip = () => {
   let settings = Settings.Model.init;
-  let agent = Agent.Agent.Utils.init();
+  let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
   let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
   let reply =
@@ -234,7 +233,7 @@ let test_success_then_fail_then_skip = () => {
 
 let test_single_tool_call_regression = () => {
   let settings = Settings.Model.init;
-  let agent = Agent.Agent.Utils.init();
+  let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
   let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
   let reply =

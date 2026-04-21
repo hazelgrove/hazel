@@ -17,14 +17,14 @@ let check_bool = (name: string, expected: bool, actual: bool) =>
   check(bool, name, expected, actual);
 
 /* -------------------------------------------------------------------------- */
-/* Slash commands (Agent.ChatSlashCommands) */
+/* Slash commands (ChatSlashCommands) */
 
 let slash_command_tests = [
   test_case(
     "ChatSlashCommands.filtered: empty filter lists all commands alphabetically",
     `Quick,
     () => {
-      let xs = Agent.ChatSlashCommands.filtered("");
+      let xs = ChatSlashCommands.filtered("");
       let names = List.map(fst, xs);
       check(
         list(string),
@@ -51,7 +51,7 @@ let slash_command_tests = [
     "ChatSlashCommands.filtered: 'c' matches compact only",
     `Quick,
     () => {
-      let xs = Agent.ChatSlashCommands.filtered("c");
+      let xs = ChatSlashCommands.filtered("c");
       let names = List.map(fst, xs);
       check(list(string), "c-prefix", ["compact"], names);
     },
@@ -60,7 +60,7 @@ let slash_command_tests = [
     "ChatSlashCommands.filtered: prefix matches case-insensitively",
     `Quick,
     () => {
-      let xs = Agent.ChatSlashCommands.filtered("COM");
+      let xs = ChatSlashCommands.filtered("COM");
       check(int, "one match", 1, List.length(xs));
       switch (xs) {
       | [(name, _), ..._] => check_string("name", "compact", name)
@@ -72,7 +72,7 @@ let slash_command_tests = [
     "ChatSlashCommands.filtered: 'h' matches help only",
     `Quick,
     () => {
-      let xs = Agent.ChatSlashCommands.filtered("h");
+      let xs = ChatSlashCommands.filtered("h");
       check(int, "one match", 1, List.length(xs));
       switch (xs) {
       | [(name, _), ..._] => check_string("name", "help", name)
@@ -84,7 +84,7 @@ let slash_command_tests = [
     "ChatSlashCommands.filtered: no match returns empty",
     `Quick,
     () => {
-      let xs = Agent.ChatSlashCommands.filtered("zzz");
+      let xs = ChatSlashCommands.filtered("zzz");
       check(int, "empty", 0, List.length(xs));
     },
   ),
@@ -92,10 +92,10 @@ let slash_command_tests = [
     "ChatSlashCommands.help_payload: contains every command",
     `Quick,
     () => {
-      let p = Agent.ChatSlashCommands.help_payload();
+      let p = ChatSlashCommands.help_payload();
       let names =
         List.map(
-          (e: Agent.Message.Model.help_entry) => e.help_name,
+          (e: Message.Model.help_entry) => e.help_name,
           p.help_entries,
         );
       let has = needle => List.mem(needle, names);
@@ -117,18 +117,13 @@ let slash_menu_tests = [
     `Quick,
     () => {
       let r =
-        Agent.ChatSystem.Utils.derive_slash_menu_from_content(
-          ~prev=None,
-          "hello",
-        );
+        ChatSystem.Utils.derive_slash_menu_from_content(~prev=None, "hello");
       check_bool("no slash", true, Option.is_none(r));
     },
   ),
   test_case(
     "derive_slash_menu: '/' opens menu with empty filter token", `Quick, () => {
-    switch (
-      Agent.ChatSystem.Utils.derive_slash_menu_from_content(~prev=None, "/")
-    ) {
+    switch (ChatSystem.Utils.derive_slash_menu_from_content(~prev=None, "/")) {
     | None => fail("expected Some")
     | Some(sm) =>
       check_string("filter", "", sm.filter);
@@ -137,10 +132,7 @@ let slash_menu_tests = [
   }),
   test_case("derive_slash_menu: '/compact' sets filter token", `Quick, () => {
     switch (
-      Agent.ChatSystem.Utils.derive_slash_menu_from_content(
-        ~prev=None,
-        "/compact",
-      )
+      ChatSystem.Utils.derive_slash_menu_from_content(~prev=None, "/compact")
     ) {
     | None => fail("expected Some")
     | Some(sm) =>
@@ -153,7 +145,7 @@ let slash_menu_tests = [
     `Quick,
     () => {
       let r =
-        Agent.ChatSystem.Utils.derive_slash_menu_from_content(
+        ChatSystem.Utils.derive_slash_menu_from_content(
           ~prev=None,
           "/foo bar",
         );
@@ -164,12 +156,11 @@ let slash_menu_tests = [
     "SaveTextBoxContent + SlashMenuAdjustSelection cycles selection",
     `Quick,
     () => {
-      let cs =
-        Agent.ChatSystem.Utils.init(~system_prompt="p", ~dev_notes="d");
+      let cs = ChatSystem.Utils.init(~system_prompt="p", ~dev_notes="d");
       let cs =
         switch (
-          Agent.ChatSystem.Update.update(
-            Agent.ChatSystem.Update.Action.SaveTextBoxContent("/"),
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.SaveTextBoxContent("/"),
             cs,
           )
         ) {
@@ -182,8 +173,8 @@ let slash_menu_tests = [
         check_int("initial index", 0, sm0.selected_index);
         let cs2 =
           switch (
-            Agent.ChatSystem.Update.update(
-              Agent.ChatSystem.Update.Action.SlashMenuAdjustSelection(1),
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.SlashMenuAdjustSelection(1),
               cs,
             )
           ) {
@@ -202,16 +193,15 @@ let slash_menu_tests = [
 ];
 
 /* -------------------------------------------------------------------------- */
-/* Compaction dialogue slice (Agent.Chat.Utils.dialogue_slice_for_compaction_summary) */
+/* Compaction dialogue slice (Chat.Utils.dialogue_slice_for_compaction_summary) */
 
 let dialogue_slice_tests = [
   test_case(
     "dialogue_slice: fresh chat (prompt + dev only) yields empty slice",
     `Quick,
     () => {
-      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
-      let slice =
-        Agent.Chat.Utils.dialogue_slice_for_compaction_summary(chat);
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let slice = Chat.Utils.dialogue_slice_for_compaction_summary(chat);
       check(int, "empty slice", 0, List.length(slice));
     },
   ),
@@ -219,11 +209,10 @@ let dialogue_slice_tests = [
     "dialogue_slice: after user message, slice is that message only",
     `Quick,
     () => {
-      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
-      let u = Agent.Message.Utils.mk_user_message("hello");
-      let chat = Agent.Chat.Utils.append(u, chat);
-      let slice =
-        Agent.Chat.Utils.dialogue_slice_for_compaction_summary(chat);
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let u = Message.Utils.mk_user_message("hello");
+      let chat = Chat.Utils.append(u, chat);
+      let slice = Chat.Utils.dialogue_slice_for_compaction_summary(chat);
       check(int, "one message", 1, List.length(slice));
       switch (List.hd(slice).role) {
       | User => ()
@@ -236,20 +225,19 @@ let dialogue_slice_tests = [
     "dialogue_slice: after compaction summary, slice includes summary and later turns",
     `Quick,
     () => {
-      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
       let sum =
-        Agent.Message.Utils.mk_compaction_summary(
+        Message.Utils.mk_compaction_summary(
           ~method="test-method",
           "prior summary body",
         );
-      let chat = Agent.Chat.Utils.append(sum, chat);
-      let u = Agent.Message.Utils.mk_user_message("after compact");
-      let chat = Agent.Chat.Utils.append(u, chat);
-      let slice =
-        Agent.Chat.Utils.dialogue_slice_for_compaction_summary(chat);
+      let chat = Chat.Utils.append(sum, chat);
+      let u = Message.Utils.mk_user_message("after compact");
+      let chat = Chat.Utils.append(u, chat);
+      let slice = Chat.Utils.dialogue_slice_for_compaction_summary(chat);
       check(int, "summary + post-summary", 2, List.length(slice));
       switch (List.hd(slice).role) {
-      | Agent.Message.Model.System(Agent.Message.Model.CompactionSummary(m)) =>
+      | Message.Model.System(Message.Model.CompactionSummary(m)) =>
         check_string("method", "test-method", m)
       | _ => fail("expected CompactionSummary first in slice")
       };
@@ -282,22 +270,18 @@ let chat_context_meter_tests = [
     "context_meter_prompt_tokens: last agent usage when no compaction",
     `Quick,
     () => {
-      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat = Chat.Utils.append(Message.Utils.mk_user_message("u"), chat);
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_user_message("u"),
-          chat,
-        );
-      let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_agent_message("a", Some(tok(42))),
+        Chat.Utils.append(
+          Message.Utils.mk_agent_message("a", Some(tok(42))),
           chat,
         );
       check(
         bool,
         "Some(42)",
         true,
-        Agent.Chat.Utils.context_meter_prompt_tokens(chat) == Some(42),
+        Chat.Utils.context_meter_prompt_tokens(chat) == Some(42),
       );
     },
   ),
@@ -305,27 +289,24 @@ let chat_context_meter_tests = [
     "context_meter_prompt_tokens: None when last agent is before latest compaction",
     `Quick,
     () => {
-      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_agent_message("old", Some(tok(10))),
+        Chat.Utils.append(
+          Message.Utils.mk_agent_message("old", Some(tok(10))),
           chat,
         );
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_compaction_summary(~method="m", "sum"),
+        Chat.Utils.append(
+          Message.Utils.mk_compaction_summary(~method="m", "sum"),
           chat,
         );
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_user_message("after"),
-          chat,
-        );
+        Chat.Utils.append(Message.Utils.mk_user_message("after"), chat);
       check(
         bool,
         "no meter until post-compaction agent reply",
         true,
-        Agent.Chat.Utils.context_meter_prompt_tokens(chat) == None,
+        Chat.Utils.context_meter_prompt_tokens(chat) == None,
       );
     },
   ),
@@ -333,22 +314,22 @@ let chat_context_meter_tests = [
     "context_meter_prompt_tokens: Some after agent follows compaction summary",
     `Quick,
     () => {
-      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_compaction_summary(~method="m", "sum"),
+        Chat.Utils.append(
+          Message.Utils.mk_compaction_summary(~method="m", "sum"),
           chat,
         );
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_agent_message("fresh", Some(tok(99))),
+        Chat.Utils.append(
+          Message.Utils.mk_agent_message("fresh", Some(tok(99))),
           chat,
         );
       check(
         bool,
         "Some(99)",
         true,
-        Agent.Chat.Utils.context_meter_prompt_tokens(chat) == Some(99),
+        Chat.Utils.context_meter_prompt_tokens(chat) == Some(99),
       );
     },
   ),
@@ -415,35 +396,29 @@ let chat_messages_for_openrouter_tests = [
     "messages_for_openrouter: keeps prompt+dev then suffix from latest compaction",
     `Quick,
     () => {
-      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_compaction_summary(~method="meth", "body"),
+        Chat.Utils.append(
+          Message.Utils.mk_compaction_summary(~method="meth", "body"),
           chat,
         );
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_user_message("post"),
-          chat,
-        );
-      let ms = Agent.Chat.Utils.messages_for_openrouter(chat);
+        Chat.Utils.append(Message.Utils.mk_user_message("post"), chat);
+      let ms = Chat.Utils.messages_for_openrouter(chat);
       check(int, "prompt+dev+suffix", 4, List.length(ms));
       switch (List.nth(ms, 0).role) {
-      | Agent.Message.Model.System(Agent.Message.Model.Prompt) => ()
+      | Message.Model.System(Message.Model.Prompt) => ()
       | _ => fail("expected Prompt first")
       };
       switch (List.nth(ms, 1).role) {
-      | Agent.Message.Model.System(Agent.Message.Model.DeveloperNotes) => ()
+      | Message.Model.System(Message.Model.DeveloperNotes) => ()
       | _ => fail("expected DeveloperNotes second")
       };
       let has_compact =
         List.exists(
-          (m: Agent.Message.Model.t) =>
+          (m: Message.Model.t) =>
             switch (m.role) {
-            | Agent.Message.Model.System(
-                Agent.Message.Model.CompactionSummary(_),
-              ) =>
-              true
+            | Message.Model.System(Message.Model.CompactionSummary(_)) => true
             | _ => false
             },
           ms,
@@ -456,13 +431,10 @@ let chat_messages_for_openrouter_tests = [
     "messages_for_openrouter: no compaction returns full linear transcript",
     `Quick,
     () => {
-      let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
       let chat =
-        Agent.Chat.Utils.append(
-          Agent.Message.Utils.mk_user_message("only"),
-          chat,
-        );
-      let ms = Agent.Chat.Utils.messages_for_openrouter(chat);
+        Chat.Utils.append(Message.Utils.mk_user_message("only"), chat);
+      let ms = Chat.Utils.messages_for_openrouter(chat);
       check(int, "three messages", 3, List.length(ms));
       check_string("user tail", "only", List.nth(ms, 2).content);
     },
@@ -619,7 +591,7 @@ let context_meter_tests = [
 ];
 
 /* -------------------------------------------------------------------------- */
-/* LLM context snapshot (Message.Utils + Agent.Agent.Utils.llm_context_snapshot_text) */
+/* LLM context snapshot (Message.Utils + Agent.Utils.llm_context_snapshot_text) */
 
 /* -------------------------------------------------------------------------- */
 /* ToolCallHandler — non-composition failures surface Action.Failure.show */
@@ -630,7 +602,7 @@ let toolcall_handler_tests = [
     `Quick,
     () => {
       let settings = Settings.Model.init;
-      let agent = Agent.Agent.Utils.init();
+      let agent = Agent.Utils.init();
       let chat_id = agent.chat_system.current;
       let cws = CodeWithStatics.Model.mk(Editor.Model.mk(Zipper.init()));
       let action =
@@ -638,19 +610,13 @@ let toolcall_handler_tests = [
           Action.Structural.Update(Action.Structural.Definition, "a", "1"),
         );
       switch (
-        Agent.Agent.ToolCallHandler.update(
-          ~settings,
-          action,
-          agent,
-          cws,
-          chat_id,
-        )
+        Agent.ToolCallHandler.update(~settings, action, agent, cws, chat_id)
       ) {
       | Ok(_) =>
         fail(
           "expected structural tool to fail on empty editor (no derivable AST)",
         )
-      | Error(Agent.Failure.Info(msg)) =>
+      | Error(AgentResult.Failure.Info(msg)) =>
         let unknown = "Unknown error occured when trying to apply tool request to editor";
         check_bool("not the old opaque message", false, msg == unknown);
         check_bool(
@@ -676,7 +642,7 @@ let context_llm_snapshot_tests = [
     `Quick,
     () => {
       let body =
-        Agent.Message.Utils.context_snapshot_body_for_llm(
+        Message.Utils.context_snapshot_body_for_llm(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
           " err ",
@@ -684,7 +650,7 @@ let context_llm_snapshot_tests = [
           " wb ",
         );
       let msg =
-        Agent.Message.Utils.mk_context_message(
+        Message.Utils.mk_context_message(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
           " err ",
@@ -705,7 +671,7 @@ let context_llm_snapshot_tests = [
         };
       let editor = Editor.Model.mk(z);
       let cws = CodeWithStatics.Model.mk(editor);
-      let chat = Agent.Chat.Utils.init(~system_prompt="p", ~dev_notes="d");
+      let chat = Chat.Utils.init(~system_prompt="p", ~dev_notes="d");
       let eval_result = EvalResult.Model.init;
       let prog =
         CompositionView.Public.print(
@@ -719,7 +685,7 @@ let context_llm_snapshot_tests = [
         )
         |> String.concat("\n");
       let tests =
-        Agent.Agent.Utils.test_results_for_context(
+        Agent.Utils.test_results_for_context(
           EvalResult.Model.test_results(eval_result),
         );
       let wb =
@@ -727,7 +693,7 @@ let context_llm_snapshot_tests = [
           chat.agent_workbench,
         );
       let expected =
-        Agent.Message.Utils.mk_context_message(
+        Message.Utils.mk_context_message(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           prog,
           errs,
@@ -736,7 +702,7 @@ let context_llm_snapshot_tests = [
         ).
           content;
       let actual =
-        Agent.Agent.Utils.llm_context_snapshot_text(
+        Agent.Utils.llm_context_snapshot_text(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           ~cell_result=eval_result,
           cws,
@@ -1066,7 +1032,7 @@ let api_error_format_tests = [
     `Quick,
     () => {
       let s =
-        Agent.Agent.Update.format_api_error_content(
+        Agent.Update.format_api_error_content(
           ~code=429,
           ~message="rate limited",
         );

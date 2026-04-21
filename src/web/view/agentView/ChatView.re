@@ -7,8 +7,8 @@ open Icons;
 let view =
     (
       ~globals: Globals.t,
-      ~agent_model: Agent.Agent.Model.t,
-      ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+      ~agent_model: Agent.Model.t,
+      ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
       ~code_with_statics: CodeWithStatics.Model.t,
       ~eval_result: EvalResult.Model.t,
@@ -34,8 +34,8 @@ let view =
     let dev_notes = agent_model.prompting.dev_notes;
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.NewChat(system_prompt, dev_notes),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.NewChat(system_prompt, dev_notes),
         ),
       ),
       Effect.Stop_propagation,
@@ -43,11 +43,11 @@ let view =
   };
 
   // History button - switch to history screen
-  let toggle_history = (screen: Agent.ChatSystem.Model.active_screen) => {
+  let toggle_history = (screen: ChatSystem.Model.active_screen) => {
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.SwitchScreen(screen),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.SwitchScreen(screen),
         ),
       ),
       Effect.Stop_propagation,
@@ -58,10 +58,8 @@ let view =
   let switch_to_chat = _ => {
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.SwitchScreen(
-            Agent.ChatSystem.Model.Chat,
-          ),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.SwitchScreen(ChatSystem.Model.Chat),
         ),
       ),
       Effect.Stop_propagation,
@@ -69,17 +67,16 @@ let view =
   };
 
   // Get ordered list of chats (earliest at bottom, so reverse the list)
-  let chats_list =
-    List.rev(Agent.ChatSystem.Utils.chats_to_list(chat_system));
+  let chats_list = List.rev(ChatSystem.Utils.chats_to_list(chat_system));
 
   // View selection handlers (Chat vs Workbench)
   let current_chat_id = chat_system.current;
   let switch_to_chat_messages = _ => {
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Messages),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.SwitchView(Chat.Model.Messages),
             current_chat_id,
           ),
         ),
@@ -91,9 +88,9 @@ let view =
   let switch_to_workbench = _ => {
     Effect.Many([
       agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Workbench),
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.SwitchView(Chat.Model.Workbench),
             current_chat_id,
           ),
         ),
@@ -113,24 +110,21 @@ let view =
             ~attrs=[clss(["chat-view-header-left"])],
             [
               // View selection buttons (only show when in Chat screen)
-              if (chat_system.ui.active_screen == Agent.ChatSystem.Model.Chat) {
+              if (chat_system.ui.active_screen == ChatSystem.Model.Chat) {
                 let current_chat =
-                  Agent.ChatSystem.Utils.find_chat(
-                    current_chat_id,
-                    chat_system,
-                  );
+                  ChatSystem.Utils.find_chat(current_chat_id, chat_system);
                 let is_chat_view_active =
                   switch (current_chat.current_view) {
-                  | Agent.Chat.Model.Messages
-                  | Agent.Chat.Model.Prompt
-                  | Agent.Chat.Model.DeveloperNotes
-                  | Agent.Chat.Model.Tools
-                  | Agent.Chat.Model.AgentEditorView
-                  | Agent.Chat.Model.StaticErrors => true
-                  | Agent.Chat.Model.Workbench => false
+                  | Chat.Model.Messages
+                  | Chat.Model.Prompt
+                  | Chat.Model.DeveloperNotes
+                  | Chat.Model.Tools
+                  | Chat.Model.AgentEditorView
+                  | Chat.Model.StaticErrors => true
+                  | Chat.Model.Workbench => false
                   };
                 let is_workbench_active =
-                  current_chat.current_view == Agent.Chat.Model.Workbench;
+                  current_chat.current_view == Chat.Model.Workbench;
                 div(
                   ~attrs=[clss(["chat-view-buttons-container"])],
                   [
@@ -182,16 +176,15 @@ let view =
                   clss(
                     ["chat-view-header-icon-button"]
                     @ (
-                      chat_system.ui.active_screen
-                      == Agent.ChatSystem.Model.History
+                      chat_system.ui.active_screen == ChatSystem.Model.History
                         ? ["active"] : []
                     ),
                   ),
                   Attr.on_click(_ =>
                     toggle_history(
                       switch (chat_system.ui.active_screen) {
-                      | Agent.ChatSystem.Model.History => Agent.ChatSystem.Model.Chat
-                      | Agent.ChatSystem.Model.Chat => Agent.ChatSystem.Model.History
+                      | ChatSystem.Model.History => ChatSystem.Model.Chat
+                      | ChatSystem.Model.Chat => ChatSystem.Model.History
                       },
                     )
                   ),
@@ -212,15 +205,15 @@ let view =
       ),
       // Content area - switch between Chat and History
       switch (chat_system.ui.active_screen) {
-      | Agent.ChatSystem.Model.Chat =>
+      | ChatSystem.Model.Chat =>
         // Within Chat screen, switch between ChatMessages and Workbench
         let current_chat =
-          Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
-        let chunked_chat = Agent.ChunkedUIChat.Utils.mk(current_chat);
+          ChatSystem.Utils.find_chat(current_chat_id, chat_system);
+        let chunked_chat = ChunkedUIChat.Utils.mk(current_chat);
         // Content view (messages or workbench)
         let content_view =
           switch (current_chat.current_view) {
-          | Agent.Chat.Model.Messages =>
+          | Chat.Model.Messages =>
             ChatMessagesView.view(
               ~globals,
               ~agent_model,
@@ -229,7 +222,7 @@ let view =
               ~code_with_statics,
               ~eval_result,
             )
-          | Agent.Chat.Model.Workbench =>
+          | Chat.Model.Workbench =>
             WorkbenchView.view(
               ~globals,
               ~agent_model,
@@ -237,11 +230,11 @@ let view =
               ~signal,
               ~code_with_statics,
             )
-          | Agent.Chat.Model.Prompt
-          | Agent.Chat.Model.DeveloperNotes
-          | Agent.Chat.Model.Tools
-          | Agent.Chat.Model.AgentEditorView
-          | Agent.Chat.Model.StaticErrors =>
+          | Chat.Model.Prompt
+          | Chat.Model.DeveloperNotes
+          | Chat.Model.Tools
+          | Chat.Model.AgentEditorView
+          | Chat.Model.StaticErrors =>
             // These views are handled within ChatMessagesView
             ChatMessagesView.view(
               ~globals,
@@ -255,13 +248,13 @@ let view =
         // Shared bottom bar (only show for Messages and Workbench views)
         let show_bottom_bar =
           switch (current_chat.current_view) {
-          | Agent.Chat.Model.Messages
-          | Agent.Chat.Model.Workbench => true
-          | Agent.Chat.Model.Prompt
-          | Agent.Chat.Model.DeveloperNotes
-          | Agent.Chat.Model.Tools
-          | Agent.Chat.Model.AgentEditorView
-          | Agent.Chat.Model.StaticErrors => false
+          | Chat.Model.Messages
+          | Chat.Model.Workbench => true
+          | Chat.Model.Prompt
+          | Chat.Model.DeveloperNotes
+          | Chat.Model.Tools
+          | Chat.Model.AgentEditorView
+          | Chat.Model.StaticErrors => false
           };
         div(
           ~attrs=[clss(["chat-view-content-with-bottom-bar"])],
@@ -281,7 +274,7 @@ let view =
             },
           ],
         );
-      | Agent.ChatSystem.Model.History =>
+      | ChatSystem.Model.History =>
         div(
           ~attrs=[clss(["chat-view-content", "history-view"])],
           [
@@ -302,22 +295,22 @@ let view =
             div(
               ~attrs=[clss(["history-chat-list"])],
               List.map(
-                (chat: Agent.Chat.Model.t) => {
+                (chat: Chat.Model.t) => {
                   let is_active = chat.id == chat_system.current;
                   let classes =
                     ["history-chat-item"] @ (is_active ? ["active"] : []);
                   let switch_to_this_chat = _ => {
                     Effect.Many([
                       agent_inject(
-                        Agent.Agent.Update.Action.ChatSystemAction(
-                          Agent.ChatSystem.Update.Action.SwitchChat(chat.id),
+                        Agent.Update.Action.ChatSystemAction(
+                          ChatSystem.Update.Action.SwitchChat(chat.id),
                         ),
                       ),
                       // Also switch back to Chat screen to view the selected chat
                       agent_inject(
-                        Agent.Agent.Update.Action.ChatSystemAction(
-                          Agent.ChatSystem.Update.Action.SwitchScreen(
-                            Agent.ChatSystem.Model.Chat,
+                        Agent.Update.Action.ChatSystemAction(
+                          ChatSystem.Update.Action.SwitchScreen(
+                            ChatSystem.Model.Chat,
                           ),
                         ),
                       ),

@@ -1,4 +1,4 @@
-/** Tests for [[Agent.Agent.Update]]: Stop / flight sequence ignore, send queue flush,
+/** Tests for [[Agent.Update]]: Stop / flight sequence ignore, send queue flush,
     and matching [[ApiErrorResponse]] ignore paths — deterministic (no HTTP). */
 open Alcotest;
 open Haz3lcore;
@@ -16,8 +16,7 @@ let mk_reply =
 
 let cell_editor = () => CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
 
-let with_busy_main =
-    (~seq: int, agent: Agent.Agent.Model.t): Agent.Agent.Model.t => {
+let with_busy_main = (~seq: int, agent: Agent.Model.t): Agent.Model.t => {
   let chat_id = agent.chat_system.current;
   {
     ...agent,
@@ -26,22 +25,21 @@ let with_busy_main =
   };
 };
 
-let with_chat_queue =
-    (agent: Agent.Agent.Model.t, q: list(string)): Agent.Agent.Model.t => {
+let with_chat_queue = (agent: Agent.Model.t, q: list(string)): Agent.Model.t => {
   let chat_id = agent.chat_system.current;
-  let chat = Agent.ChatSystem.Utils.find_chat(chat_id, agent.chat_system);
+  let chat = ChatSystem.Utils.find_chat(chat_id, agent.chat_system);
   let chat' = {
     ...chat,
     pending_send_queue: q,
   };
   {
     ...agent,
-    chat_system: Agent.ChatSystem.Utils.update_chat(chat', agent.chat_system),
+    chat_system: ChatSystem.Utils.update_chat(chat', agent.chat_system),
   };
 };
 
 let with_compaction_in_flight =
-    (~seq: int, agent: Agent.Agent.Model.t): Agent.Agent.Model.t => {
+    (~seq: int, agent: Agent.Model.t): Agent.Model.t => {
   let chat_id = agent.chat_system.current;
   {
     ...agent,
@@ -53,15 +51,15 @@ let with_compaction_in_flight =
 
 let run_update =
     (
-      action: Agent.Agent.Update.Action.t,
-      agent: Agent.Agent.Model.t,
-      scheduled: ref(list(Agent.Agent.Update.Action.t)),
+      action: Agent.Update.Action.t,
+      agent: Agent.Model.t,
+      scheduled: ref(list(Agent.Update.Action.t)),
     )
-    : Agent.Agent.Model.t => {
+    : Agent.Model.t => {
   let settings = Settings.Model.init;
   let editor = cell_editor();
   let (agent', _) =
-    Agent.Agent.Update.update(action, agent, editor, settings, x =>
+    Agent.Update.update(action, agent, editor, settings, x =>
       scheduled := scheduled^ @ [x]
     );
   agent';
@@ -70,11 +68,11 @@ let run_update =
 /** Drain [[schedule_action]] callbacks breadth-first until empty or step bound. */
 let rec drain_scheduled =
         (
-          agent: Agent.Agent.Model.t,
-          scheduled: ref(list(Agent.Agent.Update.Action.t)),
+          agent: Agent.Model.t,
+          scheduled: ref(list(Agent.Update.Action.t)),
           ~max_rounds: int,
         )
-        : Agent.Agent.Model.t =>
+        : Agent.Model.t =>
   if (max_rounds <= 0) {
     Alcotest.fail("drain_scheduled: exceeded max_rounds");
   } else {
@@ -92,11 +90,9 @@ let rec drain_scheduled =
     };
   };
 
-let linear_contents =
-    (agent: Agent.Agent.Model.t, chat_id: Id.t): list(string) => {
-  let chat = Agent.ChatSystem.Utils.find_chat(chat_id, agent.chat_system);
-  Agent.Chat.Utils.linearize(chat)
-  |> List.map((m: Agent.Message.Model.t) => m.content);
+let linear_contents = (agent: Agent.Model.t, chat_id: Id.t): list(string) => {
+  let chat = ChatSystem.Utils.find_chat(chat_id, agent.chat_system);
+  Chat.Utils.linearize(chat) |> List.map((m: Message.Model.t) => m.content);
 };
 
 let index_of_substring =
@@ -115,11 +111,11 @@ let index_of_substring =
 };
 
 let test_stop_sets_ignore_and_clears_awaiting = () => {
-  let agent = with_busy_main(~seq=3, Agent.Agent.Utils.init());
+  let agent = with_busy_main(~seq=3, Agent.Utils.init());
   let chat_id = agent.chat_system.current;
   let scheduled = ref([]);
   let agent' =
-    run_update(Agent.Agent.Update.Action.StopAgenticLoop, agent, scheduled);
+    run_update(Agent.Update.Action.StopAgenticLoop, agent, scheduled);
   check(
     bool,
     "awaiting cleared",
@@ -145,21 +141,21 @@ let test_stop_sets_ignore_and_clears_awaiting = () => {
 };
 
 let test_handle_llm_response_ignored_for_stopped_flight = () => {
-  let agent = with_busy_main(~seq=2, Agent.Agent.Utils.init());
+  let agent = with_busy_main(~seq=2, Agent.Utils.init());
   let chat_id = agent.chat_system.current;
   let scheduled = ref([]);
   let after_stop =
-    run_update(Agent.Agent.Update.Action.StopAgenticLoop, agent, scheduled);
+    run_update(Agent.Update.Action.StopAgenticLoop, agent, scheduled);
   let n_before =
     List.length(
       List.filter(
-        (m: Agent.Message.Model.t) =>
+        (m: Message.Model.t) =>
           switch (m.role) {
-          | Agent.Message.Model.Agent(_) => true
+          | Message.Model.Agent(_) => true
           | _ => false
           },
-        Agent.Chat.Utils.linearize(
-          Agent.ChatSystem.Utils.find_chat(chat_id, after_stop.chat_system),
+        Chat.Utils.linearize(
+          ChatSystem.Utils.find_chat(chat_id, after_stop.chat_system),
         ),
       ),
     );
@@ -167,7 +163,7 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
   let scheduled2 = ref([]);
   let after_late =
     run_update(
-      Agent.Agent.Update.Action.HandleLLMResponse(late, chat_id, 2, 0),
+      Agent.Update.Action.HandleLLMResponse(late, chat_id, 2, 0),
       after_stop,
       scheduled2,
     );
@@ -178,15 +174,15 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     Option.is_none(after_late.pending_ignore_main_reply_seq),
   );
   let msgs =
-    Agent.Chat.Utils.linearize(
-      Agent.ChatSystem.Utils.find_chat(chat_id, after_late.chat_system),
+    Chat.Utils.linearize(
+      ChatSystem.Utils.find_chat(chat_id, after_late.chat_system),
     );
   let n_after =
     List.length(
       List.filter(
-        (m: Agent.Message.Model.t) =>
+        (m: Message.Model.t) =>
           switch (m.role) {
-          | Agent.Message.Model.Agent(_) => true
+          | Message.Model.Agent(_) => true
           | _ => false
           },
         msgs,
@@ -206,25 +202,25 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
       List.exists(
         c =>
           StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
-        List.map((m: Agent.Message.Model.t) => m.content, msgs),
+        List.map((m: Message.Model.t) => m.content, msgs),
       ),
   );
 };
 
 let test_api_error_main_ignored_for_stopped_flight = () => {
-  let agent = with_busy_main(~seq=4, Agent.Agent.Utils.init());
+  let agent = with_busy_main(~seq=4, Agent.Utils.init());
   let chat_id = agent.chat_system.current;
   let scheduled = ref([]);
   let after_stop =
-    run_update(Agent.Agent.Update.Action.StopAgenticLoop, agent, scheduled);
-  let err = Agent.Message.Utils.mk_api_failure_message("should not append");
+    run_update(Agent.Update.Action.StopAgenticLoop, agent, scheduled);
+  let err = Message.Utils.mk_api_failure_message("should not append");
   let scheduled2 = ref([]);
   let after_err =
     run_update(
-      Agent.Agent.Update.Action.ApiErrorResponse(
+      Agent.Update.Action.ApiErrorResponse(
         chat_id,
         err,
-        Agent.Agent.MainRequest(4),
+        Agent.MainRequest(4),
       ),
       after_stop,
       scheduled2,
@@ -251,25 +247,21 @@ let test_api_error_main_ignored_for_stopped_flight = () => {
 let test_stop_then_flush_queue_sends_user_after_cancel = () => {
   let agent =
     with_chat_queue(
-      with_busy_main(~seq=1, Agent.Agent.Utils.init()),
+      with_busy_main(~seq=1, Agent.Utils.init()),
       ["queued_after_stop"],
     );
   let chat_id = agent.chat_system.current;
   let scheduled = ref([]);
   let after_stop =
-    run_update(Agent.Agent.Update.Action.StopAgenticLoop, agent, scheduled);
+    run_update(Agent.Update.Action.StopAgenticLoop, agent, scheduled);
   check(
     bool,
     "FlushPendingSend scheduled",
     true,
-    List.mem(
-      Agent.Agent.Update.Action.FlushPendingSend(chat_id),
-      scheduled^,
-    ),
+    List.mem(Agent.Update.Action.FlushPendingSend(chat_id), scheduled^),
   );
   let after_drain = drain_scheduled(after_stop, scheduled, ~max_rounds=8);
-  let chat =
-    Agent.ChatSystem.Utils.find_chat(chat_id, after_drain.chat_system);
+  let chat = ChatSystem.Utils.find_chat(chat_id, after_drain.chat_system);
   check(bool, "queue drained", true, chat.pending_send_queue == []);
   let cs = linear_contents(after_drain, chat_id);
   let i_cancel =
@@ -284,20 +276,19 @@ let test_stop_then_flush_queue_sends_user_after_cancel = () => {
 };
 
 let test_send_while_busy_enqueues = () => {
-  let agent = with_busy_main(~seq=1, Agent.Agent.Utils.init());
+  let agent = with_busy_main(~seq=1, Agent.Utils.init());
   let chat_id = agent.chat_system.current;
   let scheduled = ref([]);
   let after_send =
     run_update(
-      Agent.Agent.Update.Action.SendMessage(
-        Agent.Message.Utils.mk_user_message("hold"),
+      Agent.Update.Action.SendMessage(
+        Message.Utils.mk_user_message("hold"),
         chat_id,
       ),
       agent,
       scheduled,
     );
-  let chat =
-    Agent.ChatSystem.Utils.find_chat(chat_id, after_send.chat_system);
+  let chat = ChatSystem.Utils.find_chat(chat_id, after_send.chat_system);
   check(
     bool,
     "message queued not inline-appended as sole path",
@@ -307,11 +298,11 @@ let test_send_while_busy_enqueues = () => {
 };
 
 let test_handle_compaction_reply_ignored_after_stop = () => {
-  let agent = with_compaction_in_flight(~seq=2, Agent.Agent.Utils.init());
+  let agent = with_compaction_in_flight(~seq=2, Agent.Utils.init());
   let chat_id = agent.chat_system.current;
   let scheduled = ref([]);
   let after_stop =
-    run_update(Agent.Agent.Update.Action.StopAgenticLoop, agent, scheduled);
+    run_update(Agent.Update.Action.StopAgenticLoop, agent, scheduled);
   check(
     bool,
     "compaction cleared",
@@ -328,7 +319,7 @@ let test_handle_compaction_reply_ignored_after_stop = () => {
   let scheduled2 = ref([]);
   let after =
     run_update(
-      Agent.Agent.Update.Action.HandleCompactionLLMReply(summary, chat_id, 2),
+      Agent.Update.Action.HandleCompactionLLMReply(summary, chat_id, 2),
       after_stop,
       scheduled2,
     );

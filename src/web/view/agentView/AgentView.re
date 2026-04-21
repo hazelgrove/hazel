@@ -19,7 +19,7 @@ let view =
     | Documentation(m) =>
       let scratchpad = List.nth(m.scratchpads, m.current);
       let agent_model = scratchpad.agent;
-      let agent_inject = (action: Agent.Agent.Update.Action.t) =>
+      let agent_inject = (action: Agent.Update.Action.t) =>
         editors_inject(
           Editors.Update.Scratch(ScratchMode.Update.AgentAction(action)),
         );
