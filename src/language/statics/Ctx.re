@@ -154,17 +154,14 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
     )
   };
 
-let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t => {
+let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
   ...ctx,
   entries:
     List.filter_map(
       fun
       | ConstructorMap.Variant(ctr, ann, typ) => {
-          let ctr_id =
-            switch (ann.ids) {
-            | [id, ..._] => id
-            | [] => id
-            };
+          assert(ann.ids != []);
+          let ctr_id = List.hd(ann.ids);
           Some(
             ConstructorEntry({
               name: ctr,
