@@ -423,29 +423,18 @@ let selection =
       ~statics: CachedStatics.t,
       z: Zipper.t,
     ) => {
-  print_endline(Zipper.pp_zipper(z));
-  print_endline("Selection content:");
-  List.iter(
-    piece => print_endline("  " ++ Zipper.pp_piece(piece)),
-    z.selection.content,
-  );
   let find_assoc_for_id = (id: Id.t): list(Id.t) => {
-    /* Compute associative IDs for a given tile ID */
-    // The idea here is that with left-associative operators, we
-    // know where to find the "left" argument even if the subtree
-    // is not a leaf node.
-    //
-    // For example, if we have the expression `1 + 2 + 3` and want to grab
-    // 2 + 3, we know this is represented as (1 + 2) + 3 under the hood.
-    // To grab the 2, we step left once from the +, and then step right
-    // upon finding that we were looking at a +.
-    // If, however, we had (1 * 2) + 3, we step left once, find *, and
-    // return the ID of that subterm (1 * 2).
+    /* For a BinOp with operator `op`, returns [left_operand, op, right_operand]
+       where the operands are "snapped" one level inward along same-op chains.
+       For any other expression, returns [id] unchanged.
+
+       Example: `1 + 2 + 3` is `(1 + 2) + 3` internally. When the outer `+`
+       tile is selected, this returns [id_2, id_+_outer, id_3] so the highlight
+       snaps to cover `2 + 3` rather than the raw operator tile alone. */
     let statics_opt = Language.Statics.Map.lookup(id, statics.info_map);
     switch (statics_opt) {
     | Some(InfoExp(exp)) =>
       switch (exp.term.term) {
-      // | BinOp(op, left, right) when Language.Operators.is_associative_op(op) =>
       | BinOp(op, left, right) =>
         let left_id = left |> Language.Exp.rep_id;
         let right_id = right |> Language.Exp.rep_id;
@@ -459,24 +448,11 @@ let selection =
             }
           | _ => left_id
           };
-
-        // Special selection snapping handling: if the associative operators we
-        // select are BinOps, we grab the left/right child of that BinOp
         let left_left_id =
           switch (Language.Statics.Map.lookup(left_assoc, statics.info_map)) {
           | Some(InfoExp(left_contents)) =>
             switch (left_contents.term.term) {
-            // only grab a child if it's a BinOp, otherwise return the original
-            | BinOp(_, left_left, _) =>
-              print_endline(
-                "Left child of binOp: "
-                ++ Language.Operators.show_binop(op)
-                ++ " at tile "
-                ++ Zipper.short_id(left_assoc)
-                ++ " is "
-                ++ Zipper.short_id(left_left |> Language.Exp.rep_id),
-              );
-              left_left |> Language.Exp.rep_id;
+            | BinOp(_, left_left, _) => left_left |> Language.Exp.rep_id
             | _ => left_assoc
             }
           | _ => left_assoc
@@ -485,13 +461,14 @@ let selection =
           switch (Language.Statics.Map.lookup(right_id, statics.info_map)) {
           | Some(InfoExp(right_contents)) =>
             switch (right_contents.term.term) {
-            // only grab a child if it's a BinOp, otherwise return the original
             | BinOp(_, _, right_right) => right_right |> Language.Exp.rep_id
             | _ => right_id
             }
           | _ => right_id
           };
-        [left_left_id, right_assoc];
+        /* Include `id` itself so the operator tile is not dropped from the
+           highlight (multi-shard tiles like `let = in` also rely on this). */
+        [left_left_id, id, right_assoc];
       | _ => [id]
       }
     | _ => [id]
@@ -499,14 +476,6 @@ let selection =
   };
 
   let associative_segment = (z: Zipper.t): Segment.t => {
-    print_endline(Zipper.pp_zipper(z));
-    print_endline("Selection content:");
-    List.iter(
-      piece => print_endline("  " ++ Zipper.pp_piece(piece)),
-      z.selection.content,
-    );
-
-    /* Extract all Tile IDs from the selection segment */
     let tile_ids =
       z.selection.content
       |> List.filter_map(piece =>
@@ -516,44 +485,23 @@ let selection =
            | _ => None
            }
          );
-    List.iter(
-      id => print_endline("Tile ID: " ++ Zipper.short_id(id)),
-      tile_ids,
-    );
-    /* Compute associative IDs for every selected tile */
     let assoc_ids = tile_ids |> List.concat_map(find_assoc_for_id);
-    print_endline(
-      "Assoc IDs: "
-      ++ String.concat(", ", List.map(id => Zipper.short_id(id), assoc_ids)),
-    );
     switch (assoc_ids) {
     | [] => z.selection.content
     | assoc_ids =>
-      let unique_segment =
-        Zipper.zip(z)
-        |> List.fold_left(
-             (acc, piece) => {
-               let pid = Piece.id(piece);
-               if (List.exists(id => id == pid, assoc_ids)
-                   && !List.exists(p => Piece.id(p) == pid, acc)) {
-                 acc @ [piece];
-               } else {
-                 acc;
-               };
-             },
-             [],
-           );
-      print_endline(
-        "IDs drawn in selection: "
-        ++ String.concat(
-             ", ",
-             List.map(
-               piece => Zipper.short_id(Piece.id(piece)),
-               unique_segment,
-             ),
-           ),
-      );
-      unique_segment;
+      /* Search the current-level segment (left siblings + selection + right
+         siblings) rather than Zipper.zip(z). Zipper.zip assembles the cursor
+         level into its ancestor tile, so inner pieces would only appear as
+         nested children of that tile, not as top-level pieces to filter over.
+         Multi-shard tiles (e.g. `let = in`) share one ID across all shards;
+         using List.filter (no dedup by ID) ensures all shards are included. */
+      let (left_sibs, right_sibs) = z.relatives.siblings;
+      left_sibs
+      @ z.selection.content
+      @ right_sibs
+      |> List.filter(piece =>
+           List.exists(id => id == Piece.id(piece), assoc_ids)
+         );
     };
   };
   div_c(
