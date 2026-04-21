@@ -134,7 +134,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
     | _ => None
     }
-  | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Down} =>
+  | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Down, _} =>
     switch (key) {
     | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
     | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
