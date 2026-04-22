@@ -8,6 +8,15 @@ module Request = {
   type value = {
     expr: Language.Exp.t,
     targets: Language.Sample.targets,
+    /* Projected statics data used by the incremental driver to look up
+     * per-id sub-elaborations and co-ctxs. We ship this slice instead of
+     * the full StaticsBase.Map.t because the full map transitively contains
+     * LivelitCtx entries that embed OCaml closures, which the structured-
+     * clone algorithm postMessage uses rejects. Pass the empty slice to
+     * opt out of incremental reuse. */
+    eval_info_map: Language.IncrEval.EvalInfoMap.t,
+    /* Previous run's incremental map; pass IncrEval.empty on first run. */
+    prev: Language.IncrEval.t,
   };
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
@@ -28,32 +37,27 @@ module Response = {
 };
 
 let work = (req_value: Request.value): Response.value => {
-  let Request.{expr, targets} = req_value;
-  // let eval_start = JsUtil.precise_timestamp();
-  let result =
-    switch (
-      Language.Evaluator.evaluate(
-        ~targets,
-        ~env=Language.Builtins.env_init,
-        expr,
-      )
-    ) {
-    | exception (Language.EvaluatorError.Exception(reason)) =>
-      print_endline(
-        "EvaluatorError:" ++ Language.EvaluatorError.show(reason),
-      );
-      Error(Language.ProgramResult.EvaulatorError(reason));
-    | exception exn =>
-      print_endline("EXN:" ++ Printexc.to_string(exn));
-      Error(
-        Language.ProgramResult.UnknownException(Printexc.to_string(exn)),
-      );
-    | (result, state) =>
-      /* Clear transient data before sending to avoid serializing
-       * massive amounts of unnecessary data (e.g., app_args can be 100MB+) */
-      Ok((result, Language.EvaluatorState.clear_transient(state)))
-    };
-  result;
+  let Request.{expr, targets, eval_info_map, prev} = req_value;
+  switch (
+    Language.Evaluator.evaluate(
+      ~targets,
+      ~prev,
+      ~info_map=eval_info_map,
+      ~env=Language.Builtins.env_init,
+      expr,
+    )
+  ) {
+  | exception (Language.EvaluatorError.Exception(reason)) =>
+    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
+    Error(Language.ProgramResult.EvaulatorError(reason));
+  | exception exn =>
+    print_endline("EXN:" ++ Printexc.to_string(exn));
+    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+  | (result, state) =>
+    /* Clear transient data before sending to avoid serializing massive
+     * amounts of unnecessary data (e.g., app_args can be 100MB+). */
+    Ok((result, Language.EvaluatorState.clear_transient(state)))
+  };
 };
 
 let on_request = (req: Request.t): unit => {
