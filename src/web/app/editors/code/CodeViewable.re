@@ -51,3 +51,6 @@ let view_typ = (~globals: Globals.t, ~settings, typ: Language.Typ.t) =>
 
 let view_any = (~globals: Globals.t, ~settings, any: Language.Any.t) =>
   any |> ExpToSegment.any_to_segment(~settings) |> view_segment(~globals);
+
+let view_exp = (~globals: Globals.t, ~settings, exp: Language.Exp.t) =>
+  exp |> ExpToSegment.exp_to_segment(~settings) |> view_segment(~globals);

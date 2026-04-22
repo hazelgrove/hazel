@@ -82,6 +82,7 @@ module Model = {
     redo_action: None,
     error_ids: model.statics.error_ids,
     contextual_actions: [],
+    proof_map: Language.ProofMap.empty,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -196,7 +197,13 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+  let view =
+      (
+        ~globals,
+        ~overlays: list(Node.t)=[],
+        ~proof_map: Language.ProofMap.t=Language.ProofMap.empty,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
@@ -220,12 +227,17 @@ module View = {
         ~refine_sort,
         segment,
       );
+    /* Union proof-mark ids into the red-shard overlay. Proof-check marks
+     * are produced at evaluation time (see src/language/proof/ProofCheck.re
+     * and ProofMark.t) and flow in here via CodeEditable → CellEditor,
+     * which reads them from the EvalResult's proof_map. */
+    let proof_error_ids = Language.ProofMap.error_ids(proof_map);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        model.statics.error_ids,
+        model.statics.error_ids @ proof_error_ids,
       );
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];

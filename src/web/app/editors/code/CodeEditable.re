@@ -595,6 +595,7 @@ module View = {
         ~incr_eval: option(Language.EvaluatorState.incr_eval)=?,
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
+        ~proof_map: Language.ProofMap.t=Language.ProofMap.empty,
         ~expand_selection=?,
         model: Model.t,
       ) => {
@@ -759,7 +760,8 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
-    let code_view = CodeWithStatics.View.view(~globals, ~overlays, model);
+    let code_view =
+      CodeWithStatics.View.view(~globals, ~overlays, ~proof_map, model);
 
     let loc = (e: Pointer.Event.t) =>
       FontMetrics.get_goal(

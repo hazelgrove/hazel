@@ -98,6 +98,20 @@ module Model = {
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
+  /* Proof-check results produced by the big-step evaluator for this cell
+   * (empty if evaluation hasn't completed or the cell contains no
+   * theorems). Consumed by the cursor inspector to show incoming/outgoing
+   * expressions on proof sub-terms. */
+  let proof_map = (model: t): ProofMap.t =>
+    model.dynamics
+    |> Calc.get_saved(None)
+    |> Option.map((d: Dynamics.t) => d.proof_map)
+    |> Option.value(~default=ProofMap.empty);
+
+  /* The incremental cache produced by the most recently completed evaluation.
+   * Exposed so the code editor can tint the background behind ids that the
+   * evaluator reused (cache hit) on this run. Reads the saved field so the
+   * tint survives across pending states. */
   let incr_eval = (model: t): EvaluatorState.incr_eval =>
     model.incr_eval |> Calc.get_saved(IncrEval.empty);
 

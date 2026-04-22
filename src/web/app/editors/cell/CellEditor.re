@@ -183,6 +183,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
       : cursor(Update.t) => {
+    let proof_map = EvalResult.Model.proof_map(model.result);
     switch (selection) {
     | MainEditor =>
       let+ ci =
@@ -190,7 +191,8 @@ module Selection = {
           ~inject=a => inject(MainEditor(a)),
           ~selection=(),
           model.editor,
-        );
+        )
+        |> Cursor.with_proof_map(proof_map);
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci =
@@ -198,7 +200,8 @@ module Selection = {
           ~inject=a => inject(ResultAction(a)),
           ~selection,
           model.result,
-        );
+        )
+        |> Cursor.with_proof_map(proof_map);
       Update.ResultAction(ci);
     };
   };
@@ -282,6 +285,7 @@ module View = {
           ~incr_eval=EvalResult.Model.incr_eval(model.result),
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
           ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
+          ~proof_map=EvalResult.Model.proof_map(model.result),
           model.editor,
         ),
       ]
