@@ -937,6 +937,11 @@ end|}),
       {|Induction: multi-case|},
       {|theorem x = 1 proof induction y | a => axiom y at y on y end | b => axiom z at z on z end end in x|},
     ),
+    /* Proof: forall (quantified variable) */
+    roundtrip_test(
+      {|Forall: simple|},
+      {|theorem x = 1 proof forall y => axiom y at y on y end in x|},
+    ),
     /* Module expressions: empty module roundtrip */
     roundtrip_test({|Module: empty|}, {|{}|}),
     /* Module text round-trip tests */

@@ -134,6 +134,7 @@ type proof = {
   sort: Sort.t,
   ctx: Ctx.t,
   ancestors,
+  marks: list(Mark.t) /* Statics errors on the proof node itself */,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -270,11 +271,11 @@ let marks_of: t => list(Mark.t) =
   | InfoPat({marks, _}) => marks
   | InfoTyp({marks, _})
   | InfoTPat({marks, _}) => marks
+  | InfoProof({marks, _}) => marks
   | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
-  | InfoProof(_)
   | Secondary(_) => [];
 
 /* Determines whether any term is in an error hole. Drv info uses its own

@@ -83,7 +83,8 @@ let of_ctx = (~builtins, ctx: Ctx.t): t => {
           }
         | Ctx.ConstructorEntry(_)
         | Ctx.TVarEntry(_)
-        | Ctx.LivelitEntry(_) => (seen_vars, rules)
+        | Ctx.LivelitEntry(_)
+        | Ctx.HypothesisEntry(_) => (seen_vars, rules)
         },
       ([], builtins),
       ctx.entries,

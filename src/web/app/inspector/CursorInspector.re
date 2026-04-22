@@ -276,6 +276,13 @@ let core_mark_err_view =
     | TypParseFailure
     | TPatShadowsType(_)
     | TPatNotAVar(_) => [text("Type error")]
+    | FreeHypothesis(name) => [
+        code(name),
+        text(" is not a hypothesis in scope"),
+      ]
+    | AxiomSlotNotHypothesis(_) => [
+        text("Axiom slot must be a hypothesis name"),
+      ]
     }
   )
   @ (
@@ -763,6 +770,10 @@ let exp_mark_err_view =
   | ExpectationMismatch(_)
   | NoMeet(_)
   | CompareFun(_) => common_from_core()
+  | FreeHypothesis(name) =>
+    div_err([code(name), text(" is not a hypothesis in scope")])
+  | AxiomSlotNotHypothesis(_) =>
+    div_err([text("Axiom slot must be a hypothesis name")])
   };
 };
 
