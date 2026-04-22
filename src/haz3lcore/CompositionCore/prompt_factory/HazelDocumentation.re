@@ -20,7 +20,7 @@ let summarized_docs = [
   "```",
   "- Hazel also supports polymorphic functions.",
   "```",
-  "let poly_id: forall a -> a -> a = typfun a -> fun x: a -> x;",
+  "let poly_id: poly a -> a -> a = typfun a -> fun x: a -> x;",
   "```",
   "- Polymorphic functions can be applied with type arguments using `@<T>` syntax.",
   "```",
@@ -95,19 +95,19 @@ let id = typfun A -> fun x : A -> x in
 # Such functions are applied like so: #
 let ex1 = id@<Int>(1) in # 1 #
 
-# We can annotate the type of a type function with a forall. #
-let const : forall A -> forall B -> A -> B -> A =
+# We can annotate the type of a type function with a poly. #
+let const : poly A -> poly B -> A -> B -> A =
   typfun A -> typfun B -> fun x -> fun y -> x in
 let ex2 = const@<Int>@<String>(2)("Hello World") in # 2 #
 
 # We can go beyond rank 1 polymorphism: #
-let apply_both : forall A -> forall B -> (forall D -> D -> D) -> (A , B) -> (A , B) =
+let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
   typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
 let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in # (3, "Hello World") #
 
 # Finally, here is a more in-depth, yet applicable example: polymorphic map #
-let emptylist : forall A -> [A] = typfun A -> [] in # polymorphic constant #
-let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) =
+let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic constant #
+let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) =
   typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] ->
     case l
     | h :: t => f(h) :: map@<A>@<B>(f)(t)
