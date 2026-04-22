@@ -130,6 +130,46 @@ expected-string form (Parens wrappers are transparent to
 `(1).0`). `let (a, b) = 1 in a.0` → `Dot(Dot(1, 0), 0)` (tests use
 `((1).0).0`).
 
+## 6c. Duplicated scrutinee still inflates probe counts via RecordExpProbe
+
+**Expected**: after (6b) gated Closure scrutinees, probe samples should
+fire the expected number of times for a probed scrutinee inside a
+stuck-destructured let.
+
+**Actual**: a user reported 24 samples where ~8 were expected, with the
+scrutinee being a bare hole `?` (not a Closure — so (6b) doesn't
+apply). Ratio 3× for a pair pattern, suggesting each of the 2 Dot
+duplicates in `pat_proj` output fires an extra sample per rewrite, on
+top of the 1 body execution.
+
+**Root cause**: `RecordExpProbe` in `Evaluator.re` fires whenever an
+expression whose ID is in the `targets` map reaches Final state. My
+`pat_proj` produces `Tuple([Dot(d, 0), Dot(d, 1), …])` where `d` is
+the scrutinee — N syntactic copies all sharing the original scrutinee
+IDs. When the new tuple's `req_final` visits each Dot, each inner `d`
+is `Final`, the target ID is found, and `RecordExpProbe` fires. The
+scrutinee's probe fires N times per stuck-destructure step (plus once
+originally during the first req_final before matches).
+
+**Fix**: apply `Exp.replace_all_ids` to each syntactic copy of `d` in
+`pat_proj`:
+
+```
+| Tuple(ps) =>
+  Tuple(List.mapi((i, p) =>
+    pat_proj(p, dot(Exp.replace_all_ids(d), int(i))), ps))
+  |> Exp.fresh
+```
+
+Each duplicate gets fresh IDs, so the probe targets map no longer
+matches and no spurious `RecordExpProbe` fires. The original scrut
+probe still fires once at its original `req_final`, preserving the
+intended sample count.
+
+Pinned by a new test in `Test_Evaluator_Probes.duplicate_prevention_tests`:
+`partition_at` with a probe on `hd` in the stuck-destructured body,
+expecting exactly 5 samples for a list of length 5.
+
 ## 6b. Duplicated scrutinee re-traverses Closures → spurious probe samples
 
 **Expected**: `pat_proj(Tuple([Var a, Var b]), d)` produces

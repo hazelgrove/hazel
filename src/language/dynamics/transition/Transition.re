@@ -189,6 +189,16 @@ let is_destructurable_scrut = (d: Exp.t): bool =>
    guaranteed to succeed (every Tuple-pattern level meets a literal Tuple
    of dotted leaves; Var/EmptyHole/Wild leaves bind to deep-Dot chains).
 
+   Each syntactic copy of `d` in the output is given fresh IDs via
+   `Exp.replace_all_ids`. `d` has already been `req_final`'d before we
+   get here, so any probe samples carried by its original IDs have
+   already fired once at that point; the rewritten tuple is a new
+   expression shape that shouldn't re-fire those samples when its
+   projections are evaluated. Without this freshening, a probed
+   scrutinee (including a probed `?` hole) records N extra samples per
+   stuck destructure, where N is the number of Dot projections in the
+   output.
+
    Caller must check `Pat.is_irrefutable_tuple_pattern(dp)` and
    `is_destructurable_scrut(d)` before invoking; otherwise the rewrite
    may produce nonsense or may not progress matching. */
@@ -203,7 +213,12 @@ let rec pat_proj = (dp: Pat.t, d: Exp.t): Exp.t =>
   | TupLabel(_, p) => pat_proj(p, d)
   | Tuple(ps) =>
     IdTagged.FreshGrammar.Exp.(
-      Tuple(List.mapi((i, p) => pat_proj(p, dot(d, int(i))), ps))
+      Tuple(
+        List.mapi(
+          (i, p) => pat_proj(p, dot(Exp.replace_all_ids(d), int(i))),
+          ps,
+        ),
+      )
       |> Exp.fresh
     )
   | _ => d /* refutable subpatterns: untouched (gated out by caller) */
