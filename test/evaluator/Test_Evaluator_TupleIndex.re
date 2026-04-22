@@ -45,19 +45,13 @@ let tests = (
       () =>
       parse_and_evaluate_test("2", "((1, 2), 3) . 0 . 1")
     ),
-    test_case(
-      "Nested - chained access (outer parens)",
-      `Quick,
-      () =>
+    test_case("Nested - chained access (outer parens)", `Quick, () =>
       parse_and_evaluate_test("2", "(((1, 2), 3).0).1")
     ),
     test_case("Nested - chained other branch", `Quick, () =>
       parse_and_evaluate_test("3", "((1, 2), 3).1")
     ),
-    test_case(
-      "Triple nested (outer parens to disambiguate)",
-      `Quick,
-      () =>
+    test_case("Triple nested (outer parens to disambiguate)", `Quick, () =>
       parse_and_evaluate_test("42", "((((42, 0), 0), 0).0 . 0).0")
     ),
     /* === Chained positional access without workarounds === */
@@ -112,10 +106,7 @@ let tests = (
       parse_and_evaluate_test("1", "let x = (1, 2, 3) in x.0")
     ),
     test_case("Bound var with type ascription", `Quick, () =>
-      parse_and_evaluate_test(
-        "1",
-        "let x : (Int, Bool) = (1, true) in x.0",
-      )
+      parse_and_evaluate_test("1", "let x : (Int, Bool) = (1, true) in x.0")
     ),
     test_case("Bound var ascribed - bool slot", `Quick, () =>
       parse_and_evaluate_test(

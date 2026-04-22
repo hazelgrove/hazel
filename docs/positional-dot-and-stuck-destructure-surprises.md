@@ -97,7 +97,42 @@ refutability must stay observable.
 
 Also covers `let (_, _) = ? in 1` and similar all-wild patterns.
 
-## 6. Duplicated scrutinee re-traverses Closures → spurious probe samples
+## 6a. `IndetMatch` is the unboxer's answer for *type errors* too
+
+**Expected**: `matches((a, b), 1)` (tuple pattern on an int scrutinee)
+would return `DoesNotMatch` — the value is definitively not a tuple.
+
+**Actual**: Hazel's unboxer returns `IndetMatch` on concrete values of
+non-matching kinds. The relevant case in `Unboxing.re`:
+
+```
+| (_, Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | ... ) =>
+  switch (request) {
+  | Tuple(_) | ... | TuplePositional(_) | ... => IndetMatch
+  }
+```
+
+This is a gradual-evaluator choice: type mismatches are "might align in
+some reduction path" rather than "definitely wrong." The old Let
+behavior handled this fine — `IndetMatch → Indet`, body stayed stuck.
+
+My stuck-destructure fired unconditionally on `IndetMatch`, which meant
+`let (a, b) = 1 in a` rewrote to `let (a, b) = (1.0, 1.1) in a` and
+bound `a ↦ 1.0` (stuck Dot of an int). The body evaluated to `(1.0).0`
+— nonsense.
+
+**Fix**: added `is_destructurable_scrut(d)` predicate in `Transition.re`
+that returns false for concrete non-tuple values (Atom, Constructor,
+Ap-of-Ctor, ListLit, Cons, Fun, BuiltinFun, TypFun, DeferredAp,
+Deferral, Label), for `Tuple`/`TupLabel` (wrong-arity case), and for
+`Closure` (item 6b below). The rewrite only fires when the scrutinee is
+a genuine indet form — hole, stuck compound expression, variable, etc.
+
+Tests: 6 new cases in `Test_Evaluator_StuckLet.re` pinning the
+stay-stuck behavior for int/string/bool/list/wrong-arity/fun
+scrutinees.
+
+## 6b. Duplicated scrutinee re-traverses Closures → spurious probe samples
 
 **Expected**: `pat_proj(Tuple([Var a, Var b]), d)` produces
 `Tuple([Dot(d, 0), Dot(d, 1)])` — two syntactic copies of `d`. Since

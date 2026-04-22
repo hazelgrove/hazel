@@ -132,36 +132,39 @@ observably incorrect vs. existing tests. Requiring at least one binding
 limits the feature to cases where the user clearly wants to read values
 out, not just assert a shape.
 
-### Scope rule: skip Closure scrutinees
+### Scope rule: scrutinee must be in a legitimately indeterminate shape
 
-The scrutinee is expected to already be in final form (it has been through
-`req_final`). When that final form is a `Closure(env, inner)`, the rewrite
-is skipped:
+`is_destructurable_scrut(d)` returns false for:
 
-```
-| Closure(_) => Indet
-| _ => ... rewrite ...
-```
+- **Concrete non-tuple values**: `Atom(_)`, `Constructor(_)`,
+  `Ap(_, Constructor, _)`, `ListLit(_)`, `Cons(_)`, `Fun(_, _, _, _)`,
+  `BuiltinFun(_)`, `TypFun(_)`, `DeferredAp(_)`, `Deferral(_)`,
+  `Label(_)`. Hazel's unboxer returns `IndetMatch` on these (gradual: "the
+  types *might* align"), but projecting a positional dot off them gives
+  nonsense. Example: `let (a, b) = 1 in a` — without this guard the
+  rewrite produces `(1.0, 1.1)` and binds `a` to `1.0`. User's intent is
+  almost certainly a type error; stay stuck.
+- **`Tuple(_)` / `TupLabel(_)`**: the scrutinee *is* a tuple. If matches
+  still returned `IndetMatch` it's because of arity or label mismatch.
+  Silently truncating or mis-aligning is worse than staying stuck.
+- **`Closure(_)`**: `pat_proj(dp, d1')` produces N syntactic copies of
+  `d1'` (one per tuple slot). For plain indet scrutinees each `Dot`'s
+  `req_final` is cheap because the inner value is already final. But
+  when `d1'` is a `Closure` wrapping an indet computation, each duplicate
+  `Dot` re-enters the closure body, firing probes inside it once per
+  copy. This was caught by the recursive-indet /
+  `wrap_closure` tests in
+  `Test_Evaluator_Probes.duplicate_prevention_tests`. Skipping Closure
+  scrutinees preserves the probe dedup semantics. Trade-off: a Let whose
+  scrutinee is a stuck recursive-call Closure stays stuck even when
+  destructure would have worked; users can force finalization with an
+  outer `let`.
 
-Why: `pat_proj(dp, d1')` produces a `Tuple([Dot(d1', 0), Dot(d1', 1), …])`
-— N syntactic copies of `d1'`. When `d1'` is a plain indet (a hole, an
-applied builtin with an indet arg, etc.), evaluating each `Dot` is free
-because the inner scrutinee is already final and doesn't step further.
-But when `d1'` is a `Closure` wrapping an indet computation, each `Dot`'s
-own `req_final` call re-enters the closure and traverses its body.
-Probes inside the closure then fire *once per duplicate dot*, yielding N×
-the expected sample count.
-
-Detected by the recursive-indet / wrap_closure tests in
-`Test_Evaluator_Probes.duplicate_prevention_tests`. With the Closure
-skip, all existing probe-dedup tests pass unchanged.
-
-Trade-off: a Let whose scrutinee is a Closure stays stuck even when
-destructure would have worked. In practice this shows up most often when
-the scrutinee is a recursive call whose result is still being computed
-lazily. Users who hit this can force the scrutinee to finalize first with
-an outer `let`. See the "Unexpected observations" section of
-`positional-dot-and-stuck-destructure-surprises.md` for the full detail.
+Returns true for: holes (`EmptyHole`, `MultiHole`, `DynamicErrorHole`,
+`Undefined`, `Invalid`), variables (`Var`), compound expressions that
+got stuck (`Ap` of non-ctor, `Dot`, `BinOp`, `UnOp`, `If`, `Match`,
+`Let`, `Seq`, `Test`, `Filter`, `TypAp`, `FixF`, `Asc`, etc.), and
+structural wrappers (`Parens`, `Projector`).
 
 ### The rewrite: `pat_proj`
 

@@ -159,6 +159,44 @@ let (let-unbox) = ((request, v), f) => {
   f(result);
 };
 
+/* Decide whether a scrutinee's final form is eligible for stuck tuple
+   destructuring. Pattern-match returns `IndetMatch` generously in
+   Hazel's gradual evaluator — including for definitively-wrong types
+   like `let (a, b) = 1 in a`. We only want to fire the rewrite when
+   the scrutinee's shape is genuinely indeterminate (a hole or a stuck
+   compound expression), not when it's a concrete value of a clearly
+   different kind.
+
+   Exclusions (each with its own reason):
+   - Atom/Constructor/Ap-of-Constructor/ListLit/Cons/Fun/BuiltinFun/
+     TypFun/DeferredAp/Deferral/Label: concrete values of non-tuple
+     kinds. Destructuring produces nonsense like `(1.0, 1.1)`.
+   - Tuple/TupLabel: already a tuple. If matches returned IndetMatch
+     here it's an arity or label mismatch — user error; stay stuck
+     rather than silently truncating or mis-aligning.
+   - Closure: duplicating a Closure across multiple Dot accessors
+     causes each Dot's req_final to re-enter the closure body and
+     fire probe samples per duplicate (see
+     Test_Evaluator_Probes.duplicate_prevention_tests). */
+let is_destructurable_scrut = (d: Exp.t): bool =>
+  switch (DHExp.term_of(d)) {
+  | Atom(_)
+  | Constructor(_)
+  | Ap(_, {term: Constructor(_), _}, _)
+  | ListLit(_)
+  | Cons(_)
+  | Fun(_, _, _, _)
+  | BuiltinFun(_)
+  | TypFun(_, _, _)
+  | DeferredAp(_)
+  | Deferral(_)
+  | Label(_)
+  | Tuple(_)
+  | TupLabel(_)
+  | Closure(_) => false
+  | _ => true
+  };
+
 /* Pattern-directed scrutinee rewrite for stuck tuple destructuring.
    Given an irrefutable tuple pattern `dp` and a (final, indet) scrutinee
    `d`, build a parallel tuple of positional projections mirroring `dp`'s
@@ -166,8 +204,9 @@ let (let-unbox) = ((request, v), f) => {
    guaranteed to succeed (every Tuple-pattern level meets a literal Tuple
    of dotted leaves; Var/EmptyHole/Wild leaves bind to deep-Dot chains).
 
-   Caller must check `Pat.is_irrefutable_tuple_pattern(dp)` before
-   invoking; otherwise the rewrite may not progress matching. */
+   Caller must check `Pat.is_irrefutable_tuple_pattern(dp)` and
+   `is_destructurable_scrut(d)` before invoking; otherwise the rewrite
+   may produce nonsense or may not progress matching. */
 let rec pat_proj = (dp: Pat.t, d: Exp.t): Exp.t =>
   switch (Pat.term_of(dp)) {
   | Var(_)
@@ -182,7 +221,7 @@ let rec pat_proj = (dp: Pat.t, d: Exp.t): Exp.t =>
       Tuple(List.mapi((i, p) => pat_proj(p, dot(d, int(i))), ps))
       |> Exp.fresh
     )
-  | _ => d  /* refutable subpatterns: untouched (gated out by caller) */
+  | _ => d /* refutable subpatterns: untouched (gated out by caller) */
   };
 module type EV_MODE = {
   type state;
@@ -351,33 +390,25 @@ module Transition = (EV: EV_MODE) => {
       };
 
       switch (matches) {
-      | IndetMatch when Pat.is_irrefutable_tuple_pattern(dp) =>
-        /* Stuck-destructure rewrite: scrutinee is indet relative to the
-           pattern's tuple shape but the pattern is irrefutable. Rewrite
-           the def to a parallel tuple of positional projections; the
-           next Let step matches it directly. */
-        switch (DHExp.term_of(d1')) {
-        | Closure(_) =>
-          /* Skip when scrutinee is a Closure. Duplicating a closure into
-             multiple Dot accessors causes re-traversal of the closure's
-             body during each Dot's req_final, which fires probe samples
-             inside the closure once per duplicate. (See
-             Test_Evaluator_Probes.duplicate_prevention_tests.) Staying
-             stuck here matches the old behavior at the cost of not
-             projecting through closure-wrapped indet results. */
-          Indet
-        | _ =>
-          let d1_new = pat_proj(dp, d1');
-          if (Exp.fast_equal(d1_new, d1')) {
-            Indet;
-          } else {
-            Step({
-              expr: Let(dp, d1_new, d2) |> rewrap,
-              side_effects: [],
-              kind: StuckDestructure,
-              is_value: false,
-            });
-          };
+      | IndetMatch
+          when
+            Pat.is_irrefutable_tuple_pattern(dp)
+            && is_destructurable_scrut(d1') =>
+        /* Stuck-destructure rewrite: scrutinee is in a legitimately
+           indeterminate form relative to the pattern's tuple shape, and
+           the pattern is irrefutable. Rewrite the def to a parallel
+           tuple of positional projections; the next Let step matches
+           directly. See `is_destructurable_scrut` for excluded forms. */
+        let d1_new = pat_proj(dp, d1');
+        if (Exp.fast_equal(d1_new, d1')) {
+          Indet;
+        } else {
+          Step({
+            expr: Let(dp, d1_new, d2) |> rewrap,
+            side_effects: [],
+            kind: StuckDestructure,
+            is_value: false,
+          });
         };
       | IndetMatch
       | DoesNotMatch => Indet
@@ -566,12 +597,7 @@ module Transition = (EV: EV_MODE) => {
           | IndetMatch
               when
                 Pat.is_irrefutable_tuple_pattern(dp)
-                && (
-                  switch (DHExp.term_of(d2')) {
-                  | Closure(_) => false
-                  | _ => true
-                  }
-                ) =>
+                && is_destructurable_scrut(d2') =>
             let d2_new = pat_proj(dp, d2');
             if (Exp.fast_equal(d2_new, d2')) {
               Indet;
@@ -603,12 +629,7 @@ module Transition = (EV: EV_MODE) => {
           | IndetMatch
               when
                 Pat.is_irrefutable_tuple_pattern(dp)
-                && (
-                  switch (DHExp.term_of(d2')) {
-                  | Closure(_) => false
-                  | _ => true
-                  }
-                ) =>
+                && is_destructurable_scrut(d2') =>
             let d2_new = pat_proj(dp, d2');
             if (Exp.fast_equal(d2_new, d2')) {
               Indet;
@@ -918,26 +939,26 @@ module Transition = (EV: EV_MODE) => {
          literal. The integer must fit in a regular int (max tuple arity). */
       | Atom(Int(i)) as int_term =>
         switch (Bigint.to_int(i)) {
-        | None => Indet  /* index too big to fit in OCaml int — treat as OOB */
+        | None => Indet /* index too big to fit in OCaml int — treat as OOB */
         | Some(idx) =>
           switch (Unboxing.unbox(TuplePositional(idx), d1')) {
           | Matches(d1'') =>
             switch (DHExp.term_of(d1'')) {
             | Tuple(ds) when idx >= 0 && idx < List.length(ds) =>
               let element = List.nth(ds, idx);
-            /* Strip TupLabel wrapper if present — positional access doesn't
-               care about the label. */
-            let unwrapped =
-              switch (DHExp.term_of(element)) {
-              | TupLabel(_, inner) => inner
-              | _ => element
-              };
-            Step({
-              expr: unwrapped,
-              side_effects: [],
-              kind: Dot,
-              is_value: true,
-            });
+              /* Strip TupLabel wrapper if present — positional access doesn't
+                 care about the label. */
+              let unwrapped =
+                switch (DHExp.term_of(element)) {
+                | TupLabel(_, inner) => inner
+                | _ => element
+                };
+              Step({
+                expr: unwrapped,
+                side_effects: [],
+                kind: Dot,
+                is_value: true,
+              });
             | ListLit(ds) =>
               let mapped =
                 List.map(
@@ -955,7 +976,7 @@ module Transition = (EV: EV_MODE) => {
             }
           | _ => Indet
           }
-        };
+        }
       | _ => Indet
       };
     | TupLabel(label, d1) =>

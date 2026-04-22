@@ -89,13 +89,11 @@ let tests = (
       parse_and_evaluate_test("?.1", "let (a=a', b=b') = ? in b'")
     ),
     test_case("Labeled destructure - both", `Quick, () =>
-      parse_and_evaluate_test(
-        "?.0 + ?.1",
-        "let (a=a', b=b') = ? in a' + b'",
-      )
+      parse_and_evaluate_test("?.0 + ?.1", "let (a=a', b=b') = ? in a' + b'")
     ),
     /* === Type-ascribed pattern: ascription is preserved through match === */
-    test_case("Asc pattern descends, ascription preserved on bound var", `Quick, () =>
+    test_case(
+      "Asc pattern descends, ascription preserved on bound var", `Quick, () =>
       parse_and_evaluate_test("?.0 : Int", "let (a: Int, b) = ? in a")
     ),
     test_case("Asc pattern: unascribed slot is plain projection", `Quick, () =>
@@ -139,28 +137,16 @@ let tests = (
     ),
     /* === FunAp with tuple parameter: same rewrite applies on argument === */
     test_case("FunAp tuple-pattern with hole arg destructures", `Quick, () =>
-      parse_and_evaluate_test(
-        "?.0 + ?.1",
-        "(fun (a, b) -> a + b)(?)",
-      )
+      parse_and_evaluate_test("?.0 + ?.1", "(fun (a, b) -> a + b)(?)")
     ),
     test_case("FunAp tuple-pattern, body uses only one var", `Quick, () =>
-      parse_and_evaluate_test(
-        "?.0",
-        "(fun (a, b) -> a)(?)",
-      )
+      parse_and_evaluate_test("?.0", "(fun (a, b) -> a)(?)")
     ),
     test_case("FunAp nested tuple-pattern", `Quick, () =>
-      parse_and_evaluate_test(
-        "(?.0).0",
-        "(fun ((a, b), c) -> a)(?)",
-      )
+      parse_and_evaluate_test("(?.0).0", "(fun ((a, b), c) -> a)(?)")
     ),
     test_case("FunAp tuple-pattern, concrete arg unchanged", `Quick, () =>
-      parse_and_evaluate_test(
-        "3",
-        "(fun (a, b) -> a + b)((1, 2))",
-      )
+      parse_and_evaluate_test("3", "(fun (a, b) -> a + b)((1, 2))")
     ),
     test_case("FunAp refutable pattern stays stuck", `Quick, () =>
       parse_and_evaluate_test(
@@ -171,15 +157,46 @@ let tests = (
     ),
     /* === Empty-tuple pattern stays stuck (no bound vars to destructure) === */
     test_case("Empty tuple pattern stays stuck (no bindings)", `Quick, () =>
-      parse_and_evaluate_test(
-        "let () = ? in 1",
-        "let () = ? in 1",
-      )
+      parse_and_evaluate_test("let () = ? in 1", "let () = ? in 1")
     ),
     test_case("All-wild tuple pattern stays stuck (no bindings)", `Quick, () =>
+      parse_and_evaluate_test("let (_, _) = ? in 1", "let (_, _) = ? in 1")
+    ),
+    /* === Concrete non-tuple scrutinee stays stuck (type-error case) ===
+       The pattern-match machinery returns IndetMatch for type mismatches
+       (gradual: "might" align), but we should NOT destructure these —
+       projecting a positional dot off an int gives nonsense. */
+    test_case("Int scrutinee with tuple pattern stays stuck", `Quick, () =>
+      parse_and_evaluate_test("let (a, b) = 1 in a", "let (a, b) = 1 in a")
+    ),
+    test_case("String scrutinee with tuple pattern stays stuck", `Quick, () =>
       parse_and_evaluate_test(
-        "let (_, _) = ? in 1",
-        "let (_, _) = ? in 1",
+        {|let (a, b) = "hi" in a|},
+        {|let (a, b) = "hi" in a|},
+      )
+    ),
+    test_case("Bool scrutinee with tuple pattern stays stuck", `Quick, () =>
+      parse_and_evaluate_test(
+        "let (a, b) = true in a",
+        "let (a, b) = true in a",
+      )
+    ),
+    test_case("List scrutinee with tuple pattern stays stuck", `Quick, () =>
+      parse_and_evaluate_test(
+        "let (a, b) = [1, 2] in a",
+        "let (a, b) = [1, 2] in a",
+      )
+    ),
+    test_case("Wrong-arity tuple scrutinee stays stuck", `Quick, () =>
+      parse_and_evaluate_test(
+        "let (a, b) = (1, 2, 3) in a",
+        "let (a, b) = (1, 2, 3) in a",
+      )
+    ),
+    test_case("Function scrutinee with tuple pattern stays stuck", `Quick, () =>
+      parse_and_evaluate_test(
+        "let (a, b) = fun x -> x in a",
+        "let (a, b) = fun x -> x in a",
       )
     ),
   ],
