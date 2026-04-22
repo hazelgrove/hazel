@@ -56,8 +56,7 @@ let update =
       }
     };
   | LanguageServerAction(_) =>
-    /* TODO: implement language server queries */
-    Ok((agent, editor))
+    Error(Failure.Info("LanguageServerAction is not implemented yet"))
   | InsertAtProgramBoundary(direction, code) =>
     /* No-path variant of insert_before/insert_after.
        - Before: move caret to program start, then paste code (prepend).
