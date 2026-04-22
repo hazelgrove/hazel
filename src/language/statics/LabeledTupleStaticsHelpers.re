@@ -54,7 +54,8 @@ let tup_label_self_type =
     : (Typ.t, list(Mark.t)) =>
   switch (lab_name) {
   | Some(name) =>
-    let labeled_syn = TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp;
+    let labeled_syn =
+      TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp;
     let marks =
       label_invalid
         ? [

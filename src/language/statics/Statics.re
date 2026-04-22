@@ -381,23 +381,29 @@ and uexp_to_info_map =
       let head_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let (hd, hd_elab, m) = go(~ana=head_ana_ty, hd, m);
       let tail_ana_ty = Typ.match_synswitch(ana, List(hd.ty) |> Typ.temp);
-      let (tl, tl_elab, m) =
-        go(
-          ~ana=tail_ana_ty,
-          tl,
-          m,
-        );
+      let (tl, tl_elab, m) = go(~ana=tail_ana_ty, tl, m);
       /* `hd` was analyzed against `head_ana_ty` (the element-level ana),
          so `hd.ty` already incorporates ana info at the element level.
          Using it directly as the element type means fresh re-synthesis of
          the elab_term (which will ana-wrap hd via fresh_ascription below)
          agrees with the recorded type. */
-      let inner_elab_syn_ty =
-        hd.ty |> Typ.normalize(ctx) |> Typ.all_ids_temp;
+      let inner_elab_syn_ty = hd.ty |> Typ.normalize(ctx) |> Typ.all_ids_temp;
       let elab_term =
         Cons(
-          hd_elab |> fresh_ascription(ctx, _, hd.elab_syn_ty, Some(inner_elab_syn_ty)),
-          tl_elab |> fresh_ascription(ctx, _, tl.elab_syn_ty, Some(List(inner_elab_syn_ty) |> Typ.temp)),
+          hd_elab
+          |> fresh_ascription(
+               ctx,
+               _,
+               hd.elab_syn_ty,
+               Some(inner_elab_syn_ty),
+             ),
+          tl_elab
+          |> fresh_ascription(
+               ctx,
+               _,
+               tl.elab_syn_ty,
+               Some(List(inner_elab_syn_ty) |> Typ.temp),
+             ),
         )
         |> rewrap;
       add(
@@ -1931,10 +1937,11 @@ and uexp_to_info_map =
           switch (result_ty.term) {
           | Unknown(Internal) => false
           | _ =>
-            !Typ.fast_equal(
-              Typ.normalize(ctx, result_ty),
-              Typ.normalize(ctx, branch_info.ty),
-            )
+            !
+              Typ.fast_equal(
+                Typ.normalize(ctx, result_ty),
+                Typ.normalize(ctx, branch_info.ty),
+              )
           };
         wrapped ? result_ty : branch_info.elab_syn_ty;
       };
@@ -2064,10 +2071,11 @@ and uexp_to_info_map =
           switch (result_ty.term) {
           | Unknown(Internal) => false
           | _ =>
-            !Typ.fast_equal(
-              Typ.normalize(ctx, result_ty),
-              Typ.normalize(ctx, e.ty),
-            )
+            !
+              Typ.fast_equal(
+                Typ.normalize(ctx, result_ty),
+                Typ.normalize(ctx, e.ty),
+              )
           };
         wrapped ? result_ty : e.elab_syn_ty;
       };
@@ -2077,13 +2085,7 @@ and uexp_to_info_map =
           List.map(branch_fresh_syn, es),
           branch_ids,
         );
-      add(
-        ~elab_term,
-        ~elab_syn_ty,
-        ~marks=marks_match',
-        ~co_ctx,
-        m,
-      );
+      add(~elab_term, ~elab_syn_ty, ~marks=marks_match', ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
