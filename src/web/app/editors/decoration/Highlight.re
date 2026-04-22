@@ -537,3 +537,24 @@ let colors =
       },
     ),
   );
+
+/* Tint the background behind "frozen" ids — the ones the incremental
+ * evaluator reused from the previous run (cache hit) and therefore did
+ * not need to recalculate this frame. Styled with a cool, icy motif so
+ * frozen code reads as "preserved / skipped" while untinted code reads
+ * as "live / being worked on". Recalculated ids are intentionally left
+ * untinted: they're the complement of frozen within the evaluated part
+ * of the program. */
+let incr_eval =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~syntax: CachedSyntax.t,
+      incr: Language.IncrEval.t,
+    ) =>
+  div_c(
+    "incremental-highlights",
+    List.concat_map(
+      id => color(~syntax, ~font_metrics, ["incremental-frozen"], id),
+      incr.reused,
+    ),
+  );

@@ -199,6 +199,15 @@ let dev_group = (~globals: Globals.t) => {
         setting: ShowRowLines,
         tooltip: Some("Show horizontal lines between each row of code"),
       },
+      {
+        name: "Incremental Reuse",
+        active: globals.settings.show_incremental_deco,
+        setting: ShowIncrementalDeco,
+        tooltip:
+          Some(
+            "Tint the background of code reused from the previous evaluation (cache hits in the incremental evaluator) with an icy blue wash",
+          ),
+      },
     ]
     @ (
       ExerciseSettings.show_instructor

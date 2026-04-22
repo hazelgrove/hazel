@@ -21,6 +21,12 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
+    /* Tint the background behind parts of the code that were REUSED from the
+     * previous evaluation (cache hits in the incremental evaluator). Useful
+     * for understanding what the incremental evaluator is doing; off by
+     * default because the frozen-looking tint is distracting during normal
+     * editing. */
+    show_incremental_deco: bool,
   };
 
   let init = {
@@ -75,6 +81,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
+    show_incremental_deco: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -153,7 +160,8 @@ module Update = {
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines;
+    | ShowRowLines
+    | ShowIncrementalDeco;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -412,6 +420,10 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
+        }
+      | ShowIncrementalDeco => {
+          ...settings,
+          show_incremental_deco: !settings.show_incremental_deco,
         }
       }
     )
