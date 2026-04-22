@@ -23,7 +23,7 @@ module Local = {
        calling get_inner_term_id(curr_node_info, Body) will return the id of the body "100 + 200".
        */
       switch (node.info) {
-      | InfoExp({term, _}) =>
+      | InfoExp({user_term: term, _}) =>
         switch (Exp.term_of(term)) {
         | Let(pat, def, body) =>
           switch (inner_term) {
@@ -605,10 +605,12 @@ module Local = {
 module Public = {
   let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
     Language.(
-      Statics.mk(
-        CoreSettings.on,
-        Builtins.ctx_init(Some(Operators.default_mode)),
-        MakeTerm.from_zip_for_sem(z).term,
+      fst(
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Operators.default_mode)),
+          MakeTerm.from_zip_for_sem(z).term,
+        ),
       )
     );
   let go = Local.go(~mk_statics);
