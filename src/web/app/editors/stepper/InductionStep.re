@@ -332,37 +332,31 @@ module F =
     ));
   };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
+  let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
       switch (focus) {
       | Scrut(a) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.scrut);
+          CodeEditable.Selection.get_cursor_info(
+            ~inject=a => inject(ScrutUpdate(a)),
+            ~selection=a,
+            model.scrut,
+          );
         ScrutUpdate(ci);
       | Case(i, a) =>
         switch (List.nth_opt(model.cases, i)) {
         | Some(case) =>
-          let+ ci = InductionCase.get_cursor_info(~focus=a, case);
+          let+ ci =
+            InductionCase.get_cursor_info(
+              ~inject=x => inject(CaseUpdate(i, x)),
+              ~focus=a,
+              case,
+            );
           CaseUpdate(i, ci);
         | None => Cursor.empty
         }
       }
     );
-
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) =>
-    switch (focus) {
-    | Scrut(a) =>
-      let editor = model.scrut;
-      CodeEditable.Selection.handle_key_event(~selection=a, editor, event)
-      |> Option.map(x => ScrutUpdate(x));
-    | Case(i, a) =>
-      switch (List.nth_opt(model.cases, i)) {
-      | Some(case) =>
-        InductionCase.handle_key_event(~focus=a, ~event, case)
-        |> Option.map(x => CaseUpdate(i, x))
-      | None => None
-      }
-    };
 
   let view_justification =
       (
@@ -394,13 +388,18 @@ module F =
         ~signal=
           fun
           | MakeActive => take_focus(Scrut()),
-        ~inject=x => inject(ScrutUpdate(x)),
-        ~selected=
-          switch (focus) {
-          | Some(Scrut(_)) => true
-          | Some(_)
-          | None => false
-          },
+        ~edit_mode=
+          EditMode.Editable({
+            inject: x => inject(ScrutUpdate(x)),
+            escape: _ => Ui_effect.Ignore,
+            take_focus: _ => Ui_effect.Ignore,
+            focus:
+              switch (focus) {
+              | Some(Scrut(_)) => Some()
+              | Some(_)
+              | None => None
+              },
+          }),
         ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );

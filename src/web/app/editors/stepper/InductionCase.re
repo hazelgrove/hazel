@@ -274,33 +274,27 @@ module F = (Stepper: STEPPER) => {
     );
   };
 
-  let get_cursor_info = (~focus: focus, model: model) => {
+  let get_cursor_info = (~inject, ~focus: focus, model: model) => {
     Cursor.(
       switch (focus) {
       | Pattern(a) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.pattern);
+          CodeEditable.Selection.get_cursor_info(
+            ~inject=a => inject(PatternUpdate(a)),
+            ~selection=a,
+            model.pattern,
+          );
         PatternUpdate(ci);
       | Stepper(a) =>
-        let+ ci = Stepper.get_cursor_info(~focus=a, model.step);
+        let+ ci =
+          Stepper.get_cursor_info(
+            ~inject=a => inject(StepUpdate(a)),
+            ~focus=a,
+            model.step,
+          );
         StepUpdate(ci);
       }
     );
-  };
-
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) => {
-    switch (focus, model) {
-    | (Pattern(a), _) =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=a,
-        model.pattern,
-        event,
-      )
-      |> Option.map(x => PatternUpdate(x))
-    | (Stepper(a), _) =>
-      Stepper.handle_key_event(~focus=a, ~event, model.step)
-      |> Option.map(x => StepUpdate(x))
-    };
   };
 
   let view =
@@ -326,12 +320,17 @@ module F = (Stepper: STEPPER) => {
         ~signal=
           fun
           | MakeActive => take_focus(Pattern()),
-        ~inject=x => inject(PatternUpdate(x)),
-        ~selected=
-          switch (focus) {
-          | Some(Pattern ()) => true
-          | _ => false
-          },
+        ~edit_mode=
+          EditMode.Editable({
+            inject: x => inject(PatternUpdate(x)),
+            escape: _ => Ui_effect.Ignore,
+            take_focus: _ => Ui_effect.Ignore,
+            focus:
+              switch (focus) {
+              | Some(Pattern ()) => Some()
+              | _ => None
+              },
+          }),
         ~dynamics=Dynamics.Map.empty,
         model.pattern,
       );

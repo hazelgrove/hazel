@@ -17,6 +17,9 @@
   cursor: text;
   flex-direction: row;
   padding-left: 1em;
+  /* Suppress browser focus outline — editors use tabindex for keyboard
+   * focus but have their own visual selection indicators */
+  outline: none;
 }
 
 #main .code-editor.has-line-numbers{
