@@ -317,7 +317,13 @@ let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
 
 let should_emit_nomeet_mark =
     (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): bool =>
-  switch (Typ.meet(ctx, ana_skip_explicit_nonlabel(ana), elab_syn_ty)) {
+  switch (
+    Typ.meet(
+      ctx,
+      ana_skip_explicit_nonlabel(ana),
+      ana_skip_explicit_nonlabel(elab_syn_ty),
+    )
+  ) {
   | Some(_) => false
   | None => true
   };
@@ -345,16 +351,17 @@ let syn_ana_ok_common =
 let expectation_mismatch_mark =
     (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): option(Mark.t) => {
   let ana' = ana_skip_explicit_nonlabel(ana);
+  let syn' = ana_skip_explicit_nonlabel(elab_syn_ty);
   switch (ana'.term) {
   | Unknown(SynSwitch) => None
   | _ =>
-    switch (Typ.meet(ctx, ana', elab_syn_ty)) {
+    switch (Typ.meet(ctx, ana', syn')) {
     | Some(_) => None
     | None =>
       Some(
         Mark.ExpectationMismatch({
           ana: ana',
-          syn: elab_syn_ty,
+          syn: syn',
         }),
       )
     }

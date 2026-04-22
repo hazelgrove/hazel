@@ -187,10 +187,27 @@ module ExplicitlyUnlabeledTuples = {
         FIError.(
           Exp.(
             asc(
-              tuple([
-                tup_label(
-                  explicit_non_label(),
-                  int(
+              tuple(
+                ~ann=
+                  Some(
+                    FTemp.Typ.(
+                      Marks([
+                        ExpectationMismatch({
+                          ana:
+                            parens(
+                              prod([
+                                tup_label(explicit_non_label(), string()),
+                              ]),
+                            ),
+                          syn:
+                            prod([tup_label(explicit_non_label(), int())]),
+                        }),
+                      ])
+                    ),
+                  ),
+                [
+                  tup_label(
+                    explicit_non_label(),
                     ~ann=
                       Some(
                         FTemp.Typ.(
@@ -202,10 +219,23 @@ module ExplicitlyUnlabeledTuples = {
                           ])
                         ),
                       ),
-                    1,
+                    int(
+                      ~ann=
+                        Some(
+                          FTemp.Typ.(
+                            Marks([
+                              ExpectationMismatch({
+                                ana: string(),
+                                syn: int(),
+                              }),
+                            ])
+                          ),
+                        ),
+                      1,
+                    ),
                   ),
-                ),
-              ]),
+                ],
+              ),
               Typ.(
                 parens(prod([tup_label(explicit_non_label(), string())]))
               ),
@@ -439,7 +469,7 @@ let tests = (
                             prod([
                               tup_label(label("a"), int()),
                               tup_label(label("b"), float()),
-                              string(),
+                              tup_label(label("z"), string()),
                             ])
                           ),
                       }),
@@ -458,7 +488,7 @@ let tests = (
                               prod([
                                 tup_label(label("a"), int()),
                                 tup_label(label("b"), float()),
-                                string(),
+                                tup_label(label("z"), string()),
                               ])
                             ),
                         }),
@@ -795,7 +825,10 @@ let tests = (
                         invalid_labels: ["c"],
                         typ:
                           FTemp.Typ.(
-                            prod([int(), tup_label(label("a"), string())])
+                            prod([
+                              tup_label(label("c"), int()),
+                              tup_label(label("a"), string()),
+                            ])
                           ),
                       }),
                     ]),
@@ -810,7 +843,10 @@ let tests = (
                           invalid_labels: ["c"],
                           typ:
                             FTemp.Typ.(
-                              prod([int(), tup_label(label("a"), string())])
+                              prod([
+                                tup_label(label("c"), int()),
+                                tup_label(label("a"), string()),
+                              ])
                             ),
                         }),
                       ]),

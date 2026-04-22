@@ -1146,7 +1146,10 @@ let labeled_tuple_additional_error = {
                                   FTemp.Typ.list(
                                     FTemp.Typ.unknown(Internal),
                                   ),
-                                  FTemp.Typ.unknown(Internal),
+                                  FTemp.Typ.tup_label(
+                                    FTemp.Typ.label("a"),
+                                    FTemp.Typ.unknown(Internal),
+                                  ),
                                 ]),
                             }),
                           ]),

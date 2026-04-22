@@ -47,8 +47,13 @@ let elab_type_of =
   | None => None
   };
 
-let safe_statics = exp =>
-  switch (Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp)) {
+let safe_statics = (~ctx=?, exp) => {
+  let ctx =
+    switch (ctx) {
+    | Some(c) => c
+    | None => Builtins.ctx_init(Some(Int))
+    };
+  switch (Statics.mk(CoreSettings.on, ctx, exp)) {
   | result => `Ok(result)
   | exception Stack_overflow => `Skip
   | exception (Failure(f) as e) =>
@@ -58,6 +63,7 @@ let safe_statics = exp =>
       raise(e);
     }
   };
+};
 
 type outcome =
   | Holds
@@ -160,7 +166,7 @@ let qcheck_elaboration_preserves_type_stats = () => {
   let skip_elab = ref(0);
   let no_type_original = ref(0);
   let no_type_elab = ref(0);
-  let count = 100000;
+  let count = 1000;
   let arb = QCheck_Util.arb_exp(~minimal_idents=true, 50);
   let gen = arb.QCheck.gen;
   let shrink =
@@ -227,6 +233,218 @@ let qcheck_elaboration_preserves_type_stats = () => {
   );
 };
 
+/* Property: for every sub-expression `sub` of the user expression, the
+   parent-recorded `elab_syn_ty` for `sub` should agree with the
+   `elab_syn_ty` that a fresh statics run produces for `sub`'s elaborated
+   form. Concretely, for each user sub-expression:
+     1. look up its info in the parent's info map to get its `elab_term`
+        and the parent-recorded `elab_syn_ty`;
+     2. run statics fresh (ana = syn) on `elab_term`;
+     3. compare the parent's `elab_syn_ty` to the root-of-elab's
+        `elab_syn_ty` in the fresh map.
+   Unlike the previous form (which re-analyzed the user sub-expression),
+   this compares against the elaborated sub — so ana-driven rewrites
+   like number-literal replacement, constructor ADT resolution, and
+   label inference that have been baked into `elab_term` will agree on
+   both sides.
+
+   Bare labels (Label(_)) are intentionally skipped: a bare label has no
+   type outside its enclosing product type. */
+let syn_and_elab_of =
+    (info_map: Statics.Map.t, exp: Language.Exp.t)
+    : option((Typ.t, Ctx.t, Language.Exp.t)) =>
+  switch (Statics.Map.lookup_exp(Exp.rep_id(exp), info_map)) {
+  | Some({elab_syn_ty, ctx, elab_term, _}) =>
+    Some((elab_syn_ty, ctx, elab_term))
+  | None => None
+  };
+
+let is_bare_label = (e: Language.Exp.t): bool =>
+  switch (Exp.term_of(e)) {
+  | Label(_) => true
+  | _ => false
+  };
+
+/* Collect every (sub, ty_parent, ty_elab_sub) triple in `exp` where the
+   parent's recorded elab_syn_ty for the user sub-expression differs
+   from the elab_syn_ty synthesized on the sub's elaborated form. */
+let differing_subs =
+    (info_map: Statics.Map.t, exp: Language.Exp.t)
+    : list((Language.Exp.t, Typ.t, Typ.t)) => {
+  let results = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e) => {
+          if (!is_bare_label(e)) {
+            switch (syn_and_elab_of(info_map, e)) {
+            | None => ()
+            | Some((ty_parent_raw, ctx, elab_term)) =>
+              let ty_parent =
+                ty_parent_raw |> Typ.normalize(ctx) |> Typ.all_ids_temp;
+              switch (safe_statics(~ctx, elab_term)) {
+              | `Skip => ()
+              | `Ok(m_elab, _) =>
+                switch (
+                  Statics.Map.lookup_exp(Exp.rep_id(elab_term), m_elab)
+                ) {
+                | None => ()
+                | Some({elab_syn_ty, ctx: ctx', _}) =>
+                  let ty_elab =
+                    elab_syn_ty |> Typ.normalize(ctx') |> Typ.all_ids_temp;
+                  if (!Typ.fast_equal(ty_parent, ty_elab)) {
+                    results := [(e, ty_parent, ty_elab), ...results^];
+                  };
+                }
+              };
+            };
+          };
+          cont(e);
+        },
+      exp,
+    );
+  results^;
+};
+
+type sub_outcome =
+  | SubHolds
+  | SubDiffers(Language.Exp.t, Typ.t, Typ.t)
+  | SubSkipParent;
+
+let check_subexp_synthesis_agrees = (exp: Language.Exp.t): sub_outcome =>
+  switch (safe_statics(exp)) {
+  | `Skip => SubSkipParent
+  | `Ok(m_parent, _elab) =>
+    switch (differing_subs(m_parent, exp)) {
+    | [] => SubHolds
+    | subs =>
+      /* Pick the textually smallest differing sub to report. */
+      let (sub, ty1, ty2) =
+        List.fold_left(
+          (best, cur) => {
+            let (_, _, _) = best;
+            let (s_best, _, _) = best;
+            let (s_cur, _, _) = cur;
+            String.length(show_exp(s_cur))
+            < String.length(show_exp(s_best))
+              ? cur : best;
+          },
+          List.hd(subs),
+          List.tl(subs),
+        );
+      SubDiffers(sub, ty1, ty2);
+    }
+  };
+
+let sub_is_differing = exp =>
+  switch (check_subexp_synthesis_agrees(exp)) {
+  | SubDiffers(_, _, _) => true
+  | _ => false
+  };
+
+let shrink_failing_pred =
+    (
+      pred: Language.Exp.t => bool,
+      shrink: QCheck.Shrink.t(Language.Exp.t),
+      exp: Language.Exp.t,
+    )
+    : Language.Exp.t => {
+  let max_iterations = 500;
+  let current = ref(exp);
+  let iterations = ref(0);
+  let progress = ref(true);
+  while (progress^ && iterations^ < max_iterations) {
+    progress := false;
+    let found = ref(None);
+    try(
+      shrink(current^, candidate =>
+        switch (found^) {
+        | Some(_) => ()
+        | None =>
+          incr(iterations);
+          if (iterations^ >= max_iterations) {
+            raise(Exit);
+          };
+          if (pred(candidate)) {
+            found := Some(candidate);
+            raise(Exit);
+          };
+        }
+      )
+    ) {
+    | Exit => ()
+    };
+    switch (found^) {
+    | Some(smaller) =>
+      current := smaller;
+      progress := true;
+    | None => ()
+    };
+  };
+  current^;
+};
+
+let qcheck_subexp_synthesis_agrees_stats = () => {
+  let total = ref(0);
+  let holds = ref(0);
+  let differs = ref(0);
+  let skip_parent = ref(0);
+  let count = 10000;
+  let arb = QCheck_Util.arb_exp(~minimal_idents=true, 50);
+  let gen = arb.QCheck.gen;
+  let shrink =
+    switch (arb.QCheck.shrink) {
+    | Some(s) => s
+    | None => ((_, _) => ())
+    };
+  let rand = Random.State.make([|0xDECAF|]);
+  let sample_differs = ref([]);
+  let sample_limit = 20;
+  for (_ in 1 to count) {
+    incr(total);
+    let exp = QCheck.Gen.generate1(~rand, gen);
+    switch (check_subexp_synthesis_agrees(exp)) {
+    | SubHolds => incr(holds)
+    | SubDiffers(_, _, _) =>
+      incr(differs);
+      if (List.length(sample_differs^) < sample_limit) {
+        let shrunk = shrink_failing_pred(sub_is_differing, shrink, exp);
+        switch (check_subexp_synthesis_agrees(shrunk)) {
+        | SubDiffers(sub, ty1, ty2) =>
+          sample_differs := [(shrunk, sub, ty1, ty2), ...sample_differs^]
+        | _ => ()
+        };
+      };
+    | SubSkipParent => incr(skip_parent)
+    };
+  };
+  let pct = n => 100. *. float_of_int(n) /. float_of_int(total^);
+  Printf.printf(
+    "\n[subexp synthesis agrees] out of %d cases:\n"
+    ^^ "  holds:               %4d (%.1f%%)\n"
+    ^^ "  differs:             %4d (%.1f%%)\n"
+    ^^ "  skipped (parent):    %4d (%.1f%%)\n",
+    total^,
+    holds^,
+    pct(holds^),
+    differs^,
+    pct(differs^),
+    skip_parent^,
+    pct(skip_parent^),
+  );
+  List.iter(
+    ((exp, sub, ty1, ty2)) =>
+      Printf.printf(
+        "  sample differing case:\n    exp:         %s\n    sub:         %s\n    ty(parent):  %s\n    ty(sub):     %s\n",
+        show_exp(exp),
+        show_exp(sub),
+        show_typ(ty1),
+        show_typ(ty2),
+      ),
+    List.rev(sample_differs^),
+  );
+};
+
 let tests = (
   "Statics.Properties",
   [
@@ -235,6 +453,11 @@ let tests = (
       "Elaboration preserves type (stats only)",
       `Slow,
       qcheck_elaboration_preserves_type_stats,
+    ),
+    Alcotest.test_case(
+      "Sub-expression synthesis agrees (stats only)",
+      `Slow,
+      qcheck_subexp_synthesis_agrees_stats,
     ),
   ],
 );

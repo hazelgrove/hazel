@@ -54,32 +54,28 @@ let tup_label_self_type =
     : (Typ.t, list(Mark.t)) =>
   switch (lab_name) {
   | Some(name) =>
-    let tup_syn = TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp;
-    label_invalid
-      ? (
-        tup_syn,
-        [
+    let labeled_syn = TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp;
+    let marks =
+      label_invalid
+        ? [
           Mark.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],
             invalid_labels: [name],
-            typ: tup_syn,
+            typ: labeled_syn,
           }),
-        ],
-      )
-      : List.mem(name, duplicate_labels)
-          ? (
-            tup_syn,
-            [
+        ]
+        : List.mem(name, duplicate_labels)
+            ? [
               Mark.TupleLabelError({
                 malformed_labels: [],
                 duplicate_labels: [name],
                 invalid_labels: [],
-                typ: tup_syn,
+                typ: labeled_syn,
               }),
-            ],
-          )
-          : (tup_syn, []);
+            ]
+            : [];
+    (labeled_syn, marks);
   | None when label_is_empty_hole => (
       TupLabel(Unknown(SynSwitch) |> Typ.temp, value_ty) |> Typ.temp,
       [],
@@ -205,15 +201,6 @@ let finalize_tuple_type =
     )
     : (Typ.t, list(Mark.t)) => {
   let ty_list = Typ.remove_duplicate_labels(~duplicate_labels, ty_list);
-  let ty_list =
-    List.map(
-      ty =>
-        switch (Typ.match_tup_label(ty)) {
-        | Some((name, inner)) when List.mem(name, invalid_labels) => inner
-        | _ => ty
-        },
-      ty_list,
-    );
   let prod_ty = Prod(ty_list) |> Typ.temp;
   let marks =
     List.is_empty(malformed_labels)
