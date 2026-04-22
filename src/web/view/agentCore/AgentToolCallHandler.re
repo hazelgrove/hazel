@@ -11,6 +11,111 @@ type result =
   | Success(Model.t, Updated.t(CellEditor.Model.t))
   | Failure(string);
 
+/** Shared dispatch for path-indexed overlay tools (probes, statics, syntax
+    projectors). Each such tool takes a list of HighLevelNodeMap paths and
+    runs a per-path operation; afterwards any paths that were actually
+    placed are auto-expanded via an AgentContext.Expand on the chat system.
+
+    [resolve_path] maps a path string to an Id using the node map. Probes and
+    statics use [HighLevelNodeMap.Public.path_to_id_opt]; syntax projectors
+    use [path_to_syntax_projector_target_id_opt].
+
+    [perform] applies the action to one resolved id. [Some((z', should_expand))]
+    means the operation changed state; [None] means resolved-but-noop (e.g.
+    the term does not support this projector kind).
+
+    If every input path either failed to resolve or was a resolved-noop, we
+    return an Error so the agent gets a concrete failure signal instead of a
+    silent-success tool message. */
+let apply_overlay_action =
+    (
+      ~tool_label: string,
+      ~resolve_path: (HighLevelNodeMap.t, string) => option(Id.t),
+      ~perform:
+         (~info_map: _, ~syntax: CachedSyntax.t, Zipper.t, Id.t) =>
+         option((Zipper.t, bool)),
+      ~paths: list(string),
+      ~agent: Model.t,
+      ~editor: CodeWithStatics.Model.t,
+      ~chat_id: Id.t,
+    )
+    : Result.t((Model.t, CodeWithStatics.Model.t)) => {
+  let z = editor.editor.state.zipper;
+  let info_map = CompositionGo.Public.mk_statics(z);
+  switch (HighLevelNodeMap.build(z, info_map)) {
+  | None =>
+    Error(
+      Failure.Info(
+        "No bindings in the program. Add let/type bindings first.",
+      ),
+    )
+  | Some(node_map) =>
+    let syntax = CachedSyntax.init(z);
+    let (new_z, paths_to_expand, n_changed, unresolved) =
+      List.fold_left(
+        ((z, expanded, n_changed, unresolved), path) =>
+          switch (resolve_path(node_map, path)) {
+          | Some(id) =>
+            switch (perform(~info_map, ~syntax, z, id)) {
+            | Some((z', should_expand)) =>
+              let expanded = should_expand ? [path, ...expanded] : expanded;
+              (z', expanded, n_changed + 1, unresolved);
+            | None => (z, expanded, n_changed, unresolved)
+            }
+          | None => (z, expanded, n_changed, [path, ...unresolved])
+          },
+        (z, [], 0, []),
+        paths,
+      );
+    if (List.length(paths) > 0 && n_changed == 0) {
+      let unresolved_sfx =
+        switch (unresolved) {
+        | [] => ""
+        | ps =>
+          " Unresolved path(s): " ++ String.concat(", ", List.rev(ps)) ++ "."
+        };
+      Error(
+        Failure.Info(
+          tool_label
+          ++ " tool did not update the program: no path produced a change."
+          ++ unresolved_sfx
+          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"filter\", or \"outer/inner\" for nested lets).",
+        ),
+      );
+    } else {
+      let new_z = Dump.to_zipper(new_z);
+      let new_editor_model = Editor.Model.mk(new_z);
+      let new_cws =
+        CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
+
+      if (List.length(paths_to_expand) > 0) {
+        let expand_action = AgentContext.Update.Expand(paths_to_expand);
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AgentContextAction(expand_action),
+              chat_id,
+            ),
+            agent.chat_system,
+          );
+        switch (chat_system) {
+        | Ok(updated_chat_system) =>
+          Ok((
+            {
+              ...agent,
+              chat_system: updated_chat_system,
+            },
+            new_cws,
+          ))
+        | Error(_) => Ok((agent, new_cws))
+        };
+      } else {
+        Ok((agent, new_cws));
+      };
+    };
+  };
+};
+
 let update =
     (
       ~settings: Settings.t,
@@ -144,322 +249,119 @@ let update =
     | Error(error) => Error(error)
     };
   | ProbeAction(probe_action) =>
-    let z = editor.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
-    switch (HighLevelNodeMap.build(z, info_map)) {
-    | None =>
-      Error(
-        Failure.Info(
-          "No bindings in the program to probe. Add let/type bindings first.",
-        ),
-      )
-    | Some(node_map) =>
-      let syntax = CachedSyntax.init(z);
-      let resolve_path = (path: string): option(Id.t) =>
-        HighLevelNodeMap.Public.path_to_id_opt(node_map, path);
-
-      let apply_probe_action =
-          (z: Zipper.t, paths: list(string))
-          : (Zipper.t, list(string), list(string)) => {
-        List.fold_left(
-          ((z, expanded, unresolved), path) =>
-            switch (resolve_path(path)) {
-            | Some(id) =>
-              switch (probe_action) {
-              | PlaceProbe(_) =>
-                let z = ProbePerform.add_manual(~syntax, id, info_map, z);
-                (z, [path, ...expanded], unresolved);
-              | RemoveProbe(_) =>
-                let target_ids =
-                  ProbePerform.target_subterm_ids(id, info_map);
-                let z = ProbePerform.rm_manual(target_ids, z);
-                (z, expanded, unresolved);
-              | ToggleProbe(_) =>
-                let z = ProbePerform.toggle_manual(~syntax, id, ~info_map, z);
-                let has_probe = ProbePerform.has_probe(id, z);
-                let expanded = has_probe ? [path, ...expanded] : expanded;
-                (z, expanded, unresolved);
-              }
-            | None => (z, expanded, [path, ...unresolved])
-            },
-          (z, [], []),
-          paths,
-        );
+    let paths =
+      switch (probe_action) {
+      | PlaceProbe(p)
+      | RemoveProbe(p)
+      | ToggleProbe(p) => p
       };
-
-      let paths =
-        switch (probe_action) {
-        | PlaceProbe(p)
-        | RemoveProbe(p)
-        | ToggleProbe(p) => p
-        };
-      let (new_z, paths_to_expand, unresolved_paths) =
-        apply_probe_action(z, paths);
-      if (List.length(paths) > 0
-          && List.length(unresolved_paths) == List.length(paths)) {
-        Error(
-          Failure.Info(
-            "Probe tool did not update the program: no path resolved to a binding. "
-            ++ "Unresolved path(s): "
-            ++ String.concat(", ", List.rev(unresolved_paths))
-            ++ ". Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"filter\", or \"outer/inner\" for nested lets).",
-          ),
-        );
-      } else {
-        let new_z = Dump.to_zipper(new_z);
-        let new_editor_model = Editor.Model.mk(new_z);
-        let new_cws =
-          CodeWithStatics.Model.mk(
-            ~dynamics=editor.dynamics,
-            new_editor_model,
-          );
-
-        /* Auto-expand probed definitions so results are visible */
-        if (List.length(paths_to_expand) > 0) {
-          let expand_action = AgentContext.Update.Expand(paths_to_expand);
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AgentContextAction(expand_action),
-                chat_id,
-              ),
-              agent.chat_system,
-            );
-          switch (chat_system) {
-          | Ok(updated_chat_system) =>
-            Ok((
-              {
-                ...agent,
-                chat_system: updated_chat_system,
-              },
-              new_cws,
-            ))
-          | Error(_) => Ok((agent, new_cws))
-          };
-        } else {
-          Ok((agent, new_cws));
-        };
-      };
-    };
+    apply_overlay_action(
+      ~tool_label="Probe",
+      ~resolve_path=HighLevelNodeMap.Public.path_to_id_opt,
+      ~perform=
+        (~info_map, ~syntax, z, id) =>
+          switch (probe_action) {
+          | PlaceProbe(_) =>
+            let z = ProbePerform.add_manual(~syntax, id, info_map, z);
+            Some((z, true));
+          | RemoveProbe(_) =>
+            let target_ids = ProbePerform.target_subterm_ids(id, info_map);
+            let z = ProbePerform.rm_manual(target_ids, z);
+            Some((z, false));
+          | ToggleProbe(_) =>
+            let z = ProbePerform.toggle_manual(~syntax, id, ~info_map, z);
+            let has_probe = ProbePerform.has_probe(id, z);
+            Some((z, has_probe));
+          },
+      ~paths,
+      ~agent,
+      ~editor,
+      ~chat_id,
+    );
   | StaticsAction(statics_action) =>
-    let z = editor.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
-    switch (HighLevelNodeMap.build(z, info_map)) {
-    | None =>
-      Error(
-        Failure.Info(
-          "No bindings in the program. Add let/type bindings first.",
-        ),
-      )
-    | Some(node_map) =>
-      let syntax = CachedSyntax.init(z);
-      let resolve_path = (path: string): option(Id.t) =>
-        HighLevelNodeMap.Public.path_to_id_opt(node_map, path);
-
-      let apply_statics_action =
-          (z: Zipper.t, paths: list(string))
-          : (Zipper.t, list(string), list(string)) => {
-        List.fold_left(
-          ((z, expanded, unresolved), path) =>
-            switch (resolve_path(path)) {
-            | Some(id) =>
-              switch (statics_action) {
-              | PlaceStatics(_) =>
-                let z =
-                  ProbePerform.place_statics_at(~syntax, id, info_map, z);
-                let expanded =
-                  switch (
-                    ProbePerform.probe_status(id, info_map, z.refractors)
-                  ) {
-                  | Statics(_) => [path, ...expanded]
-                  | _ => expanded
-                  };
-                (z, expanded, unresolved);
-              | RemoveStatics(_) =>
-                let z =
-                  ProbePerform.remove_statics_at(~syntax, id, info_map, z);
-                (z, expanded, unresolved);
-              | ToggleStatics(_) =>
-                let z =
-                  ProbePerform.toggle_statics_at(~syntax, id, info_map, z);
-                let expanded =
-                  switch (
-                    ProbePerform.probe_status(id, info_map, z.refractors)
-                  ) {
-                  | Statics(_) => [path, ...expanded]
-                  | _ => expanded
-                  };
-                (z, expanded, unresolved);
-              }
-            | None => (z, expanded, [path, ...unresolved])
-            },
-          (z, [], []),
-          paths,
-        );
+    let paths =
+      switch (statics_action) {
+      | PlaceStatics(p)
+      | RemoveStatics(p)
+      | ToggleStatics(p) => p
       };
-
-      let paths =
-        switch (statics_action) {
-        | PlaceStatics(p)
-        | RemoveStatics(p)
-        | ToggleStatics(p) => p
-        };
-      let (new_z, paths_to_expand, unresolved_paths) =
-        apply_statics_action(z, paths);
-      if (List.length(paths) > 0
-          && List.length(unresolved_paths) == List.length(paths)) {
-        Error(
-          Failure.Info(
-            "Statics tool did not update the program: no path resolved to a binding. "
-            ++ "Unresolved path(s): "
-            ++ String.concat(", ", List.rev(unresolved_paths))
-            ++ ". Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"filter\", or \"outer/inner\" for nested lets).",
-          ),
-        );
-      } else {
-        let new_z = Dump.to_zipper(new_z);
-        let new_editor_model = Editor.Model.mk(new_z);
-        let new_cws =
-          CodeWithStatics.Model.mk(
-            ~dynamics=editor.dynamics,
-            new_editor_model,
-          );
-
-        if (List.length(paths_to_expand) > 0) {
-          let expand_action = AgentContext.Update.Expand(paths_to_expand);
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AgentContextAction(expand_action),
-                chat_id,
-              ),
-              agent.chat_system,
-            );
-          switch (chat_system) {
-          | Ok(updated_chat_system) =>
-            Ok((
-              {
-                ...agent,
-                chat_system: updated_chat_system,
-              },
-              new_cws,
-            ))
-          | Error(_) => Ok((agent, new_cws))
-          };
-        } else {
-          Ok((agent, new_cws));
-        };
-      };
-    };
-  | SyntaxProjectorAction(syntax_projector_action) =>
-    let z = editor.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
-    switch (HighLevelNodeMap.build(z, info_map)) {
-    | None =>
-      Error(
-        Failure.Info(
-          "No bindings in the program. Add let/type bindings first.",
-        ),
-      )
-    | Some(node_map) =>
-      let syntax = CachedSyntax.init(z);
-      let resolve_path = (path: string): option(Id.t) =>
-        HighLevelNodeMap.Public.path_to_syntax_projector_target_id_opt(
-          node_map,
-          path,
-        );
-
-      let apply_syntax_projector_action =
-          (z: Zipper.t, paths: list(string)): (Zipper.t, list(string), int) => {
-        List.fold_left(
-          ((z, expanded, n_placed), path) =>
-            switch (resolve_path(path)) {
-            | Some(id) =>
-              let z_opt =
-                switch (syntax_projector_action) {
-                | PlaceSyntaxProjector(kind, _) =>
-                  ProjectorPerform.try_place_syntax_projector(
-                    ~term_data=syntax.term_data,
-                    id,
-                    kind,
-                    z,
-                  )
-                | ToggleSyntaxProjector(kind, _) =>
-                  ProjectorPerform.try_toggle_syntax_projector(
-                    ~term_data=syntax.term_data,
-                    id,
-                    kind,
-                    z,
-                  )
-                | RemoveSyntaxProjector(_) =>
-                  ProjectorPerform.try_remove_syntax_projector(
-                    ~term_data=syntax.term_data,
-                    id,
-                    z,
-                  )
+    apply_overlay_action(
+      ~tool_label="Statics",
+      ~resolve_path=HighLevelNodeMap.Public.path_to_id_opt,
+      ~perform=
+        (~info_map, ~syntax, z, id) => {
+          let (z, should_expand) =
+            switch (statics_action) {
+            | PlaceStatics(_) =>
+              let z = ProbePerform.place_statics_at(~syntax, id, info_map, z);
+              let expand =
+                switch (ProbePerform.probe_status(id, info_map, z.refractors)) {
+                | Statics(_) => true
+                | _ => false
                 };
-              switch (z_opt) {
-              | Some(z2) => (z2, [path, ...expanded], n_placed + 1)
-              | None => (z, expanded, n_placed)
-              };
-            | None => (z, expanded, n_placed)
-            },
-          (z, [], 0),
-          paths,
-        );
+              (z, expand);
+            | RemoveStatics(_) =>
+              let z =
+                ProbePerform.remove_statics_at(~syntax, id, info_map, z);
+              (z, false);
+            | ToggleStatics(_) =>
+              let z =
+                ProbePerform.toggle_statics_at(~syntax, id, info_map, z);
+              let expand =
+                switch (ProbePerform.probe_status(id, info_map, z.refractors)) {
+                | Statics(_) => true
+                | _ => false
+                };
+              (z, expand);
+            };
+          Some((z, should_expand));
+        },
+      ~paths,
+      ~agent,
+      ~editor,
+      ~chat_id,
+    );
+  | SyntaxProjectorAction(syntax_projector_action) =>
+    let paths =
+      switch (syntax_projector_action) {
+      | PlaceSyntaxProjector(_, p)
+      | ToggleSyntaxProjector(_, p)
+      | RemoveSyntaxProjector(p) => p
       };
-
-      let paths =
-        switch (syntax_projector_action) {
-        | PlaceSyntaxProjector(_, p)
-        | ToggleSyntaxProjector(_, p)
-        | RemoveSyntaxProjector(p) => p
-        };
-      let (new_z, paths_to_expand, n_placed) =
-        apply_syntax_projector_action(z, paths);
-      if (List.length(paths) > 0 && n_placed == 0) {
-        Error(
-          Failure.Info(
-            "Syntax projector tool did not update the program: no path produced a change. "
-            ++ "Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"filter\", or \"outer/inner\" for nested lets), "
-            ++ "not pretty-printed expressions or type-applied text from statics overlays. "
-            ++ "If a path matched but placement failed, the term at that binding may not support this projector kind.",
-          ),
-        );
-      } else {
-        let new_z = Dump.to_zipper(new_z);
-        let new_editor_model = Editor.Model.mk(new_z);
-        let new_cws =
-          CodeWithStatics.Model.mk(
-            ~dynamics=editor.dynamics,
-            new_editor_model,
-          );
-
-        if (List.length(paths_to_expand) > 0) {
-          let expand_action = AgentContext.Update.Expand(paths_to_expand);
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AgentContextAction(expand_action),
-                chat_id,
-              ),
-              agent.chat_system,
-            );
-          switch (chat_system) {
-          | Ok(updated_chat_system) =>
-            Ok((
-              {
-                ...agent,
-                chat_system: updated_chat_system,
-              },
-              new_cws,
-            ))
-          | Error(_) => Ok((agent, new_cws))
-          };
-        } else {
-          Ok((agent, new_cws));
-        };
-      };
-    };
+    apply_overlay_action(
+      ~tool_label="Syntax projector",
+      ~resolve_path=HighLevelNodeMap.Public.path_to_syntax_projector_target_id_opt,
+      ~perform=
+        (~info_map as _, ~syntax, z, id) => {
+          let z_opt =
+            switch (syntax_projector_action) {
+            | PlaceSyntaxProjector(kind, _) =>
+              ProjectorPerform.try_place_syntax_projector(
+                ~term_data=syntax.term_data,
+                id,
+                kind,
+                z,
+              )
+            | ToggleSyntaxProjector(kind, _) =>
+              ProjectorPerform.try_toggle_syntax_projector(
+                ~term_data=syntax.term_data,
+                id,
+                kind,
+                z,
+              )
+            | RemoveSyntaxProjector(_) =>
+              ProjectorPerform.try_remove_syntax_projector(
+                ~term_data=syntax.term_data,
+                id,
+                z,
+              )
+            };
+          z_opt |> Option.map(z' => (z', true));
+        },
+      ~paths,
+      ~agent,
+      ~editor,
+      ~chat_id,
+    );
   };
 };

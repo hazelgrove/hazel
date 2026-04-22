@@ -620,9 +620,9 @@ let toolcall_handler_tests = [
       | Ok(_) => fail("expected Error when no path resolves to a binding")
       | Error(AgentResult.Failure.Info(msg)) =>
         check_bool(
-          "message mentions no path resolved",
+          "message mentions no change",
           true,
-          StringUtil.plain_search("no path resolved", msg, 0) >= 0,
+          StringUtil.plain_search("did not update the program", msg, 0) >= 0,
         );
         check_bool(
           "message lists bogus",
@@ -660,9 +660,9 @@ let toolcall_handler_tests = [
       | Ok(_) => fail("expected Error when no path resolves to a binding")
       | Error(AgentResult.Failure.Info(msg)) =>
         check_bool(
-          "message mentions no path resolved",
+          "message mentions no change",
           true,
-          StringUtil.plain_search("no path resolved", msg, 0) >= 0,
+          StringUtil.plain_search("did not update the program", msg, 0) >= 0,
         );
         check_bool(
           "message lists ghost",
