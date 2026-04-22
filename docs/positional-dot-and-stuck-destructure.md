@@ -149,12 +149,12 @@ type mismatches as `IndetMatch` (gradual: "might align"), and the
 rewrite firing on all `IndetMatch` cases is consistent with that
 stance.
 
-A consequence: stuck `Dot(Atom(Int 1), Atom(Int 0))` prints as `1.0`,
-which visually collides with the float literal `1.0`. To prevent
-re-parsing as a float, the pretty-printer forces parens around an
-int-literal LHS when the RHS is also an int literal, producing
-`(1).0` instead. The chained-dot typing guard in `Insert.re` covers
-the live-editing path.
+A display note: stuck `Dot(Atom(Int 1), Atom(Int 0))` prints as `1.0`,
+which visually resembles the float literal `1.0`. In practice this is
+fine — the stepper renders it as-is and users understand from context
+that it's a stuck projection. The chained-dot typing guard in
+`Insert.re` handles the live-editing path so users typing `x.0.1`
+don't accidentally merge tokens into a float.
 
 A function value stays stuck because `wrap_closure` wraps `Fun` in
 `Closure` before we see it, and Closure is excluded. Users can force

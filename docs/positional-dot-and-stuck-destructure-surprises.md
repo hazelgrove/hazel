@@ -118,15 +118,17 @@ The real issue was that `Dot(Atom(Int 1), Atom(Int 0))` *prints* as
 display bug, not a dynamics bug.
 
 **Resolution**: reverted `is_destructurable_scrut` to only exclude
-`Closure(_)` (for the probe-duplication reason in 6b). Fixed the
-pretty-printer to force parens around an `Atom(Int)` LHS when the RHS
-is also `Atom(Int)`, so `Dot(1, 0)` prints as `(1).0` instead of
-`1.0`. The chained-dot tokenizer guard in `Insert.re` already prevents
-the same ambiguity during live editing.
+`Closure(_)` (for the probe-duplication reason in 6b). Left the
+pretty-printer alone — `Dot(Atom(Int 1), Atom(Int 0))` prints as `1.0`,
+which is fine in the stepper where it's clearly a stuck projection.
+The chained-dot tokenizer guard in `Insert.re` already prevents the
+same ambiguity during live editing. Tests use `(1).0` as the
+expected-string form (Parens wrappers are transparent to
+`testable_exp` via `ignore_parens: true`).
 
-Tests updated to reflect the correct semantics:
-`let (a, b) = 1 in a` → `(1).0` (stuck projection); `let (a, b) = 1
-in a.0` → `((1).0).0`.
+`let (a, b) = 1 in a` → `Dot(1, 0)` (prints as `1.0`, tests use
+`(1).0`). `let (a, b) = 1 in a.0` → `Dot(Dot(1, 0), 0)` (tests use
+`((1).0).0`).
 
 ## 6b. Duplicated scrutinee re-traverses Closures → spurious probe samples
 
