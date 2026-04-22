@@ -160,29 +160,30 @@ let update =
         HighLevelNodeMap.Public.path_to_id_opt(node_map, path);
 
       let apply_probe_action =
-          (z: Zipper.t, paths: list(string)): (Zipper.t, list(string)) => {
+          (z: Zipper.t, paths: list(string))
+          : (Zipper.t, list(string), list(string)) => {
         List.fold_left(
-          ((z, expanded), path) =>
+          ((z, expanded, unresolved), path) =>
             switch (resolve_path(path)) {
             | Some(id) =>
               switch (probe_action) {
               | PlaceProbe(_) =>
                 let z = ProbePerform.add_manual(~syntax, id, info_map, z);
-                (z, [path, ...expanded]);
+                (z, [path, ...expanded], unresolved);
               | RemoveProbe(_) =>
                 let target_ids =
                   ProbePerform.target_subterm_ids(id, info_map);
                 let z = ProbePerform.rm_manual(target_ids, z);
-                (z, expanded);
+                (z, expanded, unresolved);
               | ToggleProbe(_) =>
                 let z = ProbePerform.toggle_manual(~syntax, id, ~info_map, z);
                 let has_probe = ProbePerform.has_probe(id, z);
                 let expanded = has_probe ? [path, ...expanded] : expanded;
-                (z, expanded);
+                (z, expanded, unresolved);
               }
-            | None => (z, expanded)
+            | None => (z, expanded, [path, ...unresolved])
             },
-          (z, []),
+          (z, [], []),
           paths,
         );
       };
@@ -193,36 +194,52 @@ let update =
         | RemoveProbe(p)
         | ToggleProbe(p) => p
         };
-      let (new_z, paths_to_expand) = apply_probe_action(z, paths);
-      let new_z = Dump.to_zipper(new_z);
-      let new_editor_model = Editor.Model.mk(new_z);
-      let new_cws =
-        CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
-
-      /* Auto-expand probed definitions so results are visible */
-      if (List.length(paths_to_expand) > 0) {
-        let expand_action = AgentContext.Update.Expand(paths_to_expand);
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AgentContextAction(expand_action),
-              chat_id,
-            ),
-            agent.chat_system,
-          );
-        switch (chat_system) {
-        | Ok(updated_chat_system) =>
-          Ok((
-            {
-              ...agent,
-              chat_system: updated_chat_system,
-            },
-            new_cws,
-          ))
-        | Error(_) => Ok((agent, new_cws))
-        };
+      let (new_z, paths_to_expand, unresolved_paths) =
+        apply_probe_action(z, paths);
+      if (List.length(paths) > 0
+          && List.length(unresolved_paths) == List.length(paths)) {
+        Error(
+          Failure.Info(
+            "Probe tool did not update the program: no path resolved to a binding. "
+            ++ "Unresolved path(s): "
+            ++ String.concat(", ", List.rev(unresolved_paths))
+            ++ ". Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"filter\", or \"outer/inner\" for nested lets).",
+          ),
+        );
       } else {
-        Ok((agent, new_cws));
+        let new_z = Dump.to_zipper(new_z);
+        let new_editor_model = Editor.Model.mk(new_z);
+        let new_cws =
+          CodeWithStatics.Model.mk(
+            ~dynamics=editor.dynamics,
+            new_editor_model,
+          );
+
+        /* Auto-expand probed definitions so results are visible */
+        if (List.length(paths_to_expand) > 0) {
+          let expand_action = AgentContext.Update.Expand(paths_to_expand);
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AgentContextAction(expand_action),
+                chat_id,
+              ),
+              agent.chat_system,
+            );
+          switch (chat_system) {
+          | Ok(updated_chat_system) =>
+            Ok((
+              {
+                ...agent,
+                chat_system: updated_chat_system,
+              },
+              new_cws,
+            ))
+          | Error(_) => Ok((agent, new_cws))
+          };
+        } else {
+          Ok((agent, new_cws));
+        };
       };
     };
   | StaticsAction(statics_action) =>
@@ -241,9 +258,10 @@ let update =
         HighLevelNodeMap.Public.path_to_id_opt(node_map, path);
 
       let apply_statics_action =
-          (z: Zipper.t, paths: list(string)): (Zipper.t, list(string)) => {
+          (z: Zipper.t, paths: list(string))
+          : (Zipper.t, list(string), list(string)) => {
         List.fold_left(
-          ((z, expanded), path) =>
+          ((z, expanded, unresolved), path) =>
             switch (resolve_path(path)) {
             | Some(id) =>
               switch (statics_action) {
@@ -257,11 +275,11 @@ let update =
                   | Statics(_) => [path, ...expanded]
                   | _ => expanded
                   };
-                (z, expanded);
+                (z, expanded, unresolved);
               | RemoveStatics(_) =>
                 let z =
                   ProbePerform.remove_statics_at(~syntax, id, info_map, z);
-                (z, expanded);
+                (z, expanded, unresolved);
               | ToggleStatics(_) =>
                 let z =
                   ProbePerform.toggle_statics_at(~syntax, id, info_map, z);
@@ -272,11 +290,11 @@ let update =
                   | Statics(_) => [path, ...expanded]
                   | _ => expanded
                   };
-                (z, expanded);
+                (z, expanded, unresolved);
               }
-            | None => (z, expanded)
+            | None => (z, expanded, [path, ...unresolved])
             },
-          (z, []),
+          (z, [], []),
           paths,
         );
       };
@@ -287,35 +305,51 @@ let update =
         | RemoveStatics(p)
         | ToggleStatics(p) => p
         };
-      let (new_z, paths_to_expand) = apply_statics_action(z, paths);
-      let new_z = Dump.to_zipper(new_z);
-      let new_editor_model = Editor.Model.mk(new_z);
-      let new_cws =
-        CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
-
-      if (List.length(paths_to_expand) > 0) {
-        let expand_action = AgentContext.Update.Expand(paths_to_expand);
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AgentContextAction(expand_action),
-              chat_id,
-            ),
-            agent.chat_system,
-          );
-        switch (chat_system) {
-        | Ok(updated_chat_system) =>
-          Ok((
-            {
-              ...agent,
-              chat_system: updated_chat_system,
-            },
-            new_cws,
-          ))
-        | Error(_) => Ok((agent, new_cws))
-        };
+      let (new_z, paths_to_expand, unresolved_paths) =
+        apply_statics_action(z, paths);
+      if (List.length(paths) > 0
+          && List.length(unresolved_paths) == List.length(paths)) {
+        Error(
+          Failure.Info(
+            "Statics tool did not update the program: no path resolved to a binding. "
+            ++ "Unresolved path(s): "
+            ++ String.concat(", ", List.rev(unresolved_paths))
+            ++ ". Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"filter\", or \"outer/inner\" for nested lets).",
+          ),
+        );
       } else {
-        Ok((agent, new_cws));
+        let new_z = Dump.to_zipper(new_z);
+        let new_editor_model = Editor.Model.mk(new_z);
+        let new_cws =
+          CodeWithStatics.Model.mk(
+            ~dynamics=editor.dynamics,
+            new_editor_model,
+          );
+
+        if (List.length(paths_to_expand) > 0) {
+          let expand_action = AgentContext.Update.Expand(paths_to_expand);
+          let chat_system =
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AgentContextAction(expand_action),
+                chat_id,
+              ),
+              agent.chat_system,
+            );
+          switch (chat_system) {
+          | Ok(updated_chat_system) =>
+            Ok((
+              {
+                ...agent,
+                chat_system: updated_chat_system,
+              },
+              new_cws,
+            ))
+          | Error(_) => Ok((agent, new_cws))
+          };
+        } else {
+          Ok((agent, new_cws));
+        };
       };
     };
   | SyntaxProjectorAction(syntax_projector_action) =>

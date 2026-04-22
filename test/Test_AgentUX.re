@@ -598,6 +598,107 @@ let context_meter_tests = [
 
 let toolcall_handler_tests = [
   test_case(
+    "place_probe with only unresolved paths surfaces Error with unresolved path list",
+    `Quick,
+    () => {
+      let settings = Settings.Model.init;
+      let agent = Agent.Utils.init();
+      let chat_id = agent.chat_system.current;
+      let z =
+        switch (Parser.to_zipper("let a = 1 in a")) {
+        | Some(z) => z
+        | None => fail("failed to parse fixture")
+        };
+      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z));
+      let action =
+        CompositionActions.ProbeAction(
+          CompositionActions.PlaceProbe(["bogus", "also_bogus"]),
+        );
+      switch (
+        Agent.ToolCallHandler.update(~settings, action, agent, cws, chat_id)
+      ) {
+      | Ok(_) => fail("expected Error when no path resolves to a binding")
+      | Error(AgentResult.Failure.Info(msg)) =>
+        check_bool(
+          "message mentions no path resolved",
+          true,
+          StringUtil.plain_search("no path resolved", msg, 0) >= 0,
+        );
+        check_bool(
+          "message lists bogus",
+          true,
+          StringUtil.plain_search("bogus", msg, 0) >= 0,
+        );
+        check_bool(
+          "message lists also_bogus",
+          true,
+          StringUtil.plain_search("also_bogus", msg, 0) >= 0,
+        );
+      };
+    },
+  ),
+  test_case(
+    "place_statics with only unresolved paths surfaces Error with unresolved path list",
+    `Quick,
+    () => {
+      let settings = Settings.Model.init;
+      let agent = Agent.Utils.init();
+      let chat_id = agent.chat_system.current;
+      let z =
+        switch (Parser.to_zipper("let a = 1 in a")) {
+        | Some(z) => z
+        | None => fail("failed to parse fixture")
+        };
+      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z));
+      let action =
+        CompositionActions.StaticsAction(
+          CompositionActions.PlaceStatics(["ghost"]),
+        );
+      switch (
+        Agent.ToolCallHandler.update(~settings, action, agent, cws, chat_id)
+      ) {
+      | Ok(_) => fail("expected Error when no path resolves to a binding")
+      | Error(AgentResult.Failure.Info(msg)) =>
+        check_bool(
+          "message mentions no path resolved",
+          true,
+          StringUtil.plain_search("no path resolved", msg, 0) >= 0,
+        );
+        check_bool(
+          "message lists ghost",
+          true,
+          StringUtil.plain_search("ghost", msg, 0) >= 0,
+        );
+      };
+    },
+  ),
+  test_case(
+    "place_probe with mixed paths (one valid, one unresolved) still succeeds",
+    `Quick,
+    () => {
+      let settings = Settings.Model.init;
+      let agent = Agent.Utils.init();
+      let chat_id = agent.chat_system.current;
+      let z =
+        switch (Parser.to_zipper("let a = 1 in a")) {
+        | Some(z) => z
+        | None => fail("failed to parse fixture")
+        };
+      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z));
+      let action =
+        CompositionActions.ProbeAction(
+          CompositionActions.PlaceProbe(["a", "bogus"]),
+        );
+      switch (
+        Agent.ToolCallHandler.update(~settings, action, agent, cws, chat_id)
+      ) {
+      | Ok(_) => ()
+      | Error(AgentResult.Failure.Info(msg)) =>
+        fail("expected Ok on partial resolve; got Error: " ++ msg)
+      };
+    },
+  ),
+  test_case(
     "structural EditorAction on empty editor returns descriptive error, not generic unknown",
     `Quick,
     () => {
