@@ -169,6 +169,21 @@ let tests = (
     test_case("Int scrutinee with tuple pattern stays stuck", `Quick, () =>
       parse_and_evaluate_test("let (a, b) = 1 in a", "let (a, b) = 1 in a")
     ),
+    test_case(
+      "Int scrutinee with tuple pattern stays stuck (body uses a.0)",
+      `Quick,
+      () =>
+      /* Pinned regression: before the is_destructurable_scrut fix, this
+         evaluated to `(1.0).0` — the rewrite fired on IndetMatch even
+         though `1` is a concrete Int, produced `(1.0, 1.1)`, bound `a
+         ↦ 1.0`, and the body `a.0` became `(1.0).0`. After the fix:
+         whole Let stays stuck; body `a.0` is preserved unreduced
+         inside. */
+      parse_and_evaluate_test(
+        "let (a, b) = 1 in a.0",
+        "let (a, b) = 1 in a.0",
+      )
+    ),
     test_case("String scrutinee with tuple pattern stays stuck", `Quick, () =>
       parse_and_evaluate_test(
         {|let (a, b) = "hi" in a|},
