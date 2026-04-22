@@ -68,8 +68,5 @@ node_modules
 # Project plans (local only)
 plans/
 
-# Cursor IDE (local); allow tracked agent handoff docs under .cursor/docs/
+# Cursor IDE (local)
 .cursor/
-.cursor/*
-!.cursor/docs/
-!.cursor/docs/**
