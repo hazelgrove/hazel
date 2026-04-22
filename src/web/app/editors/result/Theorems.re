@@ -11,6 +11,11 @@ module Model = {
     sem_ctx: Calc.saved(SemanticCtx.t),
     goal_exp: Calc.saved(Exp.t),
     stepper_view: StepperView.Model.t,
+    /* Mark derived from the big-step ProofMap for the proof term directly
+     * inside this theorem: Some(true) = proven, Some(false) = disproven
+     * (outgoing is literally false), None = incomplete / not yet proven
+     * (holes, failed steps, or no map entry). */
+    proof_mark: Calc.saved(option(bool)),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -23,6 +28,7 @@ module Model = {
     sem_ctx: Calc.Pending,
     goal_exp: Calc.Pending,
     stepper_view: StepperView.Model.init,
+    proof_mark: Calc.Pending,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,6 +65,7 @@ module Model = {
             sem_ctx: Calc.Pending,
             goal_exp: Calc.Pending,
             stepper_view: StepperView.Model.unpersist(p_thm.stepper_view),
+            proof_mark: Calc.Pending,
           },
         p.thm_map,
       ),
@@ -76,7 +83,7 @@ module Model = {
           +. (
             switch (Id.Map.find_opt(id, model.thm_map)) {
             | Some(thm) =>
-              StepperView.Model.get_validity(thm.stepper_view) == Some(true)
+              Calc.get_saved_opt(thm.proof_mark) |> Option.join == Some(true)
                 ? 1.0 : 0.0
             | None => 0.0
             }
@@ -185,6 +192,15 @@ module Update = {
       }
       |> Calc.old_if_same'(thms);
 
+    let proof_map =
+      dynamics
+      |> Calc.get_value
+      |> (
+        fun
+        | None => ProofMap.empty
+        | Some(x) => x.proof_map
+      );
+    let info_map = (statics |> Calc.get_value).info_map;
     // Calculate visible steppers
     let thm_map =
       dynamics
@@ -213,6 +229,7 @@ module Update = {
                    sem_ctx,
                    goal_exp,
                    stepper_view,
+                   proof_mark,
                  } =
                    Option.value(~default=Model.theorem_init("?"), opt);
 
@@ -256,6 +273,22 @@ module Update = {
                      stepper_view,
                    );
 
+                 /* Derive the mark for the proof immediately inside this
+                  * theorem by consulting the big-step ProofMap. */
+                 let proof_mark = {
+                   let mark =
+                     switch (Statics.Map.lookup_exp(id, info_map)) {
+                     | Some({user_term, _}) =>
+                       switch (user_term |> Exp.term_of) {
+                       | Theorem(_, _, proof, _) =>
+                         ProofMap.status_of_proof(proof_map, proof)
+                       | _ => None
+                       }
+                     | None => None
+                     };
+                   Calc.set(mark, proof_mark);
+                 };
+
                  Some({
                    name,
                    ctx: ctx |> Calc.save,
@@ -263,6 +296,7 @@ module Update = {
                    sem_ctx: sem_ctx |> Calc.save,
                    goal_exp: goal_exp |> Calc.save,
                    stepper_view,
+                   proof_mark: proof_mark |> Calc.save,
                  });
                },
                acc,
@@ -333,15 +367,20 @@ module View = {
     | xs =>
       List.mapi(
         (idx, id) => {
-          let Model.{stepper_view, name, _} = Id.Map.find(id, model.thm_map);
+          let Model.{stepper_view, name, proof_mark, _} =
+            Id.Map.find(id, model.thm_map);
           let status =
-            switch (StepperView.Model.get_validity(stepper_view)) {
+            switch (proof_mark |> Calc.get_saved_opt |> Option.join) {
             | Some(true) =>
               Node.div(
                 ~attrs=[Attr.classes(["theorem-status", "true"])],
                 [Node.text("proven true")],
               )
-            | Some(false)
+            | Some(false) =>
+              Node.div(
+                ~attrs=[Attr.classes(["theorem-status", "false"])],
+                [Node.text("disproven")],
+              )
             | None =>
               Node.div(
                 ~attrs=[Attr.classes(["theorem-status", "unknown"])],

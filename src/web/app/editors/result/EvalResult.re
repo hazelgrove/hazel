@@ -439,6 +439,7 @@ module Update = {
               test_results:
                 state |> EvaluatorState.get_tests |> TestResults.mk_results,
               theorems: state |> EvaluatorState.get_theorems,
+              proof_map: state |> EvaluatorState.get_proof_map,
             },
           )
         | (ProgramResult.ResultPending(_), None) =>
@@ -452,6 +453,7 @@ module Update = {
               test_results:
                 state |> EvaluatorState.get_tests |> TestResults.mk_results,
               theorems: state |> EvaluatorState.get_theorems,
+              proof_map: state |> EvaluatorState.get_proof_map,
             },
           )
         };

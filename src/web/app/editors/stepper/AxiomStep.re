@@ -105,27 +105,16 @@ module F =
         let.calc exp = exp
         and.calc ctx = ctx
         and.calc info_map = info_map;
-        let* e = ProofHacks.nth_exp(at_exp, at_idx, exp);
-        let proof_ctx =
-          ProofCtx.of_env(
-            ~builtins=Axioms.v,
-            ~ctx=SemanticCtx.get_ctx(ctx),
-            SemanticCtx.get_env(ctx),
-          );
-        let* proofrule = ProofCtx.lookup_rule(equality, proof_ctx);
-        let (l, r) =
-          ProofRule.can_eq(
-            ~info_map,
-            ~env=SemanticCtx.get_env(ctx),
-            proofrule,
-            e,
-          );
-        let* with_exp =
-          switch (direction) {
-          | Left => l
-          | Right => r
-          };
-        Some(ProofHacks.replace_exp_id(e |> DHExp.rep_id, exp, with_exp));
+        ProofCheck.axiom_step_outgoing(
+          ~info_map,
+          ~env=SemanticCtx.get_env(ctx),
+          ~ctx=SemanticCtx.get_ctx(ctx),
+          ~at_idx,
+          ~at_exp,
+          ~direction,
+          ~equality,
+          exp,
+        );
       }
       |> Calc.to_option;
     (

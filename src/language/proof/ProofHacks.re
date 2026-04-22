@@ -60,6 +60,35 @@ let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
   };
 };
 
+/* Env-aware variant of nth_exp.
+ *
+ * Proof-level `eval` steps invoke the dynamic evaluator, which during
+ * CaseApply / FixUnwrap transitions substitutes the full runtime env
+ * into branch bodies. That inlines recursive bindings like `rev` and
+ * `snoc` as `FixF(Var(name), ...)` nodes. User-written patterns in
+ * subsequent proof steps still reference those names as plain
+ * `Var(name)`, so a naive syntactic match fails.
+ *
+ * We work around this by pre-substituting both the search pattern and
+ * the target with the proof's env before looking for matches. Both
+ * sides then have `Var(name)` uniformly rewritten into `FixF(...)` and
+ * can be compared directly. Self-referential bindings (forall-bound
+ * variables mapped to `Var(self)`) are handled by `Substitution.in_exp`
+ * and left alone.
+ *
+ * We then map the match back to the *original* (un-substituted)
+ * `incoming` via `Exp.rep_id`, so downstream consumers see the goal in
+ * its user-facing form (with `Var(rev)` / `Var(snoc)` rather than
+ * inlined `FixF` nodes). `Substitution.in_exp` preserves the ids on
+ * wrapping nodes (`Ap`, `Tuple`, `BinOp`, ...) so the returned id is
+ * guaranteed to be present in `e2`. */
+let nth_exp_env = (~env: Environment.t(Exp.t), e1: Exp.t, n: int, e2: Exp.t) => {
+  let e1' = Substitution.in_exp(env, e1);
+  let e2' = Substitution.in_exp(env, e2);
+  let* matched = nth_exp(e1', n, e2');
+  find_exp_id(Exp.rep_id(matched), e2);
+};
+
 let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
   Exp.map_term(
     ~f_exp=

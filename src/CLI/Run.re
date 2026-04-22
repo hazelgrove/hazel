@@ -13,23 +13,30 @@ let statics_of = (exp: Exp.t): Statics.Map.t => fst(statics_and_elab(exp));
 let elaborate = (exp: Exp.t): Exp.t => snd(statics_and_elab(exp));
 
 let evaluate = (exp: Exp.t): Exp.t => {
+  let (statics, elab) = statics_and_elab(exp);
   let (result, _) =
-    Evaluator.evaluate(~env=Builtins.env_init, elaborate(exp));
+    Evaluator.evaluate(~statics, ~env=Builtins.env_init, elab);
   result;
 };
 
 let evaluate_incremental =
     (~prev: EvaluatorState.incr_eval=IncrEval.empty, exp: Exp.t)
     : (Exp.t, EvaluatorState.incr_eval) => {
-  let (info_map, elab) = statics_and_elab(exp);
+  let (statics, elab) = statics_and_elab(exp);
   let info_map =
     EvalInfo.of_info_map(
       ~probe_all=CoreSettings.on.probe_all,
       ~targets=Id.Map.empty,
-      info_map,
+      statics,
     );
   let (result, state) =
-    Evaluator.evaluate(~prev, ~info_map, ~env=Builtins.env_init, elab);
+    Evaluator.evaluate(
+      ~prev,
+      ~info_map,
+      ~statics,
+      ~env=Builtins.env_init,
+      elab,
+    );
   (result, state.incr_eval);
 };
 
