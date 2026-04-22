@@ -123,7 +123,7 @@
 }
 
 .code .token.in-parsed-buffer {
-  color: var(--token-buffer);
+  color: var(--token-buffer) !important;
 }
 
 .code .in-buffer-hole path {

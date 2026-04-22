@@ -385,7 +385,7 @@ let left_is_concave = (scoped_l: list(Piece.t)): bool => {
     fun
     | [] => true
     | [Piece.Secondary(_), ...rest]
-    | [Piece.Grout(_), ...rest] => check(rest)
+    | [Piece.Grout({shape: Concave, _}), ...rest] => check(rest)
     | [p, ..._] =>
       switch (Piece.shapes(p)) {
       | Some((_, Concave(_))) => true
