@@ -187,6 +187,20 @@ module Update = {
       );
 
     // Calculate the result
+    /* Previous incremental map, if the last evaluation produced one. */
+    let prev_incr =
+      switch (result |> Calc.get_value) {
+      | ProgramResult.ResultOk({state, _}) => state.incr_eval
+      | _ => IncrEval.empty
+      };
+    /* Project statics to the serializable slice the incremental evaluator
+     * needs. The raw info_map can't cross postMessage because LivelitCtx
+     * entries contain OCaml closures. */
+    let eval_info_map =
+      IncrEval.EvalInfoMap.of_info_map(
+        ~probe_all=Calc.get_value(settings).probe_all,
+        statics.info_map,
+      );
     let result =
       result
       |> {
@@ -202,6 +216,8 @@ module Update = {
           queue_worker({
             expr: elab,
             targets,
+            eval_info_map,
+            prev: prev_incr,
           });
           ProgramResult.ResultPending;
         // Using the main thread:
@@ -210,6 +226,8 @@ module Update = {
             WorkerServer.work({
               expr: elab,
               targets,
+              eval_info_map,
+              prev: prev_incr,
             })
           ) {
           | Ok((exp, state)) =>
