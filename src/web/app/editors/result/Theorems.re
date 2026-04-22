@@ -228,13 +228,7 @@ module Update = {
                    |> {
                      let.calc statics = statics;
                      statics.info_map
-                     |> Statics.Map.lookup(id)
-                     |> Option.bind(
-                          _,
-                          fun
-                          | Info.InfoExp({ctx, _}) => Some(ctx)
-                          | _ => None,
-                        )
+                     |> Statics.Map.ctx_of(id)
                      |> Option.value(~default=Ctx.empty)
                      |> List.fold_left(
                           Ctx.extend,

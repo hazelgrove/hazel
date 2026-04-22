@@ -244,16 +244,11 @@ module F = (Stepper: STEPPER) => {
       {
         open OptUtil.Syntax;
         let statics = CodeWithStatics.Model.get_statics(pattern);
-        let* info =
-          Statics.Map.lookup(
+        let* info_pat =
+          Statics.Map.lookup_pat(
             elab_pattern |> Calc.get_value |> Pat.rep_id,
             statics.info_map,
           );
-        let* info_pat =
-          switch (info) {
-          | InfoPat(info_pat) => Some(info_pat)
-          | _ => None
-          };
         Some(Info.pat_constraint(info_pat));
       }
       |> Calc.set(_, model.constraint_);
