@@ -52,7 +52,8 @@ module Update = {
         Probe(_) |
         PrettyPrint |
         Dump |
-        Introduce,
+        Introduce |
+        ToggleLineComment,
       )
     | DebugConsole(_)
     | ContextMenu(_)

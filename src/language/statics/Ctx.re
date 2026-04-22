@@ -154,28 +154,34 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
     )
   };
 
-let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t => {
+let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
   ...ctx,
   entries:
     List.filter_map(
       fun
-      | ConstructorMap.Variant(ctr, _, typ) =>
-        Some(
-          ConstructorEntry({
-            name: ctr,
-            id,
-            typ:
-              switch (typ) {
-              | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
-              | Some(typ) =>
-                (
-                  Arrow(typ, (Var(name): TermBase.typ_term) |> IdTagged.fresh): TermBase.typ_term
-                )
-                |> IdTagged.fresh
-              },
-            custom_statics: None,
-          }),
-        )
+      | ConstructorMap.Variant(ctr, ann, typ) => {
+          assert(ann.ids != []);
+          let ctr_id = List.hd(ann.ids);
+          Some(
+            ConstructorEntry({
+              name: ctr,
+              id: ctr_id,
+              typ:
+                switch (typ) {
+                | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
+                | Some(typ) =>
+                  (
+                    Arrow(
+                      typ,
+                      (Var(name): TermBase.typ_term) |> IdTagged.fresh,
+                    ): TermBase.typ_term
+                  )
+                  |> IdTagged.fresh
+                },
+              custom_statics: None,
+            }),
+          );
+        }
       | ConstructorMap.BadEntry(_) => None,
       ctrs,
     )

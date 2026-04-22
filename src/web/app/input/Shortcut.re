@@ -104,6 +104,20 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Select(SetFocus(Right)))),
     ),
     mk_shortcut(
+      ~mdIcon="chevron_left",
+      ~section="Selection",
+      ~hotkey="alt+shift+left",
+      "Extend Selection Left by Token",
+      Globals(ActiveEditor(Select(Resize(Local(Left, ByToken))))),
+    ),
+    mk_shortcut(
+      ~mdIcon="chevron_right",
+      ~section="Selection",
+      ~hotkey="alt+shift+right",
+      "Extend Selection Right by Token",
+      Globals(ActiveEditor(Select(Resize(Local(Right, ByToken))))),
+    ),
+    mk_shortcut(
       ~hotkey="alt+f",
       ~mdIcon="camera",
       ~section="Projection",
@@ -123,6 +137,13 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Projection",
       "Statics",
       Globals(ActiveEditor(Probe(ToggleStatics))),
+    ),
+    mk_shortcut(
+      ~hotkey=Keyboard.meta(sys) ++ "+p",
+      ~mdIcon="science",
+      ~section="Projection",
+      "Toggle Auto Probe",
+      Globals(Set(AutoprobeMode)),
     ),
     mk_shortcut(
       ~hotkey="alt+l",
@@ -274,6 +295,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     ),
     mk_shortcut(
       "Add New Buffer",
+      ~hotkey="alt+n",
       ~mdIcon="add",
       ~section="Buffers",
       Editors(Scratch(AddSlide)),

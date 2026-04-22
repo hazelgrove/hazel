@@ -541,7 +541,17 @@ let rec parenthesize =
     |> rewrap
   | UnOp(Bool(Not), e) =>
     UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
-  | UnOp((Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus)) as op, e) =>
+  | UnOp(Float(Minus), e) =>
+    /* Rewrite float negation as 0.0 -. e so that the segment round-trips
+       correctly through MakeTerm (which parses unary - as Int(Minus)) */
+    let zero = Exp.fresh(Atom(Float(0.0)));
+    BinOp(
+      Float(Minus),
+      parenthesize(zero) |> paren_assoc_at(Precedence.plus),
+      parenthesize(e) |> paren_at(Precedence.plus),
+    )
+    |> rewrap;
+  | UnOp((Int(Minus) | Nat(Minus) | SInt(Minus)) as op, e) =>
     UnOp(op, parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
   | BinOp(op, e1, e2) =>
     (
@@ -1452,10 +1462,16 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             children: [],
           }),
         ],
-        if (Token.begins_with_potential_operator(Segment.first_string(e))) {
-          [Secondary(mk_space(Id.mk()))] @ e;
-        } else {
-          e;
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(e);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...e];
+          } else {
+            e;
+          };
+        | PreserveExact => e
         },
       ]),
     );
@@ -1646,10 +1662,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Not, id, [])] @ e);
-  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), e) =>
+  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(UnaryMinus, id, [])] @ e);
+  | UnOp(Float(Minus), _) =>
+    failwith(
+      "ExpToSegment: UnOp(Float(Minus)) should have been rewritten by parenthesize",
+    )
   /* TODO: this isn't actually correct because we could the builtin
      could have been overriden in this scope; worth fixing when we fix
      closures. */
@@ -1927,10 +1947,16 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
             children: [],
           }),
         ],
-        if (Token.begins_with_potential_operator(Segment.first_string(p))) {
-          [Secondary(mk_space(Id.mk()))] @ p;
-        } else {
-          p;
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(p);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...p];
+          } else {
+            p;
+          };
+        | PreserveExact => p
         },
       ]),
     );
@@ -2151,10 +2177,16 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
             children: [],
           }),
         ],
-        if (Token.begins_with_potential_operator(Segment.first_string(t))) {
-          [Secondary(mk_space(Id.mk()))] @ t;
-        } else {
-          t;
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(t);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...t];
+          } else {
+            t;
+          };
+        | PreserveExact => t
         },
       ]),
     );

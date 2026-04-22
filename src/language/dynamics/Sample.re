@@ -7,10 +7,33 @@ type capture_spec = {refs: Binding.s};
 
 let empty_capture_spec: capture_spec = {refs: []};
 
-/* Call context represented as a list of function application IDs.
+/* A single frame in the call stack: app_id + optional function_name.
+ * function_name is extracted at evaluation time from the closure/function.
+ * fn_def_id is the definition-site ID of the function, extracted from the
+ * Closure at evaluation time. Enables jump-to-definition even when app_id
+ * comes from built-in internal code (not in user's info_map).
+ * The name and fn_def_id fields are purely informational; equality compares only id. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type stack_frame = {
+  id: Id.t,
+  name: option(string),
+  fn_def_id: option(Id.t),
+};
+
+let equal_stack_frame = (a: stack_frame, b: stack_frame): bool =>
+  a.id == b.id;
+
+/* Call context represented as a list of stack frames.
  * The head is the most recent (innermost) call. */
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type call_stack = list(Id.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type call_stack = list(stack_frame);
+
+let equal_call_stack = (a: call_stack, b: call_stack): bool =>
+  List.equal(equal_stack_frame, a, b);
+
+/* Extract just the IDs from a call stack, discarding function names. */
+let ids_of_stack = (cs: call_stack): list(Id.t) =>
+  List.map((f: stack_frame) => f.id, cs);
 
 /* Maps expression/pattern IDs to their capture specifications.
  * Presence in this map means "collect a sample when evaluated". */
@@ -69,7 +92,8 @@ module Env = {
     switch ((d |> DHExp.strip_ascriptions).term) {
     | Fun(_)
     | FixF(_)
-    | Closure(_) => Opaque
+    | Closure(_)
+    | BuiltinFun(_) => Opaque
     | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
     };
 
@@ -113,6 +137,7 @@ type t = {
   value: DHExp.t, /* Value of expression */
   env: Env.t, /* (Filtered) Environment Values  */
   call_stack, /* Call stacks as ap ids */
+  args: option(Env.elided_value), /* Argument value if probe is on an Ap */
   time: float, /* Time of evaluation */
   seq: int, /* Sequence number: a count index of each sample taken */
   origin, /* Is this sample from a probe or a print statement */
@@ -125,6 +150,7 @@ let seq_counter = ref(0);
 let mk =
     (
       ~origin: origin=Probe,
+      ~args: option(Env.elided_value)=None,
       ~step_start: int,
       ~step_end: int,
       syntax_id: Id.t,
@@ -143,6 +169,7 @@ let mk =
   value,
   env: Env.filter(env, spec.refs),
   call_stack: stack,
+  args,
   time: JsUtil.precise_timestamp(),
   seq: {
     seq_counter := seq_counter^ + 1;
@@ -194,7 +221,7 @@ module Map = {
 module Window = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type mode =
-    | Single /* Show one sample aligned with cursor */
+    | Single /* Show one sample aligned with sightline */
     | Many; /* Show multiple samples in a scrollable window */
 
   /* Max samples to display for each mode */
@@ -221,85 +248,50 @@ module Window = {
     };
 };
 
-/* The dynamic cursor points to a stage in evaluation, associated
- * with probe sample collection. This is primarily reified as a call stack,
- * represented as a list of ids of function application forms which have
- * been called but have not yet returned.
+/* THE SIGHTLINE
  *
- * CONSISTENCY AND INTENT PRESERVATION
+ * The sample focus is a sightline through the call tree: a positioned
+ * path that determines which sample each probe displays. It stores
+ * (call_stack, index) where call_stack is the full path and index
+ * divides it into three zones:
  *
- * Two goals govern how probe sample displays update during navigation:
+ *   above:  where you ARE (context — calls you're nested inside)
+ *   focus:  where you're LOOKING (the active depth)
+ *   below:  where you've BEEN or are PEEKING (retained/extended path)
  *
- * 1. CONSISTENCY (mandatory): Samples shown at different call depths must
- *    be consistent with each other in the call stack sense. If you navigate
- *    to a sample at one depth, samples emphasized at other depths must be
- *    above or below it in the same execution context.
+ * A probe aligns with the sightline by suffix matching: a sample is
+ * on the sightline if its call stack is a suffix of the sightline's
+ * path. This enforces coherence (samples at different depths must be
+ * on the same path through the call tree).
  *
- * 2. INTENT PRESERVATION (when consistency allows): When multiple samples
- *    would be consistent with a navigation action, prefer keeping the
- *    user's previous selection rather than resetting to a default.
+ * The below-focus zone is populated two ways:
  *
- * Example in single-sample display mode:
+ *   Retention: navigating shallower keeps deeper frames. If the new
+ *     sample's stack is a suffix of the current sightline, we keep the
+ *     full sightline and lower the index.
  *
- *   let grid = [[1, 2], [3, 4]] in
- *   map(grid, fun ^^probe(row) ->
- *     map(row, fun ^^probe(x) -> x))
+ *   Extension: clicking an app probe prepends the application as a
+ *     frame below the focus (peeking into a call without entering it).
  *
- * Outer probe samples: [1,2], [3,4]
- * Inner probe samples: 1, 2, 3, 4
- * Samples 1,2 are below [1,2]; samples 3,4 are below [3,4].
+ * Both produce frames below the index that participate identically in
+ * alignment. This is what makes one sightline sufficient: the full
+ * path encodes the user's chosen branch at every depth without needing
+ * separate state per nesting level.
  *
- * CONSISTENCY examples (navigation forces change):
+ * ALIGNMENT (read side — Selection.most_aligned_index):
  *
- *   # Frame A: Arrow outer from [1,2] to [3,4] #
- *   fun ^^probe(row) ->           # [1,2] -> [3,4]
- *     map(row, fun ^^probe(x) ..) # 2 -> 3 (must change: 2 not below [3,4])
+ * Two-tier suffix scan, in priority order:
+ *   1. Above-focus scan (effective_stack): "where am I?" — finds the
+ *      sample at the user's active depth. Governs direct interaction.
+ *   2. Full sightline scan (call_stack): "where was I?" — recovers
+ *      retained/extended selections for probes at other nesting levels.
  *
- *   # Frame B: Arrow inner from 2 to 3 #
- *   fun ^^probe(row) ->           # [1,2] -> [3,4] (must change: 3 not below [1,2])
- *     map(row, fun ^^probe(x) ..) # 2 -> 3
+ * Where you are beats where you've been. The effective stack caps the
+ * scan to handle recursive functions (where all frames share one ID
+ * and suffix matching would otherwise always pick the deepest sample).
  *
- * INTENT PRESERVATION example (consistency underdetermines):
- *
- *   # Frame C1: User arrows inner from 1 to 2 #
- *   fun ^^probe(row) ->           # [1,2]
- *     map(row, fun ^^probe(x) ..) # 1 -> 2
- *
- *   # Frame C2: User clicks on outer [1,2] (already above inner 2) #
- *   fun ^^probe(row) ->           # [1,2] (cursor moves to outer depth)
- *     map(row, fun ^^probe(x) ..) # 2 (unchanged - both 1 and 2 are consistent)
- *
- *   Without intent preservation, inner would reset to 1 (first/default).
- *   With intent preservation, inner stays at 2.
- *
- * MECHANISM: The cursor maintains both a full `call_stack` and an `index`.
- * The `index` is the effective cursor depth; `call_stack` may retain deeper
- * call information. When clicking "up" to a shallower sample that already
- * contains the current selection, we keep the deeper stack but lower the
- * index. Use `trimmed_stack(cursor)` to get the effective stack.
- *
- * WHY CURSOR STORES COORDINATES, NOT A SAMPLE REFERENCE
- *
- * The cursor points to a position in the evaluation trace, not to a specific
- * sample. This is because:
- *
- * 1. MULTIPLE PROBES, ONE CURSOR: Many probes share the same cursor. Each
- *    probe shows the sample at its location that matches the cursor's
- *    call stack depth. A direct Sample reference would only work for one probe.
- *
- * 2. SAMPLES ARE EPHEMERAL: Samples are recomputed on every edit. The cursor
- *    must survive across evaluations. Call stacks provide stable coordinates
- *    because they're based on syntax IDs, which persist across edits.
- *
- * 3. INTENT PRESERVATION: Storing (call_stack, index) lets us preserve user
- *    intent when navigating. A shallower click can keep the deeper stack info
- *    so we remember the user's prior selection if they navigate back down.
- *
- * RELATIONSHIP TO Sample.t: Sample.t records a single evaluation moment
- * (value, environment, call_stack, timing). Cursor.t identifies which
- * evaluation moment the user is focused on across all probes. They share
- * the call_stack type as the common coordinate system. */
-module Cursor = {
+ * See plans/sample-focus-sightline.md for the full exegesis. */
+module Focus = {
   open OptUtil.Syntax;
 
   /* Pending focus state for step-into functionality.
@@ -311,7 +303,7 @@ module Cursor = {
     target_stack: call_stack /* The call stack to match */
   };
 
-  /* Cursor.t fields:
+  /* Focus.t fields:
    * - call_stack: Full call context; may be deeper than effective cursor
    * - index: Effective depth in call_stack (-1 = top-level, 0+ = inside calls)
    * - pinned_stack: If set, filters samples to those under this call context
@@ -343,7 +335,11 @@ module Cursor = {
     pending_focus: None,
   };
 
-  let trimmed_stack = (cursor: t): call_stack =>
+  /* The above-focus portion of the sightline: call_stack sliced to
+   * index + 1 elements from the outer end. This is where you ARE —
+   * the active position used for tier 1 alignment. The full call_stack
+   * extends deeper (below-focus) for tier 2 alignment. */
+  let effective_stack = (cursor: t): call_stack =>
     ListUtil.slice(0, cursor.index + 1, cursor.call_stack |> List.rev)
     |> List.rev;
 
@@ -352,7 +348,16 @@ module Cursor = {
   let depth_in_indicated_calls_stack =
       (cursor: t, call_stack: call_stack): option(int) => {
     let* cur_ap = cursor.indicated_call;
-    ListUtil.suffix_at_depth([cur_ap] @ trimmed_stack(cursor), call_stack);
+    let cur_frame: stack_frame = {
+      id: cur_ap,
+      name: None,
+      fn_def_id: None,
+    };
+    ListUtil.suffix_at_depth(
+      ~eq=equal_stack_frame,
+      [cur_frame] @ effective_stack(cursor),
+      call_stack,
+    );
   };
 
   type relative_level =
@@ -396,10 +401,9 @@ module Cursor = {
     relative_level_to_cursor: relative_level,
     is_call_above_call_cursor: option(int),
     is_below_indicated_call: option(int),
-    is_before_cursor: int,
   };
 
-  let is_below = ListUtil.suffix_at_depth;
+  let is_below = ListUtil.suffix_at_depth(~eq=equal_stack_frame);
 
   let relative_level = (cs1: call_stack, cs2: call_stack): relative_level =>
     switch (is_below(cs1, cs2), is_below(cs2, cs1)) {
@@ -411,17 +415,22 @@ module Cursor = {
 
   let cur_call = (ap_id: option(Id.t), sample: sample): option(call_stack) => {
     let* ap_id = ap_id;
-    Some([ap_id, ...sample.call_stack]);
+    Some([
+      {
+        id: ap_id,
+        name: None,
+        fn_def_id: None,
+      },
+      ...sample.call_stack,
+    ]);
   };
 
   /* Returns Some(ap_id) only when cursor is on an application with a variable
      in function position (enabling step-into and pinning). Excludes constructor
      applications and applications with non-variable functions (e.g. lambdas). */
-  let cur_var_ap = (info: option(Info.t)): option(Id.t) =>
+  let cur_var_ap = (info: Info.t): option(Id.t) =>
     switch (info) {
-    | Some(
-        InfoExp({term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}),
-      ) =>
+    | InfoExp({term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}) =>
       Some(Exp.rep_id(ap))
     | _ => None
     };
@@ -430,9 +439,9 @@ module Cursor = {
       (~trimmed: bool, ~ap_id: option(Id.t), cursor: t, sample: sample)
       : relation => {
     let this = sample.call_stack;
-    let cursor_stack = trimmed ? trimmed_stack(cursor) : cursor.call_stack;
+    let cursor_stack = trimmed ? effective_stack(cursor) : cursor.call_stack;
     {
-      is_call_cursor: cursor_stack == this,
+      is_call_cursor: equal_call_stack(cursor_stack, this),
       is_more_precise_than_cursor:
         List.length(cursor.call_stack) > List.length(sample.call_stack),
       relative_level_to_cursor: relative_level(cursor_stack, this),
@@ -442,9 +451,18 @@ module Cursor = {
       },
       is_below_indicated_call: {
         let* cur_ap = cursor.indicated_call;
-        is_below([cur_ap] @ cursor_stack, this);
+        is_below(
+          [
+            {
+              id: cur_ap,
+              name: None,
+              fn_def_id: None,
+            },
+          ]
+          @ cursor_stack,
+          this,
+        );
       },
-      is_before_cursor: sample.seq - cursor.seq,
     };
   };
 
@@ -464,7 +482,7 @@ module Selection = {
   type empty_status =
     | NoSamplesExist /* Probe was never evaluated */
     | HiddenByPin /* Samples exist but filtered by current pin */
-    | NotAligned /* Single mode: samples exist but none align with cursor */
+    | NotAligned /* Single mode: samples exist but none align with sightline */
     | Evaluating; /* Waiting for evaluation after step-into */
 
   /* Determine why no samples are shown.
@@ -483,85 +501,130 @@ module Selection = {
       Some(NotAligned);
     };
 
-  /* Filter samples by pinned call stack */
+  /* Filter samples by pinned call stack.
+   * Print-origin samples are excluded — they are only for the Printarium. */
   let filter_by_pin =
       (~ap_id: option(Id.t), ~pinned: option(call_stack), samples: list(t))
-      : list(t) =>
+      : list(t) => {
+    let samples = List.filter((s: t) => s.origin != Print, samples);
     switch (pinned) {
     | Some(pinned_stack) =>
+      /* Extract just the Id.t from head of pinned_stack for comparison */
+      let pinned_head_id =
+        Option.map((f: stack_frame) => f.id, ListUtil.hd_opt(pinned_stack));
+      /* Compare by ID only - pinned_stack may have None for function names
+       * but actual samples have real names from evaluation */
+      let pinned_ids = ids_of_stack(pinned_stack);
       List.filter(
-        (sample: t) =>
-          ListUtil.hd_opt(pinned_stack) == ap_id
-          || ListUtil.is_suffix_of(pinned_stack, sample.call_stack),
-        samples,
-      )
-    | None => samples
-    };
-
-  /* Find index of first sample related to cursor position */
-  let first_related_index =
-      (
-        ~trimmed: bool,
-        ~ap_id: option(Id.t),
-        cursor: Cursor.t,
-        samples: list(t),
-      )
-      : option(int) => {
-    let find = (predicate: Cursor.relation => bool): option(int) =>
-      List.find_index(
-        (sample: t) =>
-          predicate(Cursor.relation(~trimmed, ~ap_id, cursor, sample)),
+        (sample: t) => {
+          let sample_ids = ids_of_stack(sample.call_stack);
+          pinned_head_id == ap_id
+          /* Sample is at or below pin (current behavior) */
+          || ListUtil.is_suffix_of(pinned_ids, sample_ids)
+          /* Probe is on an application in the pinned call chain,
+           * and sample is above pin on same ancestral path (breadcrumbs) */
+          || ListUtil.is_suffix_of(sample_ids, pinned_ids)
+          && (
+            switch (ap_id) {
+            | Some(id) => List.mem(id, pinned_ids)
+            | None => false
+            }
+          );
+        },
         samples,
       );
-    /* Priority: exact cursor match > direct callee > any related */
-    switch (find(rel => rel.is_call_cursor)) {
-    | Some(_) as result => result
-    | None =>
-      switch (find(rel => rel.is_below_indicated_call == Some(0))) {
-      | Some(_) as result => result
-      | None =>
-        let indirect = find(rel => rel.is_below_indicated_call != None);
-        indirect == None ? find(Cursor.is_related) : indirect;
-      }
+    | None => samples
     };
   };
 
-  /* Find sample with best call stack suffix match to cursor */
-  let best_suffix_match =
-      (~cursor_stack: call_stack, samples: list(t)): option(t) =>
-    List.fold_left(
-      (best: option((t, int)), sample: t) => {
-        let score =
-          ListUtil.common_suffix_length(cursor_stack, sample.call_stack);
-        switch (best) {
-        | Some((_, best_score)) when best_score >= score => best
-        | _ => Some((sample, score))
-        };
-      },
-      None,
-      samples,
-    )
-    |> Option.map(fst);
+  /* Find the sample most aligned with the sightline.
+   *
+   * Alignment = suffix matching: a sample is on the sightline if its
+   * call stack is a suffix of the sightline's path.
+   *
+   * Two-tier scan:
+   *   1a. Suffix match against effective_stack (above-focus portion).
+   *       "Where am I?" — finds the sample at the user's active depth.
+   *   1b. Suffix match against full call_stack (including below-focus).
+   *       "Where was I?" — recovers retained or extended selections
+   *       for probes at other nesting levels.
+   *
+   * Tier 1a takes priority: where you are beats where you've been.
+   * The effective stack caps the scan to handle recursive functions
+   * (where identical frame IDs make all depths mutual suffixes).
+   *
+   * Fallback tiers:
+   *   2.  Direct callee of indicated call (step-into).
+   *   3.  Any related sample (Above/Below/Same relative to effective stack).
+   */
+  let most_aligned_index =
+      (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
+      : option(int) => {
+    let suffix_scan = (stack: call_stack): option(int) =>
+      List.fold_left(
+        (best: option((int, int)), (i, sample: t)) => {
+          let slen = List.length(sample.call_stack);
+          if (slen > 0
+              && slen > (best |> Option.map(snd) |> Option.value(~default=0))
+              && ListUtil.is_suffix_of(
+                   ~eq=equal_stack_frame,
+                   sample.call_stack,
+                   stack,
+                 )) {
+            Some((i, slen));
+          } else {
+            best;
+          };
+        },
+        None,
+        List.mapi((i, s) => (i, s), samples),
+      )
+      |> Option.map(fst);
+    /* Tier 1a: suffix match against above-focus (where you are) */
+    let eff = Focus.effective_stack(cursor);
+    let effective_match = suffix_scan(eff);
+    /* Tier 1b: suffix match against full sightline (where you've been) */
+    let full_match =
+      switch (effective_match) {
+      | Some(_) => effective_match
+      | None => suffix_scan(cursor.call_stack)
+      };
+    /* Fallback tiers use above-focus stack (depth-relative comparisons) */
+    let find = (predicate: Focus.relation => bool): option(int) =>
+      List.find_index(
+        (sample: t) =>
+          predicate(Focus.relation(~trimmed=true, ~ap_id, cursor, sample)),
+        samples,
+      );
+    let result =
+      switch (full_match) {
+      | Some(_) as result => result
+      | None =>
+        switch (find(rel => rel.is_call_cursor)) {
+        | Some(_) as result => result
+        | None =>
+          switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+          | Some(_) as result => result
+          | None =>
+            let indirect = find(rel => rel.is_below_indicated_call != None);
+            indirect == None ? find(Focus.is_related) : indirect;
+          }
+        }
+      };
+    result;
+  };
 
-  /* Find sample closest to cursor-related position */
-  let closest_to_cursor =
-      (~ap_id: option(Id.t), ~cursor: Cursor.t, samples: list(t))
-      : option(t) =>
+  /* Find sample most aligned with the sightline (returns the sample
+   * rather than the index). Used by ArrowUp/Down navigation and probe
+   * click alignment. Same suffix-scan logic as most_aligned_index. */
+  let most_aligned_sample =
+      (~ap_id: option(Id.t), ~cursor: Focus.t, samples: list(t)): option(t) =>
     switch (samples) {
     | [] => None
     | [first, ..._] =>
-      switch (first_related_index(~trimmed=false, ~ap_id, cursor, samples)) {
+      switch (most_aligned_index(~ap_id, cursor, samples)) {
       | Some(idx) => List.nth_opt(samples, idx)
-      | None =>
-        switch (
-          best_suffix_match(
-            ~cursor_stack=Cursor.trimmed_stack(cursor),
-            samples,
-          )
-        ) {
-        | Some(_) as result => result
-        | None => Some(first)
-        }
+      | None => Some(first)
       }
     };
 
@@ -570,16 +633,14 @@ module Selection = {
     switch (List.rev(s2.call_stack), List.rev(s1.call_stack)) {
     | ([], _)
     | (_, []) => false
-    | ([f1, ..._], [f2, ..._]) => f1 == f2
+    | ([f1, ..._], [f2, ..._]) => equal_stack_frame(f1, f2)
     };
 
   /* Group samples by function call, with indices */
-  let group_by_call = (samples: list((int, t))): list(list((int, t))) => {
+  let group_by_call = (samples: list(t)): list(list(t)) => {
     let grouped =
       samples
-      |> ListUtil.group_consecutive(((_, s1), (_, s2)) =>
-           is_same_call(s1, s2)
-         )
+      |> ListUtil.group_consecutive((s1, s2) => is_same_call(s1, s2))
       |> List.map(List.rev);
     /* Flatten if all groups are singletons */
     List.for_all(g => List.length(g) == 1, grouped)
@@ -587,11 +648,10 @@ module Selection = {
   };
 
   /* Number and group samples for display */
-  let collate = (samples: list(t)): (int, list(list((int, t)))) => {
-    let numbered =
-      List.mapi((i, s) => (List.length(samples) - i - 1, s), samples);
-    (List.length(samples), group_by_call(numbered));
-  };
+  let collate = (samples: list(t)): (int, list(list(t))) => (
+    List.length(samples),
+    group_by_call(samples),
+  );
 
   /* Select samples to display based on cursor position and window mode.
    * Pure function - offset is passed in and new offset returned. */
@@ -601,13 +661,12 @@ module Selection = {
         ~offset: int,
         ~ap_id: option(Id.t),
         ~pinned: option(call_stack),
-        ~cursor: Cursor.t,
+        ~cursor: Focus.t,
         samples: list(t),
       )
       : (list(t), int) => {
     let filtered = filter_by_pin(~ap_id, ~pinned, samples);
-    let first_idx =
-      first_related_index(~trimmed=false, ~ap_id, cursor, filtered);
+    let first_idx = most_aligned_index(~ap_id, cursor, filtered);
     if (first_idx == None && mode == Single) {
       ([], offset);
     } else {
@@ -625,4 +684,26 @@ module Selection = {
       (selected, new_offset);
     };
   };
+};
+
+/* Lightweight capture data for passing through actions.
+   In a submodule to avoid type inference issues with Sample.t
+   which has overlapping field names. */
+module Capture = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t = {
+    time: float,
+    seq: int,
+    call_stack,
+    step_start: int,
+    step_end: int,
+  };
+};
+
+let capture_of_sample = (sample: t): Capture.t => {
+  time: sample.time,
+  seq: sample.seq,
+  call_stack: sample.call_stack,
+  step_start: sample.step_start,
+  step_end: sample.step_end,
 };

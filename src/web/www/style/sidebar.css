@@ -37,8 +37,6 @@
 /* Persistent Sidebar */
 
 #persistent {
-  grid-row: 2 / span 1;
-  grid-column: 2 / span 1;
   border-left: 0.6px solid var(--BR2);
   overflow-y: auto;
   overflow-x: hidden;
@@ -159,8 +157,8 @@
   display: flex;
   flex-direction: column;
   padding: 0.5em;
-  gap: 0.25em;
   overflow-y: auto;
+  color: var(--BR3);
 }
 
 .problem-section-header {
@@ -194,6 +192,7 @@
   background-color: color-mix(in srgb, var(--R0) 50%, transparent);
   cursor: pointer;
   transition: background-color 0.15s ease;
+  color: var(--STONE);
 }
 
 .problem-row > .status,
@@ -283,8 +282,13 @@
 }
 
 .problem-row.warning {
-  border-left: 3px solid color-mix(in srgb, var(--warning-hole-stroke) 60%, transparent);
-  background-color: color-mix(in srgb, var(--warning-hole-fill) 50%, transparent);
+  border-left: 3px solid
+    color-mix(in srgb, var(--warning-hole-stroke) 60%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--warning-hole-fill) 50%,
+    transparent
+  );
 }
 
 .problem-row.warning:hover {
@@ -293,7 +297,11 @@
 
 .problem-row.warning.active {
   border-left: 5px solid var(--warning-hole-stroke);
-  background-color: color-mix(in srgb, var(--warning-hole-fill) 80%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--warning-hole-fill) 80%,
+    transparent
+  );
   box-shadow: inset 0 0 0 1px var(--warning-hole-stroke);
 }
 
@@ -304,14 +312,15 @@
 .problem-legend {
   display: flex;
   gap: 0.75em;
-  padding: 0.4em 0.5em;
-  border-bottom: 1px solid var(--BR2);
+  padding: 0.5em;
+  border-bottom: 1px solid var(--BR1);
   font-size: 0.8em;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.3em;
 }
 
@@ -353,9 +362,8 @@
   border-radius: 3px;
   font-size: 12px;
   user-select: none;
-  color: var(--TXT2);
+  color: var(--BR2);
   border: 1px solid var(--BR2);
-  background: transparent;
 }
 
 .problem-nav-btn:hover {
@@ -366,18 +374,20 @@
 .problem-view-toggle {
   display: flex;
   gap: 0;
-  padding: 0.25em 0.5em;
-  border-bottom: 1px solid var(--BR2);
+  padding: 0.5em;
+  border-bottom: 1px solid var(--BR1);
 }
 
 .toggle-option {
   padding: 0.2em 0.6em;
-  font-size: 0.8em;
+  font-size: 0.85em;
   cursor: pointer;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--BR1);
   user-select: none;
-  color: var(--TXT2);
-  background: transparent;
+  color: var(--BR2);
+  min-width: 5.5em;
+  display: flex;
+  justify-content: center;
 }
 
 .toggle-option:first-of-type {
@@ -393,9 +403,11 @@
 }
 
 .toggle-option.active {
-  background-color: var(--BR2);
-  color: var(--TXT1);
-  font-weight: 600;
+  background-color: var(--Y1);
+  color: var(--BR4);
+}
+.toggle-option:not(.active):hover {
+  background-color: var(--Y0);
 }
 
 .no-problems-message {

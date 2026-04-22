@@ -29,21 +29,31 @@ module Response = {
 
 let work = (req_value: Request.value): Response.value => {
   let Request.{expr, targets} = req_value;
-  switch (
-    Language.Evaluator.evaluate(
-      ~targets,
-      ~env=Language.Builtins.env_init,
-      expr,
-    )
-  ) {
-  | exception (Language.EvaluatorError.Exception(reason)) =>
-    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
-    Error(Language.ProgramResult.EvaulatorError(reason));
-  | exception exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
-  | (result, state) => Ok((result, state))
-  };
+  // let eval_start = JsUtil.precise_timestamp();
+  let result =
+    switch (
+      Language.Evaluator.evaluate(
+        ~targets,
+        ~env=Language.Builtins.env_init,
+        expr,
+      )
+    ) {
+    | exception (Language.EvaluatorError.Exception(reason)) =>
+      print_endline(
+        "EvaluatorError:" ++ Language.EvaluatorError.show(reason),
+      );
+      Error(Language.ProgramResult.EvaulatorError(reason));
+    | exception exn =>
+      print_endline("EXN:" ++ Printexc.to_string(exn));
+      Error(
+        Language.ProgramResult.UnknownException(Printexc.to_string(exn)),
+      );
+    | (result, state) =>
+      /* Clear transient data before sending to avoid serializing
+       * massive amounts of unnecessary data (e.g., app_args can be 100MB+) */
+      Ok((result, Language.EvaluatorState.clear_transient(state)))
+    };
+  result;
 };
 
 let on_request = (req: Request.t): unit => {

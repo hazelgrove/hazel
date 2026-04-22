@@ -11,12 +11,14 @@ let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
 
 let go =
     (
+      ~settings: Language.CoreSettings.t,
       ~statics: CachedStatics.t,
       ~syntax: CachedSyntax.t,
       a: Action.t,
       {zipper: z, col_target}: state,
     )
-    : Action.Result.t(Zipper.t) =>
+    : Action.Result.t(Zipper.t) => {
+  let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
   switch (a) {
   | Introduce =>
     Select.current_term(
@@ -29,13 +31,18 @@ let go =
          Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
        )
     |> return(CantIntroduce)
-  | Paste(String(clipboard)) =>
-    Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
-  | Paste(Segment(segment)) =>
-    z.caret == Outer
-      ? Ok(Zipper.insert_segment(z, segment))
-      : Parser.to_zipper(~zipper_init=z, Printer.of_segment(segment))
-        |> return(CantPaste)
+  | Paste(clipboard) =>
+    switch (Parser.try_segment_paste(clipboard, z)) {
+    | Some(z) => Ok(maybe_reassoc(z))
+    | None =>
+      (
+        Parser.can_fast_paste(clipboard, z)
+          ? Parser.fast_paste(clipboard, z)
+          : Parser.to_zipper(~zipper_init=z, clipboard)
+      )
+      |> Option.map(maybe_reassoc)
+      |> return(CantPaste)
+    }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z) |> return(Cant_destruct)
@@ -60,11 +67,12 @@ let go =
       refractors: z.refractors,
     };
     Some(z) |> return(CantReparse);
-  | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
+  | Buffer(a) =>
+    Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)
-      @ List.map(fst, Id.Map.to_list(z.refractors.autos.ephemerals));
+      @ List.map(fst, Id.Map.to_list(z.refractors.multis.ephemerals));
     ProjectorPerform.go(
       syntax.term_data,
       a,
@@ -121,10 +129,10 @@ let go =
        )
     |> return(Cant_select)
   | Select(Term(Current)) =>
-    Select.current_term(
+    Select.select_enclosing_term(
       syntax.term_data,
-      ~defs_exclude_bodies=true,
-      ~case_rules=true,
+      syntax.measured,
+      statics.info_map,
       z,
     )
     |> return(Cant_select)
@@ -152,13 +160,24 @@ let go =
     }
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
-  | Destruct(d) => Destruct.go(d, z) |> return(Cant_destruct)
+  | Destruct(d) =>
+    Destruct.go(d, z) |> Option.map(maybe_reassoc) |> return(Cant_destruct)
   | Insert(char) =>
     z
-    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
+    |> Insert.go(
+         ~deep_reassociate=settings.deep_reassociate,
+         char,
+         ~ci=Indicated.ci_of(z, statics.info_map),
+       )
+    |> Option.map(maybe_reassoc)
     |> return(Cant_insert)
-  | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
+  | Put_down =>
+    Zipper.put_down(z) |> Option.map(maybe_reassoc) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
+  | ToggleLineComment =>
+    Comment.go(~deep_reassociate=settings.deep_reassociate, z)
+    |> return(Cant_destruct)
   | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };
+};
