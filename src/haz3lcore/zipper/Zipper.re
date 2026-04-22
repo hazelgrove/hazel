@@ -1144,7 +1144,21 @@ let do_towards_point =
 
   let init = caret_point(z);
   let d_to_goal = direction_to_from(goal, init);
-  let rec go = (prev: t, curr: t) => {
+  let max_iter = 100_000;
+  let rec go = (iter: int, prev: t, curr: t) => {
+    if (iter > max_iter) {
+      failwith(
+        "do_towards_point: exceeded "
+        ++ string_of_int(max_iter)
+        ++ " iterations (goal="
+        ++ Point.show(goal)
+        ++ ", init="
+        ++ Point.show(init)
+        ++ ", curr="
+        ++ Point.show(caret_point(curr))
+        ++ ")",
+      );
+    };
     let curr_p = caret_point(curr);
     let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
     let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
@@ -1157,7 +1171,7 @@ let do_towards_point =
         /* Guard: if f didn't advance the caret, stop to prevent
          * infinite loops (e.g. zero-width pieces, measured edge cases) */
         let next_p = caret_point(next);
-        Point.equals(next_p, curr_p) ? curr : go(curr, next);
+        Point.equals(next_p, curr_p) ? curr : go(iter + 1, curr, next);
       | None => curr /* Should only occur at start/end of program */
       }
     /* If we're there, stop */
@@ -1201,7 +1215,7 @@ let do_towards_point =
       }
     };
   };
-  let res = go(z, z);
+  let res = go(0, z, z);
   Measured.Point.equals(caret_point(res), caret_point(z))
     ? None : Some(res);
 };

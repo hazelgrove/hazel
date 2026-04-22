@@ -16,9 +16,19 @@ let by_char_right = (z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Right, z)) {
   | (Outer, None) => move(Right, z)
   | (Outer, Some(_)) => z |> Caret.set(Inner(0)) |> Option.some
-  | (Inner(char), Some(max_idx)) when char == max_idx =>
+  | (Inner(char), Some(max_idx)) when char >= max_idx =>
     z |> Caret.set(Outer) |> move(Right)
-  | (Inner(char), None | Some(_)) =>
+  | (Inner(_), None) =>
+    /* Inner references the right-side piece. If the right neighbor
+     * isn't a multi-char token (grout, projector, single-char token,
+     * or empty), `Inner(char)` has no valid internal position to step
+     * to — collapse to Outer and pop. Without this, `do_towards_point`
+     * loops when Inner was set by a prior char-level selection and
+     * the post-unselect right neighbor can't accept it: col advances
+     * by 1 per step but row never changes, so `(Under, _)` keeps
+     * recursing. */
+    z |> Caret.set(Outer) |> move(Right)
+  | (Inner(char), Some(_)) =>
     z |> Caret.set(Inner(char + 1)) |> Option.some
   };
 

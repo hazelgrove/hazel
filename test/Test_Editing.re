@@ -3959,7 +3959,81 @@ let cross_boundary_tests = [
   ),
 ];
 
+/* Regression tests for an infinite loop in `do_towards_point`.
+ *
+ * Prior bug: after a char-level `Select.to_point` left the caret at
+ * `Inner(n)`, a subsequent `Move.Point` called `pre_unselect` which
+ * preserved `Inner(n)`. If the post-unselect right neighbor had
+ * `nhbr_max_idx = None` (grout, projector, single-char token, or
+ * empty), `by_char_right` would fall to the default arm and
+ * increment `char` forever without popping. Column advanced by 1
+ * per step so the no-progress guard never fired; row never changed
+ * so `(Under, *)` kept recursing. Browser hung.
+ *
+ * These tests wrap the action sequence in a try/catch: before the
+ * fix, `do_towards_point` raises via its iteration guard; after the
+ * fix, the moves terminate (regardless of final printed text). */
+let test_terminates = (~name, ~acts): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let ran =
+        try(
+          {
+            let _ = acts |> perform(Zipper.init());
+            true;
+          }
+        ) {
+        | Failure(msg)
+            when
+              StringUtil.match(
+                StringUtil.regexp("do_towards_point: exceeded"),
+                msg,
+              ) =>
+          false
+        };
+      check(Alcotest.bool, "terminated without loop", true, ran);
+    },
+  );
+
+let move_after_char_select_tests = [
+  test_terminates(
+    ~name="Move.Point after char-level Select: cross linebreak",
+    ~acts=
+      mk({|¦hello
+world|})
+      @ [Action.Select(Resize(Point({row: 0, col: 3})))]
+      @ [Action.Move(Point({row: 1, col: 0}))],
+  ),
+  test_terminates(
+    ~name="Move.Point after char-level Select: same row far col",
+    ~acts=
+      mk({|¦hello world|})
+      @ [Action.Select(Resize(Point({row: 0, col: 3})))]
+      @ [Action.Move(Point({row: 0, col: 11}))],
+  ),
+  test_terminates(
+    ~name="Move.Point after char-level Select ending in paren",
+    ~acts=
+      mk({|¦hello (1 + 2)|})
+      @ [Action.Select(Resize(Point({row: 0, col: 3})))]
+      @ [Action.Move(Point({row: 0, col: 12}))],
+  ),
+  test_terminates(
+    ~name="Move.Point down several rows after char-level Select (user repro)",
+    ~acts=
+      mk({|¦let xs = [1, 2, 3] in
+let f = fun x -> x + 1 in
+let ys = [f(x) for x in xs] in
+ys|})
+      @ [Action.Select(Resize(Point({row: 0, col: 5})))]
+      @ [Action.Move(Point({row: 3, col: 2}))],
+  ),
+];
+
 let tests = [
+  ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),
