@@ -162,53 +162,49 @@ let tests = (
     test_case("All-wild tuple pattern stays stuck (no bindings)", `Quick, () =>
       parse_and_evaluate_test("let (_, _) = ? in 1", "let (_, _) = ? in 1")
     ),
-    /* === Concrete non-tuple scrutinee stays stuck (type-error case) ===
-       The pattern-match machinery returns IndetMatch for type mismatches
-       (gradual: "might" align), but we should NOT destructure these —
-       projecting a positional dot off an int gives nonsense. */
-    test_case("Int scrutinee with tuple pattern stays stuck", `Quick, () =>
-      parse_and_evaluate_test("let (a, b) = 1 in a", "let (a, b) = 1 in a")
-    ),
+    /* === Concrete non-tuple scrutinee: destructure fires anyway,
+         resulting projections are stuck Dots of a wrong-type value.
+         This is the feature's point: the body evaluates; stuckness is
+         localized to the specific projection references.
+
+         Caveat: a stuck `Dot(Atom(Int 1), Atom(Int 0))` prints as `1.0`
+         which visually collides with the float literal `1.0`. In these
+         tests, the expected string uses `(1).0` (parens-wrapped) so it
+         parses unambiguously as a Dot. The `1.0`-vs-`1.0` printer
+         ambiguity is a display concern, not a dynamics one. */
     test_case(
-      "Int scrutinee with tuple pattern stays stuck (body uses a.0)",
+      "Int scrutinee destructures: body `a` → stuck projection of 1",
       `Quick,
       () =>
-      /* Pinned regression: before the is_destructurable_scrut fix, this
-         evaluated to `(1.0).0` — the rewrite fired on IndetMatch even
-         though `1` is a concrete Int, produced `(1.0, 1.1)`, bound `a
-         ↦ 1.0`, and the body `a.0` became `(1.0).0`. After the fix:
-         whole Let stays stuck; body `a.0` is preserved unreduced
-         inside. */
+      parse_and_evaluate_test("(1).0", "let (a, b) = 1 in a")
+    ),
+    test_case(
+      "Int scrutinee, body uses a.0: chained stuck projection",
+      `Quick,
+      () =>
+      /* a ↦ Dot(Int 1, Int 0); body `a.0` becomes Dot(Dot(1,0), 0). */
       parse_and_evaluate_test(
+        "((1).0).0",
         "let (a, b) = 1 in a.0",
-        "let (a, b) = 1 in a.0",
       )
     ),
-    test_case("String scrutinee with tuple pattern stays stuck", `Quick, () =>
+    test_case("Wrong-arity tuple scrutinee still destructures", `Quick, () =>
+      /* (1, 2, 3) with pattern (a, b): matches IndetMatch on arity.
+         Rewrite produces ((1,2,3).0, (1,2,3).1); first projection
+         succeeds at Dot → 1. */
       parse_and_evaluate_test(
-        {|let (a, b) = "hi" in a|},
-        {|let (a, b) = "hi" in a|},
-      )
-    ),
-    test_case("Bool scrutinee with tuple pattern stays stuck", `Quick, () =>
-      parse_and_evaluate_test(
-        "let (a, b) = true in a",
-        "let (a, b) = true in a",
-      )
-    ),
-    test_case("List scrutinee with tuple pattern stays stuck", `Quick, () =>
-      parse_and_evaluate_test(
-        "let (a, b) = [1, 2] in a",
-        "let (a, b) = [1, 2] in a",
-      )
-    ),
-    test_case("Wrong-arity tuple scrutinee stays stuck", `Quick, () =>
-      parse_and_evaluate_test(
-        "let (a, b) = (1, 2, 3) in a",
+        "1",
         "let (a, b) = (1, 2, 3) in a",
       )
     ),
-    test_case("Function scrutinee with tuple pattern stays stuck", `Quick, () =>
+    test_case(
+      "Function scrutinee stays stuck (Fun becomes Closure at req_final)",
+      `Quick,
+      () =>
+      /* A fun value is wrapped in Closure by wrap_closure before we see
+         it; the Closure-exclusion in is_destructurable_scrut keeps the
+         Let stuck. See docs/positional-dot-and-stuck-destructure.md for
+         the Closure-exclusion rationale (probe duplication). */
       parse_and_evaluate_test(
         "let (a, b) = fun x -> x in a",
         "let (a, b) = fun x -> x in a",

@@ -132,39 +132,36 @@ observably incorrect vs. existing tests. Requiring at least one binding
 limits the feature to cases where the user clearly wants to read values
 out, not just assert a shape.
 
-### Scope rule: scrutinee must be in a legitimately indeterminate shape
+### Scope rule: skip Closure scrutinees
 
-`is_destructurable_scrut(d)` returns false for:
+`is_destructurable_scrut(d)` returns false only for `Closure(_)` —
+duplicating a Closure across multiple Dot accessors causes each
+`req_final` call to re-enter the closure body and fire probe samples
+per duplicate (caught by the recursive-indet / `wrap_closure` tests in
+`Test_Evaluator_Probes.duplicate_prevention_tests`).
 
-- **Concrete non-tuple values**: `Atom(_)`, `Constructor(_)`,
-  `Ap(_, Constructor, _)`, `ListLit(_)`, `Cons(_)`, `Fun(_, _, _, _)`,
-  `BuiltinFun(_)`, `TypFun(_)`, `DeferredAp(_)`, `Deferral(_)`,
-  `Label(_)`. Hazel's unboxer returns `IndetMatch` on these (gradual: "the
-  types *might* align"), but projecting a positional dot off them gives
-  nonsense. Example: `let (a, b) = 1 in a` — without this guard the
-  rewrite produces `(1.0, 1.1)` and binds `a` to `1.0`. User's intent is
-  almost certainly a type error; stay stuck.
-- **`Tuple(_)` / `TupLabel(_)`**: the scrutinee *is* a tuple. If matches
-  still returned `IndetMatch` it's because of arity or label mismatch.
-  Silently truncating or mis-aligning is worse than staying stuck.
-- **`Closure(_)`**: `pat_proj(dp, d1')` produces N syntactic copies of
-  `d1'` (one per tuple slot). For plain indet scrutinees each `Dot`'s
-  `req_final` is cheap because the inner value is already final. But
-  when `d1'` is a `Closure` wrapping an indet computation, each duplicate
-  `Dot` re-enters the closure body, firing probes inside it once per
-  copy. This was caught by the recursive-indet /
-  `wrap_closure` tests in
-  `Test_Evaluator_Probes.duplicate_prevention_tests`. Skipping Closure
-  scrutinees preserves the probe dedup semantics. Trade-off: a Let whose
-  scrutinee is a stuck recursive-call Closure stays stuck even when
-  destructure would have worked; users can force finalization with an
-  outer `let`.
+Every other shape is eligible. Importantly, this includes concrete
+non-tuple values: `let (a, b) = 1 in a` destructures to `a ↦ Dot(1, 0)`
+and the body evaluates, with stuckness localized to the specific
+projection rather than the whole Let. This is the feature's whole
+point — "don't stop; show where you're stuck." Hazel's unboxer treats
+type mismatches as `IndetMatch` (gradual: "might align"), and the
+rewrite firing on all `IndetMatch` cases is consistent with that
+stance.
 
-Returns true for: holes (`EmptyHole`, `MultiHole`, `DynamicErrorHole`,
-`Undefined`, `Invalid`), variables (`Var`), compound expressions that
-got stuck (`Ap` of non-ctor, `Dot`, `BinOp`, `UnOp`, `If`, `Match`,
-`Let`, `Seq`, `Test`, `Filter`, `TypAp`, `FixF`, `Asc`, etc.), and
-structural wrappers (`Parens`, `Projector`).
+A consequence: stuck `Dot(Atom(Int 1), Atom(Int 0))` prints as `1.0`,
+which visually collides with the float literal `1.0`. To prevent
+re-parsing as a float, the pretty-printer forces parens around an
+int-literal LHS when the RHS is also an int literal, producing
+`(1).0` instead. The chained-dot typing guard in `Insert.re` covers
+the live-editing path.
+
+A function value stays stuck because `wrap_closure` wraps `Fun` in
+`Closure` before we see it, and Closure is excluded. Users can force
+finalization through a plain let if they want destructure:
+`let f = fun x -> x in let (a, b) = f in a` stays stuck (still
+Closure); there's no easy workaround for the Closure case, as noted
+in the probe-duplication discussion.
 
 ### The rewrite: `pat_proj`
 

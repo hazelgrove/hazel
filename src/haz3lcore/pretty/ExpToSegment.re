@@ -418,11 +418,23 @@ let rec parenthesize =
   | TupLabel(l, e) =>
     TupLabel(l, parenthesize(e) |> paren_at(Precedence.comma)) |> rewrap
   | Dot(e, l) =>
-    Dot(
-      parenthesize(e) |> paren_at(Precedence.dot),
-      parenthesize(l) |> paren_at(Precedence.dot),
-    )
-    |> rewrap
+    /* Disambiguate positional Dot with int-literal LHS from a float
+       literal: `Dot(Atom(Int 1), Atom(Int 0))` must not print as `1.0`
+       (which reparses as Float(1.0)). Force parens on an int-literal
+       LHS when the RHS is also an int literal. The chained-dot typing
+       guard in Insert.re already handles this during live editing; the
+       parens here cover stepper output and any other path that renders
+       a stuck Dot through the pretty-printer. */
+    let force_paren_on_lhs =
+      switch (e.term, l.term) {
+      | (Atom(Int(_)), Atom(Int(_))) => true
+      | _ => false
+      };
+    let e_p =
+      force_paren_on_lhs
+        ? parenthesize(e) |> paren_at(Precedence.max)
+        : parenthesize(e) |> paren_at(Precedence.dot);
+    Dot(e_p, parenthesize(l) |> paren_at(Precedence.dot)) |> rewrap;
   | TupleExtension(l, r) =>
     TupleExtension(
       parenthesize(l) |> paren_at(Precedence.dot),

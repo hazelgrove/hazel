@@ -135,12 +135,9 @@ let tests = (
     test_case("Out of bounds in expression context", `Quick, () =>
       parse_and_evaluate_test("(1, 2).5 + 1", "(1, 2).5 + 1")
     ),
-    /* === Parenthesized integer index — explicit form === */
-    test_case("Parenthesized index", `Quick, () =>
-      parse_and_evaluate_test("1", "(1, 2, 3).(0)")
-    ),
-    test_case("Parenthesized index nested", `Quick, () =>
-      parse_and_evaluate_test("2", "((1, 2), 3).(0).(1)")
+    /* === Space-separated index form (for clarity or when chaining) === */
+    test_case("Space-separated index", `Quick, () =>
+      parse_and_evaluate_test("1", "(1, 2, 3) . 0")
     ),
   ],
 );

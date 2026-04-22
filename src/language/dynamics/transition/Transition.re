@@ -160,39 +160,24 @@ let (let-unbox) = ((request, v), f) => {
 };
 
 /* Decide whether a scrutinee's final form is eligible for stuck tuple
-   destructuring. Pattern-match returns `IndetMatch` generously in
-   Hazel's gradual evaluator — including for definitively-wrong types
-   like `let (a, b) = 1 in a`. We only want to fire the rewrite when
-   the scrutinee's shape is genuinely indeterminate (a hole or a stuck
-   compound expression), not when it's a concrete value of a clearly
-   different kind.
+   destructuring.
 
-   Exclusions (each with its own reason):
-   - Atom/Constructor/Ap-of-Constructor/ListLit/Cons/Fun/BuiltinFun/
-     TypFun/DeferredAp/Deferral/Label: concrete values of non-tuple
-     kinds. Destructuring produces nonsense like `(1.0, 1.1)`.
-   - Tuple/TupLabel: already a tuple. If matches returned IndetMatch
-     here it's an arity or label mismatch — user error; stay stuck
-     rather than silently truncating or mis-aligning.
    - Closure: duplicating a Closure across multiple Dot accessors
      causes each Dot's req_final to re-enter the closure body and
      fire probe samples per duplicate (see
-     Test_Evaluator_Probes.duplicate_prevention_tests). */
+     Test_Evaluator_Probes.duplicate_prevention_tests). Skip.
+   - Tuple with the same arity as the pattern would have already
+     `Matches`'d, so we only see `IndetMatch` here for arity / label
+     mismatches. Project anyway — the resulting projections on a
+     wrong-arity tuple are stuck Dots, which is consistent with the
+     rest of the feature.
+   - Every other shape is eligible: for concrete non-tuple values
+     (e.g. `let (a, b) = 1 in …`) the resulting projections are
+     stuck Dots of a non-tuple into positions; that's the feature's
+     point — the body keeps evaluating and the stuckness is localized
+     to the specific projection references. */
 let is_destructurable_scrut = (d: Exp.t): bool =>
   switch (DHExp.term_of(d)) {
-  | Atom(_)
-  | Constructor(_)
-  | Ap(_, {term: Constructor(_), _}, _)
-  | ListLit(_)
-  | Cons(_)
-  | Fun(_, _, _, _)
-  | BuiltinFun(_)
-  | TypFun(_, _, _)
-  | DeferredAp(_)
-  | Deferral(_)
-  | Label(_)
-  | Tuple(_)
-  | TupLabel(_)
   | Closure(_) => false
   | _ => true
   };

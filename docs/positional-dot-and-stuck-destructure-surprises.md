@@ -97,40 +97,36 @@ refutability must stay observable.
 
 Also covers `let (_, _) = ? in 1` and similar all-wild patterns.
 
-## 6a. `IndetMatch` is the unboxer's answer for *type errors* too
+## 6a. Walking back then re-narrowing the scrutinee-shape gate
 
-**Expected**: `matches((a, b), 1)` (tuple pattern on an int scrutinee)
-would return `DoesNotMatch` — the value is definitively not a tuple.
+**First swing**: `let (a, b) = 1 in a.0` evaluated to `(1.0).0`, which
+*looked* broken. I read it as "the rewrite fired for a type error" and
+added an `is_destructurable_scrut` predicate excluding concrete
+non-tuple values (Atom, Constructor, ListLit, Cons, Fun, etc.), keeping
+only Closure-as-exclusion and leaving `let (a,b) = 1 in a` fully stuck.
 
-**Actual**: Hazel's unboxer returns `IndetMatch` on concrete values of
-non-matching kinds. The relevant case in `Unboxing.re`:
+**Second swing (correction)**: that broke the feature. The whole point
+of stuck-destructure is that `let (a, b) = SCRUT in body` evaluates the
+body with stuck projections whenever the scrutinee can't be unboxed
+into the pattern's tuple shape. Excluding concrete non-tuples defeats
+that for exactly the type-error cases where the feature is most
+valuable. The `(1.0).0` result is correct — the body reduced, the
+stuckness is isolated to the projection chain.
 
-```
-| (_, Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | ... ) =>
-  switch (request) {
-  | Tuple(_) | ... | TuplePositional(_) | ... => IndetMatch
-  }
-```
+The real issue was that `Dot(Atom(Int 1), Atom(Int 0))` *prints* as
+`1.0`, visually colliding with the float literal `1.0`. That's a
+display bug, not a dynamics bug.
 
-This is a gradual-evaluator choice: type mismatches are "might align in
-some reduction path" rather than "definitely wrong." The old Let
-behavior handled this fine — `IndetMatch → Indet`, body stayed stuck.
+**Resolution**: reverted `is_destructurable_scrut` to only exclude
+`Closure(_)` (for the probe-duplication reason in 6b). Fixed the
+pretty-printer to force parens around an `Atom(Int)` LHS when the RHS
+is also `Atom(Int)`, so `Dot(1, 0)` prints as `(1).0` instead of
+`1.0`. The chained-dot tokenizer guard in `Insert.re` already prevents
+the same ambiguity during live editing.
 
-My stuck-destructure fired unconditionally on `IndetMatch`, which meant
-`let (a, b) = 1 in a` rewrote to `let (a, b) = (1.0, 1.1) in a` and
-bound `a ↦ 1.0` (stuck Dot of an int). The body evaluated to `(1.0).0`
-— nonsense.
-
-**Fix**: added `is_destructurable_scrut(d)` predicate in `Transition.re`
-that returns false for concrete non-tuple values (Atom, Constructor,
-Ap-of-Ctor, ListLit, Cons, Fun, BuiltinFun, TypFun, DeferredAp,
-Deferral, Label), for `Tuple`/`TupLabel` (wrong-arity case), and for
-`Closure` (item 6b below). The rewrite only fires when the scrutinee is
-a genuine indet form — hole, stuck compound expression, variable, etc.
-
-Tests: 6 new cases in `Test_Evaluator_StuckLet.re` pinning the
-stay-stuck behavior for int/string/bool/list/wrong-arity/fun
-scrutinees.
+Tests updated to reflect the correct semantics:
+`let (a, b) = 1 in a` → `(1).0` (stuck projection); `let (a, b) = 1
+in a.0` → `((1).0).0`.
 
 ## 6b. Duplicated scrutinee re-traverses Closures → spurious probe samples
 
