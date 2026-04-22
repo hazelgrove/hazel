@@ -60,9 +60,27 @@ let tests = (
       () =>
       parse_and_evaluate_test("42", "((((42, 0), 0), 0).0 . 0).0")
     ),
-    /* Known limitations are documented in
-       docs/positional-dot-and-stuck-destructure.md (parse-time float
-       ambiguity). */
+    /* === Chained positional access without workarounds === */
+    test_case("Chained access x.0.1 parses as Dot(Dot)", `Quick, () =>
+      parse_and_evaluate_test("2", "((1, 2), 3).0.1")
+    ),
+    test_case("Chained access triple", `Quick, () =>
+      parse_and_evaluate_test("42", "(((42, 0), 0), 0).0.0.0")
+    ),
+    test_case("Chained access through labels", `Quick, () =>
+      parse_and_evaluate_test("2", "((a=1, b=2), 3).0.1")
+    ),
+    test_case("Chained access - nested, both chained", `Quick, () =>
+      parse_and_evaluate_test("5", "((1, 2), (3, 4, 5), 6).1.2")
+    ),
+    /* Float literals typed directly must still work (not disrupted by the
+       chained-dot guard). */
+    test_case("Float literal still works: 0.5", `Quick, () =>
+      parse_and_evaluate_test("0.5", "0.5")
+    ),
+    test_case("Float in arithmetic: 1.0 +. 0.5", `Quick, () =>
+      parse_and_evaluate_test("1.5", "1.0 +. 0.5")
+    ),
     /* === Indeterminate scrutinees: stuck access stays as syntax === */
     test_case("Stuck on hole scrutinee", `Quick, () =>
       parse_and_evaluate_test("?.0", "?.0")

@@ -8,19 +8,30 @@ by when they surfaced.
 **Expected**: `((1, 2), 3).0.1` would parse as `Dot(Dot(..., 0), 1)`,
 giving 2 because `.` is max-munch-broken by the left operand.
 
-**Actual**: After the first `.0` reduces, the trailing `.1` looks exactly
-like a float-literal suffix and is lexed as a single `0.1` float token.
-The Dot operator receives the float as RHS and marks it with `BadLabel`.
+**Actual**: Tile insertion is greedy. After typing `x.0`, typing another
+`.` would check `sibling_appendability`: the left sibling is the int
+tile `0`, and `Token.append("0", ".") == "0."` matches `is_potential_operand`
+(via the `[0-9_]+\.[…]*` float-prefix alternative). The merge fires,
+producing `0.`. Next char `1` merges again to `0.1`, the complete float.
+The Dot op then sees a float on its RHS and marks `BadLabel`.
 
-Same issue with `x.0.0`, `x.0.5`, etc. — anything that pattern-matches
-`is_float` at the tokenizer level.
+**Initial workarounds** (now no longer needed): space-separate (`x . 0 . 1`)
+or outer-parenthesize (`(x.0).1`). The `x.(0).1` form does **not** work
+— `.(0).1` reads as function application of `x.0` to `1`.
 
-**Workarounds**: space-separate (`x . 0 . 1`) or outer-parenthesize
-(`(x.0).1`). Both work. The `x.(0).1` form does **not** work, because
-`.0(1)` is parsed as function application of `x.0` to `1`.
+**Fix taken**: added `chained_dot_edge_case` in
+`src/haz3lcore/zipper/action/Insert.re`, a context-aware guard on
+`sibling_appendability`. When inserting `.`, if (a) the left sibling is
+a pure-int tile and (b) the next non-secondary tile to its left is a `.`
+operator tile, the merge is blocked and the new `.` becomes its own tile.
 
-**Not fixed** in this PR — keeping the tokenizer change out of scope.
-Documented with passing tests for both workarounds.
+Typing `0.5` from scratch is unaffected — when the user types the first
+`.`, there's no preceding `.` operator tile, so the guard doesn't fire
+and the merge proceeds as before to form the float.
+
+After the fix, `((1, 2), 3).0.1` parses directly as
+`Dot(Dot(..., 0), 1)`. The two workarounds also still work. All three
+forms have passing tests.
 
 ## 2. Parser wraps unexpected Dot RHS in `MultiHole`, not just Atom
 

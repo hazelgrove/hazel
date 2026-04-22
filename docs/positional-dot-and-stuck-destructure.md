@@ -68,25 +68,24 @@ Design choices:
   `(index, length)`. Wired into `CursorInspector.re` and
   `haz3lcore/TyDi/ErrorPrint.re`.
 
-### Known parse limitation
+### Float disambiguation: `chained_dot_edge_case`
 
-Because the existing float tokenizer regex accepts `0.0`, `0.1`, etc. as
-float literals, chaining positional access with literal ints creates an
-ambiguity:
+The existing float tokenizer regex accepts `0.0`, `0.1`, etc. as float
+literals, which creates an ambiguity when chaining positional access with
+literal ints: naively, `x.0.1` would greedy-merge `.0.1` into the float
+`0.1` and Dot would see a float on its RHS.
 
-```
-x.0.1    // lexes as  x . 0.1   where `0.1` is a Float literal (oops)
-x.0.0    // same — lexes as  x . 0.0
-```
+Fix: added a context-aware merge guard `chained_dot_edge_case` in
+`src/haz3lcore/zipper/action/Insert.re`. When inserting `.`, if the left
+sibling is a pure-int tile and the next non-secondary tile to its left is
+a `.` operator, the left-append merge is blocked and the `.` becomes its
+own tile. Typing `0.5` from scratch is unaffected because there's no
+preceding `.` operator tile.
 
-Workarounds (no new tokenizer logic required):
-
-- **Space-separate**: `x . 0 . 1` — whitespace prevents float fusion.
-- **Outer parens**: `(x.0).1` — after `x.0` reduces, the second `.` sees
-  an operand, not a float-shaped suffix.
-
-This limitation is documented in `Test_Evaluator_TupleIndex.re` with
-passing tests for both workarounds.
+With this fix, `((1, 2), 3).0.1` parses cleanly as `Dot(Dot(..., 0), 1)`.
+No workaround needed. Tests cover both the new direct form and the
+previously-used workarounds (`(x.0).1`, space-separated `x . 0 . 1`) so
+all three remain valid.
 
 ## Stuck tuple destructuring
 
