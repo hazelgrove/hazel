@@ -22,6 +22,7 @@ module Model = {
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
+    incr_eval: Calc.saved(IncrEval.t),
     display,
     theorems: Theorems.Model.t,
   };
@@ -38,6 +39,7 @@ module Model = {
     cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
     dynamics: Calc.Pending,
+    incr_eval: Calc.Pending,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -60,6 +62,7 @@ module Model = {
         cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
         dynamics: Calc.Pending,
+        incr_eval: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -85,6 +88,9 @@ module Model = {
     | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
+
+  let incr_eval = (model: t): IncrEval.t =>
+    model.incr_eval |> Calc.get_saved(IncrEval.empty);
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
@@ -170,6 +176,7 @@ module Update = {
           cached_targets,
           result,
           dynamics,
+          incr_eval,
           display,
           theorems,
         }: Model.t,
@@ -186,13 +193,10 @@ module Update = {
         cached_targets,
       );
 
-    // Calculate the result
-    /* Previous incremental map, if the last evaluation produced one. */
-    let prev_incr =
-      switch (result |> Calc.get_value) {
-      | ProgramResult.ResultOk({state, _}) => state.incr_eval
-      | _ => IncrEval.empty
-      };
+    /* Previous incremental map, if the last evaluation produced one. Pull
+     * from the saved field so it survives intermediate pending states
+     * (during which `result` itself is ResultPending). */
+    let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. */
@@ -259,6 +263,18 @@ module Update = {
               theorems: state |> EvaluatorState.get_theorems,
             },
           )
+        };
+      };
+
+    let incr_eval =
+      incr_eval
+      |> {
+        let.calc result = result;
+        switch (result) {
+        | ProgramResult.ResultPending =>
+          incr_eval |> Calc.get_saved(IncrEval.empty)
+        | ProgramResult.ResultFail(_) => IncrEval.empty
+        | ProgramResult.ResultOk({state, _}) => state.incr_eval
         };
       };
 
@@ -341,6 +357,7 @@ module Update = {
         cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
+        incr_eval: incr_eval |> Calc.save,
         display,
         theorems,
       }: Model.t

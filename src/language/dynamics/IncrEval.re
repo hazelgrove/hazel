@@ -89,6 +89,28 @@ let mark_reused = (id: Id.t, incr: t): t => {
   reused: [id, ...incr.reused],
 };
 
+/* The set of ids the UI should paint as "frozen" this run.*/
+let frozen_ids = (incr: t): list(Id.t) => {
+  let acc = ref([]);
+  let collect_subtree = (root: Exp.t): unit => {
+    let f_exp = (continue, e: Exp.t) => {
+      acc := [Exp.rep_id(e), ...acc^];
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, root);
+    ();
+  };
+  List.iter(
+    id =>
+      switch (Id.Map.find_opt(id, incr.entries)) {
+      | Some(entry) => collect_subtree(entry.prev_elab)
+      | None => acc := [id, ...acc^]
+      },
+    incr.reused,
+  );
+  acc^;
+};
+
 /* Names that a Let/FixF binder's rhs has dirtied on the current run: if the
  * rhs produced a value different from its cached one, the pattern's bound
  * vars become dirty inside the body.

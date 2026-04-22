@@ -537,3 +537,17 @@ let colors =
       },
     ),
   );
+
+let incr_eval =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~syntax: CachedSyntax.t,
+      incr: Language.IncrEval.t,
+    ) =>
+  div_c(
+    "incremental-highlights",
+    List.concat_map(
+      id => color(~syntax, ~font_metrics, ["incremental-frozen"], id),
+      Language.IncrEval.frozen_ids(incr),
+    ),
+  );
