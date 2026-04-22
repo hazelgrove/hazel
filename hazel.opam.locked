@@ -126,7 +126,7 @@ depends: [
   "ocaml-lsp-server" {= "1.21.0"}
   "ocaml-options-vanilla" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
-  "ocaml-version" {= "4.0.4"}
+  "ocaml-version" {= "4.1.0"}
   "ocaml_intrinsics" {= "v0.16.2"}
   "ocamlbuild" {= "0.16.1"}
   "ocamlc-loc" {= "3.19.1"}
