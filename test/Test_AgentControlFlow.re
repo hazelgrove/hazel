@@ -342,10 +342,233 @@ let test_handle_compaction_reply_ignored_after_stop = () => {
   );
 };
 
+let test_tool_allowed_in_mode_edit_allows_all = () => {
+  check(
+    bool,
+    "Edit allows edit tool",
+    true,
+    Agent.Update.tool_allowed_in_mode(Edit, "update_definition"),
+  );
+  check(
+    bool,
+    "Edit allows workbench tool",
+    true,
+    Agent.Update.tool_allowed_in_mode(Edit, "create_new_task"),
+  );
+  check(
+    bool,
+    "Edit allows overlay tool",
+    true,
+    Agent.Update.tool_allowed_in_mode(Edit, "place_probe"),
+  );
+};
+
+let test_tool_allowed_in_mode_plan_blocks_edit_only = () => {
+  check(
+    bool,
+    "Plan blocks edit tool",
+    false,
+    Agent.Update.tool_allowed_in_mode(Plan, "update_definition"),
+  );
+  check(
+    bool,
+    "Plan allows workbench tool",
+    true,
+    Agent.Update.tool_allowed_in_mode(Plan, "create_new_task"),
+  );
+  check(
+    bool,
+    "Plan allows overlay tool",
+    true,
+    Agent.Update.tool_allowed_in_mode(Plan, "place_probe"),
+  );
+};
+
+let test_tool_allowed_in_mode_converse_blocks_edit_workbench_overlay = () => {
+  check(
+    bool,
+    "Converse blocks edit tool",
+    false,
+    Agent.Update.tool_allowed_in_mode(Converse, "update_definition"),
+  );
+  check(
+    bool,
+    "Converse blocks workbench tool",
+    false,
+    Agent.Update.tool_allowed_in_mode(Converse, "create_new_task"),
+  );
+  check(
+    bool,
+    "Converse blocks overlay tool",
+    false,
+    Agent.Update.tool_allowed_in_mode(Converse, "place_probe"),
+  );
+  check(
+    bool,
+    "Converse allows unknown/view tool",
+    true,
+    Agent.Update.tool_allowed_in_mode(Converse, "expand_binding"),
+  );
+};
+
+let test_backoff_ms_exponential_formula = () => {
+  check(
+    float(0.0),
+    "attempt 0 = 1000ms",
+    1000.0,
+    Agent.Update.backoff_ms(0),
+  );
+  check(
+    float(0.0),
+    "attempt 1 = 2000ms",
+    2000.0,
+    Agent.Update.backoff_ms(1),
+  );
+  check(
+    float(0.0),
+    "attempt 2 = 4000ms",
+    4000.0,
+    Agent.Update.backoff_ms(2),
+  );
+  check(
+    float(0.0),
+    "attempt 3 = 8000ms",
+    8000.0,
+    Agent.Update.backoff_ms(3),
+  );
+};
+
+let test_stream_delta_dropped_when_flight_ignored = () => {
+  let agent = Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let agent = {
+    ...agent,
+    main_llm_seq: 5,
+    pending_ignore_main_reply_seq: Some(5),
+    pending_assistant_content: "",
+  };
+  let scheduled = ref([]);
+  let after =
+    run_update(
+      Agent.Update.Action.StreamDelta(
+        chat_id,
+        5,
+        "should_not_land",
+        "also_should_not_land",
+      ),
+      agent,
+      scheduled,
+    );
+  check(
+    string,
+    "content unchanged when seq matches pending_ignore",
+    "",
+    after.pending_assistant_content,
+  );
+  check(
+    string,
+    "reasoning unchanged when seq matches pending_ignore",
+    "",
+    after.pending_assistant_reasoning,
+  );
+};
+
+let test_stream_delta_accumulates_when_not_ignored = () => {
+  let agent = Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let agent = {
+    ...agent,
+    main_llm_seq: 7,
+    pending_ignore_main_reply_seq: None,
+    pending_assistant_content: "pre_",
+    pending_assistant_reasoning: "r_",
+  };
+  let scheduled = ref([]);
+  let after =
+    run_update(
+      Agent.Update.Action.StreamDelta(chat_id, 7, "post", "eason"),
+      agent,
+      scheduled,
+    );
+  check(
+    string,
+    "content appended",
+    "pre_post",
+    after.pending_assistant_content,
+  );
+  check(
+    string,
+    "reasoning appended",
+    "r_eason",
+    after.pending_assistant_reasoning,
+  );
+};
+
+let test_stream_delta_accumulates_on_seq_mismatch = () => {
+  /* pending_ignore is set for a *different* flight_seq; current delta
+     belongs to a fresh flight and should accumulate. */
+  let agent = Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let agent = {
+    ...agent,
+    main_llm_seq: 9,
+    pending_ignore_main_reply_seq: Some(8),
+    pending_assistant_content: "",
+  };
+  let scheduled = ref([]);
+  let after =
+    run_update(
+      Agent.Update.Action.StreamDelta(chat_id, 9, "live", ""),
+      agent,
+      scheduled,
+    );
+  check(
+    string,
+    "live delta accumulates despite stale ignore flag",
+    "live",
+    after.pending_assistant_content,
+  );
+};
+
 let tests = [
   (
     "AgentControlFlow",
     [
+      test_case(
+        "tool_allowed_in_mode: Edit allows edit/workbench/overlay tools",
+        `Quick,
+        test_tool_allowed_in_mode_edit_allows_all,
+      ),
+      test_case(
+        "tool_allowed_in_mode: Plan blocks edit, allows workbench/overlay",
+        `Quick,
+        test_tool_allowed_in_mode_plan_blocks_edit_only,
+      ),
+      test_case(
+        "tool_allowed_in_mode: Converse blocks edit/workbench/overlay",
+        `Quick,
+        test_tool_allowed_in_mode_converse_blocks_edit_workbench_overlay,
+      ),
+      test_case(
+        "backoff_ms: exponential 1000 * 2^n for attempts 0..3",
+        `Quick,
+        test_backoff_ms_exponential_formula,
+      ),
+      test_case(
+        "StreamDelta: dropped when flight_seq matches pending_ignore_main",
+        `Quick,
+        test_stream_delta_dropped_when_flight_ignored,
+      ),
+      test_case(
+        "StreamDelta: accumulates content+reasoning when not ignored",
+        `Quick,
+        test_stream_delta_accumulates_when_not_ignored,
+      ),
+      test_case(
+        "StreamDelta: accumulates when pending_ignore is for a different seq",
+        `Quick,
+        test_stream_delta_accumulates_on_seq_mismatch,
+      ),
       test_case(
         "StopAgenticLoop: clears awaiting, sets pending_ignore_main for current flight",
         `Quick,
