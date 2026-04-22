@@ -310,3 +310,65 @@ let get_duplicate_bindings = (pat: t) => {
     bindings,
   );
 };
+
+/* True iff matching this pattern can never fail at runtime (excluding the
+   indet case). Used by Transition.re's Let to decide whether to rewrite a
+   stuck scrutinee into a parallel tuple of positional projections. */
+let rec is_irrefutable = (dp: t): bool =>
+  switch (dp |> term_of) {
+  | Var(_)
+  | EmptyHole
+  | Wild => true
+  | Parens(p)
+  | Projector(_, p)
+  | Asc(p, _)
+  | TupLabel(_, p) => is_irrefutable(p)
+  | Tuple(ps) => List.for_all(is_irrefutable, ps)
+  /* Refutable forms */
+  | MultiHole(_)
+  | Invalid(_)
+  | ExplicitNonlabel
+  | Atom(_)
+  | Label(_)
+  | Constructor(_)
+  | Cons(_)
+  | ListLit(_)
+  | Ap(_) => false
+  };
+
+/* True iff the pattern contains at least one Tuple node — needed in
+   addition to is_irrefutable for the stuck-destructure rewrite, since a
+   bare Var pattern would have already matched (no IndetMatch path). */
+let rec contains_tuple = (dp: t): bool =>
+  switch (dp |> term_of) {
+  | Tuple(_) => true
+  | Parens(p)
+  | Projector(_, p)
+  | Asc(p, _)
+  | TupLabel(_, p) => contains_tuple(p)
+  | Var(_)
+  | EmptyHole
+  | Wild
+  | MultiHole(_)
+  | Invalid(_)
+  | ExplicitNonlabel
+  | Atom(_)
+  | Label(_)
+  | Constructor(_)
+  | Cons(_)
+  | ListLit(_)
+  | Ap(_) => false
+  };
+
+/* Stuck-destructure rewrite is only worthwhile when:
+     - the pattern is irrefutable (so we can confidently project),
+     - it contains at least one Tuple node (otherwise matches wouldn't have
+       been IndetMatch — a bare Var matches anything immediately), AND
+     - it binds at least one variable (otherwise the rewrite would silently
+       skip the refutability check that the scrutinee is a tuple of the
+       right arity, e.g., `let () = A in ?`).
+   The third condition: if no variables are bound, the only effect of the
+   pattern is a runtime check on the scrutinee's shape; rewriting the def
+   would erase that check. */
+let is_irrefutable_tuple_pattern = (dp: t): bool =>
+  is_irrefutable(dp) && contains_tuple(dp) && bound_vars(dp) != [];

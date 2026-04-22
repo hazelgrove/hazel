@@ -630,6 +630,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               )
             | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
+            /* Integer literal RHS = positional tuple access (x.0, x.1, ...) */
+            | Atom(Int(_)) => Dot(l, r)
+            /* Parenthesized integer literal: x.(0) form. Strip the parens
+               and treat as the plain int case. We don't pass through
+               arbitrary Parens to keep MakeTerm/Menhir parity (see
+               MenhirParser fuzz test). */
+            | Parens({term: Atom(Int(_)), _} as inner) => Dot(l, inner)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
 

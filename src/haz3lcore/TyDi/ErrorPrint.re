@@ -132,6 +132,12 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
+  | TupleIndexOutOfBounds(idx, len) =>
+    prn(
+      "Tuple index %d out of bounds for length-%d tuple",
+      idx,
+      len,
+    )
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"

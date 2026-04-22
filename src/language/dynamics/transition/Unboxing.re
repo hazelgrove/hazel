@@ -47,6 +47,10 @@ type unbox_request('a) =
   | TupleElementPivot(LabeledTuple.label)
     : unbox_request((LabeledTuple.label, list(DHExp.t)))
   | LabeledTupleProjection(LabeledTuple.label): unbox_request(DHExp.t)
+  /* Positional tuple projection: extract the i-th element of a tuple,
+     where i is a non-negative integer literal. Element is unwrapped from
+     any TupLabel wrapper. */
+  | TuplePositional(int): unbox_request(DHExp.t)
   | LabeledTupleEntries
       : unbox_request(list((option(LabeledTuple.label), DHExp.t)));
 
@@ -111,6 +115,18 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | _ => IndetMatch // TODO Should this be DoesNotMatch?
       }
     | (LabeledTupleProjection(_), ListLit(_)) => Matches(expr)
+    /* Positional projection on a tuple. Mirror of LabeledTupleProjection
+       semantics: return the original tuple expr; Transition.re's Dot case
+       finishes the extraction. */
+    | (TuplePositional(i), Tuple(ds)) =>
+      if (i >= 0 && i < List.length(ds)) {
+        Matches(expr);
+      } else {
+        IndetMatch;
+      }
+    /* Positional projection on a list of tuples maps over elements
+       (Transition.re handles the actual mapping). */
+    | (TuplePositional(_), ListLit(_)) => Matches(expr)
     | (TupleElementPivot(l), Tuple(ds)) =>
       let found_pivot: option((string, list(Exp.t))) =
         ListUtil.find_with_rest(
@@ -223,6 +239,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | SumNoArg(_)
       | TupleElementPivot(_)
       | LabeledTupleProjection(_)
+      | TuplePositional(_)
       | LabeledTupleEntries
       | SumWithArg(_)
       | Fun
