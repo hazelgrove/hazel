@@ -270,6 +270,7 @@ module Update = {
                   editor,
                   statics: cell.editor.statics,
                   dynamics: cell.editor.dynamics,
+                  context_menu: cell.editor.context_menu,
                 },
                 result: cell.result,
               };
@@ -332,7 +333,8 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: DerivationTree.eds = {
-      let calculate = Editor.Update.calculate(~settings, ~is_edited);
+      let calculate =
+        Editor.Update.calculate(~settings, ~autoprobe_mode=false, ~is_edited);
       {
         ...model.editors,
         prelude:
@@ -1006,9 +1008,9 @@ module View = {
         ~attrs=[Attr.class_("version-name"), Attr.title("Toggle Version")],
         [
           div(~attrs=[Attr.class_("version-label")], [text("Corpus: ")]),
-          text(Unicode.nbsp),
+          text(Pretty.Unicode.nbsp),
           text(RuleImage.show_corpus(eds.corpus)),
-          text(Unicode.nbsp),
+          text(Pretty.Unicode.nbsp),
           if (globals.settings.instructor_mode) {
             select(
               ~attrs=[

@@ -398,7 +398,6 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
-  | Probe(p, _)
   | Asc(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -406,16 +405,14 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p)
-  | Probe(p, _) => bypass_parens_pat(p)
+  | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e)
-  | Probe(e, _) => bypass_parens_exp(e)
+  | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -581,6 +578,7 @@ let get_doc_deduction =
                )
             |> Segment.to_string(
                  ~projector_to_segment=Triggers.projector_to_invoke,
+                 ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
                ),
           )
         }
@@ -698,6 +696,7 @@ let get_doc =
             editor,
             statics: CachedStatics.empty,
             dynamics: Dynamics.Map.empty,
+            context_menu: None,
           },
         );
       let example_view =
@@ -724,6 +723,27 @@ let get_doc =
   };
 
   switch (info) {
+  | Some(InfoMod({cls, _})) =>
+    switch (cls) {
+    | Mod(ModLet) => message_single(ModLetDecl.single)
+    | Mod(ModType) => message_single(ModTypeDecl.single)
+    | Mod(ModuleMod) => message_single(ModuleKeywordDecl.single)
+    | _ => simple("Module item")
+    }
+  | Some(InfoSig({cls, _})) =>
+    switch (cls) {
+    | Sig(SigLet) => message_single(SigLetDecl.single)
+    | Sig(SigType) => message_single(SigTypeDecl.single)
+    | _ => simple("Signature item")
+    }
+  | Some(InfoMPat(_)) => simple("Module name")
+  | Some(InfoExp({cls: Mod(ModLet), _})) =>
+    message_single(ModLetDecl.single)
+  | Some(InfoExp({cls: Mod(ModType), _})) =>
+    message_single(ModTypeDecl.single)
+  | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
+    message_single(ModuleKeywordDecl.single)
+  | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
             (term)
@@ -784,6 +804,7 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
+      | ExplicitNonlabel => simple("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -1339,8 +1360,9 @@ let get_doc =
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
-        | Probe(_)
         | Label(_)
+        | ExplicitNonlabel
+        | Projector(_)
         | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1922,10 +1944,11 @@ let get_doc =
             basic(LetExp.lets_ctr);
           }
         | TupLabel(_)
+        | ExplicitNonlabel
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
-        | Probe(_) => default // Shouldn't get hit?
+        | Projector(_)
         | Asc(_) => default // Shouldn't get hit?
         };
       | Theorem(pat, thm, body) =>
@@ -2175,8 +2198,7 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term)
-      | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | Parens(term) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
         let hint_id = List.nth(IdTagged.ids(hint), 0);
         let body_id = List.nth(IdTagged.ids(body), 0);
@@ -2379,6 +2401,9 @@ let get_doc =
             ),
           TerminalExp.ctr(v),
         )
+      | Module(_) => message_single(ModuleExp.single)
+      | ModuleExp(_) => message_single(ModuleKeywordExp.single)
+      | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
@@ -2506,6 +2531,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
+    | ExplicitNonlabel => simple("Explicitly unlabeled entry")
     | Label(name) =>
       get_message(
         ~format=
@@ -2640,7 +2666,7 @@ let get_doc =
       );
     | Invalid(_) => simple("Not a valid pattern")
     | Parens(_)
-    | Probe(_) =>
+    | Projector(_) =>
       // Shouldn't be hit?
       default
     }
@@ -2873,7 +2899,12 @@ let get_doc =
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | Parens(_) => default // Shouldn't be hit?
+    | ProdProjection(_) => get_message(DotTyp.dot)
+    | ExplicitNonlabel
+    | ProdExtension(_)
+    | Parens(_)
+    | Sig(_) => message_single(SigTyp.single)
+    | Projector(_) => default
     // Note(zhiyao): Derivation term expression is not allowed to be explicitly written
     | DrvTyp(_) => simple("Derivations Types")
     }
@@ -2917,7 +2948,7 @@ let get_doc =
     | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
     | Secondary(Comment) =>
       simple("Comments are ignored by systems but treasured by readers")
-    | _ => failwith("ExplainThis: Secondary Impossible")
+    | _ => simple("No documentation available")
     }
   | None => default
   };

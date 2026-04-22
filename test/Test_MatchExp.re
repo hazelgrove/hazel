@@ -40,7 +40,7 @@ let match_check =
     Language.MatchExp.match_exp(
       ~info_map,
       ~alphas,
-      ~exp_env=Language.ClosureEnvironment.empty,
+      ~exp_env=Language.Environment.empty,
       ~exp_r_ctx=ctx_in,
       exp_r',
       exp',
@@ -170,6 +170,26 @@ let tests = [
           "case z | u => (x, u) end",
           "case z | v => (y, v) end",
           Some([("x", (hole_typ, Some(var("y"))))]),
+        ),
+      ),
+      test_case(
+        "Match equality with shadowing 1",
+        `Quick,
+        match_check(
+          ~ctx_in=[("x", (hole_typ, None))],
+          "x == x",
+          "[x] == [x]",
+          Some([("x", (hole_typ, Some(list_lit([var("x")]))))]),
+        ),
+      ),
+      test_case(
+        "Match equality with shadowing 2",
+        `Quick,
+        match_check(
+          ~ctx_in=[("x", (hole_typ, None))],
+          "x == x",
+          "x == x",
+          Some([("x", (hole_typ, Some(var("x"))))]),
         ),
       ),
     ],

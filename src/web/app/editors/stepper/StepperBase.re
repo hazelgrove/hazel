@@ -20,7 +20,6 @@ type step_kind_model =
 and step_model = {
   // Calculated
   expr: Calc.saved(Exp.t),
-  state: Calc.saved(EvaluatorState.t),
   editor: Calc.saved(CodeSelectable.Model.t), // Also Updated.
   // Updated
   step_kind: step_kind_model,
@@ -33,7 +32,6 @@ and step_model = {
 
 let init_step = {
   expr: Calc.Pending,
-  state: Calc.Pending,
   editor: Calc.Pending,
   step_kind: MissingStep(MissingStep.Model.init),
   next_step: None,
@@ -175,7 +173,7 @@ module rec StepKind: {
           AlgebriteStep(_),
           _,
         ) =>
-        model |> Updated.return_quiet
+        model |> Updated.raise_invalid_action
       }
     );
   };
@@ -196,9 +194,7 @@ module rec StepKind: {
             ~settings: Calc.t(CoreSettings.t),
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
-            ~ctx: Calc.t(Ctx.t),
-            ~env: Calc.t(ClosureEnvironment.t),
-            ~state: Calc.t(EvaluatorState.t),
+            ~ctx: Calc.t(SemanticCtx.t),
             ~editor: Calc.t(CodeSelectable.Model.t),
             ~info_map: Calc.t(Statics.Map.t),
             ~ana,
@@ -212,8 +208,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
-          ~state,
           ~editor,
           ~info_map,
           ~ana,
@@ -227,8 +221,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
-          ~state,
           ~editor,
           ~info_map,
           ~ana,
@@ -242,8 +234,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
-          ~state,
           ~editor,
           ~info_map,
           ~ana,
@@ -256,9 +246,8 @@ module rec StepKind: {
         |> {
           let.calc settings = settings
           and.calc exp = exp
-          and.calc env = env
-          and.calc state = state;
-          EvaluatorStep.get_status(~settings, exp, env, state);
+          and.calc ctx = ctx;
+          EvaluatorStep.get_status(~settings, exp, SemanticCtx.get_env(ctx));
         };
       let next_step_to_take =
         Calc.Calculated(None)
@@ -277,13 +266,10 @@ module rec StepKind: {
           ~info_map,
           ~exp=exp |> Calc.make_new,
           ~ctx=ctx |> Calc.make_new,
-          ~env=env |> Calc.make_new,
-          ~state=state |> Calc.make_new,
           SingleStep({
             persistent_evalobj: evalobj |> EvaluatorStep.persist,
             evalobj: Calc.Pending,
             next_exp: Calc.Pending,
-            next_state: Calc.Pending,
           }): model,
           ~hidden,
           ~editor,
@@ -296,9 +282,7 @@ module rec StepKind: {
               ~settings=settings |> Calc.get_value,
               exp,
               info_map,
-              env,
               ctx,
-              state,
               next_steps,
               missing_step,
               editor,
@@ -328,8 +312,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
-          ~state,
           ~editor,
           ~info_map,
           ~ana,
@@ -343,8 +325,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
-          ~state,
           ~editor,
           ~info_map,
           ~ana,
@@ -599,8 +579,6 @@ and Stepper: {
       type persistent = persistent_step and
       type action = step_action and
       type focus = step_focus;
-
-  let get_state: step_model => EvaluatorState.t;
   let get_validity: step_model => option(bool);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -614,7 +592,6 @@ and Stepper: {
 
   let init = {
     expr: Calc.Pending,
-    state: Calc.Pending,
     editor: Calc.Pending,
     step_kind: MissingStep(MissingStep.Model.init),
     next_step: None,
@@ -633,7 +610,6 @@ and Stepper: {
   let rec unpersist = (p: persistent): model => {
     {
       expr: Calc.Pending,
-      state: Calc.Pending,
       editor: Calc.Pending,
       step_kind: StepKind.unpersist(p.step_kind),
       next_step: p.next_step |> Option.map(unpersist),
@@ -649,12 +625,6 @@ and Stepper: {
          ~print="get_validity called before calculate on stepper",
        );
 
-  let rec get_state = (model: model) =>
-    switch (model.next_step) {
-    | None => model.state |> Calc.get_saved_exc(~print="get_state_step")
-    | Some(next) => get_state(next)
-    };
-
   let rec update =
           (~settings, action: step_action, model: step_model)
           : Updated.t(step_model) => {
@@ -662,7 +632,7 @@ and Stepper: {
       switch (action, model.step_kind, model.next_step) {
       | (EditorAction(ea), _, _) =>
         switch (model.editor) {
-        | Calc.Pending => model |> return_quiet
+        | Calc.Pending => model |> raise_invalid_action
         | Calc.Calculated(editor) =>
           let* new_editor =
             CodeSelectable.Update.update(~settings, ea, editor);
@@ -677,7 +647,7 @@ and Stepper: {
           ...model,
           next_step: Some(new_next_step),
         };
-      | (NextStep(_), _, None) => model |> return_quiet
+      | (NextStep(_), _, None) => model |> raise_invalid_action
       | (RemoveStep, _, _) =>
         {
           ...model,
@@ -702,27 +672,26 @@ and Stepper: {
                 persistent_evalobj: evalobj |> EvaluatorStep.persist,
                 evalobj: Calc.Calculated(evalobj),
                 next_exp: Calc.Pending,
-                next_state: Calc.Pending,
               }),
           }
           |> return
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         };
-      | (StepForward(_), _, _) => model |> return_quiet
+      | (StepForward(_), _, _) => model |> raise_invalid_action
       | (AddInduction(exp), MissingStep(_), _) =>
         {
           ...model,
           step_kind: InductionStep(InductionStep.init(~exp?, ())),
         }
         |> return
-      | (AddInduction(_), _, _) => model |> return_quiet
+      | (AddInduction(_), _, _) => model |> raise_invalid_action
       | (AddForall, MissingStep(_), _) =>
         {
           ...model,
           step_kind: ForallStep(ForallStep.init(init)),
         }
         |> return
-      | (AddForall, _, _) => model |> return_quiet
+      | (AddForall, _, _) => model |> raise_invalid_action
       | (
           AddAxiomStep(name, at_idx, at_exp, direction, equality),
           MissingStep(_),
@@ -741,7 +710,7 @@ and Stepper: {
             }),
         }
         |> return
-      | (AddAxiomStep(_, _, _, _, _), _, _) => model |> return_quiet
+      | (AddAxiomStep(_, _, _, _, _), _, _) => model |> raise_invalid_action
       | (AddAlgebriteStep(at_idx, at_exp, with_exp), MissingStep(_), _) =>
         {
           ...model,
@@ -754,7 +723,7 @@ and Stepper: {
             }),
         }
         |> return
-      | (AddAlgebriteStep(_, _, _), _, _) => model |> return_quiet
+      | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
@@ -784,13 +753,10 @@ and Stepper: {
           (
             ~settings: Calc.t(CoreSettings.t),
             ~exp as expr: Calc.t(Exp.t),
-            ~ctx: Calc.t(Ctx.t),
-            ~env: Calc.t(ClosureEnvironment.t),
-            ~state: Calc.t(EvaluatorState.t),
+            ~ctx: Calc.t(SemanticCtx.t),
             ~ana: Calc.t(Typ.t),
             {
               expr: _,
-              state: _,
               editor,
               step_kind,
               next_step,
@@ -805,20 +771,9 @@ and Stepper: {
       |> {
         let.calc settings = settings
         and.calc expr = expr
-        and.calc ctx = ctx
-        and.calc ana = ana;
-        expr
-        |> CodeWithStatics.Model.mk_from_exp(~settings, ~root=Exp)
-        |> CodeSelectable.Update.calculate(
-             ~is_dynamic_term=true,
-             ~settings,
-             ~is_edited=true,
-             ~ctx,
-             ~dynamics=Dynamics.Map.empty,
-             ~ana,
-             ~stitch=_ =>
-             expr
-           );
+        and.calc _ctx = ctx
+        and.calc _ana = ana;
+        expr |> CodeWithStatics.Model.mk_from_exp(~settings, ~root=Exp);
       };
     let info_map =
       info_map
@@ -826,13 +781,11 @@ and Stepper: {
         let.calc editor: CodeSelectable.Model.t = editor;
         editor.statics.info_map;
       };
-    let (step_kind, hidden, next_expr_state, inner_validity) =
+    let (step_kind, hidden, next_expr, inner_validity) =
       StepKind.calculate(
         ~settings,
         ~ctx,
         ~exp=expr,
-        ~env,
-        ~state,
         ~hidden,
         ~editor,
         ~info_map,
@@ -844,9 +797,7 @@ and Stepper: {
            |> StepKind.calculate(
                 ~settings,
                 ~ctx,
-                ~env,
                 ~exp=expr,
-                ~state,
                 ~hidden,
                 ~editor,
                 ~info_map,
@@ -855,19 +806,11 @@ and Stepper: {
            |> Option.get
          );
     let (next_step, last_expr, next_validity) =
-      switch (next_expr_state) {
-      | Some((next_expr, next_state)) =>
+      switch (next_expr) {
+      | Some(next_expr) =>
         let next_step = Option.value(~default=init, next_step);
         let (next_step, last_expr, next_validity) =
-          calculate(
-            ~settings,
-            ~exp=next_expr,
-            ~ctx,
-            ~env,
-            ~state=next_state,
-            ~ana,
-            next_step,
-          );
+          calculate(~settings, ~exp=next_expr, ~ctx, ~ana, next_step);
         (Some(next_step), last_expr, next_validity);
       | None => (None, expr, inner_validity)
       };
@@ -884,11 +827,24 @@ and Stepper: {
         };
       };
 
+    // TODO: Make editor calculation more incremental
+    let editor =
+      CodeSelectable.Update.calculate(
+        ~is_dynamic_term=true,
+        ~settings=Calc.get_value(settings),
+        ~is_edited=true,
+        ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+        ~dynamics=Dynamics.Map.empty,
+        ~ana=Calc.get_value(ana),
+        ~stitch=_ => Calc.get_value(expr),
+        Calc.get_value(editor),
+      );
+
     (
       {
         expr: expr |> Calc.save,
-        state: state |> Calc.save,
-        editor: editor |> Calc.save,
+
+        editor: Calc.Calculated(editor),
         step_kind,
         next_step,
         hidden: hidden |> Calc.save,
@@ -1066,7 +1022,28 @@ and Stepper: {
                       inject(AddAxiomStep(name, idx, e1, dir, eq))
                     | AddAlgebriteStep(idx, e1, e2) =>
                       inject(AddAlgebriteStep(idx, e1, e2))
-                    | TakeStep(i) => inject(StepForward(i)),
+                    | TakeStep(i) => inject(StepForward(i))
+                    | Refl(i) => {
+                        let refl_exps =
+                          switch (model.step_kind) {
+                          | MissingStep(m) =>
+                            m.refls |> Calc.get_saved_exc(~print="refls")
+                          | _ => []
+                          };
+                        let from_exp = List.nth(refl_exps, i);
+                        inject(
+                          AddAxiomStep(
+                            "reflexivity",
+                            ProofHacks.exp_idx(
+                              from_exp,
+                              model.expr |> Calc.get_saved_exc(~print="expr"),
+                            ),
+                            from_exp,
+                            Direction.Right,
+                            "Reflexive(==)",
+                          ),
+                        );
+                      },
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
                 )

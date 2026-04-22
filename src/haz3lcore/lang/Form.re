@@ -31,6 +31,10 @@ type expansion =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansions = list((Token.t, (Label.t, Direction.t)));
 
+/* Sort-aware expansions include the form's sort for filtering */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type sorted_expansions = list((Token.t, Sort.t, Label.t, Direction.t));
+
 /* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -60,6 +64,18 @@ let mk_prefix = (t: Token.t, sort: Sort.t, prec) =>
 let mk_pre_c =
     (exp, label: Label.t, prec, sort: Sort.t, inner_sorts: list(Sort.t)) =>
   mk(exp, label, Mold.mk_pre(prec, sort, inner_sorts));
+
+// Prefix form where the body (right operand) has a different sort than out
+let mk_pre_c' =
+    (
+      exp,
+      label: Label.t,
+      prec,
+      sort: Sort.t,
+      inner_sorts: list(Sort.t),
+      body_sort: Sort.t,
+    ) =>
+  mk(exp, label, Mold.mk_pre'(prec, sort, inner_sorts, body_sort));
 
 let mk_op_c = (exp, label: Label.t, sort: Sort.t, inner_sorts: list(Sort.t)) =>
   mk(exp, label, Mold.mk_op(sort, inner_sorts));
@@ -92,10 +108,13 @@ type atomic_form =
   | UndefinedLit
   | EmptyList
   | EmptyTuple
+  | EmptyModule
   | Deferral
+  | ExplicitNonlabel
   | TyVar
   | TyVarP
   | Ctr
+  | MPatName
   | Type
   | InfixDelimiterPrefix;
 
@@ -224,7 +243,7 @@ let drv_get: drv_compound_form => t =
     mk(
       L,
       ["consistent", "~"],
-      Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedArrowFake =>
     mk_pre_c(L, ["matched_arrow", "with"], P.fun_, Exp, [Drv(Typ)])
@@ -232,7 +251,7 @@ let drv_get: drv_compound_form => t =
     mk(
       L,
       ["matched_arrow", "with"],
-      Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedProdFake =>
     mk_pre_c(L, ["matched_prod", "with"], P.fun_, Exp, [Drv(Typ)])
@@ -240,7 +259,7 @@ let drv_get: drv_compound_form => t =
     mk(
       L,
       ["matched_prod", "with"],
-      Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedSumFake =>
     mk_pre_c(L, ["matched_sum", "with"], P.fun_, Exp, [Drv(Typ)])
@@ -248,7 +267,7 @@ let drv_get: drv_compound_form => t =
     mk(
       L,
       ["matched_sum", "with"],
-      Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | Valid => mk_op_c(L, ["valid", "end"], Drv(Exp), [Drv(Typ)])
   | HasType =>
@@ -362,6 +381,8 @@ type compound_form =
   | DotTyp
   | TypeAsc
   | TypPlus
+  | ProdProjection
+  | ProdExtension
   // UNARY PREFIX OPERATORS
   | Not
   | TypSumSingle
@@ -411,7 +432,21 @@ type compound_form =
   | Let
   | Theorem
   | TypeAlias
-  | If;
+  | If
+  // MODULE FORMS
+  | ModBody
+  | ModSeq
+  | ModLet
+  | ModType
+  // MODULE KEYWORD FORMS
+  | ModuleExp
+  | ModuleMod
+  | MPatTypeann
+  // SIGNATURE FORMS
+  | SigBody
+  | SigSeq
+  | SigLet
+  | SigType;
 
 let get: compound_form => t =
   fun
@@ -457,6 +492,8 @@ let get: compound_form => t =
   | TypeAsc => mk_infix(":", Exp, ~l=Exp, ~r=Typ, P.asc)
   | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypPlus => mk_infix("+", Typ, P.type_plus)
+  | ProdProjection => mk_infix(".", Typ, P.dot)
+  | ProdExtension => mk_infix("...", Typ, P.ap)
   // UNARY PREFIX OPERATORS
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
@@ -487,7 +524,7 @@ let get: compound_form => t =
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
   | Poly => mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])
   | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
-  | ProofObject => mk_op_c(L, ["proof_object", "indeed"], Exp, [Exp])
+  | ProofObject => mk_op_c(L, ["proof_object", "end"], Exp, [Exp])
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
@@ -508,7 +545,22 @@ let get: compound_form => t =
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
   | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
   | If => mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
-  | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp]);
+  | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp])
+  // MODULE FORMS
+  | ModBody => mk_op_c(LT, ["{", "}"], Exp, [Mod])
+  | ModSeq => mk_infix(";", Mod, P.mod_seq)
+  | ModLet => mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)
+  | ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ)
+  // MODULE KEYWORD FORMS
+  | ModuleExp =>
+    mk_pre_c'(L, ["module", "=", "in"], P.let_, Exp, [MPat, Exp], Exp)
+  | ModuleMod => mk_pre_c'(L, ["module", "="], P.let_, Mod, [MPat], Exp)
+  | MPatTypeann => mk_infix(":", MPat, ~l=MPat, ~r=Typ, P.asc)
+  // SIGNATURE FORMS
+  | SigBody => mk_op_c(LT, ["{", "}"], Typ, [Sig])
+  | SigSeq => mk_infix(";", Sig, P.mod_seq)
+  | SigLet => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)
+  | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
@@ -580,10 +632,10 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
       [
-        Mold.mk_bin(Precedence.max, Exp, []),
-        Mold.mk_bin(Precedence.max, Pat, []),
-        Mold.mk_bin(Precedence.max, Typ, []),
-        Mold.mk_bin(Precedence.max, TPat, []),
+        Mold.mk_bin(Precedence.concave_grout, Exp, []),
+        Mold.mk_bin(Precedence.concave_grout, Pat, []),
+        Mold.mk_bin(Precedence.concave_grout, Typ, []),
+        Mold.mk_bin(Precedence.concave_grout, TPat, []),
       ],
     )
   | ExplicitHole => (
@@ -611,10 +663,13 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       Token.is_empty_tuple,
       [op(Exp), op(Pat), op(Typ), op(Drv(Exp))],
     )
+  | EmptyModule => (Token.is_empty_module, [op(Exp), op(Typ)])
   | Deferral => (Token.is_wild, [op(Exp)])
+  | ExplicitNonlabel => (Token.is_wild, [op(Typ)])
   | TyVar => (Token.is_typ_var, [op(Typ)])
   | TyVarP => (Token.is_typ_var, [op(TPat)])
   | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
+  | MPatName => ((t => Token.is_var(t) || Token.is_ctr(t)), [op(MPat)])
   | Type => (Token.is_base_typ, [op(Typ)])
   | DrvVar => (
       Token.is_typ_var,
@@ -646,26 +701,45 @@ module Molds = {
   let compound = (label: Label.t): option(list(Mold.t)) =>
     List.assoc_opt(label, compounds);
 
-  let get = (label: Label.t): list(Mold.t) =>
+  /* Base: get molds from form definitions without sort filtering */
+  let get_base = (label: Label.t): list(Mold.t) =>
     switch (label, compound(label)) {
     | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
     | ([t], None) when atomic(t) != [] => atomic(t)
     | (_, Some(molds)) => molds
-    /* For tokens which are not assigned molds by the language definition,
-       we assign a default 'Any' mold, which is either convex or concave.
-       This is half-ass at the moment as we don't have a rigorous lexing
-       policy, but is somewhat load-bearing in that remolding as one is
-       typing in a multi-character operator can cause jank, which is
-       alleviated if we correctly guess that it will become an operator. */
-    | ([t], None)
-        when Token.is_potential_operator(t) && !Token.is_potential_operand(t) => [
-        Mold.mk_bin(Precedence.max, Any, []),
-      ]
-    | (_, None) => [Mold.mk_op(Any, [])]
+    | _ => []
+    };
+
+  /* Strict: filter by sort, returns None if no match.
+     Used by remolding where we need accurate sort filtering. */
+  let try_get = (sort: Sort.t, label: Label.t): option(list(Mold.t)) => {
+    let molds = get_base(label);
+    let filtered = molds |> List.filter((m: Mold.t) => m.out == sort);
+    filtered == [] ? None : Some(filtered);
+  };
+
+  /* Get mold for insertion: permissive sort filtering with fallback
+     to Any-sorted default molds for undefined tokens. */
+  let get = (sort: Sort.t, label: Label.t): Mold.t =>
+    switch (try_get(sort, label)) {
+    | Some(molds) =>
+      assert(molds != []);
+      List.hd(molds);
+    | None =>
+      /* Fallback: create Any-sorted default mold. This handles tokens
+         not assigned molds by the language definition. */
+      switch (label) {
+      | [t]
+          when
+            Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
+        Mold.mk_bin(Precedence.max, Any, [])
+      | _ => Mold.mk_op(Any, [])
+      }
     };
 };
 
 module Expansion = {
+  /* Sort-agnostic expansion info (for backward compatibility) */
   let expanding_of = ({expansion, label, _}: t): option(expansions) =>
     switch (expansion, label) {
     | (L, [hd, ..._]) => Some([(hd, (label, Direction.Left))])
@@ -674,19 +748,87 @@ module Expansion = {
     | _ => None
     };
 
+  /* Sort-aware expansion info - uses nib sorts for context matching.
+     Leading delimiters use left nib sort (the context you're in when typing).
+     Trailing delimiters use right nib sort.
+
+     Note: This uses nib sort rather than mold.out because the nib sort
+     reflects what context you're typing in, not what the form produces.
+     For example, Rule ["|", "=>"] has out=Rul but left nib=Exp, since
+     you type | after an expression (the previous rule body).
+
+     Limitation: Ascriptions (expr : Type) have Typ right nib even though
+     they produce Exp. This causes issues for forms like | that can follow
+     ascribed expressions. See Insert.re for the special case handling. */
+  let sorted_expanding_of =
+      ({expansion, label, mold}: t): option(sorted_expansions) => {
+    let (l_nib, r_nib) = mold.nibs;
+    switch (expansion, label) {
+    | (L, [hd, ..._]) => Some([(hd, l_nib.sort, label, Direction.Left)])
+    | (LT, [hd, ..._]) =>
+      Some([
+        (hd, l_nib.sort, label, Left),
+        (ListUtil.last(label), r_nib.sort, label, Right),
+      ])
+    | _ => None
+    };
+  };
+
+  /* Sort-agnostic expansions (kept for is_leading) */
   let expansions: expansions =
     List.filter_map(((_, form: t)) => expanding_of(form), forms)
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let get = (t: Token.t): (Label.t, Direction.t) =>
-    switch (List.assoc_opt(t, expansions)) {
-    | Some(expansion) => expansion
-    | None => ([t], Right)
+  /* Sort-aware expansions */
+  let sorted_expansions: sorted_expansions =
+    List.filter_map(((_, form: t)) => sorted_expanding_of(form), forms)
+    |> List.flatten;
+
+  /* Try to get expansion for a token in a specific sort context.
+     Returns None if no expansion exists for this sort. */
+  let try_get = (sort: Sort.t, t: Token.t): option((Label.t, Direction.t)) => {
+    let matching =
+      sorted_expansions
+      |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
+    switch (matching) {
+    | Some((_, _, lbl, dir)) => Some((lbl, dir))
+    | None => None
     };
+  };
 
-  let will = kw => List.length(get(kw) |> fst) > 1;
+  /* Get expansion for a token in a specific sort context.
+     Returns monotile if no expansion exists for this sort.
+     Exception: Rul context is permissive - falls back to any expansion.
+     This is because Rul (case rules) contains Exp/Pat operands but has no
+     direct forms for things like parens. Other sorts remain strict. */
+  let get = (sort: Sort.t, t: Token.t): (Label.t, Direction.t) => {
+    let matching =
+      sorted_expansions
+      |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
+    switch (matching) {
+    | Some((_, _, lbl, dir)) => (lbl, dir)
+    | None =>
+      switch (sort) {
+      | Rul =>
+        /* Rul context: fall back to any expansion since rules contain
+           Exp/Pat operands but have no direct operand forms. */
+        let any_match =
+          sorted_expansions |> List.find_opt(((tok, _, _, _)) => tok == t);
+        switch (any_match) {
+        | Some((_, _, lbl, dir)) => (lbl, dir)
+        | None => ([t], Right)
+        };
+      | _ => ([t], Right)
+      }
+    };
+  };
 
+  /* Check if token would expand in ANY sort (sort-agnostic) */
+  let will = (t: Token.t): bool =>
+    List.exists(((tok, _, _, _)) => tok == t, sorted_expansions);
+
+  /* Check if token is a leading delimiter in ANY sort (sort-agnostic) */
   let is_leading = (t: Token.t): bool =>
     switch (List.assoc_opt(t, expansions)) {
     | Some((_, Left)) => true

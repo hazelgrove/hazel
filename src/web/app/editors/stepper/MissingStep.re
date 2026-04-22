@@ -27,7 +27,7 @@ module Model = {
     full_exp: Calc.saved(Exp.t),
     assumptions: Calc.saved(option(assumptions)),
     open_box,
-    cached_env: Calc.saved(ClosureEnvironment.t) // TODO[Matt]: remove this later, just to get env into view for now.
+    cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
   };
 
   let init = {
@@ -78,7 +78,7 @@ module Update = {
         ...model,
         open_box,
       }
-      |> Updated.return_quiet;
+      |> Updated.return_quiet(~logged=true);
     | (ProposeRewrite, _) =>
       let open_box =
         switch (model.open_box) {
@@ -98,7 +98,7 @@ module Update = {
         ...model,
         open_box,
       }
-      |> Updated.return_quiet(~recalculate=true);
+      |> Updated.return_quiet(~recalculate=true, ~logged=true);
     | (RewriteEditorAction(action), RewritesOpen({editor, _} as r)) =>
       let* new_editor = CodeEditable.Update.update(~settings, action, editor);
       Model.{
@@ -109,7 +109,7 @@ module Update = {
             editor: new_editor,
           }),
       };
-    | (RewriteEditorAction(_), _) => model |> Updated.return_quiet
+    | (RewriteEditorAction(_), _) => model |> Updated.raise_invalid_action
     | (UpdateResult(result), RewritesOpen(r)) =>
       Model.{
         ...model,
@@ -119,15 +119,15 @@ module Update = {
             cached_result: Some(result),
           }),
       }
-      |> Updated.return_quiet
-    | (UpdateResult(_), _) => model |> Updated.return_quiet
+      |> Updated.return_quiet(~logged=true)
+    | (UpdateResult(_), _) => model |> Updated.raise_invalid_action
     | (AxiomBoxAction(action), AxiomsOpen(m)) =>
       let* updated = AxiomsBox.Update.update(~settings, action, m);
       Model.{
         ...model,
         open_box: Model.AxiomsOpen(updated),
       };
-    | (AxiomBoxAction(_), _) => model |> Updated.return_quiet
+    | (AxiomBoxAction(_), _) => model |> Updated.raise_invalid_action
     };
   };
 
@@ -146,9 +146,7 @@ module Update = {
         ~settings,
         exp,
         info_map,
-        env: Calc.t(ClosureEnvironment.t),
-        ctx: Calc.t(Ctx.t),
-        _state,
+        ctx: Calc.t(SemanticCtx.t),
         new_next_steps,
         {
           next_steps: _,
@@ -167,16 +165,19 @@ module Update = {
       // hacky way to get a currently-selected id
       {
         let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
-        try({
-          let zipper = editor.editor.state.zipper;
-          let selection = zipper.selection.content;
-          let skel = Segment.skel(selection);
-          let root = Skel.root(skel);
-          let idx = Aba.first_a(root);
-          let piece = List.nth(selection, idx);
-          let id = Piece.id(piece);
-          Some(id);
-        }) {
+        try(
+          {
+            open OptUtil.Syntax;
+            let zipper = editor.editor.state.zipper;
+            let* id =
+              TermData.get_root_id_using_ranges(
+                zipper.selection.content,
+                editor.editor.syntax.term_data,
+                editor.editor.syntax.measured,
+              );
+            Some(id);
+          }
+        ) {
         | _ => None
         };
       }
@@ -195,10 +196,11 @@ module Update = {
       assumptions
       |> {
         let.calc _exp = selected_exp
-        and.calc env = env;
+        and.calc ctx = ctx;
         let proof_ctx =
-          env
-          |> ClosureEnvironment.to_list
+          ctx
+          |> SemanticCtx.get_env
+          |> Environment.to_list
           |> List.filter_map(((name, exp)) =>
                switch (Exp.term_of(exp)) {
                | Grammar.ProofObject(e) => Some((name, e))
@@ -216,7 +218,7 @@ module Update = {
       refls
       |> {
         let.calc exp = exp
-        and.calc env = env
+        and.calc ctx = ctx
         and.calc new_next_steps = new_next_steps
         and.calc info_map = info_map;
         let next_steps =
@@ -226,7 +228,7 @@ module Update = {
             | EvaluatorStep.AutoStep(_) => []
             | EvaluatorStep.AvailableSteps(steps) => steps
           );
-        ProofHacks.find_refls(~info_map, ~env, exp)
+        ProofHacks.find_refls(~info_map, ~env=SemanticCtx.get_env(ctx), exp)
         |> List.filter(e =>
              !
                List.exists(
@@ -246,7 +248,7 @@ module Update = {
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(ctx),
+            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
             editor,
           );
         // Extract an exp from the editor
@@ -270,15 +272,15 @@ module Update = {
         });
       | AxiomsOpen(m) =>
         AxiomsOpen(
-          AxiomsBox.Update.calculate(~info_map, ~env, ~ctx, ~selected_exp, m),
+          AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
         )
       | NoneOpen => NoneOpen
       };
     let cached_env =
       cached_env
       |> {
-        let.calc e = env;
-        e;
+        let.calc ctx = ctx;
+        SemanticCtx.get_env(ctx);
       };
     {
       next_steps: new_next_steps |> Calc.save,
@@ -338,7 +340,8 @@ module View = {
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
     | MakeActive(Selection.t)
-    | TakeStep(int);
+    | TakeStep(int)
+    | Refl(int);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
     let* first_piece = ListUtil.hd_opt(segment);
@@ -432,6 +435,20 @@ module View = {
         | None => None
         };
 
+      let show_refl_button =
+        switch (
+          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
+        ) {
+        | Some(selected_exp) =>
+          List.find_index(
+            x => x == (selected_exp |> Exp.rep_id),
+            model.refls
+            |> Calc.get_saved_exc(~print="refls")
+            |> List.map(refl => refl |> Exp.rep_id),
+          )
+        | None => None
+        };
+
       let show_function_body_button = {
         Calc.get_saved_exc(model.selected_exp)
         == Some(Calc.get_saved_exc(model.full_exp))
@@ -450,6 +467,23 @@ module View = {
                 proof_button(
                   ~callback=Ui_effect.Many([signal(TakeStep(idx))]),
                   "Step",
+                ),
+              ]
+            }
+          )
+          @ (
+            switch (show_refl_button) {
+            | None => []
+            | Some(idx) => [
+                proof_button(
+                  ~callback=
+                    Ui_effect.Many([
+                      globals.inject_global(
+                        Set(Evaluation(ForceShowRecord)),
+                      ),
+                      signal(Refl(idx)),
+                    ]),
+                  "Reflexivity",
                 ),
               ]
             }
@@ -593,6 +627,7 @@ module View = {
                                 | Some(RewriteEditor ()) => true
                                 | _ => false
                                 },
+                              ~dynamics=Dynamics.Map.empty,
                               editor,
                             ),
                           ],
@@ -616,12 +651,11 @@ module View = {
                                   ),
                                   unboxed_selected_exp,
                                   unboxed_cached_exp
-                                  |> Exp.substitute_closures(
+                                  |> Substitution.in_exp(
                                        model.cached_env
                                        |> Calc.get_saved_exc(
                                             ~print="env not cached",
-                                          )
-                                       |> ClosureEnvironment.map_of,
+                                          ),
                                      ),
                                 ),
                               )
@@ -637,20 +671,18 @@ module View = {
                                   UpdateResult(
                                     RewriteChecker.check_rewrite(
                                       unboxed_selected_exp
-                                      |> Exp.substitute_closures(
+                                      |> Substitution.in_exp(
                                            model.cached_env
                                            |> Calc.get_saved_exc(
                                                 ~print="env not cached",
-                                              )
-                                           |> ClosureEnvironment.map_of,
+                                              ),
                                          ),
                                       unboxed_cached_exp
-                                      |> Exp.substitute_closures(
+                                      |> Substitution.in_exp(
                                            model.cached_env
                                            |> Calc.get_saved_exc(
                                                 ~print="env not cached",
-                                              )
-                                           |> ClosureEnvironment.map_of,
+                                              ),
                                          ),
                                     ),
                                   ),

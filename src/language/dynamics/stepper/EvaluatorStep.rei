@@ -13,26 +13,17 @@ type status =
   | AutoStep(step)
   | AvailableSteps(list(step)); // No automatic steps
 
-//[Matt] Long-term we probably don't need state in the stepper.
-
 let get_status:
-  (~settings: CoreSettings.t, Exp.t, ClosureEnvironment.t, EvaluatorState.t) =>
-  status; //[Matt] This should probably take an env argument eventually
+  (~settings: CoreSettings.t, Exp.t, Environment.t(Exp.t)) => status;
 
 let refresh_step:
-  (
-    ~settings: CoreSettings.t,
-    Exp.t,
-    ClosureEnvironment.t,
-    EvaluatorState.t,
-    persistent
-  ) =>
+  (~settings: CoreSettings.t, Exp.t, Environment.t(Exp.t), persistent) =>
   option((FilterAction.action, step));
 
 let persist: step => persistent;
 
 // INVARIANT: this take_step function should never return an expression with closures.
-let take_step: step => option((Exp.t, EvaluatorState.t));
+let take_step: step => option(Exp.t);
 
 let get_step_id: step => Id.t;
 

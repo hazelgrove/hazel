@@ -104,8 +104,12 @@ type typ =
   | RecType(tpat, typ)
   | ProofOfType(exp)
   | LabelType(string)
+  | ExplicitNonlabel
   | TupLabelType(typ, typ)
   | IndicationTyp(typ)
+  | ProdProjection(typ, typ)
+  | ProdExtension(typ, typ)
+  | Sig(list(sig_item))
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -126,6 +130,7 @@ and pat =
   | TupLabelPat(pat, pat)
   | LabelPat(string)
   | IndicationPat(pat)
+  | ExplicitNonlabel
 
 and if_consistency =
   | Consistent
@@ -150,6 +155,7 @@ and exp =
   | ForallExp(pat, exp)
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
+  | ExplicitNonlabel
   | TupLabel(exp, exp)
   | Dot(exp, exp)
   | ApExp(exp, exp)
@@ -173,7 +179,19 @@ and exp =
   | TyAlias(tpat, typ, exp)
   | Use(typ, exp)
   | IndicationExp(exp)
-  | TupleExtension(exp, exp);
+  | TupleExtension(exp, exp)
+  | Module(list(mod_item))
+  | ModuleExp(pat, exp, exp)
+
+and mod_item =
+  | ModItemLet(pat, exp)
+  | ModItemType(tpat, typ)
+  | ModItemExp(exp)
+  | ModItemModule(pat, exp)
+
+and sig_item =
+  | SigItemLet(pat)
+  | SigItemType(tpat, typ);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -375,6 +393,11 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
           {
             let* e1 = self((n - 1) / 2);
             let+ e2 = self((n - 1) / 2);
+            Dot(e1, e2);
+          },
+          {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
             TupleExtension(e1, e2);
           },
           {
@@ -561,6 +584,16 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
 
                 SumTyp(Array.to_list(sumterms));
               },
+              {
+                let* t1 = self((n - 1) / 2);
+                let+ t2 = self((n - 1) / 2);
+                ProdProjection(t1, t2);
+              },
+              {
+                let* t1 = self((n - 1) / 2);
+                let+ t2 = self((n - 1) / 2);
+                ProdExtension(t1, t2);
+              },
             ])
           },
         n,
@@ -693,7 +726,11 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
             switch (shrunk) {
             | [] => Iter.return(TupleExp([]))
-            | [x] => Iter.return(x)
+            | [x] =>
+              switch (x) {
+              | TupLabel(_, _) => Iter.return(TupleExp(shrunk))
+              | _ => Iter.return(x)
+              }
             | _ => return(TupleExp(shrunk))
             };
           }
@@ -793,6 +830,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Label(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => Label(l))
+        | ExplicitNonlabel => return(ExplicitNonlabel: exp)
         | TupLabel(e1, e2) =>
           {
             return(
@@ -992,11 +1030,26 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e3);
             return(If(e1, e2, shrunk));
           }
+        | ModuleExp(p, e1, e2) =>
+          of_list([e1, e2])
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(ModuleExp(p, shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(ModuleExp(p, e1, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(ModuleExp(shrunk, e1, e2));
+          }
         | IndicationExp(_)
         | EmptyHole
         | BuiltinFun(_)
         | Undefined
-        | InvalidExp(_) => Iter.empty
+        | InvalidExp(_)
+        | Module(_) => Iter.empty
         }
       )
   )
@@ -1092,6 +1145,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           }
         | LabelPat(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
+        | ExplicitNonlabel => return(ExplicitNonlabel: pat)
         | InvalidPat(_)
         | IndicationPat(_)
         | WildPat
@@ -1153,6 +1207,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | RecType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));
+        | ExplicitNonlabel => return(ExplicitNonlabel: typ)
         | ProofOfType(e) =>
           let* shrunk = shrink_exp(e);
           return(ProofOfType(shrunk));
@@ -1168,6 +1223,26 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk2 = shrink_typ(t2);
             return(TupLabelType(t1, shrunk2));
           }
+        | ProdProjection(t1, t2) =>
+          return(t1)
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(ProdProjection(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(ProdProjection(t1, shrunk2));
+          }
+        | ProdExtension(t1, t2) =>
+          return(t1)
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(ProdExtension(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(ProdExtension(t1, shrunk2));
+          }
         | IndicationTyp(_)
         | IntType
         | SIntType
@@ -1176,7 +1251,8 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | BoolType
         | NatType
         | UnknownType(_)
-        | InvalidTyp(_) => Iter.empty
+        | InvalidTyp(_)
+        | Sig(_) => Iter.empty
         }
       )
   );

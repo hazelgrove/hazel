@@ -6,6 +6,7 @@ type entry = {
   name: string,
   rule: ProofRule.t,
   typ: Typ.t,
+  exp: Exp.t,
   is_captured: bool,
 };
 
@@ -16,11 +17,13 @@ let empty = [];
 
 let add_rule = (name: string, rule: ProofRule.t, ctx: t): t => {
   let typ = ProofRule.rule_to_typ(rule);
+  let exp = ProofRule.rule_to_exp(rule);
   [
     {
       name,
       rule,
       typ,
+      exp,
       is_captured: false,
     },
     ...ctx,
@@ -29,11 +32,13 @@ let add_rule = (name: string, rule: ProofRule.t, ctx: t): t => {
 
 let add_typ = (name: string, typ: Typ.t, ctx: t): option(t) => {
   let* rule = ProofRule.typ_to_rule(typ);
+  let exp = ProofRule.rule_to_exp(rule);
   Some([
     {
       name,
       typ,
       rule,
+      exp,
       is_captured: false,
     },
     ...ctx,
@@ -48,6 +53,7 @@ let add_exp = (name: string, exp: Exp.t, ctx: t) => {
       name,
       rule,
       typ,
+      exp,
       is_captured: false,
     },
     ...ctx,
@@ -69,6 +75,7 @@ let of_ctx = (~builtins, ctx: Ctx.t): t => {
               name,
               rule,
               typ,
+              exp: ProofRule.rule_to_exp(rule),
               is_captured,
             };
             ([name, ...seen_vars], [entry, ...rules]);
@@ -84,9 +91,10 @@ let of_ctx = (~builtins, ctx: Ctx.t): t => {
   rules;
 };
 
-let of_env = (~builtins, ~ctx: Ctx.t, env: ClosureEnvironment.t) => {
+let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
   let (_, rules) =
-    ClosureEnvironment.to_list(env)
+    Environment.to_list(env)
+    |> List.rev
     |> List.fold_left(
          ((seen_vars, rules), (name, exp)) =>
            switch (Exp.term_of(exp)) {
@@ -101,6 +109,7 @@ let of_env = (~builtins, ~ctx: Ctx.t, env: ClosureEnvironment.t) => {
                name,
                rule,
                typ,
+               exp: e,
                is_captured,
              };
              ([name, ...seen_vars], [entry, ...rules]);

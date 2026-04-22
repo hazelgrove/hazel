@@ -51,6 +51,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Fun => fn(Pat.var("x"), var("x"), None, None)
       | TypFun => typ_fun(TPat.var("x"), empty_hole(), None)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
       | TupleExtension => tuple_extension(empty_hole(), empty_hole())
@@ -83,13 +84,8 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
         module M = {
           include VarBstMap.Ordered;
         };
-
-        closure(
-          closure_environment(~callstack=[], Id.mk(), M.empty),
-          empty_hole(),
-        );
+        closure(Environment.empty, empty_hole());
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
@@ -97,6 +93,16 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Match => match(empty_hole(), [])
       | Asc => asc(empty_hole(), Typ.string())
       | ListConcat => list_concat(empty_hole(), empty_hole())
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          empty_hole(),
+        )
+      | Module => module_([Mod.empty_hole()])
+      | ModuleExp => module_exp(MPat.var("M"), empty_hole(), empty_hole())
       }
     )
   );
@@ -123,10 +129,18 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Ap => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
+      | ExplicitNonlabel => explicit_non_label()
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          empty_hole(),
+        )
       }
     )
   );
@@ -158,9 +172,26 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | MultiHole => unknown(Hole(MultiHole([])))
       | Sum => sum([])
+      | ProdProjection =>
+        prod_projection(
+          unknown(Hole(EmptyHole)),
+          unknown(Hole(EmptyHole)),
+        )
+      | ProdExtension =>
+        prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Constructor => assert(false) // Excluded because there is no Typ constructor
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          unknown(Hole(EmptyHole)),
+        )
+      | Sig => assert(false) /* Excluded: Sig is surface syntax only */
       }
     )
   );
@@ -190,13 +221,18 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Exp.show_cls, Fmt.string), Exp.equal_cls);
         List.iter(
-          cls =>
-            check(
-              cls_testable,
-              Exp.show_cls(cls) ++ " Equivalency",
-              cls,
-              Exp.cls_of_term(sample_expression(cls).term),
-            ),
+          (cls: Exp.cls) =>
+            switch (cls) {
+            | Projector // Excluding projectors from cls
+            | Parens => () // Parens and projectors are transparent (return inner cls)
+            | _ =>
+              check(
+                cls_testable,
+                Exp.show_cls(cls) ++ " Equivalency",
+                cls,
+                Exp.cls_of_term(sample_expression(cls).term),
+              )
+            },
           exp_classes,
         );
       },
@@ -230,7 +266,8 @@ let tests = (
         List.iter(
           (cls: Typ.cls) => {
             switch (cls) {
-            | Constructor => ()
+            | Constructor
+            | Sig => ()
             | _ =>
               check(
                 cls_testable,

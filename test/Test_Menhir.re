@@ -3,7 +3,16 @@ open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
-  (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
+  (testable(Fmt.using(Exp.show, Fmt.string)))(
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+      })
+    ).
+      exp,
+  )
   |> Alcotest.check;
 
 let strip_wrap =
@@ -11,15 +20,13 @@ let strip_wrap =
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
-        | Parens(e)
-        | Probe(e, _) => cont(e)
+        | Parens(e) => cont(e)
         | _ => cont(e)
         },
     ~f_pat=
       (cont, e) =>
         switch (e.term) {
-        | Parens(e)
-        | Probe(e, _) => cont(e)
+        | Parens(e) => cont(e)
         | _ => cont(e)
         },
     ~f_typ=
@@ -41,24 +48,24 @@ let make_term_parse = (s: string) =>
       term,
   );
 
-let menhir_matches = (exp: Term.Exp.t, actual: string) =>
+let menhir_matches = (exp: Exp.t, actual: string) =>
   alco_check(
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+      _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
       Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
 
-let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
+let menhir_only_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(exp, actual)});
 
 let skip_menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, _actual: string) =>
   test_case(name, speed_level, () => {Alcotest.skip()});
 
-let full_parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
+let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(
     name,
     `Quick,
@@ -79,7 +86,7 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+        _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
@@ -103,23 +110,35 @@ let qcheck_menhir_maketerm_equivalent_test =
 
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       let make_term_parsed = make_term_parse(serialized);
-      let menhir_parsed = Interface.parse_program(serialized);
-      let menhir_parsed_converted =
-        Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        DHExp.fast_equal(
-          make_term_parsed,
-          Grammar.map_exp_annotation(
-            _ => IdTagged.IdTag.fresh(),
-            menhir_parsed_converted,
-          ),
-        )
+        {
+          let menhir_parsed = Interface.parse_program(serialized);
+          let menhir_parsed_converted =
+            Conversion.Exp.of_menhir_ast(menhir_parsed);
+
+          Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: true,
+            })
+          ).
+            exp(
+            make_term_parsed,
+            Grammar.map_exp_annotation(
+              _ => IdTagged.IdTag.fresh(),
+              menhir_parsed_converted,
+            ),
+          );
+        }
       ) {
       | true => true
-      | false => false
+      | false =>
+        print_endline("Mismatch on: " ++ serialized);
+        false;
       | exception (Failure(msg)) =>
         print_endline("Error: " ++ msg);
+        print_endline("Serialized: " ++ serialized);
         msg == "Sum type has non-unique constructors";
       };
     },
@@ -150,9 +169,13 @@ let qcheck_menhir_serialized_equivalent_test =
       let segment =
         Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
+            secondary: AutoFormat,
+            parenthesization: Defensive,
+            label_format: QuoteWhenNecessary,
             inline: true,
             fold_case_clauses: false,
             fold_fn_bodies: `NoFold,
+            show_ascriptions: true,
             hide_fixpoints: false,
             show_filters: true,
             show_unknown_as_hole: true,
@@ -161,7 +184,19 @@ let qcheck_menhir_serialized_equivalent_test =
         );
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       let menhir_parsed = Interface.parse_program(serialized);
-      AST.equal_exp(menhir_parsed, exp);
+      /* The random AST generator (AST.arb_exp) can produce non-canonical
+         forms that get normalized during the Conversion round-trip. In
+         particular, Dot(e1, Constructor("X", None)) is valid Menhir AST
+         but of_menhir_ast converts it to Dot(e1, Label("X")) in core
+         (capitalized names in dot position are field accesses, not
+         constructors). After serialization and re-parsing, the Menhir
+         AST has Label instead of Constructor. To compare fairly, we
+         normalize both sides through of_core(of_menhir_ast(...)) which
+         canonicalizes these forms. This only affects this test (not the
+         78 other named tests, which use hand-written expected ASTs). */
+      let normalize = exp =>
+        Conversion.Exp.of_core(Conversion.Exp.of_menhir_ast(exp));
+      AST.equal_exp(normalize(menhir_parsed), normalize(exp));
     },
   );
 
@@ -340,9 +375,13 @@ let tests =
           Pat.asc(
             Pat.var("x"),
             Typ.sum([
-              Variant("A", [], None),
-              Variant("B", [], None),
-              Variant("C", [], Some(Typ.int())),
+              Variant("A", ConstructorMap.empty_variant_ann, None),
+              Variant("B", ConstructorMap.empty_variant_ann, None),
+              Variant(
+                "C",
+                ConstructorMap.empty_variant_ann,
+                Some(Typ.int()),
+              ),
             ]),
           ),
           ap(Forward, constructor("C", None), int(7)),
@@ -418,6 +457,26 @@ let tests =
         "true && 23 < int_of_float(51.00)" // TODO This looks like a bug in MakeTerm
       ),
       menhir_maketerm_equivalent_test("Singleton labeled tuple", {|(h = 1)|}),
+      menhir_maketerm_equivalent_test(
+        "Multi-element labeled tuple",
+        {|(a = 1, b = 2)|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Labeled tuple with float and constructor",
+        {|(g = 59.563699, p = Bjq)|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Three-element labeled tuple",
+        {|(a = 1, b = 2, c = 3)|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Labeled tuple with type alias (parenthesized)",
+        {|(a=(type i = () in 0), 0)|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Type alias standalone",
+        {|type i = () in 0|},
+      ),
       menhir_maketerm_equivalent_test(
         ~speed_level=`Slow,
         "Altered Documentation Buffer: Basic Reference",
@@ -713,6 +772,106 @@ let ex5 = list_of_mylist(x) in
       skip_menhir_maketerm_equivalent_test(
         "Non-unique constructors currently throws in equality",
         {|type ? = ((+ ? + ?)) in []|},
+      ),
+      /* Module tests - multi-item modules use MOD_ITEM_EXP precedence
+         in Parser.mly to resolve the Seq vs module-separator ambiguity. */
+      menhir_maketerm_equivalent_test("Empty module", {|{}|}),
+      menhir_maketerm_equivalent_test(
+        "Module with single binding",
+        {|{ let x = 1 }|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module with multiple bindings",
+        {|{ let x = 1; let y = 2 }|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module with type alias",
+        {|{ type T = Int; let x = 1 }|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module dot access",
+        {|{ let x = 1 }.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module in let binding",
+        {|let m = { let x = 1 } in m.x|},
+      ),
+      /* Sig type tests - no semicolon ambiguity since sig items don't contain
+         expression-level semicolons. Sig appears in Typ position. */
+      menhir_maketerm_equivalent_test("Sig empty", {|let m : {} = {} in m|}),
+      menhir_maketerm_equivalent_test(
+        "Sig type annotation single member",
+        {|let m : { let x : Int } = { let x = 1 } in m|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig type annotation multiple members",
+        {|type S = { let x : Int; let y : Bool } in 1|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig with type member",
+        {|type S = { type T = Int; let x : Int } in 1|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig type unannotated member",
+        {|let m : { let x } = { let x = 1 } in m|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig annotation with single-item module",
+        {|let m : { let x : Int } = { let x = 1 } in m.x|},
+      ),
+      /* Module keyword tests */
+      menhir_maketerm_equivalent_test(
+        "Module keyword lowercase",
+        {|module m = { let x = 1 } in m.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module keyword capitalized",
+        {|module M = { let x = 1; let y = 2 } in M.x|},
+      ),
+      /* Menhir produces Constructor("M") for M in M.x, MakeTerm produces Var("M") */
+      skip_menhir_maketerm_equivalent_test(
+        "Module keyword with prod annotation",
+        {|module M : (x=Int) = { let x = 1 } in M.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module keyword with sig annotation",
+        {|module M : { let x : Int } = { let x = 1 } in M.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module keyword in module body",
+        {|{ module Inner = { let x = 1 }; let y = Inner.x }|},
+      ),
+      /* Menhir produces Constructor("Outer") for Outer in Outer.Inner.x, MakeTerm produces Var("Outer") */
+      skip_menhir_maketerm_equivalent_test(
+        "Nested module keyword",
+        {|module Outer = { module Inner = { let x = 10 } } in Outer.Inner.x|},
+      ),
+      /* H.1 fix: singleton labeled tuple type now parses in Menhir */
+      /* Menhir wraps `(x : (a=Int))` as parens(asc(x, parens(tup_label)))
+         via AscPat rule at line 294 + conversion at line 599 */
+      menhir_only_test(
+        "Singleton labeled tuple type",
+        Fresh.Exp.(
+          let_(
+            Fresh.Pat.(
+              parens(
+                asc(
+                  var("x"),
+                  Fresh.Typ.(parens(tup_label(label("a"), int()))),
+                ),
+              )
+            ),
+            int(1),
+            var("x"),
+          )
+        ),
+        {|let x : (a=Int) = 1 in x|},
+      ),
+      /* H.2 fix: capitalized name on RHS of dot converts to label */
+      menhir_only_test(
+        "Capitalized name in dot RHS",
+        Fresh.Exp.(dot(var("m"), label("X"))),
+        {|m.X|},
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),

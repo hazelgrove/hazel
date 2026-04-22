@@ -77,7 +77,7 @@ let tests = (
       parse_and_evaluate_test({|1|}, {|head([1, 2, 3])|})
     ),
     test_case("tl of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|[2, 3]|}, {|tl([1, 2, 3])|})
+      parse_and_evaluate_test({|[2, 3]|}, {|tail([1, 2, 3])|})
     ),
     test_case("is_empty of empty list", `Quick, () =>
       parse_and_evaluate_test({|true|}, {|is_empty([])|})
@@ -445,6 +445,36 @@ let tests = (
           {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Gt else Lt), [3, 1, 4, 1, 5])|},
         );
       },
+    ),
+    test_case("unique", `Quick, () =>
+      parse_and_evaluate_test({|[1, 2, 3]|}, {|unique([1, 2, 2, 3, 1, 3])|})
+    ),
+    test_case("group_on_key by parity", `Quick, () =>
+      parse_and_evaluate_test(
+        {|[(1, [1, 3]), (0, [2, 4])]|},
+        {|group_on_key([1, 2, 3, 4], fun x -> int_mod(x, 2))|},
+      )
+    ),
+    test_case("pivot_table", `Quick, () =>
+      parse_and_evaluate_test(
+        {|
+      [(index=true, `A`=60, `B`=30, `C`=0), (index=false, `A`=20, `B`=40, `C`=60)]
+      |},
+        {|pivot_table(
+  [
+    ("A", true, 10),
+    ("A", false, 20),
+    ("B", true, 30),
+    ("B", false, 40),
+    ("A", true, 50),
+    ("C", false, 60)
+  ],
+  fun (r, _, _) -> r,
+  fun (_, c, _) -> c,
+  fold_left(_, fun (acc, (_, _, v)) -> acc + v, 0)
+)
+|},
+      )
     ),
   ],
 );

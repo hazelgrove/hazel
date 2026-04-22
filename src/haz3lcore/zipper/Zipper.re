@@ -2,22 +2,24 @@ open Util;
 open OptUtil.Syntax;
 include ZipperBase;
 
-let init = () => {
-  selection: Selection.mk([]),
-  relatives: {
-    siblings: (
-      [],
-      [
-        Grout({
-          id: Id.mk(),
-          shape: Convex,
-        }),
-      ],
-    ),
-    ancestors: [],
-  },
-  caret: Outer,
-};
+let init: unit => t =
+  () => {
+    selection: Selection.mk([]),
+    relatives: {
+      siblings: (
+        [],
+        [
+          Grout({
+            id: Id.mk(),
+            shape: Convex,
+          }),
+        ],
+      ),
+      ancestors: [],
+    },
+    caret: Outer,
+    refractors: Refractor.init,
+  };
 
 let next_blank = _ => Id.mk();
 
@@ -40,6 +42,7 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
+  refractors: Refractor.init,
 };
 
 let regrout = (d: Direction.t, z: t): t => {
@@ -61,6 +64,193 @@ let remold = (z: t, ~root): t => {
 
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
   z |> remold(~root) |> regrout(d);
+
+/* Rescan siblings for label-based shard conversion, then
+ * reassemble + remold + regrout. This handles the case where
+ * a standalone monotile should retroactively become a shard
+ * of an incomplete tile (e.g. standalone `->` matching `fun`).
+ * Should be called after edits, not during cursor movement. */
+/* Rescan ancestor-level siblings: converts standalone monotiles that
+ * match a parent ancestor's missing shards, giving them the parent's
+ * ID, then absorbs them into the parent via reassemble_parent-style
+ * logic. This handles delimiters (e.g. =) re-inserted via paste with
+ * fresh IDs that don't match their ancestor tile. */
+let rescan_parent_shards = (z: t): t => {
+  /* For each ancestor, compute its missing shards as (token, index) pairs */
+  let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
+    let all_shards = fst(a.shards) @ snd(a.shards);
+    List.init(List.length(a.label), Fun.id)
+    |> List.filter(i => !List.mem(i, all_shards))
+    |> List.map(i => (List.nth(a.label, i), i));
+  };
+
+  let convert_piece =
+      (a: Ancestor.t, missing: list((string, int)), p: Piece.t): Piece.t =>
+    switch (p) {
+    | Tile(t) when List.length(t.shards) == 1 && t.id != a.Ancestor.id =>
+      let tok = List.hd(Tile.effective_label(t));
+      switch (List.assoc_opt(tok, missing)) {
+      | Some(idx) =>
+        Tile({
+          ...t,
+          id: a.Ancestor.id,
+          label: a.Ancestor.label,
+          mold: a.Ancestor.mold,
+          shards: [idx],
+        })
+      | None => p
+      };
+    | _ => p
+    };
+
+  /* Try converting sibs against target ancestor's missing shards.
+   * If conversion happens, absorb converted shards into the target
+   * ancestor using reassemble_parent-style logic. Returns updated
+   * (sibs, target) or None if no conversion happened. */
+  let try_absorb =
+      (sibs: Siblings.t, target: Ancestor.t)
+      : option((Siblings.t, Ancestor.t)) => {
+    let missing = ancestor_missing(target);
+    if (missing == []) {
+      None;
+    } else {
+      let convert = convert_piece(target, missing);
+      let (l, r) = sibs;
+      let new_sibs = (List.map(convert, l), List.map(convert, r));
+      if (new_sibs == sibs) {
+        None;
+      } else {
+        /* Absorb converted shards into target using split_by_matching */
+        let flatten_match =
+          Aba.fold_right(
+            (t: Tile.t, kid, (shards, kids)) =>
+              Aba.mk(t.shards @ shards, t.children @ [kid, ...kids]),
+            (t: Tile.t) => Aba.mk(t.shards, t.children),
+          );
+        let (l_match, r_match) =
+          new_sibs
+          |> Siblings.split_by_matching(target.Ancestor.id)
+          |> TupleUtil.map2(Aba.trim);
+        let (target, new_l) =
+          switch (l_match) {
+          | None => (target, fst(new_sibs))
+          | Some((outer_l, match_l, inner_l)) =>
+            let (shards_l, kids_l) = flatten_match(match_l);
+            let target = {
+              ...target,
+              shards: target.shards |> PairUtil.map_fst(ss => ss @ shards_l),
+              children:
+                target.children
+                |> PairUtil.map_fst(kids =>
+                     Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+                   ),
+            };
+            (target, inner_l);
+          };
+        let (target, new_r) =
+          switch (r_match) {
+          | None => (target, snd(new_sibs))
+          | Some((inner_r, match_r, outer_r)) =>
+            let (shards_r, kids_r) = flatten_match(match_r);
+            let target = {
+              ...target,
+              shards: target.shards |> PairUtil.map_snd(ss => shards_r @ ss),
+              children:
+                target.children
+                |> PairUtil.map_snd(kids =>
+                     Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+                   ),
+            };
+            (target, inner_r);
+          };
+        Some(((new_l, new_r), target));
+      };
+    };
+  };
+
+  /* Walk ancestor chain. For each (inner, sibs), try to absorb
+   * converted shards from `sibs` into the parent ancestor.
+   * Also try direct siblings against the immediate ancestor. */
+  let rec go = (ancestors: Ancestors.t): Ancestors.t =>
+    switch (ancestors) {
+    | [] => []
+    | [(a, sibs)] => [(a, sibs)]
+    | [(a, sibs), (parent, parent_sibs), ...rest] =>
+      let rest = go([(parent, parent_sibs), ...rest]);
+      switch (rest) {
+      | [] => [(a, sibs)]
+      | [(parent, parent_sibs), ...rest_tail] =>
+        switch (try_absorb(sibs, parent)) {
+        | None => [(a, sibs), (parent, parent_sibs), ...rest_tail]
+        | Some((new_sibs, new_parent)) => [
+            (a, new_sibs),
+            (new_parent, parent_sibs),
+            ...rest_tail,
+          ]
+        }
+      };
+    };
+
+  let ancestors = go(z.relatives.ancestors);
+  let (siblings, ancestors) =
+    switch (ancestors) {
+    | [] => (z.relatives.siblings, ancestors)
+    | [(a, a_sibs), ...rest] =>
+      switch (try_absorb(z.relatives.siblings, a)) {
+      | None => (z.relatives.siblings, ancestors)
+      | Some((new_sibs, new_a)) => (new_sibs, [(new_a, a_sibs), ...rest])
+      }
+    };
+
+  if (ancestors == z.relatives.ancestors && siblings == z.relatives.siblings) {
+    z;
+  } else {
+    {
+      ...z,
+      relatives: {
+        siblings,
+        ancestors,
+      },
+    };
+  };
+};
+
+let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
+  let siblings = Siblings.rescan(z.relatives.siblings);
+  let z =
+    if (siblings == z.relatives.siblings) {
+      z;
+    } else {
+      let relatives =
+        {
+          ...z.relatives,
+          siblings,
+        }
+        |> Relatives.reassemble
+        |> (r => Relatives.remold(r, root))
+        |> Relatives.regrout(d);
+      {
+        ...z,
+        relatives,
+      };
+    };
+  if (with_parent) {
+    let z' = rescan_parent_shards(z);
+    if (z'.relatives.ancestors != z.relatives.ancestors
+        || z'.relatives.siblings != z.relatives.siblings) {
+      let relatives =
+        Relatives.remold(z'.relatives, root) |> Relatives.regrout(d);
+      {
+        ...z',
+        relatives,
+      };
+    } else {
+      z;
+    };
+  } else {
+    z;
+  };
+};
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
@@ -218,14 +408,27 @@ let neighbor_tokens = (z: t): (option(Token.t), option(Token.t)) => (
   neighbor_token(Right, z),
 );
 
-let rec do_until_piece =
-        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
-  let* z = action(z);
-  if (p_n(Siblings.neighbors(z.relatives.siblings))) {
-    Some(z);
-  } else {
-    do_until_piece(action, p_n, z);
+/* Iterative version to avoid stack overflow on large programs */
+let do_until_piece =
+    (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let current = ref(action(z));
+  let result = ref(None);
+  let done_ = ref(false);
+  while (! done_^) {
+    switch (current^) {
+    | None =>
+      result := None;
+      done_ := true;
+    | Some(z) =>
+      if (p_n(Siblings.neighbors(z.relatives.siblings))) {
+        result := Some(z);
+        done_ := true;
+      } else {
+        current := action(z);
+      }
+    };
   };
+  result^;
 };
 
 /* Do `action` until the predicate on the generalized neigbors of the
@@ -234,15 +437,31 @@ let rec do_until_piece =
    we are at the edge of a segment, in which case it's the relevant shard
    of the parent. The None case strictly means the beginning/end of the program.
    If no such piece is found, don't move. Does not check predicate before
-   moving; caller should handle that case if necessary */
-let rec do_until =
-        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
-  let* z = action(z);
-  if (p_n(generalized_neighbors(z))) {
-    Some(z);
-  } else {
-    do_until(action, p_n, z);
+   moving; caller should handle that case if necessary.
+
+   NOTE: This is implemented iteratively to avoid stack overflow on large
+   programs. The previous recursive implementation would overflow when
+   traversing documents with thousands of tokens. */
+let do_until =
+    (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let current = ref(action(z));
+  let result = ref(None);
+  let done_ = ref(false);
+  while (! done_^) {
+    switch (current^) {
+    | None =>
+      result := None;
+      done_ := true;
+    | Some(z) =>
+      if (p_n(generalized_neighbors(z))) {
+        result := Some(z);
+        done_ := true;
+      } else {
+        current := action(z);
+      }
+    };
   };
+  result^;
 };
 
 let do_to_extreme = (action: t => option(t), z: t): t =>
@@ -385,10 +604,30 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
 };
 
 module Caret = {
-  let offset: caret => int =
-    fun
+  /* String shards can span multiple columns because emoji render wider than
+     ASCII.  Translate an inner caret index into measured columns by consulting
+     the token width table. */
+  let string_offset = (token: Token.t, idx: int): int =>
+    1 + Token.string_prefix_columns(token, idx);
+
+  /* Determine how many columns to advance for an Inner caret.  Prefer the
+     token on the left; if none exists fall back to the token on the right.
+     Non-strings retain the classic one-column-per-character behaviour. */
+  let inner_offset = (idx: int, z: t): int =>
+    switch (neighbor_token(Left, z)) {
+    | Some(token) when Token.is_string(token) => string_offset(token, idx)
+    | _ =>
+      switch (neighbor_token(Right, z)) {
+      | Some(token) when Token.is_string(token) => string_offset(token, idx)
+      | _ => idx + 1
+      }
+    };
+
+  let offset = (z: t): int =>
+    switch (z.caret) {
     | Outer => 0
-    | Inner(idx) => idx + 1;
+    | Inner(idx) => inner_offset(idx, z)
+    };
 
   let set = (caret: caret, z: t): t => {
     ...z,
@@ -432,11 +671,12 @@ module Caret = {
     };
 
   /* Grid position of the caret */
+  /* Convert a caret to a concrete grid point for rendering and hit testing. */
   let point = (measured: Measured.t, z: t): Point.t => {
     let Point.{row, col} = base_point(measured, z);
     {
       row,
-      col: col + offset(z.caret),
+      col: col + offset(z),
     };
   };
 

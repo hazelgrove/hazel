@@ -21,7 +21,7 @@ open Util;
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type join_type =
+type meet_type =
   | Id
   | List
   | PolyEq;
@@ -29,9 +29,10 @@ type join_type =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
-  | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
+  | NoMeet(meet_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | DuplicateLabel(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | CompareFun(Typ.t) /* Type equality failed because of arrow type inside */
+  | DuplicateVar(string, t)
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label)) /* Invalid label in a labeled tuple where these labels are expected */
@@ -43,7 +44,8 @@ type t =
       typ: Typ.t,
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
-  | FreeConstructor(Constructor.t); /* Constructor not bound in context or ana type */
+  | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
+  | ExplicitNonlabel; /* _ used as label in labeled tuple */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -67,7 +69,7 @@ type error_builtin =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
-  | InexhaustiveMatch(exp)
+  | InexhaustiveMatch(exp, Grammar.any_t(IdTagged.IdTag.t))
   | IsDeferral(Exp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
   | Common(t)
@@ -94,7 +96,7 @@ type pat =
   | ExpectedConstructor(pat)
   | Common(t);
 
-let join_of = (j: join_type, ty: Typ.t): Typ.t =>
+let meet_of = (j: meet_type, ty: Typ.t): Typ.t =>
   switch (j) {
   | Id => ty
   | PolyEq => ty
@@ -107,23 +109,30 @@ let join_of = (j: join_type, ty: Typ.t): Typ.t =>
 let typ_of: t => option(Typ.t) =
   fun
   | Just(typ)
-  | Duplicate(_, Just(typ))
+  | DuplicateLabel(_, Just(typ))
+  | DuplicateVar(_, Just(typ))
   | TupleLabelError({typ, _}) => Some(typ)
   | CompareFun(_) => Some(Atom(Bool) |> Typ.fresh)
   | FreeConstructor(name) =>
     Some(
       Sum([
-        ConstructorMap.Variant(name, [Id.invalid], None),
+        ConstructorMap.Variant(
+          name,
+          ConstructorMap.mk_variant_ann(~ids=[Id.invalid], ()),
+          None,
+        ),
         ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
       ])
       |> Typ.temp,
     )
   | BadToken(_)
   | IsMulti
-  | Duplicate(_)
+  | DuplicateLabel(_)
+  | DuplicateVar(_)
   | BadLabel(_)
   | InvalidLabel(_)
-  | NoJoin(_)
+  | ExplicitNonlabel
+  | NoMeet(_)
   | UnexpectedLabelSort(_) => None;
 
 let typ_of_exp: exp => option(Typ.t) =
@@ -232,26 +241,26 @@ let add_source =
   );
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoJoin(Id, add_source(ids, tys))
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoMeet(Id, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
 let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty, ctx, tys)) {
-  | None => NoJoin(List, add_source(ids, tys))
+  switch (Typ.meet_all(~empty, ctx, tys)) {
+  | None => NoMeet(List, add_source(ids, tys))
   | Some(ty) => Just(List(ty) |> Typ.fresh)
   };
 
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoJoin(List, add_source(ids, tys))
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoMeet(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
 let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoJoin(PolyEq, add_source(ids, tys))
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoMeet(PolyEq, add_source(ids, tys))
   | Some(ty) when ty |> Typ.normalize(ctx) |> Typ.has_fun => CompareFun(ty)
   | Some(_) => Just(Atom(Bool) |> Typ.fresh)
   };

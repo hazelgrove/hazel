@@ -92,10 +92,7 @@ let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
 
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
-    (_annotation): IdTagged.IdTag.t => {
-      let id = Id.mk();
-      {ids: [id]};
-    },
+    (_annotation): IdTagged.IdTag.t => IdTagged.IdTag.mk_internal([Id.mk()]),
     exp,
   );
 };
@@ -151,7 +148,8 @@ let inconsistent_typecheck = (name, exp) => {
     },
   );
 };
-let fully_consistent_typecheck = (name, serialized, expected) => {
+let fully_consistent_typecheck =
+    (~normalize=false, name, serialized, expected) => {
   test_case(
     name,
     `Quick,
@@ -159,7 +157,12 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
       let errors = List.map(snd, Statics.Map.errors(s));
-      let actual_type = type_of(~static_map=s, exp);
+      let actual_type =
+        type_of(~static_map=s, exp)
+        |> Option.map(
+             normalize
+               ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
+           );
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
@@ -182,6 +185,7 @@ let skip_known_bug = (message: string, expression: string) =>
     }
   });
 
+// FactoryInfoError
 module FIError =
   Grammar.Factory({
     type t = option(Info.error);
@@ -190,5 +194,5 @@ module FIError =
 module FTemp =
   Grammar.Factory({
     type t = IdTagged.IdTag.t;
-    let default_value = (): IdTagged.IdTag.t => {ids: [Id.invalid]};
+    let default_value = (): IdTagged.IdTag.t => IdTagged.IdTag.temp();
   });

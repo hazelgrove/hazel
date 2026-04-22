@@ -1165,6 +1165,7 @@ let exercise : DerivationTree.spec =
               ];
           };
         caret = Outer;
+        refractors = Haz3lcore.Refractors.init;
       };
     setup =
       {
@@ -1186,6 +1187,7 @@ let exercise : DerivationTree.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.Refractors.init;
       };
     corpus = ALF;
     trees =
@@ -1276,6 +1278,7 @@ let exercise : DerivationTree.spec =
                       };
                     relatives = { siblings = ([], []); ancestors = [] };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some E_Val;
               },
@@ -1358,6 +1361,7 @@ let exercise : DerivationTree.spec =
                             };
                           relatives = { siblings = ([], []); ancestors = [] };
                           caret = Outer;
+                          refractors = Haz3lcore.Refractors.init;
                         };
                       rule = Some V_Num;
                     },
@@ -1449,6 +1453,7 @@ let exercise : DerivationTree.spec =
                         ancestors = [];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some E_Val;
               },
@@ -1537,6 +1542,7 @@ let exercise : DerivationTree.spec =
                               ancestors = [];
                             };
                           caret = Outer;
+                          refractors = Haz3lcore.Refractors.init;
                         };
                       rule = Some V_Num;
                     },
@@ -1877,6 +1883,7 @@ let exercise : DerivationTree.spec =
                         ancestors = [];
                       };
                     caret = Inner 0;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some E_Val;
               },
@@ -2099,6 +2106,7 @@ let exercise : DerivationTree.spec =
                                 ];
                             };
                           caret = Outer;
+                          refractors = Haz3lcore.Refractors.init;
                         };
                       rule = Some V_Fun;
                     },
@@ -2585,6 +2593,7 @@ let exercise : DerivationTree.spec =
                         ancestors = [];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some E_Let;
               },
@@ -2757,6 +2766,7 @@ let exercise : DerivationTree.spec =
                               ancestors = [];
                             };
                           caret = Outer;
+                          refractors = Haz3lcore.Refractors.init;
                         };
                       rule = Some E_Minus;
                     },
@@ -2866,6 +2876,7 @@ let exercise : DerivationTree.spec =
                                     ancestors = [];
                                   };
                                 caret = Outer;
+                                refractors = Haz3lcore.Refractors.init;
                               };
                             rule = Some E_Val;
                           },
@@ -2969,6 +2980,7 @@ let exercise : DerivationTree.spec =
                                           ancestors = [];
                                         };
                                       caret = Outer;
+                                      refractors = Haz3lcore.Refractors.init;
                                     };
                                   rule = Some V_Num;
                                 },
@@ -3296,6 +3308,7 @@ let exercise : DerivationTree.spec =
                                 ];
                             };
                           caret = Outer;
+                          refractors = Haz3lcore.Refractors.init;
                         };
                       rule = Some E_Ap;
                     },
@@ -3470,6 +3483,7 @@ let exercise : DerivationTree.spec =
                                     ancestors = [];
                                   };
                                 caret = Outer;
+                                refractors = Haz3lcore.Refractors.init;
                               };
                             rule = Some E_Times;
                           },
@@ -4034,6 +4048,7 @@ let exercise : DerivationTree.spec =
                           ];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some E_Let;
               },
@@ -4144,6 +4159,7 @@ let exercise : DerivationTree.spec =
                         ancestors = [];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some E_Let;
               },

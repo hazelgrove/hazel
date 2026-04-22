@@ -17,11 +17,15 @@ open Haz3lcore;
 
 let settings =
   ExpToSegment.Settings.{
+    secondary: AutoFormat,
+    parenthesization: Defensive,
+    label_format: QuoteWhenNecessary,
     inline: true,
     fold_case_clauses: false,
     fold_fn_bodies: `NoFold,
     hide_fixpoints: false,
     show_filters: false,
+    show_ascriptions: false,
     show_unknown_as_hole: false,
   };
 

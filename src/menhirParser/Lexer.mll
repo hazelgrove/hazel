@@ -19,7 +19,8 @@ let parse_float_string s =
 
 }
 (* TODO We don't yet support negative floats in MakeTerm *)
-let float = ['0'-'9']* '.' ['0'-'9']*
+(* Require leading digits before dot *)
+let float = ['0'-'9']+ '.' ['0'-'9']*
 (* negative ints are done through unop *)
 let int = ['0'-'9'] ['0'-'9']*
 
@@ -48,6 +49,7 @@ rule token =
     | projector_invoke as p { PROJECTOR_INVOKE p }
     | "true" { TRUE }
     | "false" { FALSE }
+    | "module" { MODULE }
     | "let" { LET }
     | "in" { IN }
     | "end" { END }
@@ -62,10 +64,13 @@ rule token =
     | ")" { CLOSE_PAREN }
     | "{{{" { OPEN_TRIPLE_CURLY }
     | "}}}" { CLOSE_TRIPLE_CURLY }
+    | "{" { OPEN_CURLY }
+    | "}" { CLOSE_CURLY }
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
     | "..." { TUPLE_EXTENSION }
+    | "." { DOT }
     (* Poly ops*)
     | "==" { DOUBLE_EQUAL }
     | "!=" { NOT_EQUAL }

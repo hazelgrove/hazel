@@ -36,13 +36,12 @@ let mk_pre = (p, out, in_) => {
     nibs: (l, r),
   };
 };
-/* NOTE(zhiyao): needed for Derivation terms.
-   forms where tips can be different than out sort */
-let mk_pre' = (p, out, sort_l, in_, sort_r) => {
+// Prefix form where the body (right nib) has a different sort than out
+let mk_pre' = (p, out, in_, sort_r) => {
   let l =
     Nib.{
       shape: Convex,
-      sort: sort_l,
+      sort: out,
     };
   let r =
     Nib.{

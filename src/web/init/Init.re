@@ -21,19 +21,21 @@ let startup: PersistentData.t = {
       Projectors.out,
       ADTs.out,
       Tuples.out,
+      Modules.out,
       Tables.out,
       Polymorphism.out,
       Cards.out,
       Probes.out,
       Livelits.out,
     ]
+    @ B2t2.Slides.all_slides
     |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
            {
              editor:
                content
-               |> PersistentSegment.to_persistent_zipper(~root=Exp)
+               |> PersistentSegment.unpersist(~root=Exp)
                |> Editor.Model.mk_persistent(~root=Exp),
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
@@ -47,6 +49,45 @@ let find_documentation_slide = (name: string) => {
   |> snd
   |> List.find_opt(((n, _)) => n == name)
   |> Option.map(snd);
+};
+
+/* Cache of original documentation slide segments for fast comparison.
+   Computed lazily on first access to avoid startup cost.
+
+   This cache exists to optimize the "don't save unchanged slides" check
+   in ScratchMode.persist. That check compares current segments to originals,
+   and without caching, it was re-parsing (unpersisting) every original slide
+   on every autosave.
+
+   This whole mechanism (comparing to originals to avoid saving) might be
+   unnecessary if we instead tracked dirty state per-slide, or if we moved
+   to per-slide localStorage keys instead of one big blob. See the save
+   system discussion in the codebase for future cleanup opportunities. */
+let original_doc_segments: ref(option(Maps.StringMap.t(Segment.t))) =
+  ref(None);
+
+let get_original_doc_segment = (name: string): option(Segment.t) => {
+  let cache =
+    switch (original_doc_segments^) {
+    | Some(c) => c
+    | None =>
+      let c =
+        startup.documentation
+        |> snd
+        |> List.map(((n, pce: CellEditor.Model.persistent)) =>
+             (
+               n,
+               pce.editor.zipper
+               |> PersistentZipper.unpersist(~root=pce.editor.root)
+               |> Zipper.zip,
+             )
+           )
+        |> List.to_seq
+        |> Maps.StringMap.of_seq;
+      original_doc_segments := Some(c);
+      c;
+    };
+  Maps.StringMap.find_opt(name, cache);
 };
 
 let default_documentation_slide_name =

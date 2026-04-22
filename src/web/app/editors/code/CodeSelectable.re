@@ -48,10 +48,14 @@ module Update = {
         Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
         Buffer(_) |
         Project(_) |
+        Structural(_) |
+        Probe(_) |
+        Dump |
         Introduce |
-        Dump,
+        ToggleLineComment,
       )
     | DebugConsole(_)
+    | ContextMenu(_)
     | TAB => None;
 
   let calculate = CodeEditable.Update.calculate;

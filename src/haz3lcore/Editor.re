@@ -171,7 +171,8 @@ module Update = {
     let state = update_col_target(~measured=syntax.measured, a, state);
 
     /* 3. Update the zipper */
-    let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state, ~root);
+    let+ zipper =
+      Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
 
     Model.{
       root,
@@ -186,17 +187,22 @@ module Update = {
   let calculate =
       (
         ~settings: Language.CoreSettings.t,
+        ~autoprobe_mode: bool,
         ~is_edited,
         new_statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
         {syntax, state, root}: Model.t,
       )
       : Model.t => {
-    /* 1. Recalculate the autocomplete buffer if necessary */
+    /* 1. Recalculate the autocomplete buffer if necessary.
+     * Uses ci_for_completion (which prefers the left-neighbor tile,
+     * falling back to ci_of) so that the automatic post-edit buffer
+     * recompute is consistent with Perform.go's explicit
+     * Buffer(Set(TyDi)) path. */
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
         Buffer.set_tydi_buffer(
-          Indicated.ci_of(state.zipper, new_statics.info_map),
+          Indicated.ci_for_completion(state.zipper, new_statics.info_map),
           state.zipper,
         );
       } else {
@@ -212,6 +218,43 @@ module Update = {
         new_dynamics,
         syntax,
       );
+
+    /* 3. Probe effects: collision cleanup, auto-probe regeneration,
+     *    step-into focus resolution, and cursor reset */
+    let zipper =
+      ProbePerform.editor_effects(
+        ~is_edited,
+        ~syntax,
+        ~info_map=new_statics.info_map,
+        ~dynamics=new_dynamics,
+        zipper,
+      );
+
+    /* 4. Handle auto probe: probe follows cursor to current def */
+    let zipper =
+      if (autoprobe_mode) {
+        let z =
+          ProbePerform.update_autoprobe(
+            ~syntax,
+            ~info_map=new_statics.info_map,
+            zipper,
+          );
+        /* Resolve pending_probe_cursor again since update_autoprobe
+           may have set it after editor_effects already ran */
+        ProbePerform.resolve_pending_probe_cursor(
+          ~dynamics=new_dynamics,
+          ~syntax,
+          ~info_map=new_statics.info_map,
+          z,
+        );
+      } else {
+        /* If mode is off, clear any existing auto probe */
+        ProbePerform.clear_autoprobe(
+          ~syntax,
+          ~info_map=new_statics.info_map,
+          zipper,
+        );
+      };
 
     Model.{
       root,

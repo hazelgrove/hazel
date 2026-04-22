@@ -37,6 +37,7 @@ open AST
 %token <int> INT
 %token <float> FLOAT
 %token LET
+%token MODULE
 %token FUN
 %token CASE
 %token OPEN_SQUARE_BRACKET
@@ -45,11 +46,14 @@ open AST
 %token CLOSE_PAREN
 %token OPEN_TRIPLE_CURLY
 %token CLOSE_TRIPLE_CURLY
+%token OPEN_CURLY
+%token CLOSE_CURLY
 %token DASH_ARROW
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
 %token TURNSTILE
 %token TUPLE_EXTENSION
+%token DOT
 
 (* Poly ops *)
 %token DOUBLE_EQUAL
@@ -113,14 +117,19 @@ open AST
 
 
 
+/* Structural mixfix forms - loosest binding (bodies include flat sequences) */
 %nonassoc LET_EXP
-%right SEMI_COLON
-
 %right SUM_TYP
-
-
 %right DASH_ARROW
 %nonassoc IF_EXP
+
+/* Flat sequences - tighter than structural forms */
+%right SEMI_COLON
+
+/* Module item expression reduction: higher than SEMI_COLON so that inside
+   module bodies, the parser reduces exp to modItemExp rather than shifting
+   ';' for Seq. This only affects the modItemExp production. */
+%nonassoc MOD_ITEM_EXP
 
 %right L_OR
 %right L_AND
@@ -142,6 +151,8 @@ open AST
 %nonassoc TYP_AP_SYMBOL
 
 %left OPEN_PAREN CLOSE_PAREN
+%left DOT
+
 %left DOLLAR_SIGN
 
 %left TILDE
@@ -251,6 +262,10 @@ typ:
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
+    | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { TupleType([TupLabelType(LabelType(l), t)]) }
+    | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
+    | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
+    | OPEN_CURLY; items = separated_list(SEMI_COLON, sigItem); CLOSE_CURLY { Sig(items) }
 
 tupPatEntry:
     | p = pat {p}
@@ -323,6 +338,7 @@ unExp:
 tupExpEntry:
     | e = exp {e}
     | l = label; SINGLE_EQUAL; e = exp {TupLabel(Label(l), e)}
+    | WILD; SINGLE_EQUAL; e = exp {TupLabel(ExplicitNonlabel, e)}
 
 exp:
     | b = binExp { b }
@@ -330,25 +346,30 @@ exp:
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
-    | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
+    | l = QUOTED_LABEL { Label(l) }
+    | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) }
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | e = exp; COLON; t = typ { Asc(e, t) }
     | PROJECTOR_INVOKE; OPEN_PAREN; e = exp; CLOSE_PAREN; { e }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
-    | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
+    | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
     | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(l), e)]) }
     | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
-    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) } 
-    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) } 
+    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
+    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
+    | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
+    | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP
+    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(c), t), e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
-    | FALSE { Atom (Bool false) }    
+    | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
@@ -364,4 +385,27 @@ exp:
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = QUOTED_LABEL; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | UNDEF; {Undefined}
     | u = unExp { u }
-    | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) }
+    | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) } %prec PLUS
+    | e1 = exp; DOT; e2 = exp { Dot(e1, e2) }
+    | OPEN_CURLY; items = separated_list(SEMI_COLON, modItem); CLOSE_CURLY { Module(items) }
+
+/* Inside module bodies, semicolons are item separators, not Seq operators.
+   MOD_ITEM_EXP precedence is higher than SEMI_COLON, so when the parser
+   has a complete exp and sees ';', it reduces (treating ';' as a separator)
+   rather than shifting (which would try to parse Seq). */
+modItemExp:
+    | e = exp { e } %prec MOD_ITEM_EXP
+
+modItem:
+    | LET; i = pat; SINGLE_EQUAL; e = modItemExp { ModItemLet(i, e) }
+    | MODULE; i = IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(i), e) }
+    | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(c), e) }
+    | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(i), t), e) }
+    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(c), t), e) }
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { ModItemType(tp, ty) }
+    | e = modItemExp { ModItemExp(e) }
+
+sigItem:
+    | LET; p = pat { SigItemLet(p) }
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
+

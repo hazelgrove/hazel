@@ -15,8 +15,6 @@ module Model = {
     root: StepperBase.init_step,
   };
 
-  let get_state = (m: t) => StepperBase.Stepper.get_state(m.root);
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {root: StepperBase.persistent_step};
 
@@ -50,8 +48,7 @@ module Update = {
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
-        ~ctx: Calc.t(Ctx.t),
-        ~env: Calc.t(ClosureEnvironment.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         elab: Calc.t(Exp.t),
         ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
         {cached_elab_subst, root}: Model.t,
@@ -61,18 +58,14 @@ module Update = {
       cached_elab_subst
       |> {
         open Calc.Syntax;
-        let.calc elab = elab
-        and.calc env = env;
-        Substitution.subst(env |> ClosureEnvironment.map_of, elab);
+        let.calc elab = elab;
+        elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
       };
-    let state = Calc.OldValue(EvaluatorState.init);
     let (root, _, _) =
       StepperBase.Stepper.calculate(
         ~settings,
         ~ctx,
         ~exp=elab_subst,
-        ~env,
-        ~state,
         ~ana,
         root,
       );

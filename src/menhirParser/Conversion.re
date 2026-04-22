@@ -207,9 +207,20 @@ module Operators = {
   };
 };
 
+/* Convert an indicated Pat to an indicated MPat for module name position */
+let rec mpat_of_pat = (p: IndicatedG.pat): Language.Grammar.mpat_t(bool) => {
+  switch (p.term) {
+  | Var(name) => IndicatedG.MPat.var(name)
+  | Asc(inner, typ) => IndicatedG.MPat.asc(mpat_of_pat(inner), typ)
+  | Parens(inner) => mpat_of_pat(inner)
+  | _ => IndicatedG.MPat.empty_hole()
+  };
+};
+
 module rec Exp: {
   let of_menhir_ast: AST.exp => IndicatedG.exp;
   let of_core: IndicatedG.exp => AST.exp;
+  let pat_of_mpat: Language.Grammar.mpat_t(bool) => AST.pat;
   let get_indicated_ids:
     IndicatedG.exp => (Language.Exp.t, list(Language.Id.t));
 } = {
@@ -229,8 +240,16 @@ module rec Exp: {
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
+    | Dot(e1, e2) =>
+      switch (e2) {
+      | Var(s)
+      | Label(s)
+      | Constructor(s, None) => dot(of_menhir_ast(e1), label(s))
+      | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
+      | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
+      }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | Theorem(p, e1, e2) =>
@@ -325,6 +344,18 @@ module rec Exp: {
         annotation: true,
         term: of_menhir_ast(e).term,
       }
+    | Module(items) => module_(List.map(ModItem.of_menhir_ast, items))
+    | ModuleExp(p, e1, e2) =>
+      let mp = mpat_of_pat(Pat.of_menhir_ast(p));
+      module_exp(mp, of_menhir_ast(e1), of_menhir_ast(e2));
+    };
+  };
+
+  let rec pat_of_mpat = (mp: Language.Grammar.mpat_t(bool)): AST.pat => {
+    switch (mp.term) {
+    | Var(name) => VarPat(name)
+    | Asc(inner, typ) => AscPat(pat_of_mpat(inner), Typ.of_core(typ))
+    | _ => WildPat
     };
   };
 
@@ -377,20 +408,25 @@ module rec Exp: {
       )
     | Deferral(_) => Deferral
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
+    | MultiHole([Exp(e)]) => of_core(e) // unwrap single exp multi-holes. just used for label parse failure
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
-    | Probe(e, _) => of_core(e)
     | Constructor(s, typ) =>
       Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
     | DrvExp(_) => raise(Failure("DrvExp not supported")) // TODO(zhiyao)
+    | Projector(_, e) => of_core(e)
+    | Module(items) => Module(List.map(ModItem.of_core, items))
+    | ModuleExp(mp, def, body) =>
+      ModuleExp(pat_of_mpat(mp), of_core(def), of_core(body))
     };
   };
 
@@ -406,7 +442,10 @@ module rec Exp: {
           if (indicated) {
             Dynarray.add_last(indicated_ids, id);
           };
-          {ids: [id]};
+          {
+            ids: [id],
+            secondary: IdTagged.IdTag.empty_secondary,
+          };
         },
         indicated_exp,
       );
@@ -437,10 +476,15 @@ and Typ: {
     | TupleType([t]) => parens(of_menhir_ast(t))
     | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
     | LabelType(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    | ProdProjection(t1, t2) =>
+      prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
+    | ProdExtension(t1, t2) =>
+      prod_extension(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
       open Language;
       let converted_terms: list(ConstructorMap.variant(IndicatedG.typ)) =
@@ -448,7 +492,11 @@ and Typ: {
           (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
             switch (sumterm) {
             | Variant(name, typ) =>
-              Variant(name, [Id.mk()], Option.map(of_menhir_ast, typ))
+              Variant(
+                name,
+                ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+                Option.map(of_menhir_ast, typ),
+              )
             | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
             },
           sumterms,
@@ -459,6 +507,10 @@ and Typ: {
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
+    | Sig(items) => {
+        annotation: false,
+        term: Sig(List.map(SigItem.of_menhir_ast, items)),
+      }
     | IndicationTyp(t) => {
         annotation: true,
         term: of_menhir_ast(t).term,
@@ -492,7 +544,10 @@ and Typ: {
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
+    | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
+    | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
+    | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
     | Sum(constructors) =>
       let sumterms =
         List.map(
@@ -507,6 +562,8 @@ and Typ: {
         );
       SumTyp(sumterms);
     | DrvTyp(_) => raise(Failure("DrvTyp not supported")) // TODO(Zhiyao)
+    | Projector(_, t) => of_core(t)
+    | Sig(items) => Sig(List.map(SigItem.of_core, items))
     };
   };
 }
@@ -559,6 +616,7 @@ and Pat: {
         annotation: true,
         term: of_menhir_ast(p).term,
       }
+    | ExplicitNonlabel => explicit_non_label()
     };
   };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
@@ -577,9 +635,64 @@ and Pat: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Parens(p) => of_core(p)
-    | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
+    | Projector(_, p) => of_core(p)
+    };
+  };
+}
+and ModItem: {
+  let of_menhir_ast: AST.mod_item => IndicatedG.mod_;
+  let of_core: IndicatedG.mod_ => AST.mod_item;
+} = {
+  open IndicatedG.Mod;
+  let of_menhir_ast = (item: AST.mod_item): IndicatedG.mod_ => {
+    switch (item) {
+    | ModItemLet(p, e) =>
+      mod_let(Pat.of_menhir_ast(p), Exp.of_menhir_ast(e))
+    | ModItemType(tp, t) =>
+      mod_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    | ModItemExp(e) => mod_exp(Exp.of_menhir_ast(e))
+    | ModItemModule(p, e) =>
+      let mp = mpat_of_pat(Pat.of_menhir_ast(p));
+      module_mod(mp, Exp.of_menhir_ast(e));
+    };
+  };
+
+  let of_core = (mod_: IndicatedG.mod_): AST.mod_item => {
+    switch (mod_.term) {
+    | ModLet(p, e) => ModItemLet(Pat.of_core(p), Exp.of_core(e))
+    | ModType(tp, t) => ModItemType(TPat.of_core(tp), Typ.of_core(t))
+    | ModExp(e) => ModItemExp(Exp.of_core(e))
+    | ModuleMod(mp, e) =>
+      ModItemModule(Exp.pat_of_mpat(mp), Exp.of_core(e))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => ModItemExp(EmptyHole)
+    };
+  };
+}
+and SigItem: {
+  let of_menhir_ast: AST.sig_item => Language.Grammar.sig_t(bool);
+  let of_core: Language.Grammar.sig_t(bool) => AST.sig_item;
+} = {
+  open IndicatedG.Sig;
+  let of_menhir_ast = (item: AST.sig_item): Language.Grammar.sig_t(bool) => {
+    switch (item) {
+    | SigItemLet(p) => sig_let(Pat.of_menhir_ast(p))
+    | SigItemType(tp, t) =>
+      sig_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    };
+  };
+
+  let of_core = (sig_: Language.Grammar.sig_t(bool)): AST.sig_item => {
+    switch (sig_.term) {
+    | SigLet(p) => SigItemLet(Pat.of_core(p))
+    | SigType(tp, t) => SigItemType(TPat.of_core(tp), Typ.of_core(t))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => SigItemLet(EmptyHolePat)
     };
   };
 };

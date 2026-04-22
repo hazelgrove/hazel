@@ -1,16 +1,23 @@
-TEST_DIR="$(shell pwd)/_build/default/test"
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student grade echo-html-dir serve serve2 repl test clean setup-zarith
 
 all: dev
+
+# Install native BigInt runtime for zarith_stubs_js to fix WebWorker postMessage serialization.
+# The vendored runtime.js uses native JS BigInt (from zarith_stubs_js v0.17.0) which survives
+# structured clone, unlike the BigInteger.js library used in older versions.
+setup-zarith:
+	@echo "Installing native BigInt zarith runtime..."
+	@cp vendor/zarith_native_bigint_runtime.js "$$(opam var lib)/zarith_stubs_js/runtime.js"
 
 deps:
 	opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 	opam update
 	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
 	npm install
+	$(MAKE) setup-zarith
 
 change-deps:
 	opam update
@@ -25,7 +32,7 @@ setup-instructor:
 setup-student: 
 	cp src/web/exercises/settings/ExerciseSettings_student.re src/web/exercises/settings/ExerciseSettings.re
 
-dev-helper:
+dev-helper: setup-zarith
 	dune fmt --auto-promote || true
 	dune build @ocaml-index @src/fmt --auto-promote src --profile dev
 
@@ -36,17 +43,23 @@ dev-student: setup-student dev-helper
 fmt:
 	dune fmt --auto-promote
 
-watch: setup-instructor
+watch: setup-instructor setup-zarith
 	dune build @ocaml-index @src/fmt --auto-promote src --profile dev --watch
 
-watch-release: setup-instructor
+watch-release: setup-instructor setup-zarith
 	dune build @src/fmt --auto-promote src --profile release --watch
 
-release: setup-instructor
+release: setup-instructor setup-zarith
 	dune build @src/fmt --auto-promote src --profile release
 
-release-student: setup-student
+release-student: setup-student setup-zarith
 	dune build @src/fmt --auto-promote src --profile dev # Uses dev profile for performance reasons. It may be worth it to retest since the ocaml upgrade
+
+grade: 
+ifndef SUBMISSION
+	$(error Usage: make grade SUBMISSION=<path to submission json>)
+endif
+	python3 src/grading/grade/grade_individual.py $(SUBMISSION) .
 
 echo-html-dir:
 	@echo $(HTML_DIR)
@@ -65,12 +78,10 @@ repl:
 
 test:
 	dune fmt --auto-promote || true
-	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
-	node $(TEST_DIR)/haz3ltest.bc.js
+	dune build @ocaml-index @src/fmt @test/fmt @runtest --auto-promote --profile dev
 
 test-quick:
-	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
-	node $(TEST_DIR)/haz3ltest.bc.js -q
+	dune build @ocaml-index @src/fmt @test/fmt @test-quick --auto-promote --profile dev
 
 watch-test:
 	dune build @ocaml-index @fmt @runtest @default --profile dev --auto-promote --watch
@@ -80,7 +91,7 @@ coverage:
 	dune runtest --instrument-with bisect_ppx --force
 	bisect-ppx-report summary
 
-ci:
+ci: setup-zarith
 	dune build --profile dev
 	dune runtest --instrument-with bisect_ppx --force
 	

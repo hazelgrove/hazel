@@ -1,5 +1,10 @@
 /* PROJECTOR: FOLD */
 
+:root {
+  --fold-accent: var(--G0);
+  --fold-bkg: #293445;
+}
+
 .projector.fold:hover,
 .projector.indicated.fold {
   color: --var(BLACK);
@@ -7,6 +12,7 @@
 .projector.fold {
   cursor: pointer;
   font-family: var(--code-font);
+  z-index: var(--projector-hover-z);
 }
 
 .result .projector.fold {
@@ -39,60 +45,138 @@
 }
 
 .projector.fold .hover-view {
-  opacity: 0;
-  visibility: hidden;
+  transition: all 0.1s ease-out;
   position: absolute;
-}
-.projector.fold:hover .hover-view,
-.projector.fold .hover-view path:hover {
-  opacity: 1;
-  visibility: visible;
-  transition: opacity 0s ease 0.5s, visibility 0s linear 0.3s;
-  left: 0;
-  top: 0;
+  display: block;
+  left: 10px;
+  top: 0px;
+  filter: drop-shadow(-5px 0px 0px var(--fold-accent))
+    drop-shadow(5px 5px 5px #2105);
+  transform-origin: top left;
 }
 
 .projector.fold .hover-view {
-  filter: drop-shadow(3px 3px 2px #00000010);
+  animation: shadowSlideIn 0.15s ease-in;
+}
+
+.projector.fold .hover-view.collapsed {
+  display: none;
+}
+
+/* Always render mode: CSS-only toggle using checkbox hack */
+.projector.fold .fold-always-render {
+  cursor: pointer;
+  font-family: var(--code-font);
+}
+
+.projector.fold .fold-toggle-checkbox {
+  display: none !important;
+}
+
+/* Hide hover-view by default in always-render mode */
+.projector.fold .fold-always-render .hover-view.always-render {
+  display: none;
+}
+
+/* Show hover-view when checkbox is checked */
+.projector.fold .fold-toggle-checkbox:checked ~ .hover-view.always-render {
+  display: block;
+}
+
+/* Ensure animations work in always-render mode */
+.projector.fold .fold-always-render .hover-view.always-render {
+  transition: all 0.1s ease-out;
+  position: absolute;
+  left: 10px;
+  top: 0px;
+  filter: drop-shadow(-5px 0px 0px var(--fold-accent))
+    drop-shadow(5px 5px 5px #2105);
+  transform-origin: top left;
+  animation: shadowSlideIn 0.15s ease-in;
+}
+
+/* Hover effects for always-render mode */
+.projector.fold .fold-always-render:hover .hover-view.always-render,
+.projector.fold div:hover .hover-view {
+  left: 9px;
+  filter: drop-shadow(-4px 0px 0px var(--fold-accent))
+    drop-shadow(5px 5px 5px #2105);
+}
+
+@keyframes shadowSlideIn {
+  from {
+    left: 0;
+    filter: drop-shadow(0px 0px 0px var(--fold-accent))
+      drop-shadow(5px 5px 5px #2105);
+    transform: scale(0);
+  }
+  to {
+    left: 10px;
+    filter: drop-shadow(-5px 0px 0px var(--fold-accent))
+      drop-shadow(5px 5px 5px #2105);
+    transform: scale(1);
+  }
+}
+
+.projector.fold .hover-view .code .quick-select-deco {
+  filter: drop-shadow(8px 0px 0px var(--fold-bkg))
+    drop-shadow(5px 5px 5px #2105);
+}
+
+.projector.fold .hover-view .code-text {
+  position: absolute;
+  left: 4px;
+}
+
+.projector.fold .hover-view .code-text .token.Exp,
+.projector.fold .hover-view .code-text .token.Rul {
+  color: var(--SAND);
+}
+
+.projector.fold .hover-view .code .quick-select-deco + .quick-select-deco {
+  translate: 10px;
+}
+.projector.fold
+  .hover-view
+  .code
+  .quick-select-deco
+  + .quick-select-deco
+  svg.shard {
+  filter: none;
 }
 
 .projector.fold .hover-view svg {
-  --shadow: var(--BR3);
-  filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
+  transition: all 0.1s ease-out;
 }
+
+.projector.fold .hover-view svg path {
+  --fill: var(--fold-bkg);
+  fill: var(--fill);
+  stroke: var(--fill);
+}
+
+.projector.fold .hover-view:hover .code .quick-select-deco svg.shard {
+  filter: brightness(1.2);
+}
+
+.projector.fold div:hover + svg,
+.projector.fold div:has(.hover-view) + svg {
+  fill: var(--fold-accent) !important;
+  stroke-width: 1px;
+  stroke: var(--fold-accent);
+}
+
+.projector.fold div:hover,
+.projector.fold div:has(.hover-view) {
+  color: var(--SAND);
+}
+
 .projector.fold.Pat .hover-view svg {
   --shadow: var(--token-pat);
-}
-.projector.fold.Typ .hover-view svg {
-  --shadow: var(--token-typ);
-}
-.projector.fold.TPat .hover-view svg {
-  --shadow: var(--token-tpat);
 }
 
 .projector.fold .hover-view path {
   --fill: var(--shard-exp);
   fill: var(--fill);
   stroke: var(--fill);
-}
-.projector.fold.Pat .hover-view path {
-  --fill: var(--shard-pat);
-}
-.projector.fold.Typ .hover-view path {
-  --fill: var(--shard-typ);
-}
-.projector.fold.TPat .hover-view path {
-  --fill: var(--shard-tpat);
-}
-
-.projector.fold.Pat.indicated > svg path {
-  fill: var(--shard-pat);
-}
-
-.projector.fold.Typ.indicated > svg path {
-  fill: var(--shard-typ);
-}
-
-.projector.fold.TPat.indicated > svg path {
-  fill: var(--shard-tpat);
 }

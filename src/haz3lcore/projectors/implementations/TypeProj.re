@@ -34,7 +34,7 @@ module M: Projector = {
   type action =
     | ToggleDisplay;
 
-  let init = (any: Term.Any.t): option(model) => {
+  let init = (any: Any.t): option(model) => {
     switch (any) {
     | Exp(_)
     | Pat(_) => Some(Expected)
@@ -72,7 +72,11 @@ module M: Projector = {
     let typ = display_ty(model, info.statics) |> totalize_ty;
     div(
       ~attrs=[Attr.classes(["type-cell"])],
-      [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
+      [
+        Typ(typ)
+        |> utility.term_to_seg
+        |> view_seg(~single_line=true, Sort.Typ),
+      ],
     );
   };
 
@@ -82,36 +86,20 @@ module M: Projector = {
     | (ToggleDisplay, Self) => Expected
     };
 
-  let syntax_str = (info: info) => {
-    let max_len = 30;
-    let seg = Segment.unparenthesize(info.syntax);
-    let str = info.utility.seg_to_string(seg);
-    let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
-    String.length(str) > max_len
-      ? String.sub(str, 0, max_len) ++ "..." : str;
-  };
+  let placeholder = (_, _) => ProjectorCore.Shape.default;
 
-  let placeholder = (_m, info) =>
-    ProjectorCore.Shape.inline(3 + String.length(syntax_str(info)));
-
-  let syntax_view = (info: info) => info |> syntax_str |> text;
-
-  let icon = div(~attrs=[Attr.classes(["icon"])], []);
-
-  let view = (model, info, ~local, ~parent as _, ~view_seg) =>
+  let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>
     View.{
-      inline:
-        div(
-          ~attrs=[
-            Attr.classes(["main"]),
-            Attr.on_double_click(_ => local(ToggleDisplay)),
-          ],
-          [syntax_view(info), icon],
-        ),
+      inline: div([]),
       offside:
         Some(
           div(
-            ~attrs=[Attr.classes(["offside"])],
+            ~attrs=[
+              Attr.id(Id.cls(info.id)),
+              Attr.tabindex(0),
+              Attr.classes(["offside"]),
+              Attr.on_double_click(_ => local(ToggleDisplay)),
+            ],
             [
               mode_view(model, info.statics),
               typ_view(model, info, info.utility, view_seg),

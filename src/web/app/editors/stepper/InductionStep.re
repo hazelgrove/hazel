@@ -13,11 +13,11 @@ type model'('stepper) = {
   scrut: CodeEditable.Model.t,
   cases: list(InductionCase.model'('stepper)),
   // Calculated
-  elab_scrut: Calc.saved(Exp.t),
+  elab_scrut_raw: Calc.saved(Exp.t),
+  elab_scrut_sub: Calc.saved(Exp.t),
   scrut_ty: Calc.saved(Typ.t),
   scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
-  result_state: Calc.saved(EvaluatorState.t),
   join_exp: Calc.saved(Exp.t),
   is_exhaustive: Calc.saved(bool),
   validity: Calc.saved(option(bool)),
@@ -62,11 +62,11 @@ let init = (~exp: option(Exp.t)=?, ()) => {
   {
     scrut,
     cases: [],
-    elab_scrut: Calc.Pending,
+    elab_scrut_raw: Calc.Pending,
+    elab_scrut_sub: Calc.Pending,
     scrut_ty: Calc.Pending,
     scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
-    result_state: Calc.Pending,
     join_exp: Calc.Pending,
     is_exhaustive: Calc.Pending,
     validity: Calc.Pending,
@@ -110,11 +110,11 @@ module F =
     {
       scrut: CodeEditable.Model.unpersist(p.scrut),
       cases: List.map(InductionCase.unpersist, p.cases),
-      elab_scrut: Calc.Pending,
+      elab_scrut_raw: Calc.Pending,
+      elab_scrut_sub: Calc.Pending,
       scrut_ty: Calc.Pending,
       scrut_co_ctx: Calc.Pending,
       result: Calc.Pending,
-      result_state: Calc.Pending,
       join_exp: Calc.Pending,
       is_exhaustive: Calc.Pending,
       validity: Calc.Pending,
@@ -139,7 +139,7 @@ module F =
             ...model,
             cases: ListUtil.put_nth(i, new_case, model.cases),
           };
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       | AddCase =>
         let new_case = InductionCase.init;
@@ -156,7 +156,7 @@ module F =
             cases: new_cases,
           }
           |> return
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       }
     );
@@ -175,22 +175,20 @@ module F =
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx: Calc.t(Ctx.t),
-        ~env: Calc.t(ClosureEnvironment.t),
-        ~state: Calc.t(EvaluatorState.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _,
-        ~info_map as _,
+        ~info_map,
         ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let {
       scrut,
       cases,
-      elab_scrut,
+      elab_scrut_raw,
+      elab_scrut_sub,
       scrut_ty,
       scrut_co_ctx,
       result: _,
-      result_state: _,
       join_exp,
       is_exhaustive,
       validity,
@@ -198,19 +196,27 @@ module F =
     let scrut =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
-        ~ctx=Calc.get_value(ctx),
+        ~ctx=Calc.get_value(ctx).ctx,
         ~dynamics=Dynamics.Map.empty,
         ~is_edited=true,
         ~stitch=x => x,
         ~is_dynamic_term=true,
         scrut,
       );
-    let elab_scrut =
+    let elab_scrut_raw =
       Calc.set(
         ~eq=Exp.fast_equal,
         CodeEditable.Model.get_statics(scrut).elaborated,
-        elab_scrut,
+        elab_scrut_raw,
       );
+    let elab_scrut_sub =
+      elab_scrut_sub
+      |> {
+        let.calc raw = elab_scrut_raw
+        and.calc sem_ctx = ctx;
+        let env = SemanticCtx.get_env(sem_ctx);
+        Substitution.in_exp(env, raw);
+      };
     let scrut_ty = {
       let self_ty =
         switch (
@@ -243,11 +249,10 @@ module F =
           ~settings,
           ~scrut_ty,
           ~scrut_co_ctx,
-          ~elab_scrut,
+          ~elab_scrut=elab_scrut_sub,
           ~ctx,
-          ~env,
+          ~info_map,
           ~exp,
-          ~state,
           ~ana,
         ),
         cases,
@@ -283,8 +288,12 @@ module F =
         and.calc ctx = ctx
         and.calc scrut_ty = scrut_ty;
         let constraints = List.filter_map(Fun.id, constraints);
-        Coverage.check(constraints, Typ.normalize(ctx, scrut_ty)).
-          is_exhaustive;
+        Coverage.check(
+          constraints,
+          Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
+        ).
+          exhaustiveness
+        == Exhaustive;
       };
 
     let validity =
@@ -305,23 +314,22 @@ module F =
       };
 
     let result = exp |> Calc.save;
-    let result_state = state |> Calc.save;
 
     Some((
       {
         scrut,
         cases,
-        elab_scrut: elab_scrut |> Calc.save,
+        elab_scrut_raw: elab_scrut_raw |> Calc.save,
+        elab_scrut_sub: elab_scrut_sub |> Calc.save,
         scrut_ty: scrut_ty |> Calc.save,
         scrut_co_ctx: scrut_co_ctx |> Calc.save,
         result,
-        result_state,
         join_exp: join_exp |> Calc.save,
         is_exhaustive: is_exhaustive |> Calc.save,
         validity: validity |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((Calc.OldValue(Exp.fresh(Atom(Bool(true)))), state)),
+      Some(Calc.OldValue(Exp.fresh(Atom(Bool(true))))),
       validity,
     ));
   };
@@ -395,6 +403,7 @@ module F =
           | Some(_)
           | None => false
           },
+        ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );
 

@@ -46,6 +46,7 @@ let exp_show =
       editor,
       statics,
       dynamics: Dynamics.Map.empty,
+      context_menu: None,
     },
   );
 };
@@ -79,6 +80,7 @@ let test_show =
         editor,
         statics: CachedStatics.empty,
         dynamics: Dynamics.Map.empty,
+        context_menu: None,
       },
     );
   };

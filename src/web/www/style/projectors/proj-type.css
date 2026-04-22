@@ -9,26 +9,26 @@
 
 /* BACKING */
 
-.projector.type > svg {
+.projector.statics > svg {
   filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
 }
 
-.projector.type.indicated > svg {
+.projector.statics.indicated > svg {
   fill: var(--main-indicated);
   filter: drop-shadow(0.7px 0.7px 0px var(--main-shadow));
 }
 
-.projector.type.selected > svg {
+.projector.statics.selected > svg {
   filter: none;
 }
 
 /* INLINE VIEW */
 
-.projector.type:hover {
+.projector.statics:hover {
   color: var(--BLACK);
 }
 
-.projector.type .main {
+.projector.statics .main {
   font-family: var(--code-font);
   font-size: var(--base-font-size);
   color: var(--code-text);
@@ -38,59 +38,72 @@
   gap: 0.4em;
 }
 
-.projector.type.indicated:not(.selected):not(.error) .main {
+.projector.statics.indicated:not(.selected):not(.error) .main {
   color: white;
 }
 
-.projector.type .icon {
+.projector.statics .icon {
   width: 16px;
   height: 16px;
   background-image: url(../../img/noun-microscope-7023456.svg);
   background-size: cover;
   filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(245deg);
 }
-.projector.type.indicated:not(.selected):not(.error) .main .icon {
+.projector.statics.indicated:not(.selected):not(.error) .main .icon {
   filter: invert(1);
 }
 
 /* OFFSIDE VIEW */
 
-.projector.type .offside {
+.projector.statics .offside {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.6em;
+  cursor: pointer;
 }
 
-.projector.type .offside .mode {
+.projector.statics .offside .mode {
   font-weight: 800;
   color: var(--main-base);
   filter: brightness(0.9);
 }
 
-.projector.type.indicated .offside .mode {
+.projector.statics.indicated .offside .mode {
   opacity: 100%;
   color: var(--main-indicated);
 }
 
-.projector.type .offside .type-cell {
+.projector.statics .offside .type-cell {
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   background-color: var(--main-base);
   border-bottom: 1px solid var(--main-indicated);
 }
 
-.projector.type.indicated .offside .type-cell {
+.projector.statics.indicated .offside .type-cell {
   outline-width: 1px;
   outline-style: solid;
   outline-color: var(--main-indicated);
   border-color: var(--main-indicated);
 }
 
-.projector.type .offside .code {
+.projector.statics .offside .code {
   position: relative;
   line-height: initial;
 }
 
-.projector.type .offside .code .token.explicit-hole {
+.projector.statics .offside .code .token.explicit-hole {
   color: white;
+}
+
+/* REFRACTOR MODE */
+/* When Type is used as a refractor (skip_inline=true), hide backing */
+.refractors .base .projector.statics > svg {
+  display: none;
+}
+.refractors .base .projector.statics {
+  pointer-events: none;
+}
+.refractors .base .projector.statics .offside {
+  pointer-events: all;
 }

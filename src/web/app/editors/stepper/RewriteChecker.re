@@ -6,7 +6,7 @@ let name_other = (): (Exp.t => string) => {
   let names: ref(list((Exp.t, string))) = ref([]);
   (exp: Exp.t) => (
     {
-      switch (ListUtil.assoc_opt_by(DHExp.fast_equal, exp, names^)) {
+      switch (ListUtil.assoc_opt_by(Equality.semantic.exp, exp, names^)) {
       | Some(name) => name
       | None =>
         let new_name =
@@ -77,6 +77,8 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   print_endline("Checking rewrite:");
   print_endline("From: " ++ left_str);
   print_endline("To:   " ++ right_str);
+  print_endline("e1: " ++ Exp.show(from_));
+  print_endline("e2: " ++ Exp.show(to_));
   if (left_str == "Unknown" || right_str == "Unknown") {
     false;
   } else {

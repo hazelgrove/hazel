@@ -38,6 +38,39 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
     xs,
   );
 
+/**
+  Groups consecutive elements that satisfy a predicate.
+
+  Unlike [group_by], this only groups elements that are adjacent in the list.
+  The predicate compares against the first element of the current group.
+
+  @param should_group
+  Predicate taking (representative, candidate) - returns true if candidate
+  should be grouped with representative (first element of current group).
+
+  @param xs
+  The list of elements to be grouped.
+
+  @return
+  A list of groups, where each group is a list of consecutive elements
+  that satisfied the predicate. Groups are in reverse order.
+*/
+let group_consecutive =
+    (should_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) =>
+  List.fold_left(
+    (acc: list(list('a)), item: 'a) =>
+      switch (acc) {
+      | [] => [[item]]
+      | [[rep, ..._] as first, ...rest] when should_group(rep, item) => [
+          first @ [item],
+          ...rest,
+        ]
+      | _ => [[item], ...acc]
+      },
+    [],
+    xs,
+  );
+
 let rec range = (~lo: int=0, hi: int) =>
   if (lo > hi) {
     raise(Invalid_argument("ListUtil.range"));
@@ -290,6 +323,8 @@ let rec zip_defaults =
     ]
   };
 
+let opt_zip = combine_opt;
+
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
   | (_, []) => []
@@ -393,29 +428,31 @@ let rec flat_intersperse = (sep, xss) =>
   };
 
 /* Given two lists, return their maximum common suffix */
-let max_common_suffix = (a: list('a), b: list('a)): list('a) => {
+let max_common_suffix =
+    (~eq: ('a, 'a) => bool=(==), a: list('a), b: list('a)): list('a) => {
   let rec loop = (a, b, acc) =>
     switch (a, b) {
     | ([], _)
     | (_, []) => acc
-    | ([ha, ...ta], [hb, ...tb]) when ha == hb =>
+    | ([ha, ...ta], [hb, ...tb]) when eq(ha, hb) =>
       loop(ta, tb, [ha, ...acc])
     | _ => acc
     };
   loop(List.rev(a), List.rev(b), []);
 };
 
-let common_suffix_length = (s1, s2) =>
-  List.length(max_common_suffix(s1, s2));
+let common_suffix_length = (~eq: ('a, 'a) => bool=(==), s1, s2) =>
+  List.length(max_common_suffix(~eq, s1, s2));
 
-let is_suffix_of = (s1, s2) =>
-  common_suffix_length(s1, s2) == List.length(s1);
+let is_suffix_of = (~eq: ('a, 'a) => bool=(==), s1, s2) =>
+  common_suffix_length(~eq, s1, s2) == List.length(s1);
 
 /* Returns Some(depth) if xs is a suffix of ys at depth, None otherwise */
 
-let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
+let suffix_at_depth =
+    (~eq: ('a, 'a) => bool=(==), xs: list('a), ys: list('a)): option(int) => {
   let rec go = (depth: int, xs, ys): option(int) =>
-    if (xs == ys) {
+    if (List.equal(eq, xs, ys)) {
       Some(depth);
     } else {
       switch (ys) {
@@ -426,15 +463,15 @@ let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
   go(0, xs, ys);
 };
 
-/* list truncated after at most n elementsnts */
+/* list truncated after at most n elements */
 let truncate = (n: int, xs: list('a)): list('a) => {
-  let rec loop = (n, xs, acc) =>
+  let rec loop = (n: int, xs: list('a), acc: list('a)): list('a) =>
     switch (n, xs) {
     | (0, _) => acc
     | (_, []) => acc
     | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
     };
-  loop(n, xs, []);
+  List.rev(loop(n, xs, []));
 };
 
 /* list without the first n elements, recurse into list until 0 then return rest */
@@ -501,6 +538,9 @@ let rec fold_left_opt =
   };
 };
 
+let intersection_f = (f: 'a => 'b, xs, ys) =>
+  List.filter((x: 'a) => List.exists((y: 'a) => f(x) == f(y), ys), xs);
+
 let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
   let rec aux = (acc: list('y), remaining: list('x)) => {
     switch (remaining) {
@@ -514,6 +554,46 @@ let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
   aux([], xs);
 };
 
+let rec fold_left2_opt =
+        (
+          f: ('a, 'b, 'c) => option('a),
+          acc: 'a,
+          xs: list('b),
+          ys: list('c),
+        )
+        : option('a) => {
+  switch (xs, ys) {
+  | ([], []) => Some(acc)
+  | ([x, ...xs], [y, ...ys]) =>
+    switch (f(acc, x, y)) {
+    | None => None
+    | Some(acc') => fold_left2_opt(f, acc', xs, ys)
+    }
+  | _ => None
+  };
+};
+
+/**
+ * Similar to List.for_all2 but for functions that return option(bool)
+ * Returns None if any call returns None
+ * Returns Some(false) if any call returns Some(false)
+ * Returns Some(true) if all calls return Some(true)
+ */
+let rec forall2_opt =
+        (f: ('a, 'b) => option(bool), l1: list('a), l2: list('b))
+        : option(bool) => {
+  switch (l1, l2) {
+  | ([], []) => Some(true)
+  | ([x1, ...rest1], [x2, ...rest2]) =>
+    switch (f(x1, x2)) {
+    | None => None
+    | Some(false) => Some(false)
+    | Some(true) => forall2_opt(f, rest1, rest2)
+    }
+  | _ => Some(false) // Different lengths
+  };
+};
+
 let assoc_opt_by = (eq, key, assoc) => {
   let rec find = lst =>
     switch (lst) {
@@ -521,4 +601,46 @@ let assoc_opt_by = (eq, key, assoc) => {
     | [(k, v), ...rest] => eq(key, k) ? Some(v) : find(rest)
     };
   find(assoc);
+};
+
+let assoc_update = (key, f, assoc) => {
+  let rec go = lst =>
+    switch (lst) {
+    | [] =>
+      switch (f(None)) {
+      | Some(v) => [(key, v)]
+      | None => []
+      }
+    | [(k, v), ...rest] =>
+      if (k == key) {
+        switch (f(Some(v))) {
+        | Some(v') => [(k, v'), ...rest]
+        | None => rest
+        };
+      } else {
+        [(k, v), ...go(rest)];
+      }
+    };
+  go(assoc);
+};
+
+let remove_assoc = (key, assoc) =>
+  List.filter(((k, _)) => k != key, assoc);
+
+let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    Some(
+      List.fold_left(
+        (current_max, candidate) =>
+          switch (cmp(current_max, candidate)) {
+          | Left => current_max
+          | Right => candidate
+          },
+        x,
+        xs,
+      ),
+    )
+  };
 };

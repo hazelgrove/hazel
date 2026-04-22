@@ -1,14 +1,27 @@
-open Util;
+// A generic key-value store backed by IndexedDB (via HazelDB cache)
 
-// A generic key-value store for saving/loading data to/from local storage
+/* Legacy localStorage read — for one-time migration of pre-existing
+   data to IndexedDB. Safe to remove once all users have upgraded. */
+let legacy_get = (k: string): option(string) =>
+  try({
+    let local_store =
+      Js_of_ocaml.Dom_html.window##.localStorage
+      |> Js_of_ocaml.Js.Optdef.get(_, () => assert(false));
+    local_store##getItem(Js_of_ocaml.Js.string(k))
+    |> (
+      x =>
+        Js_of_ocaml.Js.Opt.get(x, () => assert(false))
+        |> Js_of_ocaml.Js.to_string
+        |> Option.some
+    );
+  }) {
+  | _ => None
+  };
 
 type key =
   | Settings
   | ExplainThis
-  | Assistant
   | Mode
-  | Scratch
-  | Documentation
   | Tutorial(Haz3lcore.Id.t)
   | CurrentTutorial
   | CurrentExercise
@@ -20,10 +33,7 @@ let key_to_string =
   fun
   | Settings => "SETTINGS"
   | ExplainThis => "ExplainThisModel"
-  | Assistant => "AssistantModel"
   | Mode => "MODE"
-  | Scratch => "SAVE_SCRATCH"
-  | Documentation => "SAVE_DOCUMENTATION"
   | Tutorial(id) => Haz3lcore.Id.to_string(id)
   | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"
@@ -48,37 +58,47 @@ module F =
     data |> sexp_of_t |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize = (data: string, default: unit => t) =>
+  let deserialize = (data: string, default: t) =>
     try(data |> Sexplib.Sexp.of_string |> t_of_sexp) {
     | _ =>
       print_endline("Could not deserialize " ++ key_to_string(key) ++ ".");
-      default();
+      default;
     };
 
-  let save = (data: t): unit =>
-    JsUtil.set_localstore(key_to_string(key), serialize(data));
+  let save = (data: t): unit => {
+    let serialized = serialize(data);
+    HazelDB.kv_save(key_string, serialized);
+  };
 
-  let init = () => {
-    JsUtil.set_localstore(key_to_string(key), serialize(default()));
+  let reset = () => {
+    save(default());
     default();
   };
 
+  /* Load from IndexedDB cache, falling back to legacy localStorage
+     for migration of pre-existing data. */
   let load = (): t =>
-    switch (JsUtil.get_localstore(key_to_string(key))) {
-    | None => init()
-    | Some(data) => deserialize(data, default)
+    switch (HazelDB.kv_get(key_string)) {
+    | Some(data) => deserialize(data, default())
+    | None =>
+      switch (legacy_get(key_string)) {
+      | None => default()
+      | Some(data) => deserialize(data, default())
+      }
     };
 
-  let rec export = () =>
-    switch (JsUtil.get_localstore(key_to_string(key))) {
-    | None =>
-      let _ = init();
-      export();
+  let export = () =>
+    switch (HazelDB.kv_get(key_string)) {
     | Some(data) => data
+    | None =>
+      switch (legacy_get(key_string)) {
+      | None => serialize(default())
+      | Some(data) => data
+      }
     };
 
   let import = data => {
-    let data = deserialize(data, default);
+    let data = deserialize(data, default());
     save(data);
   };
 };

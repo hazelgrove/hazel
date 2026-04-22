@@ -1236,6 +1236,7 @@ let exercise : DerivationTree.spec =
               ];
           };
         caret = Inner 0;
+        refractors = Haz3lcore.Refractors.init;
       };
     setup =
       {
@@ -1265,6 +1266,7 @@ let exercise : DerivationTree.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.Refractors.init;
       };
     corpus = ALFp;
     trees =
@@ -1741,6 +1743,7 @@ let exercise : DerivationTree.spec =
                           ];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some A_Fun;
               },
@@ -2103,6 +2106,7 @@ let exercise : DerivationTree.spec =
                               ancestors = [];
                             };
                           caret = Outer;
+                          refractors = Haz3lcore.Refractors.init;
                         };
                       rule = Some A_If;
                     },
@@ -2305,6 +2309,7 @@ let exercise : DerivationTree.spec =
                                     ancestors = [];
                                   };
                                 caret = Outer;
+                                refractors = Haz3lcore.Refractors.init;
                               };
                             rule = Some A_Subsumption;
                           },
@@ -2505,6 +2510,7 @@ let exercise : DerivationTree.spec =
                                           ancestors = [];
                                         };
                                       caret = Outer;
+                                      refractors = Haz3lcore.Refractors.init;
                                     };
                                   rule = Some S_Var;
                                 },
@@ -2703,6 +2709,7 @@ let exercise : DerivationTree.spec =
                                     ancestors = [];
                                   };
                                 caret = Outer;
+                                refractors = Haz3lcore.Refractors.init;
                               };
                             rule = Some A_Subsumption;
                           },
@@ -2904,6 +2911,7 @@ let exercise : DerivationTree.spec =
                                           ancestors = [];
                                         };
                                       caret = Outer;
+                                      refractors = Haz3lcore.Refractors.init;
                                     };
                                   rule = Some S_False;
                                 },
@@ -3102,6 +3110,7 @@ let exercise : DerivationTree.spec =
                                     ancestors = [];
                                   };
                                 caret = Outer;
+                                refractors = Haz3lcore.Refractors.init;
                               };
                             rule = Some A_Subsumption;
                           },
@@ -3303,6 +3312,7 @@ let exercise : DerivationTree.spec =
                                           ancestors = [];
                                         };
                                       caret = Outer;
+                                      refractors = Haz3lcore.Refractors.init;
                                     };
                                   rule = Some S_True;
                                 },
@@ -3959,6 +3969,7 @@ let exercise : DerivationTree.spec =
                           ];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some S_Ap;
               },
@@ -4180,6 +4191,7 @@ let exercise : DerivationTree.spec =
                               ancestors = [];
                             };
                           caret = Outer;
+                          refractors = Haz3lcore.Refractors.init;
                         };
                       rule = Some S_Var;
                     },

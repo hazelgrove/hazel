@@ -14,14 +14,19 @@ type cls =
   | Prod
   | TupLabel
   | Label
+  | ExplicitNonlabel
   | Sum
   | List
   | Var
   | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
+  | Projector
   | Rec
   | Poly
-  | ProofOf;
+  | ProofOf
+  | ProdProjection
+  | ProdExtension
+  | Sig;
 
 include TermBase.Typ;
 
@@ -36,9 +41,7 @@ let fresh: term => t = IdTagged.fresh;
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-    },
+    annotation: IdTagged.IdTag.temp(),
   };
 
 let all_ids_temp = {
@@ -49,9 +52,7 @@ let all_ids_temp = {
     (continue, exp) =>
       {
         term: exp.term,
-        annotation: {
-          ids: [Id.invalid],
-        },
+        annotation: IdTagged.IdTag.temp(),
       }
       |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
@@ -90,11 +91,16 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Prod(_) => Prod
   | TupLabel(_) => TupLabel
   | Label(_) => Label
+  | ExplicitNonlabel => ExplicitNonlabel
   | Parens(_) => Parens
+  | Projector(_) => Projector
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
-  | ProofOf(_) => ProofOf;
+  | ProofOf(_) => ProofOf
+  | ProdProjection(_) => ProdProjection
+  | ProdExtension(_) => ProdExtension
+  | Sig(_) => Sig;
 
 let show_cls: cls => string =
   fun
@@ -110,17 +116,23 @@ let show_cls: cls => string =
   | List => "List type"
   | Arrow => "Function type"
   | Prod => "Tuple type"
-  | TupLabel => "Labeled tuple item type"
+  | TupLabel => "Tuple item type"
   | Label => "Label"
+  | ExplicitNonlabel => "Explicitly unlabeled tuple item type"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
+  | Projector => "Projector type"
   | Rec => "Recursive type"
   | Poly => "Type quantifier"
-  | ProofOf => "Proof type";
+  | ProofOf => "Proof type"
+  | ProdProjection => "Tuple projection"
+  | ProdExtension => "Tuple extension"
+  | Sig => "Signature type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
+  | Projector(_, typ)
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
@@ -128,12 +140,16 @@ let rec is_arrow = (typ: t) => {
   | DrvTyp(_)
   | List(_)
   | Label(_)
+  | ExplicitNonlabel
   | Prod(_)
   | Var(_)
   | Sum(_)
   | Poly(_)
   | ProofOf(_)
-  | Rec(_) => false
+  | Rec(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 };
 
@@ -143,22 +159,29 @@ let is_atom = (ty: t): bool =>
   | DrvTyp(_)
   | ProofOf(_)
   | Parens(_)
+  | Projector(_)
   | TupLabel(_)
   | Arrow(_)
   | Unknown(_)
   | List(_)
   | Label(_)
+  | ExplicitNonlabel
   | Prod(_)
   | Var(_)
   | Sum(_)
   | Poly(_)
-  | Rec(_) => false
+  | Rec(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
-  | Parens(typ) => has_fun(typ)
-  | TupLabel(_, typ) => has_fun(typ)
+  | Parens(typ)
+  | Projector(_, typ)
+  | TupLabel(_, typ)
+  | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
   | Poly(_)
   | ProofOf(_) => true
@@ -166,6 +189,7 @@ let rec has_fun = (typ: t) =>
   | Atom(_)
   | DrvTyp(_)
   | Label(_)
+  | ExplicitNonlabel
   | Var(_) => false
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
@@ -177,11 +201,14 @@ let rec has_fun = (typ: t) =>
       sm,
     )
   | Prod(tys) => List.exists(has_fun, tys)
+  | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
+  | Sig(_) => false
   };
 
 let rec is_poly = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
+  | Projector(_, typ)
   | TupLabel(_, typ) => is_poly(typ)
   | Poly(_) => true
   | ProofOf(_)
@@ -191,10 +218,14 @@ let rec is_poly = (typ: t) => {
   | Arrow(_)
   | List(_)
   | Label(_)
+  | ExplicitNonlabel
   | Prod(_)
   | Var(_)
   | Sum(_)
-  | Rec(_) => false
+  | Rec(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 };
 
@@ -217,10 +248,10 @@ type source = {
 let of_source = List.map((source: source) => source.ty);
 
 /* How type provenance information should be collated when
-   joining unknown types. This probably requires more thought,
+   meeting unknown types. This probably requires more thought,
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
-let join_type_provenance =
+let meet_type_provenance =
     (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
     : TermBase.type_provenance =>
   switch (p1, p2) {
@@ -242,29 +273,35 @@ let rec match_tup_optional_label = (ty: t) =>
   | Unknown(_) => Some((None, ty))
   | _ => None
   };
-let match_tup_label = ty =>
+let match_tup_label = ty => {
   switch (match_tup_optional_label(ty)) {
   | Some((Some(name), t')) => Some((name, t'))
   | _ => None
   };
+};
 
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
   | DrvTyp(_)
-  | Label(_) => []
+  | Label(_)
+  | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
-  | Parens(ty) => free_vars(~bound, ty)
+  | Parens(ty)
+  | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
+  | ProdExtension(t1, t2)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => List.concat_map(free_vars(~bound), tys)
+  | ProdProjection(t1, _) => free_vars(~bound, t1)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
   | Poly(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   | ProofOf(_) => []
+  | Sig(_) => []
   };
 
 let rec vars = (ty: t): list(Var.t) =>
@@ -288,15 +325,19 @@ let rec vars = (ty: t): list(Var.t) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Rec(_, ty) => vars(ty)
   | List(ty) => vars(ty)
-  | Parens(ty) => vars(ty)
+  | Parens(ty)
+  | Projector(_, ty) => vars(ty)
   | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Poly(_, ty) => vars(ty)
   | ProofOf(_) => []
+  | ExplicitNonlabel
   | Label(_) => []
-  | TupLabel(_, ty) => vars(ty)
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => vars(ty)
+  | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Sig(_) => []
   };
-
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
     List.concat_map(
@@ -345,11 +386,16 @@ let rec num_nodes = (ty: t): int => {
       )
   | Rec(_, ty) => 1 + num_nodes(ty)
   | List(ty) => 1 + num_nodes(ty)
-  | Parens(ty) => 1 + num_nodes(ty)
+  | Parens(ty)
+  | Projector(_, ty) => 1 + num_nodes(ty)
   | Poly(_, ty) => 1 + num_nodes(ty)
+  | ExplicitNonlabel
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
   | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
+  | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | Sig(_) => 1
   };
 };
 
@@ -376,11 +422,16 @@ let rec count_unknowns = (ty: t): int =>
     )
   | Rec(_, ty) => count_unknowns(ty)
   | List(ty) => count_unknowns(ty)
-  | Parens(ty) => count_unknowns(ty)
+  | Parens(ty)
+  | Projector(_, ty) => count_unknowns(ty)
   | Poly(_, ty) => count_unknowns(ty)
   | ProofOf(_) => 0
+  | ExplicitNonlabel
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
+  | ProdProjection(ty1, _) => count_unknowns(ty1)
+  | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Sig(_) => 0
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
@@ -394,12 +445,55 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Prod(tys) => List.exists(contains_sum_or_var, tys)
   | Rec(_, ty) => contains_sum_or_var(ty)
   | List(ty) => contains_sum_or_var(ty)
-  | Parens(ty) => contains_sum_or_var(ty)
+  | Parens(ty)
+  | Projector(_, ty) => contains_sum_or_var(ty)
   | Poly(_, ty) => contains_sum_or_var(ty)
   | ProofOf(_) => false
+  | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
+  | ProdExtension(ty1, ty2) =>
+    contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
+  | ExplicitNonlabel
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
+  | Sig(_) => false
   };
+
+let rec subst = (s: t, x: TPat.t, ty: t): t => {
+  switch (TPat.tyvar_of_utpat(x)) {
+  | Some(str) =>
+    let (term, rewrap) = Annotated.unwrap(ty);
+    switch (term) {
+    | Atom(_) => ty
+    | Label(name) => Grammar.Label(name) |> rewrap
+    | ExplicitNonlabel => ExplicitNonlabel |> rewrap
+    | Unknown(prov) => Unknown(prov) |> rewrap
+    | Arrow(ty1, ty2) =>
+      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+    | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
+    | Sum(sm) =>
+      Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
+    | Poly(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      Poly(tp2, ty) |> rewrap
+    | Poly(tp2, ty) => Poly(tp2, subst(s, x, ty)) |> rewrap
+    | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      Rec(tp2, ty) |> rewrap
+    | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
+    | List(ty) => List(subst(s, x, ty)) |> rewrap
+    | Var(y) => str == y ? s : Var(y) |> rewrap
+    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+    | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
+    | ProdProjection(t1, t2) =>
+      ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+    | ProdExtension(t1, t2) =>
+      ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+    | ProofOf(e) => ProofOf(e) |> rewrap
+    | Sig(_) => ty
+    | DrvTyp(_) => ty
+    };
+  | None => ty
+  };
+};
 
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
@@ -409,40 +503,292 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
+let fast_equal = Equality.semantic.typ;
+let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
-/* Lattice join on types. This is a LUB join in the hazel2
-   sense in that any type dominates Unknown. The optional
-   resolve parameter specifies whether, in the case of a type
-   variable and a succesful join, to return the resolved join type,
-   or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(~resolve, ctx);
+let project_type = (tys: list(t), label: string): option(t) =>
+  switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
+  | Some({term: TupLabel(_, ty), _}) => Some(ty)
+  | _ => None
+  };
+
+let product_extension = (tys1: list(t), tys2: list(t)): term => {
+  let get_lv = (t: t) => {
+    switch (match_tup_label(t)) {
+    | Some((l, t)) => (Some(l), t)
+    | None => (None, t)
+    };
+  };
+
+  let new_tys =
+    LabeledTuple.extension(List.map(get_lv, tys1), List.map(get_lv, tys2))
+    |> List.map(((l, ty)) =>
+         switch (l) {
+         | Some(l) => TupLabel(fresh(Label(l)), ty) |> temp
+         | None => ty
+         }
+       );
+  Prod(new_tys);
+};
+
+/**
+ * Removes duplicate labels from a given list of types inside a tuple.
+ *
+ * For each label in the list of duplicate labels, keeps only the first occurrence,
+ * replacing its type with Unknown(Internal), and removes all subsequent occurrences.
+ *
+ * @param duplicate_labels - The list of duplicate labels.
+ * @param tys - The list of types to remove duplicates from.
+ * @return A new list of types where, for each duplicate label, only the first occurrence
+ *         is kept (with type Unknown(Internal)), and all subsequent occurrences are removed.
+ */
+let remove_duplicate_labels =
+    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
+  let (_, rev_deduplicated) =
+    List.fold_left(
+      ((seen_duplicates, rev_deduplicated_types), ty) => {
+        let tup_label = match_tup_label(ty);
+        switch (tup_label) {
+        | Some((l, _))
+            when
+              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
+            seen_duplicates,
+            rev_deduplicated_types,
+          )
+        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+            [l, ...seen_duplicates],
+            [
+              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+              ...rev_deduplicated_types,
+            ],
+          )
+        | Some(_) => (seen_duplicates, [ty, ...rev_deduplicated_types])
+        | None => (seen_duplicates, [ty, ...rev_deduplicated_types])
+        };
+      },
+      ([], []),
+      tys,
+    );
+  List.rev(rev_deduplicated);
+};
+
+let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("weak_head_normalize exceeded 1000 recursive calls");
+  };
+  switch (term_of(ty)) {
+  | Parens(t)
+  | Projector(_, t) =>
+    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    | None => ty
+    }
+  | TupLabel({term: ExplicitNonlabel, _}, ty) =>
+    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+  | ProdProjection(ty, label) =>
+    let (_, rewrap) = unwrap(ty);
+
+    let normalized_ty =
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
+
+    (
+      switch (normalized_ty.term, label.term) {
+      | (Prod(tys), Label(l)) => project_type(tys, l)
+      | _ => None // It would be better to do this via a more direct error recovery mechanism in statics
+      }
+    )
+    |> Option.value(~default=Unknown(Internal) |> rewrap);
+  | Prod(ts) =>
+    let (_, rewrap) = unwrap(ty);
+    let duplicate_labels =
+      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
+    if (List.is_empty(duplicate_labels)) {
+      ty;
+    } else {
+      let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
+      Prod(cleaned_ts) |> rewrap;
+    };
+  | ProdExtension(t1, t2) =>
+    let (_, rewrap) = unwrap(ty);
+
+    let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
+    let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
+    switch (t1.term, t2.term) {
+    | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
+    | _ =>
+      // It would be better to do this via a more direct error recovery mechanism in statics
+      Unknown(Internal) |> rewrap
+    };
+  | _ => ty
+  };
+};
+
+let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("normalize exceeded 1000 recursive calls");
+  };
+  let normalize = normalize(~rec_counter=rec_counter + 1);
+  let (term, rewrap) = unwrap(ty);
+  switch (term) {
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => normalize(ctx, ty)
+    | None => ty
+    }
+  | Unknown(_)
+  | Atom(_)
+  | DrvTyp(_)
+  | ExplicitNonlabel
+  | Label(_) => ty
+  | Parens(t)
+  | Projector(_, t) => normalize(ctx, t)
+  | List(t) => List(normalize(ctx, t)) |> rewrap
+  | Arrow(t1, t2) =>
+    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
+  | TupLabel(label, ty) =>
+    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
+  | Sum(ts) =>
+    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
+  | Rec(tpat, ty) =>
+    /* NOTE: Dummy tvar added has fake id but shouldn't matter
+       as in current implementation Recs do not occur in the
+       surface syntax, so we won't try to jump to them. */
+    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
+  | Poly(name, ty) =>
+    Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | ProofOf(_) => ty // Todo: should we normalize this?
+  | Sig(items) =>
+    /* Desugar signature to labeled tuple type:
+       { let x : Int; let y : Bool } => (x=Int, y=Bool)
+       Type aliases (SigType) don't contribute to the exported type. */
+    let fields =
+      items
+      |> List.filter_map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(pat) =>
+             /* Extract name and type from pattern.
+                let x : T => name="x", typ=T
+                let x     => name="x", typ=Unknown */
+             switch (pat.term) {
+             | Asc({term: Var(name), _}, typ) =>
+               Some(
+                 TupLabel(Label(name) |> temp, normalize(ctx, typ)) |> temp,
+               )
+             | Var(name) =>
+               Some(
+                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
+                 |> temp,
+               )
+             | _ => None
+             }
+           | SigType(_, _)
+           | Invalid(_)
+           | EmptyHole
+           | MultiHole(_) => None
+           }
+         );
+    switch (fields) {
+    | [] => Prod([]) |> rewrap
+    | _ => normalize(ctx, Prod(fields) |> rewrap)
+    };
+  };
+};
+
+/* Targeted Sig desugaring: Only converts Sig nodes to Prod (labeled tuples),
+   preserving Parens and everything else. Use this instead of normalize when
+   you need to desugar Sig types without stripping Parens wrappers. */
+let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
+  let (term, rewrap) = unwrap(ty);
+  switch (term) {
+  | Sig(items) =>
+    let fields =
+      items
+      |> List.filter_map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(pat) =>
+             switch (pat.term) {
+             | Asc({term: Var(name), _}, typ) =>
+               Some(
+                 TupLabel(Label(name) |> temp, desugar_sig(ctx, typ))
+                 |> temp,
+               )
+             | Var(name) =>
+               Some(
+                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
+                 |> temp,
+               )
+             | _ => None
+             }
+           | SigType(_, _)
+           | Invalid(_)
+           | EmptyHole
+           | MultiHole(_) => None
+           }
+         );
+    switch (fields) {
+    | [] => Prod([]) |> rewrap
+    | _ => Prod(fields) |> rewrap
+    };
+  | Parens(t) => Parens(desugar_sig(ctx, t)) |> rewrap
+  | Projector(_, t) => desugar_sig(ctx, t)
+  | Arrow(t1, t2) =>
+    Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
+  | Prod(ts) => Prod(List.map(desugar_sig(ctx), ts)) |> rewrap
+  | List(t) => List(desugar_sig(ctx, t)) |> rewrap
+  | TupLabel(label, ty) =>
+    TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
+  | _ => ty
+  };
+};
+
+/* Lattice meet on types. This was called 'join' in the 2019 Hazelnut live paper,
+   but we're now calling it 'meet' to clarify that Unknown represents the top
+   (least precise) element in the precision ordering: specific types dominate Unknown. */
+let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
-  | (_, Parens(ty2)) => join'(ty1, ty2)
-  | (Parens(ty1), _) => join'(ty1, ty2)
+  | (_, Parens(ty2))
+  | (_, Projector(_, ty2)) => meet'(ty1, ty2)
+  | (Parens(ty1), _)
+  | (Projector(_, ty1), _) => meet'(ty1, ty2)
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(join_type_provenance(p1, p2)) |> temp)
+    Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
       Some(ty1);
     } else {
-      let* ty1 = Ctx.lookup_alias(ctx, n1);
-      let* ty2 = Ctx.lookup_alias(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
+      let ty1' = Ctx.lookup_alias(ctx, n1);
+      let ty2' = Ctx.lookup_alias(ctx, n2);
+      switch (ty1', ty2') {
+      | (Some(ty1), Some(ty2)) => meet'(ty1, ty2)
+      | (Some(ty1), None) => meet'(ty1, ty2)
+      | (None, Some(ty2)) => meet'(ty1, ty2)
+      | (None, None) => None
+      };
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty2);
-    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
+    let+ ty_meet = meet'(ty_name, ty2);
+    equal(ty_name, ty_meet) ? ty1 : ty_meet;
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty1);
-    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
+    let+ ty_meet = meet'(ty_name, ty1);
+    equal(ty_name, ty_meet) ? ty2 : ty_meet;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+  | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -450,7 +796,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
+    let+ ty_body = meet(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
@@ -460,7 +806,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
+    let+ ty_body = meet(ctx, ty1', ty2);
     Poly(x2, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
@@ -480,35 +826,52 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Some(ty1)
   | (Label(_), _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let* ty1 = join'(ty1, ty1');
-    let+ ty2 = join'(ty2, ty2');
+    let* ty1 = meet'(ty1, ty1');
+    let+ ty2 = meet'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-    let* lab = join'(lab1, lab2);
-    let+ ty = join'(ty1', ty2');
+    let* lab = meet'(lab1, lab2);
+    let+ ty = meet'(ty1', ty2');
     TupLabel(lab, ty) |> temp;
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
+    let tys1 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys1),
+        tys1,
+      );
+    let tys2 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys2),
+        tys2,
+      );
+
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      let* tys = ListUtil.map2_opt(join', tys1, tys2);
+      let* tys = ListUtil.map2_opt(meet', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
-    }
+    };
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
-    let+ ty = join'(ty1, ty2);
+    let+ ty = meet'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
   | (ProofOf(e1), ProofOf(e2)) =>
-    TermBase.Exp.fast_equal(e1, e2) ? Some(ty1) : None
+    Equality.semantic.exp(e1, e2) ? Some(ty1) : None
   | (ProofOf(_), _) => None
+  // We would prefer for this to be a sort difference and never appear in a meet.
+  // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+  | (ExplicitNonlabel, _) => None
+  | (Sig(_), _) => None
   };
 };
 
@@ -518,15 +881,20 @@ let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
+  | (Projector(data, t1), _) =>
+    Projector(data, match_synswitch(t1, t2)) |> rewrap1
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
   | (Atom(_), _)
   | (DrvTyp(_), _)
   | (Label(_), _)
+  | (ExplicitNonlabel, _)
   | (Var(_), _)
   | (Rec(_), _)
-  | (ProofOf(_), _) => t1
+  | (ProofOf(_), _)
+  | (ProdProjection(_), _)
+  | (ProdExtension(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -549,18 +917,19 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible poly is `Poly Syn -> Syn`
   | (Poly(_), Poly(_)) => t2
   | (Poly(_), _) => t1
+  | (Sig(_), _) => t1
   };
 };
 
-let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
+let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(meet(ctx, ty), acc),
     Some(empty),
     ts,
   );
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
-  join(ctx, ty1, ty2) != None;
+  meet(ctx, ty1, ty2) != None;
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
@@ -568,61 +937,10 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
    * @return - `true` if `ty1` is more precise than `ty2`, otherwise `false`.
    */
 let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
-  let joined = join(ctx, ty1, ty2);
-  switch (joined) {
+  let met = meet(ctx, ty1, ty2);
+  switch (met) {
   | None => false
-  | Some(joined) => fast_equal(~alpha_equivalence=true, joined, ty1)
-  };
-};
-
-let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
-  if (rec_counter > 1000) {
-    failwith("weak_head_normalize exceeded 1000 recursive calls");
-  };
-  switch (term_of(ty)) {
-  | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
-    | None => ty
-    }
-  | _ => ty
-  };
-};
-
-let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
-  if (rec_counter > 1000) {
-    failwith("normalize exceeded 1000 recursive calls");
-  };
-  let normalize = normalize(~rec_counter=rec_counter + 1);
-  let (term, rewrap) = unwrap(ty);
-  switch (term) {
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => normalize(ctx, ty)
-    | None => ty
-    }
-  | Unknown(_)
-  | Atom(_)
-  | DrvTyp(_)
-  | Label(_) => ty
-  | Parens(t) => normalize(ctx, t)
-  | List(t) => List(normalize(ctx, t)) |> rewrap
-  | Arrow(t1, t2) =>
-    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
-  | TupLabel(label, ty) =>
-    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
-  | Sum(ts) =>
-    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
-  | Rec(tpat, ty) =>
-    /* NOTE: Dummy tvar added has fake id but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Poly(name, ty) =>
-    Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
-  | ProofOf(_) => ty // TODO[Matt]: we might want to elaborate this?
+  | Some(met) => Equality.semantic.typ(met, ty1)
   };
 };
 
@@ -772,7 +1090,8 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn(x)
+  | Parens(x)
+  | Projector(_, x) => is_syn(x)
   | Unknown(SynSwitch) => true
   | Unknown(_)
   | Atom(_)
@@ -785,16 +1104,22 @@ let rec is_syn = (ty: t): bool =>
   | List(_)
   | Arrow(_)
   | Prod(_)
-  | Sum(_) => false
+  | Sum(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | ExplicitNonlabel
+  | Sig(_) => false
   };
 
 let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_ana_atom(x)
+  | Parens(x)
+  | Projector(_, x) => is_ana_atom(x)
   | Atom(a) => Some(a)
   | DrvTyp(_)
   | Unknown(_)
+  | ExplicitNonlabel
   | Label(_)
   | Var(_)
   | Rec(_)
@@ -803,13 +1128,17 @@ let rec is_ana_atom = (ty: t) =>
   | List(_)
   | Arrow(_)
   | Prod(_)
-  | Sum(_) => None
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sum(_)
+  | Sig(_) => None
   };
 
 let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn_plus(x)
+  | Parens(x)
+  | Projector(_, x) => is_syn_plus(x)
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
@@ -817,31 +1146,40 @@ let rec is_syn_plus = (ty: t): bool =>
   | Unknown(_)
   | Atom(_)
   | DrvTyp(_)
+  | ExplicitNonlabel
   | Label(_)
   | Var(_)
   | Rec(_)
   | List(_)
   | Prod(_)
-  | Sum(_) => false
+  | Sum(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
-  | Parens(ty) => needs_parens(ty)
+  | Parens(ty)
+  | Projector(_, ty) => needs_parens(ty)
   | Unknown(_)
   | Atom(_)
+  | ExplicitNonlabel
   | Label(_)
   | DrvTyp(_)
-  | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
   | ProofOf(_)
   | Var(_) => false
+  | ProdProjection(_, _)
+  | ProdExtension(_, _)
+  | TupLabel(_, _)
   | Rec(_, _)
   | Poly(_, _)
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  | Sig(_) => false /* already wrapped in {} */
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -855,7 +1193,8 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 /* Essentially recreates web/view/Type.re's view_ty but with string output */
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
-  | Parens(ty) => pretty_print(ty)
+  | Parens(ty)
+  | Projector(_, ty) => pretty_print(ty)
   | Unknown(_) => "?"
   | Atom(Int) => "Int"
   | Atom(Float) => "Float"
@@ -887,13 +1226,45 @@ let rec pretty_print = (ty: t): string =>
          ts,
        )
     ++ ")"
+  | ProdProjection(t, label) =>
+    pretty_print(t) ++ "." ++ pretty_print(label)
+  | ProdExtension(t, label) =>
+    pretty_print(t) ++ " + " ++ pretty_print(label)
   | Label(name) => name
+  | ExplicitNonlabel => "_"
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | ProofOf(_e) => "yes <e> indeed"
+  | Sig(items) =>
+    let sig_item_str = (item: Sig.t) =>
+      switch (item.term) {
+      | SigLet(p) =>
+        "let "
+        ++ (
+          switch (IdTagged.term_of(p)) {
+          | Var(x) => x
+          | Asc(p', t) =>
+            (
+              switch (IdTagged.term_of(p')) {
+              | Var(x) => x
+              | _ => "?"
+              }
+            )
+            ++ " : "
+            ++ pretty_print(t)
+          | _ => "?"
+          }
+        )
+      | SigType(tp, t) =>
+        "type " ++ pretty_print_tvar(tp) ++ " = " ++ pretty_print(t)
+      | EmptyHole => "?"
+      | Invalid(s) => s
+      | MultiHole(_) => "?"
+      };
+    "{ " ++ String.concat("; ", List.map(sig_item_str, items)) ++ " }";
   }
 and ctr_pretty_print =
   fun
@@ -909,59 +1280,9 @@ and paren_pretty_print = typ =>
   };
 
 /**
- * Removes duplicate labels from a given list of types inside a tuple.
- *
- * This function takes a list of types and returns a new list with all
- * duplicate labels replaced with their first occurence and the unknown type.
- *
- * @param duplicate_labels - The list of duplicate labels.
- * @param tys - The list of types to remove duplicates from.
- * @return A new list of types with duplicates removed.
- */
-let remove_duplicate_labels =
-    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
-  snd(
-    List.fold_left(
-      ((seen_duplicates, deduplicated_types), ty) => {
-        let tup_label = match_tup_label(ty);
-        switch (tup_label) {
-        | Some((l, _))
-            when
-              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
-            seen_duplicates,
-            deduplicated_types,
-          )
-        | Some((l, _)) when List.mem(l, duplicate_labels) => (
-            [l] @ seen_duplicates,
-            deduplicated_types
-            @ [
-              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
-            ],
-          )
-        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
-        | None => (seen_duplicates, deduplicated_types @ [ty])
-        };
-      },
-      ([], []),
-      tys,
-    ),
-  );
-};
-
-/**
  * Converts a list of types (`tys`) into a product type.
  *
- * If the list contains a single type, it is returned as-is since singleton
- * products are not supported.
- *
  * @param tys - A list of types to be combined into a product type.
- * @return A product type representing the combination of the input types,
- *         or the single type if the list contains only one element.
+ * @return A product type representing the combination of the input types
  */
-let to_product = (tys: list(t)): t =>
-  switch (tys) {
-  | []
-  | [{term: TupLabel(_), _}] => Prod(tys) |> temp
-  | [ty] => ty
-  | _ => Prod(tys) |> temp
-  };
+let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));

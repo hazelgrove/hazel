@@ -17,6 +17,10 @@
   border-color: var(--R1);
 }
 
+#cursor-inspector.warning {
+  border-color: var(--Y1);
+}
+
 #cursor-inspector .icon {
   display: flex;
   padding: 0.2em;
@@ -78,6 +82,15 @@
 #cursor-inspector .Label .gamma {
   background-color: var(--token-label);
 }
+#cursor-inspector .Mod .gamma {
+  background-color: var(--token-mod);
+}
+#cursor-inspector .Sig .gamma {
+  background-color: var(--token-sig);
+}
+#cursor-inspector .MPat .gamma {
+  background-color: var(--token-mpat);
+}
 
 #cursor-inspector .ci-header .gamma.visible,
 #cursor-inspector .ci-header.error .gamma.visible,
@@ -85,6 +98,16 @@
   background-color: #dfcc99;
   outline: 0.3px solid var(--BR3);
   color: var(--BR4);
+}
+
+#cursor-inspector .ci-header .gamma:hover,
+#cursor-inspector .ci-header.warning .gamma:hover,
+#cursor-inspector .ci-header .gamma.visible,
+#cursor-inspector .ci-header.warning .gamma.visible,
+#bottom-bar:has(~ .context-inspector:hover) .gamma {
+  background-color: #dfcc99;
+  outline: 0.3px solid var(--warning-hole-stroke);
+  color: var(--warning-hole-stroke);
 }
 
 #cursor-inspector .ci-header .gamma.visible svg {
@@ -123,6 +146,20 @@
   color: var(--R2);
 }
 
+#cursor-inspector .ci-header.warning {
+  background-color: var(--ci-status-warning-bkg);
+  color: var(--ci-status-warning-text);
+}
+#cursor-inspector .ci-header.warning .gamma {
+  background-color: var(--warning-hole-stroke);
+}
+#cursor-inspector .ci-header.warning .toggle-switch {
+  background-color: var(--warning-hole-stroke);
+}
+#cursor-inspector .ci-header.warning .toggle-switch .toggle-knob {
+  color: var(--warning-hole-stroke);
+}
+
 #cursor-inspector .ci-header.ok .toggle-switch .toggle-knob {
   background-color: var(--SAND);
 }
@@ -150,7 +187,15 @@
 #cursor-inspector .ci-header.ok.Label .toggle-switch.active {
   background-color: var(--token-label);
 }
-
+#cursor-inspector .ci-header.ok.Mod .toggle-switch.active {
+  background-color: var(--token-mod);
+}
+#cursor-inspector .ci-header.ok.Sig .toggle-switch.active {
+  background-color: var(--token-sig);
+}
+#cursor-inspector .ci-header.ok.MPat .toggle-switch.active {
+  background-color: var(--token-mpat);
+}
 #cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob {
   color: var(--BR3);
 }
@@ -173,6 +218,15 @@
 
 #cursor-inspector .ci-header.ok.Label .toggle-switch .toggle-knob {
   color: var(--token-label);
+}
+#cursor-inspector .ci-header.ok.Mod .toggle-switch .toggle-knob {
+  color: var(--token-mod);
+}
+#cursor-inspector .ci-header.ok.Sig .toggle-switch .toggle-knob {
+  color: var(--token-sig);
+}
+#cursor-inspector .ci-header.ok.MPat .toggle-switch .toggle-knob {
+  color: var(--token-mpat);
 }
 
 #cursor-inspector .ci-header.ok.Any {
@@ -209,6 +263,18 @@
   background-color: var(--shard-label);
   color: var(--token-label);
 }
+#cursor-inspector .ci-header.ok.Mod {
+  background-color: var(--shard-mod);
+  color: var(--token-mod);
+}
+#cursor-inspector .ci-header.ok.Sig {
+  background-color: var(--shard-sig);
+  color: var(--token-sig);
+}
+#cursor-inspector .ci-header.ok.MPat {
+  background-color: var(--shard-mpat);
+  color: var(--token-mpat);
+}
 
 #cursor-inspector .term-tag {
   font-weight: bolder;
@@ -222,7 +288,9 @@
 #cursor-inspector.error .divider {
   color: var(--R2) !important;
 }
-
+#cursor-inspector.warning .divider {
+  color: var(--O1) !important;
+}
 #cursor-inspector .Pat .divider {
   color: var(--token-pat);
 }
@@ -234,15 +302,30 @@
 #cursor-inspector .TPat .divider {
   color: var(--token-tpat);
 }
+#cursor-inspector .Mod .divider {
+  color: var(--token-mod);
+}
+#cursor-inspector .Sig .divider {
+  color: var(--token-sig);
+}
+#cursor-inspector .MPat .divider {
+  color: var(--token-mpat);
+}
 
 #cursor-inspector .status.error .code {
   padding: 0 0.3em 0 0.3em;
   border-radius: 0.2em;
   border-bottom: 1px solid var(--ci-status-error-text);
 }
+#cursor-inspector .status.warning .code {
+  padding: 0 0.3em 0 0.3em;
+  border-radius: 0.2em;
+  border-bottom: 1px solid var(--ci-status-warning-text);
+}
 
 #cursor-inspector .status.ok,
-#cursor-inspector .status.error {
+#cursor-inspector .status.error,
+#cursor-inspector .status.warning {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -252,6 +335,10 @@
 
 #cursor-inspector .status.error {
   color: var(--ci-status-error-text);
+}
+
+#cursor-inspector .status.warning {
+  color: var(--ci-status-warning-text);
 }
 
 #cursor-inspector .code {

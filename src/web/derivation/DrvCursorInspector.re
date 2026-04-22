@@ -12,14 +12,19 @@ let drv_view = (~globals, status: DrvInfo.t) => {
   let view_type =
     CodeViewable.view_typ(
       ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: `NoFold,
-        hide_fixpoints: false,
-        show_filters: false,
-        show_unknown_as_hole: false,
-      },
+      ~settings=
+        Haz3lcore.ExpToSegment.Settings.{
+          secondary: AutoFormat,
+          parenthesization: Defensive,
+          label_format: QuoteWhenNecessary,
+          inline: true,
+          fold_case_clauses: false,
+          fold_fn_bodies: `NoFold,
+          hide_fixpoints: false,
+          show_filters: false,
+          show_ascriptions: false,
+          show_unknown_as_hole: false,
+        },
     );
   let view_type = (typ: Typ.t) =>
     switch (typ.term) {

@@ -25,16 +25,24 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
 
       print_endline(
         "Original segment: "
-        ++ Segment.to_string(original_segment, ~projector_to_segment=_ => []),
+        ++ Segment.to_string(
+             original_segment,
+             ~projector_to_segment=_ => [],
+             ~refractor_seg_to_seg=(r, s) => (r, s),
+           ),
       );
       print_endline(
         "Reparsed segment: "
-        ++ Segment.to_string(reparsed_segment, ~projector_to_segment=_ => []),
+        ++ Segment.to_string(
+             reparsed_segment,
+             ~projector_to_segment=_ => [],
+             ~refractor_seg_to_seg=(r, s) => (r, s),
+           ),
       );
 
       check(
         segment,
-        "Reparsing backup_text produces equivalent segment",
+        "Reparsing " ++ name ++ " backup_text produces equivalent segment",
         original_segment,
         reparsed_segment,
       );

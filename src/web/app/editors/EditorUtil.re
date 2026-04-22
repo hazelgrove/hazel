@@ -1,4 +1,20 @@
 let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
+  let mk = (term, e1): Language.Exp.t => {
+    term,
+    annotation:
+      Language.IdTagged.IdTag.mk(
+        Language.IdTagged.ids(e1),
+        Language.IdTagged.IdTag.empty_secondary,
+      ),
+  };
+  let mk_fresh = (term): Language.Exp.t => {
+    term,
+    annotation:
+      Language.IdTagged.IdTag.mk(
+        [Haz3lcore.Id.mk()],
+        Language.IdTagged.IdTag.empty_secondary,
+      ),
+  };
   switch (e1.term) {
   | EmptyHole
   | Invalid(_)
@@ -10,6 +26,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | DrvExp(_)
   | ListLit(_)
   | TupleExtension(_)
+  | ExplicitNonlabel
   | Constructor(_)
   | Closure(_)
   | Fun(_)
@@ -28,7 +45,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Test(_)
   | HintedTest(_)
   | Parens(_)
-  | Probe(_)
+  | Projector(_)
   | Cons(_)
   | ListConcat(_)
   | LivelitName(_)
@@ -37,59 +54,26 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BuiltinFun(_)
   | Asc(_)
   | ProofObject(_)
-  | Match(_) => {
-      term: Seq(e1, e2),
-      annotation: {
-        ids: [Haz3lcore.Id.mk()],
-      },
-    }
+  | Module(_)
+  | ModuleExp(_)
+  | Match(_) => mk_fresh(Seq(e1, e2))
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
-    {
-      term: Seq(e11, e12'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
-    };
+    mk(Seq(e11, e12'), e1);
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    {
-      term: Filter(kind, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
-    };
+    mk(Filter(kind, ebody'), e1);
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    {
-      term: Let(p, edef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
-    };
+    mk(Let(p, edef, ebody'), e1);
   | Theorem(p, thm, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    {
-      term: Theorem(p, thm, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
-    };
+    mk(Theorem(p, thm, ebody'), e1);
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    {
-      term: TyAlias(tp, tdef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
-    };
+    mk(TyAlias(tp, tdef, ebody'), e1);
   | Use(t, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    {
-      term: Use(t, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
-    };
+    mk(Use(t, ebody'), e1);
   };
 };

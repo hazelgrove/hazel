@@ -11,13 +11,15 @@ let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
 
 let go =
     (
+      ~settings: Language.CoreSettings.t,
       ~statics: CachedStatics.t,
       ~syntax: CachedSyntax.t,
       ~root,
       a: Action.t,
       {zipper: z, col_target}: state,
     )
-    : Action.Result.t(Zipper.t) =>
+    : Action.Result.t(Zipper.t) => {
+  let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
   switch (a) {
   | Introduce =>
     Select.current_term(
@@ -30,9 +32,18 @@ let go =
          Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
        )
     |> return(CantIntroduce)
-  | Paste(String(clipboard)) =>
-    Parser.to_zipper(~root, ~zipper_init=z, clipboard) |> return(CantPaste)
-  | Paste(Segment(segment)) => Ok(Zipper.insert_segment(z, segment, ~root))
+  | Paste(clipboard) =>
+    switch (Parser.try_segment_paste(clipboard, z, ~root)) {
+    | Some(z) => Ok(maybe_reassoc(z))
+    | None =>
+      (
+        Parser.can_fast_paste(clipboard, z, ~root)
+          ? Parser.fast_paste(clipboard, z, ~root)
+          : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+      )
+      |> Option.map(maybe_reassoc)
+      |> return(CantPaste)
+    }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z, ~root) |> return(Cant_destruct)
@@ -46,11 +57,33 @@ let go =
        nuclear option for weird backpack states */
     Parser.to_zipper(~root, Printer.of_zipper(~holes="", ~indent="", z))
     |> return(CantReparse)
-  | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
-  | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
+  | Buffer(a) =>
+    Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+  | Project(a) =>
+    let refractor_list =
+      List.map(fst, z.refractors.manuals)
+      @ List.map(fst, Id.Map.to_list(z.refractors.multis.ephemerals));
+    ProjectorPerform.go(
+      syntax.term_data,
+      a,
+      z,
+      syntax.projector_list,
+      refractor_list,
+    );
   | Move(d) =>
     Move.go(
-      ~ci=Indicated.ci_of(z, statics.info_map),
+      ~statics=statics.info_map,
+      ~problem_ids=
+        Seq.append(
+          List.to_seq(statics.error_ids),
+          Seq.append(
+            List.to_seq(statics.warning_ids),
+            Seq.filter_map(
+              (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
+              List.to_seq(Segment.holes(syntax.segment)),
+            ),
+          ),
+        ),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
       d,
@@ -78,11 +111,18 @@ let go =
     |> return(Cant_select)
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
+  | Select(PointToPoint((p1, p2))) =>
+    z
+    |> Move.to_point(~measured=syntax.measured, ~goal=p1)
+    |> OptUtil.and_then(z =>
+         Select.to_point(~measured=syntax.measured, ~goal=p2, z)
+       )
+    |> return(Cant_select)
   | Select(Term(Current)) =>
-    Select.current_term(
+    Select.select_enclosing_term(
       syntax.term_data,
-      ~defs_exclude_bodies=true,
-      ~case_rules=true,
+      syntax.measured,
+      statics.info_map,
       z,
     )
     |> return(Cant_select)
@@ -110,11 +150,29 @@ let go =
     }
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
-  | Destruct(d) => Destruct.go(d, z, ~root) |> return(Cant_destruct)
+  | Destruct(d) =>
+    Destruct.go(d, z, ~root)
+    |> Option.map(maybe_reassoc)
+    |> return(Cant_destruct)
   | Insert(char) =>
     z
-    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map), ~root)
+    |> Insert.go(
+         ~deep_reassociate=settings.deep_reassociate,
+         char,
+         ~ci=Indicated.ci_of(z, statics.info_map),
+         ~root,
+       )
+    |> Option.map(maybe_reassoc)
     |> return(Cant_insert)
-  | Put_down => Zipper.put_down(z, ~root) |> return(Cant_put_down)
+  | Put_down =>
+    Zipper.put_down(z, ~root)
+    |> Option.map(maybe_reassoc)
+    |> return(Cant_put_down)
+  | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z, ~root))
+  | ToggleLineComment =>
+    Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
+    |> return(Cant_destruct)
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };
+};

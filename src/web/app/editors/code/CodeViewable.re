@@ -13,6 +13,7 @@ let view =
       ~segment,
       ~shape_map,
       ~info_map,
+      ~refractor_shape_map,
     )
     : Node.t => {
   let code =
@@ -20,6 +21,7 @@ let view =
       ~measured,
       ~settings=globals.settings,
       ~shape_map,
+      ~refractor_shape_map,
       ~font_metrics=globals.font_metrics,
       ~term_data,
       ~info_map,
@@ -31,15 +33,17 @@ let view =
 
 let view_segment = (~globals: Globals.t, segment: Segment.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+  let refractor_shape_map = Id.Map.empty; //assume no refractors
   let term_data = TermData.empty; //assume no indication/selection decoratinos
   view(
     ~globals,
-    ~measured=Measured.of_segment(segment, shape_map),
+    ~measured=Measured.of_segment(segment, shape_map, refractor_shape_map),
     ~term_data,
     ~buffer_ids=[],
     ~info_map=Language.Statics.Map.empty,
     ~segment,
     ~shape_map,
+    ~refractor_shape_map,
   );
 };
 

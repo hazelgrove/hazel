@@ -6,7 +6,10 @@ type t =
   | Typ
   | TPat
   | Rul
-  | Exp;
+  | Exp
+  | Mod
+  | Sig
+  | MPat;
 
 let to_string =
   fun
@@ -38,4 +41,7 @@ let to_string_verbose =
   | TPat => "type pattern"
   | Typ => "type"
   | Rul => "rule"
-  | Exp => "expression";
+  | Exp => "expression"
+  | Mod => "module"
+  | Sig => "signature"
+  | MPat => "module pattern";

@@ -668,6 +668,7 @@ let exercise : DerivationTree.spec =
               ];
           };
         caret = Outer;
+        refractors = Haz3lcore.Refractors.init;
       };
     setup =
       {
@@ -689,6 +690,7 @@ let exercise : DerivationTree.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.Refractors.init;
       };
     corpus = ALFp;
     trees =
@@ -852,6 +854,7 @@ let exercise : DerivationTree.spec =
                         ancestors = [];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some T_Var;
               },
@@ -1015,6 +1018,7 @@ let exercise : DerivationTree.spec =
                         ancestors = [];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some T_Var;
               },
@@ -1758,6 +1762,7 @@ let exercise : DerivationTree.spec =
                         ancestors = [];
                       };
                     caret = Outer;
+                    refractors = Haz3lcore.Refractors.init;
                   };
                 rule = Some T_FunAnn;
               },
@@ -2364,6 +2369,7 @@ let exercise : DerivationTree.spec =
                                 ];
                             };
                           caret = Outer;
+                          refractors = Haz3lcore.Refractors.init;
                         };
                       rule = Some T_FunAnn;
                     },
@@ -2847,6 +2853,7 @@ let exercise : DerivationTree.spec =
                                     ancestors = [];
                                   };
                                 caret = Outer;
+                                refractors = Haz3lcore.Refractors.init;
                               };
                             rule = Some T_Let;
                           },

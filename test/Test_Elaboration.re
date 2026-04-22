@@ -3,7 +3,19 @@ open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let dhexp_typ =
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_unknown_provenance: true,
+      })
+    ).
+      exp,
+  );
 
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u =>
@@ -655,6 +667,62 @@ in 1|},
         ),
       )
     ),
+    /* ===== MODULE ELABORATION TESTS =====
+       NOTE: Modules currently elaborate to labeled tuples.
+       These tests will need updating when modules get their own
+       semantics separate from labeled tuples (Phase 2). */
+    test_case("Module single binding elaborates to labeled tuple", `Quick, () =>
+      alco_check(
+        {|{ let x = 1 } => let x = 1 in (x=x)|},
+        Exp.(
+          let_(
+            Pat.var("x"),
+            int(1),
+            tuple([tup_label(label("x"), var("x"))]),
+          )
+        ),
+        dhexp_of_uexp(parse_exp({|{ let x = 1 }|})),
+      )
+    ),
+    test_case(
+      "Module multiple bindings elaborates to labeled tuple", `Quick, () =>
+      alco_check(
+        {|{ let x = 1; let y = true }|},
+        Exp.(
+          let_(
+            Pat.var("x"),
+            int(1),
+            let_(
+              Pat.var("y"),
+              bool(true),
+              tuple([
+                tup_label(label("x"), var("x")),
+                tup_label(label("y"), var("y")),
+              ]),
+            ),
+          )
+        ),
+        dhexp_of_uexp(parse_exp({|{ let x = 1; let y = true }|})),
+      )
+    ),
+    test_case("Module in let binding preserves type", `Quick, () =>
+      alco_check(
+        {|let m = { let x = 1 } in m.x|},
+        dhexp_of_uexp(parse_exp({|let m = (let x = 1 in (x=x)) in m.x|})),
+        dhexp_of_uexp(parse_exp({|let m = { let x = 1 } in m.x|})),
+      )
+    ),
+    test_case("Module with sig annotation elaborates labels", `Quick, () =>
+      alco_check(
+        {|let m : { let x : Int } = { let x = 1 } in m|},
+        dhexp_of_uexp(
+          parse_exp({|let m : (x=Int) = (let x = 1 in (x=x)) in m|}),
+        ),
+        dhexp_of_uexp(
+          parse_exp({|let m : { let x : Int } = { let x = 1 } in m|}),
+        ),
+      )
+    ),
     skip_known_bug(
       "Nontermination in typ normalization",
       {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
@@ -664,7 +732,7 @@ in 1|},
       "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
     ),
     skip_known_bug(
-      "Type join of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "Type meet of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
       "type x = + B((poly x -> ?)(?)) in case a | B => 0| B => 0 end",
     ),
     QCheck_alcotest.to_alcotest(
@@ -684,9 +752,7 @@ in 1|},
                   List.exists(
                     (==)(msg),
                     [
-                      "type application in dynamics", // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
-                      "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
-                      "Type join of ap" // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                      "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
                     ],
                   ) =>
               print_endline("Known failure: " ++ Printexc.to_string(e));
@@ -707,7 +773,7 @@ module MenhirElaborationTests = {
   //uexp = tested
   open IdTagged.FreshGrammar;
 
-  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
+  let alco_check_menhir = (name: string, dhexp: string, uexp: Exp.t) =>
     alco_check(
       name,
       Grammar.map_exp_annotation(
