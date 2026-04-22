@@ -1,18 +1,31 @@
 open Language;
 open Util;
 
-let elaborate = (exp: Exp.t): Exp.t => {
-  let (_, elab) =
-    Statics.mk(
-      CoreSettings.on,
-      Builtins.ctx_init(Some(Operators.default_mode)),
-      exp,
-    );
-  elab;
+let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
+  Statics.mk(
+    CoreSettings.on,
+    Builtins.ctx_init(Some(Operators.default_mode)),
+    exp,
+  );
+
+let statics_of = (exp: Exp.t): Statics.Map.t => fst(statics_and_elab(exp));
+
+let elaborate = (exp: Exp.t): Exp.t => snd(statics_and_elab(exp));
+
+let evaluate = (exp: Exp.t): Exp.t => {
+  let (result, _) =
+    Evaluator.evaluate(~env=Builtins.env_init, elaborate(exp));
+  result;
 };
 
-let evaluate = (exp: Exp.t): Exp.t =>
-  fst(Evaluator.evaluate(~env=Builtins.env_init, elaborate(exp)));
+let evaluate_incremental =
+    (~prev: IncrEval.t=IncrEval.empty, exp: Exp.t): (Exp.t, IncrEval.t) => {
+  let (info_map, elab) = statics_and_elab(exp);
+  let info_slice = IncrEval.InfoSlice.of_info_map(info_map);
+  let (result, state) =
+    Evaluator.evaluate(~prev, ~info_slice, ~env=Builtins.env_init, elab);
+  (result, state.incr_eval);
+};
 
 /* Evaluate and return both the result and the probe sample map */
 let evaluate_with_probes = (exp: Exp.t): (Exp.t, Sample.Map.t) => {

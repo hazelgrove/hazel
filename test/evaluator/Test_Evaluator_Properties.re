@@ -24,7 +24,7 @@ let qcheck_evaluator_does_not_crash_test =
           exp,
         )
       ) {
-      | Completed((_, _))
+      | Completed(_)
       | StepLimitExceeded => true
       | exception e =>
         switch (e) {

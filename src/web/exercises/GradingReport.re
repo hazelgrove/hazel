@@ -67,8 +67,8 @@ module Main = {
                );
           switch (evaluated) {
           | StepLimitExceeded => None
-          | Completed((_, evaluated)) =>
-            evaluated
+          | Completed((_, state)) =>
+            state
             |> EvaluatorState.get_tests
             |> TestResults.mk_results
             |> Option.some
