@@ -232,7 +232,7 @@ let get_refs_to_after_pattern_edit =
   | (InfoExp(pre_let), InfoExp(term_after)) =>
     let entire_coctx = pre_let.co_ctx;
     let body_coctx =
-      switch (Exp.term_of(term_after.term)) {
+      switch (Exp.term_of(term_after.user_term)) {
       | Let(_, _, body)
       | TyAlias(_, _, body)
       | ModuleExp(_, _, body) =>

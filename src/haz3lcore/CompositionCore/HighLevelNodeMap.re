@@ -654,7 +654,7 @@ let binding_id_to_syntax_projector_target_id =
   | None => None
   | Some(node) =>
     switch (node.info) {
-    | InfoExp({term, _}) =>
+    | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
       | Let(_, def, _) => Some(Exp.rep_id(def))
       | TyAlias(_, typ, _) => Some(Typ.rep_id(typ))
