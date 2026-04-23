@@ -191,7 +191,12 @@ module Model = {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
     | Implementation(e) => e.cells.user_impl.editor
-    | Derivation(e) => e.cells.prelude.editor
+    /* Setup cell's statics are computed from the stitched `prelude + setup`
+       term, so using it here surfaces problems from both editors in the
+       problems sidebar (matching how `user_impl` covers prelude + your_impl
+       for code exercises). Line numbers for prelude ids will show as "L?"
+       since this cell's measured only covers setup content. */
+    | Derivation(e) => e.cells.setup.editor
     | Theorem(e) => e.cells.theorem.editor
     };
   };

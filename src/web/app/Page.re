@@ -71,7 +71,10 @@ module Update = {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({editor, _}) => editor.editor
-      | Drv(dm) => dm.cells.prelude.editor
+      /* For Drv scratch slides, expose the Setup editor so the sidebar's
+         problem panel reflects errors from Setup only and ignores problems
+         inside the derivation trees themselves. */
+      | Drv(dm) => dm.cells.setup.editor
       };
     };
     switch (model.editors) {
