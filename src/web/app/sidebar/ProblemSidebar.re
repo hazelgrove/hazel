@@ -38,7 +38,7 @@ let scroll_active_into_view: Attr.t =
 /* ---------- View helpers ---------- */
 
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
-  globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
+  globals.inject_global(JumpToTile(id));
 
 let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   switch (ci) {
@@ -242,7 +242,7 @@ let view =
     (
       ~globals: Globals.t,
       ~cursor: Cursor.cursor(Editors.Update.t),
-      ~ctx: Haz3lcore.ProblemCollection.problem_context,
+      ~ctxs: list(Haz3lcore.ProblemCollection.problem_context),
     )
     : Node.t => {
   let cursor_id =
@@ -250,13 +250,29 @@ let view =
     | Some(ci) => Some(Language.Info.id_of(ci))
     | None => None
     };
+  /* Each row carries its source ctx so we can resolve line numbers and
+     positions using the editor that produced the problem. Problems from the
+     same ctx stay contiguous (preserving the editor ordering from the
+     caller); within a ctx they're sorted by position. */
   let categories:
-    list((SidebarModel.Settings.problem_category, list(problem))) =
+    list(
+      (
+        SidebarModel.Settings.problem_category,
+        list((Haz3lcore.ProblemCollection.problem_context, problem)),
+      ),
+    ) =
     List.map(
       cat =>
         (
           cat,
-          collect_category(ctx, cat) |> List.of_seq |> sort_by_pos(ctx),
+          List.concat_map(
+            ctx =>
+              collect_category(ctx, cat)
+              |> List.of_seq
+              |> sort_by_pos(ctx)
+              |> List.map(p => (ctx, p)),
+            ctxs,
+          ),
         ),
       [Syntax, Hole, Static, Warning],
     );
@@ -316,7 +332,8 @@ let view =
         ),
       ],
     );
-  let render_row = problem =>
+  let render_row =
+      ((ctx: Haz3lcore.ProblemCollection.problem_context, problem)) =>
     problem_row(
       ~globals,
       ~cursor_id,
@@ -335,9 +352,10 @@ let view =
       [legend_view(categories), toggle_view]
       @ (
         if (problems_settings.flat) {
-          let all_problems =
-            List.concat_map(snd, categories)
-            |> List.sort((a, b) => compare(ctx.pos(a.id), ctx.pos(b.id)));
+          /* Flat mode: keep the per-ctx ordering (already sorted inside each
+             ctx) and concatenate across categories. Problems from the same
+             editor stay together. */
+          let all_problems = List.concat_map(snd, categories);
           List.map(render_row, all_problems);
         } else {
           List.filter_map(

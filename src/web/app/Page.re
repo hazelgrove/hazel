@@ -85,6 +85,19 @@ module Update = {
     };
   };
 
+  let get_problem_editors = (model: Model.t): list(CodeEditable.Model.t) => {
+    let instructor_mode = model.globals.settings.instructor_mode;
+    switch (model.editors) {
+    | Scratch(m) => [List.nth(m.scratchpads, m.current).editor.editor]
+    | Documentation(m) => [List.nth(m.scratchpads, m.current).editor.editor]
+    | Tutorial(m) => [
+        List.nth(m.exercises, m.current).cells.user_impl.editor,
+      ]
+    | Exercises(m) =>
+      ExercisesMode.Model.get_problem_editors(~instructor_mode, m)
+    };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
     | Start
@@ -875,6 +888,7 @@ module View = {
         ~editors,
         ~selection=model.selection,
         ~editor=Update.get_editor(model),
+        ~problem_editors=Update.get_problem_editors(model),
         ~signal=
           fun
           | MakeActive(s: Selection.t) => inject(MakeActive(s)),

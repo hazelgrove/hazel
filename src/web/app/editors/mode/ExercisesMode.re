@@ -221,6 +221,40 @@ module Model = {
     | _ => None
     };
   };
+
+  /* Editors whose problems should appear in the Problems sidebar. For Code
+     exercises this matches the visibility filter used by
+     CodeExerciseMode.Selection.jump_to_tile so the sidebar only lists
+     problems the user can actually click into — e.g. prelude is read-only
+     (and non-jumpable) in student mode, so it's dropped there. user_tests
+     and test_validation share the same underlying editor; only user_tests
+     is included to avoid duplicate rows. For Derivation and Theorem the
+     existing single-editor behavior is preserved (matching get_editor). */
+  let get_problem_editors =
+      (~instructor_mode: bool, model: t): list(CodeEditable.Model.t) => {
+    let current = List.nth(model.exercises, model.current);
+    switch (current) {
+    | Code(e) =>
+      let c = e.cells;
+      let pairs =
+        [
+          (CodeExercise.Prelude, c.prelude),
+          (CodeExercise.YourTestsTesting, c.user_tests),
+          (CodeExercise.YourImpl, c.user_impl),
+          (CodeExercise.CorrectImpl, c.instructor),
+          (CodeExercise.HiddenTests, c.hidden_tests),
+        ]
+        @ List.mapi((i, b) => (CodeExercise.HiddenBugs(i), b), c.hidden_bugs);
+      List.filter_map(
+        ((pos, cell: CellEditor.Model.t)) =>
+          CodeExercise.visible_in(pos, ~instructor_mode)
+            ? Some(cell.editor) : None,
+        pairs,
+      );
+    | Derivation(e) => [e.cells.setup.editor]
+    | Theorem(e) => [e.cells.theorem.editor]
+    };
+  };
 };
 
 module StoreExerciseKey =

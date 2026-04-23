@@ -434,7 +434,7 @@ module Selection = {
   };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
-    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
+    switch (Measured.find_by_id(id, model.editor.syntax.measured)) {
     | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };

@@ -589,7 +589,7 @@ module Selection = {
       : option((Update.t, t)) => {
     CodeExercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_tile(id, e.syntax.term_data) != None
+         Measured.find_by_id(id, e.syntax.measured) != None
          && CodeExercise.visible_in(
               p,
               ~instructor_mode=settings.instructor_mode,

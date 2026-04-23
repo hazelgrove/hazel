@@ -275,15 +275,38 @@ let view =
       ~editors: Editors.Model.t,
       ~selection: Editors.Selection.t,
       ~editor: CodeWithStatics.Model.t,
+      ~problem_editors: list(CodeWithStatics.Model.t),
       ~signal,
     ) => {
-  let ctx =
-    Haz3lcore.ProblemCollection.make_problem_context(
-      ~display_warnings=globals.settings.core.display_warnings,
-      ~statics=editor.statics,
-      ~syntax=editor.editor.syntax,
+  let ctxs =
+    List.map(
+      (e: CodeWithStatics.Model.t) =>
+        Haz3lcore.ProblemCollection.make_problem_context(
+          ~display_warnings=globals.settings.core.display_warnings,
+          ~statics=e.statics,
+          ~syntax=e.editor.syntax,
+        ),
+      problem_editors,
     );
-  let counts = Haz3lcore.ProblemCollection.counts_of_context(ctx);
+  let counts =
+    SidebarModel.Settings.(
+      [Syntax, Hole, Static, Warning]
+      |> List.map(cat =>
+           (
+             cat,
+             List.fold_left(
+               (n, ctx) =>
+                 n
+                 + (
+                   Haz3lcore.ProblemCollection.collect_category(ctx, cat)
+                   |> Seq.length
+                 ),
+               0,
+               ctxs,
+             ),
+           )
+         )
+    );
   /* See Page.calculate: use the live selection so Prelude/Setup focus
      doesn't show up as "in a derivation" via the stale model.pos. */
   let derivation_info =
@@ -320,7 +343,7 @@ let view =
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )
-            | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctx)
+            | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctxs)
             },
           ],
         )
