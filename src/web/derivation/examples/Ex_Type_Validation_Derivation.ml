@@ -5,7 +5,7 @@ let exercise : DerivationExercise.spec =
     title = "Type Validation Derivation";
     module_name = "Ex_Type_Validation_Derivation";
     prompt = "";
-    prelude =
+    setup =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
@@ -574,7 +574,7 @@ let exercise : DerivationExercise.spec =
         caret = Outer;
         refractors = Haz3lcore.Refractors.init;
       };
-    setup =
+    prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =

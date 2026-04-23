@@ -5,7 +5,7 @@ let exercise : DerivationExercise.spec =
     title = "Shadowing and Closures";
     module_name = "Ex_Shadowing_And_Closures";
     prompt = "let us derive the judgement e_example \226\135\147 4.";
-    prelude =
+    setup =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
@@ -1167,7 +1167,7 @@ let exercise : DerivationExercise.spec =
         caret = Outer;
         refractors = Haz3lcore.Refractors.init;
       };
-    setup =
+    prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =

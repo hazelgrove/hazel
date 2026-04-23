@@ -10,7 +10,7 @@ let exercise : DerivationExercise.spec =
        function shown above as being defined by partially applying pairmap. \
        This derivation shows how type analysis allows us to avoid having to \
        annotate the function argument.";
-    prelude =
+    setup =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
@@ -1238,7 +1238,7 @@ let exercise : DerivationExercise.spec =
         caret = Inner 0;
         refractors = Haz3lcore.Refractors.init;
       };
-    setup =
+    prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =

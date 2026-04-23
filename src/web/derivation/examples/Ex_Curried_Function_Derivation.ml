@@ -8,7 +8,7 @@ let exercise : DerivationExercise.spec =
       "Provide a derivation of the following judgement, which establishes that \
        the curried \226\128\156min\226\128\157 function in ALFp has type: Num \
        \226\134\146 Num \226\134\146 Num";
-    prelude =
+    setup =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
@@ -649,7 +649,7 @@ let exercise : DerivationExercise.spec =
         caret = Outer;
         refractors = Haz3lcore.Refractors.init;
       };
-    setup =
+    prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =

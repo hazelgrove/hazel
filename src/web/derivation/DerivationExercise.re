@@ -506,26 +506,18 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     setup: wrap(setup_term, eds.setup),
     trees:
       eds.trees
-      |> List.mapi(i =>
-           Tree.mapi(pos =>
+      |> List.map(
+           Tree.map(
              fun
-             | Abbr.Just(d)
-                 when i + 1 == List.length(eds.trees) && pos == Value =>
-               Some(
-                 wrap(
-                   EditorUtil.append_exp(prelude_term, d.jdmt |> term_of),
-                   d.jdmt,
-                 ),
-               )
-             | Just(d) =>
+             | Abbr.Just(d) =>
                Some(
                  wrap(
                    EditorUtil.append_exp(setup_term, d.jdmt |> term_of),
                    d.jdmt,
                  ),
                )
-             | Abbr(_) => None
-           )
+             | Abbr(_) => None,
+           ),
          ),
   };
 };

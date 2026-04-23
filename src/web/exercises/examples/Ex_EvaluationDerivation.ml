@@ -7,12 +7,8 @@ let exercise : Exercise.t =
       title = "Evaluation Derivation";
       module_name = "Ex_EvaluationDerivation";
       prompt =
-        "Derive the following judgement as above, naming the rule or \
-         definition applied at each step, or citing arithmetic for operations \
-         involving mathematical numbers as above. Perform all substitutions \
-         explicitly as in the example above. You may define sub-derivation \
-         abbreviations using the letter D with a suitable subscript as in the \
-         example above. Do not define any other abbreviations";
+        "Derive the following judgement using the evaluation rules for ALF. \
+         Substitution should be performed inline.";
       prelude =
         {
           selection = { focus = Left; content = []; mode = Normal };
@@ -33,7 +29,29 @@ let exercise : Exercise.t =
               ancestors = [];
             };
           caret = Outer;
-          refractors = Haz3lcore.Refractors.init;
+          refractors =
+            {
+              manuals = [];
+              multis =
+                {
+                  ids = Haz3lcore.Id.Map.empty;
+                  suppressed = Haz3lcore.Id.Map.empty;
+                  ephemerals = Haz3lcore.Id.Map.empty;
+                };
+              sample_focus =
+                {
+                  call_stack = [];
+                  index = -1;
+                  pinned_stack = None;
+                  indicated_call = None;
+                  time = None;
+                  seq = 0;
+                  step_range = None;
+                  pending_focus = None;
+                };
+              autoprobe_target = None;
+              pending_probe_cursor = None;
+            };
         };
       setup =
         {
@@ -55,7 +73,29 @@ let exercise : Exercise.t =
               ancestors = [];
             };
           caret = Outer;
-          refractors = Haz3lcore.Refractors.init;
+          refractors =
+            {
+              manuals = [];
+              multis =
+                {
+                  ids = Haz3lcore.Id.Map.empty;
+                  suppressed = Haz3lcore.Id.Map.empty;
+                  ephemerals = Haz3lcore.Id.Map.empty;
+                };
+              sample_focus =
+                {
+                  call_stack = [];
+                  index = -1;
+                  pinned_stack = None;
+                  indicated_call = None;
+                  time = None;
+                  seq = 0;
+                  step_range = None;
+                  pending_focus = None;
+                };
+              autoprobe_target = None;
+              pending_probe_cursor = None;
+            };
         };
       corpus = ALF;
       trees =
@@ -691,7 +731,29 @@ let exercise : Exercise.t =
                             ];
                         };
                       caret = Outer;
-                      refractors = Haz3lcore.Refractors.init;
+                      refractors =
+                        {
+                          manuals = [];
+                          multis =
+                            {
+                              ids = Haz3lcore.Id.Map.empty;
+                              suppressed = Haz3lcore.Id.Map.empty;
+                              ephemerals = Haz3lcore.Id.Map.empty;
+                            };
+                          sample_focus =
+                            {
+                              call_stack = [];
+                              index = -1;
+                              pinned_stack = None;
+                              indicated_call = None;
+                              time = None;
+                              seq = 0;
+                              step_range = None;
+                              pending_focus = None;
+                            };
+                          autoprobe_target = None;
+                          pending_probe_cursor = None;
+                        };
                     };
                   rule = None;
                 },
