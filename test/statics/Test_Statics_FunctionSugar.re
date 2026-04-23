@@ -82,7 +82,12 @@ let binder_info_shape = (name, src, expected_arrow) =>
             Cls.show(Cls.Pat(ApFunc)),
             Cls.show(cls),
           );
-          Alcotest.check(testable_typ, label ++ " — ty", expected_arrow, ty);
+          Alcotest.check(
+            testable_typ,
+            label ++ " — ty",
+            expected_arrow,
+            ty,
+          );
           Alcotest.check(
             testable_typ,
             label ++ " — ana",
@@ -175,7 +180,6 @@ let tests = (
       "ids preserved: recursive",
       "let fact(n: Int): Int = if n == 0 then 1 else n * fact(n - 1) in fact(3)",
     ),
-
     /* ===== Cursor inspector display =====
        The binder `f(args)` (and its outer `Asc` wrapper if present)
        should report the function's arrow type directly, so the

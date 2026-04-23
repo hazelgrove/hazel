@@ -135,7 +135,11 @@ let add_binder_infos =
     let add_for = (pat, m) =>
       StaticsBase.Map.add_info(
         IdTagged.ids(pat),
-        Info.InfoPat({...binder_info, user_term: pat, elab_term: pat}),
+        Info.InfoPat({
+          ...binder_info,
+          user_term: pat,
+          elab_term: pat,
+        }),
         m,
       );
     switch (IdTagged.term_of(user_pat)) {
