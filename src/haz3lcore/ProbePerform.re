@@ -48,11 +48,11 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
   /* If we're trying to probe a function literal,
      put probes on parameters and body instead */
-  | Some(InfoExp({term: {term: Fun(pat, body, _, _), _}, _})) => [
+  | Some(InfoExp({user_term: {term: Fun(pat, body, _, _), _}, _})) => [
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({term: {term: Let(_pat, def, _), _} as let_term, _})) =>
+  | Some(InfoExp({user_term: {term: Let(_pat, def, _), _} as let_term, _})) =>
     /* If trying to probe a let, probe the definition instead.
        Exception: if the let is the body of a test, probe the let itself
        (so we see the test result, not just the definition value).
@@ -67,12 +67,12 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
     is_test_body
       ? [IdTagged.rep_id(let_term)]
       : target_subterm_ids(IdTagged.rep_id(def), info_map);
-  | Some(InfoExp({term: {term: ModuleExp(_, def, _), _}, _})) =>
+  | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
     /* If trying to probe a module expression, probe the definition.
        Recurse so fun literals get drilled into. */
     target_subterm_ids(IdTagged.rep_id(def), info_map)
 
-  | Some(InfoExp({term: {term: Var(_), _} as v, _})) =>
+  | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
     /* If we're trying to probe variable in function position for an
        application, probe the whole application instead */
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
@@ -92,7 +92,7 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       }
     | _ => [id]
     }
-  | Some(InfoExp({term: {term: DeferredAp(_), _} as v, _})) =>
+  | Some(InfoExp({user_term: {term: DeferredAp(_), _} as v, _})) =>
     /* If we're trying to probe a partially applied function in function
        position of an application, in particular but not limited to a reverse
        application chain, probe the whole application instead */
@@ -107,8 +107,8 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   /* Default: use rep_id for expressions and patterns to handle multi-tile forms
      (tuples, list literals, case expressions) where non-representative tile IDs
      would otherwise cause probe_map/evaluator ID mismatch */
-  | Some(InfoExp({term, _})) => [IdTagged.rep_id(term)]
-  | Some(InfoPat({term, _})) => [Pat.rep_id(term)]
+  | Some(InfoExp({user_term, _})) => [IdTagged.rep_id(user_term)]
+  | Some(InfoPat({user_term, _})) => [Pat.rep_id(user_term)]
   | _ => [id]
   };
 
@@ -605,8 +605,9 @@ let toggle_multi =
    expansion, while specific expressions are better served by manual probes. */
 let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
   switch (Statics.Map.lookup(id, info_map)) {
-  | Some(InfoExp({term: {term: Let(_, _, _), _}, _})) => true
-  | Some(InfoExp({term: {term: Test(_) | HintedTest(_, _), _}, _})) => true
+  | Some(InfoExp({user_term: {term: Let(_, _, _), _}, _})) => true
+  | Some(InfoExp({user_term: {term: Test(_) | HintedTest(_, _), _}, _})) =>
+    true
   | _ => false
   };
 
@@ -648,7 +649,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   let* ci =
     switch (ci) {
     | InfoExp({
-        term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
+        user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
         _,
       }) =>
       Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map)
@@ -733,7 +734,7 @@ let step_into_call_stack =
   let* binding_id =
     switch (ci_ap) {
     | InfoExp({
-        term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
+        user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
         _,
       }) =>
       let* ci_var = Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map);
@@ -784,7 +785,7 @@ let step_into_call_stack =
    * target_subterm_ids transforms Fun to [inner_body, pattern]. */
   let (jump_target, _sample_probe_id) =
     switch (ci_body) {
-    | InfoExp({term: {term: Fun(pat, inner_body, _, _), _}, _}) =>
+    | InfoExp({user_term: {term: Fun(pat, inner_body, _, _), _}, _}) =>
       let pat_id = IdTagged.rep_id(pat);
       let inner_body_id = IdTagged.rep_id(inner_body);
       (pat_id, inner_body_id);
@@ -1294,14 +1295,14 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
         switch (Statics.Map.lookup(anc_id, statics)) {
         | Some(
             InfoExp({
-              term: {term: Test(body) | HintedTest(body, _), _},
+              user_term: {term: Test(body) | HintedTest(body, _), _},
               _,
             }),
           ) =>
           /* Test: return its body */
           Some(IdTagged.rep_id(body))
 
-        | Some(InfoExp({term: {term: Let(_, def, body), _}, _})) =>
+        | Some(InfoExp({user_term: {term: Let(_, def, body), _}, _})) =>
           let body_id = IdTagged.rep_id(body);
           if (Id.equal(child_id, body_id)) {
             /* Child is body → cursor is in body → skip, continue inward */
@@ -1325,7 +1326,9 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
   };
 
   switch (Statics.Map.lookup(id, statics)) {
-  | Some(InfoExp({term: {term: Test(body) | HintedTest(body, _), _}, _})) =>
+  | Some(
+      InfoExp({user_term: {term: Test(body) | HintedTest(body, _), _}, _}),
+    ) =>
     /* Starting point IS a test → return its body */
     Some(IdTagged.rep_id(body))
 
@@ -1337,7 +1340,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       /* No outer let found where we're in def.
          Check if starting_id itself is a top-level let → return its def */
       switch (info) {
-      | InfoExp({term: {term: Let(_, def, _), _}, _}) =>
+      | InfoExp({user_term: {term: Let(_, def, _), _}, _}) =>
         Some(IdTagged.rep_id(def))
       | _ => None
       }

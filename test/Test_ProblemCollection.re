@@ -57,10 +57,15 @@ let has_multihole_error = (problems: list(ProblemCollection.problem)) =>
   List.exists(
     (p: ProblemCollection.problem) =>
       switch (p.source) {
-      | FromInfo(InfoExp({status: InHole(Common(NoType(MultiHole))), _})) =>
-        true
-      | FromInfo(InfoPat({status: InHole(Common(NoType(MultiHole))), _})) =>
-        true
+      | FromInfo(ci) =>
+        List.exists(
+          m =>
+            switch (m) {
+            | Language.Mark.IsMulti => true
+            | _ => false
+            },
+          Language.Info.marks_of(ci),
+        )
       | _ => false
       },
     problems,

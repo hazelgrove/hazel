@@ -13,10 +13,12 @@ let mk_zipper = (code: string): Zipper.t => {
 };
 
 let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
-  Statics.mk(
-    CoreSettings.on,
-    Builtins.ctx_init(Some(Operators.default_mode)),
-    MakeTerm.from_zip_for_sem(z).term,
+  fst(
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      MakeTerm.from_zip_for_sem(z).term,
+    ),
   );
 
 let render_zipper = (z: Zipper.t): string =>

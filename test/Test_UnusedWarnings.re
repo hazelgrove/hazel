@@ -6,8 +6,8 @@ open Test_Statics_Prelude;
 let unused_warnings = (s: Statics.Map.t): list(string) =>
   Id.Map.fold(
     (_id, info: Info.t, acc) =>
-      switch (Info.warning_of(info)) {
-      | WarningPat(UnusedVar(name)) => [name, ...acc]
+      switch (Info.warnings_of(info)) {
+      | [Pat(UnusedVar(name))] => [name, ...acc]
       | _ => acc
       },
     s,
