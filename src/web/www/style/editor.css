@@ -411,6 +411,11 @@ svg.shard.selected.buffer-parsed > path {
 #caret {
   z-index: var(--caret-z);
   pointer-events: none;
+  visibility: hidden;
+}
+
+.code-editor:focus > * > * > #caret {
+  visibility: visible;
 }
 
 #caret.blink {

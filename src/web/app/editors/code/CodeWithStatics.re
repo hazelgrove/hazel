@@ -76,6 +76,7 @@ module Model = {
     undo_action: None,
     redo_action: None,
     error_ids: model.statics.error_ids,
+    contextual_actions: [],
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

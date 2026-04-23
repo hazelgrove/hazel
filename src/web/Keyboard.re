@@ -4,7 +4,8 @@ open Util;
 let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));
 let is_f_key = s => StringUtil.(match(regexp("^F[0-9][0-9]*$"), s));
 
-let meta = (sys: Key.sys): string => {
+let meta = (): string => {
+  let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
   switch (sys) {
   | Mac => "cmd"
   | PC => "ctrl"

@@ -308,21 +308,51 @@ module Selection = {
     | Assistant;
   /* Assistant = user has focus in the sidebar (e.g. agent panel text box) */
 
-  let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selection: t,
+        editors: Model.t,
+      )
+      : cursor(Update.t) => {
     switch (selection, editors) {
     | (Scratch(selection), Scratch(m)) =>
-      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
-      Update.Scratch(ci);
+      let ci =
+        ScratchMode.Selection.get_cursor_info(
+          ~inject=a => inject(Scratch(a)),
+          ~selection,
+          m,
+        );
+      let+ a = ci;
+      Update.Scratch(a);
     | (Scratch(selection), Documentation(m)) =>
-      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
-      Update.Scratch(ci);
+      let ci =
+        ScratchMode.Selection.get_cursor_info(
+          ~inject=a => inject(Scratch(a)),
+          ~selection,
+          m,
+        );
+      let+ a = ci;
+      Update.Scratch(a);
     | (Assistant, _) => empty
     | (Tutorial(selection), Tutorial(m)) =>
-      let+ ci = TutorialsMode.Selection.get_cursor_info(~selection, m);
-      Update.Tutorial(ci);
+      let ci =
+        TutorialsMode.Selection.get_cursor_info(
+          ~inject=a => inject(Tutorial(a)),
+          ~selection,
+          m,
+        );
+      let+ a = ci;
+      Update.Tutorial(a);
     | (Exercises(selection), Exercises(m)) =>
-      let+ ci = ExercisesMode.Selection.get_cursor_info(~selection, m);
-      Update.Exercises(ci);
+      let ci =
+        ExercisesMode.Selection.get_cursor_info(
+          ~inject=a => inject(Exercises(a)),
+          ~selection,
+          m,
+        );
+      let+ a = ci;
+      Update.Exercises(a);
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Tutorial(_))
     | (Scratch(_), Exercises(_))
@@ -331,26 +361,6 @@ module Selection = {
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Documentation(_))
     | (Exercises(_), Documentation(_)) => empty
-    };
-  };
-
-  let handle_key_event =
-      (~selection: option(t), ~event, editors: Model.t): option(Update.t) => {
-    switch (selection, editors) {
-    | (Some(Scratch(selection)), Scratch(m)) =>
-      ScratchMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Scratch(x))
-    | (Some(Scratch(selection)), Documentation(m)) =>
-      ScratchMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Scratch(x))
-    | (Some(Tutorial(selection)), Tutorial(m)) =>
-      TutorialsMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Tutorial(x))
-    | (Some(Exercises(selection)), Exercises(m)) =>
-      ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Exercises(x))
-    | (Some(Assistant), _)
-    | _ => None
     };
   };
 

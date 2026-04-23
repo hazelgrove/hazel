@@ -151,7 +151,6 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
