@@ -503,7 +503,7 @@ let function_ap_exp: form = {
   let ap = mk_ap_pat([[_pat_arg]]);
   let form = [mk_fun([[space(), _pat_con, ap, space()]]), space(), _exp];
   {
-    id: FunctionExp(Ap),
+    id: FunctionExp(ApFunc),
     syntactic_form: form,
     expandable_id:
       Some((Piece.id(ap), [pat("p_con"), mk_ap_pat([[pat("p_arg")]])])),
@@ -601,6 +601,6 @@ let functions_ctr = {
 };
 
 let functions_ap = {
-  id: FunctionExp(Ap),
+  id: FunctionExp(ApFunc),
   forms: [function_ap_exp, function_exp],
 };

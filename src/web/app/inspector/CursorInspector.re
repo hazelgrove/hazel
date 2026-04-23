@@ -323,7 +323,10 @@ let common_ok_view =
       | Label(l) => [label_view(l)]
       | _ => colon_prefix(show_type_colon) @ [view_type(syn)]
       }
-    | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) =>
+    | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Ana(Consistent({ana, _}))) =>
+      /* Pat(ApFunc) is only produced by the `let f(args) = ...` function
+         sugar (see FunctionSugar.re), where it denotes the function binder
+         as a whole. Render it the same way as a plain variable binder. */
       colon_prefix(show_type_colon) @ [view_type(ana)]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>

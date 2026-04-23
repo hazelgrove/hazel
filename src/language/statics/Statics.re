@@ -1652,6 +1652,32 @@ and uexp_to_info_map =
         ~co_ctx=body.co_ctx,
         m,
       );
+    | Let(p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
+      /* Syntactic sugar: `let f(x: Int, y): Ret = def` desugars to
+         `let f = fun (x: Int, y) -> (def : Ret)`. Build the rewrite and
+         delegate to the regular Let machinery by recursing; patch up
+         the info map for pattern ids that vanish in the rewrite
+         (the Ap wrapper and optional outer Asc). Same structural
+         pattern as `ModuleExp` expansion above and `Typ.desugar_sig`. */
+      let (f_name, args, ret_ty) = Option.get(FunctionSugar.detect(p));
+      let rewritten =
+        FunctionSugar.rewrite(
+          ~orig_let=uexp,
+          ~f_name,
+          ~args,
+          ~ret_ty,
+          ~def,
+          ~body,
+        );
+      let (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
+      let m = FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name);
+      add(
+        ~elab_term=rewritten_elab,
+        ~elab_syn_ty=rewritten_info.elab_syn_ty,
+        ~marks=rewritten_info.marks,
+        ~co_ctx=rewritten_info.co_ctx,
+        m,
+      );
     | Let(p, def, body) =>
       let is_recursive = (ctx, p, def, syn: Typ.t) => {
         switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
