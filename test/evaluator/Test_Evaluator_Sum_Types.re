@@ -188,8 +188,8 @@ let tests = (
           "Indet when unboxing constructor as bool",
           if_(
             constructor("B", Some(Some(Typ.bool()))),
-            bool(false),
-            constructor("A", Some(None)),
+            asc(bool(false), Typ.unknown(SynSwitch)),
+            asc(constructor("A", Some(None)), Typ.unknown(SynSwitch)),
           ),
           elaborate(
             parse_exp("type y = + B(Float) in if B then false else A"),
@@ -205,6 +205,7 @@ let tests = (
           elaborate(parse_exp("let () = type x = + A in A in ?")),
         );
         evaluation_test(
+          ~ignore_constructor_types=true,
           "Indet when unboxing constructor as typfun",
           typ_ap(
             constructor(

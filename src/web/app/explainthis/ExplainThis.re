@@ -554,7 +554,7 @@ let get_doc =
   | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
     message_single(ModuleKeywordDecl.single)
   | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
-  | Some(InfoExp({term, _})) =>
+  | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
@@ -2219,7 +2219,7 @@ let get_doc =
       | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
-  | Some(InfoPat({term, _})) =>
+  | Some(InfoPat({user_term: term, _})) =>
     switch (bypass_parens_pat(term).term) {
     | EmptyHole => get_message(HolePat.empty_hole)
     | MultiHole(_) => get_message(HolePat.multi_hole)
@@ -2502,7 +2502,7 @@ let get_doc =
       // Shouldn't be hit?
       default
     }
-  | Some(InfoTyp({term, _} as typ_info)) =>
+  | Some(InfoTyp({user_term: term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
     | Unknown(SynSwitch)
     | Unknown(Internal)
@@ -2739,7 +2739,7 @@ let get_doc =
     | Projector(_) => default
     }
   | Some(InfoTPat(info)) =>
-    switch (info.term.term) {
+    switch (info.user_term.term) {
     | Invalid(_) => simple("Type names must begin with a capital letter")
     | EmptyHole => get_message(HoleTPat.empty_hole_tpats)
     | MultiHole(_) => get_message(HoleTPat.multi_hole_tpats)
