@@ -7,7 +7,7 @@ type cls =
   | Deferral
   | Undefined
   | Atom(Atom.cls)
-  | DrvExp
+  | DrvQuote
   | ListLit
   | Constructor
   | Fun
@@ -87,7 +87,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Deferral(_) => Deferral
   | Undefined => Undefined
   | Atom(c) => Atom(Atom.cls_of_t(c))
-  | DrvExp(_) => DrvExp
+  | DrvQuote(_) => DrvQuote
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
   | Fun(_) => Fun
@@ -148,7 +148,7 @@ let show_cls: cls => string =
   | Atom(String) => "String literal"
   | Atom(Nat) => "Natural number literal"
   | Atom(SInt) => "System integer literal"
-  | DrvExp => "Derivation expression"
+  | DrvQuote => "Derivation-Mode Quotation"
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Fun => "Function literal"
@@ -243,7 +243,7 @@ let rec is_fun = (e: t) => {
   | Deferral(_)
   | Undefined
   | Atom(_)
-  | DrvExp(_)
+  | DrvQuote(_)
   | Label(_)
   | ExplicitNonlabel
   | ListLit(_)
@@ -310,7 +310,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Deferral(_)
     | Undefined
     | Atom(_)
-    | DrvExp(_)
+    | DrvQuote(_)
     | Label(_)
     | ExplicitNonlabel
     | ListLit(_)
@@ -411,7 +411,7 @@ let rec get_num_of_functions = (e: t) =>
     | Constructor(_)
     | Module(_)
     | ModuleExp(_)
-    | DrvExp(_) => None
+    | DrvQuote(_) => None
     };
   };
 

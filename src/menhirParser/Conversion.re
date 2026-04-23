@@ -422,7 +422,7 @@ module rec Exp: {
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
-    | DrvExp(_) => raise(Failure("DrvExp not supported")) // TODO(zhiyao)
+    | DrvQuote(_) => raise(Failure("DrvQuote not supported")) // TODO(zhiyao)
     | Projector(_, e) => of_core(e)
     | Module(items) => Module(List.map(ModItem.of_core, items))
     | ModuleExp(mp, def, body) =>
@@ -561,7 +561,7 @@ and Typ: {
           constructors,
         );
       SumTyp(sumterms);
-    | DrvTyp(_) => raise(Failure("DrvTyp not supported")) // TODO(Zhiyao)
+    | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported")) // TODO(Zhiyao)
     | Projector(_, t) => of_core(t)
     | Sig(items) => Sig(List.map(SigItem.of_core, items))
     };

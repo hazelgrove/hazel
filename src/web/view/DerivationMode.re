@@ -62,12 +62,25 @@ module Model = {
   };
 
   let is_editable =
-      (~instructor_mode, pos: DerivationTree.pos, model: t): bool => {
-    switch (pos) {
-    | Prelude => instructor_mode
-    | Setup => true
-    | Trees(i, Value) when i + 1 == List.length(model.editors.trees) => instructor_mode
-    | Trees(_) => true
+      (
+        ~instructor_mode,
+        ~scratch_mode=false,
+        pos: DerivationTree.pos,
+        model: t,
+      )
+      : bool => {
+    /* In the unified scratch/derivation mode, all positions are freely
+       editable (there is no instructor/student distinction, and no goal
+       conclusion that should be locked). */
+    if (scratch_mode) {
+      true;
+    } else {
+      switch (pos) {
+      | Prelude => instructor_mode
+      | Setup => true
+      | Trees(i, Value) when i + 1 == List.length(model.editors.trees) => instructor_mode
+      | Trees(_) => true
+      };
     };
   };
 
@@ -170,12 +183,18 @@ module Update = {
   };
 
   let update =
-      (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
+      (
+        ~settings: Settings.t,
+        ~schedule_action as _,
+        ~scratch_mode=false,
+        action,
+        model: Model.t,
+      )
       : Updated.t(Model.t) => {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
     | Editor(pos, MainEditor(action))
-        when Model.is_editable(pos, ~instructor_mode, model) =>
+        when Model.is_editable(pos, ~instructor_mode, ~scratch_mode, model) =>
       let editor =
         DerivationTree.main_editor_of_state(~selection=pos, model.editors);
       let* new_editor =
@@ -621,6 +640,7 @@ module View = {
         ~signal: event => 'b,
         ~inject: Update.t => 'b,
         ~selection: option(Selection.t),
+        ~scratch_mode: bool=false,
         model: Model.t,
       ) => {
     let eds = model.editors;
@@ -1011,7 +1031,7 @@ module View = {
           text(Pretty.Unicode.nbsp),
           text(RuleImage.show_corpus(eds.corpus)),
           text(Pretty.Unicode.nbsp),
-          if (globals.settings.instructor_mode) {
+          if (globals.settings.instructor_mode || scratch_mode) {
             select(
               ~attrs=[
                 Attr.class_("version-select"),
@@ -1053,13 +1073,17 @@ module View = {
         [editor_view(Setup, model.cells.setup, ~caption="Setup")],
       );
 
-    [
-      title_view,
-      prompt_view,
-      version_view,
-      prelude_view,
-      setup_view,
-      derivations_view,
-    ];
+    if (scratch_mode) {
+      [version_view, setup_view, derivations_view];
+    } else {
+      [
+        title_view,
+        prompt_view,
+        version_view,
+        prelude_view,
+        setup_view,
+        derivations_view,
+      ];
+    };
   };
 };

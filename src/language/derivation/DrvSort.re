@@ -27,13 +27,13 @@ let class_of =
 
 let to_string =
   fun
-  | Jdmt => "Jdmt"
-  | Ctx => "Ctx"
-  | Prop => "Prop"
-  | Exp => "ALFA_Exp"
-  | Pat => "ALFA_Pat"
-  | Typ => "ALFA_Typ"
-  | TPat => "ALFA_TPat";
+  | Jdmt => "DrvJdmt"
+  | Ctx => "DrvCtx"
+  | Prop => "DrvProp"
+  | Exp => "ALFAExp"
+  | Pat => "DrvPat"
+  | Typ => "ALFATyp"
+  | TPat => "DrvTPat";
 
 let to_string_verbose =
   fun

@@ -245,7 +245,7 @@ module Transition = (EV: EV_MODE) => {
           switch (Environment.lookup(env, x)) {
           | Some(d) =>
             switch (DHExp.term_of(d)) {
-            | DrvExp(Exp({term, _}), _) => term
+            | DrvQuote(Exp({term, _}), _) => term
             | _ => Hole(AbbrNotDrvTerm)
             }
           | None => Hole(AbbrNotFound)
@@ -316,7 +316,7 @@ module Transition = (EV: EV_MODE) => {
           switch (Environment.lookup(env, x)) {
           | Some(d) =>
             switch (DHExp.term_of(d)) {
-            | DrvExp(Typ({term, _}), _) => term
+            | DrvQuote(Typ({term, _}), _) => term
             | _ => Hole(AbbrNotDrvTerm)
             }
           | None => Hole(AbbrNotFound)
@@ -343,7 +343,7 @@ module Transition = (EV: EV_MODE) => {
           switch (Environment.lookup(env, x)) {
           | Some(d) =>
             switch (DHExp.term_of(d)) {
-            | DrvExp(Pat({term, _}), _) => term
+            | DrvQuote(Pat({term, _}), _) => term
             | _ => Hole(AbbrNotDrvTerm)
             }
           | None => Hole(AbbrNotFound)
@@ -366,7 +366,7 @@ module Transition = (EV: EV_MODE) => {
           switch (Environment.lookup(env, x)) {
           | Some(d) =>
             switch (DHExp.term_of(d)) {
-            | DrvExp(TPat({term, _}), _) => term
+            | DrvQuote(TPat({term, _}), _) => term
             | _ => Hole(AbbrNotDrvTerm)
             }
           | None => Hole(AbbrNotFound)
@@ -378,12 +378,12 @@ module Transition = (EV: EV_MODE) => {
     let (term, rewrap) = IdTagged.unwrap(d);
     let term: term =
       switch (term) {
-      | DrvExp(drv, s) =>
+      | DrvQuote(drv, s) =>
         switch (drv) {
-        | Exp(e) => DrvExp(Exp(go_exp(e)), s)
-        | Typ(t) => DrvExp(Typ(go_typ(t)), s)
-        | Pat(p) => DrvExp(Pat(go_pat(p)), s)
-        | TPat(t) => DrvExp(TPat(go_tpat(t)), s)
+        | Exp(e) => DrvQuote(Exp(go_exp(e)), s)
+        | Typ(t) => DrvQuote(Typ(go_typ(t)), s)
+        | Pat(p) => DrvQuote(Pat(go_pat(p)), s)
+        | TPat(t) => DrvQuote(TPat(go_tpat(t)), s)
         }
       | _ => term
       };
@@ -793,7 +793,7 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
-    | DrvExp(_) =>
+    | DrvQuote(_) =>
       let. _ = otherwise(env, d);
       let d' = drv_transition(env, d);
       if (DHExp.fast_equal(d, d')) {

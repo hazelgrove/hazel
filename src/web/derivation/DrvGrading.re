@@ -33,7 +33,7 @@ module ProofTree = {
     switch (result) {
     | Some(e) =>
       switch (IdTagged.term_of(e)) {
-      | DrvExp(Exp(d), _) => Ok(d)
+      | DrvQuote(Exp(d), _) => Ok(d)
       | _ => Error(NotAJudgment)
       }
     | None => Error(NoResult)

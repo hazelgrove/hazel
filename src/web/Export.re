@@ -8,7 +8,6 @@ type all = {
   tutorial: string,
   exercise: string,
   documentation: string,
-  derivation: string,
   log: string,
 };
 
@@ -18,7 +17,6 @@ type all_public = {
   settings: string,
   scratch: string,
   exercise: string,
-  derivation: string,
   tutorial: string,
   log: string,
 };
@@ -44,15 +42,12 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
     TutorialsMode.Store.export(~settings=core_settings, ~instructor_mode);
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
-  let derivation =
-    DerivationsMode.Store.export(~settings=core_settings, ~instructor_mode);
   {
     settings,
     explainThisModel,
     scratch,
     documentation,
     exercise,
-    derivation,
     tutorial,
     log,
   };
@@ -63,13 +58,7 @@ let export_all = (~settings, ~instructor_mode, ~log) => {
 };
 
 let import_all =
-    (
-      ~import_log: string => unit,
-      data,
-      ~exercise_specs,
-      ~derivation_spec,
-      ~tutorial_specs,
-    ) => {
+    (~import_log: string => unit, data, ~exercise_specs, ~tutorial_specs) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
@@ -78,7 +67,6 @@ let import_all =
         settings: all_public.settings,
         scratch: all_public.scratch,
         documentation: "",
-        derivation: all_public.derivation,
         exercise: all_public.exercise,
         tutorial: all_public.tutorial,
         log: all_public.log,
@@ -97,12 +85,6 @@ let import_all =
     ~settings,
     all.exercise,
     ~exercise_specs,
-    ~instructor_mode,
-  );
-  DerivationsMode.Store.import(
-    ~settings,
-    all.derivation,
-    ~specs=derivation_spec,
     ~instructor_mode,
   );
   TutorialsMode.Store.import(
@@ -124,7 +106,6 @@ let import_just_log = (data: string) => {
         scratch: all_public.scratch,
         documentation: "",
         exercise: all_public.exercise,
-        derivation: all_public.derivation,
         tutorial: all_public.tutorial,
         log: all_public.log,
         explainThisModel: "",

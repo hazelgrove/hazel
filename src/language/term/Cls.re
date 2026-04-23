@@ -13,7 +13,7 @@ type t =
 
 let show = (cls: t) =>
   switch (cls) {
-  | Drv(cls) => "Drv " ++ Drv.Any.show_cls(cls)
+  | Drv(cls) => "ALFA " ++ Drv.Any.show_cls(cls)
   | Exp(cls) => Exp.show_cls(cls)
   | Pat(cls) => Pat.show_cls(cls)
   | Typ(cls) => Typ.show_cls(cls)

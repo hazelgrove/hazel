@@ -749,12 +749,12 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch ((term: Exp.term)) {
-      | DrvExp(_) => (
+      | DrvQuote(_) => (
           [],
           mk_translation(
             ~globals,
             ~inject=_ => (),
-            "A converting expression from a derivation term. There is a total of 5 valid converting expressions:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
+            "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
           ),
           [],
         )
@@ -2905,8 +2905,34 @@ let get_doc =
     | Parens(_)
     | Sig(_) => message_single(SigTyp.single)
     | Projector(_) => default
-    // Note(zhiyao): Derivation term expression is not allowed to be explicitly written
-    | DrvTyp(_) => simple("Derivations Types")
+    | DrvQuoteTy(Jdmt) =>
+      simple(
+        "`DrvJdmt` is the type of derivation-mode judgements. Quote a judgement with `of_jdmt` to embed it as an expression.",
+      )
+    | DrvQuoteTy(Ctx) =>
+      simple(
+        "`DrvCtx` is the type of derivation-mode typing contexts, mapping ALFA variables to ALFA types. Quote a context with `of_ctx`.",
+      )
+    | DrvQuoteTy(Prop) =>
+      simple(
+        "`DrvProp` is the type of derivation-mode propositions (e.g., equalities between ALFA terms or types). Quote a proposition with `of_prop`.",
+      )
+    | DrvQuoteTy(Exp) =>
+      simple(
+        "`ALFAExp` is the type of ALFA expressions: terms in the object language of the derivation. Quote an ALFA expression with `of_alfa_exp`.",
+      )
+    | DrvQuoteTy(Pat) =>
+      simple(
+        "`DrvPat` is the type of ALFA patterns, used in binding positions within ALFA expressions.",
+      )
+    | DrvQuoteTy(Typ) =>
+      simple(
+        "`ALFATyp` is the type of ALFA types: the types of the object language of the derivation. Quote an ALFA type with `of_alfa_typ`.",
+      )
+    | DrvQuoteTy(TPat) =>
+      simple(
+        "`DrvTPat` is the type of ALFA type patterns, used in binding positions within ALFA type abstractions.",
+      )
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {

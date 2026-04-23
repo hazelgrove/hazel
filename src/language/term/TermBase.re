@@ -206,7 +206,7 @@ and Exp: {
         | EmptyHole
         | Invalid(_)
         | Atom(_)
-        | DrvExp(_)
+        | DrvQuote(_)
         | Constructor(_)
         | Label(_)
         | ExplicitNonlabel
@@ -408,7 +408,7 @@ and Typ: {
         | Unknown(SynSwitch)
         | Unknown(Internal)
         | Atom(_)
-        | DrvTyp(_)
+        | DrvQuoteTy(_)
         | Label(_)
         | ExplicitNonlabel
         | Var(_) => term

@@ -30,12 +30,12 @@
 }
 
 :is(#main.Scratch,
-#main.Documentation) > * > .code-editor {
+#main.Documentation):not(.Derivations) > * > .code-editor {
   background-color: var(--cell-active);
 }
 
-#main.Scratch .cell,
-#main.Documentation .cell {
+:is(#main.Scratch,
+#main.Documentation):not(.Derivations) .cell {
   flex-grow: 1;
 }
 
@@ -50,6 +50,12 @@
   gap: 1.2em;
   background-color: var(--ui-bkg);
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+/* Derivation slides inside the unified Scratch/Documentation modes
+   must not inherit the flex-grow applied to code scratchpad cells. */
+#main.Derivations > .cell {
+  flex: 0 0 auto;
 }
 
 #main.Tutorial .cell,

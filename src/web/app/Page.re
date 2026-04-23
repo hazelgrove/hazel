@@ -66,14 +66,21 @@ module Store = {
 module Update = {
   open Updated;
 
-  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+  let get_editor = (model: Model.t): CodeEditable.Model.t => {
+    let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => editor.editor
+      | Drv(dm) => dm.cells.prelude.editor
+      };
+    };
     switch (model.editors) {
-    | Scratch(m) => List.nth(m.scratchpads, m.current).editor.editor
-    | Documentation(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Scratch(m) => get_scratchpad_editor(m)
+    | Documentation(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
-    | Derivations(m) => List.nth(m.exercises, m.current).cells.prelude.editor
     };
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
@@ -192,7 +199,6 @@ module Update = {
         ~import_log,
         data,
         ~exercise_specs=ExerciseSettings.exercises,
-        ~derivation_spec=DerivationSettings.exercises,
         ~tutorial_specs=TutorialSettings.lessons,
       );
       Store.load() |> return;
@@ -206,13 +212,17 @@ module Update = {
             (current.name |> StringUtil.sanitize_filename) ++ ".ml";
 
           let content =
-            Haz3lcore.(
-              [%derive.show: (string, PersistentSegment.t)]((
-                current.name,
-                current.editor.editor.editor.state.zipper
-                |> PersistentSegment.persist,
-              ))
-            );
+            switch (current.kind) {
+            | Code({editor, _}) =>
+              Haz3lcore.(
+                [%derive.show: (string, PersistentSegment.t)]((
+                  current.name,
+                  editor.editor.editor.state.zipper
+                  |> PersistentSegment.persist,
+                ))
+              )
+            | Drv(_) => "not supported"
+            };
           (filename, content);
         | Tutorial(model) =>
           let current = List.nth(model.exercises, model.current);
@@ -223,11 +233,6 @@ module Update = {
           let current = List.nth(model.exercises, model.current);
           let filename =
             ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
-          let content = "not supported";
-          (filename, content);
-        | Derivations(model) =>
-          let current = List.nth(model.exercises, model.current);
-          let filename = current.editors.module_name ++ ".ml";
           let content = "not supported";
           (filename, content);
         };
@@ -809,8 +814,7 @@ module View = {
         | Scratch(_)
         | Documentation(_)
         | Tutorial(_)
-        | Exercises(_)
-        | Derivations(_) => false
+        | Exercises(_) => false
         };
       if (!culling_enabled) {
         Effect.Ignore;
@@ -841,7 +845,10 @@ module View = {
       div(
         ~attrs=[
           Attr.id("main"),
-          Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.classes(
+            [Editors.Model.mode_string(editors)]
+            @ Editors.Model.extra_main_classes(editors),
+          ),
           Attr.on_scroll(on_scroll),
         ],
         editors_view,

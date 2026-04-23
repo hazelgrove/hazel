@@ -186,10 +186,10 @@ let rec match_exp =
       List.combine(es1, es2),
     );
   | (DeferredAp(_, _), _) => None
-  | (DrvExp(e1, _), DrvExp(e2, _))
+  | (DrvQuote(e1, _), DrvQuote(e2, _))
       when DrvTermBase.Any.eq(e1, e2, ~skip_hole=false) =>
     Some(ctx)
-  | (DrvExp(_), _) => None
+  | (DrvQuote(_), _) => None
   | (If(e1, e2, e3), If(e4, e5, e6)) =>
     let* ctx = match_exp(alphas, ctx, e1, e4);
     let* ctx = match_exp(alphas, ctx, e2, e5);

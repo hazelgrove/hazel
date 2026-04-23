@@ -4,7 +4,7 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Atom(Atom.cls)
-  | DrvTyp
+  | DrvQuoteTy
   | Invalid
   | EmptyHole
   | MultiHole
@@ -84,7 +84,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
   | Atom(c) => Atom(c)
-  | DrvTyp(_) => DrvTyp
+  | DrvQuoteTy(_) => DrvQuoteTy
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -110,7 +110,7 @@ let show_cls: cls => string =
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
-  | DrvTyp => "Derivation term"
+  | DrvQuoteTy => "Derivation-Mode Quotation Type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -137,7 +137,7 @@ let rec is_arrow = (typ: t) => {
   | Arrow(_) => true
   | Unknown(_)
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | List(_)
   | Label(_)
   | ExplicitNonlabel
@@ -156,7 +156,7 @@ let rec is_arrow = (typ: t) => {
 let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | ProofOf(_)
   | Parens(_)
   | Projector(_)
@@ -187,7 +187,7 @@ let rec has_fun = (typ: t) =>
   | ProofOf(_) => true
   | Unknown(_)
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
   | Var(_) => false
@@ -214,7 +214,7 @@ let rec is_poly = (typ: t) => {
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Arrow(_)
   | List(_)
   | Label(_)
@@ -284,7 +284,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
@@ -307,7 +307,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
 let rec vars = (ty: t): list(Var.t) =>
   switch (ty.term) {
   | Atom(_)
-  | DrvTyp(_) => []
+  | DrvQuoteTy(_) => []
   | Unknown(_) => []
   | Var(x) => [x]
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
@@ -366,7 +366,7 @@ let fresh_var = (var_name: string) => {
 let rec num_nodes = (ty: t): int => {
   switch (ty.term) {
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Unknown(_) => 1
   | Var(_) => 1
   | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
@@ -404,7 +404,7 @@ let rec count_unknowns = (ty: t): int =>
   switch (ty.term) {
   | Unknown(_) => 1
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
@@ -437,7 +437,7 @@ let rec count_unknowns = (ty: t): int =>
 let rec contains_sum_or_var = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Unknown(_) => false
   | Var(_)
   | Sum(_) => true
@@ -489,7 +489,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProofOf(e) => ProofOf(e) |> rewrap
     | Sig(_) => ty
-    | DrvTyp(_) => ty
+    | DrvQuoteTy(_) => ty
     };
   | None => ty
   };
@@ -639,7 +639,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     }
   | Unknown(_)
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_) => ty
   | Parens(t)
@@ -817,8 +817,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
   | (Atom(_), _) => None
-  | (DrvTyp(d1), DrvTyp(d2)) when d1 == d2 => Some(ty1)
-  | (DrvTyp(_), _) => None
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => Some(ty1)
+  | (DrvQuoteTy(_), _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
@@ -887,7 +887,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
   | (Atom(_), _)
-  | (DrvTyp(_), _)
+  | (DrvQuoteTy(_), _)
   | (Label(_), _)
   | (ExplicitNonlabel, _)
   | (Var(_), _)
@@ -1095,7 +1095,7 @@ let rec is_syn = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Unknown(_)
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | Var(_)
   | Rec(_)
@@ -1117,7 +1117,7 @@ let rec is_ana_atom = (ty: t) =>
   | Parens(x)
   | Projector(_, x) => is_ana_atom(x)
   | Atom(a) => Some(a)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Unknown(_)
   | ExplicitNonlabel
   | Label(_)
@@ -1145,7 +1145,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
   | Var(_)
@@ -1167,7 +1167,7 @@ let rec needs_parens = (ty: t): bool =>
   | Atom(_)
   | ExplicitNonlabel
   | Label(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | List(_) /* is already wrapped in [] */
   | ProofOf(_)
   | Var(_) => false
@@ -1200,7 +1200,7 @@ let rec pretty_print = (ty: t): string =>
   | Atom(Float) => "Float"
   | Atom(Bool) => "Bool"
   | Atom(String) => "String"
-  | DrvTyp(d) => DrvSort.to_string(d)
+  | DrvQuoteTy(d) => DrvSort.to_string(d)
   | Atom(Nat) => "Nat"
   | Atom(SInt) => "SInt"
   | Var(tvar) => tvar

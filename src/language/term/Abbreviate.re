@@ -562,7 +562,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let str = abbreviate_string_token(~min_len=available^, s);
           Atom(String(str));
         };
-      | DrvExp(_, _) => Invalid("<drv term>")
+      | DrvQuote(_, _) => Invalid("<drv term>")
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {
@@ -1587,7 +1587,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
     let term: Typ.term =
       switch (typ |> Typ.term_of) {
       | Unknown(prov) => Unknown(prov)
-      | DrvTyp(s) => DrvTyp(s)
+      | DrvQuoteTy(s) => DrvQuoteTy(s)
       | Atom(Int) =>
         if (available^ < 3) {
           available := available^ - 1;

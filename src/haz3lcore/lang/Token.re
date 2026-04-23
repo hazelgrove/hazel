@@ -215,8 +215,23 @@ let is_ctr = match(capitalized_name_regexp);
 let quote_label_when_necessary = (l: string): string =>
   is_var(l) || is_ctr(l) ? l : label_quote(l);
 /* Atom type names recognized by MakeTerm as Atom(...) in Typ sort.
+ * Also includes Drv* names recognized as DrvQuoteTy(sort).
  * Keep in sync with Ctx.is_base_typ. */
-let base_typs = ["Bool", "Float", "Int", "Nat", "SInt", "String"];
+let base_typs = [
+  "Bool",
+  "Float",
+  "Int",
+  "Nat",
+  "SInt",
+  "String",
+  "DrvJdmt",
+  "DrvCtx",
+  "DrvProp",
+  "ALFAExp",
+  "DrvPat",
+  "ALFATyp",
+  "DrvTPat",
+];
 let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
 let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 

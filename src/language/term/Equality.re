@@ -430,8 +430,8 @@ let equality =
       | None => false
       }
     | (ModuleExp(_, _, _), _) => false
-    | (DrvExp(d1, s1), DrvExp(d2, s2)) => s1 == s2 && d1 == d2
-    | (DrvExp(_, _), _) => false
+    | (DrvQuote(d1, s1), DrvQuote(d2, s2)) => s1 == s2 && d1 == d2
+    | (DrvQuote(_, _), _) => false
     };
   }
   /* Compare patterns with literal variable names (no alpha-renaming).
@@ -699,8 +699,8 @@ let equality =
       List.length(items1) == List.length(items2)
       && List.for_all2(sig_(alphas_exp, alphas_typ), items1, items2)
     | (Sig(_), _) => false
-    | (DrvTyp(s1), DrvTyp(s2)) => s1 == s2
-    | (DrvTyp(_), _) => false
+    | (DrvQuoteTy(s1), DrvQuoteTy(s2)) => s1 == s2
+    | (DrvQuoteTy(_), _) => false
     };
   }
   and sig_ =

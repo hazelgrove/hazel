@@ -28,7 +28,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
     );
   let view_type = (typ: Typ.t) =>
     switch (typ.term) {
-    | DrvTyp(t) => text(DrvSort.to_string(t))
+    | DrvQuoteTy(t) => text(DrvSort.to_string(t))
     | _ => view_type(typ)
     };
   switch (DrvInfo.error_of(status)) {

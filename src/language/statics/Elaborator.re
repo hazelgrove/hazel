@@ -217,7 +217,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       Projector(data, e') |> rewrap;
     | Deferral(_) => uexp
-    | DrvExp(_) => uexp
+    | DrvQuote(_) => uexp
     | Atom(c) =>
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);

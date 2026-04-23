@@ -48,8 +48,7 @@
 }
 
 /* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
-#main.Documentation .line-numbers,
-#main.Scratch .line-numbers {
+:is(#main.Documentation, #main.Scratch):not(.Derivations) .line-numbers {
   background-color: var(--cell-active);
   border-color: var(--cell-active);
 }

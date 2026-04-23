@@ -111,7 +111,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Var(_)
   | Invalid(_)
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
-  | DrvExp(_)
+  | DrvQuote(_)
   | EmptyHole
   | Deferral(_)
   | ExplicitNonlabel
@@ -204,7 +204,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(Hole(EmptyHole))
   | Var(_)
   | Atom(_)
-  | DrvTyp(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
   | TupLabel(_) => Precedence.max
@@ -342,7 +342,7 @@ let rec parenthesize =
   | Var(_)
   | Invalid(_)
   | Atom(_)
-  | DrvExp(_)
+  | DrvQuote(_)
   | EmptyHole
   | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
@@ -713,7 +713,7 @@ and parenthesize_typ =
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Atom(_)
-  | DrvTyp(_) => typ
+  | DrvQuoteTy(_) => typ
 
   // Other forms
   | Parens(t) =>
@@ -979,7 +979,7 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=",") => false
   | _ when String.starts_with(s2, ~prefix=";") => false
   | _ when String.starts_with(s2, ~prefix=":") => false
-  | _ when String.ends_with(s1, ~suffix="::") => true
+  | _ when String.ends_with(s1, ~suffix="::") => false
   | _ when String.ends_with(s1, ~suffix=":") =>
     String.starts_with(s2, ~prefix="$")
     || String.starts_with(s2, ~prefix="!")
@@ -1691,7 +1691,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       exp,
       text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c)),
     )
-  | DrvExp(d, sort) =>
+  | DrvQuote(d, sort) =>
     let+ d = drv_to_pretty(~settings, d, ~sort);
     let form: Form.drv_compound_form =
       switch (sort) {
@@ -2596,8 +2596,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool"))
   | Atom(String) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String"))
-  | DrvTyp(_) =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Drv"))
+  | DrvQuoteTy(d) =>
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, DrvSort.to_string(d)),
+    )
   | Atom(Nat) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat"))
   | List(t) =>

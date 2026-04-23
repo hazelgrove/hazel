@@ -19,16 +19,22 @@ let view =
     (
       ~nav_buttons: bool,
       ~edit_buttons: bool,
+      ~extra_edit_buttons: list(Node.t)=[],
       ~signal: event => 'a,
       ~indicator: list(Node.t),
+      (),
     ) => {
-  let edit_buttons_list = [
-    button(~tooltip="Rename Current Slide", Icons.rename, _ =>
-      signal(Rename)
-    ),
-    button(~tooltip="Delete Current Slide", Icons.trash, _ => signal(Delete)),
-    button(~tooltip="Add New Slide", Icons.new_buffer, _ => signal(Add)),
-  ];
+  let edit_buttons_list =
+    [
+      button(~tooltip="Rename Current Slide", Icons.rename, _ =>
+        signal(Rename)
+      ),
+      button(~tooltip="Delete Current Slide", Icons.trash, _ =>
+        signal(Delete)
+      ),
+      button(~tooltip="Add New Slide", Icons.new_buffer, _ => signal(Add)),
+    ]
+    @ extra_edit_buttons;
 
   [
     div(

@@ -5,7 +5,6 @@ module Model = {
   type mode =
     | Scratch
     | Documentation
-    | Derivations
     | Tutorial
     | Exercises;
 
@@ -13,7 +12,6 @@ module Model = {
   type t =
     | Scratch(ScratchMode.Model.t)
     | Documentation(ScratchMode.Model.t)
-    | Derivations(DerivationsMode.Model.t)
     | Tutorial(TutorialsMode.Model.t)
     | Exercises(ExercisesMode.Model.t);
 
@@ -21,26 +19,81 @@ module Model = {
     fun
     | Scratch(_) => "Scratch"
     | Documentation(_) => "Documentation"
-    | Derivations(_) => "Derivations"
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
 
+  /* Auxiliary classes on the main div, so CSS can target derivation-kind
+     scratchpads inside the unified Scratch/Documentation modes. */
+  let extra_main_classes = (model: t): list(string) => {
+    let scratchpad_kind_class = (m: ScratchMode.Model.t) => {
+      let current = List.nth(m.scratchpads, m.current);
+      switch (current.kind) {
+      | Code(_) => []
+      | Drv(_) => ["Derivations"]
+      };
+    };
+    switch (model) {
+    | Scratch(m)
+    | Documentation(m) => scratchpad_kind_class(m)
+    | Tutorial(_)
+    | Exercises(_) => []
+    };
+  };
+
   let get_derivation_info = (model: t) => {
     switch (model) {
-    | Derivations(eds) => DerivationsMode.Model.get_derivation_info(eds)
     | Exercises(eds) => ExercisesMode.Model.get_derivation_info(eds)
-    | _ => None
+    | Scratch(m)
+    | Documentation(m) => ScratchMode.Model.get_derivation_info(m)
+    | Tutorial(_) => None
     };
   };
 };
 
-module StoreMode =
-  Store.F({
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Model.mode;
-    let key = Store.Mode;
-    let default = (): Model.mode => Derivations;
-  });
+/* Legacy-friendly wrapper for the Store.Mode key. Old persisted values
+   may read as "Derivations"; we accept that during deserialization and
+   coerce to Scratch. */
+module StoreMode = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Model.mode;
+  let key = Store.Mode;
+  let key_string = Store.key_to_string(Store.Mode);
+  let default = (): Model.mode => Scratch;
+
+  let serialize = (data: t) => data |> sexp_of_t |> Sexplib.Sexp.to_string;
+
+  let deserialize = (data: string, default: t) =>
+    switch (Sexplib.Sexp.of_string(data)) {
+    | sexp =>
+      switch (t_of_sexp(sexp)) {
+      | m => m
+      | exception _ =>
+        /* Legacy: was "Derivations" or otherwise unparseable; fall back. */
+        switch (sexp) {
+        | Sexplib.Sexp.Atom("Derivations") => Model.Scratch
+        | _ =>
+          print_endline("Could not deserialize " ++ key_string ++ ".");
+          default;
+        }
+      }
+    | exception _ =>
+      print_endline("Could not deserialize " ++ key_string ++ ".");
+      default;
+    };
+
+  let save = (data: t): unit =>
+    HazelDB.kv_save(key_string, serialize(data));
+
+  let load = (): t =>
+    switch (HazelDB.kv_get(key_string)) {
+    | Some(data) => deserialize(data, default())
+    | None =>
+      switch (Store.legacy_get(key_string)) {
+      | None => default()
+      | Some(data) => deserialize(data, default())
+      }
+    };
+};
 
 module Store = {
   let scratch_defaults = () => {
@@ -50,7 +103,31 @@ module Store = {
 
   let doc_defaults = () => {
     let (current, slides) = Init.startup.documentation;
-    (current, List.map(fst, slides));
+    (
+      current,
+      List.map(fst, slides) @ Init.documentation_drv_slide_names(),
+    );
+  };
+
+  let load_scratch = (~settings) => {
+    let (default_current, default_names) = scratch_defaults();
+    ScratchMode.Persist.load_all(
+      "scratch",
+      ~settings,
+      ~default_names,
+      ~default_current,
+    )
+    |> ScratchMode.integrate_share(~settings);
+  };
+
+  let load_documentation = (~settings) => {
+    let (default_current, default_names) = doc_defaults();
+    ScratchMode.Persist.load_all(
+      "doc",
+      ~settings,
+      ~default_names,
+      ~default_current,
+    );
   };
 
   let load = (~settings, ~instructor_mode) => {
@@ -59,40 +136,12 @@ module Store = {
       && JsUtil.QueryParams.get_param("share") != None;
 
     if (has_share_params) {
-      let (default_current, default_names) = scratch_defaults();
-      Model.Scratch(
-        ScratchMode.Persist.load_all(
-          "scratch",
-          ~settings,
-          ~default_names,
-          ~default_current,
-        )
-        |> ScratchMode.integrate_share(~settings),
-      );
+      Model.Scratch(load_scratch(~settings));
     } else {
       let mode = StoreMode.load();
       switch (mode) {
-      | Scratch =>
-        let (default_current, default_names) = scratch_defaults();
-        Model.Scratch(
-          ScratchMode.Persist.load_all(
-            "scratch",
-            ~settings,
-            ~default_names,
-            ~default_current,
-          )
-          |> ScratchMode.integrate_share(~settings),
-        );
-      | Documentation =>
-        let (default_current, default_names) = doc_defaults();
-        Model.Documentation(
-          ScratchMode.Persist.load_all(
-            "doc",
-            ~settings,
-            ~default_names,
-            ~default_current,
-          ),
-        );
+      | Scratch => Model.Scratch(load_scratch(~settings))
+      | Documentation => Model.Documentation(load_documentation(~settings))
       | Tutorial =>
         Model.Tutorial(
           TutorialsMode.Store.load(~settings, ~instructor_mode)
@@ -102,11 +151,6 @@ module Store = {
         Model.Exercises(
           ExercisesMode.Store.load(~settings, ~instructor_mode)
           |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
-        )
-      | Derivations =>
-        Model.Derivations(
-          DerivationsMode.Store.load(~settings, ~instructor_mode)
-          |> DerivationsMode.Model.unpersist(~settings, ~instructor_mode),
         )
       };
     };
@@ -126,9 +170,6 @@ module Store = {
     | Model.Exercises(m) =>
       StoreMode.save(Exercises);
       ExercisesMode.Store.save(~instructor_mode, m);
-    | Model.Derivations(m) =>
-      StoreMode.save(Derivations);
-      DerivationsMode.Store.save(~instructor_mode, m);
     };
   };
 
@@ -151,8 +192,7 @@ module Update = {
     | Scratch(ScratchMode.Update.t)
     | Tutorial(TutorialsMode.Update.t)
     // Exercises
-    | Exercises(ExercisesMode.Update.t)
-    | Derivations(DerivationsMode.Update.t);
+    | Exercises(ExercisesMode.Update.t);
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -160,7 +200,6 @@ module Update = {
     | Scratch(action) => ScratchMode.Update.can_undo(action)
     | Tutorial(action) => TutorialsMode.Update.can_undo(action)
     | Exercises(action) => ExercisesMode.Update.can_undo(action)
-    | Derivations(action) => DerivationsMode.Update.can_undo(action)
     };
   };
 
@@ -210,57 +249,25 @@ module Update = {
           m,
         );
       Model.Exercises(m');
-    | (Derivations(action), Derivations(m)) =>
-      let* derivations =
-        DerivationsMode.Update.update(
-          ~globals,
-          ~schedule_action=a => schedule_action(Derivations(a)),
-          action,
-          m,
-        );
-      Model.Derivations(derivations);
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))
-    | (Tutorial(_), Derivations(_))
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Scratch(_))
-    | (Scratch(_), Derivations(_))
-    | (Exercises(_), Derivations(_))
-    | (Derivations(_), Scratch(_))
-    | (Derivations(_), Documentation(_))
-    | (Derivations(_), Tutorial(_))
-    | (Derivations(_), Exercises(_))
     | (Exercises(_), Tutorial(_))
     | (Exercises(_), Documentation(_)) => model |> raise_invalid_action
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
-    | (SwitchMode(Derivations), Derivations(_)) => model |> return_quiet
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       ScratchMode.reset_persist_state();
-      let (default_current, default_names) = Store.scratch_defaults();
-      Model.Scratch(
-        ScratchMode.Persist.load_all(
-          "scratch",
-          ~settings=globals.settings.core,
-          ~default_names,
-          ~default_current,
-        )
-        |> ScratchMode.integrate_share(~settings=globals.settings.core),
-      )
+      Model.Scratch(Store.load_scratch(~settings=globals.settings.core))
       |> return;
     | (SwitchMode(Documentation), _) =>
       ScratchMode.reset_persist_state();
-      let (default_current, default_names) = Store.doc_defaults();
       Model.Documentation(
-        ScratchMode.Persist.load_all(
-          "doc",
-          ~settings=globals.settings.core,
-          ~default_names,
-          ~default_current,
-        ),
+        Store.load_documentation(~settings=globals.settings.core),
       )
       |> return;
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
@@ -284,18 +291,6 @@ module Update = {
         )
         |> ExercisesMode.Model.unpersist(
              ~settings=globals.settings,
-             ~instructor_mode=globals.settings.instructor_mode,
-           ),
-      )
-      |> return
-    | (SwitchMode(Derivations), _) =>
-      Model.Derivations(
-        DerivationsMode.Store.load(
-          ~settings=globals.settings.core,
-          ~instructor_mode=globals.settings.instructor_mode,
-        )
-        |> DerivationsMode.Model.unpersist(
-             ~settings=globals.settings.core,
              ~instructor_mode=globals.settings.instructor_mode,
            ),
       )
@@ -344,15 +339,6 @@ module Update = {
           m,
         ),
       )
-    | Model.Derivations(m) =>
-      Model.Derivations(
-        DerivationsMode.Update.calculate(
-          ~schedule_action=a => schedule_action(Derivations(a)),
-          ~settings,
-          ~is_edited,
-          m,
-        ),
-      )
     };
   };
 };
@@ -363,7 +349,6 @@ module Selection = {
   type t =
     | Scratch(ScratchMode.Selection.t)
     | Exercises(ExercisesMode.Selection.t)
-    | Derivations(DerivationsMode.Selection.t)
     | Tutorial(TutorialMode.Selection.t)
     | Assistant;
   /* Assistant = user has focus in the sidebar (e.g. agent panel text box) */
@@ -383,24 +368,14 @@ module Selection = {
     | (Exercises(selection), Exercises(m)) =>
       let+ ci = ExercisesMode.Selection.get_cursor_info(~selection, m);
       Update.Exercises(ci);
-    | (Derivations(selection), Derivations(m)) =>
-      let+ ci = DerivationsMode.Selection.get_cursor_info(~selection, m);
-      Update.Derivations(ci);
     | (Scratch(_), Tutorial(_))
     | (Scratch(_), Exercises(_))
-    | (Scratch(_), Derivations(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_))
-    | (Exercises(_), Derivations(_))
     | (Exercises(_), Tutorial(_))
-    | (Derivations(_), Scratch(_))
-    | (Derivations(_), Documentation(_))
-    | (Derivations(_), Exercises(_))
-    | (Derivations(_), Tutorial(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Exercises(_))
-    | (Tutorial(_), Documentation(_))
-    | (Tutorial(_), Derivations(_)) => empty
+    | (Tutorial(_), Documentation(_)) => empty
     };
   };
 
@@ -419,9 +394,6 @@ module Selection = {
     | (Some(Exercises(selection)), Exercises(m)) =>
       ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Exercises(x))
-    | (Some(Derivations(selection)), Derivations(m)) =>
-      DerivationsMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Derivations(x))
     | (Some(Assistant), _)
     | _ => None
     };
@@ -431,10 +403,10 @@ module Selection = {
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
     switch (model) {
     | Scratch(m) =>
-      ScratchMode.Selection.jump_to_tile(tile, m)
+      ScratchMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
     | Documentation(m) =>
-      ScratchMode.Selection.jump_to_tile(tile, m)
+      ScratchMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
     | Tutorial(m) =>
       TutorialsMode.Selection.jump_to_tile(~settings, tile, m)
@@ -442,16 +414,12 @@ module Selection = {
     | Exercises(m) =>
       ExercisesMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
-    | Derivations(m) =>
-      DerivationsMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.Derivations(x), Derivations(y)))
     };
 
   let default_selection =
     fun
     | Model.Scratch(_) => Scratch(Cell(MainEditor))
     | Model.Documentation(_) => Scratch(Cell(MainEditor))
-    | Model.Derivations(_) => Derivations(MainEditor)
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
       Exercises(Implementation(Cell(Exercise.Prelude, MainEditor)));
@@ -534,20 +502,6 @@ module View = {
         ~inject_explainthis: ExplainThisUpdate.update => 'b,
         m,
       )
-    | Derivations(m) =>
-      DerivationsMode.View.view(
-        ~signal=
-          fun
-          | MakeActive(s) => signal(MakeActive(Derivations(s))),
-        ~globals,
-        ~selection=
-          switch (selection) {
-          | Some(Derivations(s)) => Some(s)
-          | _ => None
-          },
-        ~inject=a => Update.Derivations(a) |> inject,
-        m,
-      )
     };
 
   let file_menu = (~globals, ~inject, editors: Model.t) =>
@@ -571,12 +525,6 @@ module View = {
         ~inject=x => inject(Update.Exercises(x)),
         e,
       )
-    | Derivations(d) =>
-      DerivationsMode.View.file_menu(
-        ~globals,
-        ~inject=x => inject(Update.Derivations(x)),
-        d,
-      )
     };
 
   let top_bar =
@@ -593,7 +541,6 @@ module View = {
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
                 | "Tutorial" => inject(Update.SwitchMode(Tutorial))
                 | "Exercises" => inject(Update.SwitchMode(Exercises))
-                | "Derivations" => inject(Update.SwitchMode(Derivations))
                 | _ => failwith("Invalid mode")
               ),
             ],
@@ -606,19 +553,12 @@ module View = {
                     | Documentation(_) => "Documentation"
                     | Tutorial(_) => "Tutorial"
                     | Exercises(_) => "Exercises"
-                    | Derivations(_) => "Derivations"
                     }
                   )
                   == s,
                   s,
                 ),
-              [
-                "Scratch",
-                "Documentation",
-                "Tutorial",
-                "Exercises",
-                "Derivations",
-              ],
+              ["Scratch", "Documentation", "Tutorial", "Exercises"],
             ),
           ),
         ],
@@ -648,12 +588,6 @@ module View = {
         ExercisesMode.View.top_bar(
           ~globals,
           ~inject=a => Update.Exercises(a) |> inject,
-          m,
-        )
-      | Derivations(m) =>
-        DerivationsMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Derivations(a) |> inject,
           m,
         )
       };

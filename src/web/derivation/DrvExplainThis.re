@@ -30,7 +30,7 @@ let exp_show =
     CachedStatics.init_from_term(
       ~settings=CoreSettings.on,
       ~is_dynamic_term=false,
-      DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
+      DrvQuote(Exp(syntax), Jdmt) |> Exp.fresh,
     );
   let highlight_deco = [
     Highlight.colors(

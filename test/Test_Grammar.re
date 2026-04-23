@@ -43,7 +43,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Atom(Float) => float(2.)
       | Atom(String) => string("hello")
       | Atom(Nat) => nat(Bigint.one)
-      | DrvExp =>
+      | DrvQuote =>
         // TODO(zhiyao): I might need instructions on how to write this part for derivation term
         drv_exp(DrvGrammar.placeholder(), DrvSort.Jdmt)
       | ListLit => list_lit([])
@@ -157,7 +157,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Atom(Float) => float()
       | Atom(String) => string()
       | Atom(Nat) => nat()
-      | DrvTyp => drv_typ(DrvSort.Jdmt)
+      | DrvQuoteTy => drv_typ(DrvSort.Jdmt)
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Var => var("x")

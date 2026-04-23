@@ -608,7 +608,7 @@ and exp = unsorted => {
         ids,
         IdTagged.mk(ids, get_secondary(ids), term),
       );
-    Grammar.DrvExp(Exp(exp), Jdmt) |> IdTagged.fresh;
+    Grammar.DrvQuote(Exp(exp), Jdmt) |> IdTagged.fresh;
   | _ =>
     let ids = ids(unsorted) @ inner_ids;
     let e: TermBase.exp_t =
@@ -713,17 +713,19 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | Invalid(string) => (Invalid(string), ids)
         }
       // Note(zhiyao): convert Drv to Exp
-      | (["of_jdmt", "end"], [Drv(Exp(j))]) => ret(DrvExp(Exp(j), Jdmt))
-      | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvExp(Exp(c), Ctx))
-      | (["of_prop", "end"], [Drv(Exp(p))]) => ret(DrvExp(Exp(p), Prop))
+      | (["of_jdmt", "end"], [Drv(Exp(j))]) =>
+        ret(DrvQuote(Exp(j), Jdmt))
+      | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvQuote(Exp(c), Ctx))
+      | (["of_prop", "end"], [Drv(Exp(p))]) =>
+        ret(DrvQuote(Exp(p), Prop))
       | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
-        ret(DrvExp(Exp(e), Exp))
+        ret(DrvQuote(Exp(e), Exp))
       | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
-        ret(DrvExp(Typ(t), Typ))
+        ret(DrvQuote(Typ(t), Typ))
       | (["of_alfa_pat", "end"], [Drv(Pat(p))]) =>
-        ret(DrvExp(Pat(p), Pat))
+        ret(DrvQuote(Pat(p), Pat))
       | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
-        ret(DrvExp(TPat(tp), TPat))
+        ret(DrvQuote(TPat(tp), TPat))
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
       | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
@@ -1122,6 +1124,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
+        | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
+        | (["DrvProp"], []) => DrvQuoteTy(Prop)
+        | (["ALFAExp"], []) => DrvQuoteTy(Exp)
+        | (["DrvPat"], []) => DrvQuoteTy(Pat)
+        | (["ALFATyp"], []) => DrvQuoteTy(Typ)
+        | (["DrvTPat"], []) => DrvQuoteTy(TPat)
         | (["_"], []) => ExplicitNonlabel
         | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)

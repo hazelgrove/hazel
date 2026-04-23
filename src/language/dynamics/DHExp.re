@@ -112,7 +112,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Constructor(_)
           | Var(_)
           | Atom(_)
-          | DrvExp(_)
+          | DrvQuote(_)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)
@@ -186,8 +186,8 @@ let rec ty_comparable = (d1, d2) => {
     | (Float(_), _) => false
     }
   | (Atom(_), _) => false
-  | (DrvExp(_, t1), DrvExp(_, t2)) => t1 == t2
-  | (DrvExp(_, _), _) => false
+  | (DrvQuote(_, t1), DrvQuote(_, t2)) => t1 == t2
+  | (DrvQuote(_, _), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
@@ -298,9 +298,9 @@ let rec poly_equal = (d1, d2): option(bool) => {
     )
     |> Option.some
   | (Atom(_), _) => None
-  | (DrvExp(d1, _), DrvExp(d2, _)) =>
+  | (DrvQuote(d1, _), DrvQuote(d2, _)) =>
     Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
-  | (DrvExp(_, _), _) => None
+  | (DrvQuote(_, _), _) => None
   | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
   | (Label(_), _) => None
   | (ExplicitNonlabel, ExplicitNonlabel) => Some(true)

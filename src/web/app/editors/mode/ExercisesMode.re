@@ -793,5 +793,6 @@ module View = {
             model.current,
             List.length(model.exercises),
           ),
+        (),
       );
 };

@@ -600,27 +600,25 @@ let export_grading_module = (module_name, {eds, _}: state) => {
   data;
 };
 
-let blank_spec = (~title, ~module_name) => {
-  let prelude = Zipper.next_blank();
-  let setup = Zipper.next_blank();
-  let trees = [
-    Tree.empty(
-      Abbr.Just({
-        jdmt: Zipper.next_blank(),
-        rule: None,
-      }),
-    ),
-  ];
-  {
+let blank_spec = (~title, ~module_name): spec => {
+  let ts: transitionary_spec = {
     id: Id.mk(),
     title,
     module_name,
     prompt: "TODO: prompt",
-    prelude,
-    setup,
+    prelude: "",
+    setup: "",
     corpus: Language.RuleImage.PropositionalLogic,
-    trees,
+    trees: [
+      Tree.empty(
+        Abbr.Just({
+          jdmt: "",
+          rule: None,
+        }),
+      ),
+    ],
   };
+  transition(ts);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

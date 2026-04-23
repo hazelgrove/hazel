@@ -32,7 +32,7 @@ and exp_term('a) =
   | Deferral(deferral_position_t)
   | Undefined
   | Atom(Atom.t)
-  | DrvExp(DrvGrammar.any_t('a), DrvSort.t)
+  | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -99,7 +99,7 @@ and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
   | Atom(Atom.cls)
-  | DrvTyp(DrvSort.t)
+  | DrvQuoteTy(DrvSort.t)
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
@@ -184,7 +184,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
         | Atom(c) => Atom(c)
-        | DrvExp(d, s) => DrvExp(DrvGrammar.map_any_annotation(f, d), s)
+        | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
@@ -361,7 +361,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         switch (term) {
         | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
         | Atom(c) => Atom(c)
-        | DrvTyp(s) => DrvTyp(s)
+        | DrvQuoteTy(s) => DrvQuoteTy(s)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
@@ -609,7 +609,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {
-      term: DrvExp(d, s),
+      term: DrvQuote(d, s),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -901,7 +901,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let drv_typ = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
-      term: DrvTyp(s),
+      term: DrvQuoteTy(s),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {

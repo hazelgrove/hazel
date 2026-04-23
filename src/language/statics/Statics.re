@@ -286,7 +286,8 @@ and drv_to_info_map =
     let info = DrvInfo.derived(drv, ~ancestors, ~sort);
     let add_quote = (x, m) =>
       switch (Self.of_exp_var(ctx, x)) {
-      | Common(Just({term: DrvTyp(s), _})) when sort == s => m |> add(info)
+      | Common(Just({term: DrvQuoteTy(s), _})) when sort == s =>
+        m |> add(info)
       | Common(Just({term: Unknown(_), _})) => m |> add(info)
       | Common(Just(typ)) =>
         m
@@ -636,8 +637,8 @@ and uexp_to_info_map =
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
-    | DrvExp(term, sort) =>
-      let self: Self.t = Just(DrvTyp(sort) |> Typ.temp);
+    | DrvQuote(term, sort) =>
+      let self: Self.t = Just(DrvQuoteTy(sort) |> Typ.temp);
       let m = drv_to_info_map(term, m, ~ctx, ~ancestors, ~sort);
       add(~self, ~co_ctx=CoCtx.empty, m);
     | Atom(c) =>
@@ -2554,7 +2555,7 @@ and utyp_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
-  | DrvTyp(_) => add(m)
+  | DrvQuoteTy(_) => add(m)
   | Atom(_) => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */

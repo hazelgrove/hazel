@@ -2,7 +2,7 @@ let exercise : DerivationTree.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "2f0137e3-672e-47f8-8493-5a593e1959c3");
-    title = "Question 1: Evaluation Derivation";
+    title = "Evaluation Derivation";
     module_name = "hw3q1";
     prompt =
       "Derive the following judgement as above, naming the rule or definition \
