@@ -111,7 +111,14 @@ let rewrite =
    pattern -- the `Ap(f, args)` wrapper and the optional outer
    `Asc(..., ret_ty)`. Populate those entries using the info already
    computed for the function name, since both sub-trees denote the
-   same binder and share type and context with `f_name`. */
+   same binder and share type and context with `f_name`.
+
+   We also copy the ana type into `ty` so that the cursor inspector
+   shows the binder's type directly (e.g. `: Int -> Int`) rather than
+   the unknown synthesized type of the uncharted Ap/Asc wrapper. Both
+   wrappers are tagged `Pat(ApFunc)` ("Function definition") so the
+   inspector renders them with the same clean "var-like" shape
+   regardless of whether the user wrote a return-type annotation. */
 let add_binder_infos =
     (m: StaticsBase.Map.t, ~user_pat: Pat.t, ~f_name: Pat.t)
     : StaticsBase.Map.t => {
@@ -119,22 +126,23 @@ let add_binder_infos =
   switch (StaticsBase.Map.lookup_pat(f_id, m)) {
   | None => m
   | Some(f_info) =>
-    let add_for = (pat, cls, m) =>
+    let binder_info: Info.pat = {
+      ...f_info,
+      cls: Cls.Pat(ApFunc),
+      ty: f_info.ana,
+      elab_syn_ty: f_info.ana,
+    };
+    let add_for = (pat, m) =>
       StaticsBase.Map.add_info(
         IdTagged.ids(pat),
-        Info.InfoPat({
-          ...f_info,
-          cls,
-          user_term: pat,
-          elab_term: pat,
-        }),
+        Info.InfoPat({...binder_info, user_term: pat, elab_term: pat}),
         m,
       );
     switch (IdTagged.term_of(user_pat)) {
     | Asc(inner, _) =>
-      let m = add_for(user_pat, Cls.Pat(Asc), m);
-      add_for(inner, Cls.Pat(ApFunc), m);
-    | _ => add_for(user_pat, Cls.Pat(ApFunc), m)
+      let m = add_for(user_pat, m);
+      add_for(inner, m);
+    | _ => add_for(user_pat, m)
     };
   };
 };
