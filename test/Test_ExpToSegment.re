@@ -357,6 +357,22 @@ let tests = (
       )
     }),
     test_case(
+      "Nested reverse application no parens",
+      `Quick,
+      () => {
+        let segment =
+          Parser.to_term("1 |> 2 |> 3") |> Option.get |> exp_to_segment;
+        let serialized = print_seg(segment);
+
+        check(
+          string,
+          "Nested reverse application",
+          "1 |> 2 |> 3",
+          serialized,
+        );
+      },
+    ),
+    test_case(
       "Float negation produces 0.0 -. e",
       `Quick,
       () => {

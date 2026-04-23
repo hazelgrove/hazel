@@ -80,6 +80,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
+             | PrettyPrint
              | Probe(StepInto(_))
              | Dump
              | ToggleLineComment => true
@@ -278,6 +279,13 @@ module Selection = {
            ~hotkey=meta ++ "+i",
            ~action=action(Introduce),
            "Introduce",
+         ),
+         mk(
+           ~mdIcon="format_align_left",
+           ~section="Formatting",
+           ~hotkey=meta ++ "+s",
+           ~action=action(PrettyPrint),
+           "Pretty Print",
          ),
        ]);
   };

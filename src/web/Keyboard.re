@@ -83,6 +83,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _} =>
     switch (key) {
+    | "s" => now(PrettyPrint)
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "e" => now(Probe(ToggleManual))
@@ -96,6 +97,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
 
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
+    | "s" => now(PrettyPrint)
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "e" => now(Probe(ToggleManual))

@@ -595,6 +595,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
+          |> Haz3lcore.PrettySegment.prettify
           |> CodeViewable.view_segment(~globals)
         | None => text("No elaboration found")
         },

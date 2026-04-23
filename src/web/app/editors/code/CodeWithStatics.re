@@ -42,13 +42,13 @@ module Model = {
         ~inline=false,
         term: Language.Exp.t,
       ) => {
-    ExpToSegment.exp_to_segment(
-      term,
-      ~settings=ExpToSegment.Settings.of_core(~inline, settings),
-    )
-    |> Zipper.unzip
-    |> Editor.Model.mk
-    |> mk;
+    let seg =
+      ExpToSegment.exp_to_segment(
+        term,
+        ~settings=ExpToSegment.Settings.of_core(~inline, settings),
+      );
+    let seg = inline ? seg : PrettySegment.prettify(seg);
+    seg |> Zipper.unzip |> Editor.Model.mk |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
