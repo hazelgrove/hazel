@@ -21,7 +21,7 @@ module ExternalError = {
   let show = e => show(e) |> Printf.sprintf("❓ %s");
 };
 
-open DerivationTree;
+open DerivationExercise;
 open Language;
 
 module ProofTree = {
@@ -52,7 +52,7 @@ module ProofTree = {
                rule,
              })
            | (None, Abbr(i)) => Abbr(i)
-           | _ => failwith("DerivationTree.mk: ed<>di inconsistent"),
+           | _ => failwith("DerivationExercise.mk: ed<>di inconsistent"),
          ),
        );
   };

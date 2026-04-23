@@ -31,29 +31,30 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    spec: Exercise.spec, // The spec that the model will be reset to on ResetExercise
+    spec: CodeExercise.spec, // The spec that the model will be reset to on ResetExercise
     /* We keep a separate editors field below (even though each cell technically also has its own editor)
        for two reasons:
           1. There are two synced cells that have the same internal `editor` model
           2. The editors need to be `stitched` together before any cell calculations can be done */
-    editors: Exercise.p(Editor.t),
-    cells: Exercise.stitched(CellEditor.Model.t),
+    editors: CodeExercise.p(Editor.t),
+    cells: CodeExercise.stitched(CellEditor.Model.t),
     editing_flags,
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
     let editors =
-      Exercise.map(
+      CodeExercise.map(
         spec,
         Editor.Model.mk(~root=Exp),
         Editor.Model.mk(~root=Exp),
       );
-    let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
+    let term_item_to_cell =
+        (item: CodeExercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
     let cells =
-      Exercise.stitch_term(editors)
-      |> Exercise.map_stitched(_ => term_item_to_cell);
+      CodeExercise.stitch_term(editors)
+      |> CodeExercise.map_stitched(_ => term_item_to_cell);
     {
       spec,
       editors,
@@ -63,19 +64,21 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = Exercise.persistent_state;
+  type persistent = CodeExercise.persistent_state;
 
   let persist = (exercise: t, ~instructor_mode: bool) =>
-    Exercise.persist({eds: exercise.editors}, ~instructor_mode);
+    CodeExercise.persist({eds: exercise.editors}, ~instructor_mode);
 
   let unpersist = (~instructor_mode, spec, persistent) => {
-    let editors = Exercise.unpersist(~spec, ~instructor_mode, persistent).eds;
-    let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
+    let editors =
+      CodeExercise.unpersist(~spec, ~instructor_mode, persistent).eds;
+    let term_item_to_cell =
+        (item: CodeExercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
     let cells =
-      Exercise.stitch_term(editors)
-      |> Exercise.map_stitched(_ => term_item_to_cell);
+      CodeExercise.stitch_term(editors)
+      |> CodeExercise.map_stitched(_ => term_item_to_cell);
     {
       spec,
       editors,
@@ -109,9 +112,9 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Editor(Exercise.pos, CellEditor.Update.t)
+    | Editor(CodeExercise.pos, CellEditor.Update.t)
     | RefreshStatics
-    | ResetEditor(Exercise.pos)
+    | ResetEditor(CodeExercise.pos)
     | ResetExercise
     | Instructor(instructor);
 
@@ -180,14 +183,15 @@ module Update = {
         {
           ...model,
           editors:
-            Exercise.update_exercise_title({eds: model.editors}, title).eds,
+            CodeExercise.update_exercise_title({eds: model.editors}, title).
+              eds,
         },
         ~is_edit=true,
       )
     | AddBuggyImplementation =>
       Updated.return({
         ...model,
-        editors: Exercise.add_buggy_impl({eds: model.editors}).eds,
+        editors: CodeExercise.add_buggy_impl({eds: model.editors}).eds,
         cells: {
           ...model.cells,
           hidden_bugs:
@@ -200,7 +204,7 @@ module Update = {
     | DeleteBuggyImplementation(i) =>
       Updated.return({
         ...model,
-        editors: Exercise.delete_buggy_impl({eds: model.editors}, i).eds,
+        editors: CodeExercise.delete_buggy_impl({eds: model.editors}, i).eds,
         cells: {
           ...model.cells,
           hidden_bugs:
@@ -211,20 +215,25 @@ module Update = {
       Updated.return({
         ...model,
         editors:
-          Exercise.update_exercise_prompt({eds: model.editors}, prompt).eds,
+          CodeExercise.update_exercise_prompt({eds: model.editors}, prompt).
+            eds,
       })
     | UpdateTestValRep(test_num, dist) =>
       Updated.return({
         ...model,
         editors:
-          Exercise.update_test_val_rep({eds: model.editors}, test_num, dist).
+          CodeExercise.update_test_val_rep(
+            {eds: model.editors},
+            test_num,
+            dist,
+          ).
             eds,
       })
     | UpdateMutTestRep(test_num, new_hints) =>
       Updated.return({
         ...model,
         editors:
-          Exercise.update_mut_test_rep(
+          CodeExercise.update_mut_test_rep(
             {eds: model.editors},
             test_num,
             new_hints,
@@ -235,13 +244,14 @@ module Update = {
       Updated.return({
         ...model,
         editors:
-          Exercise.update_syntax_rep({eds: model.editors}, new_hints).eds,
+          CodeExercise.update_syntax_rep({eds: model.editors}, new_hints).
+            eds,
       })
     | UpdateImplGrdRep(test_num, new_hints) =>
       Updated.return({
         ...model,
         editors:
-          Exercise.update_impl_grd_rep(
+          CodeExercise.update_impl_grd_rep(
             {eds: model.editors},
             test_num,
             new_hints,
@@ -252,7 +262,8 @@ module Update = {
       Updated.return({
         ...model,
         editors:
-          Exercise.update_module_name({eds: model.editors}, module_name).eds,
+          CodeExercise.update_module_name({eds: model.editors}, module_name).
+            eds,
       })
     };
 
@@ -281,12 +292,12 @@ module Update = {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
     | Editor(pos, MainEditor(action))
-        when Exercise.visible_in(pos, ~instructor_mode) =>
+        when CodeExercise.visible_in(pos, ~instructor_mode) =>
       // Redirect to editors
       let editor =
-        Exercise.main_editor_of_state(~selection=pos, model.editors);
+        CodeExercise.main_editor_of_state(~selection=pos, model.editors);
       let cell =
-        switch (Exercise.get_stitched(pos, model.cells)) {
+        switch (CodeExercise.get_stitched(pos, model.cells)) {
         | cell_editor => cell_editor
         | exception (Failure(_)) => CellEditor.Model.mk(editor)
         };
@@ -300,13 +311,13 @@ module Update = {
       {
         ...model,
         editors:
-          Exercise.put_main_editor(
+          CodeExercise.put_main_editor(
             ~selection=pos,
             model.editors,
             new_code_editor.editor,
           ),
         cells:
-          Exercise.put_stitched(
+          CodeExercise.put_stitched(
             pos,
             model.cells,
             {
@@ -319,7 +330,7 @@ module Update = {
       switch (CodeSelectable.Update.convert_action(action)) {
       | Some(action) =>
         let editor =
-          Exercise.main_editor_of_state(~selection=pos, model.editors);
+          CodeExercise.main_editor_of_state(~selection=pos, model.editors);
         let* new_editor =
           // Hack[Matt]: put Editor.t into a CodeSelectable.t to use its update function
           editor
@@ -328,7 +339,7 @@ module Update = {
         {
           ...model,
           editors:
-            Exercise.put_main_editor(
+            CodeExercise.put_main_editor(
               ~selection=pos,
               model.editors,
               new_editor.editor,
@@ -338,35 +349,40 @@ module Update = {
       }
     | Editor(pos, ResultAction(_) as action)
         when
-          Exercise.visible_in(pos, ~instructor_mode)
+          CodeExercise.visible_in(pos, ~instructor_mode)
           || action
           |> (
             fun
             | ResultAction(UpdateResult(_)) => true
             | _ => false
           ) =>
-      let cell = Exercise.get_stitched(pos, model.cells);
+      let cell = CodeExercise.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
       {
         ...model,
-        cells: Exercise.put_stitched(pos, model.cells, new_cell),
+        cells: CodeExercise.put_stitched(pos, model.cells, new_cell),
       };
     | Editor(_, ResultAction(_)) => Updated.raise_invalid_action(model) // TODO: I think this case should never happen
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
     | ResetEditor(pos) =>
-      let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
+      let spec =
+        CodeExercise.main_editor_of_state(~selection=pos, model.spec);
       let new_editor = Editor.Model.mk(spec, ~root=Exp);
       {
         ...model,
         editors:
-          Exercise.put_main_editor(~selection=pos, model.editors, new_editor),
+          CodeExercise.put_main_editor(
+            ~selection=pos,
+            model.editors,
+            new_editor,
+          ),
       }
       |> Updated.return;
     | ResetExercise =>
       let new_editors =
-        Exercise.map(
+        CodeExercise.map(
           model.spec,
           Editor.Model.mk(~root=Exp),
           Editor.Model.mk(~root=Exp),
@@ -387,15 +403,19 @@ module Update = {
         schedule_action(RefreshStatics)
       );
 
-    let stitched_elabs = Exercise.stitch_term(model.editors);
+    let stitched_elabs = CodeExercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
       worker_request :=
-        worker_request^ @ [(pos |> Exercise.key_for_statics, req_value)];
+        worker_request^ @ [(pos |> CodeExercise.key_for_statics, req_value)];
     };
     let cells =
-      Exercise.map2_stitched(
-        (pos, {term, editor}: Exercise.TermItem.t, cell: CellEditor.Model.t) =>
+      CodeExercise.map2_stitched(
+        (
+          pos,
+          {term, editor}: CodeExercise.TermItem.t,
+          cell: CellEditor.Model.t,
+        ) =>
           {
             editor: {
               editor,
@@ -421,7 +441,7 @@ module Update = {
       worker_request^,
       ~handler=
         List.iter(((pos, result)) => {
-          let pos' = Exercise.pos_of_key(pos);
+          let pos' = CodeExercise.pos_of_key(pos);
           let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
             switch (result) {
             | Ok((r, s)) =>
@@ -437,7 +457,7 @@ module Update = {
         }),
       ~timeout=_ => {
         let _ =
-          Exercise.map_stitched(
+          CodeExercise.map_stitched(
             (pos, _) =>
               schedule_action(
                 Editor(
@@ -455,7 +475,7 @@ module Update = {
        There are many ad-hoc things about this code, including the fact that
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
-    let editors: Exercise.p('a) = {
+    let editors: CodeExercise.p('a) = {
       let calculate = (statics, dynamics, ed) =>
         Editor.Update.calculate(
           ~settings,
@@ -502,8 +522,8 @@ module Update = {
           ),
         hidden_bugs:
           List.map2(
-            (cell: CellEditor.Model.t, editor: Exercise.wrong_impl('a)):
-              Exercise.wrong_impl('a) =>
+            (cell: CellEditor.Model.t, editor: CodeExercise.wrong_impl('a)):
+              CodeExercise.wrong_impl('a) =>
               {
                 impl:
                   calculate(
@@ -541,13 +561,13 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Cell(Exercise.pos, CellEditor.Selection.t)
+    | Cell(CodeExercise.pos, CellEditor.Selection.t)
     | TextBox;
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     switch (selection) {
     | Cell(pos, s) =>
-      switch (Exercise.get_stitched(pos, model.cells)) {
+      switch (CodeExercise.get_stitched(pos, model.cells)) {
       | cell_editor =>
         let+ a =
           CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
@@ -562,7 +582,7 @@ module Selection = {
       (~selection: t, ~event, model: Model.t): option(Update.t) => {
     switch (selection) {
     | Cell(pos, s) =>
-      switch (Exercise.get_stitched(pos, model.cells)) {
+      switch (CodeExercise.get_stitched(pos, model.cells)) {
       | cell_editor =>
         CellEditor.Selection.handle_key_event(
           ~selection=s,
@@ -579,10 +599,13 @@ module Selection = {
   let jump_to_tile =
       (~settings: Settings.t, id: Id.t, model: Model.t)
       : option((Update.t, t)) => {
-    Exercise.positioned_editors(model.editors)
+    CodeExercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
          TermData.root_tile(id, e.syntax.term_data) != None
-         && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
+         && CodeExercise.visible_in(
+              p,
+              ~instructor_mode=settings.instructor_mode,
+            )
        )
     |> Option.map(((pos, _)) =>
          (
@@ -640,26 +663,27 @@ module View = {
       hidden_bugs,
       hidden_tests,
     }:
-      Exercise.stitched('a) =
+      CodeExercise.stitched('a) =
       model.cells;
 
     let stitched_tests =
-      Exercise.map_stitched(
+      CodeExercise.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
           cell_editor.result |> EvalResult.Model.test_results,
         model.cells,
       );
 
-    let grading_report = Grading.GradingReport.mk(eds, ~stitched_tests);
+    let grading_report = CodeGrading.GradingReport.mk(eds, ~stitched_tests);
 
-    let score_view = Grading.GradingReport.view_overall_score(grading_report);
+    let score_view =
+      CodeGrading.GradingReport.view_overall_score(grading_report);
 
     let editor_view =
         (
           ~caption: string,
           ~subcaption: option(string)=?,
           ~result_kind=`NoResults,
-          this_pos: Exercise.pos,
+          this_pos: CodeExercise.pos,
           cell: CellEditor.Model.t,
         ) => {
       CellEditor.View.view(
@@ -690,241 +714,39 @@ module View = {
       );
     };
 
-    let update_title = _ => {
-      let new_title =
-        Obj.magic(
-          Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("title-input-box")),
-        )##.value;
-      let update_events = [
-        inject(Instructor(UpdateTitle(new_title))),
-        inject(Instructor(EditingTitle)),
-      ];
-      Virtual_dom.Vdom.Effect.Many(update_events);
-    };
+    let on_focus_textbox = _ => signal(MakeActive(TextBox));
 
-    let title_view = {
-      let title_placeholder =
-        eds.title == "" ? "Untitled Exercise" : eds.title;
-      CellCommon.simple_cell_view([
-        div(
-          ~attrs=[Attr.class_("title-cell")],
-          [
-            globals.settings.instructor_mode
-              ? editing_flags.editing_title
-                  ? div(
-                      ~attrs=[Attr.class_("title-edit")],
-                      [
-                        input(
-                          ~attrs=[
-                            Attr.class_("title-text"),
-                            Attr.id("title-input-box"),
-                            Attr.value(eds.title),
-                            Attr.on_focus(_ => signal(MakeActive(TextBox))),
-                          ],
-                          (),
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-icon")],
-                          [Widgets.button(Icons.confirm, update_title)],
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-icon")],
-                          [
-                            Widgets.button(Icons.cancel, _ =>
-                              inject(Instructor(EditingTitle))
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : div(
-                      ~attrs=[Attr.class_("title-edit")],
-                      [
-                        div(
-                          ~attrs=[
-                            Attr.classes([
-                              "title-text",
-                              eds.title == "" ? "title-placeholder" : "",
-                            ]),
-                          ],
-                          [text(title_placeholder)],
-                        ),
-                        div(
-                          ~attrs=[Attr.class_("edit-icon")],
-                          [
-                            Widgets.button(Icons.pencil, _ =>
-                              inject(Instructor(EditingTitle))
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-              : div(~attrs=[Attr.class_("title-text")], [text(eds.title)]),
-          ],
-        ),
-      ]);
-    };
-
-    let update_module_name = _ => {
-      let new_module_name =
-        Obj.magic(
-          Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("module-name-input")),
-        )##.value;
-      let update_events = [
-        inject(Instructor(EditingModuleName)),
-        inject(Instructor(UpdateModuleName(new_module_name))),
-      ];
-      Virtual_dom.Vdom.Effect.Many(update_events);
-    };
-
-    let module_name_view = {
-      let module_placeholder =
-        eds.module_name == "" ? "Unnamed Module" : eds.module_name;
-      globals.settings.instructor_mode
-        ? div(
-            ~attrs=[Attr.class_("cell-module-name")],
-            [
-              editing_flags.editing_module_name
-                ? div(
-                    ~attrs=[Attr.class_("module-name-edit")],
-                    [
-                      label([text("Module name:")]),
-                      input(
-                        ~attrs=[
-                          Attr.type_("text"),
-                          Attr.class_("text-input"),
-                          Attr.id("module-name-input"),
-                          Attr.value(eds.module_name),
-                          Attr.on_focus(_ => signal(MakeActive(TextBox))),
-                        ],
-                        (),
-                      ),
-                      div(
-                        ~attrs=[Attr.class_("edit-icon")],
-                        [Widgets.button(Icons.confirm, update_module_name)],
-                      ),
-                      div(
-                        ~attrs=[Attr.class_("edit-icon")],
-                        [
-                          Widgets.button(Icons.cancel, _ =>
-                            inject(Instructor(EditingModuleName))
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-                : div(
-                    ~attrs=[Attr.class_("module-name-text")],
-                    [
-                      text("Module name: "),
-                      div(
-                        ~attrs=[
-                          Attr.classes([
-                            eds.module_name == "" ? "module-placeholder" : "",
-                          ]),
-                        ],
-                        [text(module_placeholder)],
-                      ),
-                      div(
-                        ~attrs=[Attr.class_("edit-icon")],
-                        [
-                          Widgets.button(Icons.pencil, _ =>
-                            inject(Instructor(EditingModuleName))
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-            ],
-          )
-        : Node.none;
-    };
-
-    let update_prompt = _ => {
-      let new_prompt =
-        Obj.magic(
-          Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("prompt-input-box")),
-        )##.value;
-      let update_events = [
-        inject(Instructor(EditingPrompt)),
-        inject(Instructor(UpdatePrompt(new_prompt))),
-      ];
-      Virtual_dom.Vdom.Effect.Many(update_events);
-    };
-
-    let prompt_view = {
-      let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
-      let (msg, _) =
-        ExplainThis.mk_translation(
-          ~globals,
-          ~inject=inject_explainthis,
-          prompt_placeholder,
-        );
-      div(
-        ~attrs=[Attr.class_("cell-prompt")],
-        [
-          globals.settings.instructor_mode
-            ? editing_flags.editing_prompt
-                ? div(
-                    ~attrs=[Attr.class_("prompt-edit")],
-                    [
-                      div(
-                        ~attrs=[Attr.id("prompt-textarea-container")],
-                        [
-                          textarea(
-                            ~attrs=[
-                              Attr.class_("prompt-text"),
-                              Attr.id("prompt-input-box"),
-                              Attr.on_focus(_ =>
-                                signal(MakeActive(TextBox))
-                              ),
-                              Attr.create("rows", "5"),
-                              Attr.create("cols", "30"),
-                            ],
-                            [text(eds.prompt)],
-                          ),
-                        ],
-                      ),
-                      div(
-                        ~attrs=[Attr.class_("edit-icon")],
-                        [Widgets.button(Icons.confirm, update_prompt)],
-                      ),
-                      div(
-                        ~attrs=[Attr.class_("edit-icon")],
-                        [
-                          Widgets.button(Icons.cancel, _ =>
-                            inject(Instructor(EditingPrompt))
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-                : div(
-                    ~attrs=[Attr.class_("prompt-edit")],
-                    [
-                      div(
-                        ~attrs=[
-                          Attr.classes([
-                            "prompt-content",
-                            eds.prompt == "" ? "prompt-placeholder" : "",
-                          ]),
-                        ],
-                        msg,
-                      ),
-                      div(
-                        ~attrs=[Attr.class_("edit-pencil")],
-                        [
-                          Widgets.button(Icons.pencil, _ =>
-                            inject(Instructor(EditingPrompt))
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-            : div(~attrs=[Attr.class_("prompt-content")], msg),
-        ],
+    let title_view =
+      InstructorEditViews.title_view(
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_title,
+        ~title=eds.title,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingTitle)),
+        ~update_title=t => inject(Instructor(UpdateTitle(t))),
       );
-    };
+
+    let module_name_view =
+      InstructorEditViews.module_name_view(
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_module_name,
+        ~module_name=eds.module_name,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingModuleName)),
+        ~update_module_name=m => inject(Instructor(UpdateModuleName(m))),
+      );
+
+    let prompt_view =
+      InstructorEditViews.prompt_view(
+        ~globals,
+        ~inject_explainthis,
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_prompt,
+        ~prompt=eds.prompt,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingPrompt)),
+        ~update_prompt=p => inject(Instructor(UpdatePrompt(p))),
+      );
 
     let prelude_view =
       Always(
@@ -1017,7 +839,7 @@ module View = {
           ~subcaption,
           ~result_kind=
             `Custom(
-              Grading.TestValidationReport.view(
+              CodeGrading.TestValidationReport.view(
                 ~globals,
                 ~signal_jump=
                   id =>
@@ -1091,7 +913,7 @@ module View = {
 
     let mutation_testing_view =
       Always(
-        Grading.MutationTestingReport.view(
+        CodeGrading.MutationTestingReport.view(
           ~globals,
           ~editing_mut_test_rep=editing_flags.editing_mut_test_rep,
           ~inject_editing_mut_test_rep=inject(Instructor(EditingMutTestRep)),
@@ -1114,7 +936,7 @@ module View = {
 
     let syntax_grading_view =
       Always(
-        Grading.SyntaxReport.view(
+        CodeGrading.SyntaxReport.view(
           ~globals,
           ~editing_syntax_rep=editing_flags.editing_syntax_rep,
           ~inject_set_editing_syntax_rep=
@@ -1149,7 +971,7 @@ module View = {
 
     let impl_grading_view =
       Always(
-        Grading.ImplGradingReport.view(
+        CodeGrading.ImplGradingReport.view(
           ~globals,
           ~signal_jump=
             id =>

@@ -180,7 +180,13 @@ let mk_translation =
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
+        | Omd.Paragraph(_, d) =>
+          /* Each markdown paragraph renders as its own <p> so that blank
+             lines in the source produce visible paragraph breaks.
+             (Soft line breaks inside a paragraph are already handled by
+             [translate_inline] as <br>.) */
+          let (p_nodes, mapping) = translate_inline(d, [], mapping, ~inject);
+          (List.append(msg, [Node.p(p_nodes)]), mapping);
         | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(

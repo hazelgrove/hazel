@@ -1,8 +1,8 @@
 let filename = "haz3l-demo";
 let log_key = filename;
-let exercises: list(Exercise.exercise_spec) = [
-  Implementation(Ex_OddlyRecursive.exercise),
-  Implementation(Ex_RecursiveFibonacci.exercise),
-  Theorem(ReverseReverse.exercise),
-  Derivation(Drv_HW3Q1.exercise),
+let exercises: list(Exercise.t) = [
+  Ex_OddlyRecursive.exercise,
+  Ex_RecursiveFibonacci.exercise,
+  Ex_ReverseReverse.exercise,
+  Ex_EvaluationDerivation.exercise,
 ];

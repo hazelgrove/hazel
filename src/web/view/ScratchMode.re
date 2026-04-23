@@ -28,7 +28,7 @@ module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type kind =
     | Code(code)
-    | Drv(DerivationMode.Model.t);
+    | Drv(DerivationExerciseMode.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -45,7 +45,7 @@ module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type kind_persistent =
     | CodePersist(code_persistent)
-    | DrvPersist(DerivationMode.Model.persistent);
+    | DrvPersist(DerivationExerciseMode.Model.persistent);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
@@ -101,7 +101,7 @@ module Scratchpad = {
         name: s.name,
         kind:
           DrvPersist(
-            DerivationMode.Model.persist(m, ~instructor_mode=false),
+            DerivationExerciseMode.Model.persist(m, ~instructor_mode=false),
           ),
       }
     };
@@ -127,11 +127,14 @@ module Scratchpad = {
         name: p.name,
         kind:
           Drv(
-            DerivationMode.Model.unpersist(
+            DerivationExerciseMode.Model.unpersist(
               ~settings,
               ~instructor_mode=false,
               dp,
-              DerivationTree.blank_spec(~title=p.name, ~module_name=p.name),
+              DerivationExercise.blank_spec(
+                ~title=p.name,
+                ~module_name=p.name,
+              ),
             ),
           ),
       }
@@ -158,10 +161,10 @@ module Scratchpad = {
     name,
     kind:
       Drv(
-        DerivationMode.Model.of_spec(
+        DerivationExerciseMode.Model.of_spec(
           ~settings,
           ~instructor_mode=false,
-          DerivationTree.blank_spec(~title=name, ~module_name=name),
+          DerivationExercise.blank_spec(~title=name, ~module_name=name),
         ),
       ),
   };
@@ -211,7 +214,10 @@ module Model = {
               name: s.name,
               kind:
                 DrvPersist(
-                  DerivationMode.Model.persist(m, ~instructor_mode=false),
+                  DerivationExerciseMode.Model.persist(
+                    m,
+                    ~instructor_mode=false,
+                  ),
                 ),
             }
           }
@@ -249,7 +255,7 @@ module Model = {
     let current = List.nth(model.scratchpads, model.current);
     switch (current.kind) {
     | Code(_) => None
-    | Drv(m) => DerivationMode.Model.get_derivation_info(m)
+    | Drv(m) => DerivationExerciseMode.Model.get_derivation_info(m)
     };
   };
 };
@@ -408,11 +414,11 @@ module Persist = {
         name,
         kind:
           Drv(
-            DerivationMode.Model.unpersist(
+            DerivationExerciseMode.Model.unpersist(
               ~settings,
               ~instructor_mode=false,
               p,
-              DerivationTree.blank_spec(~title=name, ~module_name=name),
+              DerivationExercise.blank_spec(~title=name, ~module_name=name),
             ),
           ),
       }
@@ -427,7 +433,7 @@ module Persist = {
           name,
           kind:
             Drv(
-              DerivationMode.Model.of_spec(
+              DerivationExerciseMode.Model.of_spec(
                 ~settings,
                 ~instructor_mode=false,
                 spec,
@@ -611,7 +617,7 @@ module Update = {
     | CellAction(CellEditor.Update.t)
     | RefreshStatics
     | AgentAction(Agent.Agent.Update.Action.t)
-    | DrvAction(DerivationMode.Update.t)
+    | DrvAction(DerivationExerciseMode.Update.t)
     | SwitchSlide(int)
     | ToggleKind
     | ResetCurrent
@@ -628,7 +634,7 @@ module Update = {
     | CellAction(action) => CellEditor.Update.can_undo(action)
     | RefreshStatics => false
     | AgentAction(_) => true
-    | DrvAction(action) => DerivationMode.Update.can_undo(action)
+    | DrvAction(action) => DerivationExerciseMode.Update.can_undo(action)
     | SwitchSlide(_) => false
     | ToggleKind => true
     | ResetCurrent => true
@@ -816,7 +822,7 @@ module Update = {
       | Drv(m) =>
         mark_dirty(scratchpad.name);
         let* new_m =
-          DerivationMode.Update.update(
+          DerivationExerciseMode.Update.update(
             ~settings,
             ~schedule_action=a => schedule_action(DrvAction(a)),
             ~scratch_mode=true,
@@ -1109,7 +1115,7 @@ module Update = {
       };
     | Drv(m) =>
       let new_m =
-        DerivationMode.Update.calculate(
+        DerivationExerciseMode.Update.calculate(
           ~settings,
           ~is_edited,
           ~schedule_action=a => schedule_action(DrvAction(a)),
@@ -1138,6 +1144,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Cell(CellEditor.Selection.t)
+    | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
@@ -1146,9 +1153,12 @@ module Selection = {
     | (Cell(selection), Code({editor, _})) =>
       let+ a = CellEditor.Selection.get_cursor_info(~selection, editor);
       Update.CellAction(a);
-    | (Cell(selection), Drv(m)) =>
-      let+ a = DerivationMode.Selection.get_cursor_info(~selection, m);
+    | (Drv(selection), Drv(m)) =>
+      let+ a =
+        DerivationExerciseMode.Selection.get_cursor_info(~selection, m);
       Update.DrvAction(a);
+    | (Cell(_), Drv(_))
+    | (Drv(_), Code(_))
     | (TextBox, _) => empty
     };
   };
@@ -1163,9 +1173,15 @@ module Selection = {
       | (Cell(selection), Code({editor, _})) =>
         CellEditor.Selection.handle_key_event(~selection, ~event, editor)
         |> Option.map(x => Update.CellAction(x))
-      | (Cell(selection), Drv(m)) =>
-        DerivationMode.Selection.handle_key_event(~selection, ~event, m)
+      | (Drv(selection), Drv(m)) =>
+        DerivationExerciseMode.Selection.handle_key_event(
+          ~selection,
+          ~event,
+          m,
+        )
         |> Option.map(x => Update.DrvAction(x))
+      | (Cell(_), Drv(_))
+      | (Drv(_), Code(_))
       | (TextBox, _) => None
       };
     };
@@ -1178,8 +1194,8 @@ module Selection = {
       CellEditor.Selection.jump_to_tile(tile, editor)
       |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)))
     | Drv(m) =>
-      DerivationMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.DrvAction(x), Cell(y)))
+      DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, m)
+      |> Option.map(((x, y)) => (Update.DrvAction(x), Drv(y)))
     };
   };
 };
@@ -1193,6 +1209,7 @@ module View = {
         ~globals,
         ~signal: event => 'a,
         ~inject: Update.t => 'a,
+        ~inject_explainthis,
         ~selected: option(Selection.t),
         model: Model.t,
       ) => {
@@ -1218,15 +1235,16 @@ module View = {
         ),
       ]
     | Drv(m) =>
-      DerivationMode.View.view(
+      DerivationExerciseMode.View.view(
         ~globals,
         ~signal=
           fun
-          | MakeActive(s) => signal(MakeActive(Cell(s))),
+          | MakeActive(s) => signal(MakeActive(Drv(s))),
         ~inject=a => inject(DrvAction(a)),
+        ~inject_explainthis,
         ~selection=
           switch (selected) {
-          | Some(Selection.Cell(s)) => Some(s)
+          | Some(Selection.Drv(s)) => Some(s)
           | _ => None
           },
         ~scratch_mode=true,

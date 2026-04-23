@@ -103,10 +103,7 @@ module Store = {
 
   let doc_defaults = () => {
     let (current, slides) = Init.startup.documentation;
-    (
-      current,
-      List.map(fst, slides) @ Init.documentation_drv_slide_names(),
-    );
+    (current, List.map(fst, slides) @ Init.documentation_drv_slide_names());
   };
 
   let load_scratch = (~settings) => {
@@ -422,7 +419,7 @@ module Selection = {
     | Model.Documentation(_) => Scratch(Cell(MainEditor))
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
-      Exercises(Implementation(Cell(Exercise.Prelude, MainEditor)));
+      Exercises(Code(Cell(CodeExercise.Prelude, MainEditor)));
 };
 
 module View = {
@@ -455,6 +452,7 @@ module View = {
           | _ => None
           },
         ~inject=a => Update.Scratch(a) |> inject,
+        ~inject_explainthis,
         m,
       )
     // Add in the line numbering for Documentation editor
@@ -470,6 +468,7 @@ module View = {
           | _ => None
           },
         ~inject=a => Update.Scratch(a) |> inject,
+        ~inject_explainthis,
         m,
       )
     | Tutorial(m) =>

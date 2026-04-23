@@ -101,15 +101,19 @@ let default_documentation_slide_name =
 /* Derivation slides included in the Documentation mode under the
    "Derivations" section. The section prefix makes the slide names split
    into nested dropdowns (matches how "B2T2 / ..." slides work). */
-let documentation_drv_slides: list((string, DerivationTree.spec)) =
-  List.map(
-    (spec: DerivationTree.spec) =>
-      ("Derivations / " ++ spec.title, spec),
-    DerivationSettings.exercises,
-  );
+let documentation_drv_slides: list((string, DerivationExercise.spec)) =
+  [
+    Ex_Curried_Function_Derivation.exercise,
+    Ex_PairMap_Derivation.exercise,
+    Ex_Shadowing_And_Closures.exercise,
+    Ex_Type_Validation_Derivation.exercise,
+  ]
+  |> List.map((spec: DerivationExercise.spec) =>
+       ("Derivations / " ++ spec.title, spec)
+     );
 
 let find_documentation_drv_spec =
-    (name: string): option(DerivationTree.spec) =>
+    (name: string): option(DerivationExercise.spec) =>
   documentation_drv_slides
   |> List.find_opt(((n, _)) => n == name)
   |> Option.map(snd);

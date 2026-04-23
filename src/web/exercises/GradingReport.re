@@ -2,11 +2,20 @@ open Haz3lcore;
 open Util;
 open Core;
 open Language;
-open Web.Exercise;
-open Web.Grading;
+open Web.CodeExercise;
+open Web.CodeGrading;
 open Web.Specs;
 open Web.Export;
 open Web.ExercisesMode;
+
+/* Batch grading entry point. Invoked as an executable
+   (_build/default/src/web/gradingReport.bc.js) by [grade_individual.py] to
+   turn a persisted exercise export into a human-readable report.
+
+   For each exercise in the list, we dispatch on the exercise kind to
+   produce a [section]. Code exercises run the full automated grading
+   pipeline; Derivation and Theorem exercises currently emit a placeholder
+   report (basic support) until richer automated grading is wired up. */
 
 [@deriving (sexp, yojson)]
 type item = {
@@ -40,13 +49,17 @@ type section = {
 };
 [@deriving (sexp, yojson)]
 type chapter = list(section);
+
 module Main = {
   let settings = CoreSettings.on; /* Statics and Dynamics on */
   let name_to_exercise_export = path => {
     let all = path |> Yojson.Safe.from_file |> all_of_yojson;
     all.exercise |> Sexp.of_string |> Store.exercise_export_of_sexp;
   };
-  let gen_grading_report = (exercise): report => {
+
+  /* ---- Code exercises ---- */
+
+  let gen_code_grading_report = (exercise): report => {
     let zipper_pp = Printer.of_zipper;
     let terms =
       stitch_term(exercise.eds)
@@ -113,14 +126,78 @@ module Main = {
     };
   };
 
-  let impl_specs =
-    List.filter_map(specs, ~f=spec =>
-      switch (spec) {
-      | Implementation(spec) => Some(spec)
-      | Theorem(_)
-      | Derivation(_) => None
-      }
+  let grade_code_exercise = (spec, persistent_state): report => {
+    let spec = unpersist(persistent_state, ~spec, ~instructor_mode=true);
+    let zipper_spec: p(ZipperBase.t) =
+      Web.CodeExercise.map(
+        spec.eds,
+        e => e.state.zipper,
+        e => e.state.zipper,
+      );
+    {eds: zipper_spec |> eds_of_spec(~settings=CoreSettings.on)}
+    |> gen_code_grading_report;
+  };
+
+  /* ---- Derivation exercises (basic / placeholder) ---- */
+
+  let grade_derivation_exercise = (_spec, _persistent_state): report => {
+    {
+      summary: "Derivation exercise - automated grading not yet implemented.\n",
+      overall: (0., 0.),
+    };
+  };
+
+  /* ---- Theorem exercises (basic / placeholder) ---- */
+
+  let grade_theorem_exercise = (_spec, _persistent_state): report => {
+    {
+      summary: "Theorem exercise - automated grading not yet implemented.\n",
+      overall: (0., 0.),
+    };
+  };
+
+  /* ---- Dispatch ---- */
+
+  let find_spec = (id: Id.t) =>
+    ListUtil.findi_opt(
+      spec => Id.equal(Web.Exercise.id_of(spec), id),
+      specs,
     );
+
+  let grade =
+      (id: Uuidm.t, persistent: Model.persistent_exercise): option(section) => {
+    switch (find_spec(id)) {
+    | None => failwith("Invalid spec")
+    | Some((_, spec)) =>
+      let (name, report) =
+        switch (spec, persistent) {
+        | (Web.Exercise.Code(code_spec), Model.PCode(ps)) => (
+            code_spec.title,
+            grade_code_exercise(code_spec, ps),
+          )
+        | (Web.Exercise.Derivation(drv_spec), Model.PDerivation(ps)) => (
+            drv_spec.title,
+            grade_derivation_exercise(drv_spec, ps),
+          )
+        | (Web.Exercise.Theorem(thm_spec), Model.PTheorem(ps)) => (
+            thm_spec.title,
+            grade_theorem_exercise(thm_spec, ps),
+          )
+        /* Spec kind and persistent kind don't match; skip. */
+        | _ => (
+            "<mismatched persistent/spec>",
+            {
+              summary: "",
+              overall: (0., 0.),
+            },
+          )
+        };
+      Some({
+        name,
+        report,
+      });
+    };
+  };
 
   let run = () => {
     let hw_path = Sys.get_argv()[1];
@@ -128,36 +205,9 @@ module Main = {
     let hw = name_to_exercise_export(hw_path);
     let export_chapter =
       hw.exercise_data
-      |> List.filter_map(
-           ~f=(
-                (key: Uuidm.t, persistent_exercise: Model.persistent_exercise),
-              ) => {
-           switch (persistent_exercise) {
-           | Model.PTheorem(_)
-           | Model.PDerivation(_) => None
-           | Model.PImplementation(persistent_state) =>
-             switch (find_id_opt(key, impl_specs)) {
-             | Some((_n, spec)) =>
-               let spec =
-                 unpersist(persistent_state, ~spec, ~instructor_mode=true);
-               let spec': p(ZipperBase.t) =
-                 Web.Exercise.map(
-                   spec.eds,
-                   e => e.state.zipper,
-                   e => e.state.zipper,
-                 );
-               let report =
-                 {eds: spec' |> eds_of_spec(~settings=CoreSettings.on)}
-                 |> gen_grading_report;
-               Some({
-                 name: spec'.title,
-                 report,
-               });
-             | None => failwith("Invalid spec")
-             //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
-             }
-           }
-         });
+      |> List.filter_map(~f=((key, persistent_exercise)) =>
+           grade(key, persistent_exercise)
+         );
     export_chapter
     |> yojson_of_chapter
     |> Yojson.Safe.pretty_to_string

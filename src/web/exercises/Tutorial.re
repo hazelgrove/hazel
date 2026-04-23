@@ -430,12 +430,8 @@ let editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, serialization);
 };
 
-let export_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = ";
+let export_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Tutorial.spec = ";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;
@@ -447,12 +443,8 @@ let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 
-let export_transitionary_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = Exercise.transition(";
+let export_transitionary_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Tutorial.spec = Tutorial.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
   data;

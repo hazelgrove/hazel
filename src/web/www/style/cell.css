@@ -255,6 +255,21 @@
   font-size: 1rem;
 }
 
+/* Markdown paragraphs inside a prompt. Each blank line in the source
+   produces its own <p>; we space them modestly and trim the outer
+   margins so the prompt cell doesn't pick up extra padding. */
+.prompt-content p {
+  margin: 0.5em 0;
+}
+
+.prompt-content p:first-child {
+  margin-top: 0;
+}
+
+.prompt-content p:last-child {
+  margin-bottom: 0;
+}
+
 #main.Tutorial .cell:has(.code-editor.selected),
 #main.Exercises .cell:has(.code-editor.selected),
 #main.Derivations .cell:has(.code-editor.selected) {

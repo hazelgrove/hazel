@@ -1,4 +1,4 @@
-let exercise : DerivationTree.spec =
+let exercise : DerivationExercise.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "280ed584-a895-40ee-8292-8622b0aab321");

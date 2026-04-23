@@ -5,7 +5,7 @@ open Language;
 open Node;
 
 let stitched_results =
-  DerivationTree.map_stitched((_, cell_editor: CellEditor.Model.t) =>
+  DerivationExercise.map_stitched((_, cell_editor: CellEditor.Model.t) =>
     cell_editor.result.result
     |> Calc.save
     |> Calc.get_saved_opt
@@ -20,8 +20,8 @@ let stitched_results =
 
 let verified_tree =
     (
-      editors: DerivationTree.p(Editor.t),
-      cells: DerivationTree.stitched(CellEditor.Model.t),
+      editors: DerivationExercise.p(Editor.t),
+      cells: DerivationExercise.stitched(CellEditor.Model.t),
     ) =>
   DrvGrading.VerifiedTree.mk(
     editors,
@@ -30,34 +30,49 @@ let verified_tree =
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type editing_flags = {
+    editing_title: bool,
+    editing_module_name: bool,
+    editing_prompt: bool,
+  };
+
+  let editing_flags_false = {
+    editing_title: false,
+    editing_module_name: false,
+    editing_prompt: false,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    spec: DerivationTree.spec,
-    editors: DerivationTree.p(Editor.t),
-    cells: DerivationTree.stitched(CellEditor.Model.t),
+    spec: DerivationExercise.spec,
+    editors: DerivationExercise.p(Editor.t),
+    cells: DerivationExercise.stitched(CellEditor.Model.t),
     verified_tree: DrvGrading.VerifiedTree.t,
-    pos: DerivationTree.pos,
+    pos: DerivationExercise.pos,
+    editing_flags,
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
     let editors =
-      DerivationTree.mapi(spec, pos =>
-        Editor.Model.mk(~root=DerivationTree.root_of_pos(pos))
+      DerivationExercise.mapi(spec, pos =>
+        Editor.Model.mk(~root=DerivationExercise.root_of_pos(pos))
       );
     let term_item_to_cell =
-        (item: DerivationTree.TermItem.t): CellEditor.Model.t => {
+        (item: DerivationExercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
     let cells =
-      DerivationTree.stitch_term(editors)
-      |> DerivationTree.map_stitched(_ => term_item_to_cell);
+      DerivationExercise.stitch_term(editors)
+      |> DerivationExercise.map_stitched(_ => term_item_to_cell);
     let verified_tree = verified_tree(editors, cells);
-    let pos = DerivationTree.Prelude;
+    let pos = DerivationExercise.Prelude;
     {
       pos,
       spec,
       editors,
       cells,
       verified_tree,
+      editing_flags: editing_flags_false,
     };
   };
 
@@ -65,10 +80,10 @@ module Model = {
       (
         ~instructor_mode,
         ~scratch_mode=false,
-        pos: DerivationTree.pos,
+        pos: DerivationExercise.pos,
         model: t,
       )
-      : bool => {
+      : bool =>
     /* In the unified scratch/derivation mode, all positions are freely
        editable (there is no instructor/student distinction, and no goal
        conclusion that should be locked). */
@@ -82,13 +97,12 @@ module Model = {
       | Trees(_) => true
       };
     };
-  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = DerivationTree.persistent_state;
+  type persistent = DerivationExercise.persistent_state;
 
   let persist = (exercise: t, ~instructor_mode as _: bool): persistent => {
-    DerivationTree.map(exercise.editors, editor =>
+    DerivationExercise.map(exercise.editors, editor =>
       editor.state.zipper |> PersistentZipper.persist
     );
   };
@@ -96,8 +110,8 @@ module Model = {
   let unpersist = (~instructor_mode, persistent: persistent, spec) => {
     ignore(spec);
     let spec =
-      DerivationTree.mapi(persistent, pos =>
-        PersistentZipper.unpersist(~root=DerivationTree.root_of_pos(pos))
+      DerivationExercise.mapi(persistent, pos =>
+        PersistentZipper.unpersist(~root=DerivationExercise.root_of_pos(pos))
       );
     of_spec(~instructor_mode, spec);
   };
@@ -141,9 +155,19 @@ module Model = {
 module Update = {
   open Updated;
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type instructor =
+    | EditingTitle
+    | EditingModuleName
+    | EditingPrompt
+    | UpdateTitle(string)
+    | UpdateModuleName(string)
+    | UpdatePrompt(string);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Editor(DerivationTree.pos, CellEditor.Update.t)
-    | MapEditor(DerivationTree.eds => DerivationTree.eds)
+    | Editor(DerivationExercise.pos, CellEditor.Update.t)
+    | MapEditor(DerivationExercise.eds => DerivationExercise.eds)
+    | Instructor(instructor)
     | Refresh
     | ResetExercise;
 
@@ -151,20 +175,85 @@ module Update = {
     switch (action) {
     | Editor(_, action) => CellEditor.Update.can_undo(action)
     | MapEditor(_) => true
+    | Instructor(_) => false
     | Refresh => false
     | ResetExercise => false
     };
   };
 
+  let instructor_update =
+      (action: instructor, model: Model.t): Updated.t(Model.t) => {
+    switch (action) {
+    | EditingTitle =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_title: !model.editing_flags.editing_title,
+        },
+      })
+    | EditingModuleName =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_module_name: !model.editing_flags.editing_module_name,
+        },
+      })
+    | EditingPrompt =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_prompt: !model.editing_flags.editing_prompt,
+        },
+      })
+    | UpdateTitle(title) =>
+      Updated.return_quiet(
+        {
+          ...model,
+          editors: DerivationExercise.update_title(model.editors, title),
+        },
+        ~is_edit=true,
+      )
+    | UpdateModuleName(module_name) =>
+      Updated.return(
+        {
+          ...model,
+          editors:
+            DerivationExercise.update_module_name(model.editors, module_name),
+        },
+        ~is_edit=true,
+      )
+    | UpdatePrompt(prompt) =>
+      Updated.return(
+        {
+          ...model,
+          editors: DerivationExercise.update_prompt(model.editors, prompt),
+        },
+        ~is_edit=true,
+      )
+    };
+  };
+
+  let instructor_update =
+      (~settings: Settings.t, action: instructor, model: Model.t)
+      : Updated.t(Model.t) =>
+    if (settings.instructor_mode) {
+      instructor_update(action, model);
+    } else {
+      Updated.return_quiet(model);
+    };
+
   let update_editor_action =
       (
         action: CodeEditable.Update.t,
-        pos: DerivationTree.pos,
+        pos: DerivationExercise.pos,
         model: Model.t,
         settings,
       ) => {
     let editor =
-      DerivationTree.main_editor_of_state(~selection=pos, model.editors);
+      DerivationExercise.main_editor_of_state(~selection=pos, model.editors);
     let* new_editor =
       // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
       editor
@@ -174,7 +263,7 @@ module Update = {
       ...model,
       pos,
       editors:
-        DerivationTree.put_main_editor(
+        DerivationExercise.put_main_editor(
           ~selection=pos,
           model.editors,
           new_editor.editor,
@@ -196,7 +285,10 @@ module Update = {
     | Editor(pos, MainEditor(action))
         when Model.is_editable(pos, ~instructor_mode, ~scratch_mode, model) =>
       let editor =
-        DerivationTree.main_editor_of_state(~selection=pos, model.editors);
+        DerivationExercise.main_editor_of_state(
+          ~selection=pos,
+          model.editors,
+        );
       let* new_editor =
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
         editor
@@ -206,7 +298,7 @@ module Update = {
         ...model,
         pos,
         editors:
-          DerivationTree.put_main_editor(
+          DerivationExercise.put_main_editor(
             ~selection=pos,
             model.editors,
             new_editor.editor,
@@ -216,7 +308,10 @@ module Update = {
       switch (CodeSelectable.Update.convert_action(action)) {
       | Some(action) =>
         let editor =
-          DerivationTree.main_editor_of_state(~selection=pos, model.editors);
+          DerivationExercise.main_editor_of_state(
+            ~selection=pos,
+            model.editors,
+          );
         let* new_editor =
           // Hack[Matt]: put Editor.t into a CodeSelectable.t to use its update function
           editor
@@ -226,7 +321,7 @@ module Update = {
           ...model,
           pos,
           editors:
-            DerivationTree.put_main_editor(
+            DerivationExercise.put_main_editor(
               ~selection=pos,
               model.editors,
               new_editor.editor,
@@ -235,32 +330,34 @@ module Update = {
       | None => Updated.return_quiet(model)
       }
     | Editor(pos, ResultAction(UpdateResult(_)) as action) =>
-      let cell = DerivationTree.get_stitched(pos, model.cells);
+      let cell = DerivationExercise.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
       {
         ...model,
-        cells: DerivationTree.put_stitched(pos, model.cells, new_cell),
+        cells: DerivationExercise.put_stitched(pos, model.cells, new_cell),
       };
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model)
     | MapEditor(f) =>
       let editors = model.editors |> f;
-      let pos = DerivationTree.farthest_pos(model.pos, editors);
+      let pos = DerivationExercise.farthest_pos(model.pos, editors);
       {
         ...model,
         pos,
         editors,
         cells:
-          DerivationTree.stitch_term(editors)
-          |> DerivationTree.map_stitched((_, item: DerivationTree.TermItem.t) =>
+          DerivationExercise.stitch_term(editors)
+          |> DerivationExercise.map_stitched(
+               (_, item: DerivationExercise.TermItem.t) =>
                CellEditor.Model.mk(item.editor)
              ),
       }
       |> Updated.return;
+    | Instructor(action) => instructor_update(~settings, action, model)
     | Refresh => Updated.return(model)
     | ResetExercise =>
       let new_editors =
-        DerivationTree.mapi(model.spec, pos =>
-          Editor.Model.mk(~root=DerivationTree.root_of_pos(pos))
+        DerivationExercise.mapi(model.spec, pos =>
+          Editor.Model.mk(~root=DerivationExercise.root_of_pos(pos))
         );
       {
         ...model,
@@ -272,18 +369,18 @@ module Update = {
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
-    let stitched_elabs = DerivationTree.stitch_term(model.editors);
+    let stitched_elabs = DerivationExercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
       worker_request :=
-        worker_request^ @ [(pos |> DerivationTree.key_for_statics, expr)];
+        worker_request^ @ [(pos |> DerivationExercise.key_for_statics, expr)];
     };
-    let cells: DerivationTree.stitched(CellEditor.Model.t) =
-      DerivationTree.map_stitched(
-        (pos, {term, editor}: DerivationTree.TermItem.t) => {
+    let cells: DerivationExercise.stitched(CellEditor.Model.t) =
+      DerivationExercise.map_stitched(
+        (pos, {term, editor}: DerivationExercise.TermItem.t) => {
           (
             try({
-              let cell = DerivationTree.get_stitched(pos, model.cells);
+              let cell = DerivationExercise.get_stitched(pos, model.cells);
               {
                 editor: {
                   editor,
@@ -296,9 +393,9 @@ module Update = {
             }) {
             | Invalid_argument(_)
             | Not_found =>
-              let root = DerivationTree.root_of_pos(pos);
+              let root = DerivationExercise.root_of_pos(pos);
               ""
-              |> DerivationTree.zipper_of_code(~root)
+              |> DerivationExercise.zipper_of_code(~root)
               |> Editor.Model.mk(~root)
               |> CellEditor.Model.mk;
             }
@@ -318,7 +415,7 @@ module Update = {
       worker_request^,
       ~handler=
         List.iter(((pos, result)) => {
-          let pos' = DerivationTree.pos_of_key(pos);
+          let pos' = DerivationExercise.pos_of_key(pos);
           let result': ProgramResult.t(ProgramResult.inner) =
             switch (result) {
             | Ok((r, s)) =>
@@ -334,7 +431,7 @@ module Update = {
         }),
       ~timeout=_ => {
         let _ =
-          DerivationTree.map_stitched(
+          DerivationExercise.map_stitched(
             (pos, _) =>
               schedule_action(
                 Editor(
@@ -351,7 +448,7 @@ module Update = {
        There are many ad-hoc things about this code, including the fact that
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
-    let editors: DerivationTree.eds = {
+    let editors: DerivationExercise.eds = {
       let calculate =
         Editor.Update.calculate(~settings, ~autoprobe_mode=false, ~is_edited);
       {
@@ -375,10 +472,12 @@ module Update = {
                  fun
                  | (
                      Some(di: CellEditor.Model.t),
-                     DerivationTree.Abbr.Just(DerivationTree.{jdmt, rule}),
+                     DerivationExercise.Abbr.Just(
+                       DerivationExercise.{jdmt, rule},
+                     ),
                    ) => {
-                     DerivationTree.Abbr.Just(
-                       DerivationTree.{
+                     DerivationExercise.Abbr.Just(
+                       DerivationExercise.{
                          jdmt:
                            calculate(
                              di.editor.statics,
@@ -389,8 +488,8 @@ module Update = {
                        },
                      );
                    }
-                 | (None, DerivationTree.Abbr.Abbr(d)) =>
-                   DerivationTree.Abbr.Abbr(d)
+                 | (None, DerivationExercise.Abbr.Abbr(d)) =>
+                   DerivationExercise.Abbr.Abbr(d)
                  | (None, _) => failwith("derivation inconsistency1")
                  | (Some(_), _) => failwith("derivation inconsistency2"),
                ),
@@ -411,24 +510,38 @@ module Update = {
 module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = CellEditor.Selection.t;
+  type t =
+    | TextBox
+    | InCell(CellEditor.Selection.t);
 
   let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
-    let cell_editor = DerivationTree.get_stitched(model.pos, model.cells);
-    let+ a = CellEditor.Selection.get_cursor_info(~selection, cell_editor);
-    Update.Editor(model.pos, a);
+    switch (selection) {
+    | TextBox => empty
+    | InCell(s) =>
+      let cell_editor =
+        DerivationExercise.get_stitched(model.pos, model.cells);
+      let+ a =
+        CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+      Update.Editor(model.pos, a);
+    };
   };
 
-  let handle_key_event = (~selection: t, ~event, model: Model.t) => {
-    let cell_editor = DerivationTree.get_stitched(model.pos, model.cells);
-    CellEditor.Selection.handle_key_event(~selection, ~event, cell_editor)
-    |> Option.map(a => Update.Editor(model.pos, a));
+  let handle_key_event =
+      (~selection: t, ~event, model: Model.t): option(Update.t) => {
+    switch (selection) {
+    | TextBox => None
+    | InCell(s) =>
+      let cell_editor =
+        DerivationExercise.get_stitched(model.pos, model.cells);
+      CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
+      |> Option.map(a => Update.Editor(model.pos, a));
+    };
   };
 
   let jump_to_tile =
       (~settings as _: Settings.t, id: Id.t, model: Model.t)
       : option((Update.t, t)) => {
-    DerivationTree.positioned_editors(model.editors)
+    DerivationExercise.positioned_editors(model.editors)
     |> List.find_opt(((_, e: Editor.t)) =>
          TermData.root_tile(id, e.syntax.term_data) != None
        )
@@ -438,7 +551,7 @@ module Selection = {
              pos,
              MainEditor(Perform(Move(Goal(TileId(id))))),
            ),
-           CellEditor.Selection.MainEditor,
+           InCell(CellEditor.Selection.MainEditor),
          )
        );
   };
@@ -497,7 +610,7 @@ module NinjaKeys = {
          (
            M: {
              let corpus: RuleImage.corpus;
-             let pos: DerivationTree.pos;
+             let pos: DerivationExercise.pos;
              let schedule_action: Update.t => Ui_effect.t(unit);
            },
          ) => {
@@ -573,7 +686,10 @@ module NinjaKeys = {
              Ui_effect.Expert.handle(
                M.schedule_action(
                  MapEditor(
-                   DerivationTree.switch_rule(~pos=M.pos, ~rule=Some(rule)),
+                   DerivationExercise.switch_rule(
+                     ~pos=M.pos,
+                     ~rule=Some(rule),
+                   ),
                  ),
                ),
              );
@@ -626,7 +742,7 @@ module FakeCode = {
 };
 
 module View = {
-  type view_info = (DerivationTree.pos, DrvGrading.VerifiedTree.info, ed)
+  type view_info = (DerivationExercise.pos, DrvGrading.VerifiedTree.info, ed)
   and ed =
     | Just(option(RuleImage.t), CellEditor.Model.t)
     | Abbr(option(int));
@@ -639,27 +755,28 @@ module View = {
         ~globals: Globals.t,
         ~signal: event => 'b,
         ~inject: Update.t => 'b,
+        ~inject_explainthis: ExplainThisUpdate.update => 'b,
         ~selection: option(Selection.t),
         ~scratch_mode: bool=false,
         model: Model.t,
       ) => {
     let eds = model.editors;
 
-    let add_premise_btn_view = (~pos: DerivationTree.pos, ~index: int) =>
+    let add_premise_btn_view = (~pos: DerivationExercise.pos, ~index: int) =>
       div(
         ~attrs=[
           Attr.class_("add-premise-btn"),
           Attr.on_click(_ =>
-            inject(MapEditor(DerivationTree.add_premise(~pos, ~index)))
+            inject(MapEditor(DerivationExercise.add_premise(~pos, ~index)))
           ),
         ],
         [],
       );
 
-    let del_premise_btn_view = (~pos: DerivationTree.pos) =>
+    let del_premise_btn_view = (~pos: DerivationExercise.pos) =>
       Widgets.button_named(
         Icons.trash,
-        _ => inject(MapEditor(DerivationTree.del_premise(~pos))),
+        _ => inject(MapEditor(DerivationExercise.del_premise(~pos))),
         ~tooltip=
           switch (pos) {
           | Trees(_, Value) => "Delete Abbr"
@@ -667,17 +784,17 @@ module View = {
           },
       );
 
-    let pop_premise_btn_view = (~pos: DerivationTree.pos) =>
+    let pop_premise_btn_view = (~pos: DerivationExercise.pos) =>
       Widgets.button_named(
         Icons.export,
-        _ => inject(MapEditor(DerivationTree.pop_premise(~pos))),
+        _ => inject(MapEditor(DerivationExercise.pop_premise(~pos))),
         ~tooltip="Pop out to Abbr",
       );
 
-    let push_premise_btn_view = (~pos: DerivationTree.pos) =>
+    let push_premise_btn_view = (~pos: DerivationExercise.pos) =>
       Widgets.button_named(
         Icons.import,
-        _ => inject(MapEditor(DerivationTree.push_premise(~pos))),
+        _ => inject(MapEditor(DerivationExercise.push_premise(~pos))),
         ~tooltip="Push back Abbr",
       );
 
@@ -695,7 +812,7 @@ module View = {
       ]);
 
     let dropdown_option_abbr_view =
-        (~pos: DerivationTree.pos, ~index: option(int)) =>
+        (~pos: DerivationExercise.pos, ~index: option(int)) =>
       switch (index) {
       | Some(index) =>
         Widgets.button_named(
@@ -703,7 +820,7 @@ module View = {
           _ =>
             inject(
               MapEditor(
-                DerivationTree.switch_abbr(~pos, ~index=Some(index)),
+                DerivationExercise.switch_abbr(~pos, ~index=Some(index)),
               ),
             ),
           ~tooltip="Use Abbr d" ++ string_of_int(index),
@@ -711,7 +828,7 @@ module View = {
       | None => Node.none
       };
 
-    let dropdown_switch_rule_view = (~pos: DerivationTree.pos) =>
+    let dropdown_switch_rule_view = (~pos: DerivationExercise.pos) =>
       Widgets.button_named(
         Icons.command_palette_sparkle,
         _ => {
@@ -721,11 +838,13 @@ module View = {
         ~tooltip="Switch Rule",
       );
 
-    let dropdown_switch_just_view = (~pos: DerivationTree.pos) =>
+    let dropdown_switch_just_view = (~pos: DerivationExercise.pos) =>
       Widgets.button_named(
         Icons.forward,
         _ =>
-          inject(MapEditor(DerivationTree.switch_rule(~pos, ~rule=None))),
+          inject(
+            MapEditor(DerivationExercise.switch_rule(~pos, ~rule=None)),
+          ),
         ~tooltip="Cancel Abbr",
       );
 
@@ -739,7 +858,7 @@ module View = {
 
     let pos_is_value =
       fun
-      | DerivationTree.Trees(_, Value) => true
+      | DerivationExercise.Trees(_, Value) => true
       | _ => false;
 
     let dropdown_view = (~pos, ~res, ~index): t =>
@@ -749,7 +868,7 @@ module View = {
           Attr.class_(class_of_result(res)),
         ],
         (
-          DerivationTree.all_abbrs(pos)
+          DerivationExercise.all_abbrs(pos)
           |> List.filter(abbr => abbr != index)
           |> List.filter(_ => !pos_is_value(pos))
           |> List.map(dropdown_option_abbr_view(~pos, ~index=_))
@@ -850,17 +969,17 @@ module View = {
           ~caption: option(string)=?,
           ~subcaption: option(string)=?,
           ~result_kind=`NoResults,
-          this_pos: DerivationTree.pos,
+          this_pos: DerivationExercise.pos,
           cell: CellEditor.Model.t,
         ) => {
       CellEditor.View.view(
         ~globals,
         ~signal=
           fun
-          | MakeActive(a) => signal(MakeActive(a)),
+          | MakeActive(a) => signal(MakeActive(InCell(a))),
         ~selected=
           switch (selection) {
-          | Some(s) when model.pos == this_pos => Some(s)
+          | Some(InCell(s)) when model.pos == this_pos => Some(s)
           | _ => None
           },
         ~inject=a => inject(Editor(this_pos, a)),
@@ -942,7 +1061,7 @@ module View = {
         ~attrs=[
           Attr.class_("add-abbr-btn"),
           Attr.on_click(_ =>
-            inject(MapEditor(DerivationTree.add_abbr(~index)))
+            inject(MapEditor(DerivationExercise.add_abbr(~index)))
           ),
         ],
         [
@@ -969,19 +1088,20 @@ module View = {
            Tree.map(
              fun
              | (
-                 DerivationTree.Abbr.Just(DerivationTree.{rule, _}),
+                 DerivationExercise.Abbr.Just(DerivationExercise.{rule, _}),
                  Some(di),
                ) => (
                  Just(rule, di): ed
                )
              | (Abbr(i), _) => Abbr(i)
-             | _ => raise(Failure("DerivationTree.mk: ed<>di inconsistent")),
+             | _ =>
+               raise(Failure("DerivationExercise.mk: ed<>di inconsistent")),
            ),
          )
       |> List.map2(Tree.combine, model.verified_tree)
       |> List.mapi(i =>
            Tree.mapi((pos, (res, ed)) =>
-             (DerivationTree.Trees(i, pos), res, ed)
+             (DerivationExercise.Trees(i, pos), res, ed)
            )
          );
 
@@ -1010,11 +1130,39 @@ module View = {
         ),
       );
 
-    let title_view = CellCommon.title_cell(eds.title);
+    let editing_flags = model.editing_flags;
+    let on_focus_textbox = _ => signal(MakeActive(TextBox));
+
+    let title_view =
+      InstructorEditViews.title_view(
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_title,
+        ~title=eds.title,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingTitle)),
+        ~update_title=t => inject(Instructor(UpdateTitle(t))),
+      );
+
+    let module_name_view =
+      InstructorEditViews.module_name_view(
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_module_name,
+        ~module_name=eds.module_name,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingModuleName)),
+        ~update_module_name=m => inject(Instructor(UpdateModuleName(m))),
+      );
 
     let prompt_view =
-      CellCommon.narrative_cell(
-        div(~attrs=[Attr.class_("cell-prompt")], [text(eds.prompt)]),
+      InstructorEditViews.prompt_view(
+        ~globals,
+        ~inject_explainthis,
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_prompt,
+        ~prompt=eds.prompt,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingPrompt)),
+        ~update_prompt=p => inject(Instructor(UpdatePrompt(p))),
       );
 
     let option_view = (name, n) =>
@@ -1078,6 +1226,7 @@ module View = {
     } else {
       [
         title_view,
+        module_name_view,
         prompt_view,
         version_view,
         prelude_view,

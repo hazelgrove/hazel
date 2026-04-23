@@ -2,7 +2,9 @@ open Util;
 open Haz3lcore;
 
 let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
+  "module Exercise = GradePrelude.Exercise\n"
+  ++ "module DerivationExercise = GradePrelude.DerivationExercise\n"
+  ++ "let prompt = ()\n";
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tree('a) = Tree.p('a);
@@ -347,6 +349,21 @@ let put_main_editor = (~selection: pos, eds: p('a), editor: 'a): p('a) =>
     };
   };
 
+let update_title = (eds: p('a), title: string): p('a) => {
+  ...eds,
+  title,
+};
+
+let update_module_name = (eds: p('a), module_name: string): p('a) => {
+  ...eds,
+  module_name,
+};
+
+let update_prompt = (eds: p('a), prompt: string): p('a) => {
+  ...eds,
+  prompt,
+};
+
 let editors = (eds: p('a)) =>
   [eds.prelude, eds.setup]
   @ (
@@ -445,7 +462,7 @@ let get_stitched = (pos, s: stitched('a)): 'a =>
     |> List.nth(_, i)
     |> Tree.nth(_, pos)
     |> OptUtil.value_exn(
-         ~none=Invalid_argument("DerivationTree.get_stitched"),
+         ~none=Invalid_argument("DerivationExercise.get_stitched"),
        )
   };
 
@@ -569,7 +586,7 @@ let editor_pp = (fmt, editor: Editor.t) => {
 };
 
 let export_module = ({eds, _}: state) => {
-  let prefix = "let exercise: DerivationTree.spec = ";
+  let prefix = "let exercise: Exercise.t = Derivation ";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;
@@ -581,20 +598,16 @@ let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 
-let export_transitionary_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = Exercise.transition(";
+let export_transitionary_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Exercise.t = Derivation (DerivationExercise.transition(";
   let record = show_p(transitionary_editor_pp, eds);
-  let data = prefix ++ record ++ ")\n";
+  let data = prefix ++ record ++ "))\n";
   data;
 };
 
 let export_grading_module = (module_name, {eds, _}: state) => {
   let header = output_header_grading(module_name);
-  let prefix = "let exercise: Exercise.spec = ";
+  let prefix = "let exercise: DerivationExercise.spec = ";
   let record = show_p(editor_pp, eds);
   let data = header ++ prefix ++ record ++ "\n";
   data;

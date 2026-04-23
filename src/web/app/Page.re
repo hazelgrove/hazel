@@ -235,7 +235,7 @@ module Update = {
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
           let filename =
-            ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
+            ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
           let content = "not supported";
           (filename, content);
         };

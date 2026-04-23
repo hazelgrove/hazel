@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Language;
 
 let view = (~globals: Globals.t) => {
-  let rule = DerivationMode.NinjaKeys.current_hover_rule^;
+  let rule = DerivationExerciseMode.NinjaKeys.current_hover_rule^;
   Node.div(
     ~attrs=[Attr.class_("hover-rule-spec")],
     DrvExplainThis.deduction_view(
