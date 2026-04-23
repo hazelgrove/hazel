@@ -195,11 +195,7 @@ type drv_compound_form =
   | ParenProp
   | ParenExp
   | ParenPat
-  | ParenTyp
-  | QuoteExp
-  | QuotePat
-  | QuoteTyp
-  | QuoteTPat;
+  | ParenTyp;
 
 /* let all_of_drv_compound_form: list(_) = []; */
 
@@ -331,11 +327,7 @@ let drv_get: drv_compound_form => t =
   | ParenProp => mk_parens(Drv(Prop))
   | ParenExp => mk_parens(Drv(Exp))
   | ParenPat => mk_parens(Drv(Pat))
-  | ParenTyp => mk_parens(Drv(Typ))
-  | QuoteExp => mk_pre_c(L, ["$"], P.unquote, Drv(Exp), [])
-  | QuotePat => mk_pre_c(L, ["$"], P.unquote, Drv(Pat), [])
-  | QuoteTyp => mk_pre_c(L, ["$"], P.max, Drv(Typ), [])
-  | QuoteTPat => mk_pre_c(L, ["$"], P.unquote, Drv(TPat), []);
+  | ParenTyp => mk_parens(Drv(Typ));
 
 [@deriving enumerate]
 type compound_form =
@@ -349,7 +341,6 @@ type compound_form =
   | FPower
   | Divide
   | Equals
-  | StringEquals
   | StringConcat
   | Lt
   | Gt
@@ -387,7 +378,6 @@ type compound_form =
   | Not
   | TypSumSingle
   | UnaryMinus
-  | Unquote
   // N-ARY OPS (on the semantics level)
   | CommaExp
   | CommaPat
@@ -427,7 +417,6 @@ type compound_form =
   | Use
   // Drv
   | Drv(drv_compound_form)
-  | DrvQuotePat
   // TRIPLE DELIMITERS
   | Let
   | Theorem
@@ -460,7 +449,6 @@ let get: compound_form => t =
   | FPower => mk_infix("**.", Exp, P.power)
   | Divide => mk_infix("/", Exp, P.mult)
   | Equals => mk_infix("==", Exp, P.eqs)
-  | StringEquals => mk_infix("$==", Exp, P.eqs)
   | StringConcat => mk_infix("++", Exp, P.concat)
   | Lt => mk_infix("<", Exp, P.eqs)
   | Gt => mk_infix(">", Exp, P.eqs)
@@ -498,7 +486,6 @@ let get: compound_form => t =
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
   | UnaryMinus => mk_prefix("-", Exp, P.neg)
-  | Unquote => mk_prefix("$", Exp, P.unquote)
   // N-ARY OPS (on the semantics level)
   | CommaExp => mk_infix(",", Exp, P.comma)
   | CommaPat => mk_infix(",", Pat, P.comma)
@@ -537,7 +524,6 @@ let get: compound_form => t =
   | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
   // Drv
   | Drv(drv_compound_form) => drv_get(drv_compound_form)
-  | DrvQuotePat => mk_pre_c(L, ["$"], P.unquote, Pat, [])
   // Theorem Capture
   | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])

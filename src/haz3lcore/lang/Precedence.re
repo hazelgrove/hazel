@@ -41,7 +41,6 @@ let type_binder = 15;
 // ======== PATTERNS =========
 // ======= EXPRESSIONS =======
 
-let unquote = 21;
 // $_____
 let dot = 22 |> left_associative;
 let ap = 23;
@@ -168,7 +167,6 @@ let of_bin_op: Language.Operators.op_bin => t =
   | String(op) =>
     switch (op) {
     | Concat => concat
-    | Equals => eqs
     }
   | Poly(op) =>
     switch (op) {

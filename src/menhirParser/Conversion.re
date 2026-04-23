@@ -29,12 +29,6 @@ module FilterAction = {
 module Operators = {
   open Language.Operators;
 
-  let op_un_meta_of_menhir_ast = (op: AST.op_un_meta) => {
-    switch (op) {
-    | Unquote => Unquote
-    };
-  };
-
   let op_un_int_of_menhir_ast = (op: AST.op_un_int): op_un_num => {
     switch (op) {
     | Minus => Minus
@@ -49,7 +43,6 @@ module Operators = {
 
   let op_un_of_menhir_ast = (op: AST.op_un): op_un => {
     switch (op) {
-    | Meta(meta) => Meta(op_un_meta_of_menhir_ast(meta))
     | Int(i) => Int(op_un_int_of_menhir_ast(i))
     | Bool(b) => Bool(op_un_bool_of_menhir_ast(b))
     };
@@ -100,7 +93,6 @@ module Operators = {
       StringOp(
         switch (op_string) {
         | Concat => Concat
-        | Equals => Equals
         },
       )
     | Poly(op_poly) =>
@@ -115,12 +107,6 @@ module Operators = {
 
   let of_core_op_un = (op: op_un): AST.op_un => {
     switch (op) {
-    | Meta(meta) =>
-      Meta(
-        switch (meta) {
-        | Unquote => Unquote
-        },
-      )
     | Nat(i)
     | Float(i)
     | SInt(i)
@@ -160,7 +146,6 @@ module Operators = {
   let string_op_of_menhir_ast = (op: AST.op_bin_string): op_bin_string => {
     switch (op) {
     | Concat => Concat
-    | Equals => Equals
     };
   };
 

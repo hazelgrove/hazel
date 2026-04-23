@@ -2303,8 +2303,6 @@ let get_doc =
               ),
             OpExp.int_un_minus,
           );
-        | Meta(Unquote) =>
-          message_single(FilterExp.unquote(~sel_id=Exp.rep_id(exp)))
         }
       | BinOp(op, left, right) =>
         open OpExp;
@@ -2365,7 +2363,6 @@ let get_doc =
           | Float(NotEquals) => (float_not_equal, float_neq_exp_coloring_ids)
           | Bool(And) => (bool_and, bool_and_exp_coloring_ids)
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
-          | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
           | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
           | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)

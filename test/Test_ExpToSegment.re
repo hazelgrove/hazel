@@ -689,10 +689,6 @@ in f(42)|},
     roundtrip_test({|Filter: pause spaced|}, {|pause 1  in  2|}),
     roundtrip_test({|Filter: debug|}, {|debug 1 in 2|}),
     roundtrip_test({|Filter: debug spaced|}, {|debug 1  in  2|}),
-    /* Unquote ($) - used within filter expressions for stepper */
-    roundtrip_test({|Unquote: simple|}, {|eval $x in x|}),
-    roundtrip_test({|Unquote: spaced|}, {|eval $ x in x|}),
-    roundtrip_test({|Unquote: in hide|}, {|hide $1 in 2|}),
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},

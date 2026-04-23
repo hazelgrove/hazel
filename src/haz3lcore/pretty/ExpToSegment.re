@@ -131,9 +131,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | ProofObject(_)
   | Match(_) => Precedence.max
 
-  // Other forms
-  | UnOp(Meta(Unquote), _) => Precedence.unquote
-
   | Asc(_) => Precedence.asc
   | Ap(Forward, _, _)
   | DeferredAp(_)
@@ -538,9 +535,6 @@ let rec parenthesize =
       parenthesize(e1) |> paren_at(Precedence.concat),
       parenthesize(e2) |> paren_assoc_at(Precedence.concat),
     )
-    |> rewrap
-  | UnOp(Meta(Unquote), e) =>
-    UnOp(Meta(Unquote), parenthesize(e) |> paren_at(Precedence.unquote))
     |> rewrap
   | UnOp(Bool(Not), e) =>
     UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
@@ -2132,10 +2126,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ e1 = go(e1)
     and+ e2 = go(e2);
     wrap(exp, e1 @ [mk_form(ListConcat, id, [])] @ e2);
-  | UnOp(Meta(Unquote), e) =>
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    wrap(exp, [mk_form(Unquote, id, [])] @ e);
   | UnOp(Bool(Not), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);

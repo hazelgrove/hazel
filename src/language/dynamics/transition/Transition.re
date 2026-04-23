@@ -820,9 +820,6 @@ module Transition = (EV: EV_MODE) => {
         kind: Conditional(b),
         is_value: false,
       });
-    | UnOp(Meta(Unquote), _) =>
-      let. _ = otherwise(env, d);
-      Indet;
     | UnOp(op, d1) =>
       let. _ = otherwise(env, d1 => UnOp(op, d1) |> rewrap)
       and. d1' = req_final(req(env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
@@ -1283,7 +1280,6 @@ let stepper_justification: step_kind => string =
   | BinOp(
       Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
     ) => "comparison"
-  | BinOp(String(Equals))
   | BinOp(Float(Equals | NotEquals))
   | BinOp(Poly(Equals | NotEquals)) => "check equality"
   | BinOp(String(Concat)) => "string manipulation"
@@ -1308,5 +1304,4 @@ let stepper_justification: step_kind => string =
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
   | TupleExtension => "Tuple extension"
-  | MarkIncomparable => "mark equality as incomparable"
-  | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
+  | MarkIncomparable => "mark equality as incomparable";

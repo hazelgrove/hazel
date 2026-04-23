@@ -257,16 +257,6 @@ let operator_tests = [
     [(0, ["\"hello world\""])],
   ),
   probe_line_test(
-    "Probe on string equality",
-    {|^^probe("abc" $== "abc")|},
-    [(0, ["true"])],
-  ),
-  probe_line_test(
-    "Probe on string inequality",
-    {|^^probe("abc" $== "def")|},
-    [(0, ["false"])],
-  ),
-  probe_line_test(
     "Probe on boolean and",
     {|^^probe(true && false)|},
     [(0, ["false"])],

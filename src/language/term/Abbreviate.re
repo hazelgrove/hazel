@@ -751,13 +751,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           ~make_term=e' => UnOp(Int(Minus), e'),
           e,
         )
-      | UnOp(Meta(Unquote), e) =>
-        handle_unary(
-          ~cost=2, // "$ " (op + space)
-          ~make_term=e' => UnOp(Meta(Unquote), e'),
-          e,
-        )
-
       // Binary operations
       | BinOp(op, e1, e2) =>
         let op_str = Operators.bin_op_to_string(op);

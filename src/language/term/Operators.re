@@ -16,10 +16,6 @@ type op_un_bool =
   | Not;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
-type op_un_meta =
-  | Unquote;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_un_num =
   | Minus;
 
@@ -69,8 +65,7 @@ let op_bin_float_of_num: op_bin_num => op_bin_float =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_string =
-  | Concat
-  | Equals;
+  | Concat;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_poly =
@@ -79,7 +74,6 @@ type op_bin_poly =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_un =
-  | Meta(op_un_meta)
   | Int(op_un_num)
   | Nat(op_un_num)
   | SInt(op_un_num)
@@ -144,7 +138,6 @@ let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Nat)) => Nat(op)
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Float)) => Float(op)
   | (Bool(op), _) => Bool(op)
-  | (Meta(op), _) => Meta(op)
   };
 };
 
@@ -166,10 +159,6 @@ let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
 
 /* ========== PRINTING ========== */
 
-let show_op_un_meta: op_un_meta => string =
-  fun
-  | Unquote => "Un-quotation";
-
 let show_op_un_bool: op_un_bool => string =
   fun
   | Not => "Boolean Negation";
@@ -180,7 +169,6 @@ let show_op_un_num: op_un_num => string =
 
 let show_unop: op_un => string =
   fun
-  | Meta(op) => show_op_un_meta(op)
   | Bool(op) => show_op_un_bool(op)
   | Float(op)
   | Nat(op)
@@ -220,8 +208,7 @@ let show_op_bin_float: op_bin_float => string =
 
 let show_op_bin_string: op_bin_string => string =
   fun
-  | Concat => "String Concatenation"
-  | Equals => "String Equality";
+  | Concat => "String Concatenation";
 
 let show_op_bin_poly: op_bin_poly => string =
   fun
@@ -278,7 +265,6 @@ let float_op_to_string = (op: op_bin_float): string => {
 let string_op_to_string = (op: op_bin_string): string => {
   switch (op) {
   | Concat => "++"
-  | Equals => "$=="
   };
 };
 
@@ -321,7 +307,6 @@ let semantics_of_un_op = (op: op_un): un_semantics =>
   | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
-  | Meta(Unquote) => failwith("semantics of Meta Unquote") // should be unreachable
   };
 
 type bin_semantics =
@@ -409,7 +394,6 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Float(NotEquals) => Defined(Float, Float, Bool, just((!=)))
 
   | String(Concat) => Defined(String, String, String, just((++)))
-  | String(Equals) => Defined(String, String, Bool, just((==)))
 
   | Bool(And) => Defined(Bool, Bool, Bool, just((&&))) // Note: booleans have extra short-cutting rules in transition
   | Bool(Or) => Defined(Bool, Bool, Bool, just((||)))
@@ -461,7 +445,6 @@ let op_name = (op: op_bin): string =>
   | Float(Equals) => "float_eq"
   | Float(NotEquals) => "float_neq"
   | String(Concat) => "string_concat"
-  | String(Equals) => "string_eq"
   | Bool(And) => "bool_and"
   | Bool(Or) => "bool_or"
   | Poly(Equals) => "poly_eq"

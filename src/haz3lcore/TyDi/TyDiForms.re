@@ -54,7 +54,6 @@ module Typ = {
     ("&&", Atom(Bool)),
     ("\\/", Atom(Bool)),
     ("||", Atom(Bool)),
-    ("$==", Atom(Bool)),
     ("==.", Atom(Bool)),
     ("==", Atom(Bool)),
     ("!", Atom(Bool)),

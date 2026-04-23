@@ -694,6 +694,9 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
       );
+    | Var("$e" | "$v") when is_in_filter =>
+      let ty_out = Unknown(Internal) |> Typ.temp;
+      add(~self=Just(ty_out), ~co_ctx=CoCtx.empty, m);
     | Var(name) =>
       let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
       add'(~self=Self.of_exp_var(ctx, name), ~co_ctx, m);
@@ -702,25 +705,6 @@ and uexp_to_info_map =
     | Projector(_, e) =>
       let (e, m) = go(~ana, e, m);
       add'(~self=e.self, ~co_ctx=e.co_ctx, m);
-    | UnOp(Meta(Unquote), e) when is_in_filter =>
-      let e: Exp.t = {
-        annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(e)),
-        term:
-          switch (e.term) {
-          | Var("e") =>
-            Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
-          | Var("v") =>
-            Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
-          | _ => e.term
-          },
-      };
-      let ty_in = Var("$Meta") |> Typ.temp;
-      let ty_out = Unknown(Internal) |> Typ.temp;
-      let (e, m) = go(~ana=ty_in, e, m);
-      add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
-    | UnOp(Meta(Unquote), e) =>
-      let (e, m) = go(~ana=syn, e, m);
-      add'(~self=BadOperator("Unquote not in filter"), ~co_ctx=e.co_ctx, m);
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_un_op(op);

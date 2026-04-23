@@ -373,6 +373,12 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       | _ when Token.is_empty_list(t) => ret(Ctx([]))
       | _ when Token.is_empty_tuple(t) => ret(Triv)
       | _ when Token.is_int(t) => ret(NumLit(int_of_string(t)))
+      | _
+          when
+            Token.is_var(t)
+            && String.length(t) > 1
+            && String.sub(t, 0, 1) == "$" =>
+        ret(Quote(t))
       | _ when Token.is_typ_var(t) => ret(Var(t))
       | _ => ret(hole(tm))
       }
@@ -438,11 +444,6 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | "<=" => ret(Ana(l, r))
     | _ => ret(hole(tm))
     }
-  | Pre(([(_id, (["$"], []))], []), Drv(Exp(r))) as tm =>
-    switch (r.term) {
-    | Var(v) => (Quote("$" ++ v), IdTagged.ids(r))
-    | _ => ret(hole(tm))
-    }
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
     switch (t) {
     | (["-"], []) => ret(Neg(r))
@@ -497,6 +498,12 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   fun
   | Op(([(_id, ([t], []))], [])) as tm =>
     switch (t) {
+    | _
+        when
+          Token.is_var(t)
+          && String.length(t) > 1
+          && String.sub(t, 0, 1) == "$" =>
+      ret(Quote(t))
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
     }
@@ -512,11 +519,6 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
     ret(Cast(l, r))
   | Bin(Drv(Pat(l)), ([(_id, ([","], []))], []), Drv(Pat(r))) =>
     ret(Pair(l, r))
-  | Pre(([(_id, (["$"], []))], []), Drv(Pat(r))) as tm =>
-    switch (r.term) {
-    | Var(v) => (Quote("$" ++ v), IdTagged.ids(r))
-    | _ => ret(hole(tm))
-    }
   | _ as tm => ret(hole(tm));
 }
 
@@ -544,6 +546,12 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     | "1"
     | "Unit" => ret(Unit)
     | _ when Token.is_explicit_hole(t) => ret(TypHole)
+    | _
+        when
+          Token.is_var(t)
+          && String.length(t) > 1
+          && String.sub(t, 0, 1) == "$" =>
+      ret(Quote(t))
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
     }
@@ -551,11 +559,6 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     ret(Parens(body))
   | Pre(([(_id, (["rec", "->"], [Drv(TPat(p))]))], []), Drv(Typ(t))) =>
     ret(Rec(p, t))
-  | Pre(([(_id, (["$"], []))], []), Drv(Typ(r))) as tm =>
-    switch (r.term) {
-    | Var(v) => (Quote("$" ++ v), IdTagged.ids(r))
-    | _ => ret(hole(tm))
-    }
   | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
     switch (t) {
     | "->" => ret(Arrow(l, r))
@@ -583,13 +586,14 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   let hole: unsorted => DrvTermBase.tpat_term =
     unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
   fun
+  | Op(([(_id, ([t], []))], []))
+      when
+        Token.is_var(t)
+        && String.length(t) > 1
+        && String.sub(t, 0, 1) == "$" =>
+    ret(Quote(t))
   | Op(([(_id, ([t], []))], [])) when Token.is_typ_var(t) =>
     ret(Var(t))
-  | Pre(([(_id, (["$"], []))], []), Drv(TPat(r))) as tm =>
-    switch (r.term) {
-    | Var(v) => (Quote("$" ++ v), IdTagged.ids(r))
-    | _ => ret(hole(tm))
-    }
   | _ as tm => ret(hole(tm));
 }
 
@@ -738,7 +742,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["$"], []) => UnOp(Meta(Unquote), r)
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
@@ -896,7 +899,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
-          | (["$=="], []) => BinOp(String(Equals), l, r)
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {

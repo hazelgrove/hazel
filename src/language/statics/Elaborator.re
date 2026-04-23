@@ -293,6 +293,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Dot(e1, e2) =>
       let (e1, _) = elaborate(m, e1);
       Dot(e1, e2) |> rewrap;
+    | Var("$e") =>
+      Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
+      |> rewrap
+    | Var("$v") =>
+      Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
+      |> rewrap
     | Var(_) => uexp
     | Let(p, def, body) =>
       let add_name: (option(string), DHExp.t) => DHExp.t = (
@@ -427,17 +433,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);
       ListConcat(e1', e2') |> rewrap;
-    | UnOp(Meta(Unquote), e) =>
-      switch (e.term) {
-      // TODO: confirm whether these types are correct
-      | Var("e") =>
-        Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
-        |> rewrap
-      | Var("v") =>
-        Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
-        |> rewrap
-      | _ => EmptyHole |> rewrap
-      }
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode);
       let (e', _) = elaborate(m, e);

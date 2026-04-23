@@ -139,7 +139,7 @@ let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
  * the behavior when inserting a character in contact with a token */
 
 let is_potential_operand =
-  match(regexp("^([a-zA-Z0-9_'?\\^]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
+  match(regexp("^([a-zA-Z0-9_'?\\^$]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
@@ -147,10 +147,10 @@ let is_potential_operand =
 
 let is_potential_operator =
   /* Multiline operators not supported */
-  match(regexp("^[^a-zA-Z0-9_'?\\^\"`#\n\\s\\[\\]\\(\\)\\{\\}]+$"));
+  match(regexp("^[^a-zA-Z0-9_'?\\^$\"`#\n\\s\\[\\]\\(\\)\\{\\}]+$"));
 
 let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?\"`#\n\\s\\[\\]\\(\\)\\{\\}]+"));
+  match(regexp("^[^a-zA-Z0-9_'?$\"`#\n\\s\\[\\]\\(\\)\\{\\}]+"));
 
 let is_potential_token = t =>
   if (match(regexp("^>"), t)) {
@@ -200,7 +200,7 @@ let parse_livelit = (str): string =>
 
 let var_regexp =
   regexp(
-    {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
+    {|(^[a-z_][A-Za-z0-9_']*$)|(^\$[A-Za-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
   );
 let is_var = str =>
   !is_bool(str)

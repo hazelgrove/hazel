@@ -134,8 +134,6 @@ type example_id =
   | AndTrue
   | OrFalse
   | OrTrue
-  | StringEqualFalse
-  | StringEqualTrue
   | CaseWildSimple
   | CaseWildTuple
   | CaseInt
