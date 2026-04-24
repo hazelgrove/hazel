@@ -147,12 +147,18 @@ let go =
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
   | Select(PointToPoint((p1, p2))) =>
-    let chunkiness: Action.chunkiness =
-      settings.selection_chunkiness ? ByChar : BySmart;
+    /* Precise range selection from two exact points — always char-level
+     * regardless of the smart-selection setting. Smart rounding would
+     * overshoot the intended endpoints. */
     z
     |> Move.to_point(~measured=syntax.measured, ~goal=p1)
     |> OptUtil.and_then(z =>
-         Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal=p2, z)
+         Select.to_point(
+           ~chunkiness=ByChar,
+           ~measured=syntax.measured,
+           ~goal=p2,
+           z,
+         )
        )
     |> return(Cant_select);
   | Select(Term(Current)) =>
