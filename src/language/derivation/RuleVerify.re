@@ -1,12 +1,20 @@
+/**
+  Verification of a derivation step against a rule spec.
+
+  Given a [RuleSpec.t] (produced by [RuleSpec.of_spec]) and a concrete
+  conclusion/premises drawn from the user's derivation, [verify] returns a list
+  of [failure]s describing why the step does not match, or the empty list if it
+  checks. [go_spec] walks the spec and the syntax in lockstep, binding
+  spec-side variables to their actual matches in a [map]; [go_test] then runs
+  the rule's side-conditions (e.g. membership, equality) over those bindings.
+ */
 open Util;
 open RuleSpec;
 
-// No repr for `t` because we will use `of_syntax` to convert `t` to `DrvSyntax.t`
-// and use `DrvSyntax.repr`.
 module Map = Map.Make(String);
 
-// A `specced` is a pair of a rule spec the real derivation
-// syntax that is checked against.
+/* A [specced] is a spec term paired with the concrete term it was matched
+   against during verification. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type specced = (Drv.Any.t, Drv.Any.t);
 
@@ -23,7 +31,9 @@ let show_linked = ((spec, syntax): specced): string =>
     syntax |> Drv.Any.rep_id |> Id.to_string,
   );
 
-// A `map` maps a name in Reg to a `specced`.
+/* A [map] binds spec-side variable names (e.g. "gamma", "a") to the
+   [specced] pair they were first matched against. Subsequent occurrences of
+   the same name must match equal syntax or verification fails. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type map = [@opaque] Map.t(specced);
 
@@ -35,27 +45,14 @@ type failure =
   | FailUnbox(specced, Drv.Any.cls)
   | FailTest(map, test);
 
-let failure_msg_vague = (failure: failure): string =>
-  switch (failure) {
-  | Mismatch(expected, actual) =>
-    Printf.sprintf("Expected %d premises, but found %d", expected, actual)
-  | FailMatch(_) => "Could not match a term against a expected form"
-  | NotEqual(_, _) => "Two matched terms that should be equal were different"
-  | FailUnbox(_, _) => "Could not extract an atom form from a term"
-  | FailTest(_, _) => "Matched terms failed a test (hidden premise)"
-  };
-
-let failure_msg_vague = e =>
-  e |> failure_msg_vague |> Printf.sprintf("❌ %s");
-
-/**
-  This module describles the speculation of rules for checking
-  involving calculations. Refer to `RuleSpec.re` For speculations
-  on unboxing and unification,
- */
-
 exception Unreachable;
 
+/* Walk a spec term and the concrete syntax in lockstep:
+   - atomic specs (e.g. [Truth]) must match the syntax exactly;
+   - spec-side [Var(name)]s are looked up in [map] and either bound, or
+     required to match their previous binding (yielding [NotEqual] on a
+     mismatch);
+   - shape mismatches produce [FailMatch]. */
 let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
   ((map, res) as info, (spec, syntax) as specced) => {
     let go_exp = (spec, syntax) =>
@@ -234,6 +231,8 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
     };
   };
 
+/* Evaluate a side-condition [test] against a binding [map] produced by
+   [go_spec]. Returns [None] if the test passes, [Some(failure)] otherwise. */
 let go_test = (map: map, test: test): option(failure) => {
   exception Failure(failure);
   let lookup = s =>
@@ -344,7 +343,10 @@ let go_test = (map: map, test: test): option(failure) => {
 
 type res = list(failure);
 
-let is_partial_correct: failure => option(specced) =
+/* If this failure corresponds to a "partially correct" outcome — i.e. the
+   user's syntax contains a hole in the position we were trying to match —
+   return the [specced] that locates the hole. Otherwise return [None]. */
+let partial_correct_specced: failure => option(specced) =
   fun
   | FailMatch((_, syntax) as specced)
   | FailUnbox((_, syntax) as specced, _) =>
@@ -357,10 +359,11 @@ let is_partial_correct: failure => option(specced) =
   | Mismatch(_, _)
   | FailTest(_, _) => None;
 
-// require: res is not empty
+/* If every failure in [res] is "partially correct", return one of the hole
+   [specced]s; otherwise [None]. Requires [res] to be non-empty. */
 let all_partial_correct: res => option(specced) =
   res => {
-    let ss = List.map(is_partial_correct, res);
+    let ss = List.map(partial_correct_specced, res);
     List.exists(Option.is_none, ss) ? None : List.hd(ss);
   };
 
@@ -379,7 +382,8 @@ let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
         (Map.empty, []),
       );
     let (m, n) = (List.length(prems), List.length(prems_syntax));
-    // If premises number mismatch or there is any previous error, we don't run tests
+    /* If the premise count doesn't match, or we already found match errors,
+       skip the side-condition tests — they'd only produce noisy failures. */
     let res = res @ (m != n ? [Mismatch(m, n)] : []);
 
     let go_tests: (map, list(failure), list(test)) => list(failure) =
@@ -393,16 +397,14 @@ let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
     List.is_empty(res) ? go_tests(map, res, tests) : res;
   };
 
-// Debugging function
+/* Debug helper: print every rule's spec (premises, conclusion, test count)
+   to stdout. Handy when adding or tweaking a rule. */
 let __print_all_specs_and_tests = () => {
   Rule.all
   |> List.iter(rule => {
        let Spec.{concl, prems, tests} = of_spec(rule);
        List.iter(prem => print_endline("  " ++ Drv.Exp.show(prem)), prems);
-       List.iter(
-         _test => print_endline("  {Test} "), // TODO(zhiyao): Enable printing of tests
-         tests,
-       );
+       List.iter(_test => print_endline("  {Test} "), tests);
        print_endline(
          "——————————————————————["
          ++ Rule.show(rule)
@@ -412,57 +414,3 @@ let __print_all_specs_and_tests = () => {
        );
      });
 };
-
-// Note(zhiyao): never mind
-
-/**
-  The following functions are utilized in the frontend to address the problem
-  of representing a specific type of checking. For example, in the case
-  of `E_Let`, the initial structure is as follows:
-
-  Premises := [ e_def ⇓ v_def , e_body' ⇓ v' ]
-  Conclusion := let x = e_def in e_body ⇓ v ]
-  Tests := [ e_body' = [v_def/x]e_body ]
-
-  To simplify definitions, we can convert the `Tests` into `Premises` by
-  substituting `e_body'` with `[v_def/x]e_body`. The updated structure becomes:
-
-  Premises := [ e_def ⇓ v_def , [v_def/x]e_body ⇓ v' ]
-  Conclusion := let x = e_def in e_body ⇓ v
-  Tests: []
- */;
-
-// let spec_fill_eq_test: (RuleTest.test, Drv.Exp.t) => Drv.Exp.t =
-//   fun
-//   | Eq(Get(s'), op) =>
-//     RuleSpec.map_reg(s => s == s' ? RuleTest.Operation.show(op) : s)
-//   | _ => Fun.id;
-
-// let spec_fill_eq_tests: (spec, tests) => spec =
-//   List.fold_left(((concl, prems), test) =>
-//     (
-//       concl |> spec_fill_eq_test(test),
-//       prems |> List.map(spec_fill_eq_test(test)),
-//     )
-//   );
-
-// let tests_fill_eq_tests: tests => tests =
-//   List.map(
-//     fun
-//     | RuleTest.Eq(Get(_), op) =>
-//       RuleTest.Eq(Get(RuleTest.Operation.show(op)), op)
-//     | _ as test => test,
-//   );
-
-// let fill_eq_tests: (spec, tests) => (spec, tests) =
-//   (spec, tests) => (
-//     spec_fill_eq_tests(spec, tests),
-//     tests_fill_eq_tests(tests),
-//   );
-
-// let test_remove_eq_test: tests => tests =
-//   List.filter(
-//     fun
-//     | RuleTest.Eq(Get(_), _) => false
-//     | _ => true,
-//   );

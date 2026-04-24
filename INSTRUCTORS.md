@@ -62,4 +62,6 @@ NOTE: This is only relevant to the EECS490 repo (which include the haz3lschool b
 
 1. Update the `src/haz3lschool/Specs.re` module with `<module_name>.exercise`.
 
-2. Run `make grade SUBMISSION=<path to submission json>` under project root to generate a grade report.
+2. Run one of the following under the project root to generate a grade report:
+   - `make grade-json SUBMISSION=<path to submission json> OUTPUT=<path to output.json>` — writes the raw JSON grader output (one section per exercise with `name`, `summary`, `overall` = `[earned, max]`).
+   - `make grade-report SUBMISSION=<path to submission json> OUTPUT=<path to output.txt>` — writes a human-readable text report with per-exercise summaries and a total at the bottom.

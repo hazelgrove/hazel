@@ -86,7 +86,9 @@ let test_show =
   };
 };
 
-let copy_color_map =
+/* Build a color map over spec terms by transferring colors from the
+   corresponding syntax terms in the user's editor. */
+let copy_color_map_of_specceds =
     (terms: list(RuleVerify.specced), (map, idx): ColorSteps.t)
     : ColorSteps.t => {
   (
@@ -104,6 +106,9 @@ let copy_color_map =
   );
 };
 
+/* Specialisation for a verification [failure]: colour only the terms
+   implicated in the failure (the mismatched specs, unbox targets, or the
+   symbols referenced by a failed test). */
 let copy_color_map =
     (failure: RuleVerify.failure, color_map: ColorSteps.t): ColorSteps.t => {
   let terms: list(RuleVerify.specced) =
@@ -118,7 +123,7 @@ let copy_color_map =
       |> List.map(RuleVerify.Map.find_opt(_, map))
       |> List.filter_map(Fun.id)
     };
-  copy_color_map(terms, color_map);
+  copy_color_map_of_specceds(terms, color_map);
 };
 
 let conclusion_view =
@@ -188,12 +193,11 @@ let deduction_view = (~spec, ~rule, ~color_map, ~globals) => [
   conclusion_view(~spec=spec.concl, ~color_map, ~globals),
 ];
 
-let rule_example_view =
+let rule_example_view_of_info =
     (~info: DrvGrading.VerifiedTree.info, ~color_map: ColorSteps.t, ~globals)
     : Node.t => {
-  let (rule, res) = (info.rule, info);
   let color_map =
-    switch (res.res) {
+    switch (info.res) {
     | Correct => color_map
     | PartialCorrect(specced) =>
       copy_color_map(FailMatch(specced), color_map)
@@ -206,7 +210,7 @@ let rule_example_view =
       Attr.class_("syntactic-form"),
       Attr.class_("drv-explainthis-section"),
     ],
-    switch (rule) {
+    switch (info.rule) {
     | Some({spec, rule}) =>
       deduction_view(
         ~spec,
@@ -226,7 +230,7 @@ let rule_example_view =
       ~globals,
     ) =>
   switch (info) {
-  | Some(info) => rule_example_view(~info, ~color_map, ~globals)
+  | Some(info) => rule_example_view_of_info(~info, ~color_map, ~globals)
   | None => Node.div([])
   };
 

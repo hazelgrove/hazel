@@ -197,8 +197,8 @@ let rec ty_comparable = (d1, d2) => {
   | (TupLabel(_), _) => false
   | (ExplicitNonlabel, ExplicitNonlabel) => true
   | (ExplicitNonlabel, _) => false
-  // Note(zhiyao): Listlit checks the consistency of all elements,
-  // which is different from Tuple (check pairwise consistency).
+  /* [ListLit] checks that *all* elements (across both literals) are mutually
+     consistent, unlike [Tuple] below, which checks pairwise consistency. */
   | (ListLit(ds1), ListLit(ds2)) =>
     switch (ds1 @ ds2) {
     | [] => true

@@ -55,6 +55,7 @@ type p('code) = {
   title: string,
   module_name: string,
   prompt: string,
+  max_points: int,
   prelude: 'code,
   setup: 'code,
   corpus: Language.RuleImage.corpus,
@@ -101,20 +102,22 @@ let init = (~root: Sort.t) =>
 let get_trees_pos =
   fun
   | Trees(i, pos) => (i, pos)
-  | _ as pos => failwith("ProofCore.get_trees_pos: " ++ show_pos(pos));
+  | _ as pos =>
+    failwith("DerivationExercise.get_trees_pos: " ++ show_pos(pos));
+
+/* A fresh empty deduction node (blank conclusion, no selected rule). */
+let blank_deduction = (~pos: pos): abbr(deduction('a)) =>
+  Abbr.Just({
+    jdmt: init(~root=root_of_pos(pos)),
+    rule: None,
+  });
 
 let add_premise = (m: p('a), ~pos, ~index): p('a) => {
-  let root = root_of_pos(pos);
-  let (i, pos) = get_trees_pos(pos);
-  let premise =
-    Abbr.Just({
-      jdmt: init(~root),
-      rule: None,
-    });
+  let (i, tree_pos) = get_trees_pos(pos);
   let trees =
     m.trees
     |> List.nth(_, i)
-    |> Tree.insert(premise, index, _, pos)
+    |> Tree.insert(blank_deduction(~pos), index, _, tree_pos)
     |> ListUtil.put_nth(i, _, m.trees);
   {
     ...m,
@@ -122,7 +125,9 @@ let add_premise = (m: p('a), ~pos, ~index): p('a) => {
   };
 };
 
-let del_premise = (m: p('a), ~pos): p('a) => {
+/* Remove a premise subtree at [pos]. (Internal helper — the exported
+   [del_premise] below additionally handles the top-level-abbr case.) */
+let del_premise_internal = (m: p('a), ~pos): p('a) => {
   let (i, pos) = get_trees_pos(pos);
   let (index, pos) = Tree.pos_split_last(pos);
   let trees =
@@ -138,13 +143,7 @@ let del_premise = (m: p('a), ~pos): p('a) => {
 };
 
 let add_abbr = (m: p('a), ~index): p('a) => {
-  let abbr =
-    Tree.empty(
-      Abbr.Just({
-        jdmt: init(~root=root_of_pos(Trees(0, Value))),
-        rule: None,
-      }),
-    );
+  let abbr = Tree.empty(blank_deduction(~pos=Trees(0, Value)));
   let trees =
     m.trees
     |> List.mapi(i =>
@@ -170,11 +169,12 @@ let del_abbr = (m: p('a), ~index): p('a) => {
   };
 };
 
-// Note(zhiyao): might need to separate two
+/* Remove the selected premise; if the selection is a top-level abbreviation
+   tree (at [Value] position), remove the whole abbreviation. */
 let del_premise = (m: p('a), ~pos): p('a) =>
   switch (get_trees_pos(pos)) {
   | (index, Value) => del_abbr(m, ~index)
-  | _ => del_premise(m, ~pos)
+  | _ => del_premise_internal(m, ~pos)
   };
 
 let pop_premise = (m: p('a), ~pos): p('a) => {
@@ -201,7 +201,7 @@ let push_premise = (m: p('a), ~pos): p('a) => {
   let addr_index =
     switch (m.trees |> List.nth(_, index) |> Tree.nth(_, pos)) {
     | Abbr.Abbr(Some(i)) => i
-    | _ => failwith("ProofCore.push_premise: Not an abbreviation")
+    | _ => failwith("DerivationExercise.push_premise: not an abbreviation")
     };
   let abbr = m.trees |> List.nth(_, addr_index);
   let trees =
@@ -251,10 +251,12 @@ let switch_abbr = (m: p('a), ~pos: pos, ~index): p('a) => {
   };
 };
 
-let bind_none = l => [Option.none] @ (l |> List.map(Option.some));
-let all_rules = Language.Rule.all |> bind_none;
+/* Menu helpers: pre-pend [None] to a list of options so the UI can render
+   a "no selection" choice before the real entries. */
+let with_none = l => [None, ...List.map(Option.some, l)];
+let all_rules = Language.Rule.all |> with_none;
 let all_abbrs = pos =>
-  pos |> get_trees_pos |> fst |> List.init(_, Fun.id) |> bind_none;
+  pos |> get_trees_pos |> fst |> List.init(_, Fun.id) |> with_none;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type hint = string;
@@ -289,6 +291,7 @@ let map = (p: p('a), f: 'a => 'b): p('b) => {
     title: p.title,
     module_name: p.module_name,
     prompt: p.prompt,
+    max_points: p.max_points,
     prelude: p.prelude |> f,
     setup: p.setup |> f,
     corpus: p.corpus,
@@ -302,6 +305,7 @@ let mapi = (p: p('a), f: (pos, 'a) => 'b): p('b) => {
     title: p.title,
     module_name: p.module_name,
     prompt: p.prompt,
+    max_points: p.max_points,
     prelude: p.prelude |> f(Prelude),
     setup: p.setup |> f(Setup),
     corpus: p.corpus,
@@ -388,31 +392,23 @@ let editor_positions = eds =>
 let positioned_editors = state =>
   List.combine(editor_positions(state), editors(state));
 
+/* Flatten derivation trees into a linear index used by the exercise-mode UI.
+   Positions 0 and 1 are reserved for the prelude and setup; tree [i] lives
+   at index [2 + i] (only the tree root is addressable here). */
 let idx_of_pos = (pos, _: p('code)) =>
   switch (pos) {
   | Prelude => 0
   | Setup => 1
-  | Trees(i, _) => 2 + i // NOTE(zhiyao): hard to calculate
+  | Trees(i, _) => 2 + i
   };
 
 let pos_of_idx = (_: p('code), idx: int) =>
   switch (idx) {
   | 0 => Prelude
   | 1 => Setup
-  | _ =>
-    if (idx < 2) {
-      failwith("element idx");
-    } else {
-      Trees(idx - 2, Value);
-    }
+  | n when n >= 2 => Trees(n - 2, Value)
+  | _ => failwith("DerivationExercise.pos_of_idx: negative index")
   };
-
-let derivation_init_wrapper = (): abbr(deduction('a)) => {
-  Just({
-    jdmt: init(~root=root_of_pos(Trees(0, Value))),
-    rule: None,
-  });
-};
 
 let transition: transitionary_spec => spec =
   mapi(_, pos => zipper_of_code(_, ~root=root_of_pos(pos)));
@@ -420,12 +416,11 @@ let transition: transitionary_spec => spec =
 let eds_of_spec = (eds, ~settings as _: Language.CoreSettings.t) =>
   map(eds, Editor.Model.mk);
 
-//
-// Old version of above that did string-based parsing, may be useful
-// for transitions between zipper data structure versions (TODO)
-//
-
-// # Stitching
+/* ---------- stitching ------------------------------------------------------
+   A derivation exercise is rendered as three independently editable regions
+   (prelude, setup, and the derivation trees), but statics/dynamics need to
+   see them as a single program. [stitch_term] produces that combined view
+   while remembering which editor each stitched term came from. */
 
 module TermItem = {
   type t = {
@@ -491,12 +486,6 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 
 let term_of = (editor: Editor.t): Language.Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
-
-let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
-  EditorUtil.append_exp(
-    EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
-    term_of(ed3),
-  );
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   let prelude_term = eds.prelude |> term_of;
@@ -584,6 +573,14 @@ let export_module = ({eds, _}: state) => {
   data;
 };
 
+/* Export a derivation doc slide as a `DerivationExercise.spec` value
+   (the format consumed by `Init.documentation_drv_slides`). */
+let export_doc_slide_module = (eds: eds) => {
+  let prefix = "let exercise : DerivationExercise.spec = ";
+  let record = show_p(editor_pp, eds);
+  prefix ++ record ++ "\n";
+};
+
 let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
   let code = PersistentZipper.to_string(zipper);
@@ -611,6 +608,7 @@ let blank_spec = (~title, ~module_name): spec => {
     title,
     module_name,
     prompt: "TODO: prompt",
+    max_points: 10,
     prelude: "",
     setup: "",
     corpus: Language.RuleImage.PropositionalLogic,

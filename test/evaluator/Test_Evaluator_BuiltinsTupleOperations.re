@@ -84,8 +84,8 @@ let tests = (
       "Intermediate cast doesn't break evaluation",
       `Quick,
       () => {
-        /* Note(zhiyao): I changed var => r and val => l because val is a
-           reserved keyword for derivation terms */
+        /* Tuple labels [r] and [l] are used here (rather than [var]/[val])
+           because [val] is a reserved keyword introduced by derivation mode. */
         let program = {|let (r=a, l=b) = (r="get_acne", l=true) : ? in b|};
 
         check(

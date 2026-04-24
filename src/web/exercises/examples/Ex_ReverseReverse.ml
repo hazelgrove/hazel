@@ -9,6 +9,7 @@ let exercise : Exercise.t =
       prompt =
         "Show that this implementation of list reverse is its own inverse \
          (i.e. that `rev` is *involutive*).";
+      max_points = 10;
       prelude =
         {
           selection = { focus = Left; content = []; mode = Normal };

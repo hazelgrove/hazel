@@ -166,7 +166,7 @@ let show = rule => show(rule) |> String.map(c => c == '_' ? '-' : c);
 
 let repr =
   fun
-  // // Propositional logic
+  // Propositional logic
   | Assumption => "Asm."
   | And_I => "∧-I"
   | And_E_L => "∧-E-L"
@@ -205,9 +205,15 @@ let corpus_of_string = str =>
   | _ => failwith("Unknown version: " ++ str)
   };
 
+/* Each corpus restricts to a subset of [Rule.t] (and sometimes remaps rules,
+   e.g. [T_LetAnn => T_LetAnn_TV] in RecursiveALFA). Corpora fall through to
+   a smaller one via [to_rule(<smaller>, rule)].
+
+   NOTE: the wildcards in each branch below make the pattern matches
+   non-exhaustive-checked by the compiler — adding a new [Rule.t] constructor
+   will silently return [None]. If you add a rule, extend every corpus that
+   should accept it explicitly. */
 let rec to_rule: (corpus, t) => option(Rule.t) =
-  // Note(zhiyao): we extensively use `_` in this function,
-  // plz don't rely on the compiler checking the correctness.
   fun
   | PropositionalLogic => (
       fun
@@ -255,8 +261,8 @@ let rec to_rule: (corpus, t) => option(Rule.t) =
       | V_Fun => Some(V_Fun)
       | E_Let => Some(E_Let)
       | E_Ap => Some(E_Ap)
-      // Note(zhiyao): following typing rules are actually introduced in ALFp
-      // but we put them here for convenience.
+      /* The following typing rules formally belong to ALFp but are included
+         here for convenience so ALF derivations can reference them. */
       | T_Num => Some(T_Num)
       | T_Neg => Some(T_Neg)
       | T_Plus => Some(T_Plus)
@@ -326,15 +332,15 @@ let rec to_rule: (corpus, t) => option(Rule.t) =
       fun
       | A_InjL => Some(A_InjL)
       | A_InjR => Some(A_InjR)
-      | T_InjL => Some(T_InjL) // Note(zhiyao): not in HW
-      | T_InjR => Some(T_InjR) // Note(zhiyao): not in HW
+      | T_InjL => Some(T_InjL)
+      | T_InjR => Some(T_InjR)
       | E_InjL => Some(E_InjL)
       | E_InjR => Some(E_InjR)
-      | V_InjL => Some(V_InjL) // Note(zhiyao): not in HW
-      | V_InjR => Some(V_InjR) // Note(zhiyao): not in HW
+      | V_InjL => Some(V_InjL)
+      | V_InjR => Some(V_InjR)
       | A_Case => Some(A_Case)
       | S_Case => Some(S_Case)
-      | T_Case => Some(T_Case) // Note(zhiyao): not in HW
+      | T_Case => Some(T_Case)
       | E_Case_L => Some(E_Case_L)
       | E_Case_R => Some(E_Case_R)
       | _ as rule => to_rule(ALFp, rule)
@@ -342,7 +348,7 @@ let rec to_rule: (corpus, t) => option(Rule.t) =
   | RecursiveALFA => (
       fun
       | E_Fix => Some(E_Fix)
-      | T_Fix => Some(T_Fix) // Note(zhiyao): not in HW
+      | T_Fix => Some(T_Fix)
       | T_Roll => Some(T_Roll)
       | T_Unroll => Some(T_Unroll)
       | E_Roll => Some(E_Roll)
@@ -355,9 +361,11 @@ let rec to_rule: (corpus, t) => option(Rule.t) =
       | TV_Sum => Some(TV_Sum)
       | TV_Rec => Some(TV_Rec)
       | TV_TVar => Some(TV_TVar)
-      | T_LetAnn => Some(T_LetAnn_TV) // Note(zhiyao): replace
-      | T_FunAnn => Some(T_FunAnn_TV) // Note(zhiyao): replace
-      | T_FixAnn => Some(T_FixAnn_TV) // Note(zhiyao): replace
+      /* In RecursiveALFA these rules carry an extra type-validity premise,
+         so we map each image to its [_TV] variant. */
+      | T_LetAnn => Some(T_LetAnn_TV)
+      | T_FunAnn => Some(T_FunAnn_TV)
+      | T_FixAnn => Some(T_FixAnn_TV)
       | _ as rule => to_rule(ALFA, rule)
     )
   | GradualALFA => (
@@ -694,8 +702,8 @@ let of_sort: t => sort =
   | Truth_I
   | Falsity_E => PropositionalLogic;
 
-// Note(zhiyao): The keywords are used for facilitating the
-// searching in NinjaKeys.
+/* Searchable keywords for each rule, used by NinjaKeys to fuzzy-match rule
+   names from their user-typed aliases. */
 let keywords: t => list(string) =
   rule =>
     (show(rule) |> String.split_on_char('_'))

@@ -9,6 +9,7 @@ let exercise : Exercise.t =
       prompt =
         "Derive the following judgement using the evaluation rules for ALF. \
          Substitution should be performed inline.";
+      max_points = 10;
       prelude =
         {
           selection = { focus = Left; content = []; mode = Normal };

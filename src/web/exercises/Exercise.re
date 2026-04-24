@@ -35,3 +35,13 @@ let module_name_of = (e: t): string =>
   | Derivation(s) => s.module_name
   | Theorem(s) => s.module_name
   };
+
+let max_points_of = (e: t): int =>
+  switch (e) {
+  | Code(s) =>
+    let {test_validation, mutation_testing, impl_grading}: CodeExercise.point_distribution =
+      s.point_distribution;
+    test_validation + mutation_testing + impl_grading;
+  | Derivation(s) => s.max_points
+  | Theorem(s) => s.max_points
+  };

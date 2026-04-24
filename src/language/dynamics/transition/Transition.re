@@ -229,10 +229,9 @@ module Transition = (EV: EV_MODE) => {
     | _ => None
     };
 
-  /* Note(zhiyao): The purpose of transition for derivation terms is much useless
-     compared to that for hazel expressions. The only thing here is to calculate
-     1) variables reference and
-     2) contexts terms cons and concat */
+  /* Transition for derivation terms is much narrower than for Hazel
+     expressions: it is limited to (1) resolving variable references and
+     (2) context [cons]/[concat] operations. Everything else is left as-is. */
 
   let drv_transition = (env, d: t): t => {
     let rec go_exp = exp => {

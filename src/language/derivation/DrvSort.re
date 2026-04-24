@@ -1,8 +1,8 @@
 /**
   The sort of derivation terms.
 
-  (future) for the moment, we are not actually using `Jdmt`, `Ctx`, and `Ctx`
-  because of a remolding issue. We are using `Exp` for the above sorts.
+  (future) For the moment we are not actually using the `Jdmt`, `Ctx`, and
+  `Prop` sorts because of a remolding issue; we use `Exp` for all three.
  */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]

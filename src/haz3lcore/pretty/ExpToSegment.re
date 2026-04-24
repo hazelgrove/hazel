@@ -1184,7 +1184,9 @@ let rec drv_exp_to_pretty =
   | Parens(e) =>
     let+ e = go(e, ~sort);
     [mk_form(Drv(ParenExp), id, [e])];
-  // Note(zhiyao): Tuple is an intermediate form that should not be displayed
+  /* [Tuple] is an intermediate form produced during parsing; it should be
+     collapsed into a parenthesised [Pair] before reaching the pretty printer,
+     so hitting it here indicates a bug somewhere upstream. */
   | Tuple(_) => text_to_pretty(id, Sort.Drv(sort), "[Tuple]")
   | Cons(e1, e2) =>
     let+ e1 = go(e1, ~sort=Prop)

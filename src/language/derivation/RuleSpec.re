@@ -1,3 +1,18 @@
+/**
+  Specifications for every derivation [Rule.t].
+
+  A [Spec.t('a, 'b)] bundles a rule's [prems], [concl], and side-condition
+  [tests]. The main export is:
+
+    {[ let of_spec : Rule.t => Spec.t(M_Id.exp_t, RuleFormula.M_Id.t(bool, unit)) ]}
+
+  The terms in specs use [DrvGrammar.M] so that spec-level variables (e.g. [t]
+  for a type, [e] for an expression) stay opaque; [RuleVerify] instantiates
+  them against the user's derivation during checking.
+
+  [tag_spec] below promotes a spec into a fully [IdTagged]'d [t] so the UI
+  can render it via the same machinery used for real terms.
+ */
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]

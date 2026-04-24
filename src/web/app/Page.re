@@ -206,44 +206,49 @@ module Update = {
       );
       Store.load() |> return;
     | ExportForInit =>
-      let (filename, content) =
+      let (filename, contents) =
         switch (model.editors) {
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let filename =
             (current.name |> StringUtil.sanitize_filename) ++ ".ml";
-
-          let content =
+          let contents =
             switch (current.kind) {
             | Code({editor, _}) =>
-              Haz3lcore.(
-                [%derive.show: (string, PersistentSegment.t)]((
-                  current.name,
-                  editor.editor.editor.state.zipper
-                  |> PersistentSegment.persist,
-                ))
-              )
-            | Drv(_) => "not supported"
+              let serialized =
+                Haz3lcore.(
+                  [%derive.show: (string, PersistentSegment.t)]((
+                    current.name,
+                    editor.editor.editor.state.zipper
+                    |> PersistentSegment.persist,
+                  ))
+                );
+              "let out : string * Haz3lcore.PersistentSegment.t = "
+              ++ serialized;
+            | Drv(m) => DerivationExercise.export_doc_slide_module(m.editors)
             };
-          (filename, content);
+          (filename, contents);
         | Tutorial(model) =>
-          let current = List.nth(model.exercises, model.current);
+          let current = TutorialsMode.Model.get_current(model);
           let filename = current.editors.module_name ++ ".ml";
-          let content = "not supported";
-          (filename, content);
+          let contents =
+            Tutorial.export_module(
+              current.editors.module_name,
+              {eds: current.editors},
+            );
+          (filename, contents);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
           let filename =
             ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
-          let content = "not supported";
-          (filename, content);
+          let contents = ExercisesMode.Model.export_exercise_module(current);
+          (filename, contents);
         };
       JsUtil.download_string_file(
         ~filename,
         ~content_type="text/plain",
-        ~contents=
-          "let out : string * Haz3lcore.PersistentSegment.t = " ++ content,
+        ~contents,
       );
       model |> return_quiet;
     | ActiveEditor(action) =>

@@ -212,7 +212,8 @@ module Model = {
     };
   };
 
-  // Note(zhiyao): This function is only used in ExercisesMode.re
+  /* Only used within ExercisesMode.re; exposed via the Model module signature
+     for the derivation-specific UI bindings below. */
   let get_derivation_info = (eds: t) => {
     let model = get_current(eds);
     switch (model) {

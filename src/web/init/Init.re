@@ -107,6 +107,7 @@ let documentation_drv_slides: list((string, DerivationExercise.spec)) =
     Ex_PairMap_Derivation.exercise,
     Ex_Shadowing_And_Closures.exercise,
     Ex_Type_Validation_Derivation.exercise,
+    Ex_Conjunction_Commutativity.exercise,
   ]
   |> List.map((spec: DerivationExercise.spec) =>
        ("Derivations / " ++ spec.title, spec)

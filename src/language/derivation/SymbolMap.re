@@ -1,3 +1,20 @@
+/**
+  Canonical spec-variable names used across [RuleSpec.re].
+
+  The [M] functor lets each client decide how to represent a symbol: the spec
+  itself uses [DrvGrammar.M]-level [Var]s, while [RuleFormula] uses its own
+  [LookUp*] constructors so the verifier can look matches up by name.
+
+  Naming convention:
+  - [e, e1, …]           expression
+  - [v, v1, …]           value
+  - [t, t1, …, t_in, …]  type
+  - [n, n1, …]           numeric literal
+  - [x, y]               pattern
+  - [gamma, delta]       context
+  - [a, b, c]            propositional atoms
+  - [tpat]               type pattern
+ */
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]

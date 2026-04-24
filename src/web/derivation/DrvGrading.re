@@ -1,6 +1,17 @@
+/**
+  Grading of a derivation: turning the user's editable proof trees into a
+  [VerifiedTree.t] where each node is annotated [Correct], [PartialCorrect],
+  [Incorrect], or [Pending].
+
+  Pipeline:
+    Editor trees  -- ProofTree.mk -->  trees with parsed conclusion terms
+                  -- VerifiedTree.verify -->  trees annotated with [info].
+ */
 open Haz3lcore;
 open Util;
 
+/* Errors that arise from the surrounding exercise context rather than from
+   rule verification itself (missing rule choice, unparseable conclusion, …). */
 module ExternalError = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -24,11 +35,15 @@ module ExternalError = {
 open DerivationExercise;
 open Language;
 
+/* Intermediate representation: editor trees paired with the parsed conclusion
+   of each deduction (or a reason why it couldn't be parsed). */
 module ProofTree = {
   type t = list(Tree.p(abbr(res)))
   and res = deduction(result(Drv.Exp.t, ExternalError.t));
 
-  let res_of_di =
+  /* Extract the derivation conclusion from an evaluator result, which wraps
+     it as a [DrvQuote(Exp(_), _)] if parsing succeeded. */
+  let conclusion_of_result =
       (result: option(Exp.t)): result(Drv.Exp.t, ExternalError.t) => {
     switch (result) {
     | Some(e) =>
@@ -46,18 +61,23 @@ module ProofTree = {
     |> List.map(
          Tree.map(
            fun
-           | (Some(di), Abbr.Just({rule, _})) =>
+           | (Some(result), Abbr.Just({rule, _})) =>
              Abbr.Just({
-               jdmt: res_of_di(di),
+               jdmt: conclusion_of_result(result),
                rule,
              })
            | (None, Abbr(i)) => Abbr(i)
-           | _ => failwith("DerivationExercise.mk: ed<>di inconsistent"),
+           | _ =>
+             failwith(
+               "DrvGrading.ProofTree.mk: editors/results inconsistent",
+             ),
          ),
        );
   };
 };
 
+/* Verified trees: each node carries the rule the user selected (if any) and
+   a per-node verification result. */
 module VerifiedTree = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(Tree.p(info))
@@ -75,6 +95,10 @@ module VerifiedTree = {
     spec: RuleSpec.t,
   };
 
+  /* Verify a single deduction node against the selected rule in [corpus].
+     [acc] is the list of already-verified abbreviation trees (used to resolve
+     [Abbr(Some(i))] references); [prems] carries the sub-trees for this
+     deduction along with their parsed conclusions. */
   let verify_single =
       (
         corpus: RuleImage.corpus,
@@ -102,8 +126,6 @@ module VerifiedTree = {
           }
         | Some(rule) =>
           let spec = RuleSpec.of_spec(rule);
-          // TODO(zhiyao): may not bring it back now
-          // let (spec, tests) = RuleVerify.fill_eq_tests(spec, tests);
           let res =
             switch (concl) {
             | Ok(concl) =>
@@ -126,7 +148,6 @@ module VerifiedTree = {
             | Error(e) => Pending(e)
             };
           {
-            // let tests = RuleVerify.test_remove_eq_test(tests);
             res,
             rule:
               Some({
@@ -145,20 +166,23 @@ module VerifiedTree = {
     (Tree.Node(res, sub_trees), concl);
   };
 
-  let verify = version =>
-    List.fold_left(
-      (acc, tree) =>
-        acc @ [Tree.fold_deep(verify_single(version, acc), tree)],
-      [],
-    );
+  let verify: (RuleImage.corpus, ProofTree.t) => t =
+    (corpus, ts) => {
+      let folded =
+        List.fold_left(
+          (acc, tree) =>
+            acc @ [Tree.fold_deep(verify_single(corpus, acc), tree)],
+          [],
+          ts,
+        );
+      List.map(fst, folded);
+    };
 
-  let verify = (version, ts) => ts |> verify(version) |> List.map(fst);
-
-  // strip the abbreviation in the tree
-  // require:
-  //   - all the abbreviation can be resolved
-  //   - the abbreviation is not cyclic (only refer to previous nodes)
-  //   - the abbreviation node is leaf (otherwise, children will be lost)
+  /* Resolve abbreviation references in a tree, inlining each [Abbr(Some(i))]
+     leaf with the [i]th abbreviation tree. Assumes abbreviations are:
+     - all resolvable (no dangling references),
+     - acyclic (an abbreviation only references earlier ones),
+     - leaf-only (otherwise children would be silently dropped). */
   let strip_abbr: list(Tree.p(abbr('a))) => list(Tree.p('a)) =
     List.fold_left(
       (acc: list(Tree.p('a)), tree: Tree.p(abbr('a))) =>

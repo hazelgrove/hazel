@@ -114,10 +114,10 @@ let view =
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
-      /* Note(zhiyao): Drv(Jdmt | Ctx | Prop | Exp) are considered consistent
-         with each other because their differences are determined in dynamics,
-         which we cannot see here. */
-      /* TODO(zhiyao): Drv sort checking is fragile, omitting consistency for now */
+      /* All Drv(_) variants (Jdmt/Ctx/Prop/Exp) are treated as mutually
+         consistent for highlighting purposes: distinguishing them requires
+         dynamic information that isn't available at this point, and strict
+         sort checking here would be fragile. */
       | (Drv(_), _) => true
       | _ => sort == data.sort
       }

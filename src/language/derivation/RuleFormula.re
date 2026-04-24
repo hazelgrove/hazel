@@ -1,16 +1,16 @@
 /**
-  This module describles the speculation of rules for:
-  1) Unboxing
-    e.g. Unboxing `let x = 1 in x` results in: `x`(pat), `1`(exp), `x`(exp)
-    - An error occurs if unboxing is not possible.
-  2) Unifying
-    e.g. If unboxing reveals that `f` is unified with `fun x -> x`, any
-    subsequent attempt to unify `f` with a value not equal to `fun x -> x`
-    will result in an error.
-  This module does not include `checking` functionalities, such as:
-  e.g. Calculations like verifying NumLit(1) + NumLit(2) = NumLit(3) and
-  subst(3, x, let y = 1 in x) = (let y = 1 in 3).
-  Refer to `RuleTest.re` for checking functionalities.
+  Side-condition formulae for rule specifications.
+
+  A [RuleFormula.t('a)] is a small DSL used in [RuleSpec.re] to express
+  properties of a rule's premises and conclusion that cannot be captured by
+  pattern matching alone, such as:
+
+  - unboxing operations (e.g. "the context in [gamma] is some [ctx]"),
+  - arithmetic (e.g. "[n1] + [n2] equals [n3]"),
+  - membership / equality between matched terms.
+
+  The formula tree is evaluated by [RuleVerify.go_test], which uses the
+  [RuleVerify.map] binding produced by matching to resolve [LookUp*] leaves.
  */
 open DrvTermBase;
 open Util;
@@ -66,17 +66,18 @@ module M =
     | Subset(t(ctx_t, 'b), t(ctx_t, 'b)): term(bool, 'b)
   and t('a, 'b) = W.t(term('a, 'b), 'b);
 
-  // TODO(zhiyao): I cannot make gadt happy with deriving show,
-  // sexp, and yojson.
+  /* The GADT [term] above confuses [@@deriving show/sexp/yojson], so we stub
+     them out. Call sites never rely on serialising formulae — they only
+     introspect the AST or evaluate it. */
   let t_of_sexp = (_, _, _) => failwith("not implemented");
   let sexp_of_t = (_, _, _) => failwith("not implemented");
-  let t_of_yojson = (_, _, _) => failwith("cannot implemented");
+  let t_of_yojson = (_, _, _) => failwith("not implemented");
   let yojson_of_t = (_, _, _) => failwith("<opaque rule-formula-t>");
   let pp = (_, _, _, _) => failwith("not implemented");
 
   let term_of_sexp = (_, _, _) => failwith("not implemented");
   let sexp_of_term = (_, _, _) => failwith("not implemented");
-  let term_of_yojson = (_, _, _) => failwith("cannot implemented");
+  let term_of_yojson = (_, _, _) => failwith("not implemented");
   let yojson_of_term = (_, _, _) => failwith("<opaque rule-formula-term>");
   let pp_term = (_, _, _, _) => failwith("not implemented");
 };

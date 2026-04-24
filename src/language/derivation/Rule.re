@@ -1,5 +1,21 @@
 /**
-  This module contains the definition of the derivation rules.
+  The universe of derivation rules.
+
+  [t] enumerates every rule that can appear in a derivation across any of the
+  supported rule corpora (see [RuleImage.corpus]). The constructor names follow
+  a sort_judgment_form convention, e.g.:
+
+  - [T_Plus]      – typing rule for [_ + _]
+  - [S_Ap]        – synthesis rule for application
+  - [A_Case]      – analysis rule for case
+  - [E_If_T]      – evaluation rule for [if] taking the true branch
+  - [V_Num]       – numeric literal is a value
+  - [TV_Arrow]    – arrow type is valid
+  - [C_UnkL]      – consistency: unknown on the left
+  - [Truth_I]     – propositional-logic truth introduction
+
+  [enumerate] gives us [all], which [RuleImage.all_rules_of_version] then
+  filters to the subset supported by a particular corpus.
  */
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
@@ -135,7 +151,9 @@ type t =
   | E_If_T
   | E_If_F
   // - Numbers
-  | E_Num // only used in AL, predicated in later versions
+  /* [E_Num] is the original "numeric literal evaluates to itself" rule from
+     the AL corpus; later corpora derive it from [E_Val] instead. */
+  | E_Num
   | E_Neg
   | E_Plus
   | E_Minus
@@ -177,5 +195,5 @@ type t =
   | Truth_I
   | Falsity_E;
 
-// Deriving by @enumerate
-// let all = [...]
+/* [@@deriving enumerate] synthesises [let all : list(t) = [...]], used
+   elsewhere to iterate over every rule. */

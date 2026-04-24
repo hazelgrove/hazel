@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student grade echo-html-dir serve serve2 repl test clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student grade-json grade-report echo-html-dir serve serve2 repl test clean setup-zarith
 
 all: dev
 
@@ -55,11 +55,25 @@ release: setup-instructor setup-zarith
 release-student: setup-student setup-zarith
 	dune build @src/fmt --auto-promote src --profile dev # Uses dev profile for performance reasons. It may be worth it to retest since the ocaml upgrade
 
-grade: 
+# Grade a submission and write the raw JSON grader output to OUTPUT.
+grade-json:
 ifndef SUBMISSION
-	$(error Usage: make grade SUBMISSION=<path to submission json>)
+	$(error Usage: make grade-json SUBMISSION=<path to submission json> OUTPUT=<path to output json>)
 endif
-	python3 src/grading/grade/grade_individual.py $(SUBMISSION) .
+ifndef OUTPUT
+	$(error Usage: make grade-json SUBMISSION=<path to submission json> OUTPUT=<path to output json>)
+endif
+	python3 src/grading/grade/grade.py $(SUBMISSION) --hazel-dir . --output $(OUTPUT) --format json
+
+# Grade a submission and write a human-readable text report to OUTPUT.
+grade-report:
+ifndef SUBMISSION
+	$(error Usage: make grade-report SUBMISSION=<path to submission json> OUTPUT=<path to output txt>)
+endif
+ifndef OUTPUT
+	$(error Usage: make grade-report SUBMISSION=<path to submission json> OUTPUT=<path to output txt>)
+endif
+	python3 src/grading/grade/grade.py $(SUBMISSION) --hazel-dir . --output $(OUTPUT) --format report
 
 echo-html-dir:
 	@echo $(HTML_DIR)

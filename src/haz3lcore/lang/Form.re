@@ -230,9 +230,10 @@ let drv_get: drv_compound_form => t =
   | Eval => mk_infix("\\=/", Drv(Exp), P.min)
   | Entail => mk_infix("|-", Drv(Exp), P.min)
   | UnaryEntail => mk_pre_c(L, ["|-"], P.min, Drv(Exp), [])
-  // Note(zhiyao):
-  // Auto complete is only available for sort Exp, that's why
-  // we need a fake_consistent to make it work for Drv(Exp)
+  /* Autocompletion only fires on sort [Exp], so each Drv form that should be
+     completable has a [*Fake] twin parameterised by [Exp] alongside the real
+     [Drv(Exp)] form. TyDi suggests the [Fake] shapes, which are then remolded
+     into the proper [Drv] shapes. */
   | ConsistentFake =>
     mk_pre_c(L, ["consistent", "~"], P.fun_, Exp, [Drv(Typ)])
   | Consistent =>

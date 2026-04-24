@@ -32,6 +32,7 @@ module Model = {
     title: string,
     module_name: string,
     prompt: string,
+    max_points: int,
     cells,
     editing_flags,
   };
@@ -54,6 +55,7 @@ module Model = {
       title: spec.title,
       module_name: spec.module_name,
       prompt: spec.prompt,
+      max_points: spec.max_points,
       cells: {
         prelude:
           CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp)),
@@ -75,6 +77,7 @@ module Model = {
       title: spec.title,
       module_name: spec.module_name,
       prompt: spec.prompt,
+      max_points: spec.max_points,
       cells: {
         prelude:
           CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp)),
@@ -92,6 +95,7 @@ module Model = {
       title: model.title,
       module_name: model.module_name,
       prompt: model.prompt,
+      max_points: model.max_points,
       prelude: model.cells.prelude.editor.editor.state.zipper,
       lemmas: model.cells.lemmas.editor.editor.state.zipper,
       theorem: model.cells.theorem.editor.editor.state.zipper,

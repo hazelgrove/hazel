@@ -392,7 +392,8 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       }
     | (["(", ")"], [Drv(Exp(body))]) =>
       switch (body.term) {
-      // Note(zhiyao): a standard pair includes a parens
+      /* A standard Drv pair is parenthesised, so here we collapse
+         [Parens(Tuple(e1, e2))] into [Pair(e1, e2)]. */
       | Tuple([e1, e2]) => (Pair(e1, e2), IdTagged.ids(body))
       | _ => ret(Parens(body))
       }
@@ -599,9 +600,10 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
-  // Note(zhiyao): the root of Editor.t can change, however the term is
-  // still Exp, so the easiest way to get drv terms is to catch a
-  // multi-hole error here.
+  /* The editor root can change while the expression itself is still sort
+     [Exp]; when an [Exp]-sort traversal trips over a Drv child we get a
+     [MultiHole([Drv(_), ...])], which we intercept and re-parse at the
+     [Drv(Exp)] level. */
   switch (term) {
   | MultiHole([Drv(_), ..._]) =>
     let (term, inner_ids) = drv_exp_term(unsorted);
@@ -716,7 +718,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | MultiHole(anys) => (MultiHole(anys), ids)
         | Invalid(string) => (Invalid(string), ids)
         }
-      // Note(zhiyao): convert Drv to Exp
+      /* The [of_*] / [end] delimiters lift a Drv term back up to sort Exp
+         by wrapping it in a [DrvQuote] node tagged with its derivation sort. */
       | (["of_jdmt", "end"], [Drv(Exp(j))]) =>
         ret(DrvQuote(Exp(j), Jdmt))
       | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvQuote(Exp(c), Ctx))
@@ -1022,11 +1025,6 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | _ => hole(tm)
         },
       )
-    | _ => ret(hole(tm))
-    }
-  | Pre(([(_id, (["$"], []))], []), Pat(r)) as tm =>
-    switch (r.term) {
-    | Var(v) => (Var("$" ++ v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>

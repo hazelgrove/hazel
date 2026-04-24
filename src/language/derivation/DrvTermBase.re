@@ -269,7 +269,8 @@ and Exp: {
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _)
     | (_, Hole(_)) when skip_hole => true
-    // Note(zhiyao): This is to avoid infinite loop in cell update
+    /* Bail out to structural equality on holes to avoid infinite loops in
+       Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
@@ -399,7 +400,8 @@ and Exp: {
       }
     };
 
-  // Note(zhiyao): This implementation of cons_ctx is not linear.
+  /* Insert [p] into the sorted context [ctx]. Quadratic in the size of
+     [ctx] — fine for the small contexts seen in student derivations. */
   let cons_ctx = (ctx, p) => {
     let cmp = p' => show(p) < show(p');
     let eq = eq(~skip_hole=false);
@@ -478,7 +480,8 @@ and Pat: {
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _)
     | (_, Hole(_)) when skip_hole => true
-    // Note(zhiyao): This is to avoid infinite loop in cell update
+    /* Bail out to structural equality on holes to avoid infinite loops in
+       Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
     | (Quote(s1), Quote(s2)) => s1 == s2
     | (Quote(_), _) => false
@@ -593,7 +596,8 @@ and Typ: {
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _)
     | (_, Hole(_)) when skip_hole => true
-    // Note(zhiyao): This is to avoid infinite loop in cell update
+    /* Bail out to structural equality on holes to avoid infinite loops in
+       Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
     | (Quote(s1), Quote(s2)) => s1 == s2
     | (Quote(_), _) => false
@@ -688,7 +692,8 @@ and TPat: {
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
     | (Hole(_), _)
     | (_, Hole(_)) when skip_hole => true
-    // Note(zhiyao): This is to avoid infinite loop in cell update
+    /* Bail out to structural equality on holes to avoid infinite loops in
+       Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
     | (Quote(s1), Quote(s2)) => s1 == s2
     | (Quote(_), _) => false

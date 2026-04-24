@@ -490,8 +490,16 @@ module Update = {
                    }
                  | (None, DerivationExercise.Abbr.Abbr(d)) =>
                    DerivationExercise.Abbr.Abbr(d)
-                 | (None, _) => failwith("derivation inconsistency1")
-                 | (Some(_), _) => failwith("derivation inconsistency2"),
+                 /* The cells/editors trees are built in lockstep, so a cell
+                    should be [Some(_)] iff the matching editor is [Just(_)]. */
+                 | (None, _) =>
+                   failwith(
+                     "DerivationExerciseMode.calculate: editor present but no cell",
+                   )
+                 | (Some(_), _) =>
+                   failwith(
+                     "DerivationExerciseMode.calculate: cell present but no editor",
+                   ),
                ),
              );
         },
@@ -638,7 +646,9 @@ module NinjaKeys = {
     let bind_event_handler = (action: Js.t(Dom_html.element)) => {
       action##.onmousemove := Dom.handler(copy_hover_rule_spec(action));
       action##.onmouseout := Dom.handler(try_remove_copied);
-      (); // TODO(zhiyao): I don't know why if it's removed, it doesn't work
+      /* FIXME: removing this trailing unit breaks the JS interop — investigate
+         why the function's return type drifts without it. */
+      ();
     };
 
     let bind_event_handler_all = () => {
@@ -1224,7 +1234,15 @@ module View = {
     if (scratch_mode) {
       [version_view, setup_view, derivations_view];
     } else {
+      let score_view =
+        Grading.score_view(
+          GradeExercise.score_of_verified_tree(
+            model.spec,
+            model.verified_tree,
+          ),
+        );
       [
+        score_view,
         title_view,
         module_name_view,
         prompt_view,

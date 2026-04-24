@@ -128,7 +128,9 @@ module rec Any: {
         )
       | Rul(x) =>
         Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
-      | Drv(x) => Drv(x) // Note(zhiyao): drv term not mapped from outside
+      /* Drv terms have their own traversal machinery in DrvTermBase; the
+         generic Any.map_term doesn't descend into them. */
+      | Drv(x) => Drv(x)
       | Mod(x) =>
         Mod(Mod.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | Sig(x) =>

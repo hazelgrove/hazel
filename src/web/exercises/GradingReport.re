@@ -9,8 +9,9 @@ open Web.Export;
 open Web.ExercisesMode;
 
 /* Batch grading entry point. Invoked as an executable
-   (_build/default/src/web/gradingReport.bc.js) by [grade_individual.py] to
-   turn a persisted exercise export into a human-readable report.
+   (_build/default/src/web/gradingReport.bc.js) by [src/grading/grade/grade.py]
+   (see `make grade-json` / `make grade-report`) to turn a persisted exercise
+   export into a list of per-exercise grading sections.
 
    For each exercise in the list, we dispatch on the exercise kind to
    produce a [section]. Code exercises run the full automated grading
@@ -138,21 +139,25 @@ module Main = {
     |> gen_code_grading_report;
   };
 
-  /* ---- Derivation exercises (basic / placeholder) ---- */
+  /* ---- Derivation exercises ---- */
 
-  let grade_derivation_exercise = (_spec, _persistent_state): report => {
+  let grade_derivation_exercise =
+      (spec: Web.DerivationExercise.spec, persistent_state): report => {
+    let r = Web.GradeExercise.grade_derivation(spec, persistent_state);
     {
-      summary: "Derivation exercise - automated grading not yet implemented.\n",
-      overall: (0., 0.),
+      summary: r.summary,
+      overall: r.overall,
     };
   };
 
-  /* ---- Theorem exercises (basic / placeholder) ---- */
+  /* ---- Theorem exercises (placeholder — reports max points) ---- */
 
-  let grade_theorem_exercise = (_spec, _persistent_state): report => {
+  let grade_theorem_exercise =
+      (spec: Web.TheoremExercise.spec, persistent_state): report => {
+    let r = Web.GradeExercise.grade_theorem(spec, persistent_state);
     {
-      summary: "Theorem exercise - automated grading not yet implemented.\n",
-      overall: (0., 0.),
+      summary: r.summary,
+      overall: r.overall,
     };
   };
 
