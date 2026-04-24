@@ -44,6 +44,10 @@ type t = {
   deep_reassociate: bool,
   flip_animations: bool,
   display_warnings: bool,
+  /* When false (default), bare Shift+Arrow does smart-rounded selection
+   * (char inside starting token, whole-token beyond) and the modifier
+   * variant does pure char. When true, that pairing is swapped. */
+  selection_chunkiness: bool,
   evaluation: Evaluation.t,
 };
 
@@ -56,6 +60,7 @@ let off: t = {
   deep_reassociate: false,
   flip_animations: false,
   display_warnings: false,
+  selection_chunkiness: false,
   evaluation: Evaluation.init,
 };
 
@@ -68,6 +73,7 @@ let on: t = {
   deep_reassociate: false,
   flip_animations: true,
   display_warnings: true,
+  selection_chunkiness: false,
   evaluation: Evaluation.init,
 };
 

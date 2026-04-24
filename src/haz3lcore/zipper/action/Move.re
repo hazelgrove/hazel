@@ -53,7 +53,10 @@ let local = (chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => 
   let z = unselect(z);
   switch (chunkiness) {
   | ByToken => by_token(d, z)
-  | ByChar => by_char(d, z)
+  /* BySmart is a selection-only granularity; for caret movement it
+   * degrades to ByChar. Never emitted for Move actions in practice. */
+  | ByChar
+  | BySmart => by_char(d, z)
   };
 };
 
@@ -240,9 +243,9 @@ let go =
   } else {
     let z = pre_unselect(a, z);
     switch (a) {
-    // By char just unselects
-    | Local(Left, ByChar)
-    | Local(Right, ByChar) => Some(z)
+    // By char or smart just unselects (movement within selection)
+    | Local(Left, ByChar | BySmart)
+    | Local(Right, ByChar | BySmart) => Some(z)
     | _ =>
       switch (
         move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z)

@@ -35,6 +35,7 @@ module Model = {
       deep_reassociate: true,
       flip_animations: true,
       display_warnings: true,
+      selection_chunkiness: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -138,6 +139,7 @@ module Update = {
     | Dynamics
     | ProbeAll
     | DeepReassociate
+    | SelectionChunkiness
     | Assist
     | Elaborate
     | Benchmark
@@ -205,6 +207,13 @@ module Update = {
           core: {
             ...settings.core,
             deep_reassociate: !settings.core.deep_reassociate,
+          },
+        }
+      | SelectionChunkiness => {
+          ...settings,
+          core: {
+            ...settings.core,
+            selection_chunkiness: !settings.core.selection_chunkiness,
           },
         }
       | Assist => {

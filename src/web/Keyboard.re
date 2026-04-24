@@ -26,8 +26,20 @@ let is_new_slide = (k: Key.t): bool =>
     }
   );
 
-let handle_key_event = (k: Key.t): option(Action.t) => {
+/* Selection chunkiness for bare Shift+Arrow (default) and the modifier
+ * variant. When `selection_chunkiness` is off, the default is smart
+ * rounding; when on, the default is pure char. The modifier always does
+ * the other one. */
+let default_chunk = (settings: Language.CoreSettings.t): Action.chunkiness =>
+  settings.selection_chunkiness ? ByChar : BySmart;
+let modifier_chunk = (settings: Language.CoreSettings.t): Action.chunkiness =>
+  settings.selection_chunkiness ? BySmart : ByChar;
+
+let handle_key_event =
+    (~settings: Language.CoreSettings.t, k: Key.t): option(Action.t) => {
   let now = (a: Action.t) => Some(a);
+  let def = default_chunk(settings);
+  let modif = modifier_chunk(settings);
   switch (k) {
   | {key: U(key), _} =>
     /* Keu-UPpEvents:
@@ -50,10 +62,10 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
     | (Down, "Tab") => now(Move(Goal(NextProblem(Left))))
-    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByChar))))
-    | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByChar))))
-    | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up, ByChar))))
-    | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down, ByChar))))
+    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, def))))
+    | (Down, "ArrowRight") => now(Select(Resize(Local(Right, def))))
+    | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up, def))))
+    | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down, def))))
     | (Down, "Home") => now(Select(Resize(Line(Left))))
     | (Down, "End") => now(Select(Resize(Line(Right))))
     | (_, "Enter") => now(Insert(Token.linebreak))
@@ -65,10 +77,10 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Up, ctrl: Up, alt: Down, _} =>
     switch (key) {
-    | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
-    | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
-    | "ArrowUp" => now(Select(Resize(Vertical(Up, ByToken))))
-    | "ArrowDown" => now(Select(Resize(Vertical(Down, ByToken))))
+    | "ArrowLeft" => now(Select(Resize(Local(Left, modif))))
+    | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
+    | "ArrowUp" => now(Select(Resize(Vertical(Up, modif))))
+    | "ArrowDown" => now(Select(Resize(Vertical(Down, modif))))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up, _} =>
@@ -81,10 +93,10 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
-    | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
-    | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
-    | "ArrowUp" => now(Select(Resize(Vertical(Up, ByToken))))
-    | "ArrowDown" => now(Select(Resize(Vertical(Down, ByToken))))
+    | "ArrowLeft" => now(Select(Resize(Local(Left, modif))))
+    | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
+    | "ArrowUp" => now(Select(Resize(Vertical(Up, modif))))
+    | "ArrowDown" => now(Select(Resize(Vertical(Down, modif))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
     | _ => None
@@ -147,8 +159,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Down, _} =>
     switch (key) {
-    | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
-    | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
+    | "ArrowLeft" => now(Select(Resize(Local(Left, modif))))
+    | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
     | _ => None
     }
   | _ => None

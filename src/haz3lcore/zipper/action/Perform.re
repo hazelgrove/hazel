@@ -122,6 +122,8 @@ let go =
     Select.local(d, z) |> return(Cant_select)
   | Select(Resize(Local(d, ByChar))) =>
     Select.local_by_char(d, z) |> return(Cant_select)
+  | Select(Resize(Local(d, BySmart))) =>
+    Select.local_smart(d, z) |> return(Cant_select)
   | Select(Resize(Vertical(d, chunkiness))) =>
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
@@ -136,17 +138,23 @@ let go =
   | Select(Resize(Line(d))) =>
     Select.to_linebreak(d, z) |> return(Cant_select)
   | Select(Resize(Point(goal))) =>
-    Select.to_point(~measured=syntax.measured, ~goal, z)
-    |> return(Cant_select)
+    /* Mouse drag obeys the selection_chunkiness setting: when off (default),
+     * drag is smart; when on, drag is pure char. */
+    let chunkiness: Action.chunkiness =
+      settings.selection_chunkiness ? ByChar : BySmart;
+    Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal, z)
+    |> return(Cant_select);
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
   | Select(PointToPoint((p1, p2))) =>
+    let chunkiness: Action.chunkiness =
+      settings.selection_chunkiness ? ByChar : BySmart;
     z
     |> Move.to_point(~measured=syntax.measured, ~goal=p1)
     |> OptUtil.and_then(z =>
-         Select.to_point(~measured=syntax.measured, ~goal=p2, z)
+         Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal=p2, z)
        )
-    |> return(Cant_select)
+    |> return(Cant_select);
   | Select(Term(Current)) =>
     Select.select_enclosing_term(
       syntax.term_data,

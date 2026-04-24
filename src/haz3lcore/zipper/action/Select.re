@@ -310,6 +310,78 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
   };
 };
 
+/* Smart-rounded selection: char-granular while the selection stays
+ * within the "starting token" (the token the selection was first
+ * anchored in or entered); once the focus crosses the far edge of
+ * that token, the anchor snaps to the token's outer boundary (losing
+ * any partial position memory) and further steps extend by whole
+ * pieces.
+ *
+ * The round-up is *combined* with the char-to-Outer step: a single
+ * smart step never leaves the caret point unchanged, so iterative
+ * callers like Select.to_point (mouse drag) make monotone progress
+ * toward their goal.
+ *
+ * Growing:
+ * - empty: bootstrap via local_by_char.
+ * - content=[p], Inner(fn): char step; if this step lands on Outer
+ *   and anchor_caret was Inner, also snap anchor_caret=Outer
+ *   (combined round-up).
+ * - content=[p], Outer: extend by next whole piece (already rounded).
+ * - content has >1 piece: extend by next whole piece.
+ *
+ * Shrinking:
+ * - content=[p], Inner: char shrink (local_by_char crossover handling).
+ * - content=[p], Outer: char shrink — re-enter starting token at
+ *   Inner(max_idx), or pop if single-char piece.
+ * - content has >1 pieces: pop focus-side whole piece.
+ *
+ * Token-phase grow uses grow_selection_raw (no reassembly) so shards
+ * accumulated in the char-phase start don't merge. */
+let local_smart = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  let is_growing = Selection.is_empty(z.selection) || d == z.selection.focus;
+  switch (z.selection.content, z.caret, is_growing) {
+  | ([], _, _)
+  | ([_], Inner(_), _)
+  | ([_], Outer, false) =>
+    /* Char phase. If growth transitioned focus past the starting
+     * token's edge (now Outer, content still single-piece) and
+     * anchor_caret is still Inner, snap anchor_caret=Outer so the
+     * selection visibly rounds up to the whole starting token. */
+    let+ z' = local_by_char(d, z);
+    let should_round_up =
+      is_growing
+      && z'.caret == CaretBase.Outer
+      && List.length(z'.selection.content) == 1
+      && (
+        switch (z'.selection.anchor_caret) {
+        | CaretBase.Inner(_) => true
+        | CaretBase.Outer => false
+        }
+      );
+    should_round_up
+      ? {
+        ...z',
+        selection: {
+          ...z'.selection,
+          anchor_caret: CaretBase.Outer,
+        },
+      }
+      : z';
+  | ([_], Outer, true) =>
+    /* Single-piece already rounded: extend by next whole piece. */
+    let z = decompose_multi_shard_neighbor(d, z);
+    Zipper.grow_selection_raw(z);
+  | (_, _, true) =>
+    /* Multi-piece growing: extend by next whole piece. */
+    let z = decompose_multi_shard_neighbor(d, z);
+    Zipper.grow_selection_raw(z);
+  | (_, _, false) =>
+    /* Multi-piece shrinking: pop focus-side whole piece. */
+    Zipper.shrink_selection(z)
+  };
+};
+
 /* Basic term selection uses term data, which is out of date
  * with the parsing logic which makes list listerals. We also
  * treat tuples as including the parens (if any), though this
@@ -813,13 +885,27 @@ let vertical =
     switch (chunkiness) {
     | ByChar => local_by_char
     | ByToken => local
+    | BySmart => local_smart
     };
   Zipper.do_towards_point(~measured, ~force_progress=true, step, goal, z);
 };
 
-let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+let to_point =
+    (
+      ~chunkiness: Action.chunkiness=ByChar,
+      ~measured: Measured.t,
+      ~goal: Point.t,
+      z: t,
+    )
+    : option(t) => {
   let anchor = z |> toggle_focus |> Zipper.Caret.point(measured);
-  switch (Zipper.do_towards_point(~measured, ~anchor, local_by_char, goal, z)) {
+  let step =
+    switch (chunkiness) {
+    | ByChar => local_by_char
+    | ByToken => local
+    | BySmart => local_smart
+    };
+  switch (Zipper.do_towards_point(~measured, ~anchor, step, goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };

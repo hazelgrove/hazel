@@ -233,6 +233,15 @@ let code_display_group = (~globals: Globals.t) => {
         tooltip: Some("Enable flip animations for code changes"),
       },
       {
+        name: "Character-level selection",
+        active: globals.settings.core.selection_chunkiness,
+        setting: SelectionChunkiness,
+        tooltip:
+          Some(
+            "When on, Shift+Arrow selects by character everywhere. When off (default), Shift+Arrow selects by character inside a token and by whole token beyond; the modifier-key variant does the reverse.",
+          ),
+      },
+      {
         name: "Line Numbers",
         active: globals.settings.line_numbers,
         setting: ToggleLineNumbers,

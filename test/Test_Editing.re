@@ -3997,6 +3997,104 @@ let test_terminates = (~name, ~acts): test_case(_) =>
     },
   );
 
+/* Helpers for smart-mode selection tests. Smart mode: char-granular
+ * while inside the starting token, whole-piece-granular beyond. */
+let sel_smart_r = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, BySmart))));
+
+let sel_smart_l = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Left, BySmart))));
+
+let smart_selection_tests = [
+  /* A. Inside starting token: char-granular (Inner anchor preserved). */
+  test(
+    ~name="smart: 1 char right from inner caret",
+    ~acts=mk({|he¦llo|}) @ sel_smart_r(1),
+    ~goal={|he§l¦lo|},
+  ),
+  test(
+    ~name="smart: 2 chars right from inner caret",
+    ~acts=mk({|he¦llo|}) @ sel_smart_r(2),
+    ~goal={|he§ll¦o|},
+  ),
+  /* B. Crossing starting token's right edge — combined char + round-up.
+   * Uses let-in form so the parse has clean piece structure without grout. */
+  test(
+    ~name="smart: crossing token edge rounds up to whole starting token",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(3),
+    ~goal={|let §hello¦ = 1 in hello|},
+  ),
+  test(
+    ~name="smart: after round-up, extends by whole next piece",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(4),
+    ~goal={|let §hello ¦= 1 in hello|},
+  ),
+  test(
+    ~name="smart: extends by further whole pieces",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5),
+    ~goal={|let §hello =¦ 1 in hello|},
+  ),
+  /* C. From Outer anchor: char-by-char through token, then extends. No
+   * separate round-up state — anchor is already Outer. */
+  test(
+    ~name="smart: 1 step right from Outer enters char-by-char",
+    ~acts=mk({|¦hello|}) @ sel_smart_r(1),
+    ~goal={|§h¦ello|},
+  ),
+  test(
+    ~name="smart: several chars right from Outer",
+    ~acts=mk({|¦hello|}) @ sel_smart_r(3),
+    ~goal={|§hel¦lo|},
+  ),
+  test(
+    ~name="smart: reaches edge from Outer — whole token selected",
+    ~acts=mk({|let ¦hello = 1 in hello|}) @ sel_smart_r(5),
+    ~goal={|let §hello¦ = 1 in hello|},
+  ),
+  test(
+    ~name="smart: from Outer extends past token to next piece",
+    ~acts=mk({|let ¦hello = 1 in hello|}) @ sel_smart_r(6),
+    ~goal={|let §hello ¦= 1 in hello|},
+  ),
+  /* D. Shrinking */
+  test(
+    ~name="smart: shrink from token-phase pops whole piece",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(1),
+    ~goal={|let §hello ¦= 1 in hello|},
+  ),
+  test(
+    ~name="smart: shrink back to single-piece rounded",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(2),
+    ~goal={|let §hello¦ = 1 in hello|},
+  ),
+  test(
+    ~name="smart: shrink re-enters starting token char-wise from rounded",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(3),
+    ~goal={|let §hell¦o = 1 in hello|},
+  ),
+  test(
+    ~name="smart: intra-token grow/shrink round-trips to start",
+    ~acts=mk({|he¦llo|}) @ sel_smart_r(2) @ sel_smart_l(2),
+    ~goal={|he¦llo|},
+  ),
+  /* E. Left direction: symmetric. */
+  test(
+    ~name="smart: 1 char left from inner caret",
+    ~acts=mk({|hel¦lo|}) @ sel_smart_l(1),
+    ~goal={|he¦l§lo|},
+  ),
+  test(
+    ~name="smart: left crossing edge rounds up to whole starting token",
+    ~acts=mk({|let hel¦lo = 1 in hello|}) @ sel_smart_l(3),
+    ~goal={|let ¦hello§ = 1 in hello|},
+  ),
+  test(
+    ~name="smart: left extends past starting token to prev piece",
+    ~acts=mk({|let hel¦lo = 1 in hello|}) @ sel_smart_l(4),
+    ~goal={|let¦ hello§ = 1 in hello|},
+  ),
+];
+
 let move_after_char_select_tests = [
   test_terminates(
     ~name="Move.Point after char-level Select: cross linebreak",
@@ -4034,6 +4132,7 @@ ys|})
 
 let tests = [
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
+  ("Editing.SmartSelection", smart_selection_tests),
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),

@@ -327,7 +327,8 @@ module Selection = {
   };
 
   let handle_key_event =
-      (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
+      (~settings: Language.CoreSettings.t, ~selection as (), model: Model.t)
+      : (Key.t => option(Update.t)) =>
     fun
     | {key: D("Escape"), _} when is_command_palette_open() =>
       /* Let Escape bubble so NinjaKeys can close itself. */
@@ -401,9 +402,16 @@ module Selection = {
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
-      Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
+      Keyboard.handle_key_event(~settings, k)
+      |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (~selection, model: Model.t, key: Key.t) => {
+  let handle_key_event =
+      (
+        ~settings: Language.CoreSettings.t,
+        ~selection,
+        model: Model.t,
+        key: Key.t,
+      ) => {
     /* Delegate to context menu key handler when menu is open */
     let context_menu_result =
       ContextMenu.WithContext.handle_key(
@@ -427,7 +435,7 @@ module Selection = {
         )
       ) {
       | Some(action) => Some(Update.Perform(Project(action)))
-      | None => handle_key_event(~selection, model, key)
+      | None => handle_key_event(~settings, ~selection, model, key)
       }
     };
   };
@@ -777,7 +785,14 @@ module View = {
           | _ =>
             /* 2. Normal editor key handling:
              *    context menu → projector handoff → Keyboard */
-            switch (Selection.handle_key_event(~selection=(), model, key)) {
+            switch (
+              Selection.handle_key_event(
+                ~settings=globals.settings.core,
+                ~selection=(),
+                model,
+                key,
+              )
+            ) {
             | Some(action) =>
               Effect.Many([
                 Effect.Prevent_default,

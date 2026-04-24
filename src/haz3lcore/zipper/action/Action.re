@@ -3,7 +3,11 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
-  | ByToken;
+  | ByToken
+  /* Smart-rounded selection: char inside the starting token, whole
+   * pieces once the focus has left that token's span. Only meaningful
+   * for Select(Resize(Local | Vertical)) and Point-based selection. */
+  | BySmart;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
