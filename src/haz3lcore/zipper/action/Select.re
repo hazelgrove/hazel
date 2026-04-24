@@ -312,20 +312,25 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
 
 /* Smart-rounded selection: char-granular while the selection stays
  * within the "starting token" (the token the selection was first
- * anchored in or entered). When the focus crosses past the starting
- * token's edge, the display rounds up to the whole token (via the
- * `smart_rounded` flag in Selection.t), but the underlying
- * `anchor_caret` is preserved unchanged. Shrinking back to
- * single-piece content clears `smart_rounded`, so the original
- * partial-token anchor re-displays automatically.
+ * anchored in or entered). When the focus goes *past* the starting
+ * token's edge — i.e., we extend into a new piece — the display
+ * rounds up to the whole starting token (via `smart_rounded`).
+ * Reaching the token's outer edge via a char step is *not* itself a
+ * round-up; that at-edge state renders as a normal partial char
+ * selection. The round-up fires only when the selection crosses into
+ * a new piece.
+ *
+ * The underlying `anchor_caret` is preserved across round-up;
+ * shrinking back to single-piece content clears `smart_rounded`, so
+ * the original partial-token anchor re-displays automatically.
  *
  * Growing:
  * - empty: bootstrap via local_by_char.
- * - content=[p], Inner(fn): char step; if this step lands on Outer
- *   and anchor_caret is still Inner, set smart_rounded=true (display
- *   rounds up; anchor_caret preserved).
- * - content=[p], Outer: extend by next whole piece.
- * - content has >1 piece: extend by next whole piece.
+ * - content=[p], Inner(fn): char step (no round-up).
+ * - content=[p], Outer, growing: extend past the starting token by
+ *   one whole piece. If anchor_caret was Inner, set smart_rounded=true
+ *   on this step — this is the "going past" transition.
+ * - content has >1 piece, growing: extend by next whole piece.
  *
  * Shrinking:
  * - content=[p], Inner: char shrink.
@@ -340,37 +345,29 @@ let local_smart = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
   | ([], _, _)
   | ([_], Inner(_), _)
   | ([_], Outer, false) =>
-    /* Char phase. If growth transitioned focus past the starting
-     * token's edge (now Outer, content still single-piece) and
-     * anchor_caret is still Inner, enable smart_rounded so the
-     * selection visibly rounds up to the whole starting token while
-     * preserving the original anchor internally. */
-    let+ z' = local_by_char(d, z);
-    let should_round_up =
-      is_growing
-      && z'.caret == CaretBase.Outer
-      && List.length(z'.selection.content) == 1
-      && (
-        switch (z'.selection.anchor_caret) {
-        | CaretBase.Inner(_) => true
-        | CaretBase.Outer => false
-        }
-      );
-    should_round_up
-      ? {
+    /* Char phase. No round-up here — reaching the starting token's
+     * outer edge via a char step renders as a normal partial char
+     * selection. */
+    local_by_char(d, z)
+  | ([_], Outer, true) =>
+    /* Single-piece at edge, growing: extend past the starting token.
+     * This is the step that moves *past* the edge; enable
+     * smart_rounded (only visible if anchor_caret is Inner). */
+    let z = decompose_multi_shard_neighbor(d, z);
+    let+ z' = Zipper.grow_selection_raw(z);
+    switch (z'.selection.anchor_caret) {
+    | CaretBase.Inner(_) => {
         ...z',
         selection: {
           ...z'.selection,
           smart_rounded: true,
         },
       }
-      : z';
-  | ([_], Outer, true) =>
-    /* Single-piece at edge, growing: extend by next whole piece. */
-    let z = decompose_multi_shard_neighbor(d, z);
-    Zipper.grow_selection_raw(z);
+    | CaretBase.Outer => z'
+    };
   | (_, _, true) =>
-    /* Multi-piece growing: extend by next whole piece. */
+    /* Multi-piece growing: extend by next whole piece. smart_rounded
+     * preserved from prior step. */
     let z = decompose_multi_shard_neighbor(d, z);
     Zipper.grow_selection_raw(z);
   | (_, _, false) =>

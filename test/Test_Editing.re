@@ -4017,15 +4017,17 @@ let smart_selection_tests = [
     ~acts=mk({|he¦llo|}) @ sel_smart_r(2),
     ~goal={|he§ll¦o|},
   ),
-  /* B. Crossing starting token's right edge — combined char + round-up.
-   * Uses let-in form so the parse has clean piece structure without grout. */
+  /* B. Reaching / crossing the starting token's right edge. Reaching
+   * the edge via a char step leaves the selection as a partial char
+   * selection (anchor preserved at original position). Round-up only
+   * fires once the selection extends *past* the edge into a new piece. */
   test(
-    ~name="smart: crossing token edge rounds up to whole starting token",
+    ~name="smart: char step to starting token's right edge is still partial",
     ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(3),
-    ~goal={|let §hello¦ = 1 in hello|},
+    ~goal={|let he§llo¦ = 1 in hello|},
   ),
   test(
-    ~name="smart: after round-up, extends by whole next piece",
+    ~name="smart: extending past the edge rounds up to whole token + next piece",
     ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(4),
     ~goal={|let §hello ¦= 1 in hello|},
   ),
@@ -4089,12 +4091,12 @@ let smart_selection_tests = [
     ~goal={|he¦l§lo|},
   ),
   test(
-    ~name="smart: left crossing edge rounds up to whole starting token",
+    ~name="smart: left char step to starting token's left edge is still partial",
     ~acts=mk({|let hel¦lo = 1 in hello|}) @ sel_smart_l(3),
-    ~goal={|let ¦hello§ = 1 in hello|},
+    ~goal={|let ¦hel§lo = 1 in hello|},
   ),
   test(
-    ~name="smart: left extends past starting token to prev piece",
+    ~name="smart: left extending past rounds up and grabs prev piece",
     ~acts=mk({|let hel¦lo = 1 in hello|}) @ sel_smart_l(4),
     ~goal={|let¦ hello§ = 1 in hello|},
   ),
