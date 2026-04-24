@@ -218,8 +218,14 @@ let editors = eds =>
   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
   @ [eds.hidden_tests.tests];
 
+/* NOTE: YourTestsValidation is listed before YourTestsTesting because
+   they share the same underlying `your_tests.tests` editor, and
+   jump-to-tile uses this order to pick a winner for shared ids. Tile
+   clicks that target a token in the student's tests should land in the
+   "Test Validation" cell rather than the "Implementation Validation"
+   one. */
 let editor_positions = (eds: p('a)) =>
-  [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
+  [Prelude, CorrectImpl, YourTestsValidation, YourTestsTesting, YourImpl]
   @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
   @ [HiddenTests];
 

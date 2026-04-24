@@ -275,38 +275,23 @@ let view =
       ~editors: Editors.Model.t,
       ~selection: Editors.Selection.t,
       ~editor: CodeWithStatics.Model.t,
-      ~problem_editors: list(CodeWithStatics.Model.t),
+      ~problem_editors: list((string, CodeWithStatics.Model.t)),
       ~signal,
     ) => {
-  let ctxs =
-    List.map(
-      (e: CodeWithStatics.Model.t) =>
-        Haz3lcore.ProblemCollection.make_problem_context(
-          ~display_warnings=globals.settings.core.display_warnings,
-          ~statics=e.statics,
-          ~syntax=e.editor.syntax,
-        ),
-      problem_editors,
+  let problem_collection =
+    Haz3lcore.ProblemCollection.make(
+      ~display_warnings=globals.settings.core.display_warnings,
+      List.map(
+        ((label, e: CodeWithStatics.Model.t)) =>
+          Haz3lcore.ProblemCollection.{
+            label,
+            statics: e.statics,
+            syntax: e.editor.syntax,
+          },
+        problem_editors,
+      ),
     );
-  let counts =
-    SidebarModel.Settings.(
-      [Syntax, Hole, Static, Warning]
-      |> List.map(cat =>
-           (
-             cat,
-             List.fold_left(
-               (n, ctx) =>
-                 n
-                 + (
-                   Haz3lcore.ProblemCollection.collect_category(ctx, cat)
-                   |> Seq.length
-                 ),
-               0,
-               ctxs,
-             ),
-           )
-         )
-    );
+  let counts = problem_collection.counts;
   /* See Page.calculate: use the live selection so Prelude/Setup focus
      doesn't show up as "in a derivation" via the stale model.pos. */
   let derivation_info =
@@ -343,7 +328,12 @@ let view =
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )
-            | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctxs)
+            | Problems =>
+              ProblemSidebar.view(
+                ~globals,
+                ~cursor,
+                ~collection=problem_collection,
+              )
             },
           ],
         )

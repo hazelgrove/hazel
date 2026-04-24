@@ -136,12 +136,11 @@ let row_view =
 };
 
 let legend_view =
-    (categories: list((SidebarModel.Settings.problem_category, list('a))))
-    : Node.t => {
+    (counts: list((SidebarModel.Settings.problem_category, int))): Node.t => {
   let items =
     List.filter_map(
-      ((cat, rows)) =>
-        !List.is_empty(rows)
+      ((cat, n)) =>
+        n > 0
           ? Some(
               span(
                 ~attrs=[clss(["legend-item"])],
@@ -160,7 +159,7 @@ let legend_view =
               ),
             )
           : None,
-      categories,
+      counts,
     );
   div(~attrs=[clss(["problem-legend"])], items);
 };
@@ -242,7 +241,7 @@ let view =
     (
       ~globals: Globals.t,
       ~cursor: Cursor.cursor(Editors.Update.t),
-      ~ctxs: list(Haz3lcore.ProblemCollection.problem_context),
+      ~collection: Haz3lcore.ProblemCollection.problem_collection,
     )
     : Node.t => {
   let cursor_id =
@@ -250,35 +249,10 @@ let view =
     | Some(ci) => Some(Language.Info.id_of(ci))
     | None => None
     };
-  /* Each row carries its source ctx so we can resolve line numbers and
-     positions using the editor that produced the problem. Problems from the
-     same ctx stay contiguous (preserving the editor ordering from the
-     caller); within a ctx they're sorted by position. */
-  let categories:
-    list(
-      (
-        SidebarModel.Settings.problem_category,
-        list((Haz3lcore.ProblemCollection.problem_context, problem)),
-      ),
-    ) =
-    List.map(
-      cat =>
-        (
-          cat,
-          List.concat_map(
-            ctx =>
-              collect_category(ctx, cat)
-              |> List.of_seq
-              |> sort_by_pos(ctx)
-              |> List.map(p => (ctx, p)),
-            ctxs,
-          ),
-        ),
-      [Syntax, Hole, Static, Warning],
-    );
   let problems_settings = globals.settings.sidebar.problems;
-  let has_any_problems =
-    List.exists(((_, rows)) => !List.is_empty(rows), categories);
+  let group_has_problems = (g: problem_group) =>
+    List.exists(((_, ps)) => !List.is_empty(ps), g.problems_by_category);
+  let has_any_problems = List.exists(group_has_problems, collection.groups);
   let toggle_view =
     div(
       ~attrs=[clss(["problem-view-toggle"])],
@@ -332,16 +306,106 @@ let view =
         ),
       ],
     );
-  let render_row =
-      ((ctx: Haz3lcore.ProblemCollection.problem_context, problem)) =>
-    problem_row(
-      ~globals,
-      ~cursor_id,
-      ~expanded=problems_settings.expanded,
-      ~measured=ctx.measured,
-      ~row_to_line=ctx.row_to_line,
-      problem,
-    );
+  /* Renders one editor group's body — either position-sorted across all
+     categories (flat) or per-category subsections (grouped). */
+  let render_group_body = (g: problem_group): list(Node.t) => {
+    let render = problem =>
+      problem_row(
+        ~globals,
+        ~cursor_id,
+        ~expanded=problems_settings.expanded,
+        ~measured=g.measured,
+        ~row_to_line=g.row_to_line,
+        problem,
+      );
+    if (problems_settings.flat) {
+      let pos = id =>
+        switch (Haz3lcore.Measured.find_by_id(id, g.measured)) {
+        | Some(m) => m.origin
+        | None =>
+          Point.{
+            row: max_int,
+            col: max_int,
+          }
+        };
+      let all_problems =
+        g.problems_by_category
+        |> List.concat_map(snd)
+        |> List.sort((a: problem, b) => compare(pos(a.id), pos(b.id)));
+      List.map(render, all_problems);
+    } else {
+      List.filter_map(
+        ((cat, problems)) =>
+          !List.is_empty(problems)
+            ? Some(
+                section_view(
+                  ~title=SidebarModel.Settings.category_label(cat),
+                  ~cls=SidebarModel.Settings.category_section_cls(cat),
+                  ~collapsed=
+                    SidebarModel.Settings.is_collapsed(
+                      g.label,
+                      cat,
+                      problems_settings,
+                    ),
+                  ~on_toggle=
+                    _ =>
+                      globals.inject_global(
+                        Set(
+                          Sidebar(Problems(ToggleCollapsed(g.label, cat))),
+                        ),
+                      ),
+                  List.map(render, problems),
+                ),
+              )
+            : None,
+        g.problems_by_category,
+      );
+    };
+  };
+  let non_empty_groups = List.filter(group_has_problems, collection.groups);
+  let group_sections =
+    switch (non_empty_groups) {
+    | [] => []
+    | [g] =>
+      /* Single editor: no header, just render its body directly. */
+      render_group_body(g)
+    | gs =>
+      /* Multiple editors: each is a collapsible labelled section with a
+         count. Collapse state is keyed by the group label. */
+      List.map(
+        (g: problem_group) => {
+          let total = List.fold_left((n, (_, c)) => n + c, 0, g.counts);
+          let collapsed =
+            SidebarModel.Settings.is_editor_collapsed(
+              g.label,
+              problems_settings,
+            );
+          div(
+            ~attrs=[clss(["problem-editor-group"])],
+            [
+              div(
+                ~attrs=[
+                  clss(["problem-editor-header"]),
+                  Attr.on_click(_ =>
+                    globals.inject_global(
+                      Set(
+                        Sidebar(Problems(ToggleEditorCollapsed(g.label))),
+                      ),
+                    )
+                  ),
+                ],
+                [
+                  text(collapsed ? "▸ " : "▾ "),
+                  text(g.label ++ " (" ++ string_of_int(total) ++ ")"),
+                ],
+              ),
+            ]
+            @ (collapsed ? [] : render_group_body(g)),
+          );
+        },
+        gs,
+      )
+    };
   div(
     ~attrs=[clss(["problems-panel"])],
     if (!has_any_problems) {
@@ -349,40 +413,7 @@ let view =
         div(~attrs=[clss(["no-problems-message"])], [text("No problems")]),
       ];
     } else {
-      [legend_view(categories), toggle_view]
-      @ (
-        if (problems_settings.flat) {
-          /* Flat mode: keep the per-ctx ordering (already sorted inside each
-             ctx) and concatenate across categories. Problems from the same
-             editor stay together. */
-          let all_problems = List.concat_map(snd, categories);
-          List.map(render_row, all_problems);
-        } else {
-          List.filter_map(
-            ((cat, problems)) =>
-              !List.is_empty(problems)
-                ? Some(
-                    section_view(
-                      ~title=SidebarModel.Settings.category_label(cat),
-                      ~cls=SidebarModel.Settings.category_section_cls(cat),
-                      ~collapsed=
-                        SidebarModel.Settings.is_collapsed(
-                          cat,
-                          problems_settings,
-                        ),
-                      ~on_toggle=
-                        _ =>
-                          globals.inject_global(
-                            Set(Sidebar(Problems(ToggleCollapsed(cat)))),
-                          ),
-                      List.map(render_row, problems),
-                    ),
-                  )
-                : None,
-            categories,
-          );
-        }
-      );
+      [legend_view(collection.counts), toggle_view] @ group_sections;
     },
   );
 };

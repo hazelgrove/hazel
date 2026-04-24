@@ -168,6 +168,28 @@
   user-select: none;
 }
 
+.problem-editor-group {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.25em;
+}
+
+.problem-editor-header {
+  font-weight: bold;
+  font-size: 0.9em;
+  padding: 0.5em 0.5em 0.25em;
+  margin-top: 0.25em;
+  border-top: 1px solid var(--BR2);
+  color: var(--BR3);
+  user-select: none;
+  cursor: pointer;
+}
+
+.problem-editor-group:first-of-type > .problem-editor-header {
+  border-top: none;
+  margin-top: 0;
+}
+
 .problem-row-chevron {
   flex-shrink: 0;
   cursor: pointer;

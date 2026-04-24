@@ -85,18 +85,25 @@ module Update = {
     };
   };
 
-  let get_problem_editors = (model: Model.t): list(CodeEditable.Model.t) => {
-    let instructor_mode = model.globals.settings.instructor_mode;
+  /* Editors feeding the Problems sidebar, paired with display labels.
+     Labels are only shown when there are multiple groups (Exercise mode),
+     so single-editor modes pass an empty label. */
+  let get_problem_editors =
+      (model: Model.t): list((string, CodeEditable.Model.t)) =>
     switch (model.editors) {
-    | Scratch(m) => [List.nth(m.scratchpads, m.current).editor.editor]
-    | Documentation(m) => [List.nth(m.scratchpads, m.current).editor.editor]
+    | Scratch(m) => [("", List.nth(m.scratchpads, m.current).editor.editor)]
+    | Documentation(m) => [
+        ("", List.nth(m.scratchpads, m.current).editor.editor),
+      ]
     | Tutorial(m) => [
-        List.nth(m.exercises, m.current).cells.user_impl.editor,
+        ("", List.nth(m.exercises, m.current).cells.user_impl.editor),
       ]
     | Exercises(m) =>
-      ExercisesMode.Model.get_problem_editors(~instructor_mode, m)
+      ExercisesMode.Model.get_problem_editors(
+        ~instructor_mode=model.globals.settings.instructor_mode,
+        m,
+      )
     };
-  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =

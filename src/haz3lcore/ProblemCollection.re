@@ -71,12 +71,18 @@ let make_problem_context =
         col: max_int,
       }
     };
+  /* An editor's statics may be computed over a stitched term that spans
+     multiple editors (e.g. Exercise mode's `user_tests` statics covers
+     `user_impl_term ⊕ your_tests.tests`). Filter error/warning ids to
+     those whose piece actually lives in *this* editor's segment; otherwise
+     a type error in `your_impl` would leak into the "Your Tests" group. */
+  let id_in_this_editor = id => Measured.find_by_id(id, measured) != None;
   /* Partition error_ids into syntax and static in a single pass */
   let (syntax_error_ids, static_error_ids) =
     List.fold_right(
       (id, (syn, stat)) =>
         switch (Statics.Map.lookup(id, info_map)) {
-        | Some(ci) when Info.is_error(ci) =>
+        | Some(ci) when Info.is_error(ci) && id_in_this_editor(id) =>
           if (Info.is_syntax_error(ci)) {
             ([(id, ci), ...syn], stat);
           } else {
@@ -93,7 +99,8 @@ let make_problem_context =
       List.filter_map(
         id =>
           switch (Statics.Map.lookup(id, info_map)) {
-          | Some(ci) when Info.is_warning(ci) => Some((id, ci))
+          | Some(ci) when Info.is_warning(ci) && id_in_this_editor(id) =>
+            Some((id, ci))
           | _ => None
           },
         statics.warning_ids,
@@ -213,4 +220,112 @@ let counts_of_context =
 let collect_all_problems = (ctx: problem_context): list(problem) => {
   [Syntax, Hole, Static, Warning]
   |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
+};
+
+/* ---------- Grouped multi-editor collection ---------- */
+
+/* Input for one editor contributing problems to the sidebar. `label` is
+   the display name shown as a section header when the collection has more
+   than one group. */
+type editor_input = {
+  label: string,
+  statics: CachedStatics.t,
+  syntax: CachedSyntax.t,
+};
+
+/* Problems attributed to one editor, pre-sorted per category by position.
+   `measured` / `row_to_line` are carried so the view can render L# labels
+   and resolve caret positions using the originating editor's geometry. */
+type problem_group = {
+  label: string,
+  measured: Measured.t,
+  row_to_line: int => option(int),
+  problems_by_category: list((problem_category, list(problem))),
+  counts: list((problem_category, int)),
+};
+
+/* Top-level payload for the Problems sidebar. `counts` is aggregated
+   across groups (drives the tab badge). */
+type problem_collection = {
+  groups: list(problem_group),
+  counts: list((problem_category, int)),
+};
+
+/* Collect problems across several editors into a single coherent payload.
+   De-duplicates by `(id, category)` in caller-provided order — the first
+   editor to claim a given (id, category) keeps it. This handles editors
+   that share an underlying zipper (e.g. exercise `user_tests` and
+   `test_validation` share `your_tests.tests`, so hole/syntax ids coincide):
+   shared structural problems land in exactly one group while any
+   context-specific static error still surfaces in the group where it
+   actually occurs. */
+let make =
+    (~display_warnings: bool, editors: list(editor_input))
+    : problem_collection => {
+  let seen: Hashtbl.t((Id.t, problem_category), unit) = Hashtbl.create(64);
+  let groups =
+    List.map(
+      (input: editor_input) => {
+        let ctx =
+          make_problem_context(
+            ~display_warnings,
+            ~statics=input.statics,
+            ~syntax=input.syntax,
+          );
+        let problems_by_category =
+          List.map(
+            cat => {
+              let deduped =
+                collect_category(ctx, cat)
+                |> List.of_seq
+                |> List.filter((p: problem) => {
+                     let key = (p.id, cat);
+                     if (Hashtbl.mem(seen, key)) {
+                       false;
+                     } else {
+                       Hashtbl.add(seen, key, ());
+                       true;
+                     };
+                   });
+              (cat, sort_by_pos(ctx, deduped));
+            },
+            [Syntax, Hole, Static, Warning],
+          );
+        let counts =
+          List.map(
+            ((cat, ps)) => (cat, List.length(ps)),
+            problems_by_category,
+          );
+        {
+          label: input.label,
+          measured: ctx.measured,
+          row_to_line: ctx.row_to_line,
+          problems_by_category,
+          counts,
+        };
+      },
+      editors,
+    );
+  let counts =
+    [Syntax, Hole, Static, Warning]
+    |> List.map(cat =>
+         (
+           cat,
+           List.fold_left(
+             (n, g: problem_group) =>
+               n
+               + (
+                 try(List.assoc(cat, g.counts)) {
+                 | Not_found => 0
+                 }
+               ),
+             0,
+             groups,
+           ),
+         )
+       );
+  {
+    groups,
+    counts,
+  };
 };
