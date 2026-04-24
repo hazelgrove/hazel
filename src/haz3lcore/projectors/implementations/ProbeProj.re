@@ -153,9 +153,6 @@ module WindowState = {
 };
 
 module SampleLength = {
-  let default_single = 150;
-  let default_many = 12;
-
   let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
 
   let reset = () => {
@@ -167,7 +164,7 @@ module SampleLength = {
 
   let get = (window: Sample.Window.mode, sample: Sample.t): int =>
     Hashtbl.find_opt(lengths, sample.id)
-    |> Option.value(~default=window == Single ? default_single : default_many);
+    |> Option.value(~default=window == Single ? 150 : 12);
 
   let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
 };
@@ -859,37 +856,6 @@ let sample_environment =
     ];
 };
 
-/* Formatted 2D value display for large values that are truncated inline.
- * Shows a pretty-printed multi-line view in the dropdown. */
-let _formatted_value_section =
-    (
-      ~settings: settings,
-      ~num_total: int,
-      sample: Sample.t,
-      view_seg_multiline,
-      utility,
-    )
-    : list(Node.t) => {
-  let inline_limit = SampleLength.get(settings.window, sample);
-  let inline_limit =
-    inline_limit == SampleLength.default_many && num_total == 1
-      ? SampleLength.default_single : inline_limit;
-  let generous_budget = 500;
-  let (generous_seg, generous_length) =
-    abbreviated_seg_of(utility, generous_budget, sample.value);
-  if (generous_length <= inline_limit) {
-    [];
-  } else {
-    let pretty_seg = PrettySegment.prettify(~width=40, generous_seg);
-    [
-      div(
-        ~attrs=[Attr.classes(["formatted-value-section"])],
-        [view_seg_multiline(~text_only=false, Sort.Exp, pretty_seg)],
-      ),
-    ];
-  };
-};
-
 /* Sample context menu (dropdown) combining actions and environment */
 let sample_context_menu =
     (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
@@ -1442,18 +1408,6 @@ module M: Projector = {
 
   let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
-    /* Wrap view_seg to fix single_line=true for inline probe displays */
-    let _view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
-      view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
-    /* Multi-line version for formatted value display in dropdown */
-    let _view_seg_multiline = (~text_only, sort, segment) =>
-      view_seg(
-        ~single_line=false,
-        ~background=false,
-        ~text_only,
-        sort,
-        segment,
-      );
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),

@@ -755,25 +755,6 @@
   border-top: 0.6px solid var(--BR3);
 }
 
-/* Formatted 2D value display section */
-.sample-context-menu .formatted-value-section {
-  max-height: 120px;
-  overflow-y: auto;
-  padding: 0.2em 0.55em;
-  background-color: var(--live-env-bkg);
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-  white-space: pre;
-}
-
-.sample-context-menu .context-actions + .formatted-value-section {
-  border-top: 0.6px solid var(--BR3);
-}
-
-.sample-context-menu .formatted-value-section + .environment-section .live-env {
-  border-top: 0.6px solid var(--BR3);
-}
-
 /* Call display section showing function call with argument values */
 .sample-context-menu .call-display {
   display: flex;
