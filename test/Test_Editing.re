@@ -4063,14 +4063,19 @@ let smart_selection_tests = [
     ~goal={|let §hello ¦= 1 in hello|},
   ),
   test(
-    ~name="smart: shrink back to single-piece rounded",
+    ~name="smart: shrink back to single-piece restores original anchor",
     ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(2),
-    ~goal={|let §hello¦ = 1 in hello|},
+    ~goal={|let he§llo¦ = 1 in hello|},
   ),
   test(
-    ~name="smart: shrink re-enters starting token char-wise from rounded",
+    ~name="smart: char-shrink continues with restored anchor",
     ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(3),
-    ~goal={|let §hell¦o = 1 in hello|},
+    ~goal={|let he§ll¦o = 1 in hello|},
+  ),
+  test(
+    ~name="smart: full grow+shrink round-trips through round-up",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(5),
+    ~goal={|let he¦llo = 1 in hello|},
   ),
   test(
     ~name="smart: intra-token grow/shrink round-trips to start",

@@ -1224,7 +1224,13 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
   switch (Selection.anchor_piece(z.selection)) {
   | None => None
   | Some(anchor_piece) =>
-    let anchor_caret = z.selection.anchor_caret;
+    /* In smart-rounded mode, render the anchor at the outer boundary
+     * of the anchor piece regardless of anchor_caret's inner position.
+     * This lets the partial-token anchor be preserved internally (so
+     * dragging back in restores it) while the current visible
+     * selection rounds up to the whole token. */
+    let anchor_caret: CaretBase.t =
+      z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
     let seg = Piece.disassemble(anchor_piece);
     switch (z.selection.focus) {
     | Right =>

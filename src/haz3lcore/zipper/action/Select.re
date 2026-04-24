@@ -312,32 +312,28 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
 
 /* Smart-rounded selection: char-granular while the selection stays
  * within the "starting token" (the token the selection was first
- * anchored in or entered); once the focus crosses the far edge of
- * that token, the anchor snaps to the token's outer boundary (losing
- * any partial position memory) and further steps extend by whole
- * pieces.
- *
- * The round-up is *combined* with the char-to-Outer step: a single
- * smart step never leaves the caret point unchanged, so iterative
- * callers like Select.to_point (mouse drag) make monotone progress
- * toward their goal.
+ * anchored in or entered). When the focus crosses past the starting
+ * token's edge, the display rounds up to the whole token (via the
+ * `smart_rounded` flag in Selection.t), but the underlying
+ * `anchor_caret` is preserved unchanged. Shrinking back to
+ * single-piece content clears `smart_rounded`, so the original
+ * partial-token anchor re-displays automatically.
  *
  * Growing:
  * - empty: bootstrap via local_by_char.
  * - content=[p], Inner(fn): char step; if this step lands on Outer
- *   and anchor_caret was Inner, also snap anchor_caret=Outer
- *   (combined round-up).
- * - content=[p], Outer: extend by next whole piece (already rounded).
+ *   and anchor_caret is still Inner, set smart_rounded=true (display
+ *   rounds up; anchor_caret preserved).
+ * - content=[p], Outer: extend by next whole piece.
  * - content has >1 piece: extend by next whole piece.
  *
  * Shrinking:
- * - content=[p], Inner: char shrink (local_by_char crossover handling).
+ * - content=[p], Inner: char shrink.
  * - content=[p], Outer: char shrink — re-enter starting token at
  *   Inner(max_idx), or pop if single-char piece.
- * - content has >1 pieces: pop focus-side whole piece.
- *
- * Token-phase grow uses grow_selection_raw (no reassembly) so shards
- * accumulated in the char-phase start don't merge. */
+ * - content has >1 pieces: pop focus-side whole piece. If content
+ *   becomes single-piece as a result, clear smart_rounded so the
+ *   original anchor re-displays. */
 let local_smart = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
   let is_growing = Selection.is_empty(z.selection) || d == z.selection.focus;
   switch (z.selection.content, z.caret, is_growing) {
@@ -346,8 +342,9 @@ let local_smart = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
   | ([_], Outer, false) =>
     /* Char phase. If growth transitioned focus past the starting
      * token's edge (now Outer, content still single-piece) and
-     * anchor_caret is still Inner, snap anchor_caret=Outer so the
-     * selection visibly rounds up to the whole starting token. */
+     * anchor_caret is still Inner, enable smart_rounded so the
+     * selection visibly rounds up to the whole starting token while
+     * preserving the original anchor internally. */
     let+ z' = local_by_char(d, z);
     let should_round_up =
       is_growing
@@ -364,12 +361,12 @@ let local_smart = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         ...z',
         selection: {
           ...z'.selection,
-          anchor_caret: CaretBase.Outer,
+          smart_rounded: true,
         },
       }
       : z';
   | ([_], Outer, true) =>
-    /* Single-piece already rounded: extend by next whole piece. */
+    /* Single-piece at edge, growing: extend by next whole piece. */
     let z = decompose_multi_shard_neighbor(d, z);
     Zipper.grow_selection_raw(z);
   | (_, _, true) =>
@@ -377,8 +374,19 @@ let local_smart = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     let z = decompose_multi_shard_neighbor(d, z);
     Zipper.grow_selection_raw(z);
   | (_, _, false) =>
-    /* Multi-piece shrinking: pop focus-side whole piece. */
-    Zipper.shrink_selection(z)
+    /* Multi-piece shrinking: pop focus-side whole piece. If this pop
+     * brings us back to single-piece content, clear smart_rounded so
+     * the original (partial-token) anchor re-displays. */
+    let+ z' = Zipper.shrink_selection(z);
+    List.length(z'.selection.content) == 1
+      ? {
+        ...z',
+        selection: {
+          ...z'.selection,
+          smart_rounded: false,
+        },
+      }
+      : z';
   };
 };
 

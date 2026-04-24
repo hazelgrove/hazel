@@ -19,6 +19,12 @@ type t = {
   content: Segment.t,
   mode,
   anchor_caret,
+  /* Smart-rounded selection: when true, the anchor is rendered at the
+   * outer boundary of the anchor-side piece even if anchor_caret is
+   * still Inner(n). Set when focus has crossed past the starting
+   * token's edge; cleared when the selection shrinks back to a single
+   * piece so the original inner anchor position re-displays. */
+  smart_rounded: bool,
 };
 
 /* NOTE: backpack no longer uses selection focus */
@@ -27,12 +33,14 @@ let mk =
       ~mode=Normal,
       ~focus=Direction.Left,
       ~anchor_caret=CaretBase.Outer,
+      ~smart_rounded=false,
       content: Segment.t,
     ) => {
   focus,
   content,
   mode,
   anchor_caret,
+  smart_rounded,
 };
 
 let mk_buffer = buffer =>
@@ -90,7 +98,8 @@ let anchor_piece = (sel: t): option(Piece.t) =>
   | (Left, content) => ListUtil.last_opt(content)
   };
 
-let push = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
+let push =
+    (p: Piece.t, {focus, content, mode, anchor_caret, smart_rounded}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -103,13 +112,15 @@ let push = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
     content,
     mode,
     anchor_caret,
+    smart_rounded,
   };
 };
 
 /* Like push but without reassembly — used during char-level selection
  * to prevent matching shards from merging into multi-shard tiles,
  * which would break Inner(n) position tracking. */
-let push_raw = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
+let push_raw =
+    (p: Piece.t, {focus, content, mode, anchor_caret, smart_rounded}: t): t => {
   let content =
     switch (focus) {
     | Left => Segment.cons(p, content)
@@ -120,6 +131,7 @@ let push_raw = (p: Piece.t, {focus, content, mode, anchor_caret}: t): t => {
     content,
     mode,
     anchor_caret,
+    smart_rounded,
   };
 };
 
@@ -130,6 +142,7 @@ let pop = (sel: t): option((Piece.t, t)) => {
         ...sel,
         content,
         anchor_caret: CaretBase.Outer,
+        smart_rounded: false,
       }
       : {
         ...sel,
