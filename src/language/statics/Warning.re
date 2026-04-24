@@ -10,6 +10,15 @@ type t =
   | WarningPat(warning_pat)
   | None;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type list_item =
+  | Pat(warning_pat);
+
+let to_list: t => list(list_item) =
+  fun
+  | None => []
+  | WarningPat(p) => [Pat(p)];
+
 let empty: t = None;
 
 let var_is_unused = (co_ctx, name): t =>

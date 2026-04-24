@@ -362,6 +362,46 @@ let is_case_rule_tile = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* A "trailing hole" is either an implicit empty hole (Convex Grout) or
+   an explicit hole (Tile with label `?`). When one of these appears as
+   the sole body of a block-like form (e.g., `let x = 1 in ?`), we emit
+   a HardBreak before it so it lands on its own line. */
+let is_trailing_hole = (p: Piece.t): bool =>
+  switch (p) {
+  | Grout({shape: Convex, _}) => true
+  | Tile({label: ["?"], _}) => true
+  | _ => false
+  };
+
+/* A "block form" is a compound expression whose layout naturally spans
+   multiple lines: compound prefixes (let/fun/if/...) and compound operand
+   forms ending in "end" (case/end, test/end, proof_of/end, ...). We use
+   this to decide when to force a HardBreak before an expression so that
+   block-like expressions always land on their own line. */
+let is_block_form = (p: Piece.t): bool =>
+  is_compound_prefix(p)
+  || (
+    switch (p) {
+    | Tile(t) when Tile.is_complete(t) =>
+      switch (t.label) {
+      | ["case", "end"]
+      | ["test", "end"]
+      | ["hint", "test", "end"] => true
+      | [_, "end"] => true
+      | _ => false
+      }
+    | _ => false
+    }
+  );
+
+/* Does this segment start with a block-form piece (possibly after whitespace)?
+   Used to decide whether to force a HardBreak before the segment. */
+let segment_starts_with_block = (seg: Segment.t): bool =>
+  switch (strip_whitespace(seg)) {
+  | [p, ..._] => is_block_form(p)
+  | [] => false
+  };
+
 /* Match opening parens/brackets/type-application for tighten_applications.
    After decomposition, closing shards (e.g., ")") should not match —
    we only want to tighten f (x) → f(x), not remove breaks before ")". */
@@ -453,17 +493,17 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     cats([piece_doc(Tile.to_piece(t)), segment_to_doc(s, rest)]);
 
   /* Build the body doc (content after the tile in the segment).
-     For binding forms, use HardBreak when next piece is also a compound
-     prefix (let-chain formatting). For non-binding prefixes, commas take
-     priority since they bind more loosely in MakeTerm. */
+     For binding forms (let/type/theorem/in, filter/use-in) we always
+     HardBreak before the body so the expression after a trailing `in`
+     lands on its own line. For non-binding prefixes, commas take priority
+     since they bind more loosely in MakeTerm. Trailing holes get the same
+     HardBreak treatment even in non-binding positions. */
   let body_doc = (is_binding): doc =>
     switch (rest) {
     | [] => Empty
-    | [next, ..._] when is_binding && is_compound_prefix(next) =>
-      cats([HardBreak, segment_to_doc(s, rest)])
-    | [next, ..._] when is_binding && is_case_rule_tile(next) =>
-      cats([HardBreak, segment_to_doc(s, rest)])
-    | _ when is_binding => cats([Break, Group(segment_to_doc(s, rest))])
+    /* Single trailing hole body: always break onto its own line */
+    | [p] when is_trailing_hole(p) => cats([HardBreak, piece_doc(p)])
+    | _ when is_binding => cats([HardBreak, Group(segment_to_doc(s, rest))])
     | _ =>
       switch (split_at_comma(rest)) {
       | Some((before, comma, after)) =>
@@ -561,6 +601,10 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   | ["if", "then", "else"] =>
     switch (triples) {
     | [(_, cond_child, _), (_, conseq_child, _)] =>
+      /* If conseq is a block-like expression (let/case/fun/if/...), force
+         a HardBreak after `then` so the block lands on its own line. */
+      let then_sep =
+        segment_starts_with_block(conseq_child) ? HardBreak : Space;
       let tile_doc =
         Group(
           cats([
@@ -569,7 +613,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
             Group(child_doc(s, cond_child)),
             Break,
             shard(1),
-            Space,
+            then_sep,
             Group(child_doc(s, conseq_child)),
             Break,
             shard(last_shard_idx),
@@ -591,6 +635,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       } else {
         switch (rest) {
         | [] => Group(header)
+        | [p] when is_trailing_hole(p) =>
+          cats([Group(header), HardBreak, piece_doc(p)])
         | _ =>
           switch (split_at_comma(rest)) {
           | Some(_) => cats([Group(header), body_doc(false)])
@@ -942,14 +988,7 @@ and build_infix_chain_doc =
           if (is_comma(op)) {
             cats([acc, piece_doc(op), comment_suffix, Break, operand_doc]);
           } else if (is_label_eq(op)) {
-            cats([
-              acc,
-              comment_suffix,
-              Space,
-              piece_doc(op),
-              Break,
-              operand_doc,
-            ]);
+            cats([acc, comment_suffix, piece_doc(op), Break, operand_doc]);
           } else {
             cats([
               acc,

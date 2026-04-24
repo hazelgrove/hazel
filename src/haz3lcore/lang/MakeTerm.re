@@ -706,6 +706,17 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
+        | (["()"], []) =>
+          Ap(
+            l,
+            {
+              annotation: {
+                ids: [Id.nullary_ap_flag],
+                secondary: ([], []),
+              },
+              term: Tuple([]),
+            },
+          )
         | (["(", ")"], [Pat(arg)]) => Ap(l, arg)
         | _ => hole(tm)
         },
@@ -840,7 +851,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
-    | ([(_, (["+"], []))], []) => (Sum(t0), ids)
+    | ([(_, (["+"], []))], []) =>
+      adopted_ids := ids @ adopted_ids^;
+      (Sum(t0), ids);
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Typ(t)) as tm =>

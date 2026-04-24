@@ -39,10 +39,9 @@ module type STEP = {
       ),
     );
 
-  let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
-
-  let handle_key_event:
-    (~focus: focus, ~event: Key.t, model) => option(action);
+  let get_cursor_info:
+    (~inject: action => Ui_effect.t(unit), ~focus: focus, model) =>
+    Cursor.cursor(action);
 
   let view_justification:
     (
@@ -101,10 +100,9 @@ module type STEPPER = {
     ) =>
     (model, Calc.t(Exp.t), Calc.t(option(bool)) /* Truth */);
 
-  let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
-
-  let handle_key_event:
-    (~focus: focus, ~event: Key.t, model) => option(action);
+  let get_cursor_info:
+    (~inject: action => Ui_effect.t(unit), ~focus: focus, model) =>
+    Cursor.cursor(action);
 
   let view:
     (

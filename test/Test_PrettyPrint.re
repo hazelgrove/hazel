@@ -79,7 +79,8 @@ let flat_tests = [
   test_format(
     ~name="Simple let",
     ~input="let x = 5 in x + 1",
-    ~expected="let x = 5 in x + 1",
+    ~expected={|let x = 5 in
+x + 1|},
     (),
   ),
   test_format(
@@ -149,7 +150,8 @@ else 2|},
     ~input="let x = 1 in let y = 2 in let z = x + y in z * 2",
     ~expected={|let x = 1 in
 let y = 2 in
-let z = x + y in z * 2|},
+let z = x + y in
+z * 2|},
     (),
   ),
   test_format(
@@ -263,7 +265,8 @@ else x - 1|},
   test_format(
     ~name="Nested function application",
     ~input="let f = fun x -> x + 1 in f(5)",
-    ~expected="let f = fun x -> x + 1 in f(5)",
+    ~expected={|let f = fun x -> x + 1 in
+f(5)|},
     (),
   ),
   test_format(
@@ -356,14 +359,16 @@ let realworld_tests = [
     ~input="type A = Int in type B = String in type C = Bool in 1",
     ~expected={|type A = Int in
 type B = String in
-type C = Bool in 1|},
+type C = Bool in
+1|},
     (),
   ),
-  /* Simple type alias stays flat */
+  /* Type alias with final body: body lands on its own line */
   test_format(
-    ~name="Type alias flat",
+    ~name="Type alias body on new line",
     ~input="type Emoji = String in 1",
-    ~expected="type Emoji = String in 1",
+    ~expected={|type Emoji = String in
+1|},
     (),
   ),
   /* Fun with multiple params: params stay on one line
@@ -409,7 +414,8 @@ f(1, 2, 3)|},
     ~name="Typed let with fun body",
     ~width=45,
     ~input="let f : Int -> Int = fun x -> x + 1 in f(5)",
-    ~expected="let f : (Int -> Int) = fun x -> x + 1 in f(5)",
+    ~expected={|let f : (Int -> Int) = fun x -> x + 1 in
+f(5)|},
     (),
   ),
   /* Case inside fun body */
@@ -492,18 +498,21 @@ p|},
 p|},
     (),
   ),
-  /* When it fits on one line, both settings produce the same result */
+  /* Binding and header stay flat when they fit, but the body still
+     lands on its own line (trailing `in` rule) */
   test_format(
     ~name="Hanging on: tuple fits flat",
     ~input="let p = (1, 2) in p",
-    ~expected="let p = (1, 2) in p",
+    ~expected={|let p = (1, 2) in
+p|},
     (),
   ),
   test_format(
     ~name="Hanging off: tuple fits flat",
     ~settings=no_hanging,
     ~input="let p = (1, 2) in p",
-    ~expected="let p = (1, 2) in p",
+    ~expected={|let p = (1, 2) in
+p|},
     (),
   ),
 ];
@@ -570,19 +579,20 @@ let comment_tests = [
       "let x = (canvas = 1, # The 2D grid # brush = 2, # Selected emoji # palette = 3 # Available emojis #) in x",
     ~expected=
       {|let x = (
-  canvas = 1, # The 2D grid #
-  brush = 2, # Selected emoji #
-  palette = 3 # Available emojis #
+  canvas= 1, # The 2D grid #
+  brush= 2, # Selected emoji #
+  palette= 3 # Available emojis #
 ) in
 x|},
     (),
   ),
-  /* When flat, comments stay inline */
+  /* When flat, record stays flat but body lands on new line */
   test_format_seg(
     ~name="Record trailing comments flat",
     ~width=80,
     ~input="let x = (a = 1, # field a # b = 2, # field b # c = 3) in x",
-    ~expected="let x = (a = 1, # field a # b = 2, # field b # c = 3) in x",
+    ~expected={|let x = (a= 1, # field a # b= 2, # field b # c= 3) in
+x|},
     (),
   ),
   /* Simple trailing comment after comma */
@@ -590,10 +600,7 @@ x|},
     ~name="Trailing comment after comma",
     ~width=30,
     ~input="let x = (a = 1, # hi # b = 2) in x",
-    ~expected={|let x = (
-  a = 1, # hi #
-  b = 2
-) in
+    ~expected={|let x = (a= 1, # hi # b= 2) in
 x|},
     (),
   ),
@@ -604,7 +611,8 @@ x|},
     ~input={|# standalone comment #
 let x = 1 in x|},
     ~expected={|# standalone comment #
-let x = 1 in x|},
+let x = 1 in
+x|},
     (),
   ),
   /* Sum type constructors with trailing comments:
@@ -693,10 +701,10 @@ f|},
     ~expected=
       {|let closeDay =
   fun ledger -> (
-    harvests = 1,
-    totalValue = 2,
-    streakBonus = 0,
-    lastQuality = 3
+    harvests= 1,
+    totalValue= 2,
+    streakBonus= 0,
+    lastQuality= 3
   ) in
 1|},
     (),
@@ -712,11 +720,12 @@ test
 5|},
     (),
   ),
-  /* use/in: flat when body is simple */
+  /* use/in: body lands on its own line */
   test_format_seg(
-    ~name="Use/in flat",
+    ~name="Use/in body on new line",
     ~input="use Int in 5",
-    ~expected="use Int in 5",
+    ~expected={|use Int in
+5|},
     (),
   ),
   /* use/in: chains with let like binding forms */
@@ -725,7 +734,8 @@ test
     ~width=30,
     ~input="use Int in let x = 1 in x",
     ~expected={|use Int in
-let x = 1 in x|},
+let x = 1 in
+x|},
     (),
   ),
   /* use/in: multiple use forms chain */
@@ -735,7 +745,8 @@ let x = 1 in x|},
     ~input="use Int in use String in let x = 1 in x",
     ~expected={|use Int in
 use String in
-let x = 1 in x|},
+let x = 1 in
+x|},
     (),
   ),
   /* hide/in: chains with let */
@@ -744,14 +755,17 @@ let x = 1 in x|},
     ~width=40,
     ~input="hide 1 + 2 in let x = 1 in x",
     ~expected={|hide 1 + 2 in
-let x = 1 in x|},
+let x = 1 in
+x|},
     (),
   ),
-  /* Type application @<>: tight delimiters, no internal spacing */
+  /* Type application @<>: tight delimiters, no internal spacing.
+     Body still breaks onto its own line after the trailing `in`. */
   test_format_seg(
     ~name="Type application tight",
     ~input="let f = typfun a -> fun x : a -> x in f @< Int >(5)",
-    ~expected="let f = typfun a -> fun x : a -> x in f@<Int>(5)",
+    ~expected={|let f = typfun a -> fun x : a -> x in
+f@<Int>(5)|},
     (),
   ),
   /* Type application breaking */
@@ -801,11 +815,12 @@ end|},
 end|},
     (),
   ),
-  /* Block expression {} flat */
+  /* Block expression {} flat; body lands on its own line */
   test_format_seg(
     ~name="Block flat",
     ~input="let x = { 1 + 2 } in x",
-    ~expected="let x = {1 + 2} in x",
+    ~expected={|let x = {1 + 2} in
+x|},
     (),
   ),
   /* Block expression {} breaking */
@@ -824,7 +839,8 @@ end|},
 x|},
     (),
   ),
-  /* Blank line preservation between let chains */
+  /* Blank line preservation between let chains.
+     Both blank lines from the input are preserved. */
   test_format_seg(
     ~name="Blank lines preserved",
     ~width=40,
@@ -836,6 +852,7 @@ a + b|},
     ~expected={|let a = 1 in
 
 let b = 2 in
+
 a + b|},
     (),
   ),
@@ -865,12 +882,308 @@ let p = 16 in
 let q = 17 in
 let r = 18 in
 let s = 19 in
-let t = 20 in t|},
+let t = 20 in
+t|},
+    (),
+  ),
+];
+
+/* === Labeled tuples === */
+
+let labeled_tuple_tests = [
+  test_format(
+    ~name="Labeled tuple flat",
+    ~input="(a= 1, b = 2)",
+    ~expected="(a= 1, b= 2)",
+    (),
+  ),
+  test_format(
+    ~name="Labeled tuple breaks vertically",
+    ~width=15,
+    ~input="(firsts = [1, 2], seconds = [3, 4])",
+    ~expected={|(
+    firsts= [1, 2],
+    seconds= [3, 4]
+)|},
+    (),
+  ),
+  test_format(
+    ~name="Labeled tuple single entry",
+    ~input="(a= 1)",
+    ~expected="(a= 1)",
+    (),
+  ),
+];
+
+/* === Trailing `in` body ===
+   The expression following a trailing `in` (let/in, type/in, filter/in)
+   always lands on its own line, even when it would fit flat. Trailing
+   holes (implicit empty grouts, explicit `?`) get the same treatment in
+   non-binding positions too (e.g., `fun x -> ?`). */
+
+let trailing_hole_tests = [
+  /* Exact example from the user request */
+  test_format(
+    ~name="Let chain with arithmetic body",
+    ~input="let x = 1 in let y = 2 in x + y",
+    ~expected={|let x = 1 in
+let y = 2 in
+x + y|},
+    (),
+  ),
+  /* Let chain with implicit trailing hole ends on its own line */
+  test_format(
+    ~name="Let chain implicit trailing hole",
+    ~input="let x = 1 in let x = 2 in ",
+    ~expected={|let x = 1 in
+let x = 2 in
+?|},
+    (),
+  ),
+  /* Let chain with explicit trailing hole ends on its own line */
+  test_format_seg(
+    ~name="Let chain explicit trailing hole",
+    ~input="let x = 1 in let x = 2 in ?",
+    ~expected={|let x = 1 in
+let x = 2 in
+?|},
+    (),
+  ),
+  /* Single let with explicit trailing hole breaks to new line */
+  test_format_seg(
+    ~name="Single let explicit trailing hole",
+    ~input="let x = 1 in ?",
+    ~expected={|let x = 1 in
+?|},
+    (),
+  ),
+  /* Single let with implicit trailing hole breaks to new line */
+  test_format(
+    ~name="Single let implicit trailing hole",
+    ~input="let x = 1 in ",
+    ~expected={|let x = 1 in
+?|},
+    (),
+  ),
+  /* Non-trailing holes (inside an expression) stay inline within the
+     body — only the body itself lands on a new line after `in`. */
+  test_format_seg(
+    ~name="Non-trailing hole stays inline",
+    ~input="let x = 1 in ? + 1",
+    ~expected={|let x = 1 in
+? + 1|},
+    (),
+  ),
+  /* Hole inside binding (not trailing) stays inline in the binding */
+  test_format_seg(
+    ~name="Hole in binding position stays inline",
+    ~input="let x = ? in 1",
+    ~expected={|let x = ? in
+1|},
+    (),
+  ),
+  /* Fun with trailing explicit hole body breaks to new line
+     (body is indented under the arrow) */
+  test_format_seg(
+    ~name="Fun explicit trailing hole",
+    ~input="fun x -> ?",
+    ~expected={|fun x ->
+  ?|},
+    (),
+  ),
+  /* Typfun with trailing explicit hole body breaks to new line
+     (body is indented under the arrow) */
+  test_format_seg(
+    ~name="Typfun explicit trailing hole",
+    ~input="typfun a -> ?",
+    ~expected={|typfun a ->
+  ?|},
+    (),
+  ),
+  /* Filter form (use/in) with trailing explicit hole */
+  test_format_seg(
+    ~name="Use/in explicit trailing hole",
+    ~input="use Int in ?",
+    ~expected={|use Int in
+?|},
+    (),
+  ),
+  /* Mixed chain: let then fun, both trailing.
+     The hole is indented under `fun`'s arrow. */
+  test_format_seg(
+    ~name="Let then fun explicit trailing hole",
+    ~input="let x = 1 in fun y -> ?",
+    ~expected={|let x = 1 in
+fun y ->
+  ?|},
+    (),
+  ),
+];
+
+/* === Block forms on their own line ===
+   Block-like expressions (let/case/fun/if/...) always land on a new line
+   when they appear as the body of another block form. This is the natural
+   extension of the "trailing `in` body" rule to all contexts where a block
+   form would otherwise share a line with a keyword like `then`. */
+
+let block_form_body_tests = [
+  /* Exact example from the user's request */
+  test_format_seg(
+    ~name="Case rule with let body (user example)",
+    ~input="case xs | [] => [] | hd::tl => let x = 1 in x + y end",
+    ~expected={|case xs
+| [] => []
+| hd::tl =>
+  let x = 1 in
+  x + y
+end|},
+    (),
+  ),
+  /* if/then with a let conseq: block-form body on its own line after `then` */
+  test_format_seg(
+    ~name="If then let conseq",
+    ~input="if true then let x = 1 in x else 0",
+    ~expected={|if true
+then
+  let x = 1 in
+  x
+else 0|},
+    (),
+  ),
+  /* if/then with a multi-rule case conseq */
+  test_format_seg(
+    ~name="If then case conseq",
+    ~input="if true then case x | 0 => 1 | _ => 2 end else 0",
+    ~expected={|if true
+then
+  case x
+  | 0 => 1
+  | _ => 2
+  end
+else 0|},
+    (),
+  ),
+  /* if/then with a short single-rule case conseq still breaks */
+  test_format_seg(
+    ~name="If then short case conseq",
+    ~input="if true then case x | 0 => 1 end else 0",
+    ~expected={|if true
+then
+  case x
+  | 0 => 1
+  end
+else 0|},
+    (),
+  ),
+  /* if/else with a let else branch */
+  test_format_seg(
+    ~name="If else let branch",
+    ~input="if true then 0 else let x = 1 in x",
+    ~expected={|if true
+then 0
+else
+  let x = 1 in
+  x|},
+    (),
+  ),
+  /* if/else with a case else branch */
+  test_format_seg(
+    ~name="If else case branch",
+    ~input="if true then 0 else case x | 0 => 1 | _ => 2 end",
+    ~expected={|if true
+then 0
+else
+  case x
+  | 0 => 1
+  | _ => 2
+  end|},
+    (),
+  ),
+  /* if with block forms in both branches */
+  test_format_seg(
+    ~name="If with block forms both branches",
+    ~input=
+      "if true then case x | 0 => 1 end else case y | 0 => 1 | _ => 2 end",
+    ~expected=
+      {|if true
+then
+  case x
+  | 0 => 1
+  end
+else
+  case y
+  | 0 => 1
+  | _ => 2
+  end|},
+    (),
+  ),
+  /* Non-block conseq stays on same line as `then` */
+  test_format(
+    ~name="If with simple conseq stays flat",
+    ~input="if true then 1 else 2",
+    ~expected="if true then 1 else 2",
+    (),
+  ),
+  /* When width forces a break and conseq isn't block-like,
+     `then <simple>` stays together */
+  test_format(
+    ~name="If narrow with simple branches",
+    ~width=15,
+    ~input="if true then 1 else 2",
+    ~expected={|if true
+then 1
+else 2|},
+    (),
+  ),
+  /* Case rule with a case body */
+  test_format_seg(
+    ~name="Case rule with case body",
+    ~input="case x | 0 => case y | 0 => 1 | _ => 2 end | _ => 0 end",
+    ~expected=
+      {|case x
+| 0 =>
+  case y
+  | 0 => 1
+  | _ => 2
+  end
+| _ => 0
+end|},
+    (),
+  ),
+  /* Fun with let body */
+  test_format_seg(
+    ~name="Fun with let body",
+    ~input="fun x -> let y = 1 in x + y",
+    ~expected={|fun x ->
+  let y = 1 in
+  x + y|},
+    (),
+  ),
+  /* Fun with case body */
+  test_format_seg(
+    ~name="Fun with case body (short)",
+    ~input="fun x -> case x | 0 => 1 end",
+    ~expected={|fun x ->
+  case x
+  | 0 => 1
+  end|},
+    (),
+  ),
+  /* if nested in if conseq */
+  test_format_seg(
+    ~name="If with nested if conseq",
+    ~input="if a then if b then 1 else 2 else 3",
+    ~expected={|if a
+then
+  if b then 1 else 2
+else 3|},
     (),
   ),
 ];
 
 let tests = [
+  ("PrettyPrint.TrailingHoles", trailing_hole_tests),
+  ("PrettyPrint.BlockFormBody", block_form_body_tests),
   ("PrettyPrint.Flat", flat_tests),
   ("PrettyPrint.Breaking", breaking_tests),
   ("PrettyPrint.Delimiters", delimiter_tests),
@@ -883,4 +1196,5 @@ let tests = [
   ("PrettyPrint.Comments", comment_tests),
   ("PrettyPrint.Forms", form_tests),
   ("PrettyPrint.Composition", composition_tests),
+  ("PrettyPrint.LabeledTuple", labeled_tuple_tests),
 ];
