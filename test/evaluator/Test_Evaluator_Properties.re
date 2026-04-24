@@ -226,12 +226,157 @@ let qcheck_preservation_test =
     }
   });
 
+/* Incremental evaluator correctness:
+ *
+ *   for all expressions E and edits δ,
+ *     eval_incr(δ(E), prev = eval(E))  ==  eval(δ(E))
+ *
+ * i.e. evaluating the edited expression against the previous run's cache
+ * must land on the same value as evaluating it from scratch. Both sides
+ * use the SAME elaboration of the edited expression, so any disagreement
+ * points squarely at the reuse / dirty-propagation logic rather than at
+ * semantics.
+ *
+ * The edit we apply is a single-literal mutation (flip an Atom(Int n) to
+ * Atom(Int n')) with all surrounding ids preserved — this mirrors the
+ * Zipper's behaviour on a text edit, where only the touched tokens get
+ * new ids. That in-place mutation is what makes the test hit the
+ * reuse_check path at all; if we regenerated the tree from source the
+ * id spaces would be disjoint and nothing would match prev.
+ *
+ * Known skips below (return `true`): expressions with no int literal to
+ * edit (nothing to test), anything that hits the step limit, and anything
+ * that raises from statics/evaluation (filtered the same way as the
+ * other evaluator QCheck tests in this file). */
+
+/* Collect every (id, value) pair for Atom(Int _) leaves in the tree.
+ * We key on the Atom's own rep_id so the later substitute pass can
+ * find and mutate exactly one leaf without touching any sibling ids. */
+let collect_int_lits = (exp: Exp.t): list((Id.t, Bigint.t)) => {
+  let acc = ref([]);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Atom(Int(n)) => acc := [(Exp.rep_id(e), n), ...acc^]
+    | _ => ()
+    };
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, exp);
+  acc^;
+};
+
+/* Replace the Atom(Int _) payload at the given id with `to_`, preserving
+ * the id on the edited node (and on every other node). */
+let replace_int_lit_by_id =
+    (~target: Id.t, ~to_: Bigint.t, exp: Exp.t): Exp.t => {
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    if (Id.equal(Exp.rep_id(e), target)) {
+      switch (e.term) {
+      | Atom(Int(_)) => {
+          ...e,
+          term: Atom(Int(to_)),
+        }
+      | _ => continue(e)
+      };
+    } else {
+      continue(e);
+    };
+  TermBase.Exp.map_term(~f_exp, exp);
+};
+
+/* Same wrapper the incremental tests use — statics plus elaboration in
+ * one call, so both sides of the equation see identical elab terms. */
+let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
+  Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+
+let eval_limited =
+    (~prev=IncrEval.empty, ~info_slice, ~step_limit, elab: Exp.t) =>
+  Evaluator.evaluate_and_limit(
+    ~step_limit,
+    ~prev,
+    ~info_slice,
+    ~env=Builtins.env_init,
+    elab,
+  );
+
+let qcheck_incremental_matches_fresh_after_edit =
+  QCheck.Test.make(
+    ~name="Incremental eval agrees with fresh eval after a literal edit",
+    ~count=2000,
+    QCheck.pair(
+      QCheck.small_nat,
+      QCheck_Util.arb_exp(~minimal_idents=true, 30),
+    ),
+    ((seed, exp)) => {
+      /* Only swallow known-benign static/dynamic failures so real
+       * incremental-eval disagreements surface as clean PBT failures. */
+      let try_eval = (~prev=?, info_slice, elab) =>
+        try(
+          Some(eval_limited(~prev?, ~info_slice, ~step_limit=10000, elab))
+        ) {
+        | Failure(msg)
+            when
+              List.exists(
+                (==)(msg),
+                ["type application in dynamics", "Type meet of ap"],
+              ) =>
+          None
+        };
+      let try_statics = exp =>
+        try(Some(statics_and_elab(exp))) {
+        | _ => None
+        };
+      switch (collect_int_lits(exp)) {
+      | [] => true /* Nothing to edit — the property is vacuously true. */
+      | lits =>
+        let (target_id, old_value) =
+          List.nth(lits, seed mod List.length(lits));
+        /* +1 keeps the type fixed, so the edit typechecks the same as the
+         * original while still changing the value at `target_id`. */
+        let new_value = Bigint.(old_value + of_int(1));
+        let edited =
+          replace_int_lit_by_id(~target=target_id, ~to_=new_value, exp);
+        switch (try_statics(exp), try_statics(edited)) {
+        | (Some((info_map_orig, elab_orig)), Some((info_map_edit, elab_edit))) =>
+          let info_slice_orig = IncrEval.InfoSlice.of_info_map(info_map_orig);
+          let info_slice_edit = IncrEval.InfoSlice.of_info_map(info_map_edit);
+          /* Baseline run (no prev) of the original — its incr_eval becomes
+           * the cache handed to the incremental run of the edited exp. */
+          switch (try_eval(info_slice_orig, elab_orig)) {
+          | None
+          | Some(StepLimitExceeded) => true
+          | Some(Completed((_, state_before))) =>
+            /* Edited evaluated two ways: incrementally (reusing the baseline's
+             * cache) and from scratch (empty prev). These must agree. */
+            let fresh = try_eval(info_slice_edit, elab_edit);
+            let incr_eval_result =
+              try_eval(
+                ~prev=state_before.incr_eval,
+                info_slice_edit,
+                elab_edit,
+              );
+            switch (fresh, incr_eval_result) {
+            | (
+                Some(Completed((e_fresh, _))),
+                Some(Completed((e_incr, _))),
+              ) =>
+              Equality.semantic.exp(e_fresh, e_incr)
+            | _ => true
+            };
+          };
+        | _ => true
+        };
+      };
+    },
+  );
+
 let tests = (
   "Evaluator.Properties",
   [
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
+    QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_after_edit),
     // QCheck_alcotest.to_alcotest(qcheck_preservation_test), // Disabled due to known issues with preservation
   ],
 );
