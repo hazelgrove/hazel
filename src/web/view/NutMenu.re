@@ -188,6 +188,15 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Enable deep reassociation of syntax"),
       },
       {
+        name: "Character-level selection",
+        active: globals.settings.core.selection_chunkiness,
+        setting: SelectionChunkiness,
+        tooltip:
+          Some(
+            "When on, Shift+Arrow selects by character everywhere. When off (default), Shift+Arrow selects by character inside a token and by whole token beyond; the modifier-key variant does the reverse.",
+          ),
+      },
+      {
         name: "Cap Undo Stack",
         active: globals.settings.cap_undo_stack,
         setting: CapUndoStack,
@@ -231,15 +240,6 @@ let code_display_group = (~globals: Globals.t) => {
         active: globals.settings.core.flip_animations,
         setting: FlipAnimations,
         tooltip: Some("Enable flip animations for code changes"),
-      },
-      {
-        name: "Character-level selection",
-        active: globals.settings.core.selection_chunkiness,
-        setting: SelectionChunkiness,
-        tooltip:
-          Some(
-            "When on, Shift+Arrow selects by character everywhere. When off (default), Shift+Arrow selects by character inside a token and by whole token beyond; the modifier-key variant does the reverse.",
-          ),
       },
       {
         name: "Line Numbers",
