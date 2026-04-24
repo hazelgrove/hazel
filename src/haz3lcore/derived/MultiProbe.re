@@ -227,11 +227,9 @@ let let_body_is_hole = (term: Language.Any.t): bool =>
   };
 
 let has_function_type = (id: Id.t, info_map: Language.Statics.Map.t): bool =>
-  switch (Language.Statics.Map.lookup(id, info_map)) {
-  | Some(InfoExp({ty, _}))
-  | Some(InfoPat({ty, _})) => Language.Typ.is_arrow(ty)
-  | _ => false
-  };
+  Language.Statics.Map.ty_of(id, info_map)
+  |> Option.map(Language.Typ.is_arrow)
+  |> Option.value(~default=false);
 
 let term_spans_multiple_rows =
     (id: Id.t, data: TermData.t, measured: Measured.t): bool =>

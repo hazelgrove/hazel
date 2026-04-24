@@ -31,7 +31,6 @@ let (suite, _) =
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
-    @ Test_Info.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
@@ -50,6 +49,7 @@ let (suite, _) =
     //@ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
+    @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests

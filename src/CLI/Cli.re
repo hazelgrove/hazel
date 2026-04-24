@@ -58,11 +58,11 @@ let format_error_with_location =
     )
     : option(string) => {
   Language.(
-    switch (Info.error_of(info)) {
-    | None => None
-    | Some(error) =>
+    switch (Info.marks_of(info)) {
+    | [] => None
+    | marks =>
       let id = Info.id_of(info);
-      let error_str = Haz3lcore.ErrorPrint.string_of(error);
+      let error_str = Haz3lcore.ErrorPrint.string_of_marks(info, marks);
 
       switch (Haz3lcore.Measured.find_by_id(id, measured)) {
       | Some({origin, last}) =>
@@ -150,7 +150,7 @@ let analyze_hazel =
       );
 
     /* Run static analysis */
-    let static_map =
+    let (static_map, _) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
     /* Get errors with their infos for line numbers */
@@ -360,7 +360,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
     open Language;
 
     /* Run statics to get info_map */
-    let info_map =
+    let (info_map, _) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
     /* Get manual probe IDs */
