@@ -3979,12 +3979,10 @@ let test_terminates = (~name, ~acts): test_case(_) =>
     `Quick,
     () => {
       let ran =
-        try(
-          {
-            let _ = acts |> perform(Zipper.init());
-            true;
-          }
-        ) {
+        try({
+          let _ = acts |> perform(Zipper.init());
+          true;
+        }) {
         | Failure(msg)
             when
               StringUtil.match(
@@ -4027,7 +4025,8 @@ let smart_selection_tests = [
     ~goal={|let he§llo¦ = 1 in hello|},
   ),
   test(
-    ~name="smart: extending past the edge rounds up to whole token + next piece",
+    ~name=
+      "smart: extending past the edge rounds up to whole token + next piece",
     ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(4),
     ~goal={|let §hello ¦= 1 in hello|},
   ),
@@ -4061,22 +4060,26 @@ let smart_selection_tests = [
   /* D. Shrinking */
   test(
     ~name="smart: shrink from token-phase pops whole piece",
-    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(1),
+    ~acts=
+      mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(1),
     ~goal={|let §hello ¦= 1 in hello|},
   ),
   test(
     ~name="smart: shrink back to single-piece restores original anchor",
-    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(2),
+    ~acts=
+      mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(2),
     ~goal={|let he§llo¦ = 1 in hello|},
   ),
   test(
     ~name="smart: char-shrink continues with restored anchor",
-    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(3),
+    ~acts=
+      mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(3),
     ~goal={|let he§ll¦o = 1 in hello|},
   ),
   test(
     ~name="smart: full grow+shrink round-trips through round-up",
-    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(5),
+    ~acts=
+      mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(5),
     ~goal={|let he¦llo = 1 in hello|},
   ),
   test(
@@ -4091,7 +4094,8 @@ let smart_selection_tests = [
     ~goal={|he¦l§lo|},
   ),
   test(
-    ~name="smart: left char step to starting token's left edge is still partial",
+    ~name=
+      "smart: left char step to starting token's left edge is still partial",
     ~acts=mk({|let hel¦lo = 1 in hello|}) @ sel_smart_l(3),
     ~goal={|let ¦hel§lo = 1 in hello|},
   ),
@@ -4108,32 +4112,98 @@ let move_after_char_select_tests = [
     ~acts=
       mk({|¦hello
 world|})
-      @ [Action.Select(Resize(Point({row: 0, col: 3})))]
-      @ [Action.Move(Point({row: 1, col: 0}))],
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 3,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Move(
+          Point({
+            row: 1,
+            col: 0,
+          }),
+        ),
+      ],
   ),
   test_terminates(
     ~name="Move.Point after char-level Select: same row far col",
     ~acts=
       mk({|¦hello world|})
-      @ [Action.Select(Resize(Point({row: 0, col: 3})))]
-      @ [Action.Move(Point({row: 0, col: 11}))],
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 3,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Move(
+          Point({
+            row: 0,
+            col: 11,
+          }),
+        ),
+      ],
   ),
   test_terminates(
     ~name="Move.Point after char-level Select ending in paren",
     ~acts=
       mk({|¦hello (1 + 2)|})
-      @ [Action.Select(Resize(Point({row: 0, col: 3})))]
-      @ [Action.Move(Point({row: 0, col: 12}))],
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 3,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Move(
+          Point({
+            row: 0,
+            col: 12,
+          }),
+        ),
+      ],
   ),
   test_terminates(
     ~name="Move.Point down several rows after char-level Select (user repro)",
     ~acts=
-      mk({|¦let xs = [1, 2, 3] in
+      mk(
+        {|¦let xs = [1, 2, 3] in
 let f = fun x -> x + 1 in
 let ys = [f(x) for x in xs] in
-ys|})
-      @ [Action.Select(Resize(Point({row: 0, col: 5})))]
-      @ [Action.Move(Point({row: 3, col: 2}))],
+ys|},
+      )
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 5,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Move(
+          Point({
+            row: 3,
+            col: 2,
+          }),
+        ),
+      ],
   ),
 ];
 

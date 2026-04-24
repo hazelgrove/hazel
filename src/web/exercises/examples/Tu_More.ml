@@ -32,7 +32,13 @@ let bools_ex : Tutorial.spec =
     your_impl =
       {
         selection =
-          { focus = Left; content = []; mode = Normal; anchor_caret = Outer; smart_rounded = false };
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -51,7 +57,7 @@ let bools_ex : Tutorial.spec =
                 content = [];
                 mode = Normal;
                 anchor_caret = Outer;
-              smart_rounded = false;
+                smart_rounded = false;
               };
             relatives =
               {
@@ -338,7 +344,13 @@ let cond_ex : Tutorial.spec =
     your_impl =
       {
         selection =
-          { focus = Left; content = []; mode = Normal; anchor_caret = Outer; smart_rounded = false };
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -357,7 +369,7 @@ let cond_ex : Tutorial.spec =
                 content = [];
                 mode = Normal;
                 anchor_caret = Outer;
-              smart_rounded = false;
+                smart_rounded = false;
               };
             relatives =
               {
@@ -488,7 +500,13 @@ let func_ex : Tutorial.spec =
     your_impl =
       {
         selection =
-          { focus = Left; content = []; mode = Normal; anchor_caret = Outer; smart_rounded = false };
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -507,7 +525,7 @@ let func_ex : Tutorial.spec =
                 content = [];
                 mode = Normal;
                 anchor_caret = Outer;
-              smart_rounded = false;
+                smart_rounded = false;
               };
             relatives =
               {
