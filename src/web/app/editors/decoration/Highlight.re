@@ -410,29 +410,29 @@ let clip_char_selection =
     /* Determine left/right inner offsets based on focus direction.
      * Content is always left-to-right spatially.
      * focus=Right: anchor at left, focus at right.
-     * focus=Left: focus at left, anchor at right. */
+     * focus=Left: focus at left, anchor at right.
+     *
+     * When smart_rounded is set, the anchor end displays at the outer
+     * boundary of its piece (even if anchor_caret is Inner) — the
+     * selection has been rounded up beyond the starting token. */
+    let anchor_inner: option(int) =
+      z.selection.smart_rounded
+        ? None
+        : (
+          switch (z.selection.anchor_caret) {
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
+          }
+        );
+    let focus_inner: option(int) =
+      switch (z.caret) {
+      | Inner(n) => Some(n)
+      | Outer => None
+      };
     let (left_inner, right_inner) =
       switch (z.selection.focus) {
-      | Right => (
-          switch (z.selection.anchor_caret) {
-          | CaretBase.Inner(n) => Some(n)
-          | CaretBase.Outer => None
-          },
-          switch (z.caret) {
-          | Inner(n) => Some(n)
-          | Outer => None
-          },
-        )
-      | Left => (
-          switch (z.caret) {
-          | Inner(n) => Some(n)
-          | Outer => None
-          },
-          switch (z.selection.anchor_caret) {
-          | CaretBase.Inner(n) => Some(n)
-          | CaretBase.Outer => None
-          },
-        )
+      | Right => (anchor_inner, focus_inner)
+      | Left => (focus_inner, anchor_inner)
       };
 
     /* Clip left boundary of first row */

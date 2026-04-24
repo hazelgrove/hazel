@@ -338,8 +338,13 @@ let destroy_selection: t => t =
  * by top-level actions (Destruct, Insert) — NOT from internal helpers
  * like replace_shard which set Inner caret for other purposes. */
 let normalize_char_selection = (z: t): t => {
+  /* When smart_rounded is set, the anchor end is displayed at its
+   * piece's outer boundary — user intent is "whole starting token
+   * selected", not partial-from-anchor_caret. Treat as Outer. */
+  let effective_anchor_caret: CaretBase.t =
+    z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
   let has_char_boundary =
-    z.selection.anchor_caret != CaretBase.Outer
+    effective_anchor_caret != CaretBase.Outer
     || z.caret != Outer
     && !Selection.is_empty(z.selection);
   if (!has_char_boundary || Selection.is_empty(z.selection)) {
@@ -352,7 +357,7 @@ let normalize_char_selection = (z: t): t => {
     let (left_offset, right_offset) =
       switch (focus_dir) {
       | Right => (
-          switch (z.selection.anchor_caret) {
+          switch (effective_anchor_caret) {
           | CaretBase.Inner(n) => Some(n)
           | CaretBase.Outer => None
           },
@@ -366,7 +371,7 @@ let normalize_char_selection = (z: t): t => {
           | Inner(n) => Some(n)
           | Outer => None
           },
-          switch (z.selection.anchor_caret) {
+          switch (effective_anchor_caret) {
           | CaretBase.Inner(n) => Some(n)
           | CaretBase.Outer => None
           },
@@ -1065,9 +1070,13 @@ let selection_trim_offsets = (z: t): (int, int) => {
     };
   };
   let content = z.selection.content;
+  /* When smart_rounded, the anchor displays at its piece's outer
+   * boundary, so no trim from that side. */
+  let effective_anchor_caret: CaretBase.t =
+    z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
   switch (z.selection.focus) {
   | Right => (
-      switch (z.selection.anchor_caret) {
+      switch (effective_anchor_caret) {
       | CaretBase.Inner(n) => left_trim(n, content, Right)
       | CaretBase.Outer => 0
       },
@@ -1081,7 +1090,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
       | Inner(n) => left_trim(n, content, Left)
       | Outer => 0
       },
-      switch (z.selection.anchor_caret) {
+      switch (effective_anchor_caret) {
       | CaretBase.Inner(n) => right_trim(n, content, Left)
       | CaretBase.Outer => 0
       },
