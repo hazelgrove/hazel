@@ -602,7 +602,7 @@ and uexp_to_info_map =
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
-      );
+      )
     | Var(name) =>
       let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
 

@@ -517,7 +517,7 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
 
 let insert_segment = (z: t, seg: Segment.t, ~root): t =>
   z
-  |> replace_selection(z.selection.focus, seg)
+  |> replace_selection(Right, seg)
   |> unselect
   |> remold_regrout(Right, ~root);
 
