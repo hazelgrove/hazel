@@ -43,13 +43,13 @@ module Model = {
         ~root: Sort.t,
         term: Language.Exp.t,
       ) => {
-    ExpToSegment.exp_to_segment(
-      term,
-      ~settings=ExpToSegment.Settings.of_core(~inline, settings),
-    )
-    |> Zipper.unzip
-    |> Editor.Model.mk(~root)
-    |> mk;
+    let seg =
+      ExpToSegment.exp_to_segment(
+        term,
+        ~settings=ExpToSegment.Settings.of_core(~inline, settings),
+      );
+    let seg = inline ? seg : PrettySegment.prettify(seg);
+    seg |> Zipper.unzip |> Editor.Model.mk(~root) |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
@@ -77,6 +77,7 @@ module Model = {
     undo_action: None,
     redo_action: None,
     error_ids: model.statics.error_ids,
+    contextual_actions: [],
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

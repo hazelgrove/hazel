@@ -127,7 +127,7 @@ module Utils = {
       (~start_point: Info.t, ~info_map: Id.Map.t(Info.t)): option(Info.t) => {
     let initial_nominee =
       switch (start_point) {
-      | InfoExp({term, _}) =>
+      | InfoExp({user_term: term, _}) =>
         switch (Exp.term_of(term)) {
         | Let(_) => Some(start_point) // if it is a let binding, then this term is a nominee
         | TyAlias(_) => Some(start_point) // if it is a type binding, then this term is a nominee
@@ -148,7 +148,7 @@ module Utils = {
         let candidate = Id.Map.find(candidate, info_map);
         let nominee =
           switch (candidate) {
-          | InfoExp({term, _}) =>
+          | InfoExp({user_term: term, _}) =>
             switch (Exp.term_of(term)) {
             | Let(pat, def, body) =>
               let pat_id = Pat.rep_id(pat);
@@ -274,7 +274,7 @@ module Namer = {
 
   let mk_name = (info: Info.t): string => {
     switch (info) {
-    | InfoExp({term, _}) =>
+    | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
       | Let(pat, _, _) => mk_name_from_pat(pat)
       | TyAlias(tpat, _, _) => mk_name_from_tpat(tpat)
@@ -481,7 +481,7 @@ let rec build_children =
     Utils.typ_to_info(term, info_map);
 
   switch (candidate) {
-  | InfoExp({term, _}) =>
+  | InfoExp({user_term: term, _}) =>
     switch (Exp.term_of(term)) {
     | Let(_, def, body) =>
       // Add this node to the node map

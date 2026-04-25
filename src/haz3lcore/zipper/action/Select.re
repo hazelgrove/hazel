@@ -261,12 +261,11 @@ let indicated_token = (z: t) =>
 let def_body_indicated =
     (z: t, info_map: Language.Statics.Map.t): option(Id.t) => {
   let* id = Indicated.index(z);
-  let* statics = Language.Statics.Map.lookup(id, info_map);
   let* parent_id =
-    statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
-  let* ci_parent = Language.Statics.Map.lookup(parent_id, info_map);
+    Language.Statics.Map.ancestors_of(id, info_map) |> ListUtil.hd_opt;
+  let* ci_parent = Language.Statics.Map.lookup_exp(parent_id, info_map);
   switch (ci_parent) {
-  | InfoExp({term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _}) =>
+  | {user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _} =>
     let body_id = Language.IdTagged.rep_id(body);
     id == body_id ? Some(body_id) : None;
   | _ => None
@@ -299,9 +298,8 @@ let parent_is_rule = (z: t, info_map): option(Id.t) => {
   };
   let parent_cls = (z: t, info_map) => {
     let* id = Indicated.index(z);
-    let* statics = Language.Statics.Map.lookup(id, info_map);
     let* parent_id =
-      statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
+      Language.Statics.Map.ancestors_of(id, info_map) |> ListUtil.hd_opt;
     let+ parent_statics = Language.Statics.Map.lookup(parent_id, info_map);
     Language.Statics.Info.cls_of(parent_statics);
   };
@@ -316,8 +314,7 @@ let parent_term_id = (z: t, info_map) => {
   switch (parent_is_rule(z, info_map)) {
   | Some(id) => Some(id)
   | None =>
-    let* statics = Id.Map.find_opt(base_id, info_map);
-    statics |> Language.Info.ancestors_of |> ListUtil.hd_opt;
+    Language.Statics.Map.ancestors_of(base_id, info_map) |> ListUtil.hd_opt
   };
 };
 
@@ -355,7 +352,7 @@ let is_def_body = (from_id, parent_id, info_map) =>
     false
   | Some(
       Language.Statics.Info.InfoExp({
-        term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
+        user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
         _,
       }),
     ) =>

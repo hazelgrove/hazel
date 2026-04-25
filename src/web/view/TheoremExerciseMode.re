@@ -423,12 +423,15 @@ module Selection = {
     | Lemmas(CellEditor.Selection.t)
     | Theorem(CellEditor.Selection.t);
 
-  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | TextBox => Cursor.empty
     | Prelude(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Prelude(a)),
           ~selection=s,
           model.cells.prelude,
         );
@@ -436,6 +439,7 @@ module Selection = {
     | Lemmas(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Lemmas(a)),
           ~selection=s,
           model.cells.lemmas,
         );
@@ -443,38 +447,11 @@ module Selection = {
     | Theorem(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Theorem(a)),
           ~selection=s,
           model.cells.theorem,
         );
       Update.Theorem(a);
-    };
-  };
-
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | TextBox => None
-    | Prelude(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.prelude,
-        ~event,
-      )
-      |> Option.map(x => Update.Prelude(x))
-    | Lemmas(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.lemmas,
-        ~event,
-      )
-      |> Option.map(x => Update.Lemmas(x))
-    | Theorem(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.theorem,
-        ~event,
-      )
-      |> Option.map(x => Update.Theorem(x))
     };
   };
 

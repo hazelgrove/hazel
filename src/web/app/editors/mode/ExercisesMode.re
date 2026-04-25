@@ -541,42 +541,71 @@ module Selection = {
     | Derivation(DerivationExerciseMode.Selection.t)
     | TheoremExercise(TheoremExerciseMode.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     let current = List.nth(model.exercises, model.current);
-    switch (current, selection) {
-    | (Code(e), Code(selection)) =>
-      let+ ci = CodeExerciseMode.Selection.get_cursor_info(~selection, e);
-      Update.Exercise(ci);
-    | (Code(_), _) => Cursor.empty
-    | (Derivation(e), Derivation(selection)) =>
-      let+ ci =
-        DerivationExerciseMode.Selection.get_cursor_info(~selection, e);
-      Update.Derivation(ci);
-    | (Derivation(_), _) => Cursor.empty
-    | (Theorem(e), TheoremExercise(selection)) =>
-      let+ ci = TheoremExerciseMode.Selection.get_cursor_info(~selection, e);
-      Update.TheoremExercise(ci);
-    | (Theorem(_), _) => Cursor.empty
-    };
-  };
-
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    let current = List.nth(model.exercises, model.current);
-    switch (current, selection) {
-    | (Code(e), Code(selection)) =>
-      CodeExerciseMode.Selection.handle_key_event(~selection, ~event, e)
-      |> Option.map(a => Update.Exercise(a))
-    | (Code(_), _) => None
-    | (Derivation(e), Derivation(selection)) =>
-      DerivationExerciseMode.Selection.handle_key_event(~selection, ~event, e)
-      |> Option.map(a => Update.Derivation(a))
-    | (Derivation(_), _) => None
-    | (Theorem(e), TheoremExercise(selection)) =>
-      TheoremExerciseMode.Selection.handle_key_event(~selection, ~event, e)
-      |> Option.map(a => Update.TheoremExercise(a))
-    | (Theorem(_), _) => None
-    };
+    let cursor =
+      switch (current, selection) {
+      | (Code(e), Code(selection)) =>
+        let+ ci =
+          CodeExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(Exercise(a)),
+            ~selection,
+            e,
+          );
+        Update.Exercise(ci);
+      | (Code(_), _) => Cursor.empty
+      | (Derivation(e), Derivation(selection)) =>
+        let+ ci =
+          DerivationExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(Derivation(a)),
+            ~selection,
+            e,
+          );
+        Update.Derivation(ci);
+      | (Derivation(_), _) => Cursor.empty
+      | (Theorem(e), TheoremExercise(selection)) =>
+        let+ ci =
+          TheoremExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(TheoremExercise(a)),
+            ~selection,
+            e,
+          );
+        Update.TheoremExercise(ci);
+      | (Theorem(_), _) => Cursor.empty
+      };
+    cursor
+    |> Cursor.with_actions(
+         [
+           ContextualAction.mk(
+             ~mdIcon="download",
+             ~section="Export",
+             ~action=inject(ExportSubmission),
+             "Export Submission",
+           ),
+         ]
+         @ (
+           if (ExerciseSettings.show_instructor) {
+             [
+               ContextualAction.mk(
+                 ~mdIcon="download",
+                 ~section="Export",
+                 ~action=inject(ExportModule),
+                 "Export Exercise Module",
+               ),
+               ContextualAction.mk(
+                 ~mdIcon="download",
+                 ~section="Export",
+                 ~action=inject(ExportTransitionary),
+                 "Export Transitionary Exercise Module",
+               ),
+             ];
+           } else {
+             [];
+           }
+         ),
+       );
   };
 
   let jump_to_tile =

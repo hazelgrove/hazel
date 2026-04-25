@@ -522,27 +522,21 @@ module Selection = {
     | TextBox
     | InCell(CellEditor.Selection.t);
 
-  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | TextBox => empty
     | InCell(s) =>
       let cell_editor =
         DerivationExercise.get_stitched(model.pos, model.cells);
       let+ a =
-        CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+        CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Editor(model.pos, a)),
+          ~selection=s,
+          cell_editor,
+        );
       Update.Editor(model.pos, a);
-    };
-  };
-
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | TextBox => None
-    | InCell(s) =>
-      let cell_editor =
-        DerivationExercise.get_stitched(model.pos, model.cells);
-      CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
-      |> Option.map(a => Update.Editor(model.pos, a));
     };
   };
 

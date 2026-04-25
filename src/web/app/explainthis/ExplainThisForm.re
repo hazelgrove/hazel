@@ -186,7 +186,8 @@ type pat_sub_form_id =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | ApFunc
+  | ApCons;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
@@ -251,7 +252,8 @@ type form_id =
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
-  | ApPat
+  | ApFuncPat
+  | ApConsPat
   | TypAnnPat
   | EmptyHoleTyp
   | MultiHoleTyp
@@ -377,7 +379,8 @@ type group_id =
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
-  | ApPat
+  | ApFuncPat
+  | ApConsPat
   | TypAnnPat
   | EmptyHoleTyp
   | MultiHoleTyp

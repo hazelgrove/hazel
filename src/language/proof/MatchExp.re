@@ -53,15 +53,14 @@ let rec match_exp =
   /* Variables */
   | (Var(x), _) when match_ctx_has(ctx, x) && !is_in_alphas_l(alphas, x) =>
     let (typ, assigned_exp) = List.assoc(x, ctx);
-    let exp_statics = Statics.Map.lookup(Exp.rep_id(exp), info_map);
-    switch (exp_statics) {
-    | Some(InfoExp({ty: exp_typ, _}))
+    let exp_typ = Statics.Map.ty_of(Exp.rep_id(exp), info_map);
+    switch (exp_typ) {
+    | Some(exp_typ)
         when {
           !Typ.is_consistent(Ctx.empty, exp_typ, typ);
         } =>
       None
-    | Some(_)
-    | None =>
+    | _ =>
       switch (assigned_exp) {
       | None =>
         Some(

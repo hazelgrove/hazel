@@ -750,7 +750,7 @@ let get_doc =
   | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
     message_single(ModuleKeywordDecl.single)
   | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
-  | Some(InfoExp({term, _})) =>
+  | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
@@ -1905,28 +1905,40 @@ let get_doc =
               basic(LetExp.lets_tuple);
             }
           };
-        | Ap(con, arg) =>
-          if (LetExp.let_ap_exp.id == get_specificity_level(LetExp.lets_ap)) {
-            let con_id = List.nth(IdTagged.ids(con), 0);
+        | Ap(x, arg) =>
+          let (lets_ap, let_ap_exp_coloring_ids, let_ap_exp_id) =
+            switch (x.term) {
+            | Constructor(_, _) => (
+                LetExp.lets_conap,
+                LetExp.let_conap_exp_coloring_ids,
+                LetExp.let_conap_exp.id,
+              )
+            | _ => (
+                LetExp.lets_funap,
+                LetExp.let_funap_exp_coloring_ids,
+                LetExp.let_funap_exp.id,
+              )
+            };
+          if (let_ap_exp_id == get_specificity_level(lets_ap)) {
+            let x_id = List.nth(IdTagged.ids(x), 0);
             let arg_id = List.nth(IdTagged.ids(arg), 0);
             get_message(
-              ~colorings=
-                LetExp.let_ap_exp_coloring_ids(~con_id, ~arg_id, ~def_id),
+              ~colorings=let_ap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
               ~format=
                 Some(
                   msg =>
                     Printf.sprintf(
                       Scanf.format_from_string(msg, "%s%s%s"),
                       Id.to_string(def_id),
-                      Id.to_string(con_id),
+                      Id.to_string(x_id),
                       Id.to_string(arg_id),
                     ),
                 ),
-              LetExp.lets_ap,
+              lets_ap,
             );
           } else {
-            basic(LetExp.lets_ap);
-          }
+            basic(lets_ap);
+          };
         | Constructor(v, _) =>
           if (LetExp.let_ctr_exp.id == get_specificity_level(LetExp.lets_ctr)) {
             get_message(
@@ -2409,7 +2421,7 @@ let get_doc =
       | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
-  | Some(InfoPat({term, _})) =>
+  | Some(InfoPat({user_term: term, _})) =>
     switch (bypass_parens_pat(term).term) {
     | EmptyHole => get_message(HolePat.empty_hole)
     | MultiHole(_) => get_message(HolePat.multi_hole)
@@ -2627,22 +2639,41 @@ let get_doc =
         }
       | _ => basic(TuplePat.tuple)
       };
-    | Ap(con, arg) =>
-      let con_id = List.nth(IdTagged.ids(con), 0);
+    | Ap(x, arg) =>
+      let x_id = List.nth(IdTagged.ids(x), 0);
       let arg_id = List.nth(IdTagged.ids(arg), 0);
-      get_message(
-        ~colorings=AppPat.ap_pat_coloring_ids(~con_id, ~arg_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(con_id),
-                Id.to_string(arg_id),
-              ),
-          ),
-        AppPat.ap,
-      );
+      let basic = (group, format, coloring_ids) => {
+        get_message(
+          ~colorings=coloring_ids(~x_id, ~arg_id),
+          ~format=Some(format),
+          group,
+        );
+      };
+
+      switch (x.term) {
+      | Constructor(_, _) =>
+        basic(
+          AppPat.conaps,
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(x_id),
+              Id.to_string(arg_id),
+            ),
+          AppPat.conapp_pat_coloring_ids,
+        )
+      | _ =>
+        basic(
+          AppPat.funaps,
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(x_id),
+              Id.to_string(arg_id),
+            ),
+          AppPat.funapp_pat_coloring_ids,
+        )
+      };
     | Constructor(con, _) =>
       get_message(
         ~format=
@@ -2673,7 +2704,7 @@ let get_doc =
       // Shouldn't be hit?
       default
     }
-  | Some(InfoTyp({term, _} as typ_info)) =>
+  | Some(InfoTyp({user_term: term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
     | Unknown(SynSwitch)
     | Unknown(Internal)
@@ -2938,7 +2969,7 @@ let get_doc =
       )
     }
   | Some(InfoTPat(info)) =>
-    switch (info.term.term) {
+    switch (info.user_term.term) {
     | Invalid(_) => simple("Type names must begin with a capital letter")
     | EmptyHole => get_message(HoleTPat.empty_hole_tpats)
     | MultiHole(_) => get_message(HoleTPat.multi_hole_tpats)

@@ -254,6 +254,7 @@ module Update = {
     | ActiveEditor(action) =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
+          ~inject=_ => Ui_effect.Ignore,
           ~selection=model.selection,
           model.editors,
         );
@@ -384,6 +385,7 @@ module Update = {
       );
     let cursor_info =
       Editors.Selection.get_cursor_info(
+        ~inject=_ => Ui_effect.Ignore,
         ~selection=model.selection,
         model.editors,
       );
@@ -418,87 +420,136 @@ module Selection = {
   open Cursor;
 
   type t = selection;
-
-  let handle_key_event =
-      (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
-    switch (event) {
-    | {
-        key: D("F7"),
-        sys: Mac | PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Up,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Benchmark(Start))
-    | {
-        key: D("Z" | "z"),
-        sys: Mac,
-        shift: Down,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("Z" | "z"),
-        sys: PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Redo))
-    | {
-        key: D("Z" | "z"),
-        sys: Mac,
-        shift: Up,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("Z" | "z"),
-        sys: PC,
-        shift: Up,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Undo))
-    /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
-    | {
-        key: D("P" | "p"),
-        sys: Mac,
-        shift: Up,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("P" | "p"),
-        sys: PC,
-        shift: Up,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Set(AutoprobeMode)))
-    | _ =>
-      Editors.Selection.handle_key_event(~selection, ~event, model.editors)
-      |> Option.map(x => Update.Editors(x))
-    };
-  };
-
   let get_cursor_info =
-      (~selection: t, model: Model.t): cursor(Editors.Update.t) => {
-    Editors.Selection.get_cursor_info(~selection, model.editors);
+      (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
+      : cursor(Editors.Update.t) => {
+    let meta = Keyboard.meta();
+    let mk = ContextualAction.mk;
+    Editors.Selection.get_cursor_info(
+      ~inject=a => inject(Editors(a)),
+      ~selection,
+      model.editors,
+    )
+    |> Cursor.with_actions([
+         /* Undo / Redo */
+         mk(
+           ~mdIcon="undo",
+           ~hotkey=meta ++ "+z",
+           ~action=inject(Globals(Undo)),
+           "Undo",
+         ),
+         mk(
+           ~mdIcon="redo",
+           ~hotkey=meta ++ "+shift+z",
+           ~action=inject(Globals(Redo)),
+           "Redo",
+         ),
+         /* Settings */
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Statics))),
+           "Toggle Statics",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Assist))),
+           "Toggle Completion",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(SecondaryIcons))),
+           "Toggle Show Whitespace",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Benchmark))),
+           "Toggle Print Benchmarks",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Dynamics))),
+           "Toggle Dynamics",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Elaborate))),
+           "Toggle Show Elaboration",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFnBodies)))),
+           "Toggle Show Function Bodies",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowCaseClauses)))),
+           "Toggle Show Case Clauses",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFixpoints)))),
+           "Toggle Show fixpoints",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowAscriptionSteps)))),
+           "Toggle Show Ascription Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowLookups)))),
+           "Toggle Show Lookup Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFilters)))),
+           "Toggle Show Stepper Filters",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowHiddenSteps)))),
+           "Toggle Show Hidden Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Sidebar(ToggleShow)))),
+           "Toggle Show Sidebar",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
+           "Toggle Show Docs Feedback",
+         ),
+         /* Export / Diagnostics */
+         mk(
+           ~mdIcon="download",
+           ~section="Export",
+           ~action=inject(Globals(ExportForInit)),
+           "Export For Init",
+         ),
+         mk(
+           ~mdIcon="timer",
+           ~section="Diagnostics",
+           ~hotkey="F7",
+           ~action=inject(Benchmark(Start)),
+           "Run Benchmark",
+         ),
+       ]);
   };
 };
 
@@ -558,24 +609,68 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
-    let update_meta =
-        (evt: Js.t(Dom_html.keyboardEvent)): list(Effect.t(unit)) => {
-      let meta_down = Js.to_bool(evt##.metaKey);
-      model.globals.meta_down == meta_down
-        ? [] : [inject(Globals(SetMetaDown(meta_down)))];
-    };
-    let key_handler =
-        (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) => {
-      let meta_effects = update_meta(evt);
+    let handle_key_event = (key: Key.t): Effect.t(unit) => {
+      let meta_down = key.meta == Down;
+      let meta_effects =
+        model.globals.meta_down == meta_down
+          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+      /* Page-level keys only. Editor-specific keys are handled by
+       * each editor's own Key.handler and won't bubble here
+       * (they call Stop_propagation). */
+      let page_action =
+        switch (key) {
+        | {
+            key: D("F7"),
+            sys: Mac | PC,
+            shift: Down,
+            meta: Up,
+            ctrl: Up,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Benchmark(Start))
+        | {
+            key: D("Z" | "z"),
+            sys: Mac,
+            shift: Down,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("Z" | "z"),
+            sys: PC,
+            shift: Down,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Globals(Redo))
+        | {
+            key: D("Z" | "z"),
+            sys: Mac,
+            shift: Up,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("Z" | "z"),
+            sys: PC,
+            shift: Up,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Globals(Undo))
+        | _ => None
+        };
       Effect.(
-        switch (
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=Key.mk(dir, evt),
-            model,
-          )
-        ) {
+        switch (page_action) {
         | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
           Many(
@@ -586,8 +681,7 @@ module View = {
       );
     };
     [
-      Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
-      Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
+      Key.listener(~f=handle_key_event),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
         model.globals.meta_down
@@ -627,24 +721,10 @@ module View = {
             Effect.Ignore;
           } else {
             copy(cursor);
-            Option.map(
-              inject,
-              Selection.handle_key_event(
-                ~selection=Some(model.selection),
-                ~event=
-                  Key.{
-                    key: D("Delete"),
-                    code: "Delete",
-                    sys: Os.is_mac^ ? Mac : PC,
-                    shift: Up,
-                    meta: Up,
-                    ctrl: Up,
-                    alt: Up,
-                  },
-                model,
-              ),
-            )
-            |> Option.value(~default=Effect.Ignore);
+            switch (cursor.editor_action(Destruct(Right))) {
+            | Some(action) => inject(Editors(action))
+            | None => Effect.Ignore
+            };
           };
         | None => Effect.Ignore
         };
@@ -702,10 +782,7 @@ module View = {
                 NinjaKeys.open_command_palette();
                 Effect.Ignore;
               },
-              ~tooltip=
-                "Command Palette ("
-                ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
-                ++ " + k)",
+              ~tooltip="Command Palette (" ++ Keyboard.meta() ++ " + k)",
             ),
             link(
               Icons.github,
@@ -875,7 +952,9 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
-    let cursor = Selection.get_cursor_info(~selection=model.selection, model);
+    let cursor =
+      Selection.get_cursor_info(~inject, ~selection=model.selection, model);
+    NinjaKeys.initialize(cursor.contextual_actions);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]

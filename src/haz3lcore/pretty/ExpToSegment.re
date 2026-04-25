@@ -480,8 +480,8 @@ let rec parenthesize =
   | Ap(Reverse, e1, e2) =>
     Ap(
       Reverse,
-      parenthesize(e1) |> paren_assoc_at(Precedence.eqs),
-      parenthesize(e2) |> paren_at(Precedence.eqs),
+      parenthesize(e1) |> paren_at(Precedence.eqs),
+      parenthesize(e2) |> paren_assoc_at(Precedence.eqs),
     )
     |> rewrap
   | TypAp(e, tp) =>

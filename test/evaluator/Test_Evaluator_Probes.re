@@ -67,16 +67,19 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
         Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
         Id.Map.map(_ => (), z.refractors.multis.ephemerals),
       );
-    let info_map =
+    let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
     let targets: Sample.targets =
       Id.Map.fold(
         (id, (), acc) => {
           let refs =
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id)
-            | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
-            | _ => []
+            switch (Statics.Map.lookup_exp(id, info_map)) {
+            | Some(_) => Statics.Map.refs_in(info_map, id)
+            | None =>
+              switch (Statics.Map.lookup_pat(id, info_map)) {
+              | Some(_) => Statics.Map.bound_in(info_map, id)
+              | None => []
+              }
             };
           let spec: Sample.capture_spec = {refs: refs};
           Id.Map.add(id, spec, acc);
@@ -85,8 +88,6 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
         Id.Map.empty,
       );
 
-    /* Elaborate and evaluate */
-    let elaborated = Elaborator.elaborate(info_map, term) |> fst;
     let (_, state) =
       Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
     let probes = EvaluatorState.get_probes(state);

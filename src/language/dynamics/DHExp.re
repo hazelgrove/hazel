@@ -2,7 +2,7 @@
 
    This module is specifically for dynamic expressions. They are stored
    using the same data structure as user expressions, have been modified
-   slightly as described in Elaborator.re.
+   slightly during elaboration (performed as part of Statics.re).
    */
 
 open Util;
@@ -75,7 +75,10 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
             | Some(x') when x == x' => exp
             | Some(_)
             | None => continue(exp)
-            /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
+            /* Capture avoidance inside embedded types is handled by
+               `Typ.subst`, which alpha-renames clashing binders. The
+               `TypFun` binder here is on the expression side, not the
+               type side, so it cannot capture free type variables in `s`. */
             }
           | Asc(_)
           | FixF(_)

@@ -394,6 +394,7 @@ type compound_form =
   | ParensTPat
   | ApExpEmpty
   | ApExp
+  | ApPatEmpty
   | ApPat
   | ApTyp
   | ApExpTyp
@@ -502,6 +503,7 @@ let get: compound_form => t =
   | ParensTPat => mk_parens(TPat) // HACk (Issue #1913)
   | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Exp, [])
   | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Exp, [Exp])
+  | ApPatEmpty => mk_post_c(LT, ["()"], P.ap, Pat, [])
   | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Pat, [Pat])
   | ApTyp => mk_post_c(LT, ["(", ")"], P.type_sum_ap, Typ, [Typ])
   | ApExpTyp => mk_post_c(L, ["@<", ">"], P.ap, Exp, [Typ])

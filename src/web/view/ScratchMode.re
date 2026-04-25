@@ -1147,44 +1147,66 @@ module Selection = {
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     let scratchpad = List.nth(model.scratchpads, model.current);
-    switch (selection, scratchpad.kind) {
-    | (Cell(selection), Code({editor, _})) =>
-      let+ a = CellEditor.Selection.get_cursor_info(~selection, editor);
-      Update.CellAction(a);
-    | (Drv(selection), Drv(m)) =>
-      let+ a =
-        DerivationExerciseMode.Selection.get_cursor_info(~selection, m);
-      Update.DrvAction(a);
-    | (Cell(_), Drv(_))
-    | (Drv(_), Code(_))
-    | (TextBox, _) => empty
-    };
-  };
-
-  let handle_key_event =
-      (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
-    if (Keyboard.is_new_slide(event)) {
-      Some(AddSlide);
-    } else {
-      let scratchpad = List.nth(model.scratchpads, model.current);
+    let cursor =
       switch (selection, scratchpad.kind) {
       | (Cell(selection), Code({editor, _})) =>
-        CellEditor.Selection.handle_key_event(~selection, ~event, editor)
-        |> Option.map(x => Update.CellAction(x))
+        let+ a =
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(CellAction(a)),
+            ~selection,
+            editor,
+          );
+        Update.CellAction(a);
       | (Drv(selection), Drv(m)) =>
-        DerivationExerciseMode.Selection.handle_key_event(
-          ~selection,
-          ~event,
-          m,
-        )
-        |> Option.map(x => Update.DrvAction(x))
+        let+ a =
+          DerivationExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(DrvAction(a)),
+            ~selection,
+            m,
+          );
+        Update.DrvAction(a);
       | (Cell(_), Drv(_))
       | (Drv(_), Code(_))
-      | (TextBox, _) => None
+      | (TextBox, _) => empty
       };
-    };
+    cursor
+    |> Cursor.with_actions([
+         ContextualAction.mk(
+           ~mdIcon="download",
+           ~section="Export",
+           ~action=inject(Export),
+           "Export Scratch Slide",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="download",
+           ~section="Export",
+           ~action=inject(Encode),
+           "Encode Scratch Slide in URL",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="add",
+           ~section="Buffers",
+           ~action=inject(AddSlide),
+           "Add New Buffer",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="edit",
+           ~section="Buffers",
+           ~action=inject(RenameSlide),
+           "Rename Current Buffer",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="delete",
+           ~section="Buffers",
+           ~action=inject(DeleteSlide),
+           "Delete Current Buffer",
+         ),
+       ]);
+  };
 
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) => {
@@ -1316,7 +1338,7 @@ module View = {
     let reparse =
       Widgets.button_named(
         Icons.backpack,
-        _ => globals.inject_global(ActiveEditor(Reparse)),
+        _ => inject(CellAction(MainEditor(Perform(Reparse)))),
         ~tooltip="Reparse Editor",
       );
 

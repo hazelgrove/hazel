@@ -57,6 +57,30 @@ let go =
        nuclear option for weird backpack states */
     Parser.to_zipper(~root, Printer.of_zipper(~holes="", ~indent="", z))
     |> return(CantReparse)
+  | PrettyPrint =>
+    /* Remember which tile the caret was on so we can restore the
+       caret position after prettifying. Pretty-printing preserves
+       tile IDs (it only rearranges whitespace), so the same piece
+       can be located in the new segment. Falls back to the default
+       caret position (end of document) if there is no indicated
+       tile or the ID can't be located. */
+    let prev_id = Indicated.index(z);
+    let seg = Zipper.unselect_and_zip(z);
+    let pretty = PrettySegment.prettify(seg);
+    let z = {
+      ...Zipper.unzip(pretty),
+      refractors: z.refractors,
+    };
+    let z =
+      switch (prev_id) {
+      | Some(id) =>
+        switch (Move.jump_to_id_indicated(z, id)) {
+        | Some(z') => z'
+        | None => z
+        }
+      | None => z
+      };
+    Some(z) |> return(CantReparse);
   | Buffer(a) =>
     Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
   | Project(a) =>

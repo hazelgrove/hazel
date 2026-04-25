@@ -467,3 +467,13 @@ let rec get_fn_def_id = (e: t) =>
   };
 
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
+
+/* Inject a function name into a Fun or TypFun expression. */
+let add_name = (name: option(string), exp: t): t => {
+  let (term, rewrap) = unwrap(exp);
+  switch (term) {
+  | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
+  | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
+  | _ => exp
+  };
+};

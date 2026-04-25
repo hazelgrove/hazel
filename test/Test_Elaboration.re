@@ -17,13 +17,97 @@ let dhexp_typ =
       exp,
   );
 
-let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-let dhexp_of_uexp = u =>
-  Elaborator.elaborate(
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
-    u,
-  )
-  |> fst;
+let mk_map = term =>
+  fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
+let dhexp_of_uexp = u => {
+  let (_, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
+  elab;
+};
+let assert_elab_ids_present = u => {
+  let (info_map, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
+  let _ =
+    Grammar.map_exp_annotation(
+      ({ids, _}: IdTagged.IdTag.t) => {
+        if (Id.equal(List.hd(ids), Id.invalid)) {
+          Alcotest.fail(
+            "Invalid elaborated id in expression: " ++ Exp.show(elab),
+          );
+        };
+        switch (Statics.Map.lookup(List.hd(ids), info_map)) {
+        | Some(_) => ()
+        | None =>
+          Alcotest.fail(
+            "No info found for elaborated id: " ++ Id.show(List.hd(ids)),
+          )
+        };
+      },
+      elab,
+    );
+  ();
+};
+let id_typ = Alcotest.testable(Fmt.using(Id.show, Fmt.string), Id.equal);
+let adt_node_ids = exp => {
+  let ids = ref([]);
+  let rec go = (e: Exp.t) =>
+    switch (e.term) {
+    | Constructor(_, _) => ids := [Exp.rep_id(e), ...ids^]
+    | Ap(_, fn, arg) =>
+      switch (Exp.ctr_name(fn)) {
+      | Some(_) => ids := [Exp.rep_id(e), ...ids^]
+      | None => ()
+      };
+      go(fn);
+      go(arg);
+    | Tuple(es) =>
+      ids := [Exp.rep_id(e), ...ids^];
+      List.iter(go, es);
+    | ListLit(es) => List.iter(go, es)
+    | TupLabel(label, body) =>
+      go(label);
+      go(body);
+    | Let(_, def, body)
+    | Seq(def, body)
+    | Theorem(_, def, body) =>
+      go(def);
+      go(body);
+    | If(c, t, f) =>
+      go(c);
+      go(t);
+      go(f);
+    | BinOp(_, e1, e2)
+    | Cons(e1, e2)
+    | TupleExtension(e1, e2)
+    | Dot(e1, e2) =>
+      go(e1);
+      go(e2);
+    | UnOp(_, e)
+    | Parens(e)
+    | Projector(_, e)
+    | Asc(e, _)
+    | Use(_, e)
+    | ProofObject(e)
+    | Closure(_, e) => go(e)
+    | Deferral(_) => ()
+    | Fun(_, body, _, _)
+    | Forall(_, body)
+    | TypFun(_, body, _)
+    | TyAlias(_, _, body)
+    | Match(body, _)
+    | Filter(_, body)
+    | Test(body)
+    | HintedTest(_, body) => go(body)
+    | TypAp(fn, _typ) => go(fn)
+    | FixF(_, body, _env) => go(body)
+    | DeferredAp(fn, es) =>
+      go(fn);
+      List.iter(go, es);
+    | _ => ()
+    };
+  go(exp);
+  List.rev(ids^);
+};
 let alco_check = dhexp_typ |> Alcotest.check;
 
 module PlainTests = {
@@ -115,7 +199,10 @@ module PlainTests = {
     Exp.(
       match(
         bin_op(Poly(Equals), int(4), int(3)),
-        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
+        [
+          (Pat.bool(true), asc(int(24), Typ.unknown(SynSwitch))),
+          (Pat.bool(false), asc(bool(false), Typ.unknown(SynSwitch))),
+        ],
       )
     );
 
@@ -383,9 +470,8 @@ module PlainTests = {
       [@warning "-21"]
       {
         let uexp = parse_exp(expression);
-        let statics = mk_map(uexp);
         Alcotest.skip();
-        let _ = Elaborator.elaborate(statics, uexp);
+        let _ = dhexp_of_uexp(uexp);
         ();
       }
     });
@@ -521,6 +607,16 @@ module PlainTests = {
           parse_exp({|let zip_only : (zip=Int) = (zip=12345) in zip_only|}),
         ),
       )
+    ),
+    test_case("Livelit elaborates to expanded term", `Quick, () =>
+      alco_check(
+        "^slider(50)",
+        Exp.int(50),
+        dhexp_of_uexp(parse_exp("^slider(50)")),
+      )
+    ),
+    test_case("Livelit elaboration ids are in statics map", `Quick, () =>
+      assert_elab_ids_present(parse_exp("^emotion(50)"))
     ),
     test_case(
       "Singleton labeled argument function application with known type",
@@ -723,6 +819,28 @@ in 1|},
         ),
       )
     ),
+    test_case(
+      "ADT elaboration preserves constructor ids",
+      `Quick,
+      () => {
+        let uexp =
+          parse_exp(
+            {|type List = Nil + Cons(Int, List) in Cons(2, Cons(1, Nil))|},
+          );
+        let body =
+          switch (uexp.term) {
+          | TyAlias(_, _, body) => body
+          | _ => Alcotest.fail("Expected type alias wrapper")
+          };
+        let elab = dhexp_of_uexp(uexp);
+        Alcotest.check(
+          Alcotest.list(id_typ),
+          "ADT constructor/application ids preserved",
+          adt_node_ids(body),
+          adt_node_ids(elab),
+        );
+      },
+    ),
     skip_known_bug(
       "Nontermination in typ normalization",
       {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
@@ -741,24 +859,21 @@ in 1|},
         ~count=10000,
         QCheck_Util.arb_exp(~minimal_idents=true, 50),
         exp => {
-        switch (mk_map(exp)) {
-        | statics =>
-          switch (Elaborator.elaborate(statics, exp)) {
-          | _ => true
-          | exception (Failure(msg) as e) =>
-            switch (msg) {
-            | _
-                when
-                  List.exists(
-                    (==)(msg),
-                    [
-                      "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
-                    ],
-                  ) =>
-              print_endline("Known failure: " ++ Printexc.to_string(e));
-              true;
-            | _ => raise(e)
-            }
+        switch (dhexp_of_uexp(exp)) {
+        | _ => true
+        | exception (Failure(msg) as e) =>
+          switch (msg) {
+          | _
+              when
+                List.exists(
+                  (==)(msg),
+                  [
+                    "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
+                  ],
+                ) =>
+            print_endline("Known failure: " ++ Printexc.to_string(e));
+            true;
+          | _ => raise(e)
           }
         | exception e =>
           print_endline("Skipping statics: " ++ Printexc.to_string(e));
