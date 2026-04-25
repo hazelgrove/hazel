@@ -160,7 +160,7 @@ let go =
            z,
          )
        )
-    |> return(Cant_select);
+    |> return(Cant_select)
   | Select(Term(Current)) =>
     Select.select_enclosing_term(
       syntax.term_data,
