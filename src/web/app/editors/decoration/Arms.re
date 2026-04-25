@@ -328,10 +328,7 @@ let term =
       let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
       let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
       term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
-    | _ =>
-      // TODO(zhiyao): investigate why this happens for some derivations term
-      print_endline("Arms.term: option is none");
-      [];
+    | _ => []
     };
   };
 };
