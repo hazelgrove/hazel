@@ -1073,14 +1073,39 @@ let mk_form =
 };
 
 /* HACK[Matt]: Sometimes terms that should have multiple ids won't because
-   evaluation only ever gives them one */
-let pad_ids = (n: int, ids: list(Id.t)): list(Id.t) => {
-  let len = List.length(ids);
-  if (len < n) {
-    ids @ List.init(n - len, _ => Id.mk());
-  } else {
-    ListUtil.split_n(n, ids) |> fst;
-  };
+   evaluation only ever gives them one.
+
+   Some upstream producers (e.g., evaluator collapse, certain absorption
+   paths) can emit ids lists with duplicates — e.g., [case_id, case_id, ...]
+   for a Match where the adoption machinery did not preserve distinct rule
+   ids. If we pass duplicates through unchanged, the pretty-printer will
+   emit multiple Tile pieces sharing the same id (e.g., the case `[case;end]`
+   form and all `[|;=>]` rules all tagged with case_id), and
+   Segment.reassemble will group them into a single Aba match and fail
+   with an out-of-order combined_shards assertion.
+
+   To prevent that, pad_ids now also ensures the returned list has:
+   1. no duplicates within itself;
+   2. no id equal to any id in [~forbidden]. */
+let pad_ids =
+    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
+  let forbidden_set = ref(Id.Set.of_list(forbidden));
+  let replace = id =>
+    if (Id.Set.mem(id, forbidden_set^)) {
+      let fresh = Id.mk();
+      forbidden_set := Id.Set.add(fresh, forbidden_set^);
+      fresh;
+    } else {
+      forbidden_set := Id.Set.add(id, forbidden_set^);
+      id;
+    };
+  let truncated =
+    if (List.length(ids) < n) {
+      ids @ List.init(n - List.length(ids), _ => Id.mk());
+    } else {
+      ListUtil.split_n(n, ids) |> fst;
+    };
+  List.map(replace, truncated);
 };
 
 /* Save standard list concatenation before we shadow @ */
@@ -1354,11 +1379,32 @@ let rec drv_exp_to_pretty =
     text_to_pretty(Id.invalid, Sort.Drv(Exp), "R")
     @ [mk_form(Drv(ApExp), id, [e])];
   | Case(e, x, e1, y, e2) =>
+    /* ID order: [case_end_id] @ rule_ids (outer first, then adopted).
+       IMPORTANT: Each Rule tile must have its OWN distinct id, not the
+       same as the outer Case, otherwise Segment.reassemble will group
+       all shards with the same id into one Aba match, producing
+       out-of-order combined_shards and an assertion failure. */
     let+ e = go(e, ~sort=Exp)
     and+ x = drv_pat_to_pretty(~settings, x)
     and+ e1 = go(e1, ~sort=Exp)
     and+ y = drv_pat_to_pretty(~settings, y)
     and+ e2 = go(e2, ~sort=Exp);
+    let all_ids = IdTagged.ids(syntax);
+    let rule_ids =
+      pad_ids(
+        ~forbidden=[id],
+        2,
+        switch (all_ids) {
+        | [_, ...rest] => rest
+        | [] => []
+        },
+      );
+    let (rule1_id, rule2_id) =
+      switch (rule_ids) {
+      | [a, b, ..._] => (a, b)
+      | [a] => (a, Id.mk())
+      | [] => (Id.mk(), Id.mk())
+      };
     [
       mk_form(
         Drv(Case),
@@ -1366,10 +1412,10 @@ let rec drv_exp_to_pretty =
         [
           e
           @ try_newline()
-          @ [mk_form(Drv(Rule), id, [x])]
+          @ [mk_form(Drv(Rule), rule1_id, [x])]
           @ e1
           @ try_newline()
-          @ [mk_form(Drv(Rule), id, [y])]
+          @ [mk_form(Drv(Rule), rule2_id, [y])]
           @ e2
           @ try_newline(),
         ],
@@ -2153,7 +2199,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Match(e, rs) =>
     /* ID order: [case_end_id] @ rule_ids (outer first, then adopted).
        IMPORTANT: Must align with MakeTerm.exp_term Match case,
-       which produces IDs in this order during absorption. */
+       which produces IDs in this order during absorption. The
+       rule IDs must be distinct from each other AND from the case
+       ID — see pad_ids for the deduplication behavior. */
     let+ e = go(e)
     and+ rs: list((Segment.t, Segment.t)) = {
       rs
@@ -2163,9 +2211,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> List.map(((x, y)) => (x, y))
       |> all;
     };
+    let all_exp_ids = IdTagged.ids(exp);
+    let case_id = all_exp_ids |> List.hd;
     let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(rs)),
+      case_id,
+      all_exp_ids
+      |> List.tl
+      |> pad_ids(~forbidden=[case_id], List.length(rs)),
     );
     wrap(
       exp,
