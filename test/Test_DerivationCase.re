@@ -41,7 +41,10 @@ let update_once =
     switch (result) {
     | Ok(m) => m
     | Error(err) =>
-      Alcotest.failf("Editor.Update.update failed: %s", Action.Failure.show(err))
+      Alcotest.failf(
+        "Editor.Update.update failed: %s",
+        Action.Failure.show(err),
+      )
     };
   let new_statics =
     CachedStatics.init(
@@ -76,7 +79,8 @@ let test_drv_case_rule_insert = () => {
   /* Incrementally type "case x | A => 1 | B => 2 end" in Drv(Exp).
      The reported crash is when typing the second `|`. */
   let z = Zipper.init();
-  let _z = perform_chars_editor(~root=Drv(Exp), "case x | A => 1 | B => 2 end", z);
+  let _z =
+    perform_chars_editor(~root=Drv(Exp), "case x | A => 1 | B => 2 end", z);
   check(bool, "no crash while typing drv case", true, true);
 };
 
@@ -109,8 +113,7 @@ let test_drv_case_without_head = () => {
 let test_drv_case_with_pat_reassoc = () => {
   /* Try typing more things with a pattern on the rule. */
   let z = Zipper.init();
-  let _z =
-    perform_chars_editor(~root=Drv(Exp), "case x | A => 1 |", z);
+  let _z = perform_chars_editor(~root=Drv(Exp), "case x | A => 1 |", z);
   check(bool, "no crash", true, true);
 };
 
@@ -213,11 +216,7 @@ let test_drv_case_with_dollar_var = () => {
      a case might trigger different tokenization. */
   let z = Zipper.init();
   let _z =
-    perform_chars_editor(
-      ~root=Drv(Exp),
-      "case $x | A => 1 | B => 2 end",
-      z,
-    );
+    perform_chars_editor(~root=Drv(Exp), "case $x | A => 1 | B => 2 end", z);
   check(bool, "no crash", true, true);
 };
 
@@ -335,7 +334,8 @@ let test_drv_case_insert_bar_after_complete_case = () => {
   let find_end_id = (seg: Segment.t): option(Id.t) =>
     List.find_map(
       fun
-      | Piece.Tile({label: ["case", "end"], id, _} as _t: Tile.t) => Some(id)
+      | Piece.Tile({label: ["case", "end"], id, _} as _t: Tile.t) =>
+        Some(id)
       | _ => None,
       seg,
     );
@@ -363,7 +363,11 @@ let tests = [
   (
     "DerivationCase",
     [
-      test_case("Type full case in Exp sort", `Quick, test_exp_case_rule_insert),
+      test_case(
+        "Type full case in Exp sort",
+        `Quick,
+        test_exp_case_rule_insert,
+      ),
       test_case(
         "Type full case in Drv(Exp) sort",
         `Quick,
@@ -409,11 +413,7 @@ let tests = [
         `Quick,
         test_drv_case_after_absurd,
       ),
-      test_case(
-        "Drv case no spaces",
-        `Quick,
-        test_drv_case_no_spaces,
-      ),
+      test_case("Drv case no spaces", `Quick, test_drv_case_no_spaces),
       test_case(
         "Drv case add rule in middle",
         `Quick,
@@ -429,11 +429,7 @@ let tests = [
         `Quick,
         test_drv_rule_only_then_second_bar_no_space,
       ),
-      test_case(
-        "Drv case with $-var",
-        `Quick,
-        test_drv_case_with_dollar_var,
-      ),
+      test_case("Drv case with $-var", `Quick, test_drv_case_with_dollar_var),
       test_case("Drv nested case", `Quick, test_drv_nested_case),
       test_case("Drv case in let", `Quick, test_drv_case_in_let),
       test_case(

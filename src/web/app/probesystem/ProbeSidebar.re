@@ -508,7 +508,7 @@ let view =
       ~editor: CodeEditable.Model.t,
     ) => {
   div(
-    ~attrs=[Attr.id("probesys")],
+    ~attrs=[Attr.id("probe-sidebar")],
     probearium(~globals, ~explain_this_inject, ~editor),
   );
 };
