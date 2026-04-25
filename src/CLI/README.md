@@ -1,12 +1,13 @@
 # Hazel CLI
 
-The Hazel CLI is a command-line interface for working with Hazel programs. It provides tools for running, formatting, and analyzing Hazel code. This tool is designed to streamline the development and debugging process for Hazel developers.
+The Hazel CLI is a command-line interface for working with Hazel programs. It provides tools for running, formatting, and analyzing Hazel code, as well as batch grading of student submissions. This tool is designed to streamline the development and debugging process for Hazel developers and instructors.
 
 ## Features
 
 - **Run Hazel Programs**: Execute Hazel programs and print their evaluated results.
 - **Format Hazel Code**: Reconstruct Hazel code from its abstract syntax tree (AST), using tylr to ensure syntactic correctness while removing original whitespace and comments.
 - **Static Analysis**: Perform static analysis on Hazel code to identify and report errors. This currently does not report location information for errors.
+- **Grade Submissions**: Grade an exported submission JSON and emit either the raw grading data as JSON (`grade-json`) or a human-readable text report (`grade-report`).
 
 ## Usage
 The Hazel CLI can be invoked from the command line using the `hazel` script located in the root of the repository. The script accepts various commands and options to perform different tasks.
@@ -56,3 +57,27 @@ You can also use `-` instead of a file path to read from standard input. For exa
 $ echo "let x = 5 in x + 3" | ./hazel analyze -
 No static errors found.
 ```
+
+### Grading Submissions
+
+The CLI can grade Hazel exercise submissions. The input is a submission JSON file (the JSON export produced by Hazel's export feature in exercise mode), which includes persisted state for every exercise the student worked on. The grader dispatches on each exercise kind (Code, Derivation, Theorem) and produces a per-exercise score and summary.
+
+#### Raw JSON output
+
+Use `grade-json` to produce the raw grader output as JSON:
+
+```sh
+$ ./hazel grade-json path/to/submission.json --output report.json
+```
+
+The output is an array of `{ name, report: { summary, overall: [earned, max] } }` objects. Omit `--output` to write to stdout.
+
+#### Human-readable text report
+
+Use `grade-report` to produce a human-readable text summary:
+
+```sh
+$ ./hazel grade-report path/to/submission.json --output report.txt
+```
+
+The text output lists each exercise with its score and breakdown, followed by a `Total:` line aggregating across all exercises. Omit `--output` to write to stdout.

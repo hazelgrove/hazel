@@ -9,9 +9,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Path to the JS target relative to the script
 JS_TARGET="$SCRIPT_DIR/_build/default/src/CLI/cli.bc.js"
+# Preload that stubs browser globals (IndexedDB, localStorage, DOM, Worker)
+# which the web library references at module load time but that the CLI
+# does not actually use at runtime.
+POLYFILL="$SCRIPT_DIR/src/CLI/polyfill.js"
 
 # Run Dune in the script's directory
 (cd "$SCRIPT_DIR" && dune build ./src/CLI/cli.bc.js)
 
 # Execute the compiled JavaScript with node
-node "$JS_TARGET" "$@"
+node -r "$POLYFILL" "$JS_TARGET" "$@"

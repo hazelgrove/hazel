@@ -613,6 +613,41 @@ let test_cmd = {
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
 };
 
+let output_arg = {
+  let doc = "Path to write output to. If omitted, output is written to stdout.";
+  Arg.(value & opt(some(string), None) & info(["output", "o"], ~doc));
+};
+
+let submission_arg = {
+  let doc = "Path to a submission JSON file (exported from Hazel).";
+  Arg.(
+    required
+    & pos(0, some(string), None)
+    & info([], ~docv="SUBMISSION", ~doc)
+  );
+};
+
+let grade_json_cmd = {
+  let doc =
+    "Grade a submission and emit the raw grading output as JSON. "
+    ++ "The submission file is the JSON export produced by Hazel's export "
+    ++ "feature (matching the schema of the in-app exercise store).";
+  let info = Cmd.info("grade-json", ~doc);
+  Cmd.v(info, Term.(const(Grade.grade_json) $ submission_arg $ output_arg));
+};
+
+let grade_report_cmd = {
+  let doc =
+    "Grade a submission and emit a human-readable text report. "
+    ++ "For each exercise, prints the title, score, and summary. "
+    ++ "Ends with a total across all exercises.";
+  let info = Cmd.info("grade-report", ~doc);
+  Cmd.v(
+    info,
+    Term.(const(Grade.grade_report) $ submission_arg $ output_arg),
+  );
+};
+
 let bench_parse_cmd = {
   let doc = "Benchmark parsing performance on one or more .hz files.";
   let iterations_arg = {
@@ -633,7 +668,16 @@ let default_cmd = {
   let info = Cmd.info("hazel", ~doc);
   Cmd.group(
     info,
-    [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd, bench_parse_cmd],
+    [
+      run_cmd,
+      format_cmd,
+      analyze_cmd,
+      probe_cmd,
+      test_cmd,
+      grade_json_cmd,
+      grade_report_cmd,
+      bench_parse_cmd,
+    ],
   );
 };
 
