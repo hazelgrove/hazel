@@ -116,10 +116,10 @@ module Model = {
     of_spec(~instructor_mode, spec);
   };
 
-  let get_derivation_info = (model: t) => {
+  let get_derivation_info_at = (pos: DerivationExercise.pos, model: t) => {
     let trees = model.verified_tree;
     let eds = model.editors;
-    switch (model.pos) {
+    switch (pos) {
     | Trees(i, pos) =>
       try({
         let tree = List.nth(trees, i);
@@ -150,6 +150,12 @@ module Model = {
     | _ => None
     };
   };
+
+  /* Backwards-compatible: uses the last-edited cell (`model.pos`). Callers
+     that can provide the currently focused cell via selection should prefer
+     the `_at` version so Prelude/Setup focus isn't misread as a tree cell. */
+  let get_derivation_info = (model: t) =>
+    get_derivation_info_at(model.pos, model);
 };
 
 module Update = {
@@ -517,26 +523,35 @@ module Update = {
 
 module Selection = {
   open Cursor;
+  /* The `pos` in `InCell` identifies which cell the user is actually
+     focused on. We cannot rely on `model.pos` here because that field is
+     only updated on edit actions (not on click/focus), which causes
+     cursor-info and derivation-info to reflect the previously edited cell
+     rather than the currently focused one. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | TextBox
-    | InCell(CellEditor.Selection.t);
+    | InCell(DerivationExercise.pos, CellEditor.Selection.t);
+
+  let pos_of: t => option(DerivationExercise.pos) =
+    fun
+    | TextBox => None
+    | InCell(pos, _) => Some(pos);
 
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
       : cursor(Update.t) => {
     switch (selection) {
     | TextBox => empty
-    | InCell(s) =>
-      let cell_editor =
-        DerivationExercise.get_stitched(model.pos, model.cells);
+    | InCell(pos, s) =>
+      let cell_editor = DerivationExercise.get_stitched(pos, model.cells);
       let+ a =
         CellEditor.Selection.get_cursor_info(
-          ~inject=a => inject(Editor(model.pos, a)),
+          ~inject=a => inject(Editor(pos, a)),
           ~selection=s,
           cell_editor,
         );
-      Update.Editor(model.pos, a);
+      Update.Editor(pos, a);
     };
   };
 
@@ -553,10 +568,18 @@ module Selection = {
              pos,
              MainEditor(Perform(Move(Goal(TileId(id))))),
            ),
-           InCell(CellEditor.Selection.MainEditor),
+           InCell(pos, CellEditor.Selection.MainEditor),
          )
        );
   };
+
+  /* Use the selection's live pos to check whether the cursor is in a
+     derivation tree cell. */
+  let get_derivation_info = (~selection: t, model: Model.t) =>
+    switch (pos_of(selection)) {
+    | Some(pos) => Model.get_derivation_info_at(pos, model)
+    | None => None
+    };
 };
 
 // ====== Exercise ======
@@ -980,10 +1003,10 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(a) => signal(MakeActive(InCell(a))),
+          | MakeActive(a) => signal(MakeActive(InCell(this_pos, a))),
         ~selected=
           switch (selection) {
-          | Some(InCell(s)) when model.pos == this_pos => Some(s)
+          | Some(InCell(pos, s)) when pos == this_pos => Some(s)
           | _ => None
           },
         ~inject=a => inject(Editor(this_pos, a)),

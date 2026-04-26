@@ -625,6 +625,15 @@ module Selection = {
          )
     };
   };
+
+  let get_derivation_info = (~selection: t, model: Model.t) => {
+    let current = List.nth(model.exercises, model.current);
+    switch (selection, current) {
+    | (Derivation(sel), Derivation(e)) =>
+      DerivationExerciseMode.Selection.get_derivation_info(~selection=sel, e)
+    | _ => None
+    };
+  };
 };
 
 module View = {

@@ -383,11 +383,17 @@ module Update = {
         ~is_edited,
         model.editors,
       );
+    /* Compute cursor info against the POST-calculate editors: some modes
+       (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
+       stitched `cells` during calculate, not during update. Reading cursor
+       info from `model.editors` (pre-calculate) would see stale cell state
+       and yield the wrong ExplainThis highlights for a click/move-only
+       action, which doesn't trigger a full statics rebuild. */
     let cursor_info =
       Editors.Selection.get_cursor_info(
         ~inject=_ => Ui_effect.Ignore,
         ~selection=model.selection,
-        model.editors,
+        editors,
       );
     let color_highlights =
       ExplainThis.get_color_map(
@@ -395,9 +401,17 @@ module Update = {
         ~explainThisModel=model.explain_this,
         cursor_info.info,
       );
-    /* When the user is inside a derivation, the deduction-specific highlight
-       map takes precedence over the generic ExplainThis one. */
-    let derivation_info = Editors.Model.get_derivation_info(model.editors);
+    /* When the user's cursor is inside a derivation tree cell, the
+       deduction-specific highlight map takes precedence over the generic
+       ExplainThis one. We consult the live selection here (rather than
+       Editors.Model.get_derivation_info, which reads the stale `model.pos`
+       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+       get misclassified as focus on the derivation. */
+    let derivation_info =
+      Editors.Selection.get_derivation_info(
+        ~selection=model.selection,
+        editors,
+      );
     let color_highlights =
       switch (derivation_info) {
       | Some(_) =>
@@ -859,6 +873,7 @@ module View = {
         ~explainThisModel,
         ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
         ~editors,
+        ~selection=model.selection,
         ~editor=Update.get_editor(model),
         ~signal=
           fun

@@ -1220,6 +1220,15 @@ module Selection = {
       |> Option.map(((x, y)) => (Update.DrvAction(x), Drv(y)))
     };
   };
+
+  let get_derivation_info = (~selection: t, model: Model.t) => {
+    let scratchpad = List.nth(model.scratchpads, model.current);
+    switch (selection, scratchpad.kind) {
+    | (Drv(sel), Drv(m)) =>
+      DerivationExerciseMode.Selection.get_derivation_info(~selection=sel, m)
+    | _ => None
+    };
+  };
 };
 
 module View = {

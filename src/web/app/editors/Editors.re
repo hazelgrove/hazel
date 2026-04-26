@@ -430,6 +430,21 @@ module Selection = {
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
       Exercises(Code(Cell(CodeExercise.Prelude, MainEditor)));
+
+  /* Selection-aware variant of Model.get_derivation_info: reports the
+     derivation context only when the user's current focus is inside a
+     derivation tree cell. Callers driving cursor-dependent UI (highlight
+     maps, sidebar) should prefer this over the Model version, which reads
+     the stale `model.pos`. */
+  let get_derivation_info = (~selection: t, editors: Model.t) =>
+    switch (selection, editors) {
+    | (Scratch(sel), Scratch(m))
+    | (Scratch(sel), Documentation(m)) =>
+      ScratchMode.Selection.get_derivation_info(~selection=sel, m)
+    | (Exercises(sel), Exercises(m)) =>
+      ExercisesMode.Selection.get_derivation_info(~selection=sel, m)
+    | _ => None
+    };
 };
 
 module View = {
