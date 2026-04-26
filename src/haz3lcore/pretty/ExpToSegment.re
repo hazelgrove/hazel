@@ -956,9 +956,11 @@ and parenthesize_any =
         r,
       ),
     )
-  /* TODO(zhiyao): yet to implement for Drv */
+  /* Parenthesization for Drv, Mod, Sig, MPat, and Any is not yet defined.
+     Pretty-printing produces the term as-is; this is sound (never adds
+     invalid parens) but may omit disambiguating parens in nested contexts. */
   | Drv(_) => any
-  | Mod(_) => any /* TODO: proper module parenthesization */
+  | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
   | Any(_) => any

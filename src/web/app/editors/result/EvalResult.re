@@ -255,7 +255,9 @@ module Update = {
             and.calc result = result;
             switch (result) {
             | ResultOk({result: exp, _}) =>
-              // TODO(zhiyao): what should display root be consistent with?
+              /* Evaluation always produces an Exp-sorted value (Drv-sorted
+                 subterms only appear wrapped in DrvQuote, which is itself Exp),
+                 so the result editor is rooted at Exp. */
               Some((
                 exp,
                 exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),

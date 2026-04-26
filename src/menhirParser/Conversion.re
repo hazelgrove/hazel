@@ -407,7 +407,10 @@ module rec Exp: {
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
-    | DrvQuote(_) => raise(Failure("DrvQuote not supported")) // TODO(zhiyao)
+    /* The menhir parser grammar has no syntax for derivation terms, so
+       converting core DrvQuote values back to the menhir AST is not
+       meaningful. */
+    | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
     | Projector(_, e) => of_core(e)
     | Module(items) => Module(List.map(ModItem.of_core, items))
     | ModuleExp(mp, def, body) =>
@@ -546,7 +549,8 @@ and Typ: {
           constructors,
         );
       SumTyp(sumterms);
-    | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported")) // TODO(Zhiyao)
+    /* Same as DrvQuote in the Exp case: no menhir syntax for Drv types. */
+    | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported"))
     | Projector(_, t) => of_core(t)
     | Sig(items) => Sig(List.map(SigItem.of_core, items))
     };

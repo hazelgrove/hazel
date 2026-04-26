@@ -2,15 +2,14 @@ open Util;
 open OptUtil.Syntax;
 open Language;
 
-/* NOTE(zhiyao): The field `root` serves 2 purposes here. Unfortunately, it is
-   not possible to derive the root sort from the zipper. This is because a zipper
-   can be empty, in which case the root sort is lost. The root sort is needed for
-   1. Considering Ancestors.sort of `[]` cases, the "root" sort should bytes
-       returned. `Drv(Exp)` is needed to here to ensure the correctness of
-       remolding and regrouting.
-   2. Usually start with Editor.Model.mk(~root), which is used in frontend
-       to construct the term with the correct sort.
-   */
+/* The `root` field records the sort of this editor's root context. We
+   can't recover it from the zipper alone: an empty zipper has no surviving
+   ancestors to infer sort from. Two places need it:
+     1. Ancestors.sort falls back to `root` when the ancestor stack is
+        empty, which remolding and regrouting rely on to pick Drv(Exp)
+        molds inside derivation editors.
+     2. Editor.Model.mk(~root) propagates this sort to the term builder so
+        the initial zipper is constructed with the correct sort. */
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = Perform.state;

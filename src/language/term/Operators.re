@@ -36,7 +36,11 @@ type op_bin_num =
   | GreaterThan
   | GreaterThanOrEqual;
 
-// TODO(zhiyao): We define `Equals` and `NotEquals` for float.
+/* Float gets its own Equals/NotEquals (surfaced as `==.`/`!=.`) rather
+   than reusing op_bin_poly, because IEEE float equality isn't structural
+   (e.g. NaN != NaN) and we want the type checker/evaluator to distinguish
+   it from polymorphic equality. Int/Nat/SInt equality goes through
+   op_bin_poly below. */
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_float =
   | Plus

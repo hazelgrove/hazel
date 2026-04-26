@@ -395,7 +395,8 @@ module Update = {
         ~explainThisModel=model.explain_this,
         cursor_info.info,
       );
-    // Note(Zhiyao): derivation highlight override ExplainThis highlights if exists
+    /* When the user is inside a derivation, the deduction-specific highlight
+       map takes precedence over the generic ExplainThis one. */
     let derivation_info = Editors.Model.get_derivation_info(model.editors);
     let color_highlights =
       switch (derivation_info) {
