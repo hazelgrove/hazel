@@ -35,6 +35,19 @@ let to_string =
   | Typ => "ALFATyp"
   | TPat => "DrvTPat";
 
+/* Terse display form used in UI (e.g. cursor inspector header). Keeps the
+   `ALFA` prefix that distinguishes object-language sorts from regular
+   Hazel sorts, but drops the `Drv` prefix used on meta-level type names. */
+let to_string_short =
+  fun
+  | Jdmt => "Jdmt"
+  | Ctx => "Ctx"
+  | Prop => "Prop"
+  | Exp => "ALFAExp"
+  | Pat => "ALFAPat"
+  | Typ => "ALFATyp"
+  | TPat => "ALFATPat";
+
 let to_string_verbose =
   fun
   | Jdmt => "judgement"

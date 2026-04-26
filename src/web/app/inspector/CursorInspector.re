@@ -55,8 +55,19 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
   );
 
 let term_view = (~globals: Globals.t, ci) => {
+  /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
+     via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
+     inspector header we prefer the terse form ("Jdmt", "Prop", ...),
+     keeping the ALFA prefix for object-language sorts. */
   let sort_text =
-    Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.to_string;
+    Info.is_label(ci)
+      ? "Label"
+      : (
+        switch (Info.sort_of(ci)) {
+        | Drv(s) => DrvSort.to_string_short(s)
+        | s => Sort.to_string(s)
+        }
+      );
   let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
   div(
     ~attrs=[
