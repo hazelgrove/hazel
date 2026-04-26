@@ -485,7 +485,14 @@ module View = {
       ~font_metrics=globals.font_metrics,
       z,
     ),
-    Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
+    Arms.Indicated.term(
+      ~refine_sort=
+        (id, mold_out) =>
+          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+      ~font_metrics=globals.font_metrics,
+      ~syntax,
+      z,
+    ),
     (
       expand_selection
         ? Highlight.selection_expanded(~term_data=syntax.term_data)

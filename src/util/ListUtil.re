@@ -255,17 +255,6 @@ let split_first = xs =>
   split_first_opt(xs)
   |> OptUtil.get_or_raise(Invalid_argument("ListUtil.split_first"));
 
-let rec fold_left_map =
-        (f: ('acc, 'x) => ('acc, 'y), start: 'acc, xs: list('x))
-        : ('acc, list('y)) =>
-  switch (xs) {
-  | [] => (start, [])
-  | [x, ...xs] =>
-    let (new_acc, y) = f(start, x);
-    let (final, ys) = fold_left_map(f, new_acc, xs);
-    (final, [y, ...ys]);
-  };
-
 let rec neighbors = (xs: list('x)): list(('x, 'x)) =>
   switch (xs) {
   | []

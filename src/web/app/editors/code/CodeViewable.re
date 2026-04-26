@@ -10,10 +10,10 @@ let view =
       ~measured,
       ~term_data,
       ~buffer_ids,
-      ~segment,
       ~shape_map,
-      ~info_map,
       ~refractor_shape_map,
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+      segment,
     )
     : Node.t => {
   let code =
@@ -24,7 +24,7 @@ let view =
       ~refractor_shape_map,
       ~font_metrics=globals.font_metrics,
       ~term_data,
-      ~info_map,
+      ~refine_sort,
       ~buffer_ids,
       segment,
     );
@@ -40,10 +40,9 @@ let view_segment = (~globals: Globals.t, segment: Segment.t) => {
     ~measured=Measured.of_segment(segment, shape_map, refractor_shape_map),
     ~term_data,
     ~buffer_ids=[],
-    ~info_map=Language.Statics.Map.empty,
-    ~segment,
     ~shape_map,
     ~refractor_shape_map,
+    segment,
   );
 };
 

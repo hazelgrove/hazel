@@ -213,19 +213,23 @@ module View = {
         },
       _,
     }: Model.t = model;
+    let info_map = model.statics.info_map;
+    let refine_sort = (id, mold_out) =>
+      Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
     let code_text_view =
       CodeViewable.view(
         ~globals,
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
-        ~segment,
         ~shape_map,
-        ~info_map=model.statics.info_map,
-        ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+        ~refine_sort,
+        segment,
       );
     let error_decos =
       Arms.Errors.of_ids(
+        ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -234,6 +238,7 @@ module View = {
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let warning_decos =
       Arms.Errors.of_ids(
+        ~refine_sort,
         ~is_warning=true,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,

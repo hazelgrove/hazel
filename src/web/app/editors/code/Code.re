@@ -76,7 +76,11 @@ let view =
       ~refractor_shape_map: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
-      ~info_map: Language.Statics.Map.t,
+      /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
+         using information unavailable at this purely syntactic layer (e.g.
+         statics refining `Drv(Exp)` to `Drv(Jdmt)`/`Drv(Ctx)`/`Drv(Prop)`).
+         The default leaves the mold sort unchanged. */
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~buffer_ids: list(Id.t),
       segment: Segment.t,
     ) => {
@@ -95,15 +99,7 @@ let view =
   let lb_icon = settings.secondary_icons ? "⏎" : "";
   let ws_icon = settings.secondary_icons ? "·" : " ";
 
-  let sort = (t: Tile.t): Sort.t =>
-    switch (t.mold.out) {
-    | Drv(Exp) =>
-      switch (Id.Map.find_opt(t.id, info_map)) {
-      | Some(Language.Info.InfoDrv({sort, _})) => Drv(sort)
-      | _ => Drv(Exp)
-      }
-    | _ as sort => sort
-    };
+  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, t.mold.out);
 
   let is_consistent = (sort: Sort.t, t: Tile.t) =>
     switch (Id.Map.find_opt(t.id, term_data)) {
@@ -114,10 +110,11 @@ let view =
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
-      /* All Drv(_) variants (Jdmt/Ctx/Prop/Exp) are treated as mutually
-         consistent for highlighting purposes: distinguishing them requires
-         dynamic information that isn't available at this point, and strict
-         sort checking here would be fragile. */
+      /* All Drv(_) sub-sorts (Jdmt/Ctx/Prop/Exp) are treated as mutually
+         consistent for highlighting purposes. term_data carries the sort
+         the parser assigned (always the collapsed Drv(Exp) for these), so
+         strict sort equality with the statics-refined sort would spuriously
+         flag judgments/contexts/propositions as inconsistent. */
       | (Drv(_), _) => true
       | _ => sort == data.sort
       }

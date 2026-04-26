@@ -226,6 +226,9 @@ svg.shard.indicated.Pat {
 svg.shard.indicated.Typ {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-typ));
 }
+svg.shard.indicated.Drv {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-drv));
+}
 svg.shard.indicated.Rul {
   filter: drop-shadow(
     var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)

@@ -160,6 +160,23 @@ let sort_of: t => Sort.t =
   | InfoMPat(_) => MPat
   | Secondary(s) => s.sort;
 
+/* The grammar's mold system uses a single `Drv(Exp)` outer sort for all of
+   `Drv(Jdmt)`, `Drv(Ctx)`, `Drv(Prop)`, and `Drv(Exp)` (see DrvSort.re on the
+   "remolding issue"). Statics disambiguates these sub-sorts, so the info_map
+   is the source of truth when we need the precise Drv sub-sort (e.g. to pick
+   a CSS class like `.token.Drv` vs `.token.Exp`). For any non-Drv mold or
+   when no InfoDrv entry is present, we defer to the mold's outer sort. */
+let refine_sort_from_mold =
+    (~info_map: Id.Map.t(t), ~id: Id.t, mold_out: Sort.t): Sort.t =>
+  switch (mold_out) {
+  | Drv(_) =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | Some(InfoDrv(drv)) => Drv(DrvInfo.sort_of(drv))
+    | _ => mold_out
+    }
+  | _ => mold_out
+  };
+
 let class_of: t => string =
   fun
   | InfoDrv(drv) => DrvInfo.sort_of(drv) |> DrvSort.class_of

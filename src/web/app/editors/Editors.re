@@ -600,7 +600,6 @@ module View = {
           m,
         )
       };
-    ignore(mode_menu);
     div(
       ~attrs=[Attr.id("editor-mode")],
       [text("/"), mode_menu, text("/")] @ contents,
