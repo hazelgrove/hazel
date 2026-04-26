@@ -859,7 +859,11 @@ module View = {
       Widgets.button_named(
         Icons.command_palette_sparkle,
         _ => {
-          NinjaKeys.open_command_palette(~rule_set=eds.rule_set, ~pos, ~inject);
+          NinjaKeys.open_command_palette(
+            ~rule_set=eds.rule_set,
+            ~pos,
+            ~inject,
+          );
           Effect.Ignore;
         },
         ~tooltip="Switch Rule",

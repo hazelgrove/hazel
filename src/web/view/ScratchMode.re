@@ -1404,7 +1404,8 @@ module View = {
       ~tooltip=
         "Add New Derivation " ++ (is_documentation ? "Slide" : "Scratchpad"),
       Icons.entail,
-      _ => inject(Update.AddDrvSlide),
+      _ =>
+      inject(Update.AddDrvSlide)
     );
 
   let top_bar =
@@ -1419,9 +1420,7 @@ module View = {
       is_documentation ? "Add New Slide" : "Add New Code Scratchpad";
     EditorModeView.view(
       ~edit_buttons=true,
-      ~extra_edit_buttons=[
-        add_drv_slide_button(~is_documentation, ~inject),
-      ],
+      ~extra_edit_buttons=[add_drv_slide_button(~is_documentation, ~inject)],
       ~nav_buttons=false,
       ~unit_name,
       ~add_tooltip,
