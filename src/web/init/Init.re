@@ -103,11 +103,11 @@ let default_documentation_slide_name =
    into nested dropdowns (matches how "B2T2 / ..." slides work). */
 let documentation_drv_slides: list((string, DerivationExercise.spec)) =
   [
+    Ex_Conjunction_Commutativity.exercise,
     Ex_Curried_Function_Derivation.exercise,
     Ex_PairMap_Derivation.exercise,
     Ex_Shadowing_And_Closures.exercise,
     Ex_Type_Validation_Derivation.exercise,
-    Ex_Conjunction_Commutativity.exercise,
   ]
   |> List.map((spec: DerivationExercise.spec) =>
        ("Derivations / " ++ spec.title, spec)
