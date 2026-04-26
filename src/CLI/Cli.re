@@ -34,7 +34,7 @@ let format_hazel = (width, path) => {
   /* Use segment-based path (like the editor's Cmd+S) to preserve comments.
      The AST round-trip (parse_program + segmentize) loses comments because
      MakeTerm drops Secondary pieces and ExpToSegment reconstructs from AST. */
-  switch (Haz3lcore.Parser.to_segment(program)) {
+  switch (Haz3lcore.Parser.to_segment(program, ~root=Exp)) {
   | None => failwith("Failed to parse: " ++ path)
   | Some(segment) =>
     let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
