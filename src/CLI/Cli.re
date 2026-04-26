@@ -23,10 +23,25 @@ let run_hazel = path => {
   print_endline(Print.print(evaluated));
 };
 
-let format_hazel = path => {
-  let program = read_input(path);
-  let parsed = parse_program(program);
-  print_endline(Print.print(parsed));
+let strip_leading_whitespace = (s: string): string => {
+  let lines = String.split_on_char('\n', s);
+  let stripped = List.map(String.trim, lines);
+  String.concat("\n", stripped);
+};
+
+let format_hazel = (width, path) => {
+  let program = read_input(path) |> strip_leading_whitespace;
+  /* Use segment-based path (like the editor's Cmd+S) to preserve comments.
+     The AST round-trip (parse_program + segmentize) loses comments because
+     MakeTerm drops Secondary pieces and ExpToSegment reconstructs from AST. */
+  switch (Haz3lcore.Parser.to_segment(program)) {
+  | None => failwith("Failed to parse: " ++ path)
+  | Some(segment) =>
+    let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
+    let output =
+      Haz3lcore.Printer.of_segment(~holes="?", ~indent=" ", pretty_seg);
+    print_endline(output);
+  };
 };
 
 /* Parse program and return zipper (preserving projectors like probes) */
@@ -573,14 +588,16 @@ let run_cmd = {
 
 let format_cmd = {
   let doc = {|
-    Reconstructs Hazel code from its abstract syntax tree (AST), producing
-    concrete syntax without preserving original whitespace or comments.
-    This process uses a recovering parser and automatically inserts holes
-    where necessary to ensure syntactic correctness.
+    Pretty-prints Hazel code, inserting line breaks to fit within a target
+    width. Preserves comments but replaces original whitespace with
+    structured formatting.
   |};
-
+  let width_arg = {
+    let doc = "Target line width in columns (default: 60).";
+    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+  };
   let info = Cmd.info("format", ~doc);
-  Cmd.v(info, Term.(const(format_hazel) $ input_arg));
+  Cmd.v(info, Term.(const(format_hazel) $ width_arg $ input_arg));
 };
 
 let analyze_cmd = {
