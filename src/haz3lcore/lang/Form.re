@@ -144,13 +144,9 @@ type drv_compound_form =
   | Entail
   | UnaryEntail
   | Consistent
-  | ConsistentFake
   | MatchedArrow
-  | MatchedArrowFake
   | MatchedProd
-  | MatchedProdFake
   | MatchedSum
-  | MatchedSumFake
   // Proposition
   | Valid
   | HasType
@@ -230,36 +226,24 @@ let drv_get: drv_compound_form => t =
   | Eval => mk_infix("\\=/", Drv(Exp), P.min)
   | Entail => mk_infix("|-", Drv(Exp), P.min)
   | UnaryEntail => mk_pre_c(L, ["|-"], P.min, Drv(Exp), [])
-  /* Autocompletion only fires on sort [Exp], so each Drv form that should be
-     completable has a [*Fake] twin parameterised by [Exp] alongside the real
-     [Drv(Exp)] form. TyDi suggests the [Fake] shapes, which are then remolded
-     into the proper [Drv] shapes. */
-  | ConsistentFake =>
-    mk_pre_c(L, ["consistent", "~"], P.fun_, Exp, [Drv(Typ)])
   | Consistent =>
     mk(
       L,
       ["consistent", "~"],
       Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
-  | MatchedArrowFake =>
-    mk_pre_c(L, ["matched_arrow", "with"], P.fun_, Exp, [Drv(Typ)])
   | MatchedArrow =>
     mk(
       L,
       ["matched_arrow", "with"],
       Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
-  | MatchedProdFake =>
-    mk_pre_c(L, ["matched_prod", "with"], P.fun_, Exp, [Drv(Typ)])
   | MatchedProd =>
     mk(
       L,
       ["matched_prod", "with"],
       Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
-  | MatchedSumFake =>
-    mk_pre_c(L, ["matched_sum", "with"], P.fun_, Exp, [Drv(Typ)])
   | MatchedSum =>
     mk(
       L,

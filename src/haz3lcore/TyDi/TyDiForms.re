@@ -36,13 +36,6 @@ module Typ = {
     ("of_alfa_typ" ++ leading_expander, unk),
     ("of_alfa_pat" ++ leading_expander, unk),
     ("of_alfa_tpat" ++ leading_expander, unk),
-    /* NOTE(zhiyao): the following terms are only used in the derivation terms,
-       however they are phantom in the sense that they could trigger expansion
-       but they don't appear in the derivation terms */
-    ("consistent" ++ leading_expander, unk),
-    ("matched_arrow" ++ leading_expander, unk),
-    ("matched_prod" ++ leading_expander, unk),
-    ("matched_sum" ++ leading_expander, unk),
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
@@ -130,12 +123,23 @@ module Delims = {
   let leading_exp = leading(Exp);
   let leading_pat = leading(Pat);
   let leading_typ = leading(Typ);
+  /* Drv sorts: at the mold level Drv(Jdmt)/Drv(Ctx)/Drv(Prop) all collapse
+     to Drv(Exp) (see DrvSort.re on the "remolding issue"), so we reuse the
+     Drv(Exp) delim list for all of them. */
+  let leading_drv_exp = leading(Drv(Exp));
+  let leading_drv_typ = leading(Drv(Typ));
+  let leading_drv_pat = leading(Drv(Pat));
+  let leading_drv_tpat = leading(Drv(TPat));
 
   let leading = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => leading_exp
     | Pat => leading_pat
     | Typ => leading_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => leading_drv_exp
+    | Drv(Typ) => leading_drv_typ
+    | Drv(Pat) => leading_drv_pat
+    | Drv(TPat) => leading_drv_tpat
     | _ => []
     };
 
@@ -156,11 +160,19 @@ module Delims = {
   let infix_exp = infix(Exp);
   let infix_pat = infix(Pat);
   let infix_typ = infix(Typ);
+  let infix_drv_exp = infix(Drv(Exp));
+  let infix_drv_typ = infix(Drv(Typ));
+  let infix_drv_pat = infix(Drv(Pat));
+  let infix_drv_tpat = infix(Drv(TPat));
   let infix = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => infix_exp
     | Pat => infix_pat
     | Typ => infix_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => infix_drv_exp
+    | Drv(Typ) => infix_drv_typ
+    | Drv(Pat) => infix_drv_pat
+    | Drv(TPat) => infix_drv_tpat
     | _ => []
     };
 
@@ -190,12 +202,20 @@ module Delims = {
   let const_mono_pat =
     const_mono(Pat) |> List.filter(t => !List.mem(t, Token.base_typs));
   let const_mono_typ = const_mono(Typ);
+  let const_mono_drv_exp = const_mono(Drv(Exp));
+  let const_mono_drv_typ = const_mono(Drv(Typ));
+  let const_mono_drv_pat = const_mono(Drv(Pat));
+  let const_mono_drv_tpat = const_mono(Drv(TPat));
 
   let const_mono = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => const_mono_exp
     | Pat => const_mono_pat
     | Typ => const_mono_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => const_mono_drv_exp
+    | Drv(Typ) => const_mono_drv_typ
+    | Drv(Pat) => const_mono_drv_pat
+    | Drv(TPat) => const_mono_drv_tpat
     | _ => []
     };
 };
