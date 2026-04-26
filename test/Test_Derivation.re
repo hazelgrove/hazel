@@ -1,6 +1,6 @@
 /* Tests for derivation mode logic: ALFA / propositional logic surface syntax,
    abbreviation parsing, and rule verification against the PropositionalLogic
-   corpus. */
+   rule_set. */
 
 open Alcotest;
 open Haz3lcore;
@@ -467,11 +467,11 @@ let test_falsity_e_correct = () =>
     [d_entail(d_ctx([]), d_falsity)],
   );
 
-/* ----------------------- corpus-level tests ----------------------- */
+/* ----------------------- rule_set-level tests ----------------------- */
 
-/* Rules from other corpora (e.g. ALFA typing) should not be dispatchable
-   against the PropositionalLogic corpus. */
-let test_propositional_corpus_only_includes_prop_logic = () => {
+/* Rules from other rule sets (e.g. ALFA typing) should not be dispatchable
+   against the PropositionalLogic rule_set. */
+let test_propositional_rule_set_only_includes_prop_logic = () => {
   check(
     bool,
     "Assumption is in PropositionalLogic",
@@ -501,9 +501,9 @@ let test_blank_spec_defaults = () => {
   check(int, "max_points default is 10", 10, spec.max_points);
   check(
     bool,
-    "corpus defaults to PropositionalLogic",
+    "rule_set defaults to PropositionalLogic",
     true,
-    spec.corpus == PropositionalLogic,
+    spec.rule_set == PropositionalLogic,
   );
   check(int, "blank spec starts with one tree", 1, List.length(spec.trees));
 };
@@ -647,11 +647,11 @@ let tests = (
     ),
     test_case("Implies_E (modus ponens)", `Quick, test_implies_e_correct),
     test_case("Falsity_E correct", `Quick, test_falsity_e_correct),
-    /* corpus membership */
+    /* rule_set membership */
     test_case(
-      "PropositionalLogic corpus membership",
+      "PropositionalLogic rule_set membership",
       `Quick,
-      test_propositional_corpus_only_includes_prop_logic,
+      test_propositional_rule_set_only_includes_prop_logic,
     ),
     /* exercise manipulations */
     test_case("blank_spec defaults", `Quick, test_blank_spec_defaults),

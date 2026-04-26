@@ -182,7 +182,7 @@ let repr =
   | _ as rule => show(rule);
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
-type corpus =
+type rule_set =
   | PropositionalLogic
   | AL
   | ALB
@@ -192,7 +192,7 @@ type corpus =
   | RecursiveALFA
   | GradualALFA;
 
-let corpus_of_string = str =>
+let rule_set_of_string = str =>
   switch (str) {
   | "PropositionalLogic" => PropositionalLogic
   | "AL" => AL
@@ -202,18 +202,18 @@ let corpus_of_string = str =>
   | "ALFA" => ALFA
   | "RecursiveALFA" => RecursiveALFA
   | "GradualALFA" => GradualALFA
-  | _ => failwith("Unknown version: " ++ str)
+  | _ => failwith("Unknown rule set: " ++ str)
   };
 
-/* Each corpus restricts to a subset of [Rule.t] (and sometimes remaps rules,
-   e.g. [T_LetAnn => T_LetAnn_TV] in RecursiveALFA). Corpora fall through to
+/* Each rule_set restricts to a subset of [Rule.t] (and sometimes remaps rules,
+   e.g. [T_LetAnn => T_LetAnn_TV] in RecursiveALFA). rule sets fall through to
    a smaller one via [to_rule(<smaller>, rule)].
 
    NOTE: the wildcards in each branch below make the pattern matches
    non-exhaustive-checked by the compiler — adding a new [Rule.t] constructor
-   will silently return [None]. If you add a rule, extend every corpus that
+   will silently return [None]. If you add a rule, extend every rule_set that
    should accept it explicitly. */
-let rec to_rule: (corpus, t) => option(Rule.t) =
+let rec to_rule: (rule_set, t) => option(Rule.t) =
   fun
   | PropositionalLogic => (
       fun
@@ -401,9 +401,9 @@ let rec to_rule: (corpus, t) => option(Rule.t) =
       | _ as rule => to_rule(RecursiveALFA, rule)
     );
 
-let all_rules_of_version: corpus => list(t) =
-  version =>
-    all |> List.filter(rule => to_rule(version, rule) |> Option.is_some);
+let all_rules_of_rule_set: rule_set => list(t) =
+  rule_set =>
+    all |> List.filter(rule => to_rule(rule_set, rule) |> Option.is_some);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =

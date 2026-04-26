@@ -593,12 +593,14 @@ module View = {
       | Scratch(m) =>
         ScratchMode.View.top_bar(
           ~globals,
+          ~is_documentation=false,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )
       | Documentation(m) =>
         ScratchMode.View.top_bar(
           ~globals,
+          ~is_documentation=true,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )

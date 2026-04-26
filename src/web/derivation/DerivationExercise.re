@@ -58,7 +58,7 @@ type p('code) = {
   max_points: int,
   prelude: 'code,
   setup: 'code,
-  corpus: Language.RuleImage.corpus,
+  rule_set: Language.RuleImage.rule_set,
   trees: abbr_trees(deduction('code)),
 }
 and deduction('code) = {
@@ -294,7 +294,7 @@ let map = (p: p('a), f: 'a => 'b): p('b) => {
     max_points: p.max_points,
     prelude: p.prelude |> f,
     setup: p.setup |> f,
-    corpus: p.corpus,
+    rule_set: p.rule_set,
     trees: p.trees |> List.map(Tree.map(map_jdmt(f))),
   };
 };
@@ -308,7 +308,7 @@ let mapi = (p: p('a), f: (pos, 'a) => 'b): p('b) => {
     max_points: p.max_points,
     prelude: p.prelude |> f(Prelude),
     setup: p.setup |> f(Setup),
-    corpus: p.corpus,
+    rule_set: p.rule_set,
     trees:
       p.trees
       |> List.mapi(i => Tree.mapi(pos => map_jdmt(f(Trees(i, pos))))),
@@ -611,7 +611,7 @@ let blank_spec = (~title, ~module_name): spec => {
     max_points: 10,
     prelude: "",
     setup: "",
-    corpus: Language.RuleImage.PropositionalLogic,
+    rule_set: Language.RuleImage.PropositionalLogic,
     trees: [
       Tree.empty(
         Abbr.Just({

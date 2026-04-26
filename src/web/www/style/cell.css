@@ -56,6 +56,14 @@
 }
 
 /* Derivation slides inside the unified Scratch/Documentation modes
+   don't need the tall top padding that Exercises uses for the score/title
+   header; tighten it so the Rule Set label sits near the top bar. */
+#main.Scratch.Derivations,
+#main.Documentation.Derivations {
+  padding-top: 1em;
+}
+
+/* Derivation slides inside the unified Scratch/Documentation modes
    must not inherit the flex-grow applied to code scratchpad cells. */
 #main.Derivations > .cell {
   flex: 0 0 auto;

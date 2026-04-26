@@ -53,18 +53,6 @@ module Scratchpad = {
     kind: kind_persistent,
   };
 
-  let is_code = (s: t): bool =>
-    switch (s.kind) {
-    | Code(_) => true
-    | Drv(_) => false
-    };
-
-  let is_drv = (s: t): bool =>
-    switch (s.kind) {
-    | Code(_) => false
-    | Drv(_) => true
-    };
-
   let persist = (s: t): persistent => {
     switch (s.kind) {
     | Code({editor, agent}) =>
@@ -619,13 +607,13 @@ module Update = {
     | AgentAction(Agent.Agent.Update.Action.t)
     | DrvAction(DerivationExerciseMode.Update.t)
     | SwitchSlide(int)
-    | ToggleKind
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportScratchpad(option(string))
     | Export
     | Encode
     | AddSlide
+    | AddDrvSlide
     | RenameSlide
     | DeleteSlide;
 
@@ -636,13 +624,13 @@ module Update = {
     | AgentAction(_) => true
     | DrvAction(action) => DerivationExerciseMode.Update.can_undo(action)
     | SwitchSlide(_) => false
-    | ToggleKind => true
     | ResetCurrent => true
     | InitImportScratchpad(_) => true
     | FinishImportScratchpad(_) => false
     | Export => false
     | Encode => false
     | AddSlide => true
+    | AddDrvSlide => true
     | DeleteSlide => true
     | RenameSlide => true
     };
@@ -708,29 +696,53 @@ module Update = {
     };
   };
 
-  let add_new_slide = (model: Model.t, is_documentation: bool): Model.t => {
+  /* Kind of scratchpad to create. Code is the default ("Scratchpad N");
+     Drv creates a blank derivation slide with the same auto-naming scheme. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type new_slide_kind =
+    | NewCode
+    | NewDrv;
+
+  let add_new_slide =
+      (
+        ~kind: new_slide_kind,
+        ~settings: Language.CoreSettings.t,
+        model: Model.t,
+        is_documentation: bool,
+      )
+      : Model.t => {
+    let blank = name =>
+      switch (kind) {
+      | NewCode => Scratchpad.blank_code(name)
+      | NewDrv => Scratchpad.blank_drv(~settings, name)
+      };
     let add_empty_slide = (name): Model.t => {
       current: List.length(model.scratchpads),
-      scratchpads: model.scratchpads @ [Scratchpad.blank_code(name)],
+      scratchpads: model.scratchpads @ [blank(name)],
     };
     switch (is_documentation) {
     | false =>
-      let used_scratchpads =
+      let prefix =
+        switch (kind) {
+        | NewCode => "Scratchpad"
+        | NewDrv => "Derivation"
+        };
+      let used_numbers =
         model.scratchpads
         |> List.filter_map((s: Scratchpad.t) => {
              switch (String.split_on_char(' ', s.name)) {
-             | ["Scratchpad", num] => int_of_string_opt(num)
+             | [p, num] when p == prefix => int_of_string_opt(num)
              | _ => None
              }
            });
       let unused_ids =
-        Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
+        Seq.filter(i => !List.mem(i, used_numbers), Seq.ints(1));
       let new_number =
         Seq.uncons(unused_ids)
         |> Option.get  // This is safe because unused_ids is infinite
         |> fst;
 
-      add_empty_slide("Scratchpad " ++ string_of_int(new_number));
+      add_empty_slide(prefix ++ " " ++ string_of_int(new_number));
     | true =>
       let new_name =
         prompt_slide_name(
@@ -844,22 +856,6 @@ module Update = {
         };
       | Code(_) => model |> return_quiet
       };
-    | ToggleKind =>
-      let scratchpad = List.nth(model.scratchpads, model.current);
-      mark_dirty(scratchpad.name);
-      persist_cache := Maps.StringMap.remove(scratchpad.name, persist_cache^);
-      let new_sp =
-        switch (scratchpad.kind) {
-        | Code(_) =>
-          Scratchpad.blank_drv(~settings=settings.core, scratchpad.name)
-        | Drv(_) => Scratchpad.blank_code(scratchpad.name)
-        };
-      {
-        ...model,
-        scratchpads:
-          ListUtil.put_nth(model.current, new_sp, model.scratchpads),
-      }
-      |> Updated.return;
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
@@ -869,7 +865,24 @@ module Update = {
         ...model,
         current,
       };
-    | AddSlide => Updated.return(add_new_slide(model, is_documentation))
+    | AddSlide =>
+      Updated.return(
+        add_new_slide(
+          ~kind=NewCode,
+          ~settings=settings.core,
+          model,
+          is_documentation,
+        ),
+      )
+    | AddDrvSlide =>
+      Updated.return(
+        add_new_slide(
+          ~kind=NewDrv,
+          ~settings=settings.core,
+          model,
+          is_documentation,
+        ),
+      )
     | RenameSlide =>
       let current = List.nth(model.scratchpads, model.current);
       let new_name =
@@ -921,6 +934,8 @@ module Update = {
         let m: Model.t =
           List.is_empty(new_sp)
             ? add_new_slide(
+                ~kind=NewCode,
+                ~settings=settings.core,
                 {
                   ...model,
                   scratchpads: [],
@@ -1179,31 +1194,37 @@ module Selection = {
            ~mdIcon="download",
            ~section="Export",
            ~action=inject(Export),
-           "Export Scratch Slide",
+           "Export Current Scratchpad",
          ),
          ContextualAction.mk(
            ~mdIcon="download",
            ~section="Export",
            ~action=inject(Encode),
-           "Encode Scratch Slide in URL",
+           "Encode Current Scratchpad in URL",
          ),
          ContextualAction.mk(
            ~mdIcon="add",
-           ~section="Buffers",
+           ~section="Scratchpads",
            ~action=inject(AddSlide),
-           "Add New Buffer",
+           "Add New Code Scratchpad",
+         ),
+         ContextualAction.mk(
+           ~mdIcon="rule",
+           ~section="Scratchpads",
+           ~action=inject(AddDrvSlide),
+           "Add New Derivation Scratchpad",
          ),
          ContextualAction.mk(
            ~mdIcon="edit",
-           ~section="Buffers",
+           ~section="Scratchpads",
            ~action=inject(RenameSlide),
-           "Rename Current Buffer",
+           "Rename Current Scratchpad",
          ),
          ContextualAction.mk(
            ~mdIcon="delete",
-           ~section="Buffers",
+           ~section="Scratchpads",
            ~action=inject(DeleteSlide),
-           "Delete Current Buffer",
+           "Delete Current Scratchpad",
          ),
        ]);
   };
@@ -1378,45 +1399,32 @@ module View = {
     [file_group_scratch, reset_group_scratch];
   };
 
-  let kind_toggle = (~inject: Update.t => 'a, model: Model.t) => {
-    open Virtual_dom.Vdom;
-    let current = List.nth(model.scratchpads, model.current);
-    let is_drv = Scratchpad.is_drv(current);
-    /* U+22A2 RIGHT TACK (entailment) for derivation mode, lowercase "c" for
-       code mode. Rendered in the monospace code font via CSS. */
-    let label = is_drv ? {js|⊢|js} : "c";
-    let tooltip =
-      is_drv
-        ? "Switch slide to code (current content will be discarded)"
-        : "Switch slide to derivation (current content will be discarded)";
-    Node.div(
-      ~attrs=[Attr.class_("scratch-kind-toggle")],
-      [
-        Widgets.toggle(
-          ~tooltip,
-          label,
-          is_drv,
-          _ => {
-            let confirmed =
-              JsUtil.confirm(
-                "Are you sure you want to switch slide kind? Current content will be discarded.",
-              );
-            if (confirmed) {
-              inject(ToggleKind);
-            } else {
-              Virtual_dom.Vdom.Effect.Ignore;
-            };
-          },
-        ),
-      ],
+  let add_drv_slide_button = (~is_documentation, ~inject: Update.t => 'a) =>
+    Widgets.button(
+      ~tooltip=
+        "Add New Derivation " ++ (is_documentation ? "Slide" : "Scratchpad"),
+      Icons.entail,
+      _ => inject(Update.AddDrvSlide),
     );
-  };
 
-  let top_bar = (~globals as _, ~inject: Update.t => 'a, model: Model.t) => {
+  let top_bar =
+      (
+        ~globals as _,
+        ~is_documentation: bool,
+        ~inject: Update.t => 'a,
+        model: Model.t,
+      ) => {
+    let unit_name = is_documentation ? "Slide" : "Scratchpad";
+    let add_tooltip =
+      is_documentation ? "Add New Slide" : "Add New Code Scratchpad";
     EditorModeView.view(
       ~edit_buttons=true,
-      ~extra_edit_buttons=[kind_toggle(~inject, model)],
+      ~extra_edit_buttons=[
+        add_drv_slide_button(~is_documentation, ~inject),
+      ],
       ~nav_buttons=false,
+      ~unit_name,
+      ~add_tooltip,
       ~signal=
         fun
         | Previous =>

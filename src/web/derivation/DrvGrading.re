@@ -24,7 +24,7 @@ module ExternalError = {
   let show =
     fun
     | NoRule => "Rule not specified"
-    | NotAvailable => "Rule not available, try other rules or change to another corpus"
+    | NotAvailable => "Rule not available, try other rules or change to another rule_set"
     | NoAbbr => "Abbreviation not specified"
     | NotAJudgment => "Conclusion is not a judgement"
     | NoResult => "No result";
@@ -95,13 +95,13 @@ module VerifiedTree = {
     spec: RuleSpec.t,
   };
 
-  /* Verify a single deduction node against the selected rule in [corpus].
+  /* Verify a single deduction node against the selected rule in [rule_set].
      [acc] is the list of already-verified abbreviation trees (used to resolve
      [Abbr(Some(i))] references); [prems] carries the sub-trees for this
      deduction along with their parsed conclusions. */
   let verify_single =
       (
-        corpus: RuleImage.corpus,
+        rule_set: RuleImage.rule_set,
         acc: list((tree(info), option(Drv.Exp.t))),
         concl: abbr(ProofTree.res),
         prems: list((tree(info), option(Drv.Exp.t))),
@@ -119,7 +119,7 @@ module VerifiedTree = {
           rule: None,
         }
       | Just({rule: Some(rule), jdmt: concl}) =>
-        switch (RuleImage.to_rule(corpus, rule)) {
+        switch (RuleImage.to_rule(rule_set, rule)) {
         | None => {
             res: Pending(NotAvailable),
             rule: None,
@@ -166,12 +166,12 @@ module VerifiedTree = {
     (Tree.Node(res, sub_trees), concl);
   };
 
-  let verify: (RuleImage.corpus, ProofTree.t) => t =
-    (corpus, ts) => {
+  let verify: (RuleImage.rule_set, ProofTree.t) => t =
+    (rule_set, ts) => {
       let folded =
         List.fold_left(
           (acc, tree) =>
-            acc @ [Tree.fold_deep(verify_single(corpus, acc), tree)],
+            acc @ [Tree.fold_deep(verify_single(rule_set, acc), tree)],
           [],
           ts,
         );
@@ -210,6 +210,6 @@ module VerifiedTree = {
 
   let mk =
       (eds: p(Editor.t), ~stitched_results: stitched(option(Exp.t))): t => {
-    verify(eds.corpus, ProofTree.mk(eds, ~stitched_results));
+    verify(eds.rule_set, ProofTree.mk(eds, ~stitched_results));
   };
 };

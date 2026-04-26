@@ -332,26 +332,23 @@
   flex-wrap: wrap;
 }
 
-.version-name {
-  font-weight: bold;
-  display: flex;
-  padding-left: 1.2em;
-}
-
-.version-select {
-  border-radius: 2rem;
-  color: transparent;
-  width: 1.2rem;
-  background: var(--BR1);
-}
-
-.version-select option {
+.rule-set-select {
+  align-self: flex-start;
+  width: fit-content;
+  border-radius: 1em;
+  background: transparent;
   color: var(--ui-text);
-  background: var(--BR1);
+  padding: 0.2em 0.8em;
+  border: 1px solid var(--BR2);
 }
 
-.version-select:hover {
-  background: var(--BR2);
+.rule-set-select option {
+  color: var(--ui-text);
+  background: var(--T1);
+}
+
+.rule-set-select:hover {
+  border-color: var(--cell-selected-accent);
 }
 
 .hover-rule-spec {

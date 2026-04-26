@@ -1133,7 +1133,7 @@ let exercise : DerivationExercise.spec =
             pending_probe_cursor = None;
           };
       };
-    corpus = ALF;
+    rule_set = ALF;
     trees =
       [
         Node

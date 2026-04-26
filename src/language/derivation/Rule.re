@@ -2,7 +2,7 @@
   The universe of derivation rules.
 
   [t] enumerates every rule that can appear in a derivation across any of the
-  supported rule corpora (see [RuleImage.corpus]). The constructor names follow
+  supported rule rule sets (see [RuleImage.rule_set]). The constructor names follow
   a sort_judgment_form convention, e.g.:
 
   - [T_Plus]      – typing rule for [_ + _]
@@ -14,8 +14,8 @@
   - [C_UnkL]      – consistency: unknown on the left
   - [Truth_I]     – propositional-logic truth introduction
 
-  [enumerate] gives us [all], which [RuleImage.all_rules_of_version] then
-  filters to the subset supported by a particular corpus.
+  [enumerate] gives us [all], which [RuleImage.all_rules_of_rule_set] then
+  filters to the subset supported by a particular rule_set.
  */
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
@@ -152,7 +152,7 @@ type t =
   | E_If_F
   // - Numbers
   /* [E_Num] is the original "numeric literal evaluates to itself" rule from
-     the AL corpus; later corpora derive it from [E_Val] instead. */
+     the AL rule_set; later rule sets derive it from [E_Val] instead. */
   | E_Num
   | E_Neg
   | E_Plus

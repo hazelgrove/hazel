@@ -129,7 +129,7 @@ module Model = {
         switch (ed, res) {
         | (Just({rule: Some(rule), _}), {rule: None, _}) =>
           Language.(
-            switch (RuleImage.to_rule(eds.corpus, rule)) {
+            switch (RuleImage.to_rule(eds.rule_set, rule)) {
             | Some(rule) =>
               Some({
                 ...res,
@@ -634,7 +634,7 @@ module NinjaKeys = {
   module Open =
          (
            M: {
-             let corpus: RuleImage.corpus;
+             let rule_set: RuleImage.rule_set;
              let pos: DerivationExercise.pos;
              let schedule_action: Update.t => Ui_effect.t(unit);
            },
@@ -643,7 +643,7 @@ module NinjaKeys = {
       let action = Js.Unsafe.get(target_elem, "action");
       let id = Js.to_string(action##.id);
       let rule_image = RuleImage.t_of_sexp(Sexplib.Sexp.of_string(id));
-      let rule = Option.get(RuleImage.to_rule(M.corpus, rule_image));
+      let rule = Option.get(RuleImage.to_rule(M.rule_set, rule_image));
       if (current_hover_rule^ != rule) {
         current_hover_rule := rule;
         Ui_effect.Expert.handle(M.schedule_action(Refresh));
@@ -729,8 +729,8 @@ module NinjaKeys = {
       Js.Unsafe.set(
         elem,
         "data",
-        M.corpus
-        |> RuleImage.all_rules_of_version
+        M.rule_set
+        |> RuleImage.all_rules_of_rule_set
         |> List.map(from_rule)
         |> Array.of_list
         |> Js.array,
@@ -738,10 +738,10 @@ module NinjaKeys = {
     };
   };
 
-  let open_command_palette = (~corpus, ~pos, ~inject): unit => {
+  let open_command_palette = (~rule_set, ~pos, ~inject): unit => {
     module Open =
       Open({
-        let corpus = corpus;
+        let rule_set = rule_set;
         let pos = pos;
         let schedule_action = (a: Update.t) => inject(a);
       });
@@ -859,7 +859,7 @@ module View = {
       Widgets.button_named(
         Icons.command_palette_sparkle,
         _ => {
-          NinjaKeys.open_command_palette(~corpus=eds.corpus, ~pos, ~inject);
+          NinjaKeys.open_command_palette(~rule_set=eds.rule_set, ~pos, ~inject);
           Effect.Ignore;
         },
         ~tooltip="Switch Rule",
@@ -1141,20 +1141,26 @@ module View = {
 
     let derivations_view =
       div(
-        ~attrs=[Attr.classes(["cell-item derivation-panel"])],
-        (info_tree |> List.mapi(derivation_view))
-        @ (
-          if (globals.settings.instructor_mode) {
-            [
-              div(
-                ~attrs=[Attr.class_("cell-derivation")],
-                [add_abbr_btn_view(~index=List.length(eds.trees))],
-              ),
-            ];
-          } else {
-            [];
-          }
-        ),
+        ~attrs=[Attr.classes(["cell", "unlocked"])],
+        [
+          CellCommon.caption("Derivation"),
+          div(
+            ~attrs=[Attr.classes(["cell-item", "derivation-panel"])],
+            (info_tree |> List.mapi(derivation_view))
+            @ (
+              if (globals.settings.instructor_mode) {
+                [
+                  div(
+                    ~attrs=[Attr.class_("cell-derivation")],
+                    [add_abbr_btn_view(~index=List.length(eds.trees))],
+                  ),
+                ];
+              } else {
+                [];
+              }
+            ),
+          ),
+        ],
       );
 
     let editing_flags = model.editing_flags;
@@ -1198,41 +1204,45 @@ module View = {
         [text(n)],
       );
 
-    let version_view =
+    let rule_set_view = {
+      let can_edit = globals.settings.instructor_mode || scratch_mode;
+      let control =
+        if (can_edit) {
+          select(
+            ~attrs=[
+              Attr.class_("rule-set-select"),
+              Attr.title("Toggle Rule Set"),
+              Attr.on_change((_, name) => {
+                let rule_set = RuleImage.rule_set_of_string(name);
+                inject(
+                  MapEditor(
+                    m =>
+                      {
+                        ...m,
+                        rule_set,
+                      },
+                  ),
+                );
+              }),
+            ],
+            List.map(
+              option_view(RuleImage.show_rule_set(eds.rule_set)),
+              RuleImage.all_of_rule_set |> List.map(RuleImage.show_rule_set),
+            ),
+          );
+        } else {
+          text(RuleImage.show_rule_set(eds.rule_set));
+        };
+      /* Use .unlocked so the cell picks up the same left-border accent as
+         the Setup/Derivation cells above/below it. */
       div(
-        ~attrs=[Attr.class_("version-name"), Attr.title("Toggle Version")],
+        ~attrs=[Attr.classes(["cell", "unlocked"])],
         [
-          div(~attrs=[Attr.class_("version-label")], [text("Corpus: ")]),
-          text(Pretty.Unicode.nbsp),
-          text(RuleImage.show_corpus(eds.corpus)),
-          text(Pretty.Unicode.nbsp),
-          if (globals.settings.instructor_mode || scratch_mode) {
-            select(
-              ~attrs=[
-                Attr.class_("version-select"),
-                Attr.on_change((_, name) => {
-                  let corpus = RuleImage.corpus_of_string(name);
-                  inject(
-                    MapEditor(
-                      m =>
-                        {
-                          ...m,
-                          corpus,
-                        },
-                    ),
-                  );
-                }),
-              ],
-              List.map(
-                option_view(RuleImage.show_corpus(eds.corpus)),
-                RuleImage.all_of_corpus |> List.map(RuleImage.show_corpus),
-              ),
-            );
-          } else {
-            none;
-          },
+          CellCommon.caption("Rule Set"),
+          CellCommon.simple_cell_item([control]),
         ],
       );
+    };
 
     let prelude_view =
       editor_view(
@@ -1242,14 +1252,10 @@ module View = {
         ~caption="Prelude",
       );
 
-    let setup_view =
-      div(
-        ~attrs=[Attr.class_("cell-setup")],
-        [editor_view(Setup, model.cells.setup, ~caption="Setup")],
-      );
+    let setup_view = editor_view(Setup, model.cells.setup, ~caption="Setup");
 
     if (scratch_mode) {
-      [version_view, setup_view, derivations_view];
+      [rule_set_view, setup_view, derivations_view];
     } else {
       let score_view =
         Grading.score_view(
@@ -1263,7 +1269,7 @@ module View = {
         title_view,
         module_name_view,
         prompt_view,
-        version_view,
+        rule_set_view,
         prelude_view,
         setup_view,
         derivations_view,

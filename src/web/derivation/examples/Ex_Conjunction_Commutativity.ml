@@ -328,7 +328,7 @@ let exercise : DerivationExercise.spec =
             pending_probe_cursor = None;
           };
       };
-    corpus = PropositionalLogic;
+    rule_set = PropositionalLogic;
     trees =
       [
         Node

@@ -313,12 +313,6 @@
   width: 15px;
 }
 
-/* Render the knob label of the code/derivation kind toggle in the monospace
-   code font (lowercase "c" for code, ⊢ for derivation). */
-#top-bar #editor-mode .scratch-kind-toggle .toggle-knob {
-  font-family: var(--code-font);
-}
-
 #top-bar #editor-mode .toggle-switch.active .toggle-knob {
   filter: grayscale(1) sepia(1);
 }

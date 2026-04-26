@@ -20,19 +20,23 @@ let view =
       ~nav_buttons: bool,
       ~edit_buttons: bool,
       ~extra_edit_buttons: list(Node.t)=[],
+      ~unit_name: string="Slide",
+      ~add_tooltip: option(string)=?,
       ~signal: event => 'a,
       ~indicator: list(Node.t),
       (),
     ) => {
+  let add_tooltip =
+    Option.value(add_tooltip, ~default="Add New " ++ unit_name);
   let edit_buttons_list =
     [
-      button(~tooltip="Rename Current Slide", Icons.rename, _ =>
+      button(~tooltip="Rename Current " ++ unit_name, Icons.rename, _ =>
         signal(Rename)
       ),
-      button(~tooltip="Delete Current Slide", Icons.trash, _ =>
+      button(~tooltip="Delete Current " ++ unit_name, Icons.trash, _ =>
         signal(Delete)
       ),
-      button(~tooltip="Add New Slide", Icons.new_buffer, _ => signal(Add)),
+      button(~tooltip=add_tooltip, Icons.new_buffer, _ => signal(Add)),
     ]
     @ extra_edit_buttons;
 

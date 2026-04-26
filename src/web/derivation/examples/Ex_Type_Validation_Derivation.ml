@@ -575,7 +575,7 @@ let exercise : DerivationExercise.spec =
             pending_probe_cursor = None;
           };
       };
-    corpus = RecursiveALFA;
+    rule_set = RecursiveALFA;
     trees =
       [
         Node
