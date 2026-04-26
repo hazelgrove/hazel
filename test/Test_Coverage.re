@@ -1290,10 +1290,7 @@ let tests = (
     fun_tuple,
     annotated_let_tuple,
     annotated_fun_tuple,
-    /* TODO(zhiyao): I commented some tests which would otherwise trigger parser stack overflow.
-       This is probably because the menhir parser for derivation terms is not implemented yet.
-       I'll try to catch up soon.*/
-    /* peanut_1a, // TODO(zhiyao) */
+    peanut_1a,
     peanut_1b,
     peanut_2a,
     peanut_2b,
@@ -1330,7 +1327,7 @@ let tests = (
     rank_compare_inexhaustive,
     rank_let_inexhaustive,
     rank_fun_inexhaustive,
-    /* nested_constructors_inexhaustive, // TODO(zhiyao) */
+    nested_constructors_inexhaustive,
     multiple_holes_irredundant,
     unknown_scrutinee_exhaustive,
     unknown_scrutinee_redundant_vars,
