@@ -109,7 +109,9 @@ let to_segment = (str: string): option(Segment.t) => {
 
   let insert_char = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z)) {
+    /* Disable auto_indent so Parser faithfully reproduces input without
+     * adding spaces. Matches to_zipper's behavior. */
+    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z)) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
