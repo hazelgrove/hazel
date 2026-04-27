@@ -47,7 +47,7 @@ let evaluate_probes = unevaluated =>
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.Parser.to_term(s)) {
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -56,10 +56,10 @@ let parse_exp = (s: string) => {
 /* Parse code with probes (^^probe syntax), elaborate it, and build targets */
 let parse_with_probes =
     (s: string): (Exp.t, Exp.t, Statics.Map.t, Sample.targets) => {
-  switch (Haz3lcore.Parser.to_zipper(s)) {
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, s)) {
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   | Some(z) =>
-    let make_term_result = Haz3lcore.MakeTerm.from_zip_for_sem(z);
+    let make_term_result = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
     let term = make_term_result.term;
     /* Extract probe IDs directly from zipper's refractors.
      * Map values to unit since we only need the IDs as keys. */

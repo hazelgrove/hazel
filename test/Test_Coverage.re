@@ -60,10 +60,13 @@ let has_errors =
     name,
     `Quick,
     () => {
+      print_endline("yet to parse indicated exp");
       let indicated_exp: Grammar.exp_t(bool) = parse_menhir(exp);
+      print_endline("parsed indicated exp");
       let (e, ids) =
         MenhirParser.Conversion.Exp.get_indicated_ids(indicated_exp);
 
+      print_endline("Parsed expression: " ++ Exp.show(e));
       let s = statics(e);
       let errors_map = collect_errors(s) |> issue_map_of_marks_map;
       let actual_errors =
@@ -71,7 +74,18 @@ let has_errors =
         | Some(f) => f(errors_map)
         | None => errors_map
         };
+
+      let show_error_map = (m: Id.Map.t(Test_Statics_Prelude.issue)): string =>
+        Id.Map.bindings(m)
+        |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
+        |> List.map(((id, iss)) =>
+             Id.show(id) ++ " => " ++ show_issue(iss)
+           )
+        |> String.concat("\n");
+      print_endline("Actual errors: " ++ show_error_map(actual_errors));
       let expected_errors = Id.Map.of_list(List.combine(ids, errors));
+
+      print_endline("Expected errors: " ++ show_error_map(expected_errors));
 
       Alcotest.check(
         testable_error_map,

@@ -36,7 +36,7 @@ let summarized_docs = [
   "let subst: (Exp, String, Exp) -> Exp =",
   "  fun v, name, e ->",
   "    case e",
-  "    | Var(n) => if n$==name then v else e",
+  "    | Var(n) => if n==name then v else e",
   "    | Lam(x, body) => Lam(x, subst(v, name, body))",
   "    | Ap(e1, e2) => Ap(subst(v, name, e1), subst(v, name, e2))",
   "    end;",
