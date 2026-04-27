@@ -1029,7 +1029,12 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Generic multi-keyword tile: interleave shards and children with Break.
-     Children get Nest so multi-line children indent relative to keywords. */
+     Children get Nest so multi-line children indent relative to keywords.
+     The tile is wrapped in a Group so it stays flat when it fits (e.g.
+     `eval 1 at 0 end`) even when the surrounding context is breaking — for
+     instance a proof step before a `;`. Tiles whose final token is `end`
+     are self-contained operand forms (the proof steps eval/axiom/rewrite),
+     so we attach a trailing `;` and hard-break after it like case/test. */
   | _ =>
     let rec build_rest =
             (idx, triples: list((Tile.t, Segment.t, Tile.t))): doc =>
@@ -1044,10 +1049,15 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           build_rest(idx + 1, rest_triples),
         ])
       };
-    let tile_doc = cats([shard(0), build_rest(1, triples)]);
-    switch (rest) {
-    | [] => tile_doc
-    | _ => cats([tile_doc, body_doc(false)])
+    let tile_doc = Group(cats([shard(0), build_rest(1, triples)]));
+    let ends_in_end = List.nth_opt(t.label, last_shard_idx) == Some("end");
+    if (ends_in_end) {
+      tile_with_rest(tile_doc);
+    } else {
+      switch (rest) {
+      | [] => tile_doc
+      | _ => cats([tile_doc, body_doc(false)])
+      };
     };
   };
 }
