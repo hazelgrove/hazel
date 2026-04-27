@@ -24,6 +24,8 @@ If you already have `ocaml` version 5.2.0, at least version 2.0 of `opam`, and a
 - `make deps`
 - `make dev`
 
+`make deps` also installs a pre-commit git hook that auto-formats your staged code on every commit. See [CONTRIBUTING.md](CONTRIBUTING.md#git-hooks) for details.
+
 ### Long Version
 
 If the above pre-requisites don't apply, please follow the step-by-step installation instructions contained in [INSTALL.md](INSTALL.md).

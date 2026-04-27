@@ -42,9 +42,9 @@ dev-helper: setup-zarith
 	dune fmt --auto-promote || true
 	dune build @ocaml-index @src/fmt --auto-promote src --profile dev
 
-dev: install-hooks setup-instructor dev-helper
+dev: setup-instructor dev-helper
 
-dev-student: install-hooks setup-student dev-helper
+dev-student: setup-student dev-helper
 
 fmt:
 	dune fmt --auto-promote

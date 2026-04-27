@@ -79,6 +79,14 @@ The `make dev` and `make release` commands do three things:
 4. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
 
+## Git Hooks
+
+`make deps` installs a `pre-commit` hook (under `scripts/git-hooks/`) by setting `core.hooksPath`. On every commit the hook runs `dune fmt --auto-promote` and re-stages any of the *staged* files the formatter touched, so commits never contain unformatted code.
+
+- Files you didn't stage are left alone, even if the formatter modifies them — your unrelated unstaged WIP won't be swept into the commit.
+- If you ever need to bypass the hook (e.g. to share a WIP refactor that you don't want autoformatted yet), pass `--no-verify` to `git commit`.
+- If your clone predates this and the hook isn't running, run `make deps` (or `make install-hooks`) once to install it.
+
 ## Live Building 
 For a smoother dev experience, use `make watch` rather than `make dev` to automatically watch 
 for file changes and rebuild immediately. You can also run `make watch-release` to continuously build the release
