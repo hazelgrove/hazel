@@ -1078,27 +1078,16 @@ let rec get_sum_constructors =
     | Parens(ty) =>
       get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty)
     | Sum(sm) => Some(sm)
+    | Rec({term: Var(x), _}, ty_body) =>
+      Ctx.is_alias(ctx, x)
+        /* Type aliases use the alias name as the recursive parameter. Strip the
+           Rec wrapper here, but do not substitute the recursive type into
+           payloads: constructor argument types should mention the alias
+           application (e.g. List(Int)), not an eagerly expanded recursive body. */
+        ? get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty_body)
+        : get_sum_constructors(~rec_counter=rec_counter + 1, ctx, unroll(ty))
     | Rec(_) =>
-      /* Note: We must unroll here to get right ctr types;
-         otherwise the rec parameter will leak. However, seeing
-         as substitution is too expensive to be used here, we
-         currently making the optimization that, since all
-         recursive types are type alises which use the alias name
-         as the recursive parameter, and type aliases cannot be
-         shadowed, it is safe to simply remove the Rec constructor,
-         provided we haven't escaped the context in which the alias
-         is bound. If either of the above assumptions become invalid,
-         the below code will be incorrect! */
-      let ty =
-        switch (ty |> term_of) {
-        | Rec({term: Var(x), _}, _ty_body) =>
-          switch (Ctx.lookup_alias(ctx, x)) {
-          | None => unroll(ty)
-          | Some(_) => unroll(ty)
-          }
-        | _ => ty
-        };
-      get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty);
+      get_sum_constructors(~rec_counter=rec_counter + 1, ctx, unroll(ty))
     | _ => None
     };
   };

@@ -81,7 +81,7 @@ let x : Option(Int) = Some(true) in x
           static_errors(
             {|
 type List(a) = + Nil + Cons(a, List(a)) in
-let xs : List(Int) = Nil in xs
+let xs : List(Int) = Cons((1, Nil)) in xs
 |},
           );
 
