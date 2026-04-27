@@ -25,7 +25,9 @@ type key =
   | Tutorial(Haz3lcore.Id.t)
   | CurrentTutorial
   | CurrentExercise
-  | Exercise(Haz3lcore.Id.t);
+  | Exercise(Haz3lcore.Id.t)
+  | CurrentDerivation
+  | Derivation(Haz3lcore.Id.t);
 
 let key_to_string =
   fun
@@ -35,6 +37,8 @@ let key_to_string =
   | Tutorial(id) => Haz3lcore.Id.to_string(id)
   | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"
+  | CurrentDerivation => "CUR_DERIVATION"
+  | Derivation(key) => "DERIVATIONS" ++ Haz3lcore.Id.to_string(key)
   | Exercise(id) => "TUTORIAL" ++ Haz3lcore.Id.to_string(id);
 
 module F =

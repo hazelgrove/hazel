@@ -119,11 +119,12 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z);
+  let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
   let term = make_term_result.term |> stitch;
   /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
    * Map values to unit since we only need the IDs as keys. */
@@ -143,8 +144,10 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     ) =>
   settings.statics
-    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~ana?, z) : empty;
+    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
+    : empty;

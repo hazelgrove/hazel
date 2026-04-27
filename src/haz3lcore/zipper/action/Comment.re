@@ -43,7 +43,7 @@ let uncommented_text = (seg: Segment.t): string =>
   |> String.concat("");
 
 /* Re-insert text character-by-character into a zipper */
-let insert_text = (z: t, text: string): t =>
+let insert_text = (z: t, text: string, ~root): t =>
   if (String.length(text) == 0) {
     z;
   } else {
@@ -53,7 +53,7 @@ let insert_text = (z: t, text: string): t =>
            (z_opt, c) =>
              switch (z_opt) {
              | None => None
-             | Some(z) => Insert.go(c, z)
+             | Some(z) => Insert.go(c, z, ~root)
              },
            Some(z),
          );
@@ -80,21 +80,21 @@ let select_line = (z: t): t => {
 
 /* Uncomment: extract content from comment pieces, destroy
  * selection, and re-insert the content as code. */
-let uncomment = (z: t): option(t) => {
+let uncomment = (z: t, ~root): option(t) => {
   let text = uncommented_text(z.selection.content);
   let z = Zipper.destroy_selection(z);
-  Some(insert_text(z, text));
+  Some(insert_text(z, text, ~root));
 };
 
 /* Toggle comment for a single line at the caret position */
-let toggle_single = (z: t): option(t) => {
+let toggle_single = (z: t, ~root): option(t) => {
   let z = select_line(z);
   if (z.selection.content == []) {
     Some(Zipper.unselect(z));
   } else {
     switch (classify(z.selection.content)) {
-    | Code => Insert.try_wrap_selection("#", z)
-    | Comment => uncomment(z)
+    | Code => Insert.try_wrap_selection("#", z, ~root)
+    | Comment => uncomment(z, ~root)
     | Empty
     | Mixed => Some(Zipper.unselect(z))
     };
@@ -166,7 +166,7 @@ let reselect_lines = (z: t, num_newlines: int): t => {
 /* Toggle comment for multiple lines spanned by the current selection.
  * Extends selection to cover full lines, then processes each line
  * individually from top to bottom. Result remains selected. */
-let toggle_multi = (~deep_reassociate=false, z: t): option(t) => {
+let toggle_multi = (~deep_reassociate=false, z: t, ~root): option(t) => {
   let maybe_reassoc = deep_reassociate ? Reassociate.go : Fun.id;
   /* Extend selection to cover full lines.
    * Must set focus to match the extension direction,
@@ -201,7 +201,7 @@ let toggle_multi = (~deep_reassociate=false, z: t): option(t) => {
     let num_newlines = List.length(lines) - 1;
     let commented =
       lines |> List.map(line => "#" ++ line ++ "#") |> String.concat("\n");
-    let z = insert_text(z, commented);
+    let z = insert_text(z, commented, ~root);
     let z = maybe_reassoc(z);
     Some(reselect_lines(z, num_newlines));
   | Comment =>
@@ -210,7 +210,7 @@ let toggle_multi = (~deep_reassociate=false, z: t): option(t) => {
     let text = uncommented_text(content);
     let num_newlines = List.length(String.split_on_char('\n', text)) - 1;
     let z = Zipper.destroy_selection(z);
-    let z = insert_text(z, text);
+    let z = insert_text(z, text, ~root);
     let z = maybe_reassoc(z);
     Some(reselect_lines(z, num_newlines));
   };
@@ -219,9 +219,9 @@ let toggle_multi = (~deep_reassociate=false, z: t): option(t) => {
 /* Main entry point: toggle line comment.
  * No selection → toggle current line.
  * With selection → toggle all lines the selection spans. */
-let go = (~deep_reassociate=false, z: t): option(t) =>
+let go = (~deep_reassociate=false, z: t, ~root): option(t) =>
   if (z.selection.content != []) {
-    toggle_multi(~deep_reassociate, z);
+    toggle_multi(~deep_reassociate, z, ~root);
   } else {
-    toggle_single(z);
+    toggle_single(z, ~root);
   };

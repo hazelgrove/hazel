@@ -21,15 +21,79 @@ module Model = {
     | Documentation(_) => "Documentation"
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
+
+  /* Auxiliary classes on the main div, so CSS can target derivation-kind
+     scratchpads inside the unified Scratch/Documentation modes. */
+  let extra_main_classes = (model: t): list(string) => {
+    let scratchpad_kind_class = (m: ScratchMode.Model.t) => {
+      let current = List.nth(m.scratchpads, m.current);
+      switch (current.kind) {
+      | Code(_) => []
+      | Drv(_) => ["Derivations"]
+      };
+    };
+    switch (model) {
+    | Scratch(m)
+    | Documentation(m) => scratchpad_kind_class(m)
+    | Tutorial(_)
+    | Exercises(_) => []
+    };
+  };
+
+  let get_derivation_info = (model: t) => {
+    switch (model) {
+    | Exercises(eds) => ExercisesMode.Model.get_derivation_info(eds)
+    | Scratch(m)
+    | Documentation(m) => ScratchMode.Model.get_derivation_info(m)
+    | Tutorial(_) => None
+    };
+  };
 };
 
-module StoreMode =
-  Store.F({
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Model.mode;
-    let key = Store.Mode;
-    let default = (): Model.mode => Tutorial;
-  });
+/* Legacy-friendly wrapper for the Store.Mode key. Old persisted values
+   may read as "Derivations"; we accept that during deserialization and
+   coerce to Scratch. */
+module StoreMode = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Model.mode;
+  let key = Store.Mode;
+  let key_string = Store.key_to_string(Store.Mode);
+  let default = (): Model.mode => Scratch;
+
+  let serialize = (data: t) => data |> sexp_of_t |> Sexplib.Sexp.to_string;
+
+  let deserialize = (data: string, default: t) =>
+    switch (Sexplib.Sexp.of_string(data)) {
+    | sexp =>
+      switch (t_of_sexp(sexp)) {
+      | m => m
+      | exception _ =>
+        /* Legacy: was "Derivations" or otherwise unparseable; fall back. */
+        switch (sexp) {
+        | Sexplib.Sexp.Atom("Derivations") => Model.Scratch
+        | _ =>
+          print_endline("Could not deserialize " ++ key_string ++ ".");
+          default;
+        }
+      }
+    | exception _ =>
+      print_endline("Could not deserialize " ++ key_string ++ ".");
+      default;
+    };
+
+  let save = (data: t): unit =>
+    HazelDB.kv_save(key_string, serialize(data));
+
+  let load = (): t =>
+    switch (HazelDB.kv_get(key_string)) {
+    | Some(data) => deserialize(data, default())
+    | None =>
+      switch (Store.legacy_get(key_string)) {
+      | None => default()
+      | Some(data) => deserialize(data, default())
+      }
+    };
+};
 
 module Store = {
   let scratch_defaults = () => {
@@ -39,7 +103,28 @@ module Store = {
 
   let doc_defaults = () => {
     let (current, slides) = Init.startup.documentation;
-    (current, List.map(fst, slides));
+    (current, List.map(fst, slides) @ Init.documentation_drv_slide_names());
+  };
+
+  let load_scratch = (~settings) => {
+    let (default_current, default_names) = scratch_defaults();
+    ScratchMode.Persist.load_all(
+      "scratch",
+      ~settings,
+      ~default_names,
+      ~default_current,
+    )
+    |> ScratchMode.integrate_share(~settings);
+  };
+
+  let load_documentation = (~settings) => {
+    let (default_current, default_names) = doc_defaults();
+    ScratchMode.Persist.load_all(
+      "doc",
+      ~settings,
+      ~default_names,
+      ~default_current,
+    );
   };
 
   let load = (~settings, ~instructor_mode) => {
@@ -48,40 +133,12 @@ module Store = {
       && JsUtil.QueryParams.get_param("share") != None;
 
     if (has_share_params) {
-      let (default_current, default_names) = scratch_defaults();
-      Model.Scratch(
-        ScratchMode.Persist.load_all(
-          "scratch",
-          ~settings,
-          ~default_names,
-          ~default_current,
-        )
-        |> ScratchMode.integrate_share(~settings),
-      );
+      Model.Scratch(load_scratch(~settings));
     } else {
       let mode = StoreMode.load();
       switch (mode) {
-      | Scratch =>
-        let (default_current, default_names) = scratch_defaults();
-        Model.Scratch(
-          ScratchMode.Persist.load_all(
-            "scratch",
-            ~settings,
-            ~default_names,
-            ~default_current,
-          )
-          |> ScratchMode.integrate_share(~settings),
-        );
-      | Documentation =>
-        let (default_current, default_names) = doc_defaults();
-        Model.Documentation(
-          ScratchMode.Persist.load_all(
-            "doc",
-            ~settings,
-            ~default_names,
-            ~default_current,
-          ),
-        );
+      | Scratch => Model.Scratch(load_scratch(~settings))
+      | Documentation => Model.Documentation(load_documentation(~settings))
       | Tutorial =>
         Model.Tutorial(
           TutorialsMode.Store.load(~settings, ~instructor_mode)
@@ -202,27 +259,12 @@ module Update = {
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       ScratchMode.reset_persist_state();
-      let (default_current, default_names) = Store.scratch_defaults();
-      Model.Scratch(
-        ScratchMode.Persist.load_all(
-          "scratch",
-          ~settings=globals.settings.core,
-          ~default_names,
-          ~default_current,
-        )
-        |> ScratchMode.integrate_share(~settings=globals.settings.core),
-      )
+      Model.Scratch(Store.load_scratch(~settings=globals.settings.core))
       |> return;
     | (SwitchMode(Documentation), _) =>
       ScratchMode.reset_persist_state();
-      let (default_current, default_names) = Store.doc_defaults();
       Model.Documentation(
-        ScratchMode.Persist.load_all(
-          "doc",
-          ~settings=globals.settings.core,
-          ~default_names,
-          ~default_current,
-        ),
+        Store.load_documentation(~settings=globals.settings.core),
       )
       |> return;
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
@@ -354,13 +396,13 @@ module Selection = {
       let+ a = ci;
       Update.Exercises(a);
     | (Scratch(_), Tutorial(_))
-    | (Exercises(_), Tutorial(_))
     | (Scratch(_), Exercises(_))
     | (Exercises(_), Scratch(_))
+    | (Exercises(_), Documentation(_))
+    | (Exercises(_), Tutorial(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Exercises(_))
-    | (Tutorial(_), Documentation(_))
-    | (Exercises(_), Documentation(_)) => empty
+    | (Tutorial(_), Documentation(_)) => empty
     };
   };
 
@@ -368,10 +410,10 @@ module Selection = {
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
     switch (model) {
     | Scratch(m) =>
-      ScratchMode.Selection.jump_to_tile(tile, m)
+      ScratchMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
     | Documentation(m) =>
-      ScratchMode.Selection.jump_to_tile(tile, m)
+      ScratchMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
     | Tutorial(m) =>
       TutorialsMode.Selection.jump_to_tile(~settings, tile, m)
@@ -387,7 +429,22 @@ module Selection = {
     | Model.Documentation(_) => Scratch(Cell(MainEditor))
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
-      Exercises(Implementation(Cell(Exercise.Prelude, MainEditor)));
+      Exercises(Code(Cell(CodeExercise.Prelude, MainEditor)));
+
+  /* Selection-aware variant of Model.get_derivation_info: reports the
+     derivation context only when the user's current focus is inside a
+     derivation tree cell. Callers driving cursor-dependent UI (highlight
+     maps, sidebar) should prefer this over the Model version, which reads
+     the stale `model.pos`. */
+  let get_derivation_info = (~selection: t, editors: Model.t) =>
+    switch (selection, editors) {
+    | (Scratch(sel), Scratch(m))
+    | (Scratch(sel), Documentation(m)) =>
+      ScratchMode.Selection.get_derivation_info(~selection=sel, m)
+    | (Exercises(sel), Exercises(m)) =>
+      ExercisesMode.Selection.get_derivation_info(~selection=sel, m)
+    | _ => None
+    };
 };
 
 module View = {
@@ -420,6 +477,7 @@ module View = {
           | _ => None
           },
         ~inject=a => Update.Scratch(a) |> inject,
+        ~inject_explainthis,
         m,
       )
     // Add in the line numbering for Documentation editor
@@ -435,6 +493,7 @@ module View = {
           | _ => None
           },
         ~inject=a => Update.Scratch(a) |> inject,
+        ~inject_explainthis,
         m,
       )
     | Tutorial(m) =>
@@ -534,12 +593,14 @@ module View = {
       | Scratch(m) =>
         ScratchMode.View.top_bar(
           ~globals,
+          ~is_documentation=false,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )
       | Documentation(m) =>
         ScratchMode.View.top_bar(
           ~globals,
+          ~is_documentation=true,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )

@@ -95,6 +95,7 @@ module Update = {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
         ? Animation.request([Animation.Actions.move("caret")]) : ();
+
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
@@ -448,7 +449,9 @@ module View = {
     current_target
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code-container")
-    |> Option.get;
+    |> OptUtil.value_exn(
+         ~none=Invalid_argument("CodeEditable.View.container_target"),
+       );
 
   module PointerCapture = {
     /* This uses the Pointer Capture API to keep mouse movement data flowing
@@ -482,7 +485,14 @@ module View = {
       ~font_metrics=globals.font_metrics,
       z,
     ),
-    Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
+    Arms.Indicated.term(
+      ~refine_sort=
+        (id, mold_out) =>
+          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+      ~font_metrics=globals.font_metrics,
+      ~syntax,
+      z,
+    ),
     (
       expand_selection
         ? Highlight.selection_expanded(~term_data=syntax.term_data)

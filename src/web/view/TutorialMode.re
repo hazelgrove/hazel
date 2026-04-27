@@ -17,7 +17,12 @@ module Model = {
     cells: Tutorial.stitched(CellEditor.Model.t),
   };
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors = Tutorial.map(spec, Editor.Model.mk, Editor.Model.mk);
+    let editors =
+      Tutorial.map(
+        spec,
+        Editor.Model.mk(~root=Exp),
+        Editor.Model.mk(~root=Exp),
+      );
     let term_item_to_cell = (item: Tutorial.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -196,7 +201,7 @@ module Update = {
       model |> Updated.return_quiet(~recalculate=true);
     | ResetEditor(pos) =>
       let spec = Tutorial.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(spec);
+      let new_editor = Editor.Model.mk(spec, ~root=Exp);
       {
         ...model,
         editors:
@@ -205,7 +210,11 @@ module Update = {
       |> Updated.return;
     | ResetTutorial =>
       let new_editors =
-        Tutorial.map(model.spec, Editor.Model.mk, Editor.Model.mk);
+        Tutorial.map(
+          model.spec,
+          Editor.Model.mk(~root=Exp),
+          Editor.Model.mk(~root=Exp),
+        );
       {
         ...model,
         editors: new_editors,
