@@ -5,17 +5,19 @@ open Action;
 open Util;
 
 let mk_zipper = (code: string): Zipper.t => {
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(~root=Exp, code)) {
   | Some(z) => z
   | None => Alcotest.fail("Failed to parse: " ++ code)
   };
 };
 
 let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
-  Statics.mk(
-    CoreSettings.on,
-    Builtins.ctx_init(Some(Operators.default_mode)),
-    MakeTerm.from_zip_for_sem(z).term,
+  fst(
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
+    ),
   );
 
 let render_zipper = (z: Zipper.t): string =>
@@ -27,6 +29,7 @@ let run_agent_action = (code: string, a: Action.Structural.t) => {
     ~settings=CoreSettings.on,
     ~statics=CachedStatics.empty,
     ~syntax=CachedSyntax.init(z),
+    ~root=Exp,
     Structural(a),
     {
       zipper: z,
@@ -66,7 +69,7 @@ let run_initialize = (code: string, new_code: string) => {
           ),
         );
       } else {
-        Ok(Dump.to_zipper(new_z));
+        Ok(Dump.to_zipper(new_z, ~root=Exp));
       };
     };
   };
@@ -2099,7 +2102,7 @@ let str_contains = (haystack: string, needle: string): bool => {
 
 let mk_term = (code: string): Exp.t => {
   let z = mk_zipper(code);
-  MakeTerm.from_zip_for_sem(z).term;
+  MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
 };
 
 let selector_query = (code: string, sel: string): list(string) => {
@@ -3143,7 +3146,7 @@ let selector_tests = (
           run_agent_action(code, SelectorInsertAfter("% let x", "let y = 2"))
         ) {
         | Ok(new_z) =>
-          let new_term = MakeTerm.from_zip_for_sem(new_z).term;
+          let new_term = MakeTerm.from_zip_for_sem(new_z, ~root=Exp).term;
           /* Verify the inserted binding exists */
           let y_results = Selector.query("let y = %", new_term);
           check(int, "y binding found", 1, List.length(y_results));
@@ -5886,6 +5889,7 @@ let sequential_operations_tests = (
             ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
+            ~root=Exp,
             Structural(Update(Definition, "b", "a + 1")),
             {
               zipper: z,
@@ -5924,6 +5928,7 @@ let sequential_operations_tests = (
             ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
+            ~root=Exp,
             Structural(Update(Body, "b", "a * b")),
             {
               zipper: z,
@@ -5958,6 +5963,7 @@ let sequential_operations_tests = (
             ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
+            ~root=Exp,
             Structural(Insert(Before, "c", "let d = a * 2 in")),
             {
               zipper: z,
@@ -5999,6 +6005,7 @@ let sequential_operations_tests = (
             ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
+            ~root=Exp,
             Structural(Update(Definition, "x", "100")),
             {
               zipper: z,
@@ -6377,7 +6384,7 @@ let complex_program_tests = (
 
 /* Helper: find the nth arm body ID from a zipper's term */
 let find_arm_body_id_in_zipper = (z: Zipper.t, arm_idx: int): Id.t => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let result = ref(None);
   let _ =
     Exp.map_term(
@@ -6535,7 +6542,7 @@ let case_arm_tests = (
       `Quick,
       () => {
         let z = mk_zipper("let x = 1 in x");
-        let term = MakeTerm.from_zip_for_sem(z).term;
+        let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
         let id = Exp.rep_id(term);
         check(bool, "not case arm", false, TermEdit.is_case_arm(z, id));
       },
@@ -6691,7 +6698,7 @@ let case_arm_tests = (
 
 /* Helper: find nth element ID in the first ListLit in the term */
 let find_list_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let result = ref(None);
   let _ =
     Exp.map_term(
@@ -6839,7 +6846,7 @@ let list_element_tests = (
 /* === Tuple Element Tests === */
 
 let find_tuple_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let result = ref(None);
   let _ =
     Exp.map_term(

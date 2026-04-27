@@ -24,7 +24,7 @@ module Local = {
        calling get_inner_term_id(curr_node_info, Body) will return the id of the body "100 + 200".
        */
       switch (node.info) {
-      | InfoExp({term, _}) =>
+      | InfoExp({user_term: term, _}) =>
         switch (Exp.term_of(term)) {
         | Let(pat, def, body) =>
           switch (inner_term) {
@@ -184,7 +184,7 @@ module Local = {
         );
       | [] =>
         /* Check for Invalid/MultiHole nodes in the parsed term */
-        let term = MakeTerm.from_zip_for_sem(z).term;
+        let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
         let errors = ref([]);
         let _ =
           Exp.map_term(
@@ -218,7 +218,7 @@ module Local = {
        expression, pattern, and type holes. Useful for the agent to
        know if the program is "complete" (no unfilled holes). */
     let count_holes = (z: Zipper.t): (int, int, int) => {
-      let term = MakeTerm.from_zip_for_sem(z).term;
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       let exp_holes = ref(0);
       let pat_holes = ref(0);
       let typ_holes = ref(0);
@@ -377,9 +377,9 @@ module Local = {
       // Note that we paste a segment; so, we convert the string to a segment
       // first, and then insert the segment into the zipper. This helps to
       // avoid potential current buggy parsing issues.
-      Parser.to_segment(code)
+      Parser.to_segment(code, ~root=Exp)
       |> OptUtil.and_then((segment: Segment.t) =>
-           Some(Zipper.insert_segment(z, segment))
+           Some(Zipper.insert_segment(z, segment, ~root=Exp))
          )
       |> return(CantPaste);
     };
@@ -408,7 +408,7 @@ module Local = {
          and replace_typ_by_id. */
       let is_type_alias =
         switch (initial_node.info) {
-        | InfoExp({term, _}) =>
+        | InfoExp({user_term: term, _}) =>
           switch (Exp.term_of(term)) {
           | TyAlias(_, _, _) => true
           | _ => false
@@ -855,7 +855,7 @@ module Local = {
     /* --- Selector-driven edits --- */
 
     | SelectorUpdate(selector, code) =>
-      let term = MakeTerm.from_zip_for_sem(initial_z).term;
+      let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
       switch (Selector.query_unique(selector, term)) {
       | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
       | Ok({focused, focused_id, _}) =>
@@ -916,7 +916,7 @@ module Local = {
       };
 
     | SelectorDelete(selector) =>
-      let term = MakeTerm.from_zip_for_sem(initial_z).term;
+      let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
       switch (Selector.query_unique(selector, term)) {
       | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
       | Ok({focused, focused_id, _}) =>
@@ -950,7 +950,7 @@ module Local = {
         | SelectorInsertBefore(_, _) => Direction.Left
         | _ => Direction.Right
         };
-      let term = MakeTerm.from_zip_for_sem(initial_z).term;
+      let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
       switch (Selector.query_unique(selector, term)) {
       | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
       | Ok({focused_id, _}) =>
@@ -1011,23 +1011,26 @@ module Local = {
 
   let format_typ = (ty: Typ.t): string => ErrorPrint.Print.typ(ty);
 
-  let format_status_exp = (status: Info.status_exp): string =>
-    switch (status) {
-    | NotInHole(Common(Syn(ty))) => "Synthesized type: " ++ format_typ(ty)
-    | NotInHole(Common(Ana(Consistent({ana, syn, _})))) =>
-      "Expected type: "
-      ++ format_typ(ana)
-      ++ "\nSynthesized type: "
-      ++ format_typ(syn)
-      ++ "\nStatus: consistent"
-    | NotInHole(Common(Ana(InternallyInconsistent({ana, _})))) =>
-      "Expected type: "
-      ++ format_typ(ana)
-      ++ "\nStatus: internally inconsistent (ok in analytic position)"
-    | NotInHole(AnaDeferralConsistent(ty)) =>
-      "Deferral consistent with type: " ++ format_typ(ty)
-    | InHole(err) => "Status: error\nError: " ++ ErrorPrint.exp_error(err)
+  /* TODO: stubbed — see merge brief.
+     The dev branch removed the `Info.status_exp` ADT in favor of a unified
+     `marks: list(Mark.t)` field on `Info.exp`. This formatter previously
+     pattern-matched on NotInHole/InHole/Consistent/AnaDeferralConsistent
+     to produce a human-readable status string. The closest replacement is
+     ErrorPrint.string_of_marks, which renders marks but does not surface
+     the synthesized/expected type the way the old version did. Reproduces
+     a partial status string here (synth type only) and lists marks if any.
+     The selector and path-based read-dispatch handlers below depend on
+     this; they may produce less detailed output than before. */
+  let format_status_exp = (info: Info.exp): string => {
+    let ty_str = "Synthesized type: " ++ format_typ(info.ty);
+    switch (info.marks) {
+    | [] => ty_str
+    | marks =>
+      ty_str
+      ++ "\nStatus: error\nError: "
+      ++ ErrorPrint.string_of_marks(InfoExp(info), marks)
     };
+  };
 
   let read_dispatch =
       (
@@ -1041,7 +1044,7 @@ module Local = {
        bypassing the HighLevelNodeMap path system */
     switch (action) {
     | Select(selector_str) =>
-      let term = MakeTerm.from_zip_for_sem(z).term;
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       switch (Selector.query(selector_str, term)) {
       | [] =>
         Error(
@@ -1054,7 +1057,7 @@ module Local = {
         Ok(String.concat("\n", results));
       };
     | GetCanonical(selector_str) =>
-      let term = MakeTerm.from_zip_for_sem(z).term;
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       switch (Selector.query_unique(selector_str, term)) {
       | Error(e) =>
         Error(Composition_action_failure("Selector error: " ++ e))
@@ -1097,7 +1100,7 @@ module Local = {
         );
       };
     | SelectorGetStatics(selector_str) =>
-      let term = MakeTerm.from_zip_for_sem(z).term;
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       switch (Selector.query_unique(selector_str, term)) {
       | Error(e) =>
         Error(Composition_action_failure("Selector error: " ++ e))
@@ -1111,25 +1114,30 @@ module Local = {
             ),
           )
         | Some(info) =>
+          /* TODO: stubbed — see merge brief. Was previously decomposing
+             the `status` field of Info.exp/pat which has been removed in
+             favor of `marks: list(Mark.t)`. */
           let result =
             switch (info) {
-            | InfoExp({ana, status, _}) =>
+            | InfoExp(exp_info) =>
               "Selector: "
               ++ selector_str
               ++ "\nAnalytic (expected) type: "
-              ++ format_typ(ana)
+              ++ format_typ(exp_info.ana)
               ++ "\n"
-              ++ format_status_exp(status)
-            | InfoPat({ana, status, _}) =>
+              ++ format_status_exp(exp_info)
+            | InfoPat(pat_info) =>
               "Selector: "
               ++ selector_str
               ++ "\nAnalytic type: "
-              ++ format_typ(ana)
+              ++ format_typ(pat_info.ana)
               ++ "\nStatus: "
               ++ (
-                switch (status) {
-                | NotInHole(_) => "ok"
-                | InHole(err) => "error: " ++ ErrorPrint.pat_error(err)
+                switch (pat_info.marks) {
+                | [] => "ok"
+                | marks =>
+                  "error: "
+                  ++ ErrorPrint.string_of_marks(InfoPat(pat_info), marks)
                 }
               )
             | info =>
@@ -1138,11 +1146,10 @@ module Local = {
               ++ "\nClass: "
               ++ Cls.show(Info.cls_of(info))
               ++ (
-                switch (Info.error_of(info)) {
-                | None => "\nStatus: ok"
-                | Some(err) =>
-                  "\nStatus: error: " ++ ErrorPrint.string_of(err)
-                }
+                Info.is_error(info)
+                  ? "\nStatus: error: "
+                    ++ ErrorPrint.string_of_marks(info, Info.marks_of(info))
+                  : "\nStatus: ok"
               )
             };
           /* Also gather errors from the subtree */
@@ -1167,7 +1174,7 @@ module Local = {
         };
       };
     | SelectorGetContext(selector_str) =>
-      let term = MakeTerm.from_zip_for_sem(z).term;
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       switch (Selector.query_unique(selector_str, term)) {
       | Error(e) =>
         Error(Composition_action_failure("Selector error: " ++ e))
@@ -1262,29 +1269,32 @@ module Local = {
           };
         | GetStatics(path) =>
           let node = path_to_node(node_map, path);
+          /* TODO: stubbed — see merge brief. Status field replaced with marks. */
           let result =
             switch (node.info) {
-            | InfoExp({ana, status, _}) =>
+            | InfoExp(exp_info) =>
               "Path: "
               ++ path
               ++ "\nBinding: "
               ++ node.name
               ++ "\nAnalytic (expected) type: "
-              ++ format_typ(ana)
+              ++ format_typ(exp_info.ana)
               ++ "\n"
-              ++ format_status_exp(status)
-            | InfoPat({ana, status, _}) =>
+              ++ format_status_exp(exp_info)
+            | InfoPat(pat_info) =>
               "Path: "
               ++ path
               ++ "\nBinding: "
               ++ node.name
               ++ "\nAnalytic type: "
-              ++ format_typ(ana)
+              ++ format_typ(pat_info.ana)
               ++ "\nStatus: "
               ++ (
-                switch (status) {
-                | NotInHole(_) => "ok"
-                | InHole(err) => "error: " ++ ErrorPrint.pat_error(err)
+                switch (pat_info.marks) {
+                | [] => "ok"
+                | marks =>
+                  "error: "
+                  ++ ErrorPrint.string_of_marks(InfoPat(pat_info), marks)
                 }
               )
             | info =>
@@ -1295,11 +1305,10 @@ module Local = {
               ++ "\nClass: "
               ++ Cls.show(Info.cls_of(info))
               ++ (
-                switch (Info.error_of(info)) {
-                | None => "\nStatus: ok"
-                | Some(err) =>
-                  "\nStatus: error: " ++ ErrorPrint.string_of(err)
-                }
+                Info.is_error(info)
+                  ? "\nStatus: error: "
+                    ++ ErrorPrint.string_of_marks(info, Info.marks_of(info))
+                  : "\nStatus: ok"
               )
             };
           /* Also gather errors from the node's subtree */
@@ -1452,7 +1461,8 @@ module Local = {
     let res =
       try(
         switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
-        | Ok((new_z, warning)) => Ok((Dump.to_zipper(new_z), warning))
+        | Ok((new_z, warning)) =>
+          Ok((Dump.to_zipper(new_z, ~root=Exp), warning))
         | Error(e) => Error(e)
         }
       ) {
@@ -1466,10 +1476,12 @@ module Local = {
 module Public = {
   let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
     Language.(
-      Statics.mk(
-        CoreSettings.on,
-        Builtins.ctx_init(Some(Operators.default_mode)),
-        MakeTerm.from_zip_for_sem(z).term,
+      fst(
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Operators.default_mode)),
+          MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
+        ),
       )
     );
 

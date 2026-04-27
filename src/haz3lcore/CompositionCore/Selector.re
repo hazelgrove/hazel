@@ -749,6 +749,7 @@ let nth_child_exp = (n: int, e: Exp.t): option(focus_target) => {
   | Label(_)
   | ExplicitNonlabel
   | LivelitName(_)
+  | DrvQuote(_) /* TODO: stubbed — see merge brief */
   | MultiHole(_) => None
 
   /* 1 Exp child */
@@ -840,6 +841,7 @@ let nth_child_typ = (n: int, t: Typ.t): option(focus_target) => {
   | Label(_)
   | ExplicitNonlabel
   | Sum(_)
+  | DrvQuoteTy(_) /* TODO: stubbed — see merge brief */
   | Sig(_) => None
   | List(t1)
   | Parens(t1)
@@ -2716,6 +2718,7 @@ let rec find_in_exp = (target: Id.t, e: Exp.t): option(list(int)) =>
       | Label(_)
       | ExplicitNonlabel
       | LivelitName(_)
+      | DrvQuote(_) /* TODO: stubbed — see merge brief */
       | MultiHole(_) => []
 
       /* 1 Exp child */
@@ -2888,6 +2891,7 @@ and find_in_typ = (target: Id.t, t: Typ.t): option(list(int)) =>
       | Label(_)
       | ExplicitNonlabel
       | Sum(_)
+      | DrvQuoteTy(_) /* TODO: stubbed — see merge brief */
       | Sig(_) => []
       | List(t1)
       | Parens(t1)

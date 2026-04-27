@@ -144,7 +144,7 @@ let find_module_containing_item =
    Parses the code, and if it's a Let(pat, def, _), extracts pat+def into ModLet.
    Also handles type T = ... → ModType, and bare expressions → ModExp. */
 let exp_to_mod_item = (code: string): option(Mod.t) => {
-  switch (Parser.to_term(code)) {
+  switch (Parser.to_term(code, ~root=Exp)) {
   | Some(term) =>
     let item_term: TermBase.Mod.term =
       switch (Exp.term_of(term)) {
@@ -218,7 +218,7 @@ let replace_item =
    target_item_id: the ID of the ModLet/ModType item to delete.
    Returns the modified zipper, or None if the item wasn't found. */
 let module_delete = (z: Zipper.t, target_item_id: Id.t): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_module_containing_item(target_item_id, term)) {
   | Some((module_id, items, idx)) =>
     let new_items = delete_item(items, idx);
@@ -235,7 +235,7 @@ let module_delete = (z: Zipper.t, target_item_id: Id.t): option(Zipper.t) => {
 let module_insert =
     (z: Zipper.t, target_item_id: Id.t, code: string, d: Direction.t)
     : option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_module_containing_item(target_item_id, term)) {
   | Some((module_id, items, idx)) =>
     switch (exp_to_mod_item(code)) {
@@ -254,7 +254,7 @@ let module_insert =
    code: the full new binding clause text (e.g. "let y = 42"). */
 let module_update_binding =
     (z: Zipper.t, target_item_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_module_containing_item(target_item_id, term)) {
   | Some((module_id, items, idx)) =>
     switch (exp_to_mod_item(code)) {
@@ -270,7 +270,7 @@ let module_update_binding =
 
 /* Check if a target ID is inside a Module expression */
 let is_module_item = (z: Zipper.t, target_id: Id.t): bool => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_module_containing_item(target_id, term)) {
   | Some(_) => true
   | None => false
@@ -281,7 +281,7 @@ let is_module_item = (z: Zipper.t, target_id: Id.t): bool => {
    This bridges selector-focused IDs (which target sub-expressions like defs)
    to module item IDs needed by module_insert/module_delete. */
 let find_module_item_id = (z: Zipper.t, exp_id: Id.t): option(Id.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   /* First check if exp_id IS a module item ID directly */
   switch (find_module_containing_item(exp_id, term)) {
   | Some(_) => Some(exp_id)
@@ -509,14 +509,14 @@ let replace_tpat_by_id =
    Returns None if the code has parse errors (unmatched delimiters,
    invalid tokens, or malformed expressions). */
 let parse_exp = (code: string): option(Exp.t) =>
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(~root=Exp, code)) {
   | Some(z) =>
     /* Check for unmatched delimiters in backpack */
     let backpack = Zipper.local_backpack(z);
     switch (backpack) {
     | [_, ..._] => None
     | [] =>
-      let term = MakeTerm.from_zip_for_sem(z).term;
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       /* Check for Invalid/MultiHole in the parsed term */
       let has_errors = ref(false);
       let _ =
@@ -543,7 +543,7 @@ let parse_exp = (code: string): option(Exp.t) =>
 
 /* Parse code as a pattern term */
 let parse_pat = (code: string): option(Pat.t) =>
-  switch (Parser.to_term("let " ++ code ++ " = 0 in 0")) {
+  switch (Parser.to_term("let " ++ code ++ " = 0 in 0", ~root=Exp)) {
   | Some(term) =>
     switch (Exp.term_of(term)) {
     | Let(pat, _, _) => Some(pat)
@@ -554,7 +554,7 @@ let parse_pat = (code: string): option(Pat.t) =>
 
 /* Parse code as a type term */
 let parse_typ = (code: string): option(Typ.t) =>
-  switch (Parser.to_term("let x : " ++ code ++ " = 0 in 0")) {
+  switch (Parser.to_term("let x : " ++ code ++ " = 0 in 0", ~root=Exp)) {
   | Some(term) =>
     switch (Exp.term_of(term)) {
     | Let(pat, _, _) =>
@@ -689,7 +689,7 @@ let parse_case_arm = (code: string): option(case_arm) => {
 /* Delete a case arm by index. */
 let case_delete_arm =
     (z: Zipper.t, target_arm_body_id: Id.t): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_match_containing_arm(target_arm_body_id, term)) {
   | Some((match_id, _, arms, idx)) =>
     let new_arms = List.filteri((i, _) => i != idx, arms);
@@ -703,7 +703,7 @@ let case_delete_arm =
 let case_insert_arm =
     (z: Zipper.t, target_arm_body_id: Id.t, code: string, d: Direction.t)
     : option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_match_containing_arm(target_arm_body_id, term)) {
   | Some((match_id, _, arms, idx)) =>
     switch (parse_case_arm(code)) {
@@ -723,7 +723,7 @@ let case_insert_arm =
    Copies secondary from old body to new to preserve positional whitespace. */
 let case_update_arm_body =
     (z: Zipper.t, target_arm_body_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_match_containing_arm_by_body(target_arm_body_id, term)) {
   | Some((match_id, _, arms, idx)) =>
     switch (parse_exp(code)) {
@@ -747,7 +747,7 @@ let case_update_arm_body =
    Copies secondary from old pattern to new to preserve positional whitespace. */
 let case_update_arm_pattern =
     (z: Zipper.t, target_arm_body_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_match_containing_arm_by_body(target_arm_body_id, term)) {
   | Some((match_id, _, arms, idx)) =>
     switch (parse_pat(code)) {
@@ -769,7 +769,7 @@ let case_update_arm_pattern =
 
 /* Check if a target ID is inside a Match expression (is a case arm component) */
 let is_case_arm = (z: Zipper.t, target_id: Id.t): bool => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_match_containing_arm(target_id, term)) {
   | Some(_) => true
   | None => false
@@ -831,7 +831,7 @@ let find_list_containing_element =
 
 let list_delete_element =
     (z: Zipper.t, target_element_id: Id.t): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_list_containing_element(target_element_id, term)) {
   | Some((list_id, elements, idx)) =>
     let new_elements = List.filteri((i, _) => i != idx, elements);
@@ -844,7 +844,7 @@ let list_delete_element =
 let list_insert_element =
     (z: Zipper.t, target_element_id: Id.t, code: string, d: Direction.t)
     : option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_list_containing_element(target_element_id, term)) {
   | Some((list_id, elements, idx)) =>
     switch (parse_exp(code)) {
@@ -862,7 +862,7 @@ let list_insert_element =
 
 let list_update_element =
     (z: Zipper.t, target_element_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_list_containing_element(target_element_id, term)) {
   | Some((list_id, elements, idx)) =>
     switch (parse_exp(code)) {
@@ -878,7 +878,7 @@ let list_update_element =
 };
 
 let is_list_element = (z: Zipper.t, target_id: Id.t): bool => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_list_containing_element(target_id, term)) {
   | Some(_) => true
   | None => false
@@ -940,7 +940,7 @@ let find_tuple_containing_element =
 
 let tuple_delete_element =
     (z: Zipper.t, target_element_id: Id.t): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_tuple_containing_element(target_element_id, term)) {
   | Some((tuple_id, elements, idx)) =>
     let new_elements = List.filteri((i, _) => i != idx, elements);
@@ -953,7 +953,7 @@ let tuple_delete_element =
 let tuple_insert_element =
     (z: Zipper.t, target_element_id: Id.t, code: string, d: Direction.t)
     : option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_tuple_containing_element(target_element_id, term)) {
   | Some((tuple_id, elements, idx)) =>
     switch (parse_exp(code)) {
@@ -971,7 +971,7 @@ let tuple_insert_element =
 
 let tuple_update_element =
     (z: Zipper.t, target_element_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_tuple_containing_element(target_element_id, term)) {
   | Some((tuple_id, elements, idx)) =>
     switch (parse_exp(code)) {
@@ -987,7 +987,7 @@ let tuple_update_element =
 };
 
 let is_tuple_element = (z: Zipper.t, target_id: Id.t): bool => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_tuple_containing_element(target_id, term)) {
   | Some(_) => true
   | None => false
@@ -1006,7 +1006,7 @@ let is_sequence_element = (z: Zipper.t, target_id: Id.t): bool =>
    target_id: the ID of the definition expression to replace. */
 let update_definition =
     (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (parse_exp(code)) {
   | Some(new_def) =>
     let new_term = replace_exp_by_id(target_id, _ => new_def, term);
@@ -1019,7 +1019,7 @@ let update_definition =
    target_id: the ID of the body expression to replace. */
 let update_body =
     (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (parse_exp(code)) {
   | Some(new_body) =>
     let new_term = replace_exp_by_id(target_id, _ => new_body, term);
@@ -1080,7 +1080,7 @@ let rename_var_in_exp =
    correctly regardless of ID changes from the round-trip. */
 let update_pattern =
     (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (parse_pat(code)) {
   | Some(new_pat) =>
     let new_name = pat_var_name(new_pat);
@@ -1200,7 +1200,7 @@ let update_pattern =
    target_id: the ID of the type to replace. */
 let update_type_annotation =
     (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (parse_typ(code)) {
   | Some(new_typ) =>
     let new_term = replace_typ_by_id(target_id, new_typ, term);
@@ -1230,7 +1230,7 @@ let rec replace_innermost_body = (parsed: Exp.t, body: Exp.t): Exp.t =>
    target_id: the ID of the Let/TyAlias expression itself. */
 let update_binding_clause =
     (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (parse_exp(code)) {
   | Some(parsed) =>
     let new_term =
@@ -1259,7 +1259,7 @@ let update_binding_clause =
    For Seq(e, rest): removes e and replaces with rest.
    target_id: the ID of the Let/TyAlias/Seq/ModuleExp expression. */
 let delete_binding = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let new_term =
     replace_exp_by_id(
       target_id,
@@ -1280,7 +1280,7 @@ let delete_binding = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
    Replaces the body with an empty hole.
    target_id: the ID of the body expression. */
 let delete_body = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let hole = Exp.fresh(EmptyHole);
   let new_term = replace_exp_by_id(target_id, _ => hole, term);
   Some(term_to_zipper(new_term));
@@ -1294,7 +1294,7 @@ let delete_body = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
 let insert_binding =
     (z: Zipper.t, target_id: Id.t, code: string, d: Direction.t)
     : option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z).term;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   /* Strip trailing " in" from code, since we add our own " in 0" */
   let code = {
     let trimmed = String.trim(code);

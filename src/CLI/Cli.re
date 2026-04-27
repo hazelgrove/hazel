@@ -11,7 +11,7 @@ let read_input = path => {
 };
 
 let parse_program = (s: string) =>
-  switch (Haz3lcore.Parser.to_term(s)) {
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
   | Some(e) => e
   | None => failwith("Failed to parse expression: " ++ s)
   };
@@ -20,19 +20,33 @@ let run_hazel = path => {
   let program = read_input(path);
   let parsed = parse_program(program);
   let evaluated = Run.evaluate(parsed);
-
   print_endline(Print.print(evaluated));
 };
 
-let format_hazel = path => {
-  let program = read_input(path);
-  let parsed = parse_program(program);
-  print_endline(Print.print(parsed));
+let strip_leading_whitespace = (s: string): string => {
+  let lines = String.split_on_char('\n', s);
+  let stripped = List.map(String.trim, lines);
+  String.concat("\n", stripped);
+};
+
+let format_hazel = (width, path) => {
+  let program = read_input(path) |> strip_leading_whitespace;
+  /* Use segment-based path (like the editor's Cmd+S) to preserve comments.
+     The AST round-trip (parse_program + segmentize) loses comments because
+     MakeTerm drops Secondary pieces and ExpToSegment reconstructs from AST. */
+  switch (Haz3lcore.Parser.to_segment(program, ~root=Exp)) {
+  | None => failwith("Failed to parse: " ++ path)
+  | Some(segment) =>
+    let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
+    let output =
+      Haz3lcore.Printer.of_segment(~holes="?", ~indent=" ", pretty_seg);
+    print_endline(output);
+  };
 };
 
 /* Parse program and return zipper (preserving projectors like probes) */
 let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
-  Haz3lcore.Parser.to_zipper(s);
+  Haz3lcore.Parser.to_zipper(~root=Exp, s);
 
 /* Split string into lines */
 let lines_of_string = (s: string): array(string) => {
@@ -58,11 +72,11 @@ let format_error_with_location =
     )
     : option(string) => {
   Language.(
-    switch (Info.error_of(info)) {
-    | None => None
-    | Some(error) =>
+    switch (Info.marks_of(info)) {
+    | [] => None
+    | marks =>
       let id = Info.id_of(info);
-      let error_str = Haz3lcore.ErrorPrint.string_of(error);
+      let error_str = Haz3lcore.ErrorPrint.string_of_marks(info, marks);
 
       switch (Haz3lcore.Measured.find_by_id(id, measured)) {
       | Some({origin, last}) =>
@@ -139,7 +153,7 @@ let analyze_hazel =
     /* Get segment and term */
     let segment =
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
 
     /* Compute measured positions */
     let measured =
@@ -150,7 +164,7 @@ let analyze_hazel =
       );
 
     /* Run static analysis */
-    let static_map =
+    let (static_map, _) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
     /* Get errors with their infos for line numbers */
@@ -300,7 +314,7 @@ let test_hazel =
     /* Get segment and term */
     let segment =
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
 
     /* Compute measured positions for source text extraction */
     let measured =
@@ -356,11 +370,11 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
 
     /* Get term for evaluation */
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
     open Language;
 
     /* Run statics to get info_map */
-    let info_map =
+    let (info_map, _) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
     /* Get manual probe IDs */
@@ -463,7 +477,7 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
   let baseline = {
     let t0 = now();
     for (_ in 1 to iterations) {
-      ignore(Haz3lcore.Parser.to_zipper(""));
+      ignore(Haz3lcore.Parser.to_zipper(~root=Exp, ""));
     };
     let t1 = now();
     (t1 -. t0) /. float_of_int(iterations);
@@ -495,13 +509,13 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
       let lines = List.length(String.split_on_char('\n', program));
 
       /* Warmup both */
-      ignore(Haz3lcore.Parser.to_zipper(program));
-      ignore(Haz3lcore.Parser.to_segment(program));
+      ignore(Haz3lcore.Parser.to_zipper(~root=Exp, program));
+      ignore(Haz3lcore.Parser.to_segment(program, ~root=Exp));
 
       /* Time unsegmented (to_zipper) */
       let t0 = now();
       for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.to_zipper(program));
+        ignore(Haz3lcore.Parser.to_zipper(~root=Exp, program));
       };
       let t1 = now();
       let orig_avg = (t1 -. t0) /. float_of_int(iterations);
@@ -509,7 +523,7 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
       /* Time segmented (to_segment) */
       let t2 = now();
       for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.to_segment(program));
+        ignore(Haz3lcore.Parser.to_segment(program, ~root=Exp));
       };
       let t3 = now();
       let seg_avg = (t3 -. t2) /. float_of_int(iterations);
@@ -519,6 +533,7 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
       for (_ in 1 to iterations) {
         ignore(
           Haz3lcore.Parser.to_zipper(
+            ~root=Exp,
             ~zipper_init=Haz3lcore.Zipper.init(),
             program,
           ),
@@ -531,7 +546,7 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
       let z_init = Haz3lcore.Zipper.init();
       let t6 = now();
       for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.fast_paste(program, z_init));
+        ignore(Haz3lcore.Parser.fast_paste(program, z_init, ~root=Exp));
       };
       let t7 = now();
       let paste_fast = (t7 -. t6) /. float_of_int(iterations);
@@ -573,14 +588,16 @@ let run_cmd = {
 
 let format_cmd = {
   let doc = {|
-    Reconstructs Hazel code from its abstract syntax tree (AST), producing
-    concrete syntax without preserving original whitespace or comments.
-    This process uses a recovering parser and automatically inserts holes
-    where necessary to ensure syntactic correctness.
+    Pretty-prints Hazel code, inserting line breaks to fit within a target
+    width. Preserves comments but replaces original whitespace with
+    structured formatting.
   |};
-
+  let width_arg = {
+    let doc = "Target line width in columns (default: 60).";
+    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+  };
   let info = Cmd.info("format", ~doc);
-  Cmd.v(info, Term.(const(format_hazel) $ input_arg));
+  Cmd.v(info, Term.(const(format_hazel) $ width_arg $ input_arg));
 };
 
 let analyze_cmd = {
@@ -613,6 +630,41 @@ let test_cmd = {
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
 };
 
+let output_arg = {
+  let doc = "Path to write output to. If omitted, output is written to stdout.";
+  Arg.(value & opt(some(string), None) & info(["output", "o"], ~doc));
+};
+
+let submission_arg = {
+  let doc = "Path to a submission JSON file (exported from Hazel).";
+  Arg.(
+    required
+    & pos(0, some(string), None)
+    & info([], ~docv="SUBMISSION", ~doc)
+  );
+};
+
+let grade_json_cmd = {
+  let doc =
+    "Grade a submission and emit the raw grading output as JSON. "
+    ++ "The submission file is the JSON export produced by Hazel's export "
+    ++ "feature (matching the schema of the in-app exercise store).";
+  let info = Cmd.info("grade-json", ~doc);
+  Cmd.v(info, Term.(const(Grade.grade_json) $ submission_arg $ output_arg));
+};
+
+let grade_report_cmd = {
+  let doc =
+    "Grade a submission and emit a human-readable text report. "
+    ++ "For each exercise, prints the title, score, and summary. "
+    ++ "Ends with a total across all exercises.";
+  let info = Cmd.info("grade-report", ~doc);
+  Cmd.v(
+    info,
+    Term.(const(Grade.grade_report) $ submission_arg $ output_arg),
+  );
+};
+
 let bench_parse_cmd = {
   let doc = "Benchmark parsing performance on one or more .hz files.";
   let iterations_arg = {
@@ -633,7 +685,16 @@ let default_cmd = {
   let info = Cmd.info("hazel", ~doc);
   Cmd.group(
     info,
-    [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd, bench_parse_cmd],
+    [
+      run_cmd,
+      format_cmd,
+      analyze_cmd,
+      probe_cmd,
+      test_cmd,
+      grade_json_cmd,
+      grade_report_cmd,
+      bench_parse_cmd,
+    ],
   );
 };
 

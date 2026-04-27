@@ -14,6 +14,7 @@ let go =
       ~settings: Language.CoreSettings.t,
       ~statics: CachedStatics.t,
       ~syntax: CachedSyntax.t,
+      ~root,
       a: Action.t,
       {zipper: z, col_target}: state,
     )
@@ -32,20 +33,20 @@ let go =
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
-    switch (Parser.try_segment_paste(clipboard, z)) {
+    switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(maybe_reassoc(z))
     | None =>
       (
-        Parser.can_fast_paste(clipboard, z)
-          ? Parser.fast_paste(clipboard, z)
-          : Parser.to_zipper(~zipper_init=z, clipboard)
+        Parser.can_fast_paste(clipboard, z, ~root)
+          ? Parser.fast_paste(clipboard, z, ~root)
+          : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
       )
       |> Option.map(maybe_reassoc)
       |> return(CantPaste)
     }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
-    Destruct.go(Left, z) |> return(Cant_destruct)
+    Destruct.go(Left, z, ~root) |> return(Cant_destruct)
   | Copy =>
     /* System clipboard handling itself is done in Page.view handlers.
      * This doesn't change state but is included here for logging purposes */
@@ -54,11 +55,32 @@ let go =
     /* This serializes the current editor to text, resets the current
        editor, and then deserializes. It is intended as a (tactical)
        nuclear option for weird backpack states */
-    Parser.to_zipper(
-      ~zipper_init=Zipper.init(),
-      Printer.of_zipper(~holes="", ~indent="", z),
-    )
+    Parser.to_zipper(~root, Printer.of_zipper(~holes="", ~indent="", z))
     |> return(CantReparse)
+  | PrettyPrint =>
+    /* Remember which tile the caret was on so we can restore the
+       caret position after prettifying. Pretty-printing preserves
+       tile IDs (it only rearranges whitespace), so the same piece
+       can be located in the new segment. Falls back to the default
+       caret position (end of document) if there is no indicated
+       tile or the ID can't be located. */
+    let prev_id = Indicated.index(z);
+    let seg = Zipper.unselect_and_zip(z);
+    let pretty = PrettySegment.prettify(seg);
+    let z = {
+      ...Zipper.unzip(pretty),
+      refractors: z.refractors,
+    };
+    let z =
+      switch (prev_id) {
+      | Some(id) =>
+        switch (Move.jump_to_id_indicated(z, id)) {
+        | Some(z') => z'
+        | None => z
+        }
+      | None => z
+      };
+    Some(z) |> return(CantReparse);
   | Buffer(a) =>
     Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
   | Project(a) =>
@@ -153,22 +175,27 @@ let go =
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
-    Destruct.go(d, z) |> Option.map(maybe_reassoc) |> return(Cant_destruct)
+    Destruct.go(d, z, ~root)
+    |> Option.map(maybe_reassoc)
+    |> return(Cant_destruct)
   | Insert(char) =>
     z
     |> Insert.go(
          ~deep_reassociate=settings.deep_reassociate,
          char,
          ~ci=Indicated.ci_of(z, statics.info_map),
+         ~root,
        )
     |> Option.map(maybe_reassoc)
     |> return(Cant_insert)
   | Put_down =>
-    Zipper.put_down(z) |> Option.map(maybe_reassoc) |> return(Cant_put_down)
+    Zipper.put_down(z, ~root)
+    |> Option.map(maybe_reassoc)
+    |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
-  | Dump => Ok(Dump.to_zipper(z))
+  | Dump => Ok(Dump.to_zipper(z, ~root))
   | ToggleLineComment =>
-    Comment.go(~deep_reassociate=settings.deep_reassociate, z)
+    Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
     |> return(Cant_destruct)
   | Structural(a) =>
     switch (CompositionGo.Public.go(~syntax, ~z, ~a, ~return)) {
