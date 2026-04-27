@@ -311,7 +311,7 @@ let rec expand_scope =
   | [(ancestor, parent_sibs) as generation, ...rest] =>
     let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
     let (right_dis, fresh_map) =
-      freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
+      freshen_ancestor_shards(Ancestor.id(ancestor), fresh_map, right_dis);
     let siblings =
       Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
     let request = consume_request_by_generation(request, generation);
@@ -517,7 +517,11 @@ let go = (z: t): t =>
             | [(ancestor, parent_sibs) as gen, ...rest] =>
               let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
               let (right_dis, fm) =
-                freshen_ancestor_shards(ancestor.id, fm, right_dis);
+                freshen_ancestor_shards(
+                  Ancestor.id(ancestor),
+                  fm,
+                  right_dis,
+                );
               let siblings =
                 Siblings.concat([
                   siblings,

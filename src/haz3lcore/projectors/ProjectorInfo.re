@@ -18,7 +18,7 @@ let utility: ProjectorBase.utility = {
       any,
     );
   let lift_syntax =
-      (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
+      (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) =>
     switch (seg |> seg_to_term) {
     | None => None
     | Some(s) =>
@@ -37,7 +37,11 @@ let utility: ProjectorBase.utility = {
         Some(result);
       };
     };
-  };
+  let lift_term = (fn: Any.t => Any.t, seg: Base.segment): option(Any.t) =>
+    switch (seg |> seg_to_term) {
+    | None => None
+    | Some(s) => Some(s |> fn)
+    };
   /* NOTE: Setting indent to anything other than "" has serious
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
@@ -45,6 +49,7 @@ let utility: ProjectorBase.utility = {
     term_to_seg: (~inline, any) => term_to_seg(inline, any),
     seg_to_term,
     lift_syntax: (~inline) => lift_syntax(inline),
+    lift_term,
     seg_to_string,
   };
 };
@@ -59,7 +64,7 @@ let mk_info =
     )
     : ProjectorBase.info => {
   id: p.id,
-  syntax: Piece.unparenthesize(p.syntax),
+  syntax: p.syntax,
   statics: Statics.Map.lookup(p.id, statics),
   dynamics:
     switch (Dynamics.Map.lookup(p.id, dynamics)) {
@@ -73,7 +78,7 @@ let mk_info =
   elaborated: {
     let (module P) = ProjectorInit.to_module(p.kind);
     if (P.elaborate_syntax) {
-      let seg = Piece.unparenthesize(p.syntax);
+      let seg = Segment.unparenthesize(p.syntax);
       let inner_id =
         try(Some(Segment.root_id(Segment.skel(seg), seg))) {
         | _ => None
@@ -95,12 +100,13 @@ module ShapeMapSemantics = {
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         ~elaborated: option(Exp.t),
+        splice_size: ProjectorBase.View.splice_size,
         p: Base.projector,
       )
       : (ProjectorCore.Shape.t, option(ProjectorBase.error)) => {
     let (module P) = ProjectorInit.to_module(p.kind);
     let info = mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
-    (P.placeholder(p.model, info), P.error(p.model, info));
+    (P.placeholder(p.model, info, splice_size), P.error(p.model, info));
   };
 
   let mk =
@@ -110,6 +116,7 @@ module ShapeMapSemantics = {
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         ~elaborated: option(Exp.t),
+        splice_size: ProjectorBase.View.splice_size,
       )
       : (Id.Map.t(ProjectorCore.Shape.t), Id.Map.t(ProjectorBase.error)) => {
     let both =
@@ -119,6 +126,7 @@ module ShapeMapSemantics = {
           statics,
           dynamics,
           ~elaborated,
+          splice_size,
         ),
         proj_map,
       );

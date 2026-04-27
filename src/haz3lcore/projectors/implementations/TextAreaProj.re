@@ -19,10 +19,9 @@ let get = (info: info): string =>
   | None => failwith("TextArea: get: Not string literal")
   };
 
-let put = (info, s: string): Base.segment =>
+let put = (info, s: string): Language.Any.t =>
   switch (
-    info.utility.lift_syntax(
-      ~inline=true,
+    info.utility.lift_term(
       fun
       | Exp(any) =>
         Exp({
@@ -82,7 +81,7 @@ let textarea =
       Attr.id(Id.cls(info.id)),
       Attr.on_keydown(key_handler(info.id, ~parent)),
       Attr.on_input((_, str) =>
-        Effect.(Many([parent(SetSyntax(str |> put(info)))]))
+        Effect.(Many([parent(SetTerm(str |> put(info), false))]))
       ),
       /* Note: adding these handlers below because
        * currently these are handled on page level.
@@ -101,9 +100,9 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Language.Any.t) =>
+  let init = (any: Language.Any.t, _) =>
     switch (string_of(any)) {
-    | Some(_) => Some()
+    | Some(_) => Some(((), None))
     | None => None
     };
 
@@ -128,7 +127,7 @@ module M: Projector = {
     };
   let dynamics = false;
   let elaborate_syntax = false;
-  let placeholder = (_, info) => {
+  let placeholder = (_, info, _splice_size) => {
     let str = info |> get;
     ProjectorCore.Shape.{
       vertical: Block(StringUtil.num_linebreaks(str)),

@@ -106,8 +106,10 @@ let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
     |> OptUtil.get(
          () => {
            /* Create dummy syntax just to get the initial model string */
-           P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
-           |> OptUtil.get_or_fail("Refractor.mk_entry")
+           let (model, _) =
+             P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])), [])
+             |> OptUtil.get_or_fail("Refractor.mk_entry");
+           model;
          },
          _,
        );
@@ -122,4 +124,4 @@ let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
  * underlying term (needed for syntax rewriting in rich probes). */
 let to_projector =
     (syntax: Base.piece, id: Id.t, entry: entry): Base.projector =>
-  ProjectorCore.mk(~id, entry.kind, syntax, entry.model);
+  ProjectorCore.mk(~id, entry.kind, [syntax], entry.model);

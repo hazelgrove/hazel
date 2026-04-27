@@ -34,11 +34,12 @@ module M: Projector = {
   type action =
     | ToggleDisplay;
 
-  let init = (any: Any.t): option(model) => {
+  let init = (any: Any.t, _) => {
+    let none_seg: option(Base.segment) = None;
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some(Expected)
-    | Any () => Some(Expected) /* Grout don't have sorts rn */
+    | Pat(_) => Some((Expected, none_seg))
+    | Any () => Some((Expected, none_seg)) /* Grout don't have sorts rn */
     | _ => None
     };
   };
@@ -87,7 +88,7 @@ module M: Projector = {
     | (ToggleDisplay, Self) => Expected
     };
 
-  let placeholder = (_, _) => ProjectorCore.Shape.default;
+  let placeholder = (_, _, _) => ProjectorCore.Shape.default;
   let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>

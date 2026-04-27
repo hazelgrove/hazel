@@ -19,7 +19,7 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
     );
   let inside_case = (z: t): bool =>
     switch (Ancestors.parent(z.relatives.ancestors)) {
-    | Some({label: ["case", "end"], _}) => true
+    | Some(Tile({label: ["case", "end"], _})) => true
     | _ => false
     };
   switch (t) {
@@ -395,13 +395,14 @@ let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
   let (left_sibs, right_sibs) = z.relatives.siblings;
   let label = delimiter_label(char);
   let mold = Form.Molds.get(sort, label);
-  let ancestor: Ancestor.t = {
-    id: Id.mk(),
-    label,
-    mold,
-    shards: ([0], [1]),
-    children: ([], []),
-  };
+  let ancestor: Ancestor.t =
+    Ancestor.Tile({
+      id: Id.mk(),
+      label,
+      mold,
+      shards: ([0], [1]),
+      children: ([], []),
+    });
   /* Re-ID incomplete shards in the content whose counterparts remain
    * in the outer siblings. Wrapping places these at different nesting
    * levels, and shared IDs would cause MakeTerm to create duplicate

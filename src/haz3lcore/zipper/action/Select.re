@@ -415,7 +415,8 @@ let current_term_id = (z: t): option(Id.t) => {
   switch (p) {
   | Secondary(_) => None
   | Grout(_)
-  | Projector(_) => Some(Piece.id(p))
+  | Projector(_)
+  | Splice(_) => Some(Piece.id(p))
   | Tile(t) =>
     switch (t.label, Zipper.parent(z)) {
     | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
@@ -426,7 +427,7 @@ let current_term_id = (z: t): option(Id.t) => {
     | (["|", "=>"], Some(Tile({label: ["|", "=>"], _})))
         when rel == Parent =>
       switch (z.relatives.ancestors) {
-      | [_, (gp, _), ..._] => Some(gp.id)
+      | [_, (gp, _), ..._] => Some(Ancestor.id(gp))
       | _ => None
       }
     | _ => Some(Piece.id(p))

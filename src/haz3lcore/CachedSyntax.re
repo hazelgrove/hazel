@@ -49,6 +49,9 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
+  let splice_size_map = Measured.splice_sizes(segment);
+  let splice_size = (id: Id.t) =>
+    Measured.splice_size_of(splice_size_map, id);
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -56,6 +59,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
       info_map,
       dyn_map,
       ~elaborated,
+      splice_size,
     );
   let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
   let measured =
@@ -94,6 +98,9 @@ let mark_old: t => t =
  * elaborated expression (e.g. TableProj placeholder size). */
 let refresh_shapes =
     (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+  let splice_size_map = Measured.splice_sizes(old.segment);
+  let splice_size = (id: Id.t) =>
+    Measured.splice_size_of(splice_size_map, id);
   let (shape_map, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       old.projectors,
@@ -101,6 +108,7 @@ let refresh_shapes =
       info_map,
       dyn_map,
       ~elaborated,
+      splice_size,
     );
   let refractor_shape_map = Id.Map.empty;
   let measured =

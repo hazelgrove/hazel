@@ -206,13 +206,12 @@ module Projectors = {
     | [] =>
       switch (Indicated.for_index(z)) {
       | Some({piece: Projector({syntax, _}), _}) =>
-        MakeTerm.for_projection(Piece.unparenthesize(syntax))
+        MakeTerm.for_projection(syntax)
       | _ =>
         let* info = Indicated.ci_of(z, info_map);
         Language.Info.any_of(info);
       }
-    | [Projector({syntax, _})] =>
-      MakeTerm.for_projection(Piece.unparenthesize(syntax))
+    | [Projector({syntax, _})] => MakeTerm.for_projection(syntax)
     | seg => MakeTerm.for_projection(seg)
     };
 
@@ -226,7 +225,7 @@ module Projectors = {
       : option(ProjectorCore.Kind.t) => {
     let (module P) = ProjectorInit.to_module(kind);
     let* term = target_term(z, info_map);
-    switch (P.init(term)) {
+    switch (P.init(term, [])) {
     | Some(_) => Some(kind)
     | None =>
       if (P.elaborate_syntax) {
@@ -235,7 +234,7 @@ module Projectors = {
           let term_id = Language.Exp.rep_id(exp);
           switch (Language.Exp.find_by_id(term_id, elaborated)) {
           | Some(elab_exp) =>
-            let+ _ = P.init(Exp(elab_exp));
+            let+ _ = P.init(Exp(elab_exp), []);
             kind;
           | None => None
           };

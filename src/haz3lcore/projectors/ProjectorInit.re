@@ -19,20 +19,29 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Csv => (module Cook(CSVProjector.M))
   };
 
+/* Construct a Projector piece wrapping the given syntax segment.
+ * The projector's [init] may optionally return a replacement segment
+ * (e.g. to wrap list items in splices); if so, the stored syntax is
+ * set to that replacement instead of [syntax]. */
 let init =
     (kind: ProjectorCore.Kind.t, syntax: syntax, any: Language.Any.t)
-    : option(syntax) => {
+    : option(Base.piece) => {
   let (module P) = to_module(kind);
-  switch (P.init(any)) {
+  switch (P.init(any, syntax)) {
   | None => None
-  | Some(model) => Some(Projector(ProjectorCore.mk(kind, syntax, model)))
+  | Some((model, override)) =>
+    let syntax = Option.value(override, ~default=syntax);
+    Some(Projector(ProjectorCore.mk(kind, syntax, model)));
   };
 };
 
+/* Like [init], but falls back to wrapping the syntax in no projector
+ * (returning the original syntax as a segment) when init declines. */
 let init_or_noop =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Language.Any.t): syntax =>
+    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Language.Any.t)
+    : Base.segment =>
   switch (init(kind, syntax, any)) {
-  | Some(pr) => pr
+  | Some(pr) => [pr]
   | None => syntax
   };
 
@@ -43,10 +52,12 @@ let init_or_noop_from_str =
       any: Language.Any.t,
       model_str: string,
     )
-    : syntax => {
+    : Base.segment => {
   let (module P) = to_module(kind);
-  switch (P.init(any)) {
+  switch (P.init(any, syntax)) {
   | None => syntax
-  | Some(_) => Projector(ProjectorCore.mk(kind, syntax, model_str))
+  | Some((_, override)) =>
+    let syntax = Option.value(override, ~default=syntax);
+    [Projector(ProjectorCore.mk(kind, syntax, model_str))];
   };
 };

@@ -121,6 +121,7 @@ let all =
            font_metrics,
            ~core_settings,
            ~skip_inline=true,
+           ~render_splice=ProjectorView.default_render_splice(font_metrics),
            data,
            refractor_list,
          )

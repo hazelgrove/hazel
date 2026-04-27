@@ -302,6 +302,8 @@ let handle = (idx, kind, action: external_action): Action.t =>
   | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
   | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
+  | SetTerm(term, preserve_splices) =>
+    Project(SetTerm(idx, term, preserve_splices))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };
@@ -407,12 +409,33 @@ let flex_code =
         segment,
       );
 
+/* Default fallback splice renderer: non-interactive simple_code. Used
+ * when a ProjectorView caller does not provide a richer ~render_splice
+ * callback (e.g. read-only code viewers). */
+let default_render_splice =
+    (
+      font_metrics: FontMetrics.t,
+      ~projector_idx: int,
+      ~splice_idx: int,
+      splice: Base.splice,
+    )
+    : Node.t => {
+  ignore(projector_idx);
+  ignore(splice_idx);
+  div(
+    ~attrs=[Attr.classes(["splice", "inner-editor"])],
+    [simple_code(~background=true, font_metrics, Sort.Any, splice.content)],
+  );
+};
+
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
+      ~render_splice:
+         (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
       {
         p,
         info,
@@ -445,6 +468,32 @@ let mk_view =
     ViewCache.misses := ViewCache.misses^ + 1;
     let (module P) = ProjectorInit.to_module(p.kind);
     let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+    /* Walk the projector's syntax (including tile children) collecting every
+     * splice regardless of nesting. Splices inside nested projectors are not
+     * collected — those belong to the inner projector. */
+    let rec collect_splices = (seg: Base.segment): list(Base.splice) =>
+      List.concat_map(
+        (p: Base.piece) =>
+          switch (p) {
+          | Splice(s) => [s, ...collect_splices(s.content)]
+          | Tile(t) => List.concat_map(collect_splices, t.children)
+          | Projector(_)
+          | Grout(_)
+          | Secondary(_) => []
+          },
+        seg,
+      );
+    let splices = collect_splices(p.syntax);
+    let splice_view = (id: Id.t) =>
+      switch (List.find_index((s: Base.splice) => s.id == id, splices)) {
+      | None => span_c("splice-missing", [Node.text("?")])
+      | Some(splice_idx) =>
+        let splice = List.nth(splices, splice_idx);
+        render_splice(~projector_idx=idx, ~splice_idx, splice);
+      };
+    let splice_size_map = Measured.splice_sizes(p.syntax);
+    let splice_size = (id: Id.t): Util.Point.t =>
+      Measured.splice_size_of(splice_size_map, id);
     let view =
       P.view({
         model: p.model,
@@ -474,6 +523,9 @@ let mk_view =
             sort,
             segment,
           ),
+        splice_view,
+        splice_size,
+        splices,
         status,
         core_settings,
       });
@@ -500,6 +552,8 @@ let split_views =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~skip_inline: bool,
+      ~render_splice:
+         (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
@@ -510,6 +564,7 @@ let split_views =
       inject,
       font_metrics,
       ~core_settings,
+      ~render_splice,
       projector_data,
       projector_list,
     );
@@ -551,9 +606,18 @@ let all =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(visible_rows)=?,
+      ~render_splice:
+         option(
+           (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
+         )=?,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
+  let render_splice =
+    Option.value(
+      render_splice,
+      ~default=default_render_splice(font_metrics),
+    );
   /* Sorting the projectors by position tends to be a good
    * z-index default; projectors further to the right or
    * further down count as a higher. On its own this could
@@ -572,6 +636,7 @@ let all =
          split_views(
            ~skip_inline=false,
            ~core_settings,
+           ~render_splice,
            inject,
            make_active,
            font_metrics,

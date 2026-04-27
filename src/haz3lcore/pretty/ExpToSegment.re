@@ -1157,7 +1157,7 @@ let fold_if = (condition, pieces) =>
       mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
     switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_if")
-    | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
+    | Some(any) => ProjectorInit.init_or_noop(Fold, [syntax], any)
     };
   } else {
     pieces;
@@ -1175,7 +1175,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
         always_render: true,
       })
       |> Sexplib.Sexp.to_string;
-    [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];
+    ProjectorInit.init_or_noop_from_str(Fold, [syntax], Exp(exp), str);
   | `Text =>
     let name =
       if (String.length(f_name) >= 2) {
@@ -1198,7 +1198,7 @@ let project_table_if = (should_project, pieces) =>
   if (should_project) {
     switch (MakeTerm.for_projection([pieces])) {
     | None => [pieces]
-    | Some(any) => [ProjectorInit.init_or_noop(Table, pieces, any)]
+    | Some(any) => ProjectorInit.init_or_noop(Table, [pieces], any)
     };
   } else {
     [pieces];
@@ -2188,7 +2188,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Projector({kind, model}, e) =>
     let id = exp |> Exp.rep_id;
     let+ inner_seg = go(e);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = [Segment.parenthesize(inner_seg)];
     wrap(
       exp,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
@@ -2525,7 +2525,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Projector({kind, model}, p) =>
     let id = pat |> Pat.rep_id;
     let+ inner_seg = go(p);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = [Segment.parenthesize(inner_seg)];
     wrap(
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
@@ -2777,7 +2777,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Projector({kind, model}, t) =>
     let id = typ |> Typ.rep_id;
     let+ inner_seg = go(t);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = [Segment.parenthesize(inner_seg)];
     wrap(
       typ,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
@@ -3094,4 +3094,65 @@ let any_to_segment =
        );
   let p = any_to_pretty(~settings, any);
   p |> PrettySegment.select;
+};
+
+let rec collect_splices = (acc: Id.Map.t(Piece.t), seg: Segment.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (p) {
+      | Splice(s) => collect_splices(Id.Map.add(s.id, p, acc), s.content)
+      | Tile(t) => List.fold_left(collect_splices, acc, t.children)
+      | Projector(pr) => collect_splices(acc, pr.syntax)
+      | Grout(_)
+      | Secondary(_) => acc
+      },
+    acc,
+    seg,
+  );
+
+let rec reuse_splices =
+        (splices: Id.Map.t(Piece.t), seg: Segment.t): Segment.t =>
+  List.map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Splice(s) =>
+        switch (Id.Map.find_opt(s.id, splices)) {
+        | Some(original) => original
+        | None =>
+          Splice({
+            ...s,
+            content: reuse_splices(splices, s.content),
+          })
+        }
+      | Tile(t) =>
+        Tile({
+          ...t,
+          children: List.map(reuse_splices(splices), t.children),
+        })
+      | Projector(pr) =>
+        Projector({
+          ...pr,
+          syntax: reuse_splices(splices, pr.syntax),
+        })
+      | Grout(_)
+      | Secondary(_) => p
+      },
+    seg,
+  );
+
+let any_to_projector_segment =
+    (
+      ~already_paren=false,
+      ~settings: Settings.t,
+      ~original_syntax: Segment.t,
+      ~preserve_splices: bool,
+      any: Any.t,
+    )
+    : Segment.t => {
+  let seg = any_to_segment(~already_paren, ~settings, any);
+  if (preserve_splices) {
+    reuse_splices(collect_splices(Id.Map.empty, original_syntax), seg);
+  } else {
+    seg;
+  };
 };

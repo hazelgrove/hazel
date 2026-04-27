@@ -46,9 +46,9 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Any.t) =>
+  let init = (any: Any.t, _) =>
     switch (table_of(any)) {
-    | Some(_) => Some()
+    | Some(_) => Some(((), None))
     | None => None
     };
 
@@ -59,7 +59,7 @@ module M: Projector = {
     };
   let dynamics = false;
   let elaborate_syntax = true;
-  let placeholder = (_, info) =>
+  let placeholder = (_, info, _splice_size) =>
     switch (get(info)) {
     | None =>
       let s = info.utility.seg_to_string(info.syntax);

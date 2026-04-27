@@ -38,13 +38,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          6b50b869-7b1a-4c10-bb72-98b35b8dbb30)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         c5b789e5-abd8-4bea-9552-8fc7aaf0e2ed)(kind Checkbox)(syntax(Tile((id \
-         e136e0e3-9334-4bd1-928a-ddf2219b7517)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         c5b789e5-abd8-4bea-9552-8fc7aaf0e2ed)(kind Checkbox)(syntax((Tile((id \
          86ac400d-b8c1-4752-ace5-69cba388c2f9)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          e90c0c92-6e6b-4d29-be07-d37b16c4aa82)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -67,13 +64,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          636981da-a0dc-42cc-ba96-2bcf72922173)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         706af9c9-5e03-48c4-a713-afbbb37736c5)(kind Checkbox)(syntax(Tile((id \
-         4b4dc29b-246c-491d-a948-6fcb0dbf9b1b)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         706af9c9-5e03-48c4-a713-afbbb37736c5)(kind Checkbox)(syntax((Tile((id \
          2156861f-e218-4a1b-bed1-de684f24449a)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          4cd41d71-1d6a-4b2d-be9e-d274c0970649)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -95,13 +89,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          a689fb6a-12a9-4865-b5e4-e07c58a61988)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         9447ed49-f978-4458-8127-a55760c66381)(kind Checkbox)(syntax(Tile((id \
-         6b417a81-a055-4be6-b6ec-b59e13e772e0)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         9447ed49-f978-4458-8127-a55760c66381)(kind Checkbox)(syntax((Tile((id \
          4241870f-980f-4617-8544-1f673a580594)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          e3f28839-7d97-45a3-980d-90efc5ad4ac9)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -123,13 +114,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          cd3b4cdf-5fa5-4706-aa8d-e7500d0a17f3)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         2efa5283-8d84-4141-9153-4875d61972b9)(kind Checkbox)(syntax(Tile((id \
-         21427af5-d7dc-4779-aaf6-38a7152ece54)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         2efa5283-8d84-4141-9153-4875d61972b9)(kind Checkbox)(syntax((Tile((id \
          dc067877-22b7-4729-85a5-dceb8b5d8430)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          7cc16cfa-36d1-43bf-8617-6a389a6099f5)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -156,13 +144,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          51539cb0-9519-47ab-8d23-a7ab80019e7f)(content(Whitespace\" \
          \"))))(Projector((id a9ff0d32-3440-44b5-be8b-5e84da22de11)(kind \
-         Checkbox)(syntax(Tile((id \
-         d4f9ab8b-5b2d-4d8b-8548-07e16a532b55)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         Checkbox)(syntax((Tile((id \
          ed96ab16-4cbf-48aa-b765-63f76e971264)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          1bda7f42-2cd5-4fb5-b040-f59aa72396d8)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -200,13 +185,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          e1b4127b-6ce1-48be-934e-6bbf4786ef20)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         515f3ef1-6569-4c1e-8efb-8df07edaf6f5)(kind Checkbox)(syntax(Tile((id \
-         b31a8116-7b80-4441-b4da-a6b0ddad5d2c)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         515f3ef1-6569-4c1e-8efb-8df07edaf6f5)(kind Checkbox)(syntax((Tile((id \
          645a964e-c0e1-453d-ba8e-f88989741731)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          38bac37b-40d6-4b37-8315-0809af817915)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -229,13 +211,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b3a33944-3790-4115-a914-08d318eb0fe7)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         2ba38d51-6c96-4aa9-a2c8-c6e7079de578)(kind Checkbox)(syntax(Tile((id \
-         69873641-7231-45cf-9f7e-2d529054abb4)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         2ba38d51-6c96-4aa9-a2c8-c6e7079de578)(kind Checkbox)(syntax((Tile((id \
          f5aba418-a3d8-42e0-a973-73a87eb588f9)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          c7cbca07-ac6b-455d-9e7b-0071a720ea91)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -258,13 +237,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          3c662739-13bd-46e8-b2ce-ff152de6dfe7)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         f4f86128-6126-483c-98df-4eab8912c9a2)(kind Checkbox)(syntax(Tile((id \
-         eab1e8d8-be18-487c-91d3-d8699b50714b)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         f4f86128-6126-483c-98df-4eab8912c9a2)(kind Checkbox)(syntax((Tile((id \
          6ca3c29f-581e-410f-bbc2-38a86cbf726f)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          c5d6ff35-4c51-4db1-a015-823707fa4ce8)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -291,13 +267,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          1ac2096b-86f6-425d-9262-de60e5ab867c)(content(Whitespace\" \
          \"))))(Projector((id edca62d2-87ad-477b-af22-fc758cda695e)(kind \
-         Checkbox)(syntax(Tile((id \
-         0bb98013-bbfd-4389-80e2-10c0102eb2d3)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         Checkbox)(syntax((Tile((id \
          64a12f27-f091-40ae-ac53-42a7b138f66c)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          3611200a-5ded-421d-8f3c-c39083c60346)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -892,13 +865,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \")))))((Secondary((id \
          cce4f94d-4412-40ed-a6c3-c2956a88c025)(content(Whitespace\" \
          \"))))(Projector((id 5e9638de-aac5-4a17-9f77-5814b36c04db)(kind \
-         Fold)(syntax(Tile((id \
-         5919e217-d5a7-41e6-9558-b5f9c635f220)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         855ac93f-9ba2-427c-ac16-9dbbbe96d3b0)(label([ ]))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Secondary((id \
+         Fold)(syntax((Tile((id 855ac93f-9ba2-427c-ac16-9dbbbe96d3b0)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          d122872b-e411-45db-9b9c-3ed33c41b5e5)(content(Whitespace\"\\n\"))))(Secondary((id \
          2c8d4f30-91c2-4370-923b-3df54e89705d)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -1130,7 +1099,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          4f5cc34c-4483-49be-b829-ac26e80e027c)(content(Whitespace\" \
          \"))))(Secondary((id \
          b3d46ca1-58d1-421c-8dca-7df034111e56)(content(Whitespace\" \
-         \")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         \")))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
          false)(always_render false))\")))(Secondary((id \
          4c06dd2f-4c57-4206-94e2-7ba751d1da20)(content(Whitespace\" \
          \")))))))))(Secondary((id \
@@ -1147,13 +1116,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \")))))((Secondary((id \
          512f0d2c-ecb1-47f0-b611-bff7936a92d3)(content(Whitespace\" \
          \"))))(Projector((id b9fc54fc-9cd6-4d1a-9fbd-0345fe381f8d)(kind \
-         Fold)(syntax(Tile((id \
-         48b70665-544c-48c6-ad93-a72d09ac2754)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         5b31a34a-aa37-4cce-a2e9-5c1178e5850f)(label([ ]))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Secondary((id \
+         Fold)(syntax((Tile((id 5b31a34a-aa37-4cce-a2e9-5c1178e5850f)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          fd5c445e-9a79-4394-b2b8-22baa571db65)(content(Whitespace\"\\n\"))))(Secondary((id \
          180a22af-5dfd-424a-af50-b26fbf06a8e4)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -1887,7 +1852,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          404a873b-e032-44bf-8fe7-76314ff7b1a3)(content(Whitespace\" \
          \"))))(Secondary((id \
          3b640094-d910-4a77-a40e-2625ac125600)(content(Whitespace\" \
-         \")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         \")))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
          false)(always_render false))\")))(Secondary((id \
          a95f9e81-3f4b-480b-841c-cec6394599f1)(content(Whitespace\" \
          \")))))))))(Secondary((id \
@@ -2228,13 +2193,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          a69aa4e2-8a3a-4c6e-a3da-727d150b5a4f)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         6ffce3c3-f8da-438d-9f41-7f396e5971b8)(kind Checkbox)(syntax(Tile((id \
-         ea7dacf6-ee53-42a3-a9a7-49b77225f102)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         6ffce3c3-f8da-438d-9f41-7f396e5971b8)(kind Checkbox)(syntax((Tile((id \
          1e524e12-453e-4eb3-b126-c3ba310bd9ef)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          5689b5f9-76c9-4ee4-b514-b0efce555bb5)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2256,13 +2218,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          203b1c28-b22e-4b4b-b9d2-cf3cb5ba9c08)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         41b7b3fa-c69d-4e9c-a128-a802bfd82393)(kind Checkbox)(syntax(Tile((id \
-         63e65b85-8406-4154-be00-86c6f58baf93)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         41b7b3fa-c69d-4e9c-a128-a802bfd82393)(kind Checkbox)(syntax((Tile((id \
          26048d20-049e-4da9-969b-745a3656cc3a)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          8bfd68a5-16bf-4974-b6e0-0ae298bb2be0)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2284,13 +2243,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          2ce6fa72-6c39-49e5-a61f-8f014134486e)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         1798e143-c53a-43b5-b39d-28b3ee65f02a)(kind Checkbox)(syntax(Tile((id \
-         e57e4a3e-81e7-4b18-a9bd-b1805038e281)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         1798e143-c53a-43b5-b39d-28b3ee65f02a)(kind Checkbox)(syntax((Tile((id \
          6ebb6793-4fa0-40ef-8d19-5071b6a48f31)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          437611fe-2638-4d04-992a-1b96dac4bfea)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2317,13 +2273,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          9b219f55-726c-4450-8c8a-d1bf2ef399de)(content(Whitespace\" \
          \"))))(Projector((id 57018fa2-1403-44bd-bac8-9ef6419cbb31)(kind \
-         Checkbox)(syntax(Tile((id \
-         de84f82f-207e-4d39-ad7d-b5c80df7903e)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         Checkbox)(syntax((Tile((id \
          b039eecb-17f7-4361-a382-db7e4c8d681b)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          fb2542e3-eacf-4f11-8e5a-9ac6940954c3)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2362,13 +2315,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          32d9841d-8417-404b-ba09-30843d124212)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         fedbf7c0-091e-4fed-b0a6-cdc1490fd1bb)(kind Checkbox)(syntax(Tile((id \
-         b16076c7-f05a-485e-aeb8-e0ba27c544d9)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         fedbf7c0-091e-4fed-b0a6-cdc1490fd1bb)(kind Checkbox)(syntax((Tile((id \
          2c16cd3e-db1b-4187-bfee-db69296add4e)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          4507448b-fd3b-46a7-9ca4-cfa45c6a89bd)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2392,13 +2342,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          bbf894db-2222-4e69-841a-69731c49ebac)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         445b56b7-7f7f-45b1-a8ea-efc86d841d2e)(kind Checkbox)(syntax(Tile((id \
-         a108d884-886e-444b-9376-d641b287cdc7)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         445b56b7-7f7f-45b1-a8ea-efc86d841d2e)(kind Checkbox)(syntax((Tile((id \
          a8c447a7-84db-47a7-a02b-60ab34005ea6)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          4f7b884f-1784-4618-a15b-1c45efe9975a)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2425,13 +2372,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          08d57556-45f9-4974-ad47-76e709a35d93)(content(Whitespace\" \
          \"))))(Projector((id d1c443f8-d597-4495-b918-f288b8882024)(kind \
-         Checkbox)(syntax(Tile((id \
-         8d64dd82-1f47-42f3-aec3-3645071d995a)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         Checkbox)(syntax((Tile((id \
          6a5c0824-997b-4548-8ce2-9d2311832887)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          7344b380-dc20-4133-92ed-d90b50c0dc71)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -3581,13 +3525,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \")))))((Secondary((id \
          d85bd927-784c-4864-886b-cb3ba53ca784)(content(Whitespace\" \
          \"))))(Projector((id 4d1ddfa8-c90f-41a9-b7f2-4a14a6f03e4e)(kind \
-         Fold)(syntax(Tile((id \
-         aeb023f9-f6e1-4e87-98bb-4dbd8bd664eb)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         e860efd0-1417-406b-afdd-ccde5ee989d4)(label([ ]))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Secondary((id \
+         Fold)(syntax((Tile((id e860efd0-1417-406b-afdd-ccde5ee989d4)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          5c119602-fb17-45f2-9c55-881b8d92e254)(content(Whitespace\"\\n\"))))(Secondary((id \
          3c7317b7-1522-497a-8eec-f469f8be7dac)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -3691,7 +3631,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          8a81db0a-5c38-4400-bed7-99494801e08c)(content(Whitespace\" \
          \"))))(Secondary((id \
          050a8d56-25c4-4eaa-8154-35af1a2e089c)(content(Whitespace\" \
-         \")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         \")))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
          false)(always_render false))\")))(Secondary((id \
          b01ae20d-9478-485f-898c-95dc4249d4fa)(content(Whitespace\" \
          \")))))))))(Secondary((id \
