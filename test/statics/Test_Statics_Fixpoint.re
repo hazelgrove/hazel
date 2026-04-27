@@ -14,18 +14,12 @@ let tests = (
               list_lit(
                 ~ann=
                   Some(
-                    Exp(
-                      Common(
-                        FTemp.Typ.(
-                          Inconsistent(
-                            Expectation({
-                              ana: prod([]),
-                              syn: list(unknown(Internal)),
-                            }),
-                          )
-                        ),
-                      ),
-                    ),
+                    Marks([
+                      ExpectationMismatch({
+                        ana: FTemp.Typ.prod([]),
+                        syn: FTemp.Typ.list(FTemp.Typ.unknown(Internal)),
+                      }),
+                    ]),
                   ),
                 [],
               ),

@@ -3,7 +3,7 @@ open Haz3lcore;
 
 /* Test utilities for converting between strings, JSON, and Hazel terms */
 let string_to_exp = (s: string): option(Language.Exp.t) =>
-  Parser.to_term(s);
+  Parser.to_term(s, ~root=Exp);
 
 let exp_to_string = (exp: Language.Exp.t): string => {
   let settings = ExpToSegment.Settings.editable(~inline=Inline);

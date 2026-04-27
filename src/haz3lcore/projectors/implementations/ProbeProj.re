@@ -580,7 +580,7 @@ let step_into_sample =
  * Requires: Ap of a named variable that isn't a built-in. */
 let can_step_into = (statics: Language.Statics.Info.t): bool =>
   switch (statics) {
-  | InfoExp({term: {term: Ap(_, fn_exp, _), _}, _}) =>
+  | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
     switch (fn_exp.term) {
     | Var(name) => Environment.lookup(Builtins.env_init, name) == None
     | _ => false
@@ -668,7 +668,7 @@ let sample_context_actions =
 let get_fn_name_from_statics =
     (statics: Language.Statics.Info.t): option(string) =>
   switch (statics) {
-  | InfoExp({term: {term: Ap(_, fn_exp, _), _}, _}) =>
+  | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
     switch (fn_exp.term) {
     | Var(name) => Some(name)
     | Constructor(name, _) => Some(name)
@@ -692,7 +692,7 @@ let get_arg_var_info =
     | _ => None
     };
   switch (statics) {
-  | InfoExp({term: {term: Ap(_, _, arg), _}, _}) =>
+  | InfoExp({user_term: {term: Ap(_, _, arg), _}, _}) =>
     switch (arg.term) {
     | Var(name) => [Some(name)]
     | Parens(inner) => [extract_var(inner)]
@@ -887,7 +887,7 @@ let sample_context_menu =
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (statics: Language.Statics.Info.t): bool =>
   switch (statics) {
-  | InfoExp({term: {term: Var(_), _}, _}) => true
+  | InfoExp({user_term: {term: Var(_), _}, _}) => true
   | InfoPat(_) => true
   | _ => false
   };

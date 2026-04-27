@@ -98,7 +98,6 @@ rule token =
     | "!=." { NOT_EQUAL_FLOAT }
     (* String Ops *)
     | "++" { STRING_CONCAT }
-    | "$==" { STRING_EQUAL }
     (* Bool ops *)
     | "&&" { L_AND }
     | "||" { L_OR }
@@ -131,7 +130,6 @@ rule token =
     | "fix" {FIX}
     | "typfun" {TYP_FUN}
     | "type" {TYP}
-    | "$" {DOLLAR_SIGN}
     | "~" {TILDE}
     | "/~" {SLASH_TILDE}
     | "?t" {T_TYP}

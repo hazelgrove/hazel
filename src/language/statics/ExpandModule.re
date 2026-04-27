@@ -111,7 +111,7 @@ let compute_non_shadowed_bindings =
    The tuple gets a fresh ID (NOT the Module's ID) because the Module's ID
    is already used by Statics to store info for the Module itself. Using the
    same ID would cause the statics map entry to be overwritten, leading to
-   infinite loops in the Elaborator. */
+   infinite loops in Statics. */
 let build_labeled_tuple = (bindings: list((Var.t, Pat.t))): Exp.t => {
   let fields =
     bindings

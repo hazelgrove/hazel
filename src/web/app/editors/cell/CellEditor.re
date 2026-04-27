@@ -32,17 +32,16 @@ module Model = {
     result: model.result |> EvalResult.Model.persist,
   };
 
-  let unpersist = (~settings as _, {editor, result}: persistent): t => {
-    editor: {
-      editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
-      statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
-      context_menu: None,
-    },
+  let unpersist = (~settings as _=?, {editor, result}: persistent): t => {
+    editor: CodeEditable.Model.unpersist(editor),
     result: EvalResult.Model.unpersist(result),
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
+
+  let zipper = (model: t) => model.editor.editor.state.zipper;
+
+  let sort = (model: t): Sort.t => CodeEditable.Model.sort(model.editor);
 };
 
 module Update = {
@@ -181,32 +180,26 @@ module Selection = {
     | MainEditor
     | Result(EvalResult.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | MainEditor =>
       let+ ci =
-        CodeEditable.Selection.get_cursor_info(~selection=(), model.editor);
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(MainEditor(a)),
+          ~selection=(),
+          model.editor,
+        );
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci =
-        EvalResult.Selection.get_cursor_info(~selection, model.result);
+        EvalResult.Selection.get_cursor_info(
+          ~inject=a => inject(ResultAction(a)),
+          ~selection,
+          model.result,
+        );
       Update.ResultAction(ci);
-    };
-  };
-
-  let handle_key_event =
-      (~selection, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | MainEditor =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=(),
-        model.editor,
-        event,
-      )
-      |> Option.map(x => Update.MainEditor(x))
-    | Result(selection) =>
-      EvalResult.Selection.handle_key_event(~selection, model.result, ~event)
-      |> Option.map(x => Update.ResultAction(x))
     };
   };
 
@@ -274,11 +267,15 @@ module View = {
               ? _ => Ui_effect.Ignore
               : fun
                 | MakeActive => signal(MakeActive(MainEditor)),
-          ~inject=
+          ~edit_mode=
             locked
-              ? _ => Ui_effect.Ignore
-              : (action => inject(MainEditor(action))),
-          ~selected=selected == Some(MainEditor),
+              ? EditMode.ReadOnly
+              : Editable({
+                  inject: action => inject(MainEditor(action)),
+                  escape: _ => Ui_effect.Ignore,
+                  take_focus: _ => Ui_effect.Ignore,
+                  focus: selected == Some(MainEditor) ? Some() : None,
+                }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),

@@ -151,7 +151,6 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
     Haz3lcore.ExternalProjectorBridge.init(Bonsai.Effect.Expert.handle);
     JsUtil.focus_clipboard_shim();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
