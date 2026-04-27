@@ -1,9 +1,15 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith install-hooks
 
 all: dev
+
+install-hooks:
+	@if [ "$$(git config --get core.hooksPath)" != "scripts/git-hooks" ]; then \
+		git config core.hooksPath scripts/git-hooks; \
+		echo "Installed git hooks (core.hooksPath -> scripts/git-hooks)."; \
+	fi
 
 # Install native BigInt runtime for zarith_stubs_js to fix WebWorker postMessage serialization.
 # The vendored runtime.js uses native JS BigInt (from zarith_stubs_js v0.17.0) which survives
@@ -12,7 +18,7 @@ setup-zarith:
 	@echo "Installing native BigInt zarith runtime..."
 	@cp vendor/zarith_native_bigint_runtime.js "$$(opam var lib)/zarith_stubs_js/runtime.js"
 
-deps:
+deps: install-hooks
 	opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 	opam update
 	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
@@ -36,9 +42,9 @@ dev-helper: setup-zarith
 	dune fmt --auto-promote || true
 	dune build @ocaml-index @src/fmt --auto-promote src --profile dev
 
-dev: setup-instructor dev-helper
+dev: install-hooks setup-instructor dev-helper
 
-dev-student: setup-student dev-helper
+dev-student: install-hooks setup-student dev-helper
 
 fmt:
 	dune fmt --auto-promote
