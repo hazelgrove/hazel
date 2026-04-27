@@ -718,7 +718,11 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
-  | TypApp(_, _) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | TypApp(t1, t2) =>
+    switch (weak_head_normalize(ctx, ty).term) {
+    | TypApp(_, _) => TypApp(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+    | _ as whnf => normalize(ctx, whnf |> temp)
+    }
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) =>
@@ -875,8 +879,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-  | (TypApp(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
-  | (_, TypApp(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (TypApp(_), _) =>
+    let ty1_whnf = weak_head_normalize(ctx, ty1);
+    Equality.syntactic.typ(ty1_whnf, ty1) ? None : meet'(ty1_whnf, ty2)
+  | (_, TypApp(_)) =>
+    let ty2_whnf = weak_head_normalize(ctx, ty2);
+    Equality.syntactic.typ(ty2_whnf, ty2) ? None : meet'(ty1, ty2_whnf)
   | (TypLam(x1, ty1), TypLam(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {

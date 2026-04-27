@@ -3404,6 +3404,117 @@ and utyp_to_info_map =
     )
     : (Info.typ, Map.t) => {
   open TypExpectation;
+  let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): (TypKind.t, list(Mark.t)) => {
+    let type_ = TypKind.Type;
+    let combine = (items: list((TypKind.t, list(Mark.t)))) =>
+      List.concat(List.map(snd, items));
+    switch (ty.term) {
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Label(_)
+    | ExplicitNonlabel => (type_, [])
+    | Var(name) => (
+        Ctx.lookup_tvar_typ_kind(ctx, name) |> Option.value(~default=type_),
+        [],
+      )
+    | Parens(t)
+    | Projector(_, t) => kind_of_typ(ctx, t)
+    | List(t) =>
+      let (k, marks) = kind_of_typ(ctx, t);
+      (
+        type_,
+        marks
+        @ (
+          TypKind.equal(k, type_)
+            ? [] : [Mark.TypKindMismatch({expected: type_, actual: k})]
+        ),
+      );
+    | Arrow(t1, t2)
+    | TupLabel(t1, t2)
+    | ProdProjection(t1, t2)
+    | ProdExtension(t1, t2) =>
+      let children = [kind_of_typ(ctx, t1), kind_of_typ(ctx, t2)];
+      let mismatch_marks =
+        children
+        |> List.filter_map(((k, _)) =>
+             TypKind.equal(k, type_)
+               ? None : Some(Mark.TypKindMismatch({expected: type_, actual: k}))
+           );
+      (type_, combine(children) @ mismatch_marks);
+    | Prod(ts) =>
+      let children = List.map(kind_of_typ(ctx), ts);
+      let mismatch_marks =
+        children
+        |> List.filter_map(((k, _)) =>
+             TypKind.equal(k, type_)
+               ? None : Some(Mark.TypKindMismatch({expected: type_, actual: k}))
+           );
+      (type_, combine(children) @ mismatch_marks);
+    | Sum(variants) =>
+      let payloads =
+        variants
+        |> List.filter_map(
+             fun
+             | ConstructorMap.Variant(_, _, Some(t)) => Some(t)
+             | Variant(_, _, None)
+             | BadEntry(_) => None,
+           );
+      let children = List.map(kind_of_typ(ctx), payloads);
+      let mismatch_marks =
+        children
+        |> List.filter_map(((k, _)) =>
+             TypKind.equal(k, type_)
+               ? None : Some(Mark.TypKindMismatch({expected: type_, actual: k}))
+           );
+      (type_, combine(children) @ mismatch_marks);
+    | Poly(param, body) =>
+      let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
+      let (body_kind, marks) = kind_of_typ(body_ctx, body);
+      (
+        type_,
+        marks
+        @ (
+          TypKind.equal(body_kind, type_)
+            ? [] : [Mark.TypKindMismatch({expected: type_, actual: body_kind})]
+        ),
+      );
+    | TypLam(param, body) =>
+      let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
+      let (body_kind, marks) = kind_of_typ(body_ctx, body);
+      (TypKind.Arrow(type_, body_kind), marks);
+    | TypApp(fn, arg) =>
+      let (fn_kind, fn_marks) = kind_of_typ(ctx, fn);
+      let (arg_kind, arg_marks) = kind_of_typ(ctx, arg);
+      switch (fn_kind) {
+      | TypKind.Arrow(expected, result) =>
+        (
+          result,
+          fn_marks
+          @ arg_marks
+          @ (
+            TypKind.equal(expected, arg_kind)
+              ? [] : [Mark.TypKindMismatch({expected, actual: arg_kind})]
+          ),
+        )
+      | _ => (type_, fn_marks @ arg_marks @ [Mark.TypApplyNonArrowKind(fn_kind)])
+      };
+    | Rec(param, body) =>
+      let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
+      kind_of_typ(body_ctx, body);
+    | ProofOf(_) => (type_, [])
+    | Sig(_) => (type_, [])
+    };
+  };
+  let kind_marks_for_expected_type = (utyp: Typ.t): list(Mark.t) => {
+    let (actual, marks) = kind_of_typ(ctx, utyp);
+    marks
+    @ (
+      TypKind.equal(actual, TypKind.Type)
+        ? []
+        : [Mark.TypKindMismatch({expected: TypKind.Type, actual})]
+    );
+  };
   let ids = IdTagged.ids(utyp);
   let term = IdTagged.term_of(utyp);
   let rec status_for_node =
@@ -3508,14 +3619,22 @@ and utyp_to_info_map =
     | (ConstructorExpected(Duplicate, _), Var(name)) =>
       err(TypDuplicateConstructor(name))
     | (TypeExpected, Var(name)) =>
+      let kind_marks = kind_marks_for_expected_type(utyp);
       switch (Ctx.is_alias(ctx, name)) {
       | false =>
         switch (Ctx.is_abstract(ctx, name)) {
         | false => err(TypFreeTypeVariable(name))
-        | true => ok(Message.Type(Var(name) |> Typ.temp))
+        | true =>
+          switch (kind_marks) {
+          | [] => ok(Message.Type(Var(name) |> Typ.temp))
+          | [mark, ..._] => err(mark)
+          }
         }
       | true =>
-        ok(Message.TypeAlias(name, Typ.weak_head_normalize(ctx, utyp)))
+        switch (kind_marks) {
+        | [] => ok(Message.TypeAlias(name, Typ.weak_head_normalize(ctx, utyp)))
+        | [mark, ..._] => err(mark)
+        }
       }
     | (TypeExpected, Label(_))
     | (LabelExpected(Unique, _), Label(_)) => ok(Message.Type(utyp))
@@ -3535,7 +3654,11 @@ and utyp_to_info_map =
     | (ConstructorExpected(_), _)
     | (VariantExpected(_), _) => err(TypWantConstructorFoundType(utyp))
     | (_, Parens(t)) => status_for_node(~expects, t)
-    | (TypeExpected, _) => ok(Message.Type(utyp))
+    | (TypeExpected, _) =>
+      switch (kind_marks_for_expected_type(utyp)) {
+      | [] => ok(Message.Type(utyp))
+      | [mark, ..._] => err(mark)
+      }
     };
   };
   let add = (~expects=expects, ~utyp=utyp, m) => {
@@ -3586,7 +3709,9 @@ and utyp_to_info_map =
     let m = go(t2, m) |> snd;
     add(m);
   | TypApp(t1, t2) =>
-    let m = go(t1, m) |> snd;
+    /* The callee of a type-level application is expected to have arrow kind,
+       so do not validate it as an ordinary Type on its own. */
+    let _ = t1;
     let m = go(t2, m) |> snd;
     add(m);
   | Prod(ts) =>

@@ -264,6 +264,8 @@ let core_mark_err_view =
     | Redundant
     | ExpectedConstructor
     | TypFreeTypeVariable(_)
+    | TypKindMismatch(_)
+    | TypApplyNonArrowKind(_)
     | TypDuplicateConstructor(_)
     | TypDuplicateLabels(_, _)
     | TypWantTypeFoundAp
@@ -512,6 +514,16 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("not found"),
     ]
   | BadToken(token) => [code(token), text("not a type or type operator")]
+  | TypKindMismatch({expected, actual}) => [
+      text("Expected kind "),
+      code(TypKind.to_string(expected)),
+      text(", found "),
+      code(TypKind.to_string(actual)),
+    ]
+  | TypApplyNonArrowKind(kind) => [
+      text("Cannot apply a type of kind "),
+      code(TypKind.to_string(kind)),
+    ]
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
   | TypWantTypeFoundAp => [text("Must be part of a sum type")]
@@ -734,6 +746,8 @@ let exp_mark_err_view =
       view_type(typ),
     ])
   | TypFreeTypeVariable(_)
+  | TypKindMismatch(_)
+  | TypApplyNonArrowKind(_)
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp

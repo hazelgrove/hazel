@@ -156,6 +156,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     | Some(_) => "(internal)"
     }
   | TypFreeTypeVariable(_)
+  | TypKindMismatch(_)
+  | TypApplyNonArrowKind(_)
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp
