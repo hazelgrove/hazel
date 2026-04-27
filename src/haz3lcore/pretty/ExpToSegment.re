@@ -111,6 +111,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Var(_)
   | Invalid(_)
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
+  | DrvQuote(_)
   | EmptyHole
   | Deferral(_)
   | ExplicitNonlabel
@@ -129,9 +130,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | HintedTest(_)
   | ProofObject(_)
   | Match(_) => Precedence.max
-
-  // Other forms
-  | UnOp(Meta(Unquote), _) => Precedence.unquote
 
   | Asc(_) => Precedence.asc
   | Ap(Forward, _, _)
@@ -203,6 +201,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(Hole(EmptyHole))
   | Var(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
   | TupLabel(_) => Precedence.max
@@ -340,6 +339,7 @@ let rec parenthesize =
   | Var(_)
   | Invalid(_)
   | Atom(_)
+  | DrvQuote(_)
   | EmptyHole
   | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
@@ -480,8 +480,8 @@ let rec parenthesize =
   | Ap(Reverse, e1, e2) =>
     Ap(
       Reverse,
-      parenthesize(e1) |> paren_assoc_at(Precedence.eqs),
-      parenthesize(e2) |> paren_at(Precedence.eqs),
+      parenthesize(e1) |> paren_at(Precedence.eqs),
+      parenthesize(e2) |> paren_assoc_at(Precedence.eqs),
     )
     |> rewrap
   | TypAp(e, tp) =>
@@ -536,12 +536,19 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.concat),
     )
     |> rewrap
-  | UnOp(Meta(Unquote), e) =>
-    UnOp(Meta(Unquote), parenthesize(e) |> paren_at(Precedence.unquote))
-    |> rewrap
   | UnOp(Bool(Not), e) =>
     UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
-  | UnOp((Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus)) as op, e) =>
+  | UnOp(Float(Minus), e) =>
+    /* Rewrite float negation as 0.0 -. e so that the segment round-trips
+       correctly through MakeTerm (which parses unary - as Int(Minus)) */
+    let zero = Exp.fresh(Atom(Float(0.0)));
+    BinOp(
+      Float(Minus),
+      parenthesize(zero) |> paren_assoc_at(Precedence.plus),
+      parenthesize(e) |> paren_at(Precedence.plus),
+    )
+    |> rewrap;
+  | UnOp((Int(Minus) | Nat(Minus) | SInt(Minus)) as op, e) =>
     UnOp(op, parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
   | BinOp(op, e1, e2) =>
     (
@@ -699,7 +706,8 @@ and parenthesize_typ =
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
-  | Atom(_) => typ
+  | Atom(_)
+  | DrvQuoteTy(_) => typ
 
   // Other forms
   | Parens(t) =>
@@ -948,7 +956,11 @@ and parenthesize_any =
         r,
       ),
     )
-  | Mod(_) => any /* TODO: proper module parenthesization */
+  /* Parenthesization for Drv, Mod, Sig, MPat, and Any is not yet defined.
+     Pretty-printing produces the term as-is; this is sound (never adds
+     invalid parens) but may omit disambiguating parens in nested contexts. */
+  | Drv(_) => any
+  | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
   | Any(_) => any
@@ -1063,14 +1075,39 @@ let mk_form =
 };
 
 /* HACK[Matt]: Sometimes terms that should have multiple ids won't because
-   evaluation only ever gives them one */
-let pad_ids = (n: int, ids: list(Id.t)): list(Id.t) => {
-  let len = List.length(ids);
-  if (len < n) {
-    ids @ List.init(n - len, _ => Id.mk());
-  } else {
-    ListUtil.split_n(n, ids) |> fst;
-  };
+   evaluation only ever gives them one.
+
+   Some upstream producers (e.g., evaluator collapse, certain absorption
+   paths) can emit ids lists with duplicates — e.g., [case_id, case_id, ...]
+   for a Match where the adoption machinery did not preserve distinct rule
+   ids. If we pass duplicates through unchanged, the pretty-printer will
+   emit multiple Tile pieces sharing the same id (e.g., the case `[case;end]`
+   form and all `[|;=>]` rules all tagged with case_id), and
+   Segment.reassemble will group them into a single Aba match and fail
+   with an out-of-order combined_shards assertion.
+
+   To prevent that, pad_ids now also ensures the returned list has:
+   1. no duplicates within itself;
+   2. no id equal to any id in [~forbidden]. */
+let pad_ids =
+    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
+  let forbidden_set = ref(Id.Set.of_list(forbidden));
+  let replace = id =>
+    if (Id.Set.mem(id, forbidden_set^)) {
+      let fresh = Id.mk();
+      forbidden_set := Id.Set.add(fresh, forbidden_set^);
+      fresh;
+    } else {
+      forbidden_set := Id.Set.add(id, forbidden_set^);
+      id;
+    };
+  let truncated =
+    if (List.length(ids) < n) {
+      ids @ List.init(n - List.length(ids), _ => Id.mk());
+    } else {
+      ListUtil.split_n(n, ids) |> fst;
+    };
+  List.map(replace, truncated);
 };
 
 /* Save standard list concatenation before we shadow @ */
@@ -1154,6 +1191,488 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   | `NoFold => pieces
   };
 
+let rec drv_exp_to_pretty =
+        (~settings: Settings.t, syntax: Drv.Exp.t, ~sort: DrvSort.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = (~inline=settings.inline, ~sort) =>
+    drv_exp_to_pretty(
+      ~settings={
+        ...settings,
+        inline,
+      },
+      ~sort,
+    );
+  let try_newline = () =>
+    settings.inline == Inline ? [] : [Secondary(mk_newline(Id.mk()))];
+  let id = syntax |> Drv.Exp.rep_id;
+  switch (syntax |> Drv.Exp.term_of) {
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(sort), "$" ++ e)
+  | Parens(e) =>
+    let+ e = go(e, ~sort);
+    [mk_form(Drv(ParenExp), id, [e])];
+  /* [Tuple] is an intermediate form produced during parsing; it should be
+     collapsed into a parenthesised [Pair] before reaching the pretty printer,
+     so hitting it here indicates a bug somewhere upstream. */
+  | Tuple(_) => text_to_pretty(id, Sort.Drv(sort), "[Tuple]")
+  | Cons(e1, e2) =>
+    let+ e1 = go(e1, ~sort=Prop)
+    and+ e2 = go(e2, ~sort=Ctx);
+    e1 @ [mk_form(Drv(Cons), id, [])] @ e2;
+  | Concat(e1, e2) =>
+    let+ e1 = go(e1, ~sort=Ctx)
+    and+ e2 = go(e2, ~sort=Ctx);
+    e1 @ [mk_form(Drv(Concat), id, [])] @ e2;
+  | And(l, r) =>
+    let+ l = go(l, ~sort=Prop)
+    and+ r = go(r, ~sort=Prop);
+    l @ [mk_form(Drv(And), id, [])] @ r;
+  | Or(l, r) =>
+    let+ l = go(l, ~sort=Prop)
+    and+ r = go(r, ~sort=Prop);
+    l @ [mk_form(Drv(Or), id, [])] @ r;
+  | Impl(l, {term: Falsity, _}) =>
+    let+ l = go(l, ~sort=Prop);
+    [mk_form(Drv(Not), id, [])] @ l;
+  | Impl(l, r) =>
+    let+ l = go(l, ~sort=Prop)
+    and+ r = go(r, ~sort=Prop);
+    l @ [mk_form(Drv(Impl), id, [])] @ r;
+  | Truth => text_to_pretty(id, Sort.Drv(Prop), "Truth")
+  | Falsity => text_to_pretty(id, Sort.Drv(Prop), "Falsity")
+  | Ctx([]) => text_to_pretty(id, Sort.Drv(Ctx), "[]")
+  | Ctx([x, ...xs]) =>
+    let* x = go(x, ~sort=Prop)
+    and* xs = xs |> List.map(go(~sort=Prop)) |> all;
+    let ids = syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
+    let map2_safe = (f, l1, l2) =>
+      List.length(l1) == List.length(l2)
+        ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
+    [
+      mk_form(
+        Drv(List),
+        id,
+        [
+          x
+          @ List.flatten(
+              map2_safe(
+                (id, x) => [mk_form(Drv(CommaExp), id, [])] @ x,
+                ids,
+                xs,
+              ),
+            ),
+        ],
+      ),
+    ];
+  | Val(v) =>
+    let+ v = go(v, ~sort=Exp);
+    [mk_form(Drv(Val), id, [v])];
+  | Eval(l, r) =>
+    let+ l = go(l, ~sort=Exp)
+    and+ r = go(r, ~sort=Exp);
+    l @ [mk_form(Drv(Eval), id, [])] @ r;
+  | Entail({term: Ctx([]), _}, r) =>
+    let+ r = go(r, ~sort=Prop);
+    [mk_form(Drv(UnaryEntail), id, [])] @ r;
+  | Entail(l, r) =>
+    let+ l = go(l, ~sort=Ctx)
+    and+ r = go(r, ~sort=Prop);
+    l @ [mk_form(Drv(Entail), id, [])] @ r;
+  | Consistent(l, r) =>
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
+    [mk_form(Drv(Consistent), id, [l])] @ r;
+  | MatchedArrow(l, r) =>
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
+    [mk_form(Drv(MatchedArrow), id, [l])] @ r;
+  | MatchedProd(l, r) =>
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
+    [mk_form(Drv(MatchedProd), id, [l])] @ r;
+  | MatchedSum(l, r) =>
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
+    [mk_form(Drv(MatchedSum), id, [l])] @ r;
+  | Type(t) =>
+    let+ t = drv_typ_to_pretty(~settings, t);
+    [mk_form(Drv(Valid), id, [t])];
+  | HasType(e, t) =>
+    let+ e = go(e, ~sort=Exp)
+    and+ t = drv_typ_to_pretty(~settings, t);
+    e @ [mk_form(Drv(HasType), id, [])] @ t;
+  | Syn(e, t) =>
+    let+ e = go(e, ~sort=Exp)
+    and+ t = drv_typ_to_pretty(~settings, t);
+    e @ [mk_form(Drv(Syn), id, [])] @ t;
+  | Ana(e, t) =>
+    let+ e = go(e, ~sort=Exp)
+    and+ t = drv_typ_to_pretty(~settings, t);
+    e @ [mk_form(Drv(Ana), id, [])] @ t;
+  | Var(x) => text_to_pretty(id, Sort.Drv(sort), x)
+  | NumLit(n) => text_to_pretty(id, Sort.Drv(Exp), Int.to_string(n))
+  | Neg(e) =>
+    let+ e = go(e, ~sort=Exp);
+    [mk_form(Drv(Neg), id, [])] @ e;
+  | BinOp(op, l, r) =>
+    let+ l = go(l, ~sort=Exp)
+    and+ r = go(r, ~sort=Exp);
+    let cls: Form.drv_compound_form =
+      switch (op) {
+      | Plus => Plus
+      | Minus => Minus
+      | Times => Times
+      | Eq => Eq
+      | Gt => Gt
+      | Lt => Lt
+      };
+    l @ [mk_form(Drv(cls), id, [])] @ r;
+  | True => text_to_pretty(id, Sort.Drv(Exp), "True")
+  | False => text_to_pretty(id, Sort.Drv(Exp), "False")
+  | If(c, t, f) =>
+    let+ c = go(c, ~sort=Exp)
+    and+ t = go(t, ~sort=Exp)
+    and+ f = go(f, ~sort=Exp);
+    [mk_form(Drv(If), id, [c, t])] @ f;
+  | Let(p, e1, e2) =>
+    let+ p = drv_pat_to_pretty(~settings, p)
+    and+ e1 = go(e1, ~sort=Exp)
+    and+ e2 = go(e2, ~sort=Exp);
+    [mk_form(Drv(Let), id, [p, e1])] @ e2;
+  | Fix(p, e) =>
+    let+ p = drv_pat_to_pretty(~settings, p)
+    and+ e = go(e, ~sort=Exp);
+    [mk_form(Drv(Fix), id, [p])] @ e;
+  | Fun(p, e) =>
+    let+ p = drv_pat_to_pretty(~settings, p)
+    and+ e = go(e, ~sort=Exp);
+    [mk_form(Drv(Fun), id, [p])] @ e;
+  | Ap(l, r) =>
+    let+ l = go(l, ~sort=Exp)
+    and+ r = go(r, ~sort=Exp);
+    l @ [mk_form(Drv(ApExp), id, [r])];
+  | Pair(l, r) =>
+    let+ l = go(l, ~sort=Exp)
+    and+ r = go(r, ~sort=Exp);
+    [
+      mk_form(
+        Drv(ParenExp),
+        id,
+        [l @ [mk_form(Drv(CommaExp), id, [])] @ r],
+      ),
+    ];
+  | Triv => text_to_pretty(id, Sort.Drv(Exp), "()")
+  | PrjL(e) =>
+    let+ e = go(e, ~sort=Exp);
+    e
+    @ [mk_form(Drv(Dot), Id.invalid, [])]
+    @ text_to_pretty(id, Sort.Drv(Exp), "fst");
+  | PrjR(e) =>
+    let+ e = go(e, ~sort=Exp);
+    e
+    @ [mk_form(Drv(Dot), Id.invalid, [])]
+    @ text_to_pretty(id, Sort.Drv(Exp), "snd");
+  | InjL(e) =>
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "L")
+    @ [mk_form(Drv(ApExp), id, [e])];
+  | InjR(e) =>
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "R")
+    @ [mk_form(Drv(ApExp), id, [e])];
+  | Case(e, x, e1, y, e2) =>
+    /* ID order: [case_end_id] @ rule_ids (outer first, then adopted).
+       IMPORTANT: Each Rule tile must have its OWN distinct id, not the
+       same as the outer Case, otherwise Segment.reassemble will group
+       all shards with the same id into one Aba match, producing
+       out-of-order combined_shards and an assertion failure. */
+    let+ e = go(e, ~sort=Exp)
+    and+ x = drv_pat_to_pretty(~settings, x)
+    and+ e1 = go(e1, ~sort=Exp)
+    and+ y = drv_pat_to_pretty(~settings, y)
+    and+ e2 = go(e2, ~sort=Exp);
+    let all_ids = IdTagged.ids(syntax);
+    let rule_ids =
+      pad_ids(
+        ~forbidden=[id],
+        2,
+        switch (all_ids) {
+        | [_, ...rest] => rest
+        | [] => []
+        },
+      );
+    let (rule1_id, rule2_id) =
+      switch (rule_ids) {
+      | [a, b, ..._] => (a, b)
+      | [a] => (a, Id.mk())
+      | [] => (Id.mk(), Id.mk())
+      };
+    [
+      mk_form(
+        Drv(Case),
+        id,
+        [
+          e
+          @ try_newline()
+          @ [mk_form(Drv(Rule), rule1_id, [x])]
+          @ e1
+          @ try_newline()
+          @ [mk_form(Drv(Rule), rule2_id, [y])]
+          @ e2
+          @ try_newline(),
+        ],
+      ),
+    ];
+  | Roll(e) =>
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "roll")
+    @ [mk_form(Drv(ApExp), id, [e])];
+  | Unroll(e) =>
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "unroll")
+    @ [mk_form(Drv(ApExp), id, [e])];
+  | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Token.wild)
+  };
+}
+and drv_pat_to_pretty = (~settings: Settings.t, syntax: Drv.Pat.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = (~inline=settings.inline) =>
+    drv_pat_to_pretty(
+      ~settings={
+        ...settings,
+        inline,
+      },
+    );
+  let id = syntax |> Drv.Pat.rep_id;
+  switch (syntax |> Drv.Pat.term_of) {
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Pat), e)
+  | Parens(e) =>
+    let+ e = go(e);
+    [mk_form(Drv(ParenPat), id, [e])];
+  | Var(s) => text_to_pretty(id, Sort.Drv(Pat), s)
+  | Cast(e, t) =>
+    let+ e = go(e)
+    and+ t = drv_typ_to_pretty(~settings, t);
+    e @ [mk_form(Drv(Cast), id, [])] @ t;
+  | Pair(l, r) =>
+    let+ l = go(l)
+    and+ r = go(r);
+    [
+      mk_form(
+        Drv(ParenPat),
+        id,
+        [l @ [mk_form(Drv(CommaPat), id, [])] @ r],
+      ),
+    ];
+  | InjL(p) =>
+    let+ p = go(p);
+    text_to_pretty(id, Sort.Drv(Pat), "L")
+    @ [mk_form(Drv(ApPat), id, [p])];
+  | InjR(p) =>
+    let+ p = go(p);
+    text_to_pretty(id, Sort.Drv(Pat), "R")
+    @ [mk_form(Drv(ApPat), id, [p])];
+  };
+}
+and drv_typ_to_pretty = (~settings: Settings.t, syntax: Drv.Typ.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = (~inline=settings.inline) =>
+    drv_typ_to_pretty(
+      ~settings={
+        ...settings,
+        inline,
+      },
+    );
+  let id = syntax |> Drv.Typ.rep_id;
+  switch (syntax |> Drv.Typ.term_of) {
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
+  | Parens(e) =>
+    let+ e = go(e);
+    [mk_form(Drv(ParenTyp), id, [e])];
+  | Num => text_to_pretty(id, Sort.Drv(Typ), "Num")
+  | Bool => text_to_pretty(id, Sort.Drv(Typ), "Bool")
+  | Arrow(l, r) =>
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Drv(Arrow), id, [])] @ r;
+  | Prod(l, r) =>
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Drv(Prod), id, [])] @ r;
+  | Unit => text_to_pretty(id, Sort.Drv(Typ), "Unit")
+  | Sum(l, r) =>
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Drv(Sum), id, [])] @ r;
+  | Var(s) => text_to_pretty(id, Sort.Drv(Typ), s)
+  | Rec(l, r) =>
+    let+ l = drv_tpat_to_pretty(~settings, l)
+    and+ r = go(r);
+    [mk_form(Drv(Rec), id, [l])] @ r;
+  | TypHole => text_to_pretty(id, Sort.Drv(Typ), Token.explicit_hole)
+  };
+}
+and drv_tpat_to_pretty = (~settings: Settings.t, syntax: Drv.TPat.t): pretty => {
+  let id = syntax |> Drv.TPat.rep_id;
+  switch (syntax |> Drv.TPat.term_of) {
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
+  | Var(s) => text_to_pretty(id, Sort.Drv(TPat), s)
+  };
+}
+and drv_type_hole_to_pretty =
+    (~settings: Settings.t, syntax: DrvTermBase.type_hole): pretty => {
+  let id = Id.invalid;
+  switch (syntax) {
+  | AbbrNotVar =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not a variable")
+  | AbbrNotFound =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not found")
+  | AbbrNotDrvTerm =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not a drv term")
+  | Invalid(s) => text_to_pretty(id, Sort.Drv(Typ), "Error: " ++ s)
+  | EmptyHole => text_to_pretty(id, Sort.Drv(Typ), Token.space)
+  | MultiHole(tm) =>
+    let+ tm =
+      tm |> List.map(drv_to_pretty(~settings, ~sort=DrvSort.Exp)) |> all;
+    ListUtil.flat_intersperse(
+      Grout({
+        id,
+        shape: Concave,
+      }),
+      tm,
+    );
+  };
+}
+and drv_to_pretty = (~settings: Settings.t, drv: Drv.Any.t, ~sort): pretty => {
+  let res =
+    switch (drv) {
+    | Exp(e) => drv_exp_to_pretty(~settings, e, ~sort)
+    | Pat(p) => drv_pat_to_pretty(~settings, p)
+    | Typ(t) => drv_typ_to_pretty(~settings, t)
+    | TPat(tp) => drv_tpat_to_pretty(~settings, tp)
+    };
+  res;
+};
+
+let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
+  (formula, sort) => {
+    let mk_form = mk_form(~secondary=Settings.AutoFormat);
+    let go = drv_formula_to_pretty;
+    let id = List.hd(formula.annotation.ids);
+    let mk_jdmt_binop = (op, l, r, sort_l, sort_r) => {
+      let+ l = go(l, sort_l)
+      and+ r = go(r, sort_r);
+      l
+      @ [
+        Tile({
+          id,
+          label: [op],
+          mold: {
+            out: Drv(Jdmt),
+            in_: [],
+            nibs: (
+              Nib.{
+                shape: Concave(Precedence.min),
+                sort: Drv(sort_l),
+              },
+              Nib.{
+                shape: Concave(Precedence.min),
+                sort: Drv(sort_r),
+              },
+            ),
+          },
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ r;
+    };
+    switch (formula.term) {
+    | LookUpExp(x)
+    | LookUpPat(x)
+    | LookUpTyp(x)
+    | LookUpTPat(x) => text_to_pretty(id, Sort.Drv(sort), x)
+    | UnboxCtx(e) => go(e, sort)
+    | UnboxNumLit(e) => go(e, sort)
+    | UnboxExpVar(e) => go(e, sort)
+    | UnboxPatVar(p) => go(p, sort)
+    | UnboxTypVar(t) => go(t, sort)
+    | UnboxTPatVar(tp) => go(tp, sort)
+    | ExpVar(x) => go(x, Exp)
+    | HasType(e, t) =>
+      let+ e = go(e, Exp)
+      and+ t = go(t, Typ);
+      [
+        mk_form(
+          Drv(ParenProp),
+          id,
+          [e @ [mk_form(Drv(HasType), id, [])] @ t],
+        ),
+      ];
+    | Type(t) =>
+      let+ t = go(t, Typ);
+      [mk_form(Drv(Valid), id, [t])];
+    | Fix(p, e) =>
+      let+ p = go(p, Pat)
+      and+ e = go(e, Exp);
+      [mk_form(Drv(Fix), id, [p])] @ e;
+    | Subst(e, x, e') =>
+      let+ e = go(e, Exp)
+      and+ x = go(x, Pat)
+      and+ e' = go(e', Exp);
+      [mk_form(Drv(Subst), id, [e, x])] @ e';
+    | Ctx(ctx) => go(ctx, Ctx)
+    | Cons(e, ctx) =>
+      let+ e = go(e, Prop)
+      and+ ctx = go(ctx, Ctx);
+      e @ [mk_form(Drv(Cons), id, [])] @ ctx;
+    | Neg(n) =>
+      let+ n = go(n, Exp);
+      [mk_form(Drv(Neg), id, [])] @ n;
+    | Plus(l, r) =>
+      let+ l = go(l, Exp)
+      and+ r = go(r, Exp);
+      l @ [mk_form(Drv(Plus), id, [])] @ r;
+    | Minus(l, r) =>
+      let+ l = go(l, Exp)
+      and+ r = go(r, Exp);
+      l @ [mk_form(Drv(Minus), id, [])] @ r;
+    | Times(l, r) =>
+      let+ l = go(l, Exp)
+      and+ r = go(r, Exp);
+      l @ [mk_form(Drv(Times), id, [])] @ r;
+    | TypVar(x) => go(x, Typ)
+    | Rec(tp, t) =>
+      let+ tp = go(tp, TPat)
+      and+ t = go(t, Typ);
+      [mk_form(Drv(Rec), id, [tp])] @ t;
+    | Glb(l, r) =>
+      let+ l = go(l, Typ)
+      and+ r = go(r, Typ);
+      [mk_form(Drv(Glb), id, [l, r])];
+    | SubstTy(t, x, t') =>
+      let+ t = go(t, Typ)
+      and+ x = go(x, TPat)
+      and+ t' = go(t', Typ);
+      [mk_form(Drv(SubstTy), id, [t, x])] @ t';
+    | Ignore(_) => []
+    | Gt(l, r) => mk_jdmt_binop(">", l, r, Exp, Exp)
+    | Lt(l, r) => mk_jdmt_binop("<", l, r, Exp, Exp)
+    | Eq(l, r) => mk_jdmt_binop("=", l, r, Exp, Exp)
+    | NotGt(l, r) => mk_jdmt_binop("≯", l, r, Exp, Exp)
+    | NotLt(l, r) => mk_jdmt_binop("≮", l, r, Exp, Exp)
+    | NotEq(l, r) => mk_jdmt_binop("≠", l, r, Exp, Exp)
+    | Mem(p, ctx) => mk_jdmt_binop("∈", p, ctx, Prop, Ctx)
+    | Subset(l, r) => mk_jdmt_binop("⊆", l, r, Ctx, Ctx)
+    | EqExp(l, r) => mk_jdmt_binop("=", l, r, Exp, Exp)
+    | EqCtx(l, r) => mk_jdmt_binop("=", l, r, Ctx, Ctx)
+    | EqTyp(l, r) => mk_jdmt_binop("=", l, r, Typ, Typ)
+    };
+  };
+
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
@@ -1216,6 +1735,19 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       exp,
       text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c)),
     )
+  | DrvQuote(d, sort) =>
+    let+ d = drv_to_pretty(~settings, d, ~sort);
+    let form: Form.drv_compound_form =
+      switch (sort) {
+      | Jdmt => OfJdmt
+      | Ctx => OfCtx
+      | Prop => OfProp
+      | Exp => OfAlfaExp
+      | Pat => OfAlfaPat
+      | Typ => OfAlfaTyp
+      | TPat => OfAlfaTPat
+      };
+    [mk_form(Drv(form), exp |> Exp.rep_id, [d])];
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
@@ -1669,18 +2201,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ e1 = go(e1)
     and+ e2 = go(e2);
     wrap(exp, e1 @ [mk_form(ListConcat, id, [])] @ e2);
-  | UnOp(Meta(Unquote), e) =>
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    wrap(exp, [mk_form(Unquote, id, [])] @ e);
   | UnOp(Bool(Not), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Not, id, [])] @ e);
-  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), e) =>
+  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(UnaryMinus, id, [])] @ e);
+  | UnOp(Float(Minus), _) =>
+    failwith(
+      "ExpToSegment: UnOp(Float(Minus)) should have been rewritten by parenthesize",
+    )
   /* TODO: this isn't actually correct because we could the builtin
      could have been overriden in this scope; worth fixing when we fix
      closures. */
@@ -1694,7 +2226,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Match(e, rs) =>
     /* ID order: [case_end_id] @ rule_ids (outer first, then adopted).
        IMPORTANT: Must align with MakeTerm.exp_term Match case,
-       which produces IDs in this order during absorption. */
+       which produces IDs in this order during absorption. The
+       rule IDs must be distinct from each other AND from the case
+       ID — see pad_ids for the deduplication behavior. */
     let+ e = go(e)
     and+ rs: list((Segment.t, Segment.t)) = {
       rs
@@ -1704,9 +2238,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> List.map(((x, y)) => (x, y))
       |> all;
     };
+    let all_exp_ids = IdTagged.ids(exp);
+    let case_id = all_exp_ids |> List.hd;
     let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(rs)),
+      case_id,
+      all_exp_ids
+      |> List.tl
+      |> pad_ids(~forbidden=[case_id], List.length(rs)),
     );
     wrap(
       exp,
@@ -2136,6 +2674,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool"))
   | Atom(String) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String"))
+  | DrvQuoteTy(d) =>
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, DrvSort.to_string(d)),
+    )
   | Atom(Nat) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat"))
   | List(t) =>
@@ -2475,6 +3018,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
+  | Drv(d) => drv_to_pretty(~settings: Settings.t, d, ~sort=Jdmt)
   | Mod(m) => mod_to_pretty(~settings, m)
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)

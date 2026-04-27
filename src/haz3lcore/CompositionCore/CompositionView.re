@@ -22,7 +22,7 @@ module Local = {
   module Utils = {
     let get_individual_ids_of_let = (term: Info.t): (Id.t, Id.t, Id.t) => {
       switch (term) {
-      | InfoExp({term, _}) =>
+      | InfoExp({user_term: term, _}) =>
         switch (Exp.term_of(term)) {
         | Let(pat, def, body) => (
             Pat.rep_id(pat),

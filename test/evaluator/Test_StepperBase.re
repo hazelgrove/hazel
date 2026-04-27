@@ -82,6 +82,7 @@ module InductionCaseHelpers = {
     let pattern_exp = parse_exp(pattern_str);
     let editor =
       Editor.Model.mk(
+        ~root=Exp,
         Zipper.unzip(
           ExpToSegment.exp_to_segment(
             ~settings=ExpToSegment.Settings.editable(~inline=Inline),

@@ -17,6 +17,9 @@
   cursor: text;
   flex-direction: row;
   padding-left: 1em;
+  /* Suppress browser focus outline — editors use tabindex for keyboard
+   * focus but have their own visual selection indicators */
+  outline: none;
 }
 
 #main .code-editor.has-line-numbers{
@@ -30,17 +33,18 @@
 }
 
 :is(#main.Scratch,
-#main.Documentation) > * > .code-editor {
+#main.Documentation):not(.Derivations) > * > .code-editor {
   background-color: var(--cell-active);
 }
 
-#main.Scratch .cell,
-#main.Documentation .cell {
+:is(#main.Scratch,
+#main.Documentation):not(.Derivations) .cell {
   flex-grow: 1;
 }
 
 #main.Tutorial,
-#main.Exercises {
+#main.Exercises,
+#main.Derivations {
   padding: 1.5em;
   padding-top: 3.5em;
   display: flex;
@@ -51,8 +55,23 @@
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
 }
 
+/* Derivation slides inside the unified Scratch/Documentation modes
+   don't need the tall top padding that Exercises uses for the score/title
+   header; tighten it so the Rule Set label sits near the top bar. */
+#main.Scratch.Derivations,
+#main.Documentation.Derivations {
+  padding-top: 1em;
+}
+
+/* Derivation slides inside the unified Scratch/Documentation modes
+   must not inherit the flex-grow applied to code scratchpad cells. */
+#main.Derivations > .cell {
+  flex: 0 0 auto;
+}
+
 #main.Tutorial .cell,
-#main.Exercises .cell {
+#main.Exercises .cell,
+#main.Derivations .cell {
   width: auto;
   border-radius: 0.4em;
 }
@@ -247,13 +266,30 @@
   font-size: 1rem;
 }
 
+/* Markdown paragraphs inside a prompt. Each blank line in the source
+   produces its own <p>; we space them modestly and trim the outer
+   margins so the prompt cell doesn't pick up extra padding. */
+.prompt-content p {
+  margin: 0.5em 0;
+}
+
+.prompt-content p:first-child {
+  margin-top: 0;
+}
+
+.prompt-content p:last-child {
+  margin-bottom: 0;
+}
+
 #main.Tutorial .cell:has(.code-editor.selected),
-#main.Exercises .cell:has(.code-editor.selected) {
+#main.Exercises .cell:has(.code-editor.selected),
+#main.Derivations .cell:has(.code-editor.selected) {
   background-color: var(--cell-active);
 }
 
 #main.Tutorial .cell.unlocked:has(.code-editor.selected),
-#main.Exercises .cell.unlocked:has(.code-editor.selected) {
+#main.Exercises .cell.unlocked:has(.code-editor.selected),
+#main.Derivations .cell.unlocked:has(.code-editor.selected) {
   border-left: 1px solid var(--cell-selected-accent);
   background-color: var(--cell-active);
 }

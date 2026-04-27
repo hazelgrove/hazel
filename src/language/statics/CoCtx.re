@@ -55,16 +55,20 @@ let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
 /* Merge co-contexts, combining entry lists for the same variable name. */
 let union: list(t) => t =
   co_ctxs => {
-    let all = List.concat(co_ctxs);
     List.fold_left(
-      (acc, (name, entries)) =>
-        if (VarMap.contains(acc, name)) {
-          VarMap.update(acc, name, existing => existing @ entries);
-        } else {
-          VarMap.extend(acc, (name, entries));
-        },
+      (acc, co_ctx) =>
+        List.fold_left(
+          (acc, (name, entries)) =>
+            if (VarMap.contains(acc, name)) {
+              VarMap.update(acc, name, existing => existing @ entries);
+            } else {
+              VarMap.extend(acc, (name, entries));
+            },
+          acc,
+          co_ctx,
+        ),
       VarMap.empty,
-      all,
+      co_ctxs,
     );
   };
 

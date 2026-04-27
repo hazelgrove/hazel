@@ -42,7 +42,8 @@ let strip_wrap =
 let make_term_parse = (s: string) =>
   strip_wrap(
     Haz3lcore.MakeTerm.from_zip_for_sem(
-      Option.get(Haz3lcore.Parser.to_zipper(s)),
+      Option.get(Haz3lcore.Parser.to_zipper(s, ~root=Exp)),
+      ~root=Exp,
     ).
       term,
   );
@@ -505,7 +506,7 @@ in
 
 let string = "Hello, world!" in
 let concatenation  = string ++ " Goodbye." in
-let comparison = string$== "Hello, world!" in
+let comparison = string== "Hello, world!" in
 
 let tuple : (Int, Bool, (Bool, Int)) =
 (1, true, (false, 3)) in
@@ -552,8 +553,8 @@ type Exp =
 let exp_equal: (Exp, Exp) -> Bool =
   fun es ->
     case es
-      | (Var(x), Var(y)) => x$== y
-      | (Lam((x1, e1)), Lam((x2, e2))) => x1$== x2 && exp_equal(e1, e2)
+      | (Var(x), Var(y)) => x== y
+      | (Lam((x1, e1)), Lam((x2, e2))) => x1== x2 && exp_equal(e1, e2)
       | (Ap((e1, e2)), Ap((e3, e4))) => exp_equal(e1, e3) && exp_equal(e2, e4)
       | _ => false
     end
@@ -664,8 +665,8 @@ type Exp =
 let exp_equal: (Exp, Exp) -> Bool =
   fun es ->
     case es
-      | (Var(x), Var(y)) => x$== y
-      | (Lam((x1, e1)), Lam((x2, e2))) => x1$== x2 && exp_equal(e1, e2)
+      | (Var(x), Var(y)) => x== y
+      | (Lam((x1, e1)), Lam((x2, e2))) => x1== x2 && exp_equal(e1, e2)
       | (Ap((e1, e2)), Ap((e3, e4))) => exp_equal(e1, e3) && exp_equal(e2, e4)
       | _ => false end in
 
@@ -673,7 +674,7 @@ let subst: (Exp, String, Exp) -> Exp=
   fun (v, name, f) ->
     case f
       | Var(n) =>
-        (if n$== name then v else f)
+        (if n== name then v else f)
       | Lam((x, body)) =>
         Lam(x, subst(v,name, body))
       | Ap((e1,e2)) =>
@@ -688,7 +689,7 @@ let result_equal: (Result, Result) -> Bool =
   fun rs ->
     case rs
       | (Ok(e1), Ok(e2)) => exp_equal(e1, e2)
-      | (Error(e1), Error(e2)) => e1$== e2
+      | (Error(e1), Error(e2)) => e1== e2
 | _ => false end in
 
 let go: Exp -> Result =
