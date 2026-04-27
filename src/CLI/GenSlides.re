@@ -179,7 +179,7 @@ let generate_ml_file = (rel_path: string): option((string, string)) => {
         content;
       };
 
-    switch (Haz3lcore.Parser.to_zipper(content)) {
+    switch (Haz3lcore.Parser.to_zipper(~root=Exp, content)) {
     | None =>
       prerr_endline("Failed to parse: " ++ rel_path);
       None;
