@@ -34,7 +34,7 @@ let of_delim' =
         | _ when Token.is_explicit_hole(token) => "explicit-hole"
         | _ when Token.is_string(token) => "string-lit"
         | _ when is_infix_var => "Any" /* Budget error deco */
-        | _ => Sort.to_string(sort)
+        | _ => Sort.class_of(sort)
         };
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
@@ -76,6 +76,11 @@ let view =
       ~refractor_shape_map: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
+      /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
+         using information unavailable at this purely syntactic layer (e.g.
+         statics refining `Drv(Exp)` to `Drv(Jdmt)`/`Drv(Ctx)`/`Drv(Prop)`).
+         The default leaves the mold sort unchanged. */
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~buffer_ids: list(Id.t),
       segment: Segment.t,
     ) => {
@@ -94,31 +99,41 @@ let view =
   let lb_icon = settings.secondary_icons ? "⏎" : "";
   let ws_icon = settings.secondary_icons ? "·" : " ";
 
-  let is_consistent = (t: Tile.t) =>
+  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, t.mold.out);
+
+  let is_consistent = (sort: Sort.t, t: Tile.t) =>
     switch (Id.Map.find_opt(t.id, term_data)) {
     | None => true
     | Some(data) =>
-      switch (t.mold.out, data.sort) {
+      switch (sort, data.sort) {
       | (Any, _)
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
-      | _ => t.mold.out == data.sort
+      /* All Drv(_) sub-sorts (Jdmt/Ctx/Prop/Exp) are treated as mutually
+         consistent for highlighting purposes. term_data carries the sort
+         the parser assigned (always the collapsed Drv(Exp) for these), so
+         strict sort equality with the statics-refined sort would spuriously
+         flag judgments/contexts/propositions as inconsistent. */
+      | (Drv(_), _) => true
+      | _ => sort == data.sort
       }
     };
 
-  let of_delim = (t: Piece.tile, i: int): t =>
+  let of_delim = (t: Piece.tile, i: int): t => {
+    let sort = sort(t);
     of_delim'(
       List.nth(t.label, i),
       List.length(t.label),
-      t.mold.out,
-      is_consistent(t),
+      sort,
+      is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
       Tile.is_complete(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
       font_metrics,
     );
+  };
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);
 

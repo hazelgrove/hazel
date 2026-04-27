@@ -17,7 +17,12 @@ module Model = {
     cells: Tutorial.stitched(CellEditor.Model.t),
   };
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors = Tutorial.map(spec, Editor.Model.mk, Editor.Model.mk);
+    let editors =
+      Tutorial.map(
+        spec,
+        Editor.Model.mk(~root=Exp),
+        Editor.Model.mk(~root=Exp),
+      );
     let term_item_to_cell = (item: Tutorial.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -196,7 +201,7 @@ module Update = {
       model |> Updated.return_quiet(~recalculate=true);
     | ResetEditor(pos) =>
       let spec = Tutorial.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(spec);
+      let new_editor = Editor.Model.mk(spec, ~root=Exp);
       {
         ...model,
         editors:
@@ -205,7 +210,11 @@ module Update = {
       |> Updated.return;
     | ResetTutorial =>
       let new_editors =
-        Tutorial.map(model.spec, Editor.Model.mk, Editor.Model.mk);
+        Tutorial.map(
+          model.spec,
+          Editor.Model.mk(~root=Exp),
+          Editor.Model.mk(~root=Exp),
+        );
       {
         ...model,
         editors: new_editors,
@@ -351,13 +360,19 @@ module Selection = {
   type t =
     | Cell(Tutorial.pos, CellEditor.Selection.t)
     | TextBox;
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | Cell(pos, s) =>
       switch (Tutorial.get_stitched(pos, model.cells)) {
       | cell_editor =>
         let+ a =
-          CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(Editor(pos, a)),
+            ~selection=s,
+            cell_editor,
+          );
         Update.Editor(pos, a);
       | exception (Failure(_)) => empty
       }
@@ -365,23 +380,6 @@ module Selection = {
     };
   };
 
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | Cell(pos, s) =>
-      switch (Tutorial.get_stitched(pos, model.cells)) {
-      | cell_editor =>
-        CellEditor.Selection.handle_key_event(
-          ~selection=s,
-          ~event,
-          cell_editor,
-        )
-        |> Option.map(a => Update.Editor(pos, a))
-      | exception (Failure(_)) => None
-      }
-    | TextBox => None
-    };
-  };
   let jump_to_tile =
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Tutorial.positioned_editors(model.editors)

@@ -17,18 +17,12 @@ let tests = (
             string(
               ~ann=
                 Some(
-                  FTemp.Typ.(
-                    Exp(
-                      Common(
-                        Inconsistent(
-                          Expectation({
-                            ana: int(),
-                            syn: string(),
-                          }),
-                        ),
-                      ),
-                    )
-                  ),
+                  Marks([
+                    ExpectationMismatch({
+                      ana: FTemp.Typ.int(),
+                      syn: FTemp.Typ.string(),
+                    }),
+                  ]),
                 ),
               "hello",
             ),

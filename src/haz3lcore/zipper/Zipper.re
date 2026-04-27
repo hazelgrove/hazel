@@ -54,15 +54,16 @@ let regrout = (d: Direction.t, z: t): t => {
   };
 };
 
-let remold = (z: t): t => {
+let remold = (z: t, ~root): t => {
   assert(Selection.is_empty(z.selection));
   {
     ...z,
-    relatives: Relatives.remold(z.relatives),
+    relatives: Relatives.remold(z.relatives, root),
   };
 };
 
-let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t, ~root): t =>
+  z |> remold(~root) |> regrout(d);
 
 /* Rescan ancestor-level siblings: converts standalone monotiles that
  * match a parent ancestor's missing shards, giving them the parent's
@@ -217,13 +218,13 @@ let rescan_parent_shards = (z: t): t => {
  * tokens that end up in a new sort context (e.g. standalone `|`
  * and `=>` becoming Rule tiles inside a case body).
  * Should be called after edits, not during cursor movement. */
-let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
+let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
     if (siblings == z.relatives.siblings) {
       z;
     } else {
-      let old_sort = Ancestors.sort(z.relatives.ancestors);
+      let old_sort = Ancestors.sort(root, z.relatives.ancestors);
       let relatives =
         {
           ...z.relatives,
@@ -233,14 +234,15 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
       /* If reassembly created a new ancestor (changing the sort context),
        * reforge the siblings in the new sort to handle tokens that need
        * re-expansion (e.g., | and => inside a case body). */
-      let new_sort = Ancestors.sort(relatives.ancestors);
+      let new_sort = Ancestors.sort(root, relatives.ancestors);
       let relatives =
         if (new_sort != old_sort) {
           Relatives.reforge_siblings(new_sort, relatives);
         } else {
           relatives;
         };
-      let relatives = relatives |> Relatives.remold |> Relatives.regrout(d);
+      let relatives =
+        relatives |> (r => Relatives.remold(r, root)) |> Relatives.regrout(d);
       {
         ...z,
         relatives,
@@ -251,7 +253,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
     if (z'.relatives.ancestors != z.relatives.ancestors
         || z'.relatives.siblings != z.relatives.siblings) {
       let relatives =
-        z'.relatives |> Relatives.remold |> Relatives.regrout(d);
+        Relatives.remold(z'.relatives, root) |> Relatives.regrout(d);
       {
         ...z',
         relatives,
@@ -527,8 +529,11 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let insert_segment = (z: t, seg: Segment.t): t =>
-  z |> replace_selection(Right, seg) |> unselect |> remold_regrout(Right);
+let insert_segment = (z: t, seg: Segment.t, ~root): t =>
+  z
+  |> replace_selection(Right, seg)
+  |> unselect
+  |> remold_regrout(Right, ~root);
 
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
@@ -552,14 +557,17 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-let put_down_target = (d: Direction.t, target: Tile.t, z: t): t =>
-  z |> put_down_core([Tile(target)]) |> remold_regrout(Left) |> adj_pos(d);
+let put_down_target = (d: Direction.t, target: Tile.t, z: t, ~root): t =>
+  z
+  |> put_down_core([Tile(target)])
+  |> remold_regrout(Left, ~root)
+  |> adj_pos(d);
 
-let put_down = (z: t): option(t) =>
+let put_down = (z: t, ~root): option(t) =>
   z.caret == Outer
     ? {
       let+ target = backpack_hd(z);
-      put_down_target(Left, target, z);
+      put_down_target(Left, target, z, ~root);
     }
     : None;
 
