@@ -285,6 +285,26 @@ let tests =
         ty_alias(TPat.var("x"), Typ.int(), int(1)),
         "type x = Int in 1",
       ),
+      menhir_only_test(
+        "Parameterized type alias",
+        ty_alias(
+          TPat.param("Option", [TPat.var("a")]),
+          Typ.sum([
+            Variant("None", ConstructorMap.empty_variant_ann, None),
+            Variant(
+              "Some",
+              ConstructorMap.empty_variant_ann,
+              Some(Typ.var("a")),
+            ),
+          ]),
+          let_(
+            Pat.asc(Pat.var("x"), Typ.typ_app(Typ.var("Option"), Typ.int())),
+            ap(Forward, constructor("Some", None), int(3)),
+            var("x"),
+          ),
+        ),
+        "type Option(a) = + None + Some(a) in let x : Option(Int) = Some(3) in x",
+      ),
       full_parser_test(
         "Test",
         test(bin_op(Poly(Equals), int(3), int(3))),
