@@ -285,7 +285,7 @@ let tests =
         ty_alias(TPat.var("x"), Typ.int(), int(1)),
         "type x = Int in 1",
       ),
-      menhir_only_test(
+      full_parser_test(
         "Parameterized type alias",
         ty_alias(
           TPat.param("Option", [TPat.var("a")]),

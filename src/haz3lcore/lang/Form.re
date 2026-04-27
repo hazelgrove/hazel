@@ -367,6 +367,7 @@ type compound_form =
   | CommaExp
   | CommaPat
   | CommaTyp
+  | CommaTPat
   // PAIRED DELIMITERS:
   | ListLitExp
   | ListLitPat
@@ -381,6 +382,7 @@ type compound_form =
   | ApPatEmpty
   | ApPat
   | ApTyp
+  | ApTPat
   | ApExpTyp
   | Case
   | Test
@@ -476,6 +478,7 @@ let get: compound_form => t =
   | CommaExp => mk_infix(",", Exp, P.comma)
   | CommaPat => mk_infix(",", Pat, P.comma)
   | CommaTyp => mk_infix(",", Typ, P.comma)
+  | CommaTPat => mk_infix(",", TPat, P.comma)
   // PAIRED DELIMITERS:
   | ListLitExp => mk_op_c(LT, ["[", "]"], Exp, [Exp])
   | ListLitPat => mk_op_c(LT, ["[", "]"], Pat, [Pat])
@@ -490,6 +493,7 @@ let get: compound_form => t =
   | ApPatEmpty => mk_post_c(LT, ["()"], P.ap, Pat, [])
   | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Pat, [Pat])
   | ApTyp => mk_post_c(LT, ["(", ")"], P.type_sum_ap, Typ, [Typ])
+  | ApTPat => mk_post_c(LT, ["(", ")"], P.ap, TPat, [TPat])
   | ApExpTyp => mk_post_c(L, ["@<", ">"], P.ap, Exp, [Typ])
   | Case => mk_op_c(L, ["case", "end"], Exp, [Rul])
   | Test => mk_op_c(L, ["test", "end"], Exp, [Exp])

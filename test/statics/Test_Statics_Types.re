@@ -483,20 +483,24 @@ let tests = (
       {|fun (?: (Float((+ A(Bool))))) -> ""|},
     ),
     test_case(
-      "Type parse failure",
+      "Type application kind failure",
       `Quick,
       () => {
-        // This was https://github.com/hazelgrove/hazel/issues/1459 which used to crash statics
+        // This was https://github.com/hazelgrove/hazel/issues/1459 which used to crash statics.
+        // With type-level application syntax, it is now a kind error rather than a parse failure.
         let exp = parse_exp("type x = Int(Float) in let y : x =  1");
         let s = statics(exp);
-
-        let errors = errors(s) |> List.map(((_, ms)) => Marks(ms));
+        let marks = errors(s) |> List.map(snd) |> List.flatten;
 
         check(
-          list(testable_issue),
-          "Has parse failure error",
-          [Marks([Mark.TypParseFailure])],
-          errors,
+          bool,
+          "Has kind error",
+          true,
+          List.exists(
+            mark =>
+              equal_mark(mark, Mark.TypApplyNonArrowKind(TypKind.Type)),
+            marks,
+          ),
         );
       },
     ),

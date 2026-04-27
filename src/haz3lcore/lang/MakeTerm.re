@@ -58,6 +58,7 @@ let is_nary =
 let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
+let is_tuple_tpat = is_nary(Any.is_tpat, ",");
 let is_tuple_drv_exp = is_nary(Any.is_drv_exp, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_mod_seq = is_nary(Any.is_mod, ";");
@@ -269,6 +270,25 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
       },
       None,
     )
+  | {
+      term:
+        TypApp(
+          {
+            term: Var(ctr),
+            annotation: {ids: ids_ctr, secondary: (inner_before, _)},
+          },
+          u,
+        ),
+      annotation: {ids: ids_ap, secondary: (_, outer_after)},
+    } =>
+    Variant(
+      ctr,
+      {
+        ids: ids_ctr @ ids_ap,
+        secondary: (inner_before, outer_after),
+      },
+      Some(u),
+    )
   /* Constructor applications in sum type definitions are implemented as having type sort;
      until they are reimplemented as their own sort, we must prevent these from being parsed
      into types, where they can go on to mess with statics. Thus we let them fall through to
@@ -299,6 +319,10 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
       Some(u),
     )
   | t => BadEntry(t);
+
+let apply_type_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
+  TypApp(fn, arg);
+};
 
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
@@ -1157,9 +1181,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(Typ(_t), tiles) as tm =>
+  | Post(Typ(t), tiles) as tm =>
     switch (tiles) {
-    /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
+    | ([(_id, (["(", ")"], [Typ(arg)]))], []) =>
+      ret(apply_type_args(t, arg))
     | _ => ret(hole(tm))
     }
   /* poly and rec have to be before sum so that they bind tighter.
@@ -1248,6 +1273,12 @@ and tpat = unsorted => {
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
   let hole = unsorted => TPat.hole(kids_of_unsorted(unsorted));
+  let params_of_tpat = (tp: TPat.t): option(list(TPat.t)) =>
+    switch (tp.term) {
+    | MultiHole(things) =>
+      things |> List.map(Any.is_tpat) |> OptUtil.sequence
+    | _ => Some([tp])
+    };
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -1263,7 +1294,36 @@ and tpat_term: unsorted => TPat.term = {
       )
     | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | Post(TPat(head), tiles) as tm =>
+    switch (head.term, tiles) {
+    | (Var(name), ([(_id, (["(", ")"], [TPat(params)]))], [])) =>
+      switch (params_of_tpat(params)) {
+      | Some(params) => ret(Param(name, params))
+      | None => ret(hole(tm))
+      }
+    | (
+        Param(name, existing_params),
+        ([(_id, (["(", ")"], [TPat(params)]))], []),
+      ) =>
+      switch (params_of_tpat(params)) {
+      | Some(params) => ret(Param(name, existing_params @ params))
+      | None => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
+  | Bin(TPat(t1), tiles, TPat(t2)) as tm =>
+    switch (is_tuple_tpat(tiles)) {
+    | Some(between_kids) =>
+      ret(
+        MultiHole(
+          [Grammar.TPat(t1)]
+          @ List.map((tpat: TPat.t) => Grammar.TPat(tpat), between_kids)
+          @ [Grammar.TPat(t2)],
+        ),
+      )
+    | None => ret(hole(tm))
+    }
+  | Pre(_) as tm => ret(hole(tm))
   | tm => ret(hole(tm));
 }
 /* Phase 1.2: Module parsing - placeholder implementation */
